@@ -1,11 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { useState } from 'react'
 import { useRouter } from 'expo-router'
 import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import { Trade, TradeItem, acceptTrade, needsMemberAcceptance, rejectTrade, vetoTrade, withdrawTrade } from '@/lib/trades'
-import { getRoster, RosterPlayer } from '@/lib/roster'
-import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
-import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { Trade, TradeItem, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -129,21 +125,25 @@ function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | null {
 export function TradeCard({
     trade,
     myMemberId,
-    leagueId,
-    rosterSize,
     tab,
     tradeVetoMode = 'member_vote',
     isCommissioner = false,
-    onAction,
+    acting,
+    onAccept,
+    onReject,
+    onVeto,
+    onWithdraw,
 }: {
     trade: Trade
     myMemberId: string
-    leagueId: string
-    rosterSize: number
     tab: TradeTabKey
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
-    onAction: () => void
+    acting: boolean
+    onAccept: () => void
+    onReject: () => void
+    onVeto: () => void
+    onWithdraw: () => void
 }) {
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
@@ -193,129 +193,6 @@ export function TradeCard({
         })}`
         : null
 
-    const [acting, setActing] = useState(false)
-    const [dropPickerVisible, setDropPickerVisible] = useState(false)
-    const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
-    const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set())
-    const [neededDrops, setNeededDrops] = useState(0)
-    const [dropping, setDropping] = useState<string | null>(null)
-
-    async function handleAccept() {
-        setActing(true)
-        try {
-            const roster = await getRoster(myMemberId, leagueId)
-            const activeCount = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi).length
-            const incomingPlayers = iReceive.filter((i) => i.kind === 'player').length
-            const outgoingPlayers = iGive.filter((i) => i.kind === 'player').length
-            const newCount = activeCount - outgoingPlayers + incomingPlayers
-            const overflow = newCount - rosterSize
-
-            if (overflow > 0) {
-                const outgoingPlayerIds = new Set(
-                    iGive.filter((item) => item.kind === 'player').map((item) => item.playerId),
-                )
-                const activeRoster = roster.filter(
-                    (player) =>
-                        !player.is_on_ir &&
-                        !player.is_on_taxi &&
-                        !outgoingPlayerIds.has(player.players?.id ?? ''),
-                )
-                setMyRoster(activeRoster)
-                setNeededDrops(overflow)
-                setDroppedIds(new Set())
-                setActing(false)
-                setDropPickerVisible(true)
-                return
-            }
-
-            await acceptTrade(trade.id, myMemberId)
-            onAction()
-        } catch (e) {
-            showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
-        } finally {
-            setActing(false)
-        }
-    }
-
-    async function handleDropAndAccept(rosterPlayerId: string) {
-        const next = new Set([...droppedIds, rosterPlayerId])
-        setDroppedIds(next)
-
-        if (next.size < neededDrops) return
-
-        setDropping(rosterPlayerId)
-        try {
-            await acceptTrade(trade.id, myMemberId, [...next])
-            setDropPickerVisible(false)
-            onAction()
-        } catch (e) {
-            setDroppedIds((current) => {
-                const retryable = new Set(current)
-                retryable.delete(rosterPlayerId)
-                return retryable
-            })
-            showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
-        } finally {
-            setDropping(null)
-        }
-    }
-
-    function handleCancelDropPicker() {
-        setDropPickerVisible(false)
-        setDroppedIds(new Set())
-        setMyRoster([])
-    }
-
-    function handleReject() {
-        confirmAction('Reject Trade', 'Are you sure you want to reject this trade?', () => {
-            void (async () => {
-                setActing(true)
-                try {
-                    await rejectTrade(trade.id, myMemberId)
-                    onAction()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e) ?? 'Could not reject trade.')
-                } finally {
-                    setActing(false)
-                }
-            })()
-        }, 'Reject')
-    }
-
-    function handleWithdraw() {
-        confirmAction('Withdraw Trade', 'Are you sure you want to withdraw this offer?', () => {
-            void (async () => {
-                setActing(true)
-                try {
-                    await withdrawTrade(trade.id, myMemberId)
-                    onAction()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e) ?? 'Could not withdraw trade.')
-                } finally {
-                    setActing(false)
-                }
-            })()
-        }, 'Withdraw')
-    }
-
-    function handleVeto() {
-        confirmAction('Veto Trade', 'Are you sure you want to veto this accepted trade?', () => {
-            void (async () => {
-                setActing(true)
-                try {
-                    await vetoTrade(trade.id, myMemberId)
-                    onAction()
-                } catch (e) {
-                    showAlert('Error', getErrorMessage(e) ?? 'Could not veto trade.')
-                } finally {
-                    setActing(false)
-                }
-            })()
-        }, 'Veto')
-    }
-
-    const remainingDrops = neededDrops - droppedIds.size
-
     return (
         <MotionView style={styles.card} preset="rise">
             <View style={styles.cardHeader}>
@@ -357,7 +234,7 @@ export function TradeCard({
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}
-                        onPress={handleAccept}
+                        onPress={onAccept}
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Accept trade with ${opponentName}`}
@@ -370,7 +247,7 @@ export function TradeCard({
                     {canReject ? (
                         <MotionPressable
                             style={[styles.actionBtn, styles.actionBtnReject]}
-                            onPress={handleReject}
+                            onPress={onReject}
                             disabled={acting}
                             accessibilityRole="button"
                             accessibilityLabel={`Reject trade with ${opponentName}`}
@@ -411,7 +288,7 @@ export function TradeCard({
                     </MotionPressable>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={handleWithdraw}
+                        onPress={onWithdraw}
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Withdraw trade with ${opponentName}`}
@@ -427,7 +304,7 @@ export function TradeCard({
                 <View style={styles.cardActions}>
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={handleVeto}
+                        onPress={onVeto}
                         disabled={acting}
                         accessibilityRole="button"
                         accessibilityLabel={`Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`}
@@ -439,16 +316,6 @@ export function TradeCard({
                     </MotionPressable>
                 </View>
             )}
-
-            <DropPlayerPickerModal
-                visible={dropPickerVisible}
-                title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to make room`}
-                subtitle={`Select ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to drop, then the trade will be accepted atomically.`}
-                roster={myRoster.filter((player) => !droppedIds.has(player.id))}
-                dropping={dropping}
-                onDrop={(rp) => handleDropAndAccept(rp.id)}
-                onCancel={handleCancelDropPicker}
-            />
         </MotionView>
     )
 }

@@ -196,6 +196,22 @@ export function buildMultiTeamTradeItems(
     })
 }
 
+export function isMultiTeamTradeSubmittable(
+    participantIds: readonly string[],
+    items: readonly MultiTeamTradeItemPayload[],
+): boolean {
+    const participants = new Set(participantIds.filter(Boolean))
+    if (participants.size < 3 || items.length === 0) return false
+    const involved = new Set<string>()
+    for (const item of items) {
+        if (!participants.has(item.fromMemberId) || !participants.has(item.toMemberId) ||
+            item.fromMemberId === item.toMemberId) return false
+        involved.add(item.fromMemberId)
+        involved.add(item.toMemberId)
+    }
+    return [...participants].every((memberId) => involved.has(memberId))
+}
+
 export function multiTeamTradeStateFromTrade(trade: Trade, actorMemberId: string): MultiTeamTradeState {
     const tradeParticipantIds = trade.participants.length > 0
         ? trade.participants.map((participant) => participant.memberId)

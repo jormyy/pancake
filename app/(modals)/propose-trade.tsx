@@ -8,6 +8,7 @@ import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
+import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
 import { getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
@@ -177,7 +178,7 @@ export default function ProposeTradeScreen() {
     const tradingClosed = isTradingClosed(currentLeague)
     const canSubmit = !tradingClosed && !submitting && !composer.rosterLoading && (
         multiTeamMode
-            ? participantIds.length >= 3 && items.length > 0
+            ? isMultiTeamTradeSubmittable(participantIds, items)
             : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest)
     )
 

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
+import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
@@ -35,6 +36,7 @@ import {
 import { tradeScreenWatches } from '@/lib/trades-realtime'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
+import { useTradeActions } from '@/hooks/use-trade-actions'
 import {
     buildTradeScreenModel,
     tradeListItemType,
@@ -71,6 +73,12 @@ export default function TradesScreen() {
         refresh: load,
         loadMore: loadMoreTrades,
     } = useTradesFeed(myMemberId, leagueId)
+    const tradeActions = useTradeActions({
+        memberId: myMemberId,
+        leagueId,
+        rosterSize,
+        onAction: load,
+    })
     const {
         items: blockItems,
         roster: blockRoster,
@@ -151,14 +159,16 @@ export default function TradesScreen() {
                 return <TradeBlockPickRow item={item} listed={listedPickIds.has(item.pick.pickId)}
                     busy={blockBusyId === item.pick.pickId} onList={handleListPick} />
             case 'trade':
-                return <TradeOfferRow item={item} myMemberId={myMemberId} leagueId={leagueId}
-                    rosterSize={rosterSize} tab={tab}
+                return <TradeOfferRow item={item} myMemberId={myMemberId} tab={tab}
                     tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
-                    isCommissioner={isCommissioner} onAction={load} />
+                    isCommissioner={isCommissioner} acting={tradeActions.busyTradeId === item.trade.id}
+                    onAccept={tradeActions.accept} onReject={tradeActions.reject}
+                    onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw} />
         }
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, currentLeague?.trade_veto_mode, handleListPick, handleListPlayer,
-        handleRemoveBlockItem, isCommissioner, leagueId, listedPickIds, listedPlayerIds, load, myMemberId,
-        myTeamName, rosterSize, tab])
+        handleRemoveBlockItem, isCommissioner, listedPickIds, listedPlayerIds, myMemberId,
+        myTeamName, tab, tradeActions.accept, tradeActions.busyTradeId, tradeActions.reject,
+        tradeActions.veto, tradeActions.withdraw])
 
     const activeTabLoading = tab === 'picks' ? picksLoading && picksList.length === 0
         : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
@@ -190,6 +200,7 @@ export default function TradesScreen() {
         </View></SafeAreaView>
     }
     if (memberships.length === 0) return <NoLeagueState />
+    const remainingDrops = tradeActions.dropPicker?.needed ?? 0
     return <SafeAreaView style={styles.container}><View style={styles.content}>
         <TradeHeader disabled={tradingClosed} onPropose={() => push('/(modals)/propose-trade')} />
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
@@ -203,7 +214,15 @@ export default function TradesScreen() {
                         ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
                         onEndReached={tab === 'history' && tradesHaveMore ? loadMoreTrades : undefined}
                         onEndReachedThreshold={0.4} />}
-    </View></SafeAreaView>
+    </View><DropPlayerPickerModal
+        visible={tradeActions.dropPicker != null}
+        title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to make room`}
+        subtitle={`Select ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to drop, then the trade will be accepted atomically.`}
+        roster={tradeActions.dropPicker?.roster ?? []}
+        dropping={tradeActions.droppingRosterPlayerId}
+        onDrop={(player) => { void tradeActions.selectDrop(player.id) }}
+        onCancel={tradeActions.cancelDrops}
+    /></SafeAreaView>
 }
 
 function TradeHeader({ disabled, onPropose }: { disabled: boolean; onPropose: () => void }) {

@@ -193,25 +193,31 @@ export const TradeBlockPickRow = memo(function TradeBlockPickRow({
 export const TradeOfferRow = memo(function TradeOfferRow({
     item,
     myMemberId,
-    leagueId,
-    rosterSize,
     tab,
     tradeVetoMode,
     isCommissioner,
-    onAction,
+    acting,
+    onAccept,
+    onReject,
+    onVeto,
+    onWithdraw,
 }: {
     item: ItemOf<'trade'>
     myMemberId: string
-    leagueId: string
-    rosterSize: number
     tab: TradeTabKey
     tradeVetoMode: TradeVetoMode
     isCommissioner: boolean
-    onAction: () => void | Promise<void>
+    acting: boolean
+    onAccept: (trade: ItemOf<'trade'>['trade']) => void
+    onReject: (tradeId: string) => void
+    onVeto: (tradeId: string) => void
+    onWithdraw: (tradeId: string) => void
 }) {
-    return <TradeCard trade={item.trade} myMemberId={myMemberId} leagueId={leagueId}
-        rosterSize={rosterSize} tab={tab} tradeVetoMode={tradeVetoMode}
-        isCommissioner={isCommissioner} onAction={onAction} />
+    return <TradeCard trade={item.trade} myMemberId={myMemberId}
+        tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner}
+        acting={acting} onAccept={() => onAccept(item.trade)}
+        onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
+        onWithdraw={() => onWithdraw(item.trade.id)} />
 })
 
 const styles = StyleSheet.create({

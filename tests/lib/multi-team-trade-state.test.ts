@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
     buildMultiTeamTradeItems,
     createMultiTeamTradeState,
+    isMultiTeamTradeSubmittable,
     multiTeamTradeReducer,
     multiTeamTradeStateFromTrade,
 } from '@/lib/multi-team-trade-state'
@@ -54,6 +55,16 @@ function routedTrade(items: RoutedTradeItem[]): Trade {
 }
 
 describe('multi-team trade state', () => {
+    it('requires every selected participant to send or receive an asset before submission', () => {
+        expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
+            { fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
+        ])).toBe(false)
+        expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
+            { fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },
+            { fromMemberId: 'C', toMemberId: 'A', pickId: 'pick-1' },
+        ])).toBe(true)
+    })
+
     it('sets an exact two-team specialization without discarding selected assets', () => {
         let state = multiTeamTradeReducer(createMultiTeamTradeState('A'), {
             type: 'set-participants',
