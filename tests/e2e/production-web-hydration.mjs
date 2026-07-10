@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { clickLinkByName, createBrowser, fillSignInCredentials } from './browser-agent.mjs'
-import { normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { browserDiagnosticFailures } from './browser-runtime-overrides.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const frontendUrl = process.env.E2E_FRONTEND_URL ?? 'http://127.0.0.1:8082'
@@ -10,19 +10,7 @@ const artifactPath = path.join(process.cwd(), 'tests/artifacts/stack/production-
 const session = `pancake-production-hydration-${process.pid}`
 const browser = createBrowser()
 
-const consoleErrorPattern = /(?:\[error\]|console\.error|uncaught|unhandled|hydration|hydrated but|server rendered html|did not match)/i
-
-export const productionBrowserFailures = ({ consoleOutput, errorOutput }) => {
-  const failures = []
-  const browserErrors = normalizeBrowserErrors(errorOutput)
-  if (browserErrors) failures.push(`browser errors: ${browserErrors}`)
-  const consoleErrors = consoleOutput
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => consoleErrorPattern.test(line))
-  if (consoleErrors.length > 0) failures.push(`console errors: ${consoleErrors.join(' | ')}`)
-  return failures
-}
+export const productionBrowserFailures = browserDiagnosticFailures
 
 const waitForPath = async (pathname) => {
   let currentUrl = frontendUrl

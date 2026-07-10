@@ -83,6 +83,14 @@ describe('release E2E contracts', () => {
       .toEqual([expect.stringContaining('console errors')])
     expect(productionBrowserFailures({ consoleOutput: '', errorOutput: 'TypeError: render failed' }))
       .toEqual([expect.stringContaining('browser errors')])
+    expect(productionBrowserFailures({ consoleOutput: '[warn] benign warning', errorOutput: '' })).toEqual([])
+  })
+
+  it('gates every browser evidence surface on console and browser errors', async () => {
+    for (const file of ['browser-smoke.mjs', 'browser-perf-smoke.mjs', 'browser-scenario-lifecycle.mjs']) {
+      const source = await readFile(path.join(process.cwd(), 'tests/e2e', file), 'utf8')
+      expect(source, file).toContain('browserDiagnosticFailures(')
+    }
   })
 
   it('rejects a declared workflow budget when any measurement is absent', () => {

@@ -48,6 +48,7 @@ const runScreenshot = async ({ cwd, maxBuffer, session, args, timeout }) => {
   const outputPath = args[1]
   if (screenshotsSkipped()) {
     await writeScreenshotError(outputPath, SCREENSHOT_SKIP_MESSAGE)
+    if (process.env.CI) throw new Error(`${SCREENSHOT_SKIP_MESSAGE}; CI requires visual evidence`)
     return ''
   }
 
@@ -159,11 +160,6 @@ export const captureBrowserScreenshot = async (browser, session, artifactDir, fi
     return { ok: false, path: outputPath, skipped: true, error: SCREENSHOT_SKIP_MESSAGE }
   }
 
-  try {
-    await browser(session, ['screenshot', outputPath])
-    return { ok: true, path: outputPath }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return { ok: false, path: outputPath, error: message }
-  }
+  await browser(session, ['screenshot', outputPath])
+  return { ok: true, path: outputPath }
 }

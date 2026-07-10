@@ -53,3 +53,21 @@ export const normalizeBrowserErrors = (output) => output
   .filter(Boolean)
   .filter((line) => !/^[\u2713\u2717\s]+$/.test(line))
   .join('\n')
+
+const consoleErrorPattern = /(?:^\[error\]|console\.error|uncaught|unhandled|hydration failed|hydrated but|server rendered html.*did not match)/i
+const allowedConsoleErrorPatterns = [
+  /favicon\.ico.*(?:404|not found)/i,
+]
+
+export const browserDiagnosticFailures = ({ consoleOutput, errorOutput }) => {
+  const failures = []
+  const browserErrors = normalizeBrowserErrors(errorOutput)
+  if (browserErrors) failures.push(`browser errors: ${browserErrors}`)
+  const consoleErrors = consoleOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => consoleErrorPattern.test(line))
+    .filter((line) => !allowedConsoleErrorPatterns.some((pattern) => pattern.test(line)))
+  if (consoleErrors.length > 0) failures.push(`console errors: ${consoleErrors.join(' | ')}`)
+  return failures
+}

@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { runBrowserScenarioLifecycle } from './e2e/browser-scenario-lifecycle.mjs'
+import { captureBrowserScreenshot } from './e2e/browser-agent.mjs'
 
 const tempDirs: string[] = []
 
@@ -72,5 +73,32 @@ describe('browser scenario lifecycle', () => {
         expect(JSON.parse(await readFile(path.join(artifactDir, 'summary.json'), 'utf8'))).toEqual(
             JSON.parse(await readFile(reportPath, 'utf8')),
         )
+    })
+
+    it('fails a passing scenario when the browser console reports an application error', async () => {
+        const { artifactDir, reportPath } = await createTempPaths()
+        const browser = vi.fn(async (_session: string, command: string[]) =>
+            command[0] === 'console' ? '[error] query render failed' : browserOutput(command))
+
+        await expect(runBrowserScenarioLifecycle({
+            browser,
+            session: 'session',
+            artifactDir,
+            reportPath,
+            season: 1,
+            fixtureSummary: () => ({}),
+            notes: [],
+            failureLabel: 'scenario failed',
+            run: async () => ({ fields: {}, failures: [] }),
+            verifyFailure: async () => ({}),
+        })).rejects.toThrow('console errors')
+        expect(JSON.parse(await readFile(reportPath, 'utf8'))).toMatchObject({ status: 'FAIL' })
+    })
+
+    it('fails hard when required screenshot transport fails', async () => {
+        const { artifactDir } = await createTempPaths()
+        const browser = vi.fn(async () => { throw new Error('screenshot transport failed') })
+        await expect(captureBrowserScreenshot(browser, 'session', artifactDir, 'required.png'))
+            .rejects.toThrow('screenshot transport failed')
     })
 })

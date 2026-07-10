@@ -3,7 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
-import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
 import { measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
@@ -444,12 +444,11 @@ export async function runBrowserSmoke({
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
-    const normalizedErrors = normalizeBrowserErrors(errorOutput)
-
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
-    if (normalizedErrors) {
-      throw new Error(`Browser reported uncaught errors. See ${path.join(artifactDir, 'errors.txt')}`)
+    const diagnosticFailures = browserDiagnosticFailures({ consoleOutput, errorOutput })
+    if (diagnosticFailures.length > 0) {
+      throw new Error(`Browser diagnostics failed: ${diagnosticFailures.join('; ')}`)
     }
 
     const report = {

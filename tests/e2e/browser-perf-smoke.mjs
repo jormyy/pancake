@@ -4,7 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
-import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { ownScenarioResource, releaseScenarioResource } from './scenario-resource-owner.mjs'
 import { measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
@@ -467,7 +467,7 @@ export async function runBrowserPerfSmoke({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
 
     const failures = []
-    if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
+    failures.push(...browserDiagnosticFailures({ consoleOutput, errorOutput }))
     if (draftPerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`draft heartbeat lag ${draftPerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (homePerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`home heartbeat lag ${homePerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (draftLoad.durationMs > MAX_SCRIPT_MS) failures.push(`draft mutation loop took ${draftLoad.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)

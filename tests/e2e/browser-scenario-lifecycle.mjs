@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
+import { browserDiagnosticFailures } from './browser-runtime-overrides.mjs'
 
 const ROOT = process.cwd()
 
@@ -81,9 +81,7 @@ export async function runBrowserScenarioLifecycle({
     const result = await run({ record })
     const diagnostics = await captureDiagnostics({ browser, session, artifactDir, screenshot: false })
     const failures = [...result.failures]
-    if (normalizeBrowserErrors(diagnostics.errorOutput)) {
-      failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
-    }
+    failures.push(...browserDiagnosticFailures(diagnostics))
     report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
