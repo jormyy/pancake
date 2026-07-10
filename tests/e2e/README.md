@@ -136,7 +136,7 @@ Browser future-pick trade proposal gameplay is available through `npm run e2e:br
 
 Browser future-pick trade acceptance gameplay is available through `npm run e2e:browser-trade -- --scenario=future-pick-accept` or `E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 npm run e2e:soak`. It creates an isolated pending five-years-out pick-for-pick trade, accepts it through the real Offers UI, and verifies pick ownership swaps without moving rostered players.
 
-Browser trade overflow acceptance gameplay is available through `npm run e2e:browser-trade -- --scenario=overflow-accept` or `E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 npm run e2e:soak`. It drives the real drop-before-accept modal and verifies the trade completes while the dropped player is logged to waivers.
+Browser trade overflow acceptance gameplay is available through `npm run e2e:browser-trade -- --scenario=overflow-accept` or `E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 npm run e2e:soak`. It accepts through the real Offers UI without an eager drop, verifies the recipient remains over cap, proves lineup edits and free-agent adds are blocked, then performs a corrective drop and verifies the waiver record.
 
 Browser post-deadline trade rejection gameplay is available through `npm run e2e:browser-trade -- --scenario=post-deadline` or `E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 npm run e2e:soak`. It attempts the real proposal flow after the deadline and verifies no trade rows are inserted.
 

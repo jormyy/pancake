@@ -74,7 +74,7 @@ import {
   assertSeasonResetScenario,
   assertWeeklyScoringFinalizationScenario,
 } from './soak-scoring-reset.mjs'
-import { browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
+import { BROWSER_SCENARIO_MANIFEST, browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -174,69 +174,9 @@ const main = async () => {
     args.repeatScenariosEverySeason
       ? 'One-time scenario slices repeat every simulated season through E2E_REPEAT_SCENARIOS_EVERY_SEASON=1.'
       : 'One-time scenario slices run in season 1 only; set E2E_REPEAT_SCENARIOS_EVERY_SEASON=1 to repeat them every simulated season.',
-    args.browser
-      ? `Browser smoke enabled through E2E_ENABLE_BROWSER=1${args.browserFullSweep ? ' with full route sweep.' : '.'}`
-      : 'Browser-driving scenarios must be run with agent-browser against the configured frontend before declaring the app dynasty-stable.',
-    args.browserAuth
-      ? 'Browser auth scenario enabled through E2E_ENABLE_BROWSER_AUTH=1.'
-      : 'Browser auth/sign-out/session-persistence scenario disabled; set E2E_ENABLE_BROWSER_AUTH=1 to exercise D.SET.1.',
-    args.browserPerf
-      ? 'Browser perf smoke enabled through E2E_ENABLE_BROWSER_PERF=1.'
-      : 'Browser perf smoke disabled; set E2E_ENABLE_BROWSER_PERF=1 to exercise D.X.4 under continuous auction and live-score mutations.',
-    args.browserGameplay
-      ? 'Browser gameplay scenario enabled through E2E_ENABLE_BROWSER_GAMEPLAY=1.'
-      : 'Browser gameplay scenario disabled; set E2E_ENABLE_BROWSER_GAMEPLAY=1 to exercise the D.SET.4 auction bid UI slice.',
-    args.browserLineup
-      ? 'Browser lineup scenario enabled through E2E_ENABLE_BROWSER_LINEUP=1.'
-      : 'Browser lineup scenario disabled; set E2E_ENABLE_BROWSER_LINEUP=1 to exercise manual lineup setting.',
-    args.browserLineupAutoSet
-      ? 'Browser lineup auto-set scenario enabled through E2E_ENABLE_BROWSER_LINEUP_AUTO_SET=1.'
-      : 'Browser lineup auto-set scenario disabled; set E2E_ENABLE_BROWSER_LINEUP_AUTO_SET=1 to exercise auto-set lineup setting.',
-    args.browserLineupLocked
-      ? 'Browser lineup locked-player scenario enabled through E2E_ENABLE_BROWSER_LINEUP_LOCKED=1.'
-      : 'Browser lineup locked-player scenario disabled; set E2E_ENABLE_BROWSER_LINEUP_LOCKED=1 to exercise locked-player move blocking.',
-    args.browserPlayoff
-      ? 'Browser playoff champion scenario enabled through E2E_ENABLE_BROWSER_PLAYOFF=1.'
-      : 'Browser playoff champion scenario disabled; set E2E_ENABLE_BROWSER_PLAYOFF=1 to exercise the D.SEA.4 champion bracket UI slice.',
-    args.browserRookieDraft
-      ? 'Browser rookie draft auto-pick scenario enabled through E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1.'
-      : 'Browser rookie draft auto-pick scenario disabled; set E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1 to exercise the D.SEA.5 30-second timer slice.',
-    args.browserWaiver
-      ? 'Browser waiver scenario enabled through E2E_ENABLE_BROWSER_WAIVER=1.'
-      : 'Browser waiver scenario disabled; set E2E_ENABLE_BROWSER_WAIVER=1 to exercise the D.SEA.2 waiver claim UI slice.',
-    args.browserWaiverDrop
-      ? 'Browser waiver drop scenario enabled through E2E_ENABLE_BROWSER_WAIVER_DROP=1.'
-      : 'Browser waiver drop scenario disabled; set E2E_ENABLE_BROWSER_WAIVER_DROP=1 to exercise the D.SEA.2 drop-then-add waiver claim UI slice.',
-    args.browserWaiverIrBlock
-      ? 'Browser waiver IR-block scenario enabled through E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1.'
-      : 'Browser waiver IR-block scenario disabled; set E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK=1 to exercise DTD-on-IR claim blocking.',
-    args.browserTrade
-      ? 'Browser trade proposal scenario enabled through E2E_ENABLE_BROWSER_TRADE=1.'
-      : 'Browser trade proposal scenario disabled; set E2E_ENABLE_BROWSER_TRADE=1 to exercise the D.SEA.2 trade proposal UI slice.',
-    args.browserTradeAccept
-      ? 'Browser trade accept scenario enabled through E2E_ENABLE_BROWSER_TRADE_ACCEPT=1.'
-      : 'Browser trade accept scenario disabled; set E2E_ENABLE_BROWSER_TRADE_ACCEPT=1 to exercise the D.SEA.2 trade accept UI slice.',
-    args.browserTradeTerminal
-      ? 'Browser trade reject/withdraw scenario enabled through E2E_ENABLE_BROWSER_TRADE_TERMINAL=1.'
-      : 'Browser trade reject/withdraw scenario disabled; set E2E_ENABLE_BROWSER_TRADE_TERMINAL=1 to exercise the D.SEA.2 trade terminal-action UI slice.',
-    args.browserTradeFuturePick
-      ? 'Browser future-pick trade scenario enabled through E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1.'
-      : 'Browser future-pick trade scenario disabled; set E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK=1 to exercise the D.SEA.2 future-pick proposal UI slice.',
-    args.browserTradeFuturePickAccept
-      ? 'Browser future-pick trade accept scenario enabled through E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1.'
-      : 'Browser future-pick trade accept scenario disabled; set E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT=1 to exercise the D.SEA.2 future-pick accept UI slice.',
-    args.browserTradeOverflowAccept
-      ? 'Browser trade overflow accept scenario enabled through E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1.'
-      : 'Browser trade overflow accept scenario disabled; set E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT=1 to exercise the D.SEA.2 drop-before-accept UI slice.',
-    args.browserTradePostDeadline
-      ? 'Browser post-deadline trade scenario enabled through E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1.'
-      : 'Browser post-deadline trade scenario disabled; set E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE=1 to exercise the D.SEA.2 trade-deadline rejection slice.',
-    args.browserTradeVeto
-      ? 'Browser trade veto scenario enabled through E2E_ENABLE_BROWSER_TRADE_VETO=1.'
-      : 'Browser trade veto scenario disabled; set E2E_ENABLE_BROWSER_TRADE_VETO=1 to exercise the D.SEA.2 accepted-state veto UI slice.',
-    args.browserLeagueLifecycle
-      ? 'Browser league create/join lifecycle scenario enabled through E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1.'
-      : 'Browser league create/join lifecycle scenario disabled; set E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through the real Expo forms.',
+    ...BROWSER_SCENARIO_MANIFEST.map((scenario) => args[scenario.flag]
+      ? `${scenario.id} browser scenario enabled: ${scenario.evidence}`
+      : `${scenario.id} browser scenario disabled; set ${scenario.envFlag}=1.`),
     args.leagueLifecycle
       ? 'League create/join lifecycle scenario enabled through E2E_ENABLE_LEAGUE_LIFECYCLE=1.'
       : 'League create/join lifecycle scenario disabled; set E2E_ENABLE_LEAGUE_LIFECYCLE=1 to exercise D.SET.2 through real auth RPCs.',

@@ -2,7 +2,7 @@
 /** @typedef {BaseFixture & { trade: { id: string } }} TradeFixture */
 /** @typedef {BaseFixture & { proposerFuturePick: NonNullable<BaseFixture['proposerFuturePick']>, recipientFuturePick: NonNullable<BaseFixture['recipientFuturePick']> }} FuturePickFixture */
 /** @typedef {TradeFixture & FuturePickFixture} FuturePickTradeFixture */
-/** @typedef {TradeFixture & { recipientFuturePick: NonNullable<BaseFixture['recipientFuturePick']>, rosterSize: number }} OverflowTradeFixture */
+/** @typedef {TradeFixture & { recipientFuturePick: NonNullable<BaseFixture['recipientFuturePick']>, rosterSize: number, dropCandidateRosterId: string, freeAgentPlayer: { id: string } }} OverflowTradeFixture */
 /** @typedef {TradeFixture & { observer: NonNullable<BaseFixture['observer']> }} VetoTradeFixture */
 
 /** @param {BaseFixture} fixture */
@@ -441,11 +441,11 @@ export const verifyOverflowTradeAccepted = async (fixture) => {
   if (rosterByPlayer.get(fixture.proposerPlayer.id)?.acquired_via !== 'trade') {
     failures.push(`incoming player acquired_via=${rosterByPlayer.get(fixture.proposerPlayer.id)?.acquired_via ?? '<missing>'}; expected trade`)
   }
-  if (rosterByPlayer.has(fixture.recipientPlayer.id)) {
-    failures.push(`drop candidate ${fixture.recipientPlayer.id} still rostered after overflow accept`)
+  if (rosterByPlayer.get(fixture.recipientPlayer.id)?.member_id !== fixture.recipient.id) {
+    failures.push(`existing player owner=${rosterByPlayer.get(fixture.recipientPlayer.id)?.member_id ?? '<missing>'}; expected recipient ${fixture.recipient.id}`)
   }
-  if (recipientActiveRoster.length !== fixture.rosterSize) {
-    failures.push(`recipient active roster count=${recipientActiveRoster.length}; expected roster_size ${fixture.rosterSize}`)
+  if (recipientActiveRoster.length !== fixture.rosterSize + 1) {
+    failures.push(`recipient active roster count=${recipientActiveRoster.length}; expected lazy overflow ${fixture.rosterSize + 1}`)
   }
   if (picksResult.data.current_owner_id !== fixture.proposer.id) {
     failures.push(`recipient future pick owner=${picksResult.data.current_owner_id}; expected proposer ${fixture.proposer.id}`)
@@ -454,11 +454,11 @@ export const verifyOverflowTradeAccepted = async (fixture) => {
   if (tradeTransactions.length !== 2) {
     failures.push(`trade roster_transactions count=${tradeTransactions.length}; expected 2 player trade rows`)
   }
-  if (dropTransactions.length !== 1) {
-    failures.push(`fa_drop transaction count=${dropTransactions.length}; expected 1 drop-before-accept row`)
+  if (dropTransactions.length !== 0) {
+    failures.push(`fa_drop transaction count=${dropTransactions.length}; expected no automatic trade drop`)
   }
-  if (waiverLogs.length !== 1) {
-    failures.push(`waiver_wire_log rows=${waiverLogs.length}; expected 1 dropped player waiver row`)
+  if (waiverLogs.length !== 0) {
+    failures.push(`waiver_wire_log rows=${waiverLogs.length}; expected no automatic waiver row`)
   }
 
   return {

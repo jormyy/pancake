@@ -1,4 +1,4 @@
-import { setupTradeGameplayFixture } from './trade-fixture.mjs'
+import { findAvailablePlayers, setupTradeGameplayFixture } from './trade-fixture.mjs'
 
 /**
  * @template {{ dispose: () => Promise<void> }} Fixture
@@ -129,6 +129,13 @@ export const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
   const fixture = await setupTradeGameplayFixture(env, season)
   return extendFixture(fixture, async () => {
     if (!fixture.recipientFuturePick) throw new Error('overflow fixture requires a recipient future pick')
+    const [freeAgentPlayer] = await findAvailablePlayers(
+      fixture.admin,
+      fixture.league.id,
+      fixture.currentSeason.id,
+      1,
+      fixture.registerCreatedPlayer,
+    )
     const { error: leagueError } = await fixture.admin
       .from('leagues')
       .update({ roster_size: 1 })
@@ -158,6 +165,7 @@ export const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
       trade,
       rosterSize: 1,
       dropCandidateRosterId: recipientRoster.id,
+      freeAgentPlayer,
     }
   })
 }

@@ -35,6 +35,63 @@ import {
   waitForTradeAccepted,
   writeFile,
 } from './browser-trade-support.mjs'
+import { createClient } from '@supabase/supabase-js'
+
+const exerciseLazyOverflowActions = async (fixture, env) => {
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const { error: signInError } = await client.auth.signInWithPassword({
+    email: fixture.users[1].email,
+    password: fixture.password,
+  })
+  if (signInError) throw new Error(`overflow recipient sign in: ${signInError.message}`)
+
+  const { error: lineupError } = await client.rpc('set_player_slot_moves_atomic', {
+    p_member_id: fixture.recipient.id,
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_game_date: new Date().toISOString().slice(0, 10),
+    p_week_number: 1,
+    p_moves: [],
+  })
+  if (!lineupError || !/over the active player limit/i.test(lineupError.message)) {
+    throw new Error(`overflow lineup mutation was not cap-blocked: ${lineupError?.message ?? 'succeeded'}`)
+  }
+
+  const { error: addError } = await client.rpc('add_free_agent_atomic', {
+    p_member_id: fixture.recipient.id,
+    p_league_id: fixture.league.id,
+    p_player_id: fixture.freeAgentPlayer.id,
+  })
+  if (!addError || !/active roster is full/i.test(addError.message)) {
+    throw new Error(`overflow free-agent add was not cap-blocked: ${addError?.message ?? 'succeeded'}`)
+  }
+
+  const { error: dropError } = await client.rpc('drop_player_atomic', {
+    p_roster_player_id: fixture.dropCandidateRosterId,
+  })
+  if (dropError) throw new Error(`overflow corrective drop failed: ${dropError.message}`)
+
+  const [{ count: activeCount, error: rosterError }, { count: waiverCount, error: waiverError }] = await Promise.all([
+    fixture.admin.from('roster_players').select('id', { count: 'exact', head: true })
+      .eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
+      .eq('member_id', fixture.recipient.id).eq('is_on_ir', false).eq('is_on_taxi', false),
+    fixture.admin.from('waiver_wire_log').select('id', { count: 'exact', head: true })
+      .eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
+      .eq('player_id', fixture.recipientPlayer.id).eq('dropped_by_member_id', fixture.recipient.id),
+  ])
+  if (rosterError) throw new Error(`overflow corrected roster verify: ${rosterError.message}`)
+  if (waiverError) throw new Error(`overflow corrective waiver verify: ${waiverError.message}`)
+  if (activeCount !== fixture.rosterSize) throw new Error(`overflow corrected active count=${activeCount}; expected ${fixture.rosterSize}`)
+  if (waiverCount !== 1) throw new Error(`overflow corrective waiver rows=${waiverCount}; expected 1`)
+
+  return {
+    lineupBlocked: true,
+    freeAgentBlocked: true,
+    correctiveDropAllowed: true,
+    activeCount,
+    waiverCount,
+  }
+}
 
 export async function runBrowserTradeAcceptScenario({
   season = 0,
@@ -441,25 +498,14 @@ export async function runBrowserTradeOverflowAcceptScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-before.png')], { timeout: 60_000 })
 
     const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'overflow trade accept button')
-    await browser(session, ['wait', '750'])
-    await assertPageText(
-      session,
-      [
-        'Drop 1 player to make room',
-        'Select 1 player to drop, then the trade will be accepted atomically.',
-        fixture.recipientPlayer.display_name,
-      ],
-      'overflow drop picker',
-    )
-    await browser(session, ['screenshot', path.join(artifactDir, 'overflow-drop-picker.png')], { timeout: 60_000 })
-
-    const dropClick = await clickTestId(session, `drop-roster-player-${fixture.dropCandidateRosterId}`, 'overflow drop candidate button')
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForOverflowTradeAccepted(fixture)
-    debug = { ...debug, acceptClick, dropClick, accepted }
+    debug = { ...debug, acceptClick, accepted }
     if (accepted.failures.length > 0) {
       throw new Error(`overflow trade accept did not complete: ${accepted.failures.join('; ')}`)
     }
+    const lazyActions = await exerciseLazyOverflowActions(fixture, env)
+    debug = { ...debug, lazyActions }
     await browser(session, ['wait', '1000'])
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-after.png')], { timeout: 60_000 })
 
@@ -482,12 +528,13 @@ export async function runBrowserTradeOverflowAcceptScenario({
         proposerMemberId: fixture.proposer.id,
         recipientMemberId: fixture.recipient.id,
         incomingPlayerId: fixture.proposerPlayer.id,
-        droppedPlayerId: fixture.recipientPlayer.id,
-        droppedRosterPlayerId: fixture.dropCandidateRosterId,
+        correctiveDropPlayerId: fixture.recipientPlayer.id,
+        correctiveDropRosterPlayerId: fixture.dropCandidateRosterId,
         recipientPickId: fixture.recipientFuturePick.id,
         rosterSize: fixture.rosterSize,
       },
       accepted,
+      lazyActions,
       notes,
       failures,
     }
@@ -519,8 +566,8 @@ export async function runBrowserTradeOverflowAcceptScenario({
         proposerMemberId: fixture.proposer.id,
         recipientMemberId: fixture.recipient.id,
         incomingPlayerId: fixture.proposerPlayer.id,
-        droppedPlayerId: fixture.recipientPlayer.id,
-        droppedRosterPlayerId: fixture.dropCandidateRosterId,
+        correctiveDropPlayerId: fixture.recipientPlayer.id,
+        correctiveDropRosterPlayerId: fixture.dropCandidateRosterId,
         recipientPickId: fixture.recipientFuturePick.id,
         rosterSize: fixture.rosterSize,
       },

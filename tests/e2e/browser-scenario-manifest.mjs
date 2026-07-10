@@ -11,14 +11,40 @@ import process from 'node:process'
  * @property {string} resultKey
  * @property {string} evidenceId
  * @property {string} passNote
+ * @property {string} evidence
  * @property {'fast' | 'release'} ciTier
  * @property {boolean} requiresSeed
  * @property {'release'} releaseTier
  * @property {boolean} weekly
  */
 
-/** @type {BrowserScenarioMetadata[]} */
-export const BROWSER_SCENARIO_MANIFEST = [
+const evidenceByScenarioId = {
+  smoke: 'Visits the configured route sweep and retains screenshots plus console, error, and network diagnostics.',
+  auth: 'Exercises browser sign-in, session persistence, sign-out, and protected-route behavior.',
+  performance: 'Measures browser feedback, navigation, heartbeat lag, and mutation load against executable budgets.',
+  auction: 'Places a bid through the real draft-room UI and verifies persisted nomination and bid state.',
+  lineup: 'Moves a bench player into a starter slot through the real lineup modal and verifies persistence.',
+  'lineup-auto-set': 'Runs the real Auto-Set flow and verifies the generated lineup rows.',
+  'lineup-locked': 'Attempts a live-game lineup move and verifies locked-player protection in UI and storage.',
+  playoffs: 'Advances a seeded playoff bracket and verifies the champion through the real browser surface.',
+  'rookie-draft': 'Lets the visible rookie timer expire and verifies the browser-triggered auto-pick and roster insert.',
+  waiver: 'Submits a no-drop waiver claim through the real modal and verifies the pending claim.',
+  'waiver-drop': 'Submits a drop-then-add waiver claim through the real modal and verifies its drop route.',
+  'waiver-ir-block': 'Verifies an ineligible IR state blocks waiver submission without persisting a claim.',
+  'league-lifecycle': 'Creates and joins a league through the real forms and verifies members, slots, season, and pick bank.',
+  'trade-proposal': 'Submits a player trade through the real composer and verifies routed pending items.',
+  'trade-accept': 'Accepts a pending player trade through Offers and verifies atomic asset settlement.',
+  'trade-terminal': 'Rejects and withdraws pending trades through real controls without moving assets.',
+  'trade-future-pick': 'Proposes a future-pick trade through the real composer without moving ownership early.',
+  'trade-future-pick-accept': 'Accepts a future-pick trade through Offers and verifies pick ownership settlement.',
+  'trade-overflow-accept': 'Accepts over the roster cap without an eager drop, verifies lineup/add locks, then proves a corrective drop is allowed.',
+  'trade-post-deadline': 'Attempts a proposal after the deadline and verifies rejection without persisted trade rows.',
+  'trade-veto': 'Uses the real veto action and verifies threshold state without moving assets.',
+  'trade-multi-team': 'Proposes, edits, and counters routed multi-team assets through responsive browser controls.',
+}
+
+/** @type {Omit<BrowserScenarioMetadata, 'evidence'>[]} */
+const browserScenarioDefinitions = [
   { id: 'smoke', cliFlag: 'browser', envFlag: 'E2E_ENABLE_BROWSER', flag: 'browser', resultKey: 'browserCheck', evidenceId: 'browser.smoke', passNote: 'browser smoke passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
   { id: 'auth', cliFlag: 'browser-auth', envFlag: 'E2E_ENABLE_BROWSER_AUTH', flag: 'browserAuth', resultKey: 'browserAuthCheck', evidenceId: 'browser.auth', passNote: 'browser auth scenario passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
   { id: 'performance', cliFlag: 'browser-perf', envFlag: 'E2E_ENABLE_BROWSER_PERF', flag: 'browserPerf', resultKey: 'browserPerfCheck', evidenceId: 'browser.performance', passNote: 'browser perf smoke passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
@@ -42,6 +68,12 @@ export const BROWSER_SCENARIO_MANIFEST = [
   { id: 'trade-veto', cliFlag: 'browser-trade-veto', envFlag: 'E2E_ENABLE_BROWSER_TRADE_VETO', flag: 'browserTradeVeto', resultKey: 'browserTradeVetoCheck', evidenceId: 'browser.trade_veto', passNote: 'browser trade veto gameplay passed', ciTier: 'fast', requiresSeed: false, releaseTier: 'release', weekly: true },
   { id: 'trade-multi-team', cliFlag: 'browser-trade-multi-team', envFlag: 'E2E_ENABLE_BROWSER_TRADE_MULTI_TEAM', flag: 'browserTradeMultiTeam', resultKey: 'browserTradeMultiTeamCheck', evidenceId: 'browser.trade_multi_team', passNote: 'browser multi-team trade gameplay passed', ciTier: 'fast', requiresSeed: false, releaseTier: 'release', weekly: true },
 ]
+
+/** @type {BrowserScenarioMetadata[]} */
+export const BROWSER_SCENARIO_MANIFEST = browserScenarioDefinitions.map((scenario) => ({
+  ...scenario,
+  evidence: evidenceByScenarioId[scenario.id],
+}))
 
 /** @param {Map<string, string>} args @param {{ releaseEnabled?: boolean }} [options] @returns {Record<BrowserFlag, boolean>} */
 export const browserScenarioArgs = (args, { releaseEnabled = false } = {}) => /** @type {Record<BrowserFlag, boolean>} */ (Object.fromEntries(
