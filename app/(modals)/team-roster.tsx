@@ -132,7 +132,9 @@ export default function TeamRosterScreen() {
                 contentContainerStyle={styles.listContent}
             >
                 {loading && roster.length === 0 ? (
-                    <Text style={styles.loadingText}>Loading roster...</Text>
+                    // Blank while loading — content appears fully formed
+                    // instead of swapping a loading line for the roster.
+                    null
                 ) : roster.length === 0 ? (
                     <EmptyState
                         icon="sports-basketball"
@@ -206,12 +208,6 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     countText: { fontSize: fontSize.sm, color: colors.textMuted },
-    loadingText: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing['2xl'],
-        fontSize: fontSize.md,
-        color: colors.textMuted,
-    },
     separator: {
         height: 1,
         marginLeft: spacing.xl + 44 + spacing.lg,

@@ -37,6 +37,9 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         useState<RookieTimerExpiryBehavior>('auto_pick')
     const [activeDraft, setActiveDraft] = useState<Draft | null>(null)
     const [activeDraftLoading, setActiveDraftLoading] = useState(true)
+    // True once the first status fetch for this league has resolved, so
+    // panels can wait for it and never flash loading UI on later refreshes.
+    const [activeDraftLoaded, setActiveDraftLoaded] = useState(false)
     const [activeDraftError, setActiveDraftError] = useState<string | null>(null)
 
     useEffect(() => {
@@ -46,6 +49,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         setActiveDraft(null)
         setActiveDraftError(null)
         setActiveDraftLoading(Boolean(leagueId))
+        setActiveDraftLoaded(false)
         setDraftLoadingOwner(null)
     }, [leagueId])
 
@@ -76,6 +80,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
                 if (inFlightRequest.current !== request) return
                 inFlightRequest.current = null
                 if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
+                setActiveDraftLoaded(true)
                 if (refreshQueued.current) {
                     refreshQueued.current = false
                     void fetchActiveDraft(lid)
@@ -212,6 +217,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         activeDraft,
         activeDraftError,
         activeDraftLoading,
+        activeDraftLoaded,
         draftLoading: draftLoadingOwner === leagueId,
         draftTimerSeconds,
         fetchActiveDraft,

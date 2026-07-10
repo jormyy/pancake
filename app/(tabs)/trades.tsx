@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
-import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
     getPicksForMember,
@@ -36,7 +35,6 @@ import {
     buildTradeScreenModel,
     tradeListItemType,
     tradeListKey,
-    tradeLoadingMessage,
     tradeScreenResource,
     type TradeListItem,
 } from '@/lib/trades-screen-model'
@@ -189,11 +187,12 @@ export default function TradesScreen() {
                 : load
 
     if (memberships.length === 0 && leagueLoading) {
+        // Header and tabs match the loaded chrome exactly; the list area stays
+        // blank so content appears fully formed instead of swapping a loading
+        // card for lists.
         return <SafeAreaView style={styles.container}><View style={styles.content}>
             <TradeHeader disabled onPropose={() => {}} />
             <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
-            <EmptyState fullScreen={false} message="Loading trades"
-                description="Your trade inbox appears here as soon as league context is ready." />
         </View></SafeAreaView>
     }
     if (memberships.length === 0) return <NoLeagueState />
@@ -202,8 +201,7 @@ export default function TradesScreen() {
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
         {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'}. Tap to retry.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
-        {activeTabLoading ? <EmptyState fullScreen={false} message={tradeLoadingMessage(tab)}
-            description="Cached trade content stays visible while fresh data updates in place." />
+        {activeTabLoading ? null
             : tab === 'picks' && picksError ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>Error: {picksError.message}</Text></View>
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}

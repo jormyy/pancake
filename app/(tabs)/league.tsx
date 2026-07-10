@@ -6,7 +6,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, fontSize, fontWeight, spacing, layout } from '@/constants/tokens'
 import { ErrorBanner } from '@/components/ui'
-import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
@@ -22,30 +21,6 @@ const LEAGUE_TAB_LABELS = Object.fromEntries(
 ) as Record<(typeof LEAGUE_TABS)[number]['key'], string>
 
 
-function LeagueLoadingState() {
-    return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.contentWrap}>
-                <View style={[styles.header, styles.headerCompact]}>
-                    <Text style={styles.compactLeagueName} role="heading" aria-level={1}>
-                        League
-                    </Text>
-                    <Text style={styles.loadingStatusText}>
-                        Loading your league and team context.
-                    </Text>
-                </View>
-                <View style={styles.contentScroll}>
-                    <EmptyState
-                        fullScreen={false}
-                        message="Loading league"
-                        description="Cached league content appears immediately when available; fresh data updates in place."
-                    />
-                </View>
-            </View>
-        </SafeAreaView>
-    )
-}
-
 export default function LeagueScreen() {
     const screen = useLeagueScreenState()
     const compactLeagueHeader = true
@@ -54,8 +29,10 @@ export default function LeagueScreen() {
     const activeTabLabel = LEAGUE_TAB_LABELS[screen.tab]
 
     if (!screen.current) {
+        // No placeholder shell while the league context loads — the screen
+        // stays blank and the real UI appears fully formed, with no reflow.
         if (screen.leagueLoading) {
-            return <LeagueLoadingState />
+            return <SafeAreaView style={styles.container} />
         }
         return <NoLeagueState />
     }
@@ -72,6 +49,13 @@ export default function LeagueScreen() {
                     onRetry={screen.retryCurrentTab}
                 />
             )
+        }
+
+        // Tab panels render only once their data is known, so content appears
+        // fully formed instead of loading in pieces that shift the layout.
+        if (!screen.isTabLoaded) return null
+        if ((screen.tab === 'auctions' || screen.tab === 'draftBoard') && !screen.activeDraftLoaded) {
+            return null
         }
 
         if (screen.tab === 'results') {
@@ -91,7 +75,7 @@ export default function LeagueScreen() {
             return (
                 <AuctionPanel
                     activeDraft={screen.activeDraft}
-                    activeDraftLoading={screen.activeDraftLoading}
+                    activeDraftLoading={screen.activeDraftLoading && !screen.activeDraftLoaded}
                     currentLeagueStatus={screen.currentLeague?.status}
                     isCommissioner={screen.isCommissioner}
                     draftLoading={screen.draftLoading}
@@ -142,7 +126,7 @@ export default function LeagueScreen() {
             return (
                 <DraftBoardPanel
                     activeDraft={screen.activeDraft}
-                    activeDraftLoading={screen.activeDraftLoading}
+                    activeDraftLoading={screen.activeDraftLoading && !screen.activeDraftLoaded}
                     currentLeagueStatus={screen.currentLeague?.status}
                     isCommissioner={screen.isCommissioner}
                     draftLoading={screen.draftLoading}
@@ -260,11 +244,6 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
         fontSize: fontSize.sm,
         fontWeight: fontWeight.medium,
-    },
-    loadingStatusText: {
-        color: colors.textMuted,
-        fontSize: fontSize.sm,
-        lineHeight: 18,
     },
 })
 

@@ -140,14 +140,20 @@ describe('instant-loading performance budget contract', () => {
             expect(source, name).not.toContain('ActivityIndicator')
         }
 
-        expect(draftActiveState).toContain('Draft status updating</Text>')
+        // No active-draft loading placeholder: the card renders only once the
+        // draft status is known, so nothing collapses or shifts on resolve.
+        expect(draftActiveState).not.toContain('ActiveDraftLoadingNotice')
+        expect(draftActiveState).not.toContain('Draft status updating')
         expect(draftActiveState).not.toContain('draftLoadingTitlePlaceholder')
         expect(homeScreen).not.toContain('matchupPlaceholderRow')
-        // Dynasty rankings/news use text loading states, not grey skeleton rows.
+        // Dynasty rankings/news render nothing until hydrated — no skeleton
+        // rows and no "Loading…" cards that swap for different content.
         expect(dynastyScreen).not.toContain('RankingsLoadingRows')
         expect(dynastyScreen).not.toContain('NewsLoadingRows')
         expect(dynastyScreen).not.toContain('rankLoadingRow')
         expect(dynastyScreen).not.toContain('newsLoadingRow')
+        expect(dynastyScreen).not.toContain('Loading dynasty rankings')
+        expect(dynastyScreen).not.toContain('Loading dynasty news')
         expect(playerSearchHook).toContain('lastLeagueIdRef')
         expect(playerSearchHook).not.toContain('isFirstLeagueRunRef')
     })

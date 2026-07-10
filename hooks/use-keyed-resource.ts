@@ -4,6 +4,10 @@ type ResourceState<Value> = {
     key: string | null
     data: Value
     loading: boolean
+    // True once a fetch for this key has succeeded. Consumers use this to
+    // render nothing until first load (content appears fully formed, no
+    // layout shift) and to keep content mounted during background refreshes.
+    loaded: boolean
     error: string | null
 }
 
@@ -23,6 +27,7 @@ export function useKeyedResource<Value>(
         key,
         data: initialValue,
         loading: Boolean(key),
+        loaded: false,
         error: null,
     })
 
@@ -31,7 +36,7 @@ export function useKeyedResource<Value>(
         loaded.current = false
         invalidated.current = false
         inFlight.current = null
-        setState({ key, data: initialValue, loading: Boolean(key), error: null })
+        setState({ key, data: initialValue, loading: Boolean(key), loaded: false, error: null })
     }, [initialValue, key])
 
     const load = useCallback((force = false): Promise<void> => {
@@ -50,7 +55,7 @@ export function useKeyedResource<Value>(
             .then((data) => {
                 if (activeKey.current !== key || generation.current !== requestGeneration) return
                 loaded.current = true
-                setState({ key, data, loading: false, error: null })
+                setState({ key, data, loading: false, loaded: true, error: null })
             })
             .catch((error: unknown) => {
                 if (activeKey.current !== key || generation.current !== requestGeneration) return
@@ -91,6 +96,7 @@ export function useKeyedResource<Value>(
         data: ownsKey ? state.data : initialValue,
         error: ownsKey ? state.error : null,
         loading: ownsKey ? state.loading : Boolean(key),
+        loaded: ownsKey ? state.loaded : false,
         ensure,
         refresh,
         invalidate,

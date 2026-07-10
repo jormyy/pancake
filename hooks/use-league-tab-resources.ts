@@ -132,7 +132,10 @@ export function useLeagueTabResources(
         currentLeaguePicks: picks.data,
         ensureTab,
         invalidateTab,
-        isTabLoading: activeResource?.loading ?? false,
+        // "Loading" means the first load for this tab — background refreshes
+        // keep existing content on screen instead of flashing loading UI.
+        isTabLoading: activeResource ? activeResource.loading && !activeResource.loaded : false,
+        isTabLoaded: activeResource ? activeResource.loaded : true,
         loadMoreActivity,
         mockRooms: mockRooms.data,
         refreshTab,

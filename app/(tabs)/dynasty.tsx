@@ -392,7 +392,7 @@ export default function DynastyScreen() {
                                     />
                                 )}
                                 ListEmptyComponent={rankings.loading
-                                    ? <EmptyState message="Loading dynasty rankings…" fullScreen={false} />
+                                    ? null
                                     : <EmptyState message="No ranked players found." fullScreen={false} />}
                                 ListFooterComponent={rankingFooter}
                                 onEndReached={rankings.loadMore}
@@ -404,20 +404,22 @@ export default function DynastyScreen() {
                     <ScrollView
                         contentContainerStyle={styles.newsContent}
                     >
-                        <Card padding="md" radius="md" elevated="none" style={styles.listCard}>
-                            {!activeNewsHydrated ? (
-                                <EmptyState message="Loading dynasty news…" fullScreen={false} />
-                            ) : activeNews.length === 0 ? (
-                                <EmptyState message={emptyNewsMessage} fullScreen={false} />
-                            ) : (
-                                activeNews.map((item, index) => (
-                                    <View key={item.id}>
-                                        <NewsRow item={item} />
-                                        {index < activeNews.length - 1 ? <View style={styles.separator} /> : null}
-                                    </View>
-                                ))
-                            )}
-                        </Card>
+                        {/* Blank until hydrated — the card appears fully formed
+                            instead of swapping a loading line for news rows. */}
+                        {!activeNewsHydrated ? null : (
+                            <Card padding="md" radius="md" elevated="none" style={styles.listCard}>
+                                {activeNews.length === 0 ? (
+                                    <EmptyState message={emptyNewsMessage} fullScreen={false} />
+                                ) : (
+                                    activeNews.map((item, index) => (
+                                        <View key={item.id}>
+                                            <NewsRow item={item} />
+                                            {index < activeNews.length - 1 ? <View style={styles.separator} /> : null}
+                                        </View>
+                                    ))
+                                )}
+                            </Card>
+                        )}
                     </ScrollView>
                 )}
                 </View>
