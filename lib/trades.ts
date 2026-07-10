@@ -537,7 +537,16 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
     const playerIds = trades.flatMap((trade) => playerIdsFromItems(trade.routedItems))
     if (playerIds.length === 0) return trades
 
-    const { avgMap, avgStatsMap } = await getRosterStatsMaps(playerIds, leagueId)
+    let avgMap: Map<string, number>
+    let avgStatsMap: Map<string, { avg_minutes_played: number | null }>
+    try {
+        const stats = await getRosterStatsMaps(playerIds, leagueId)
+        avgMap = stats.avgMap
+        avgStatsMap = stats.avgStatsMap
+    } catch (error) {
+        console.warn('Could not load optional trade player averages.', error)
+        return trades
+    }
     return trades.map((trade) => {
         const routedItems = enrichItemsWithStats(trade.routedItems, avgMap, avgStatsMap)
         return {

@@ -199,18 +199,26 @@ export function useMultiTeamTradeComposer({
                     memberId,
                     (rosters[memberId] ?? []).filter(isTradeableRosterPlayer),
                 ]))
-                const stats = await getRosterStatsMaps(
-                    Object.values(nextRosters).flatMap((roster) => roster.map((player) => player.players.id)),
-                    leagueId,
-                )
-                if (rosterLoadSeqRef.current !== requestId) return
                 setParticipantAssets((current) => ({
                     rosters: { ...current.rosters, ...nextRosters },
                     picks: { ...current.picks, ...picks },
                 }))
-                setAvgMap((current) => new Map([...current, ...stats.avgMap]))
-                setAvgStatsMap((current) => new Map([...current, ...stats.avgStatsMap]))
                 setLoadedParticipantKey(selectedParticipantKey)
+                setRosterLoading(false)
+
+                try {
+                    const stats = await getRosterStatsMaps(
+                        Object.values(nextRosters).flatMap((roster) => roster.map((player) => player.players.id)),
+                        leagueId,
+                    )
+                    if (rosterLoadSeqRef.current !== requestId) return
+                    setAvgMap((current) => new Map([...current, ...stats.avgMap]))
+                    setAvgStatsMap((current) => new Map([...current, ...stats.avgStatsMap]))
+                } catch (error) {
+                    if (rosterLoadSeqRef.current === requestId) {
+                        console.warn('Could not load optional trade player averages.', error)
+                    }
+                }
             } catch (error) {
                 if (rosterLoadSeqRef.current !== requestId) return
                 console.error(error)

@@ -90,6 +90,31 @@ describe('useMultiTeamTradeComposer', () => {
         await act(async () => { renderer.unmount() })
     })
 
+    it('reports canonical assets ready when optional averages fail', async () => {
+        getRosterStatsMaps.mockRejectedValueOnce(new Error('averages offline'))
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = () => {
+            latest = useMultiTeamTradeComposer({
+                enabled: true,
+                leagueId: 'league',
+                myMemberId: 'member-a',
+                myTeamName: 'A',
+                members: [{ id: 'member-b', team_name: 'B' }],
+                faabEnabled: true,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        await act(async () => { latest.setParticipantIds(['member-a', 'member-b']); await Promise.resolve(); await Promise.resolve() })
+
+        expect(latest.assetsReady).toBe(true)
+        expect(latest.rosterError).toBeNull()
+        expect(warn).toHaveBeenCalledWith('Could not load optional trade player averages.', expect.any(Error))
+        await act(async () => { renderer.unmount() })
+    })
+
     it('invalidates a removed participant snapshot before that participant is re-added', async () => {
         let latest!: ReturnType<typeof useMultiTeamTradeComposer>
         const Probe = () => {
