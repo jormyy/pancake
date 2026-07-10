@@ -16,6 +16,7 @@ vi.mock('@/lib/persistent-cache', () => ({
     writePersistentCache: vi.fn(),
 }))
 vi.mock('@/lib/realtime', () => ({
+    reportRealtimeCleanup: vi.fn(),
     subscribeToTableChanges: vi.fn(() => ({ topic: 'leagues' })),
     unsubscribeFromTableChanges: vi.fn(),
 }))
