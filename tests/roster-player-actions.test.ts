@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
-import { RosterPlayerItem } from '@/components/roster/RosterItems'
+import { RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import type { RosterPlayer } from '@/lib/roster'
 
 vi.mock('react-native', () => ({
@@ -60,6 +60,26 @@ describe('RosterPlayerItem actions', () => {
         expect(onPress).not.toHaveBeenCalled()
         await act(async () => { taxi.props.onPress() })
         expect(onToggleTaxi).toHaveBeenCalledWith(item)
+        expect(onPress).not.toHaveBeenCalled()
+        await act(async () => { open.props.onPress() })
+        expect(onPress).toHaveBeenCalledOnce()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('keeps taxi navigation and activation as named sibling controls', async () => {
+        const onPress = vi.fn()
+        const onToggleTaxi = vi.fn()
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(TaxiPlayerItem, {
+                item: { ...item, is_on_taxi: true }, taxiingId: null, onPress, onToggleTaxi,
+            }))
+        })
+        const open = renderer.root.findByProps({ accessibilityLabel: 'Open Test Player' })
+        const activate = renderer.root.findByProps({ accessibilityLabel: 'Activate Test Player' })
+        expect(open.parent).toBe(activate.parent)
+        await act(async () => { activate.props.onPress() })
+        expect(onToggleTaxi).toHaveBeenCalledOnce()
         expect(onPress).not.toHaveBeenCalled()
         await act(async () => { open.props.onPress() })
         expect(onPress).toHaveBeenCalledOnce()

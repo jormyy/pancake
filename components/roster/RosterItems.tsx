@@ -338,37 +338,48 @@ export function TaxiPlayerItem({
     const positions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
-        <MotionPressable style={styles.playerRow} onPress={onPress} pressedScale={0.985}>
-            <Avatar
-                name={player.display_name}
-                color={colors.bgMuted}
-                textColor={colors.textSecondary}
-                uri={headshotUri ?? undefined}
-            />
+        <View style={styles.playerRow}>
+            <MotionPressable
+                style={styles.playerRowMain}
+                onPress={onPress}
+                pressedScale={0.985}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${player.display_name}`}
+            >
+                <Avatar
+                    name={player.display_name}
+                    color={colors.bgMuted}
+                    textColor={colors.textSecondary}
+                    uri={headshotUri ?? undefined}
+                />
 
-            <View style={styles.info}>
-                <Text style={styles.playerName}>{player.display_name}</Text>
-                <View style={styles.playerMetaRow}>
-                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {avgFpts != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
-                    ) : null}
-                    {avgMinutes != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
-                    ) : null}
+                <View style={styles.info}>
+                    <Text style={styles.playerName}>{player.display_name}</Text>
+                    <View style={styles.playerMetaRow}>
+                        {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
+                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                        {avgFpts != null ? (
+                            <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
+                        ) : null}
+                        {avgMinutes != null ? (
+                            <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
+                        ) : null}
+                    </View>
                 </View>
-            </View>
+            </MotionPressable>
 
             <MotionPressable
                 style={[styles.actionButton, styles.taxiButtonActive]}
                 onPress={() => onToggleTaxi(item)}
                 disabled={taxiingId === item.id}
                 pressedScale={0.92}
+                accessibilityRole="button"
+                accessibilityLabel={`Activate ${player.display_name}`}
+                accessibilityState={{ disabled: taxiingId === item.id }}
             >
                 <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
             </MotionPressable>
-        </MotionPressable>
+        </View>
     )
 }
 

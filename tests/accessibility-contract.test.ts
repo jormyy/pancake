@@ -12,11 +12,13 @@ describe('interactive accessibility contracts', () => {
         expect(seasonSelector).toContain('accessibilityState={{ selected: active }}')
     })
 
-    it('names roster rows and nested roster actions', () => {
+    it('names roster rows and keeps desktop roster actions outside the navigation control', () => {
         const roster = source('app/(tabs)/roster.tsx')
         expect(roster).toContain('accessibilityLabel={`Open ${item.players.display_name}`}')
         expect(roster).toContain("accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}")
         expect(roster).toContain('accessibilityLabel={`Move ${item.players.display_name} to taxi`}')
+        expect(roster).toContain('<View style={styles.rosterTableRow}>')
+        expect(roster).toContain('<Pressable\n                style={styles.rosterTableOpen}')
     })
 
     it('names the icon-only profile photo action and exposes busy state', () => {

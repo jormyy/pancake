@@ -158,41 +158,43 @@ function RosterTablePlayerItem({
     const canTaxi = !item.is_on_ir && !item.is_on_taxi && taxiSlotsAvailable && isTaxiEligible(item.players)
 
     return (
-        <Pressable
-            style={styles.rosterTableRow}
-            onPress={onPress}
-            onLongPress={onLongPress}
-            disabled={isBusy}
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${item.players.display_name}`}
-            accessibilityState={{ disabled: isBusy }}
-        >
-            <Text style={styles.rosterTableSlot}>{slot}</Text>
-            <View style={styles.rosterTablePlayerCell}>
-                <Avatar
-                    name={item.players.display_name}
-                    uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
-                    color={colors.bgMuted}
-                    textColor={colors.textSecondary}
-                    size={34}
-                />
-                <View style={styles.rosterTablePlayerInfo}>
-                    <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
-                    <Text style={styles.rosterTableMeta} numberOfLines={1}>
-                        {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
-                    </Text>
+        <View style={styles.rosterTableRow}>
+            <Pressable
+                style={styles.rosterTableOpen}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                disabled={isBusy}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.players.display_name}`}
+                accessibilityState={{ disabled: isBusy }}
+            >
+                <Text style={styles.rosterTableSlot}>{slot}</Text>
+                <View style={styles.rosterTablePlayerCell}>
+                    <Avatar
+                        name={item.players.display_name}
+                        uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
+                        color={colors.bgMuted}
+                        textColor={colors.textSecondary}
+                        size={34}
+                    />
+                    <View style={styles.rosterTablePlayerInfo}>
+                        <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
+                        <Text style={styles.rosterTableMeta} numberOfLines={1}>
+                            {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
+                        </Text>
+                    </View>
                 </View>
-            </View>
-            <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_points)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_rebounds)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_assists)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_steals)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_blocks)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_three_pointers_made)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_turnovers)}</Text>
-            <Text style={styles.rosterTableStat}>{fmtStat(stats?.games_played, true)}</Text>
+                <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_points)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_rebounds)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_assists)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_steals)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_blocks)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_three_pointers_made)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_turnovers)}</Text>
+                <Text style={styles.rosterTableStat}>{fmtStat(stats?.games_played, true)}</Text>
+            </Pressable>
             <View style={styles.rosterTableActions}>
                 {section === 'taxi' ? (
                     <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}
@@ -215,7 +217,7 @@ function RosterTablePlayerItem({
                     </Pressable>
                 ) : null}
             </View>
-        </Pressable>
+        </View>
     )
 }
 
@@ -715,6 +717,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
         backgroundColor: colors.bgScreen,
+    },
+    rosterTableOpen: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     rosterTableSlot: {
         width: 46,
