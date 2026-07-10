@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native'
-import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { StyleSheet, Text, View } from 'react-native'
+import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 
 type TradeFlowParticipant = {
     memberId: string
@@ -22,11 +22,10 @@ type MultiTeamTradeOverviewProps = {
     participants: TradeFlowParticipant[]
     items: TradeFlowItem[]
     compact?: boolean
+    columns?: boolean
 }
 
-export function MultiTeamTradeOverview({ participants, items, compact = false }: MultiTeamTradeOverviewProps) {
-    const { width } = useWindowDimensions()
-    const useColumns = width >= breakpoints.roster
+export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false }: MultiTeamTradeOverviewProps) {
     const { incomingByMember, outgoingCountByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
@@ -54,7 +53,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false }:
                     return (
                         <View
                             key={participant.memberId}
-                            style={[styles.team, useColumns && !compact && styles.teamColumn, compact && styles.teamCompact]}
+                            style={[styles.team, columns && !compact && styles.teamColumn, compact && styles.teamCompact]}
                         >
                             <View style={styles.teamHeader}>
                                 <View style={styles.teamIdentity}>
@@ -147,7 +146,7 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgScreen,
+        backgroundColor: uiColors.surfaceAlt,
         padding: spacing.md,
         gap: spacing.sm,
     },

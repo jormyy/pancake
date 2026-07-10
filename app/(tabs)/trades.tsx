@@ -174,8 +174,8 @@ export default function TradesScreen() {
     const tabOptions: SegmentOption<TradeTabKey>[] = [
         { label: 'Picks', value: 'picks' },
         { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
-        { label: 'Your Block', value: 'block' },
-        { label: 'League Block', value: 'leagueBlock' },
+        { label: 'My Block', value: 'block', accessibilityLabel: 'Your trade block' },
+        { label: 'League', value: 'leagueBlock', accessibilityLabel: 'League trade block' },
         { label: 'History', value: 'history' },
     ]
     const activeResource = tradeScreenResource(tab)
@@ -228,7 +228,7 @@ function TradeHeader({ disabled, onPropose }: { disabled: boolean; onPropose: ()
 
 function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKey>[]; tab: TradeTabKey; setTab: (tab: TradeTabKey) => void }) {
     return <View style={styles.tabRow}><SegmentedControl options={options} value={tab} onChange={setTab}
-        accessibilityLabel="Trade sections" scrollable /></View>
+        accessibilityLabel="Trade sections" /></View>
 }
 
 const styles = StyleSheet.create({

@@ -210,26 +210,6 @@ export function TradeCard({
             {participantAcceptanceText ? <Text style={styles.vetoWindowText}>{participantAcceptanceText}</Text> : null}
             {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
 
-            {trade.isMultiTeam ? (
-                <MultiTeamTradeOverview
-                    compact
-                    participants={participants.map((participant) => ({
-                        memberId: participant.memberId,
-                        label: participant.memberId === myMemberId ? 'You' : participant.teamName,
-                        statusLabel: participant.acceptedAt ? 'Accepted' : 'Waiting',
-                        statusComplete: participant.acceptedAt != null,
-                    }))}
-                    items={trade.routedItems.flatMap((item, index) => tradeFlowItem(item, index) ?? [])}
-                />
-            ) : (
-                <>
-                    <AssetList items={iReceive} label={receiveLabel} />
-                    <AssetList items={iGive} label={giveLabel} />
-                </>
-            )}
-
-            {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
-
             {canRespond && (
                 <View style={styles.cardActions}>
                     <MotionPressable
@@ -272,6 +252,27 @@ export function TradeCard({
                     </MotionPressable>
                 </View>
             )}
+
+            {trade.isMultiTeam ? (
+                <MultiTeamTradeOverview
+                    compact
+                    participants={participants.map((participant) => ({
+                        memberId: participant.memberId,
+                        label: participant.memberId === myMemberId ? 'You' : participant.teamName,
+                        statusLabel: participant.acceptedAt ? 'Accepted' : 'Waiting',
+                        statusComplete: participant.acceptedAt != null,
+                    }))}
+                    items={trade.routedItems.flatMap((item, index) => tradeFlowItem(item, index) ?? [])}
+                />
+            ) : (
+                <>
+                    <AssetList items={iReceive} label={receiveLabel} />
+                    <AssetList items={iGive} label={giveLabel} />
+                </>
+            )}
+
+            {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
+
             {tab === 'offers' && isProposer && trade.status === 'pending' && (
                 <View style={styles.cardActions}>
                     <MotionPressable
@@ -327,7 +328,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         padding: 14,
-        backgroundColor: colors.bgScreen,
+        backgroundColor: uiColors.surfaceAlt,
         gap: spacing.xs,
         marginHorizontal: spacing.xl,
         marginTop: spacing.md,

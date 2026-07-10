@@ -1,9 +1,10 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -57,8 +58,10 @@ export function MultiTeamTradeBuilder({
     onExpirationDaysChange,
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
-    const useColumns = width >= breakpoints.roster
+    const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
+    const useColumns = contentWidth >= 880
     const [activeParticipantId, setActiveParticipantId] = useState(participants[0]?.memberId ?? '')
+    const [overviewExpanded, setOverviewExpanded] = useState(false)
     const notesBytes = utf8ByteLength(notes)
 
     useEffect(() => {
@@ -128,21 +131,48 @@ export function MultiTeamTradeBuilder({
         />
     ))
 
+    const overviewParticipants = participants.map((participant) => ({
+        memberId: participant.memberId,
+        label: participant.memberId === myMemberId ? 'You' : participantName(participant.memberId),
+    }))
+
     return (
-        <>
-            <MultiTeamTradeOverview
-                participants={participants.map((participant) => ({
-                    memberId: participant.memberId,
-                    label: participant.memberId === myMemberId ? 'You' : participantName(participant.memberId),
-                }))}
-                items={overviewItems}
-            />
-            <Text style={styles.sectionLabel}>BUILD THE DEAL</Text>
+        <View
+            style={styles.root}
+            onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
+        >
+            {useColumns ? (
+                <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} columns />
+            ) : (
+                <>
+                    <Pressable
+                        style={styles.compactSummary}
+                        onPress={() => setOverviewExpanded((expanded) => !expanded)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${participants.length} teams and ${items.length} routed assets.`}
+                        accessibilityState={{ expanded: overviewExpanded }}
+                    >
+                        <View style={styles.compactSummaryCopy}>
+                            <Text style={styles.compactSummaryTitle}>DEAL SUMMARY</Text>
+                            <Text style={styles.compactSummaryMeta}>
+                                {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'} routed
+                            </Text>
+                        </View>
+                        <MaterialIcons
+                            name={overviewExpanded ? 'expand-less' : 'expand-more'}
+                            size={24}
+                            color={colors.textSecondary}
+                        />
+                    </Pressable>
+                    {overviewExpanded ? (
+                        <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} compact />
+                    ) : null}
+                </>
+            )}
+            <Text style={styles.sectionLabel}>EDIT ASSETS SENT BY</Text>
             {!useColumns ? (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.senderTabs}
+                <View
+                    style={styles.senderTabs}
                     accessibilityRole="tablist"
                 >
                     {participants.map((participant) => {
@@ -159,12 +189,12 @@ export function MultiTeamTradeBuilder({
                                 id={`trade-sender-${participant.memberId}`}
                             >
                                 <Text style={[styles.senderTabText, active && styles.senderTabTextActive]} numberOfLines={1}>
-                                    {participant.memberId === myMemberId ? 'You send' : `${participantName(participant.memberId)} sends`}
+                                    {participant.memberId === myMemberId ? 'You' : participantName(participant.memberId)}
                                 </Text>
                             </Pressable>
                         )
                     })}
-                </ScrollView>
+                </View>
             ) : null}
             {useColumns ? (
                 <ScrollView
@@ -250,11 +280,39 @@ export function MultiTeamTradeBuilder({
                     ) : null}
                 </View>
             </View>
-        </>
+        </View>
     )
 }
 
 const styles = StyleSheet.create({
+    root: { width: '100%' },
+    compactSummary: {
+        minHeight: 56,
+        marginTop: spacing.md,
+        marginHorizontal: spacing.xl,
+        paddingHorizontal: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+        borderTopWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: uiColors.borderNeutral,
+        backgroundColor: uiColors.surfaceAlt,
+    },
+    compactSummaryCopy: { minWidth: 0, flex: 1 },
+    compactSummaryTitle: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
+        letterSpacing: 0,
+    },
+    compactSummaryMeta: {
+        marginTop: 2,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
+        color: colors.textPrimary,
+    },
     sectionLabel: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
@@ -267,9 +325,17 @@ const styles = StyleSheet.create({
     stack: { gap: spacing.lg, marginBottom: spacing.lg },
     scroller: { marginBottom: spacing.lg },
     columns: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
-    senderTabs: { gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
+    senderTabs: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.md,
+    },
     senderTab: {
-        minWidth: 112,
+        flexGrow: 1,
+        flexBasis: 96,
+        minWidth: 96,
         maxWidth: 200,
         minHeight: 44,
         paddingHorizontal: spacing.md,
