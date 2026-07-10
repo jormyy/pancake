@@ -46,7 +46,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
             if (loadSequence.current !== requestId) return
             nextCursor.current = result.nextCursor
             setResource({ key: resourceKey, trades: result.trades })
-            setHasMore(result.trades.length === TRADES_PAGE_SIZE && result.nextCursor != null)
+            setHasMore(result.hasMore)
             writePersistentCache(tradesCacheKey(memberId, leagueId), result.trades)
         } catch (cause) {
             if (loadSequence.current !== requestId) return
@@ -97,7 +97,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
                 return { key: resourceKey, trades: next }
             })
             nextCursor.current = result.nextCursor
-            setHasMore(result.trades.length === TRADES_PAGE_SIZE && result.nextCursor != null)
+            setHasMore(result.hasMore)
         } catch (cause) {
             if (loadSequence.current === requestId) {
                 setError(getErrorMessage(cause) ?? 'Could not load more trades.')

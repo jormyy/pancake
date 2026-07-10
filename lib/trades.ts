@@ -106,7 +106,11 @@ export function tradeHistoryCursorFilter(cursor: TradeHistoryCursor): string {
     return `proposed_at.lt.${cursor.proposedAt},and(proposed_at.eq.${cursor.proposedAt},trade_id.lt.${cursor.tradeId})`
 }
 
-export type TradePage = { trades: Trade[]; nextCursor: TradePageCursor | null }
+export type TradePage = { trades: Trade[]; nextCursor: TradePageCursor | null; hasMore: boolean }
+
+function normalizedTradePageSize(limit: number): number {
+    return Math.min(Math.max(Math.trunc(limit), 1), 99)
+}
 
 type TeamNameRow = { team_name: string | null } | null
 type TradePickQueryRow = {
@@ -574,27 +578,30 @@ export async function getTradesForScreen(
     limit = 40,
     cursor: TradePageCursor | null = null,
 ): Promise<TradePage> {
+    const pageSize = normalizedTradePageSize(limit)
     const { data: refs, error: refsError } = await supabase
         .rpc('get_trade_page_refs', {
             p_member_id: memberId,
             p_league_id: leagueId,
-            p_limit: limit,
+            p_limit: pageSize + 1,
             p_cursor: cursor?.token,
         })
 
     if (refsError) throw refsError
-    if (!refs || refs.length === 0) return { trades: [], nextCursor: null }
+    if (!refs || refs.length === 0) return { trades: [], nextCursor: null, hasMore: false }
+    const hasMore = refs.length > pageSize
+    const pageRefs = refs.slice(0, pageSize)
 
     const { data, error } = await supabase
         .from('trades')
         .select(TRADE_SELECT)
-        .in('id', refs.map((ref) => ref.trade_id))
+        .in('id', pageRefs.map((ref) => ref.trade_id))
         .overrideTypes<TradeQueryRow[]>()
 
     if (error) throw error
 
     const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
-    const visible = refs
+    const visible = pageRefs
         .map((ref) => rowsById.get(ref.trade_id))
         .filter((row): row is TradeQueryRow => row != null)
         .map((row) => mapTradeRow(row, memberId))
@@ -602,7 +609,8 @@ export async function getTradesForScreen(
 
     return {
         trades: await enrichTradesWithStats(visible, leagueId),
-        nextCursor: { token: refs.at(-1)!.cursor_token },
+        nextCursor: hasMore ? { token: pageRefs.at(-1)!.cursor_token } : null,
+        hasMore,
     }
 }
 
@@ -612,6 +620,7 @@ export async function getTradeHistoryForScreen(
     limit = 40,
     cursor: TradePageCursor | null = null,
 ): Promise<TradePage> {
+    const pageSize = normalizedTradePageSize(limit)
     const parsedCursor = parseTradeHistoryCursor(cursor)
     let query = supabase
         .from('trade_participants')
@@ -623,22 +632,24 @@ export async function getTradeHistoryForScreen(
     const { data: refs, error: refsError } = await query
         .order('proposed_at', { ascending: false })
         .order('trade_id', { ascending: false })
-        .limit(limit)
+        .limit(pageSize + 1)
         .overrideTypes<{ trade_id: string; proposed_at: string }[]>()
 
     if (refsError) throw refsError
-    if (!refs || refs.length === 0) return { trades: [], nextCursor: null }
+    if (!refs || refs.length === 0) return { trades: [], nextCursor: null, hasMore: false }
+    const hasMore = refs.length > pageSize
+    const pageRefs = refs.slice(0, pageSize)
 
     const { data, error } = await supabase
         .from('trades')
         .select(TRADE_SELECT)
-        .in('id', refs.map((ref) => ref.trade_id))
+        .in('id', pageRefs.map((ref) => ref.trade_id))
         .overrideTypes<TradeQueryRow[]>()
 
     if (error) throw error
 
     const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
-    const history = refs
+    const history = pageRefs
         .map((ref) => rowsById.get(ref.trade_id))
         .filter((row): row is TradeQueryRow => row != null)
         .map((row) => mapTradeRow(row, memberId))
@@ -646,12 +657,13 @@ export async function getTradeHistoryForScreen(
 
     return {
         trades: await enrichTradesWithStats(history, leagueId),
-        nextCursor: refs.length === limit ? {
+        nextCursor: hasMore ? {
             token: tradeHistoryCursorToken({
-                proposedAt: refs.at(-1)!.proposed_at,
-                tradeId: refs.at(-1)!.trade_id,
+                proposedAt: pageRefs.at(-1)!.proposed_at,
+                tradeId: pageRefs.at(-1)!.trade_id,
             }),
         } : null,
+        hasMore,
     }
 }
 

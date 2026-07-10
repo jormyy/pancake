@@ -76,8 +76,8 @@ describe('trade resource identity', () => {
     it('paginates history only through the server-owned history feed', async () => {
         const initial = Array.from({ length: 40 }, (_, index) => trade(`history-${index}`))
         getTradeHistoryForScreen
-            .mockResolvedValueOnce({ trades: initial, nextCursor: { token: '40' } })
-            .mockResolvedValueOnce({ trades: [trade('history-40')], nextCursor: null })
+            .mockResolvedValueOnce({ trades: initial, nextCursor: { token: '40' }, hasMore: true })
+            .mockResolvedValueOnce({ trades: [trade('history-40')], nextCursor: null, hasMore: false })
         let latest!: ReturnType<typeof useTradeHistoryFeed>
         const Probe = () => { latest = useTradeHistoryFeed('member-a', 'league-a', true); return null }
         let renderer!: ReactTestRenderer
@@ -106,9 +106,9 @@ describe('trade resource identity', () => {
             expect(latest.trades).toEqual([])
         })
         expect(latest.trades).toEqual([])
-        await act(async () => { first.resolve({ trades: [trade('stale')], nextCursor: null }); await first.promise })
+        await act(async () => { first.resolve({ trades: [trade('stale')], nextCursor: null, hasMore: false }); await first.promise })
         expect(latest.trades).toEqual([])
-        await act(async () => { second.resolve({ trades: [trade('current')], nextCursor: null }); await second.promise })
+        await act(async () => { second.resolve({ trades: [trade('current')], nextCursor: null, hasMore: false }); await second.promise })
         expect(latest.trades.map((item) => item.id)).toEqual(['current'])
         renderer.unmount()
     })
@@ -129,9 +129,9 @@ describe('trade resource identity', () => {
             renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' }))
             expect(latest.trades).toEqual([])
         })
-        await act(async () => { first.resolve({ trades: [trade('stale')], nextCursor: null }); await first.promise })
+        await act(async () => { first.resolve({ trades: [trade('stale')], nextCursor: null, hasMore: false }); await first.promise })
         expect(latest.trades).toEqual([])
-        await act(async () => { second.resolve({ trades: [trade('current')], nextCursor: null }); await second.promise })
+        await act(async () => { second.resolve({ trades: [trade('current')], nextCursor: null, hasMore: false }); await second.promise })
         expect(latest.trades.map((item) => item.id)).toEqual(['current'])
         await act(async () => { renderer.unmount() })
     })
@@ -140,7 +140,7 @@ describe('trade resource identity', () => {
         const page = deferred<TradePage>()
         const refreshed = deferred<TradePage>()
         const initial = Array.from({ length: 40 }, (_, index) => trade(`initial-${index}`))
-        getTradesForScreen.mockResolvedValueOnce({ trades: initial, nextCursor: { token: 'next' } })
+        getTradesForScreen.mockResolvedValueOnce({ trades: initial, nextCursor: { token: 'next' }, hasMore: true })
             .mockReturnValueOnce(page.promise).mockReturnValueOnce(refreshed.promise)
         let latest!: ReturnType<typeof useTradesFeed>
         const Probe = () => {
@@ -159,10 +159,27 @@ describe('trade resource identity', () => {
         let refresh!: Promise<void>
         await act(async () => { refresh = latest.refresh(); await Promise.resolve() })
         expect(latest.loadingMore).toBe(false)
-        await act(async () => { page.resolve({ trades: [trade('stale-page')], nextCursor: null }); await firstPage })
+        await act(async () => { page.resolve({ trades: [trade('stale-page')], nextCursor: null, hasMore: false }); await firstPage })
         expect(latest.trades.some((item) => item.id === 'stale-page')).toBe(false)
-        await act(async () => { refreshed.resolve({ trades: [trade('fresh')], nextCursor: null }); await refresh })
+        await act(async () => { refreshed.resolve({ trades: [trade('fresh')], nextCursor: null, hasMore: false }); await refresh })
         expect(latest.trades.map((item) => item.id)).toEqual(['fresh'])
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('continues from authoritative refs when hydration returns fewer trades than the page size', async () => {
+        getTradesForScreen
+            .mockResolvedValueOnce({ trades: [trade('visible')], nextCursor: { token: 'next' }, hasMore: true })
+            .mockResolvedValueOnce({ trades: [trade('later')], nextCursor: null, hasMore: false })
+        let latest!: ReturnType<typeof useTradesFeed>
+        const Probe = () => { latest = useTradesFeed('member-a', 'league-a'); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+
+        expect(latest.hasMore).toBe(true)
+        await act(async () => { await latest.loadMore() })
+
+        expect(getTradesForScreen.mock.calls[1]?.[3]).toEqual({ token: 'next' })
+        expect(latest.trades.map((item) => item.id)).toEqual(['visible', 'later'])
         await act(async () => { renderer.unmount() })
     })
 

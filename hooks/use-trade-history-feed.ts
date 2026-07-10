@@ -39,7 +39,7 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
             if (sequence.current !== requestId || activeKey.current !== requestKey) return
             setResource({ key: requestKey, trades: result.trades })
             nextCursor.current = result.nextCursor
-            setHasMore(result.nextCursor != null)
+            setHasMore(result.hasMore)
         } catch (cause) {
             if (sequence.current !== requestId || activeKey.current !== requestKey) return
             setError(getErrorMessage(cause) ?? 'Could not load trade history.')
@@ -85,7 +85,7 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
                 }
             })
             nextCursor.current = result.nextCursor
-            setHasMore(result.nextCursor != null)
+            setHasMore(result.hasMore)
         } catch (cause) {
             if (sequence.current === requestId && activeKey.current === resourceKey) {
                 setError(getErrorMessage(cause) ?? 'Could not load more trade history.')
