@@ -23,6 +23,7 @@ BEGIN
     RAISE EXCEPTION 'Stats sync date range cannot exceed 365 days.';
   END IF;
 
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   v_job_type := format('sync_stats_range:%s:%s', p_start_date, p_end_date);
   SELECT count(*)::integer
     INTO v_total_items

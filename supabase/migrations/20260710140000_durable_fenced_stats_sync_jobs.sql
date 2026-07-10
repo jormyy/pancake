@@ -9,11 +9,11 @@ ALTER TABLE public.sync_jobs
   ADD COLUMN claim_token uuid;
 
 -- The previous Edge-only implementation stored its lease timestamp in metadata.
--- Release those jobs so the fenced worker can claim them after rollout.
+-- Give live legacy workers a full drain window. They remain tokenless so their
+-- predeploy direct writes can finish until a fenced worker takes ownership.
 UPDATE public.sync_jobs
-   SET status = 'pending',
-       metadata = metadata - 'claimedAt',
-       claimed_at = NULL,
+   SET metadata = metadata - 'claimedAt',
+       claimed_at = now(),
        claim_token = NULL
  WHERE job_type LIKE 'sync_stats_range:%'
    AND status = 'running';
@@ -67,6 +67,7 @@ BEGIN
     RAISE EXCEPTION 'Stats sync date range cannot exceed 365 days.';
   END IF;
 
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   v_job_type := format('sync_stats_range:%s:%s', p_start_date, p_end_date);
   SELECT count(*)::integer
     INTO v_total_items
@@ -135,6 +136,7 @@ AS $$
 DECLARE
   v_stale_after_seconds integer := LEAST(GREATEST(COALESCE(p_stale_after_seconds, 120), 60), 900);
 BEGIN
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   RETURN QUERY
   WITH candidate AS (
     SELECT job.id
@@ -146,8 +148,17 @@ BEGIN
          OR (
          job.status = 'running'
            AND (
-             job.claimed_at IS NULL
-             OR job.claimed_at <= now() - make_interval(secs => v_stale_after_seconds)
+             (
+               job.claim_token IS NULL
+               AND job.claimed_at <= now() - interval '15 minutes'
+             )
+             OR (
+               job.claim_token IS NOT NULL
+               AND (
+                 job.claimed_at IS NULL
+                 OR job.claimed_at <= now() - make_interval(secs => v_stale_after_seconds)
+               )
+             )
            )
          )
        )
@@ -187,6 +198,7 @@ BEGIN
     RAISE EXCEPTION 'Stats sync checkpoint is invalid.';
   END IF;
 
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   UPDATE public.sync_jobs
      SET completed_items = p_completed_items,
          metadata = p_metadata,
@@ -214,6 +226,7 @@ BEGIN
     RAISE EXCEPTION 'Stats sync release is invalid.';
   END IF;
 
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   UPDATE public.sync_jobs
      SET status = 'pending',
          completed_items = p_completed_items,
@@ -243,6 +256,7 @@ BEGIN
     RAISE EXCEPTION 'Stats sync completion is invalid.';
   END IF;
 
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   UPDATE public.sync_jobs
      SET status = 'completed',
          completed_items = p_completed_items,
@@ -274,6 +288,7 @@ BEGIN
     RAISE EXCEPTION 'Stats sync failure checkpoint is invalid.';
   END IF;
 
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   UPDATE public.sync_jobs
      SET status = 'failed',
          completed_items = p_completed_items,
@@ -293,6 +308,31 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION private.enforce_stats_sync_claim_fence()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF OLD.job_type LIKE 'sync_stats_range:%'
+     AND OLD.claim_token IS NOT NULL
+     AND current_setting('app.stats_sync_fenced_transition', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'Stats sync job % is owned by a fenced claim.', OLD.id
+      USING ERRCODE = '55000';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION private.enforce_stats_sync_claim_fence() FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE TRIGGER enforce_stats_sync_claim_fence
+  BEFORE UPDATE ON public.sync_jobs
+  FOR EACH ROW
+  EXECUTE FUNCTION private.enforce_stats_sync_claim_fence();
 
 REVOKE ALL ON FUNCTION public.create_or_resume_stats_sync_job_atomic(date, date) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_or_resume_stats_sync_job_atomic(date, date) TO service_role;

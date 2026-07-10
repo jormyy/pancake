@@ -5,6 +5,9 @@ import { requireEnv, resolvedEnv } from './env.mjs'
 
 const RANGE = { startDate: '1947-03-01', endDate: '1947-03-03' }
 const JOB_TYPE = `sync_stats_range:${RANGE.startDate}:${RANGE.endDate}`
+const LEGACY_RANGE = { startDate: '1947-04-01', endDate: '1947-04-03' }
+const LEGACY_JOB_TYPE = `sync_stats_range:${LEGACY_RANGE.startDate}:${LEGACY_RANGE.endDate}`
+const LEGACY_JOB_ID = '00000000-0000-4000-8000-00000000000f'
 const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'dbUrl'])
 const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
 
@@ -24,11 +27,54 @@ async function rpc(name, args) {
 }
 
 async function cleanup() {
-  scalar(`DELETE FROM public.sync_jobs WHERE job_type = '${JOB_TYPE}';`)
+  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}');`)
 }
 
 try {
   await cleanup()
+
+  scalar(`
+    INSERT INTO public.sync_jobs (
+      id, job_type, status, total_items, completed_items, failed_items, error_log,
+      metadata, started_at, claimed_at, claim_token
+    ) VALUES (
+      '${LEGACY_JOB_ID}', '${LEGACY_JOB_TYPE}', 'running', 3, 0, 0, '[]'::jsonb,
+      '{"startDate":"${LEGACY_RANGE.startDate}","endDate":"${LEGACY_RANGE.endDate}","nextDate":"${LEGACY_RANGE.startDate}"}'::jsonb,
+      now(), now() - interval '5 minutes', NULL
+    );
+  `)
+  const earlyLegacyClaims = await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: LEGACY_JOB_ID,
+    p_stale_after_seconds: 60,
+  })
+  assert.equal(earlyLegacyClaims.length, 0, 'live predeploy worker was reclaimed before its drain window elapsed')
+
+  const { error: legacyDrainError } = await admin
+    .from('sync_jobs')
+    .update({ completed_items: 1 })
+    .eq('id', LEGACY_JOB_ID)
+  assert.equal(legacyDrainError, null, 'tokenless predeploy worker could not drain before fenced takeover')
+
+  scalar(`UPDATE public.sync_jobs SET claimed_at = now() - interval '16 minutes' WHERE id = '${LEGACY_JOB_ID}';`)
+  const legacyTakeoverClaims = await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: LEGACY_JOB_ID,
+    p_stale_after_seconds: 60,
+  })
+  assert.equal(legacyTakeoverClaims.length, 1, 'expired predeploy worker was not reclaimed after its drain window')
+  const legacyTakeover = legacyTakeoverClaims[0]
+
+  const { error: staleLegacyWriteError } = await admin
+    .from('sync_jobs')
+    .update({ status: 'failed', completed_items: 999 })
+    .eq('id', LEGACY_JOB_ID)
+  assert.ok(staleLegacyWriteError, 'predeploy worker mutated a token-owned stats job after takeover')
+  assert.match(staleLegacyWriteError.message, /owned by a fenced claim/)
+  assert.equal(await rpc('complete_stats_sync_job_atomic', {
+    p_job_id: LEGACY_JOB_ID,
+    p_claim_token: legacyTakeover.claim_token,
+    p_completed_items: 1,
+    p_metadata: { ...LEGACY_RANGE, nextDate: '1947-04-04' },
+  }), true, 'fenced owner could not complete after rejecting the stale predeploy worker')
 
   const createdIds = await Promise.all(Array.from({ length: 24 }, () =>
     rpc('create_or_resume_stats_sync_job_atomic', {
@@ -52,8 +98,17 @@ try {
   })
   assert.equal(firstClaims.length, 1, 'first worker did not claim the pending job')
   const firstClaim = firstClaims[0]
+  assert.equal(await rpc('create_or_resume_stats_sync_job_atomic', {
+    p_start_date: RANGE.startDate,
+    p_end_date: RANGE.endDate,
+  }), jobId, 'same-range retry could not observe a token-owned active job')
 
-  scalar(`UPDATE public.sync_jobs SET claimed_at = now() - interval '5 minutes' WHERE id = '${jobId}';`)
+  scalar(`
+    BEGIN;
+    SET LOCAL app.stats_sync_fenced_transition = 'on';
+    UPDATE public.sync_jobs SET claimed_at = now() - interval '5 minutes' WHERE id = '${jobId}';
+    COMMIT;
+  `)
   const secondClaims = await rpc('claim_stats_sync_job_atomic', {
     p_job_id: jobId,
     p_stale_after_seconds: 60,
@@ -126,7 +181,7 @@ try {
   assert.equal(resumed.claim_token, null)
   assert.equal(resumed.claimed_at, null)
 
-  console.log('PASS stats sync jobs: concurrent dedupe, fencing, dispatcher rescue, and failure resume')
+  console.log('PASS stats sync jobs: rollout drain, concurrent dedupe, fencing, dispatcher rescue, and failure resume')
 } finally {
   await cleanup()
 }

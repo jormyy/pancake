@@ -20,6 +20,7 @@
     "private.enforce_trade_lifecycle_status()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.enqueue_trade_participant_notification()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.enqueue_trade_status_notification()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.enforce_stats_sync_claim_fence()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.ensure_faab_balance(uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.ensure_season_faab_balances(uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.fail_waiver_claim(uuid,uuid,uuid,uuid,uuid,waiver_claim_status,text,text,text,jsonb)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

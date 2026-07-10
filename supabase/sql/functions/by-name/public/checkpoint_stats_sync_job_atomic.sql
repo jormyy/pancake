@@ -18,6 +18,7 @@ BEGIN
     RAISE EXCEPTION 'Stats sync checkpoint is invalid.';
   END IF;
 
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   UPDATE public.sync_jobs
      SET completed_items = p_completed_items,
          metadata = p_metadata,

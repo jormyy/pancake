@@ -21,6 +21,7 @@ AS $$
 DECLARE
   v_stale_after_seconds integer := LEAST(GREATEST(COALESCE(p_stale_after_seconds, 120), 60), 900);
 BEGIN
+  PERFORM set_config('app.stats_sync_fenced_transition', 'on', true);
   RETURN QUERY
   WITH candidate AS (
     SELECT job.id
@@ -32,8 +33,17 @@ BEGIN
          OR (
          job.status = 'running'
            AND (
-             job.claimed_at IS NULL
-             OR job.claimed_at <= now() - make_interval(secs => v_stale_after_seconds)
+             (
+               job.claim_token IS NULL
+               AND job.claimed_at <= now() - interval '15 minutes'
+             )
+             OR (
+               job.claim_token IS NOT NULL
+               AND (
+                 job.claimed_at IS NULL
+                 OR job.claimed_at <= now() - make_interval(secs => v_stale_after_seconds)
+               )
+             )
            )
          )
        )
