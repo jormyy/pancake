@@ -119,7 +119,9 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         minWidth: 60,
+        minHeight: 44,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     dropBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
     cancel: {
