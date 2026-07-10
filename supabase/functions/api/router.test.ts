@@ -7,7 +7,7 @@ const PLAYER_ID = '55555555-5555-4555-8555-555555555555'
 const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
 
 const postgrestRequests: string[] = []
-const profileMutations: { query: string; body: unknown }[] = []
+const pushRpcRequests: { path: string; body: unknown }[] = []
 const optimizerRequests: { internalToken: string | null; body: unknown }[] = []
 let commissionerRole: string | null = 'commissioner'
 let authenticatedUserId = USER_ID
@@ -54,8 +54,9 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     body = commissionerRole ? { role: commissionerRole } : null
   } else if (url.pathname === '/rest/v1/draft_orders' && url.searchParams.get('select') === 'member_id') {
     body = [{ member_id: MEMBER_ID }, { member_id: OTHER_MEMBER_ID }]
-  } else if (url.pathname === '/rest/v1/profiles' && req.method === 'PATCH') {
-    profileMutations.push({ query: url.searchParams.toString(), body: await req.json() })
+  } else if (url.pathname.startsWith('/rest/v1/rpc/') && url.pathname.includes('push_token')) {
+    pushRpcRequests.push({ path: url.pathname, body: await req.json() })
+    body = url.pathname.endsWith('/register_push_token_atomic') ? null : true
   } else if (url.pathname === '/rest/v1/profiles' && url.searchParams.get('select') === 'push_token') {
     body = { push_token: 'ExponentPushToken[route-lifecycle]' }
   } else if (url.pathname === '/rest/v1/notification_preferences') {
@@ -193,6 +194,7 @@ Deno.test({
       ['GET', '/games/today'],
       ['GET', '/players/headshot/1641705'],
       ['POST', '/profile/push-token'],
+      ['POST', '/profile/push-token/revoke'],
       ['POST', '/league/roster/ir'],
       ['POST', '/league/roster/taxi'],
       ['POST', '/league/lineup/auto-set-season'],
@@ -428,11 +430,11 @@ Deno.test({
 })
 
 Deno.test({
-  name: 'push token registration transfers one device between account owners',
+  name: 'push token registration rotates a hashed per-device revocation credential',
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    profileMutations.length = 0
+    pushRpcRequests.length = 0
     authenticatedUserId = USER_ID
     const first = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
       token: 'ExponentPushToken[test-device]',
@@ -443,21 +445,33 @@ Deno.test({
       token: 'ExponentPushToken[test-device]',
       active: true,
     }))
+    const firstBody = await first.json()
+    const secondBody = await second.json()
     authenticatedUserId = USER_ID
 
-    if (first.status !== 200 || second.status !== 200) {
+    if (first.status !== 200 || second.status !== 200 ||
+        !/^[A-Za-z0-9_-]{43}$/.test(firstBody.revocationCredential) ||
+        !/^[A-Za-z0-9_-]{43}$/.test(secondBody.revocationCredential) ||
+        firstBody.revocationCredential === secondBody.revocationCredential) {
       throw new Error(`expected successful push transfer, got ${first.status}/${second.status}`)
     }
-    const secondClear = profileMutations[2]
-    const secondSet = profileMutations[3]
-    if (!secondClear?.query.includes('push_token=eq.ExponentPushToken%5Btest-device%5D') ||
-        !secondClear.query.includes(`id=neq.${OTHER_USER_ID}`) ||
-        JSON.stringify(secondClear.body) !== JSON.stringify({ push_token: null })) {
-      throw new Error(`second owner did not clear the prior token owner: ${JSON.stringify(secondClear)}`)
+    const registrations = pushRpcRequests.filter((entry) => entry.path.endsWith('/register_push_token_atomic'))
+    if (registrations.length !== 2 || registrations.some((entry) => {
+      const body = entry.body as { p_token?: string; p_revocation_hash?: string }
+      return body.p_token !== 'ExponentPushToken[test-device]' || !/^[0-9a-f]{64}$/.test(body.p_revocation_hash ?? '')
+    })) {
+      throw new Error(`registration was not atomic/hashed: ${JSON.stringify(registrations)}`)
     }
-    if (!secondSet?.query.includes(`id=eq.${OTHER_USER_ID}`) ||
-        JSON.stringify(secondSet.body) !== JSON.stringify({ push_token: 'ExponentPushToken[test-device]' })) {
-      throw new Error(`second owner did not receive the token: ${JSON.stringify(secondSet)}`)
+
+    const revoke = await handleApiRoute(request('POST', '/profile/push-token/revoke', {
+      token: 'ExponentPushToken[test-device]',
+      revocationCredential: secondBody.revocationCredential,
+    }))
+    const revocations = pushRpcRequests.filter((entry) => entry.path.endsWith('/revoke_push_token_atomic'))
+    if (revoke.status !== 200 || revocations.length !== 1 ||
+        (revocations[0].body as { p_revocation_hash?: string }).p_revocation_hash !==
+          (registrations[1].body as { p_revocation_hash?: string }).p_revocation_hash) {
+      throw new Error(`sessionless revocation did not use the current credential: ${JSON.stringify(revocations)}`)
     }
   },
 })
@@ -467,20 +481,21 @@ Deno.test({
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    profileMutations.length = 0
+    pushRpcRequests.length = 0
     authenticatedUserId = USER_ID
     const res = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
       token: 'ExponentPushToken[test-device]',
       active: false,
     }))
 
-    if (res.status !== 200 || profileMutations.length !== 1) {
-      throw new Error(`expected one unregister mutation, got ${res.status}/${profileMutations.length}`)
+    if (res.status !== 200 || pushRpcRequests.length !== 1) {
+      throw new Error(`expected one unregister mutation, got ${res.status}/${pushRpcRequests.length}`)
     }
-    const mutation = profileMutations[0]
-    if (!mutation.query.includes(`id=eq.${USER_ID}`) ||
-        !mutation.query.includes('push_token=eq.ExponentPushToken%5Btest-device%5D')) {
-      throw new Error(`unregister was not owner/token constrained: ${mutation.query}`)
+    const mutation = pushRpcRequests[0]
+    const mutationBody = mutation.body as { p_user_id?: string; p_token?: string }
+    if (!mutation.path.endsWith('/clear_push_token_for_user_atomic') ||
+        mutationBody.p_user_id !== USER_ID || mutationBody.p_token !== 'ExponentPushToken[test-device]') {
+      throw new Error(`unregister was not owner/token constrained: ${JSON.stringify(mutation)}`)
     }
   },
 })

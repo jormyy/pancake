@@ -1869,6 +1869,7 @@ export type Database = {
           display_name: string | null
           id: string
           push_token: string | null
+          push_token_revocation_hash: string | null
           timezone: string
           updated_at: string
           username: string
@@ -1879,6 +1880,7 @@ export type Database = {
           display_name?: string | null
           id: string
           push_token?: string | null
+          push_token_revocation_hash?: string | null
           timezone?: string
           updated_at?: string
           username: string
@@ -1889,6 +1891,7 @@ export type Database = {
           display_name?: string | null
           id?: string
           push_token?: string | null
+          push_token_revocation_hash?: string | null
           timezone?: string
           updated_at?: string
           username?: string
@@ -3491,6 +3494,10 @@ export type Database = {
         }[]
       }
       clear_ineligible_taxi_players: { Args: never; Returns: number }
+      clear_push_token_for_user_atomic: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: boolean
+      }
       close_auction_nomination_atomic: {
         Args: { p_nomination_id: string }
         Returns: boolean
@@ -4000,6 +4007,10 @@ export type Database = {
         Returns: string
       }
       refresh_player_search_caches: { Args: never; Returns: undefined }
+      register_push_token_atomic: {
+        Args: { p_revocation_hash: string; p_token: string; p_user_id: string }
+        Returns: undefined
+      }
       reject_trade_atomic: {
         Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
         Returns: Json
@@ -4058,6 +4069,10 @@ export type Database = {
       resume_draft_if_absent_atomic: {
         Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
+      }
+      revoke_push_token_atomic: {
+        Args: { p_revocation_hash: string; p_token: string }
+        Returns: boolean
       }
       search_players: {
         Args: {

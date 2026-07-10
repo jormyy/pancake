@@ -46,6 +46,14 @@ const canonicalAssetTriggerContract = (source: string) => source.includes(
 ) && source.includes('SECURITY DEFINER') && source.includes(
     'private.assert_trade_assets_acceptance_ready(\n      NEW.id,',
 )
+const pushTokenCredentialUpgradeContract = (source: string) => {
+    const addHash = source.indexOf('ADD COLUMN push_token_revocation_hash text')
+    const clearLegacyTokens = source.indexOf('UPDATE public.profiles\n   SET push_token = NULL')
+    const uniqueIndex = source.indexOf('CREATE UNIQUE INDEX profiles_push_token_unique')
+    const pairConstraint = source.indexOf('ADD CONSTRAINT profiles_push_token_revocation_pair')
+    return addHash >= 0 && clearLegacyTokens > addHash &&
+        uniqueIndex > clearLegacyTokens && pairConstraint > uniqueIndex
+}
 
 describe('branch migration deployment safety', () => {
     it('bounds every lock-taking migration in the unpublished 20260709 series', () => {
@@ -72,6 +80,14 @@ describe('branch migration deployment safety', () => {
         ]) {
             expect(bounded(read(migration).replace("SET lock_timeout = '5s';", '')), migration).toBe(false)
         }
+    })
+
+    it('invalidates uncredentialed legacy push tokens before enforcing paired state', () => {
+        const migration = read('20260709100035_push_token_revocation_credentials.sql')
+        expect(pushTokenCredentialUpgradeContract(migration)).toBe(true)
+        expect(pushTokenCredentialUpgradeContract(
+            migration.replace('UPDATE public.profiles\n   SET push_token = NULL', 'SELECT push_token FROM public.profiles'),
+        )).toBe(false)
     })
 
     it.each(['from', 'to'] as const)(

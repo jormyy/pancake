@@ -166,10 +166,13 @@ describe('profile privacy and invite capacity policies', () => {
         expect(profilePrivileges).toContain('GRANT SELECT (')
         expect(profilePrivileges).toContain('updated_at')
         expect(profilePrivileges).toContain('REVOKE SELECT (push_token) ON public.profiles FROM anon, authenticated')
+        expect(profilePrivileges).toContain('REVOKE SELECT (push_token_revocation_hash) ON public.profiles FROM PUBLIC, anon, authenticated')
+        expect(profilePrivileges).toContain('REVOKE UPDATE (push_token_revocation_hash) ON public.profiles FROM PUBLIC, anon, authenticated')
 
         const authenticatedGrant = profilePrivileges.match(/GRANT SELECT \([^;]*?\) ON public\.profiles TO authenticated;/i)?.[0]
         expect(authenticatedGrant).toEqual(expect.any(String))
         expect(authenticatedGrant).not.toContain('push_token')
+        expect(authenticatedGrant).not.toContain('push_token_revocation_hash')
     })
 
     it('does not keep a public username-availability oracle', () => {
