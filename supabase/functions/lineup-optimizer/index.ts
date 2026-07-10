@@ -1,8 +1,8 @@
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
-import { runBounded } from '../_shared/runBounded.ts'
 import { SLOT_ELIGIBLE } from '../../../constants/slots.ts'
+import { MANUAL_DATE_LIMIT, processManualDates, type ManualOptimizationResult } from './manual.ts'
 
 type OptimizerSetting = {
   league_id: string
@@ -86,8 +86,6 @@ type MemberRoster = {
 }
 
 const FILL_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
-const MANUAL_DATE_LIMIT = 180
-const MANUAL_DATE_CONCURRENCY = 4
 const SCHEDULE_PAGE_SIZE = 1000
 
 type ManualRequest = {
@@ -121,11 +119,9 @@ function manualRequest(body: Record<string, unknown>): ManualRequest | null {
   }
 }
 
-async function processManualRestOfSeason(request: ManualRequest): Promise<{
-  dates: number
-  optimized: number
-  skipped: number
-}> {
+async function processManualRestOfSeason(request: ManualRequest): Promise<
+  ManualOptimizationResult & { metadataUpdated: boolean }
+> {
   const [league, season] = await Promise.all([
     loadLeague(request.leagueId),
     loadSeason(request.leagueId, request.leagueSeasonId),
@@ -141,18 +137,21 @@ async function processManualRestOfSeason(request: ManualRequest): Promise<{
     member_id: request.memberId,
   }
   const roster = await loadMemberRoster(setting)
-  let optimized = 0
-  let skipped = 0
-  await runBounded(contexts.map((context) => async () => {
-    if (context.seasonYear !== season.season_year) {
-      skipped++
-      return
+  const result = await processManualDates(
+    contexts,
+    season.season_year,
+    (context) => autoSetMemberDate(setting, context, roster),
+  )
+  let metadataUpdated = true
+  if (result.optimized > 0) {
+    try {
+      await touchOptimizerSetting(setting)
+    } catch (error) {
+      metadataUpdated = false
+      console.error('[lineup-optimizer] last optimized timestamp update failed', { setting, error })
     }
-    await autoSetMemberDate(setting, context, roster)
-    optimized++
-  }), MANUAL_DATE_CONCURRENCY)
-
-  return { dates: contexts.length, optimized, skipped }
+  }
+  return { ...result, metadataUpdated }
 }
 
 async function processEnabledLineupOptimizers(requestedDate: string | null): Promise<{
@@ -194,6 +193,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
     }
 
     const roster = await loadMemberRoster(setting)
+    let settingOptimized = 0
     for (const dateContext of dateContexts) {
       if (dateContext.seasonYear !== season.season_year) {
         skipped++
@@ -201,7 +201,9 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
       }
       await autoSetMemberDate(setting, dateContext, roster)
       optimized++
+      settingOptimized++
     }
+    if (settingOptimized > 0) await touchOptimizerSetting(setting)
   }
 
   return {
@@ -468,7 +470,7 @@ async function autoSetMemberDate(
     })),
   ]
 
-  const { error } = await supabase.rpc('auto_set_lineup_atomic', {
+  const { error } = await supabase.rpc('auto_set_lineup_service_atomic', {
     p_member_id: setting.member_id,
     p_league_id: setting.league_id,
     p_league_season_id: setting.league_season_id,
@@ -493,14 +495,16 @@ async function autoSetMemberDate(
       }
     }),
   })
+}
 
-  const { error: updateError } = await supabase
+async function touchOptimizerSetting(setting: OptimizerSetting): Promise<void> {
+  const { error } = await supabase
     .from('lineup_optimizer_settings')
     .update({ last_optimized_at: new Date().toISOString() })
     .eq('league_id', setting.league_id)
     .eq('league_season_id', setting.league_season_id)
     .eq('member_id', setting.member_id)
-  if (updateError) throw updateError
+  if (error) throw error
 }
 
 function eligiblePositions(player: RosterPlayerRow['players']): string[] {

@@ -66,7 +66,19 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
       internalToken: req.headers.get('x-internal-function-token'),
       body: await req.json(),
     })
-    body = { ok: true, dates: 42, optimized: 42, skipped: 0 }
+    body = {
+      ok: true,
+      dates: 42,
+      optimized: 40,
+      skipped: 1,
+      failed: 1,
+      metadataUpdated: true,
+      results: [
+        { date: '2027-01-01', status: 'optimized' },
+        { date: '2027-01-02', status: 'skipped', reason: 'outside_season' },
+        { date: '2027-01-03', status: 'failed', reason: 'optimization_failed' },
+      ],
+    }
   } else if (url.pathname === '/rest/v1/rpc/propose_trade_atomic') {
     body = UUID
   } else if (url.pathname === '/rest/v1/rpc/make_snake_pick_atomic') {
@@ -152,7 +164,8 @@ Deno.test({
       leagueSeasonId: '88888888-8888-4888-8888-888888888888',
     }))
     const body = await response.json()
-    if (response.status !== 200 || body.optimized !== 42 || optimizerRequests.length !== 1) {
+    if (response.status !== 200 || body.optimized !== 40 || body.failed !== 1 ||
+        body.results?.[2]?.status !== 'failed' || optimizerRequests.length !== 1) {
       throw new Error(`expected one optimizer job, got ${response.status}: ${JSON.stringify(body)} ${JSON.stringify(optimizerRequests)}`)
     }
     if (optimizerRequests[0].internalToken !== 'edge-internal-test' ||

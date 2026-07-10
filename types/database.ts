@@ -3477,6 +3477,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      auto_set_lineup_service_atomic: {
+        Args: {
+          p_assignments: Json
+          p_game_date: string
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+        }
+        Returns: undefined
+      }
       cancel_waiver_claim_atomic: {
         Args: { p_claim_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined

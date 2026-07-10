@@ -68,6 +68,7 @@
     "public.auto_pick_snake_pick_atomic(uuid,uuid,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.auto_set_lineup_atomic_unchecked(uuid,uuid,uuid,date,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.auto_set_lineup_atomic(uuid,uuid,uuid,date,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.auto_set_lineup_service_atomic(uuid,uuid,uuid,date,jsonb)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.cancel_waiver_claim_atomic(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.claim_notification_outbox_atomic(integer,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.clear_ineligible_taxi_players()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
