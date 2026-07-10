@@ -4,6 +4,7 @@ import {
     evaluateCrudReadiness,
     evaluateProductionDataHealth,
     productionDataThresholds,
+    runCleanupBackedCrudProbe,
 } from './e2e/prod-data-health-contract.mjs'
 
 const healthy = (fetchedAt: string) => ({
@@ -71,5 +72,17 @@ describe('production data health contract', () => {
         expect(evaluateCrudReadiness(false, null)).toMatchObject({ pass: false })
         expect(evaluateCrudReadiness(true, { inserted: 1, updated: 1, deleted: 1, residue: 0 })).toMatchObject({ pass: true })
         expect(evaluateCrudReadiness(true, { inserted: 1, updated: 0, deleted: 1, residue: 0 })).toMatchObject({ pass: false })
+    })
+
+    it('cleans the sentinel row when a CRUD step fails', () => {
+        const calls: string[] = []
+        const query = (_label: string, sql: string) => {
+            calls.push(sql)
+            if (sql.startsWith('UPDATE')) throw new Error('injected update failure')
+            return [{ lock_key: -1 }]
+        }
+
+        expect(() => runCleanupBackedCrudProbe(query, -1)).toThrow('injected update failure')
+        expect(calls.at(-1)).toContain('DELETE FROM public.live_poll_leases')
     })
 })

@@ -1,7 +1,7 @@
 import path from 'node:path'
 import process from 'node:process'
 import { cleanMessage, envValue, isProductionSupabaseUrl, querySupabaseDb, requireEnv, writeMarkdownReport } from './env.mjs'
-import { evaluateCrudReadiness, evaluateProductionDataHealth } from './prod-data-health-contract.mjs'
+import { evaluateCrudReadiness, evaluateProductionDataHealth, runCleanupBackedCrudProbe } from './prod-data-health-contract.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/prod-data-source-health-report.md')
@@ -145,48 +145,6 @@ SELECT
   (SELECT count(*) FROM public.sync_jobs WHERE status NOT IN ('completed', 'failed')) AS open_sync_jobs;
 `
 
-const crudSmokeSql = `
-CREATE TEMP TABLE prod_data_health_counts (
-  inserted int,
-  updated int,
-  deleted int,
-  residue int
-) ON COMMIT DROP;
-
-DO $$
-DECLARE
-  v_inserted int := 0;
-  v_updated int := 0;
-  v_deleted int := 0;
-  v_residue int := 0;
-BEGIN
-  DELETE FROM public.live_poll_leases
-   WHERE lock_key = -72026062700015;
-
-  INSERT INTO public.live_poll_leases (lock_key, holder_id, expires_at)
-  VALUES (-72026062700015, gen_random_uuid(), now() + interval '1 minute');
-  GET DIAGNOSTICS v_inserted = ROW_COUNT;
-
-  UPDATE public.live_poll_leases
-     SET expires_at = now() + interval '2 minutes'
-   WHERE lock_key = -72026062700015;
-  GET DIAGNOSTICS v_updated = ROW_COUNT;
-
-  DELETE FROM public.live_poll_leases
-   WHERE lock_key = -72026062700015;
-  GET DIAGNOSTICS v_deleted = ROW_COUNT;
-
-  SELECT count(*) INTO v_residue
-    FROM public.live_poll_leases
-   WHERE lock_key = -72026062700015;
-
-  INSERT INTO prod_data_health_counts
-  VALUES (v_inserted, v_updated, v_deleted, v_residue);
-END $$;
-
-SELECT * FROM prod_data_health_counts;
-`
-
 const fetchJson = async (label, url, timeoutMs = 30000) => {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -291,7 +249,7 @@ try {
   )
 
   if (allowWrites) {
-    const [crud] = queryDb('CRUD smoke', crudSmokeSql)
+    const crud = runCleanupBackedCrudProbe(queryDb, -72026062700015)
     const crudReadiness = evaluateCrudReadiness(true, crud)
     addRow(
       'Opt-in CRUD smoke',

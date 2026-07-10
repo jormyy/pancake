@@ -65,3 +65,46 @@ export const evaluateCrudReadiness = (enabled, result) => {
     evidence: `inserted=${result?.inserted ?? 'missing'}, updated=${result?.updated ?? 'missing'}, deleted=${result?.deleted ?? 'missing'}, residue=${result?.residue ?? 'missing'}`,
   }
 }
+
+/** @param {(label: string, sql: string) => any[]} queryDb @param {number} lockKey */
+export const runCleanupBackedCrudProbe = (queryDb, lockKey) => {
+  if (!Number.isSafeInteger(lockKey)) throw new Error('CRUD probe lock key must be a safe integer')
+  const cleanupSql = `DELETE FROM public.live_poll_leases WHERE lock_key = ${lockKey} RETURNING lock_key`
+  queryDb('CRUD smoke initial cleanup', cleanupSql)
+  let result = null
+  let primaryError = null
+  try {
+    const inserted = queryDb(
+      'CRUD smoke insert',
+      `INSERT INTO public.live_poll_leases (lock_key, holder_id, expires_at) VALUES (${lockKey}, gen_random_uuid(), now() + interval '1 minute') RETURNING lock_key`,
+    )
+    const updated = queryDb(
+      'CRUD smoke update',
+      `UPDATE public.live_poll_leases SET expires_at = now() + interval '2 minutes' WHERE lock_key = ${lockKey} RETURNING lock_key`,
+    )
+    const deleted = queryDb('CRUD smoke delete', cleanupSql)
+    const [residue] = queryDb(
+      'CRUD smoke residue',
+      `SELECT count(*)::int AS residue FROM public.live_poll_leases WHERE lock_key = ${lockKey}`,
+    )
+    result = {
+      inserted: inserted.length,
+      updated: updated.length,
+      deleted: deleted.length,
+      residue: residue?.residue,
+    }
+  } catch (error) {
+    primaryError = error
+  }
+
+  let cleanupError = null
+  try {
+    queryDb('CRUD smoke final cleanup', cleanupSql)
+  } catch (error) {
+    cleanupError = error
+  }
+  if (primaryError && cleanupError) throw new AggregateError([primaryError, cleanupError], 'CRUD probe and cleanup failed')
+  if (primaryError) throw primaryError
+  if (cleanupError) throw cleanupError
+  return result
+}
