@@ -358,3 +358,5 @@ export default function CommissionerSettingsScreen() {
         </>
     )
 }
+
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

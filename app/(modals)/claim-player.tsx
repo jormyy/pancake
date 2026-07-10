@@ -377,6 +377,8 @@ export default function ClaimPlayerScreen() {
     )
 }
 
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
     screenHeader: {

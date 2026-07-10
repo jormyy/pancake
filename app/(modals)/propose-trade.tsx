@@ -353,6 +353,8 @@ export default function ProposeTradeScreen() {
     )
 }
 
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
 function ModeButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
     return (
         <Pressable

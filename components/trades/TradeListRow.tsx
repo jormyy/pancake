@@ -132,35 +132,35 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     blockAvgStatsMap: Map<string, { avg_minutes_played: number | null }>
     onList: (player: RosterPlayer) => void | Promise<void>
 }) {
-        const player = item.player.players
-        const positions = playerEligiblePositions({ position: player.position, eligiblePositions: player.eligible_positions })
-        const context = playerSeasonContextText({
-            yearsExp: player.years_exp,
-            avgFantasyPoints: blockAvgMap.get(player.id) ?? null,
-            avgMinutesPlayed: blockAvgStatsMap.get(player.id)?.avg_minutes_played ?? null,
-        })
-        return (
-            <View style={styles.blockRow}>
-                <Avatar name={player.display_name} uri={playerHeadshotUrl(player.nba_id) ?? undefined}
-                    color={colors.bgMuted} textColor={colors.textSecondary} size={38} />
-                <View style={styles.blockInfo}>
-                    <Text style={styles.blockTitle}>{player.display_name}</Text>
-                    <View style={styles.blockMetaRow}>
-                        {player.nba_team ? <Text style={styles.blockMeta}>{player.nba_team}</Text> : null}
-                        {positions.map((position) => <PosTag key={position} position={position} />)}
-                        {player.injury_status ? <Badge label={player.injury_status}
-                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted} variant="solid" /> : null}
-                    </View>
-                    <Text style={styles.blockContext} numberOfLines={1}>{context}</Text>
+    const player = item.player.players
+    const positions = playerEligiblePositions({ position: player.position, eligiblePositions: player.eligible_positions })
+    const context = playerSeasonContextText({
+        yearsExp: player.years_exp,
+        avgFantasyPoints: blockAvgMap.get(player.id) ?? null,
+        avgMinutesPlayed: blockAvgStatsMap.get(player.id)?.avg_minutes_played ?? null,
+    })
+    return (
+        <View style={styles.blockRow}>
+            <Avatar name={player.display_name} uri={playerHeadshotUrl(player.nba_id) ?? undefined}
+                color={colors.bgMuted} textColor={colors.textSecondary} size={38} />
+            <View style={styles.blockInfo}>
+                <Text style={styles.blockTitle}>{player.display_name}</Text>
+                <View style={styles.blockMetaRow}>
+                    {player.nba_team ? <Text style={styles.blockMeta}>{player.nba_team}</Text> : null}
+                    {positions.map((position) => <PosTag key={position} position={position} />)}
+                    {player.injury_status ? <Badge label={player.injury_status}
+                        color={INJURY_COLORS[player.injury_status] ?? colors.textMuted} variant="solid" /> : null}
                 </View>
-                <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
-                    onPress={() => onList(item.player)} disabled={listed || busy}
-                    accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}
-                    accessibilityState={{ disabled: listed || busy }}>
-                    <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
-                </Pressable>
+                <Text style={styles.blockContext} numberOfLines={1}>{context}</Text>
             </View>
-        )
+            <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
+                onPress={() => onList(item.player)} disabled={listed || busy}
+                accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}
+                accessibilityState={{ disabled: listed || busy }}>
+                <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
+            </Pressable>
+        </View>
+    )
 })
 
 export const TradeBlockPickRow = memo(function TradeBlockPickRow({

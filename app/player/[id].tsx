@@ -359,6 +359,8 @@ export default function PlayerDetailScreen() {
     )
 }
 
+export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { padding: spacing['2xl'], gap: spacing['3xl'], width: '100%', maxWidth: 900, alignSelf: 'center' },

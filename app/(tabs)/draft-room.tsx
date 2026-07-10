@@ -1,41 +1,38 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { EmptyState } from '@/components/EmptyState'
 import { useLeagueContext } from '@/contexts/league-context'
-import { getJoinableDraft } from '@/lib/draft'
+import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 export default function DraftRoomTab() {
     const router = useRouter()
     const { currentLeague } = useLeagueContext()
-    const [checking, setChecking] = useState(true)
+    const { openDraftRoom, draftLoading, draftError, draftChecked } = useDraftRoomLauncher(currentLeague?.id)
 
     useFocusEffect(
         useCallback(() => {
-            if (!currentLeague?.id) {
-                setChecking(false)
-                return
-            }
-
-            setChecking(true)
-            getJoinableDraft(currentLeague.id, { includeCompletedRookie: true })
-                .then((draft) => {
-                    if (!draft) return
-                    const pathname = draft.draftType === 'snake'
-                        ? '/(modals)/rookie-draft-room'
-                        : '/(modals)/draft-room'
-                    router.push({ pathname, params: { draftId: draft.id } })
-                })
-                .catch(() => {/* show empty state */})
-                .finally(() => setChecking(false))
-        }, [currentLeague?.id, router]),
+            void openDraftRoom({ fallbackOnMissing: false })
+        }, [openDraftRoom]),
     )
 
-    if (checking) {
+    if ((currentLeague?.id && !draftChecked) || draftLoading) {
         return (
             <EmptyState
                 icon="flash-on"
                 message="Checking draft room"
                 description="The active auction or rookie draft opens automatically when one is ready."
+            />
+        )
+    }
+
+    if (draftError) {
+        return (
+            <EmptyState
+                icon="error-outline"
+                message="Could not check draft room"
+                description={draftError}
+                actionLabel="Try Again"
+                onAction={() => { void openDraftRoom({ fallbackOnMissing: false }) }}
             />
         )
     }
