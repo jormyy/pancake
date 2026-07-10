@@ -7,7 +7,7 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { ownScenarioResource, releaseScenarioResource } from './scenario-resource-owner.mjs'
-import { measureNavigationTiming, measureVisibleFeedback } from './browser-performance-evidence.mjs'
+import { measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -44,40 +44,6 @@ const parseEvalJson = (output) => {
   const line = output.split('\n').filter(Boolean).at(-1)
   const value = JSON.parse(line)
   return typeof value === 'string' ? JSON.parse(value) : value
-}
-
-const bidPressFeedbackTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(async () => {
-      const candidates = Array.from(document.querySelectorAll('*'))
-        .map((node) => ({ node, text: (node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim() }))
-        .filter((entry) => /^Bid \\$\\d+/.test(entry.text))
-        .sort((a, b) => a.text.length - b.text.length);
-      const labelNode = candidates[0]?.node ?? null;
-      const button = labelNode?.closest?.('[role="button"], button, [tabindex]') ?? labelNode?.parentElement ?? null;
-      if (!button) return JSON.stringify(null);
-      const previousTabIndex = button.getAttribute('tabindex');
-      if (!(button instanceof HTMLButtonElement) && previousTabIndex === null) button.setAttribute('tabindex', '0');
-      const started = performance.now();
-      const eventInit = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' };
-      const down = typeof PointerEvent === 'function'
-        ? new PointerEvent('pointerdown', eventInit)
-        : new MouseEvent('mousedown', { bubbles: true, cancelable: true });
-      button.focus();
-      button.dispatchEvent(down);
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const feedbackMs = Math.round((performance.now() - started) * 10) / 10;
-      const observed = document.activeElement === button;
-      const up = typeof PointerEvent === 'function'
-        ? new PointerEvent('pointerup', eventInit)
-        : new MouseEvent('mouseup', { bubbles: true, cancelable: true });
-      button.dispatchEvent(up);
-      if (previousTabIndex === null) button.removeAttribute('tabindex');
-      return JSON.stringify({ feedbackMs, observed, interaction: 'bid-pointer-focus', target: (button.innerText || button.textContent || '').trim() });
-    })()`,
-  ])
-  return parseOptionalEvalJson(output)
 }
 
 const fetchSingle = async (supabase, table, select, filters) => {
@@ -434,8 +400,7 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['set', 'viewport', '390', '844'])
 
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
-    await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
-    const draftRouteTiming = await measureNavigationTiming(browser, session)
+    const draftRouteTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
     await signIn(peerSession, env, state, peerUser)
     await browser(peerSession, ['set', 'viewport', '390', '844'])
     await browser(peerSession, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
@@ -445,10 +410,10 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     await waitForDraftInProgress(supabase, auction.draftId)
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
-    await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     await waitForDraftInProgress(supabase, auction.draftId)
-    const draftLoadTiming = await measureNavigationTiming(browser, session)
-    const draftFeedback = await bidPressFeedbackTiming(session).catch((error) => ({ error: error.message }))
+    const draftLoadTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
+    const draftFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
+      .catch((error) => ({ error: error.message }))
     await installHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-before-load.png')], { timeout: 60_000 })
 
@@ -458,12 +423,10 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-after-load.png')], { timeout: 60_000 })
 
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
-    await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
-    const homeRouteTiming = await measureNavigationTiming(browser, session)
+    const homeRouteTiming = await measureNavigationTiming(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
-    await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
-    const homeLoadTiming = await measureNavigationTiming(browser, session)
-    const homeFeedback = await measureVisibleFeedback(browser, session)
+    const homeLoadTiming = await measureNavigationTiming(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
+    const homeFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
     await installHeartbeat(session)
     const homeLoad = await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])

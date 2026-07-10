@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
-import { measureNavigationTiming, measureVisibleFeedback } from './browser-performance-evidence.mjs'
+import { measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -23,7 +23,6 @@ const safeName = (value) => value.replace(/[^a-zA-Z0-9._-]/g, '-')
 const joinUrl = (base, pathname) => new URL(pathname, base.endsWith('/') ? base : `${base}/`).toString()
 
 const routeWorkflowIds = new Map([
-  ['home', 'home-live-lineup'],
   ['players', 'player-search-filter'],
   ['roster', 'roster-review-manage'],
   ['trades', 'trade-review-act'],
@@ -32,15 +31,7 @@ const routeWorkflowIds = new Map([
   ['claim-player', 'waiver-add-claim'],
   ['player-detail', 'player-detail-open'],
   ['propose-trade', 'trade-review-act'],
-  ['draft-room', 'auction-draft-room'],
   ['rookie-draft-room', 'rookie-draft-room'],
-])
-
-const workflowInputSelectors = new Map([
-  ['player-search-filter', ['input[placeholder="Search players..."]', 'input[placeholder*="Search"]']],
-  ['dynasty-hub', ['input[placeholder*="Search dynasty"]', 'input[placeholder*="Search rankings"]']],
-  ['waiver-add-claim', ['[aria-label="FAAB bid amount"]', 'input']],
-  ['trade-review-act', ['textarea[placeholder*="message"]']],
 ])
 
 const recordWorkflowMeasurement = (measurements, next) => {
@@ -405,16 +396,12 @@ export async function runBrowserSmoke({
 
     for (const [label, route] of routes) {
       await browser(session, ['open', joinUrl(env.frontendUrl, route)])
-      await browser(session, ['wait', '1500'])
       const workflowId = routeWorkflowIds.get(label)
       if (workflowId) {
-        const routeTiming = await measureNavigationTiming(browser, session)
+        const routeTiming = await measureNavigationTiming(browser, session, { workflowId, label })
         await browser(session, ['open', joinUrl(env.frontendUrl, route)])
-        await browser(session, ['wait', '1000'])
-        const cachedTiming = await measureNavigationTiming(browser, session)
-        const feedback = await measureVisibleFeedback(browser, session, {
-          inputSelectors: workflowInputSelectors.get(workflowId) ?? [],
-        })
+        const cachedTiming = await measureNavigationTiming(browser, session, { workflowId, label })
+        const feedback = await measureWorkflowFeedback(browser, session, { workflowId, label })
         if (cachedTiming && feedback?.observed && feedback.feedbackMs != null) {
           recordWorkflowMeasurement(workflowMeasurements, {
             id: workflowId,
@@ -430,6 +417,8 @@ export async function runBrowserSmoke({
         } else {
           throw new Error(`Observed performance feedback missing for ${workflowId}`)
         }
+      } else {
+        await browser(session, ['wait', '1500'])
       }
       await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
       visited.push(label)
