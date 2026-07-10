@@ -207,9 +207,10 @@ jobs:
               EXPO_PUBLIC_API_URL="$E2E_API_BASE_URL" \
               EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
               npm run build:web:release
-            compatibility_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
-            printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s\n' "$compatibility_digest" >> "$GITHUB_ENV"
           ) > tests/artifacts/stack/deployed-frontend-build.log 2>&1
+          export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST="$(
+            node -e "process.stdout.write(require('$deployed_frontend_worktree/dist/release-provenance.json').bundleDigest)"
+          )"
           node tests/e2e/static-web-server.mjs \
             --root="$deployed_frontend_worktree/dist" --port=8083 \
             > tests/artifacts/stack/deployed-frontend-web.log 2>&1 &

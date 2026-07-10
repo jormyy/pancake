@@ -333,7 +333,8 @@ describe('release E2E contracts', () => {
 
     const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
     expect(soakWorkflow).toContain('test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
-    expect(soakWorkflow).toContain('E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST')
+    expect(soakWorkflow).toContain('export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=')
+    expect(soakWorkflow).not.toContain("printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s")
   })
 
   it('does not claim measured production performance from a clean checkout', async () => {
