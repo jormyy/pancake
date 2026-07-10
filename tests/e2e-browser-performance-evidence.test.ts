@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   measureNavigationTiming,
   measureWorkflowFeedback,
+  recordWorkflowMeasurement,
   summarizeJavaScriptDelivery,
   WORKFLOW_FEEDBACK_IDS,
   WORKFLOW_READY_IDS,
@@ -46,6 +47,30 @@ describe('browser performance evidence', () => {
     const workflowIds = budgets.workflows.map((workflow) => workflow.id).sort()
     expect([...WORKFLOW_READY_IDS].sort()).toEqual(workflowIds)
     expect([...WORKFLOW_FEEDBACK_IDS].sort()).toEqual(workflowIds)
+  })
+
+  it('merges repeated workflow routes using worst-case network and cache evidence', () => {
+    const measurements = [{
+      id: 'trade-review-act', route: '/trades', routeWebJsKb: 0,
+      routeJsCacheHit: true, routeJsDecodedKb: 40, routeJsEntryCount: 1, routeJsNetworkEntryCount: 0,
+      feedbackMs: 5, cachedRequestMs: 10, fullLoadMs: 100,
+      feedbackObserved: true, feedbackInteraction: 'history',
+    }]
+    recordWorkflowMeasurement(measurements, {
+      id: 'trade-review-act', route: '/propose-trade', routeWebJsKb: 240,
+      routeJsCacheHit: false, routeJsDecodedKb: 80, routeJsEntryCount: 2, routeJsNetworkEntryCount: 1,
+      feedbackMs: 8, cachedRequestMs: 20, fullLoadMs: 200,
+      feedbackObserved: true, feedbackInteraction: 'mode',
+    })
+
+    expect(measurements).toEqual([expect.objectContaining({
+      routeWebJsKb: 240,
+      routeJsCacheHit: false,
+      routeJsDecodedKb: 80,
+      routeJsEntryCount: 2,
+      routeJsNetworkEntryCount: 1,
+      routes: ['/trades', '/propose-trade'],
+    })])
   })
 
   it('gates fullLoadMs on workflow readiness rather than the navigation load event', async () => {

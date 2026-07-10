@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { assertFullSweepRoutes, REQUIRED_FULL_SWEEP_LABELS } from './e2e/browser-smoke.mjs'
 import { productionBrowserFailures } from './e2e/production-web-hydration.mjs'
 import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.mjs'
+import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 
 const tempDirs: string[] = []
@@ -19,6 +20,14 @@ describe('release E2E contracts', () => {
     const configured = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/midlife-migration.json'), 'utf8'))
     const migrations = (await readdir(path.join(process.cwd(), 'supabase/migrations'))).filter((name) => name.endsWith('.sql')).sort()
     expect(configured.filename).toBe(migrations.at(-1))
+  })
+
+  it('runs the full measured smoke sweep and enforces its workflow budgets in PR CI', async () => {
+    expect(browserCiContext('smoke').args.browserFullSweep).toBe(true)
+    expect(browserCiContext('performance').args.browserFullSweep).toBe(false)
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/test.yml'), 'utf8')
+    expect(workflow).toContain("if: matrix.scenario == 'smoke'")
+    expect(workflow).toContain('npm run perf:budget -- --require-workflow-reports')
   })
 
   it('requires every declared global performance budget', () => {

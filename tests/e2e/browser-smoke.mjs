@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
-import { measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
+import { measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 
 const ROOT = process.cwd()
@@ -34,20 +34,6 @@ const routeWorkflowIds = new Map([
   ['propose-trade', 'trade-review-act'],
   ['rookie-draft-room', 'rookie-draft-room'],
 ])
-
-const recordWorkflowMeasurement = (measurements, next) => {
-  const existing = measurements.find((measurement) => measurement.id === next.id)
-  if (!existing) {
-    measurements.push(next)
-    return
-  }
-  for (const key of ['feedbackMs', 'cachedRequestMs', 'fullLoadMs', 'initialWebJsKb', 'routeWebJsKb']) {
-    if (Number.isFinite(next[key])) existing[key] = Math.max(Number(existing[key] ?? 0), next[key])
-  }
-  existing.feedbackObserved = existing.feedbackObserved === true && next.feedbackObserved === true
-  existing.feedbackInteraction = `${existing.feedbackInteraction},${next.feedbackInteraction}`
-  existing.routes = [...new Set([...(existing.routes ?? [existing.route]), next.route])]
-}
 
 export const REQUIRED_FULL_SWEEP_LABELS = [
   'auth-sign-in', 'auth-sign-up',

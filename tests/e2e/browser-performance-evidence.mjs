@@ -34,6 +34,32 @@ export const WORKFLOW_FEEDBACK_IDS = Object.freeze([
   'dynasty-hub',
 ])
 
+const worstCaseMeasurementKeys = [
+  'feedbackMs',
+  'cachedRequestMs',
+  'fullLoadMs',
+  'initialWebJsKb',
+  'routeWebJsKb',
+  'routeJsDecodedKb',
+  'routeJsEntryCount',
+  'routeJsNetworkEntryCount',
+]
+
+export const recordWorkflowMeasurement = (measurements, next) => {
+  const existing = measurements.find((measurement) => measurement.id === next.id)
+  if (!existing) {
+    measurements.push(next)
+    return
+  }
+  for (const key of worstCaseMeasurementKeys) {
+    if (Number.isFinite(next[key])) existing[key] = Math.max(Number(existing[key] ?? 0), next[key])
+  }
+  existing.routeJsCacheHit = existing.routeJsCacheHit === true && next.routeJsCacheHit === true
+  existing.feedbackObserved = existing.feedbackObserved === true && next.feedbackObserved === true
+  existing.feedbackInteraction = `${existing.feedbackInteraction},${next.feedbackInteraction}`
+  existing.routes = [...new Set([...(existing.routes ?? [existing.route]), next.route])]
+}
+
 const browserJson = async (browser, session, source) => parseEvalJson(await browser(session, ['eval', source]))
 
 export const summarizeJavaScriptDelivery = (resources) => {
