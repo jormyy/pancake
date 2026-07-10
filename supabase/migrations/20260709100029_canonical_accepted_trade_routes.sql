@@ -393,7 +393,6 @@ BEGIN
   );
 END;
 $function$;
-
 CREATE OR REPLACE FUNCTION public.toggle_ir_atomic(p_roster_player_id uuid, p_to_ir boolean, p_user_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -771,4 +770,3 @@ BEGIN
   );
 END;
 $function$;
-
