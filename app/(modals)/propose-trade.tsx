@@ -52,7 +52,11 @@ export default function ProposeTradeScreen() {
     const [loading, setLoading] = useState(true)
     const [membersError, setMembersError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
-    const submittingRef = useRef(false)
+    const ownerIdentity = myMemberId && leagueId ? `${leagueId}:${myMemberId}` : null
+    const activeOwnerRef = useRef(ownerIdentity)
+    activeOwnerRef.current = ownerIdentity
+    const mountedRef = useRef(false)
+    const submissionRef = useRef<{ ownerIdentity: string; token: symbol } | null>(null)
     const routePrefillKeyRef = useRef<string | null>(null)
     const membersRequestRef = useRef(0)
     const { mode, editTradeId, counterTradeId, sourceTradeId } = getTradeComposerMode(params)
@@ -76,6 +80,20 @@ export default function ProposeTradeScreen() {
         setParticipantIds,
         toggleParticipant,
     } = composer
+
+    useEffect(() => {
+        mountedRef.current = true
+        return () => { mountedRef.current = false }
+    }, [])
+
+    const ownsOwner = useCallback((capturedOwner: string | null) => (
+        mountedRef.current && capturedOwner !== null && activeOwnerRef.current === capturedOwner
+    ), [])
+
+    useEffect(() => {
+        submissionRef.current = null
+        setSubmitting(false)
+    }, [ownerIdentity])
 
     const loadMembers = useCallback(async () => {
         const requestId = ++membersRequestRef.current
@@ -112,10 +130,11 @@ export default function ProposeTradeScreen() {
 
     useEffect(() => {
         if (!sourceTradeId || !myMemberId) return
+        const capturedOwner = ownerIdentity
         let cancelled = false
         getTradeById(sourceTradeId, myMemberId)
             .then((trade) => {
-                if (cancelled || !trade) return
+                if (cancelled || !ownsOwner(capturedOwner) || !trade) return
                 const prefill = prefillTradeComposerFromTrade(mode, trade)
                 setMultiTeamMode(trade.isMultiTeam)
                 setSelectedRecipientId(trade.isMultiTeam ? null : prefill.selectedRecipientId)
@@ -123,11 +142,15 @@ export default function ProposeTradeScreen() {
                 setExpirationDays(prefill.expirationDays)
                 prefillFromTrade(trade, myMemberId)
             })
-            .catch((error) => showAlert('Error', getErrorMessage(error) ?? 'Could not load trade.'))
+            .catch((error) => {
+                if (!cancelled && ownsOwner(capturedOwner)) {
+                    showAlert('Error', getErrorMessage(error) ?? 'Could not load trade.')
+                }
+            })
         return () => {
             cancelled = true
         }
-    }, [mode, myMemberId, prefillFromTrade, sourceTradeId])
+    }, [mode, myMemberId, ownerIdentity, ownsOwner, prefillFromTrade, sourceTradeId])
 
     useEffect(() => {
         if (multiTeamMode || !selectedRecipientId || loadedParticipantKey !== participantIds.join(',')) return
@@ -183,8 +206,9 @@ export default function ProposeTradeScreen() {
     )
 
     const handleSubmit = useCallback(async () => {
-        if (submittingRef.current || !canSubmit) return
-        submittingRef.current = true
+        if (!ownerIdentity || !ownsOwner(ownerIdentity) || submissionRef.current || !canSubmit) return
+        const submission = { ownerIdentity, token: Symbol('trade-submission') }
+        submissionRef.current = submission
         setSubmitting(true)
         try {
             if (multiTeamMode) {
@@ -212,14 +236,19 @@ export default function ProposeTradeScreen() {
                     payload: twoTeamDraft.payload,
                 }, { getCurrentSeasonId, proposeTrade, counterTrade, editTrade })
             }
+            if (!ownsOwner(ownerIdentity) || submissionRef.current !== submission) return
             const successCopy = tradeComposerSuccessCopy(mode)
             showSuccess(successCopy.title, successCopy.message)
             back()
         } catch (error) {
-            showAlert('Error', getErrorMessage(error) ?? 'Could not propose trade.')
+            if (ownsOwner(ownerIdentity) && submissionRef.current === submission) {
+                showAlert('Error', getErrorMessage(error) ?? 'Could not propose trade.')
+            }
         } finally {
-            submittingRef.current = false
-            setSubmitting(false)
+            if (submissionRef.current === submission) {
+                submissionRef.current = null
+                if (ownsOwner(ownerIdentity)) setSubmitting(false)
+            }
         }
     }, [
         back,
@@ -235,6 +264,8 @@ export default function ProposeTradeScreen() {
         multiTeamMode,
         myMemberId,
         notes,
+        ownerIdentity,
+        ownsOwner,
         participantIds,
         selectedRecipientId,
         twoTeamDraft,

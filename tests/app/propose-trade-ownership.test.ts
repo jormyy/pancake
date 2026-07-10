@@ -1,0 +1,191 @@
+import React from 'react'
+import { act, create, type ReactTestRenderer } from 'react-test-renderer'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import ProposeTradeScreen from '@/app/(modals)/propose-trade'
+
+const mocks = vi.hoisted(() => ({
+    back: vi.fn(),
+    context: {
+        current: { id: 'member-a', team_name: 'Team A' },
+        currentLeague: {
+            id: 'league-a',
+            status: 'active',
+            trade_deadline: null,
+            waiver_mode: 'faab',
+        },
+    },
+    getLeagueMembers: vi.fn(),
+    getTradeById: vi.fn(),
+    params: {} as Record<string, string | undefined>,
+    prefillFromTrade: vi.fn(),
+    showAlert: vi.fn(),
+    showSuccess: vi.fn(),
+    submitTradeComposer: vi.fn(),
+}))
+
+vi.mock('react-native', () => ({
+    Platform: { OS: 'ios', select: <Value,>(options: { default?: Value; ios?: Value }) => options.ios ?? options.default },
+    Pressable: 'Pressable',
+    ScrollView: 'ScrollView',
+    StyleSheet: { create: <Value,>(value: Value) => value },
+    Text: 'Text',
+    View: 'View',
+}))
+vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
+vi.mock('expo-router', () => ({
+    useLocalSearchParams: () => mocks.params,
+    useRouter: () => ({ back: mocks.back }),
+}))
+vi.mock('@/contexts/league-context', () => ({
+    useLeagueContext: () => mocks.context,
+}))
+vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
+    useMultiTeamTradeComposer: () => ({
+        assetsReady: true,
+        avgMap: new Map(),
+        avgStatsMap: new Map(),
+        buildMultiTeamItems: () => [
+            { fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
+            { fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'player-b' },
+        ],
+        loadedParticipantKey: 'member-a,member-b',
+        participantIds: ['member-a', 'member-b'],
+        participantName: vi.fn(),
+        participantViews: [{ memberId: 'member-a' }, { memberId: 'member-b' }],
+        prefillFromTrade: mocks.prefillFromTrade,
+        reset: vi.fn(),
+        retry: vi.fn(),
+        rosterError: null,
+        rosterLoading: false,
+        selectParticipantAsset: vi.fn(),
+        selectedParticipantIds: new Set(),
+        setParticipantDestination: vi.fn(),
+        setParticipantFaab: vi.fn(),
+        setParticipantIds: vi.fn(),
+        setParticipantPickDestination: vi.fn(),
+        setParticipantPlayerDestination: vi.fn(),
+        toggleParticipant: vi.fn(),
+        toggleParticipantPick: vi.fn(),
+        toggleParticipantPlayer: vi.fn(),
+    }),
+}))
+vi.mock('@/lib/trade-composer', () => ({
+    buildTwoTeamTradeComposerPayload: () => ({ hasOffer: true, hasRequest: true, payload: {} }),
+    getTradeComposerMode: (params: Record<string, string | undefined>) => ({
+        mode: params.editTradeId ? 'edit' : params.counterTradeId ? 'counter' : 'propose',
+        editTradeId: params.editTradeId ?? null,
+        counterTradeId: params.counterTradeId ?? null,
+        sourceTradeId: params.editTradeId ?? params.counterTradeId ?? null,
+    }),
+    prefillTradeComposerFromTrade: () => ({
+        selectedRecipientId: 'member-b',
+        notes: '',
+        expirationDays: '3',
+    }),
+    submitMultiTeamTradeComposer: vi.fn(),
+    submitTradeComposer: mocks.submitTradeComposer,
+    tradeComposerSuccessCopy: () => ({ title: 'Sent', message: 'Trade sent.' }),
+    tradeComposerTitle: () => 'Propose Trade',
+}))
+vi.mock('@/lib/trades', () => ({
+    counterMultiTeamTrade: vi.fn(),
+    counterTrade: vi.fn(),
+    editMultiTeamTrade: vi.fn(),
+    editTrade: vi.fn(),
+    getCurrentSeasonId: vi.fn(),
+    getTradeById: mocks.getTradeById,
+    proposeMultiTeamTrade: vi.fn(),
+    proposeTrade: vi.fn(),
+}))
+vi.mock('@/lib/alert', () => ({
+    getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
+    showAlert: mocks.showAlert,
+    showSuccess: mocks.showSuccess,
+}))
+vi.mock('@/lib/league', () => ({
+    getLeagueMembers: mocks.getLeagueMembers,
+    isTradingClosed: () => false,
+}))
+vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: () => null }))
+vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
+vi.mock('@/components/ui', () => ({ ErrorBanner: () => null }))
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+const deferred = <Value,>() => {
+    let resolve!: (value: Value) => void
+    let reject!: (reason: unknown) => void
+    const promise = new Promise<Value>((done, fail) => { resolve = done; reject = fail })
+    return { promise, resolve, reject }
+}
+
+beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.params = { recipientMemberId: 'member-b' }
+    mocks.context = {
+        current: { id: 'member-a', team_name: 'Team A' },
+        currentLeague: {
+            id: 'league-a',
+            status: 'active',
+            trade_deadline: null,
+            waiver_mode: 'faab',
+        },
+    }
+    mocks.getLeagueMembers.mockResolvedValue([{ id: 'member-b', team_name: 'Team B' }])
+    mocks.getTradeById.mockResolvedValue(null)
+    mocks.submitTradeComposer.mockResolvedValue(undefined)
+})
+
+describe('propose trade async ownership', () => {
+    it('does not show a source-trade error after the modal unmounts', async () => {
+        const sourceTrade = deferred<never>()
+        mocks.params = { editTradeId: 'trade-a' }
+        mocks.getTradeById.mockReturnValue(sourceTrade.promise)
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { renderer.unmount() })
+        await act(async () => { sourceTrade.reject(new Error('trade offline')); await sourceTrade.promise.catch(() => undefined) })
+
+        expect(mocks.showAlert).not.toHaveBeenCalled()
+    })
+
+    it('does not show success or navigate after submission outlives the modal', async () => {
+        const submission = deferred<void>()
+        mocks.submitTradeComposer.mockReturnValue(submission.promise)
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        const submit = renderer.root.findByProps({ testID: 'trade-submit' })
+        let pending!: Promise<void>
+        await act(async () => { pending = submit.props.onPress(); await Promise.resolve() })
+        await act(async () => { renderer.unmount() })
+        await act(async () => { submission.resolve(); await pending })
+
+        expect(mocks.showSuccess).not.toHaveBeenCalled()
+        expect(mocks.back).not.toHaveBeenCalled()
+    })
+
+    it('does not complete a prior owner submission after league identity changes', async () => {
+        const submission = deferred<void>()
+        mocks.submitTradeComposer.mockReturnValue(submission.promise)
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        const submit = renderer.root.findByProps({ testID: 'trade-submit' })
+        let pending!: Promise<void>
+        await act(async () => { pending = submit.props.onPress(); await Promise.resolve() })
+        mocks.context = {
+            current: { id: 'member-c', team_name: 'Team C' },
+            currentLeague: {
+                id: 'league-c',
+                status: 'active',
+                trade_deadline: null,
+                waiver_mode: 'faab',
+            },
+        }
+        await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { submission.resolve(); await pending })
+
+        expect(mocks.showSuccess).not.toHaveBeenCalled()
+        expect(mocks.back).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+})
