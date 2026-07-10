@@ -7,7 +7,8 @@ import { assertFullSweepRoutes, REQUIRED_FULL_SWEEP_LABELS } from './e2e/browser
 import { productionBrowserFailures } from './e2e/production-web-hydration.mjs'
 import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.mjs'
 import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
-import { validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
+import { validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
+import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 
 const tempDirs: string[] = []
 
@@ -61,6 +62,24 @@ describe('release E2E contracts', () => {
     expect(perfSource).toContain('resourceOwner,')
     expect(perfSource).not.toContain('stale auction draft cleanup')
     expect(registrySource).toContain('(resourceOwner) => scenario.run({ ...context, resourceOwner })')
+  })
+
+  it('binds post-migration data latency evidence to repository schema head', async () => {
+    expect(readAppliedSchemaVersion(() => [{ version: '20260709100034' }])).toBe('20260709100034')
+    const manifest = { workflows: [], globalBudgets: { maxDbQueryMs: 300, fullWorkflowMs: 1000 } }
+    expect(validateDataLatencyReport(manifest, {
+      status: 'PASS',
+      schemaVersion: '20260709100034',
+      repositorySchemaVersion: '20260709100033',
+      workflows: [],
+    }, true)).toContain('data latency report schema 20260709100034 does not match repository head 20260709100033')
+    expect(validateDataLatencyReport(manifest, { status: 'PASS', workflows: [] }, true)).toEqual(expect.arrayContaining([
+      'data latency report is missing applied schema version',
+      'data latency report is missing repository schema version',
+    ]))
+
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    expect(workflow.indexOf('Run coverage-enforcing soak')).toBeLessThan(workflow.indexOf('Measure post-migration ranked workflow data latency'))
   })
 
   it('builds measured browser evidence with production Metro optimizations', async () => {

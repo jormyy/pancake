@@ -176,6 +176,17 @@ export const validateDataLatencyReport = (manifest, report, requireComplete) => 
   const workflowBudget = report.budgets?.workflowTotalMs ?? manifest.globalBudgets.fullWorkflowMs
 
   if (report.status !== 'PASS') failures.push(`data latency report status is ${report.status ?? 'missing'}`)
+  if (requireComplete) {
+    if (typeof report.schemaVersion !== 'string' || !/^\d+$/.test(report.schemaVersion)) {
+      failures.push('data latency report is missing applied schema version')
+    }
+    if (typeof report.repositorySchemaVersion !== 'string' || !/^\d+$/.test(report.repositorySchemaVersion)) {
+      failures.push('data latency report is missing repository schema version')
+    }
+    if (report.schemaVersion && report.repositorySchemaVersion && report.schemaVersion !== report.repositorySchemaVersion) {
+      failures.push(`data latency report schema ${report.schemaVersion} does not match repository head ${report.repositorySchemaVersion}`)
+    }
+  }
 
   for (const workflow of workflows) {
     const measured = byWorkflow.get(workflow.id)

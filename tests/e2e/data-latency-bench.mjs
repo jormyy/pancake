@@ -4,6 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { describeEndpoint, resolvedEnv, requireEnv } from './env.mjs'
+import { resolveSchemaProvenance } from './schema-provenance.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -358,11 +359,15 @@ const main = async () => {
   if (signInError) throw signInError
 
   const context = await findContext(client, state)
+  const schemaProvenance = await resolveSchemaProvenance()
   const workflowPromises = buildWorkflows(client, state, context)
   const workflows = []
   for (const workflowPromise of workflowPromises) workflows.push(await workflowPromise)
 
   const failures = []
+  if (schemaProvenance.schemaVersion !== schemaProvenance.repositorySchemaVersion) {
+    failures.push(`applied schema ${schemaProvenance.schemaVersion} does not match repository head ${schemaProvenance.repositorySchemaVersion}`)
+  }
   for (const workflow of workflows) {
     if (workflow.status !== 'PASS') {
       failures.push(`${workflow.id} total ${workflow.totalMedianMs}ms exceeded ${WORKFLOW_TOTAL_BUDGET_MS}ms or has failing steps`)
@@ -381,6 +386,7 @@ const main = async () => {
     runId: state.runId,
     leagueId: state.leagueId,
     user: user.email,
+    ...schemaProvenance,
     budgets: {
       dataRequestMs: DATA_REQUEST_BUDGET_MS,
       workflowTotalMs: WORKFLOW_TOTAL_BUDGET_MS,
