@@ -96,7 +96,10 @@ describe('e2e browser scenario registry', () => {
 
     expect(smoke).toHaveBeenCalledWith({ season: 1, fullSweep: true })
     expect(auth).toHaveBeenCalledWith({ season: 1 })
-    expect(perf).toHaveBeenCalledWith({ season: 1 })
+    expect(perf).toHaveBeenCalledWith(expect.objectContaining({
+      season: 1,
+      resourceOwner: expect.objectContaining({ register: expect.any(Function) }),
+    }))
     expect(trade).toHaveBeenCalledWith({ season: 1 })
     expect(completed.browserPerfCheck).toEqual({ status: 'PASS', ok: 'perf' })
     expect(completed.browserTradeCheck).toEqual({ status: 'PASS', ok: 'trade' })

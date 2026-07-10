@@ -2,8 +2,6 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { browserDiagnosticFailures } from './browser-runtime-overrides.mjs'
 
-const ROOT = process.cwd()
-
 /** @typedef {{ timeout?: number, maxBuffer?: number }} BrowserOptions */
 /** @typedef {(session: string, command: string[], options?: BrowserOptions) => Promise<string>} Browser */
 /** @typedef {{ fields: Record<string, unknown>, failures: string[] }} ScenarioResult */

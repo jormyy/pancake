@@ -5,7 +5,7 @@ import { querySupabaseDb } from './env.mjs'
 
 const migrationVersion = (filename) => filename.split('_', 1)[0]
 
-export const readRepositorySchemaVersion = async (root = process.cwd()) => {
+const readRepositorySchemaVersion = async (root = process.cwd()) => {
   const migrations = (await readdir(path.join(root, 'supabase/migrations')))
     .filter((name) => name.endsWith('.sql'))
     .sort()
