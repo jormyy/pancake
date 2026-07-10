@@ -42,6 +42,7 @@
   ],
   "ignoreBinaries": [
     "psql",
-    "security"
+    "security",
+    "supabase"
   ]
 }

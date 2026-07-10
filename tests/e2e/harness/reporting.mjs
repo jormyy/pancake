@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { TRADE_SCENARIOS } from '../trade-scenario-registry.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
@@ -98,7 +99,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   const pickChainStatus = evidenceStatus(args.pickChain, 'picks.long_horizon')
   const browserSmokeStatus = evidenceStatus(args.browser, 'browser.smoke')
   const browserAuthStatus = evidenceStatus(args.browserAuth, 'browser.auth')
-  const fakeUpstreamStatus = evidenceStatus(rows.length > 0, 'environment.fake_upstream')
+  const fakeUpstreamStatus = evidenceStatus(env.backendTicksEnabled, 'environment.fake_upstream')
   const corsStatus = evidenceStatus(env.backendTicksEnabled, 'cross.cors')
   const browserStatus = args.browser && args.browserAuth && args.browserFullSweep
     ? browserSmokeStatus === 'PASS' && browserAuthStatus === 'PASS' ? 'PASS' : runFailed ? 'FAIL' : 'PARTIAL'
@@ -110,15 +111,11 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   const browserLineupLockedStatus = evidenceStatus(args.browserLineupLocked, 'browser.lineup_locked')
   const browserWaiverDropStatus = evidenceStatus(args.browserWaiverDrop, 'browser.waiver_drop')
   const browserWaiverIrBlockStatus = evidenceStatus(args.browserWaiverIrBlock, 'browser.waiver_ir_block')
-  const browserTradeStatus = evidenceStatus(args.browserTrade, 'browser.trade_proposal')
-  const browserTradeAcceptStatus = evidenceStatus(args.browserTradeAccept, 'browser.trade_accept')
-  const browserTradeTerminalStatus = evidenceStatus(args.browserTradeTerminal, 'browser.trade_terminal')
-  const browserTradeFuturePickStatus = evidenceStatus(args.browserTradeFuturePick, 'browser.trade_future_pick')
-  const browserTradeFuturePickAcceptStatus = evidenceStatus(args.browserTradeFuturePickAccept, 'browser.trade_future_pick_accept')
-  const browserTradeOverflowAcceptStatus = evidenceStatus(args.browserTradeOverflowAccept, 'browser.trade_overflow_accept')
-  const browserTradePostDeadlineStatus = evidenceStatus(args.browserTradePostDeadline, 'browser.trade_post_deadline')
-  const browserTradeVetoStatus = evidenceStatus(args.browserTradeVeto, 'browser.trade_veto')
-  const browserTradeMultiTeamStatus = evidenceStatus(args.browserTradeMultiTeam, 'browser.trade_multi_team')
+  const tradeStatusById = new Map(TRADE_SCENARIOS.map((scenario) => [
+    scenario.id,
+    evidenceStatus(Boolean(args[scenario.flag]), scenario.evidenceId),
+  ]))
+  const browserTradeMultiTeamStatus = tradeStatusById.get('multi-team') ?? 'PENDING'
   const leagueLifecyclePassed = hasEvidence(rows, 'backend.league_lifecycle')
   const browserLeagueLifecyclePassed = hasEvidence(rows, 'browser.league_lifecycle')
   const leagueLifecycleStatus = args.leagueLifecycle || args.browserLeagueLifecycle
@@ -166,15 +163,10 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     { enabled: args.browserWaiverDrop, status: browserWaiverDropStatus },
     { enabled: args.browserWaiverIrBlock, status: browserWaiverIrBlockStatus },
     { enabled: args.waiverProcessing, status: waiverProcessingStatus },
-    { enabled: args.browserTrade, status: browserTradeStatus },
-    { enabled: args.browserTradeFuturePick, status: browserTradeFuturePickStatus },
-    { enabled: args.browserTradeFuturePickAccept, status: browserTradeFuturePickAcceptStatus },
-    { enabled: args.browserTradeOverflowAccept, status: browserTradeOverflowAcceptStatus },
-    { enabled: args.browserTradePostDeadline, status: browserTradePostDeadlineStatus },
-    { enabled: args.browserTradeVeto, status: browserTradeVetoStatus },
-    { enabled: args.browserTradeAccept, status: browserTradeAcceptStatus },
-    { enabled: args.browserTradeTerminal, status: browserTradeTerminalStatus },
-    { enabled: args.browserTradeMultiTeam, status: browserTradeMultiTeamStatus },
+    ...TRADE_SCENARIOS.map((scenario) => ({
+      enabled: Boolean(args[scenario.flag]),
+      status: tradeStatusById.get(scenario.id) ?? 'PENDING',
+    })),
     { enabled: args.tradeVeto, status: tradeVetoStatus },
     { enabled: args.scoring, status: scoringStatus },
   ])
@@ -241,7 +233,9 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       id: 'environment.fake_upstream', requiredForRelease: true,
       requirement: 'Fake NBA CDN/Sleeper upstream',
       status: fakeUpstreamStatus,
-      evidence: `Fake upstream configured for http://127.0.0.1:${args.fakePort}.`,
+      evidence: fakeUpstreamStatus === 'PASS'
+        ? `Observed NBA CDN and Sleeper requests at http://127.0.0.1:${args.fakePort}; per-season counts are in fake-upstream.json artifacts.`
+        : `No observed NBA CDN/Sleeper traffic at http://127.0.0.1:${args.fakePort}.`,
     },
     {
       id: 'setup.auth', requiredForRelease: true,
@@ -379,7 +373,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       id: 'long.migration', requiredForRelease: true,
       requirement: 'D.LONG.5 mid-life migration',
       status: midlifeMigrationStatus,
-      evidence: args.midlifeMigration ? 'Mid-life migration mode runs `npx supabase db push` against the configured local/linked/db-url target between seasons and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 to apply the no-op migration between seasons 5 and 6.',
+      evidence: args.midlifeMigration ? 'Mid-life migration mode compares the database migration ledger before and after `supabase db push`, requires the expected strictly advancing version, and records tests/artifacts/season-<N>/midlife-migration.json.' : 'Enable E2E_ENABLE_MIDLIFE_MIGRATION=1 with a base-revision database and E2E_MIDLIFE_EXPECTED_VERSION.',
     },
     {
       id: 'long.runtime', requiredForRelease: true,

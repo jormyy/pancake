@@ -102,7 +102,7 @@ export const readState = async () => {
   try {
     return JSON.parse(await readFile(STATE_PATH, 'utf8'))
   } catch (error) {
-    if (error?.code === 'ENOENT') return null
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return null
     throw error
   }
 }
@@ -116,7 +116,14 @@ export const assertEnv = async (seasons) => {
   if (!env.serviceRoleKey) {
     missing.push('E2E_PANCAKE_SUPABASE_SECRET_KEY, PANCAKE_SUPABASE_SECRET_KEY, E2E_SUPABASE_SECRET_KEY, or SUPABASE_SECRET_KEY')
   }
-  if (missing.length === 0) return
+  if (missing.length === 0) {
+    if (!env.supabaseUrl || !env.serviceRoleKey) throw new Error('Required soak environment disappeared during validation')
+    return {
+      ...env,
+      supabaseUrl: env.supabaseUrl,
+      serviceRoleKey: env.serviceRoleKey,
+    }
+  }
 
   const now = timestamp()
   await writeReport({
@@ -795,6 +802,18 @@ export const ensureSyntheticSeasonWeeks = async (supabase, seasonYear, throughWe
   if (error) throw new Error(`${label}: synthetic season_weeks upsert failed: ${error.message}`)
 }
 
+/**
+ * @param {{
+ *   supabase: any,
+ *   state: any,
+ *   season: number,
+ *   label: string,
+ *   userCount: number,
+ *   seasonYear?: number,
+ *   status?: string,
+ *   playoffStartWeek?: number,
+ * }} input
+ */
 export const createDisposableLeagueFromSeedUsers = async ({
   supabase,
   state,

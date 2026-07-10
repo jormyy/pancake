@@ -3,10 +3,6 @@ import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeStatus } from '@pancake/core'
 export {
-    isIncomingTradeForMember,
-    isOutgoingTradeForMember,
-    isTradeHistoryForMember,
-    isVetoableTradeForMember,
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
 

@@ -70,7 +70,7 @@ const waitForEmailPlaceholder = async (session, label) => {
       await browser(session, ['wait', '1000']).catch(() => {})
     }
   }
-  throw new Error(`${label}: Email textbox did not appear: ${lastError?.message ?? 'unknown error'}`)
+  throw new Error(`${label}: Email textbox did not appear: ${lastError instanceof Error ? lastError.message : 'unknown error'}`)
 }
 
 const openPage = async (session, url, label, attempts = 3) => {
@@ -84,7 +84,7 @@ const openPage = async (session, url, label, attempts = 3) => {
       await browser(session, ['wait', '1000']).catch(() => {})
     }
   }
-  throw new Error(`${label}: navigation failed after ${attempts} attempts: ${lastError?.message ?? 'unknown error'}`)
+  throw new Error(`${label}: navigation failed after ${attempts} attempts: ${lastError instanceof Error ? lastError.message : 'unknown error'}`)
 }
 
 const pressLastDomButtonByName = async (session, name, label) => {

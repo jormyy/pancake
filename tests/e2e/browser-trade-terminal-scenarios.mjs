@@ -314,9 +314,13 @@ export async function runBrowserTradeTerminalScenario({
     await writeFile(TERMINAL_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    await browser(rejectSession, ['close']).catch(() => {})
-    await browser(withdrawSession, ['close']).catch(() => {})
-    await rejectFixture.dispose()
-    await withdrawFixture.dispose()
+    const cleanup = await Promise.allSettled([
+      browser(rejectSession, ['close']),
+      browser(withdrawSession, ['close']),
+      rejectFixture.dispose(),
+      withdrawFixture.dispose(),
+    ])
+    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+    if (failures.length > 0) throw new AggregateError(failures, 'Terminal trade browser cleanup failed')
   }
 }

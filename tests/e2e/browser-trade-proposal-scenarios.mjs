@@ -12,6 +12,7 @@ import {
   listSessions,
   mkdir,
   normalizeBrowserErrors,
+  openOffersTab,
   path,
   readBrowserAlerts,
   readButtonState,
@@ -33,6 +34,9 @@ export async function runBrowserTradeScenario({
 } = {}) {
   const env = resolvedTradeEnv()
   const fixture = await setupTradeGameplayFixture(env, season)
+  if (!fixture.proposerFuturePick || !fixture.recipientFuturePick) {
+    throw new Error('Two-team edit/counter fixture requires both future picks')
+  }
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('tr', fixture.runId)
   const counterSession = `${session}-counter`
@@ -83,14 +87,16 @@ export async function runBrowserTradeScenario({
     await browser(session, ['wait', '1000'])
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-after-submit.png')], { timeout: 60_000 })
 
-    await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?editTradeId=${tradeProposal.trade.id}`)])
-    await installBrowserHooks(session, env)
+    await openOffersTab(session, env)
+    const editClick = await clickTestId(session, `trade-edit-${tradeProposal.trade.id}`, 'two-team edit action')
     await browser(session, ['wait', '3500'])
     await assertPageText(session, [
       'Edit Trade',
       fixture.proposerPlayer.display_name,
       fixture.recipientPlayer.display_name,
     ], 'two-team edit composer prefilled')
+    await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'two-team edit proposer sender tab')
+    const editAssetClick = await clickTestId(session, `trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`, 'two-team edit add proposer future pick')
     const editSubmitClick = await clickTestId(session, 'trade-submit', 'two-team edit submit')
     const editReplacement = await waitForTradeReplacement(fixture, tradeProposal.trade.id, {
       initialTradeId: tradeProposal.trade.id,
@@ -99,20 +105,23 @@ export async function runBrowserTradeScenario({
       expectedProposerId: fixture.proposer.id,
       expectedRecipientId: fixture.recipient.id,
       expectedVersion: 2,
+      expectedPlayerIds: [fixture.proposerPlayer.id, fixture.recipientPlayer.id],
+      expectedPickIds: [fixture.proposerFuturePick.id],
     })
     if (editReplacement.failures.length > 0 || !editReplacement.replacement) {
       throw new Error(`two-team edit replacement failed: ${editReplacement.failures.join('; ')}`)
     }
 
     await signInBrowser(counterSession, env, fixture.users[1], fixture.password)
-    await browser(counterSession, ['open', joinUrl(env.frontendUrl, `/propose-trade?counterTradeId=${editReplacement.replacement.id}`)])
-    await installBrowserHooks(counterSession, env)
+    await openOffersTab(counterSession, env)
+    const counterClick = await clickTestId(counterSession, `trade-counter-${editReplacement.replacement.id}`, 'two-team counter action')
     await browser(counterSession, ['wait', '3500'])
     await assertPageText(counterSession, [
       'Counter Trade',
       fixture.proposerPlayer.display_name,
       fixture.recipientPlayer.display_name,
     ], 'two-team counter composer prefilled')
+    const counterAssetClick = await clickTestId(counterSession, `trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`, 'two-team counter add recipient future pick')
     const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'two-team counter submit')
     const counterReplacement = await waitForTradeReplacement(fixture, editReplacement.replacement.id, {
       initialTradeId: tradeProposal.trade.id,
@@ -121,11 +130,13 @@ export async function runBrowserTradeScenario({
       expectedProposerId: fixture.recipient.id,
       expectedRecipientId: fixture.proposer.id,
       expectedVersion: 3,
+      expectedPlayerIds: [fixture.proposerPlayer.id, fixture.recipientPlayer.id],
+      expectedPickIds: [fixture.proposerFuturePick.id, fixture.recipientFuturePick.id],
     })
     if (counterReplacement.failures.length > 0) {
       throw new Error(`two-team counter replacement failed: ${counterReplacement.failures.join('; ')}`)
     }
-    debug = { ...debug, editSubmitClick, editReplacement, counterSubmitClick, counterReplacement }
+    debug = { ...debug, editClick, editAssetClick, editSubmitClick, editReplacement, counterClick, counterAssetClick, counterSubmitClick, counterReplacement }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -189,9 +200,13 @@ export async function runBrowserTradeScenario({
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    await browser(session, ['close']).catch(() => {})
-    await browser(counterSession, ['close']).catch(() => {})
-    await fixture.dispose()
+    const cleanup = await Promise.allSettled([
+      browser(session, ['close']),
+      browser(counterSession, ['close']),
+      fixture.dispose(),
+    ])
+    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+    if (failures.length > 0) throw new AggregateError(failures, 'Two-team trade browser cleanup failed')
   }
 }
 

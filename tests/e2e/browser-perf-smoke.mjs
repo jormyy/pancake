@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { resolvedEnv, describeEndpoint } from './env.mjs'
+import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 
@@ -392,13 +392,11 @@ export async function runBrowserPerfSmoke({
   season = 0,
   sessionName = undefined,
 } = {}) {
-  const env = resolvedEnv()
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey'])
   const state = await readState()
   const user = state.users?.[0]
   if (!user) throw new Error('D.X.4: no seeded user found for browser perf smoke')
   if (!state.password) throw new Error('D.X.4: tests/e2e-state.json is missing the seeded user password')
-  if (!env.serviceRoleKey) throw new Error('D.X.4: missing Supabase service role key')
-
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
   const auction = await ensurePerfAuction(supabase, state)
   const matchup = await ensurePerfMatchup(supabase, state, auction.leagueSeasonId, auction.members)

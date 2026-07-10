@@ -59,7 +59,8 @@ export const waitForTradeProposal = async (fixture, timeoutMs = 10_000) => {
  * @typedef {{
  *   initialTradeId: string, sourceStatus: 'edited' | 'countered',
  *   sourceColumn: 'edited_from_trade_id' | 'countered_from_trade_id',
- *   expectedProposerId: string, expectedRecipientId: string, expectedVersion: number
+ *   expectedProposerId: string, expectedRecipientId: string, expectedVersion: number,
+ *   expectedPlayerIds: string[], expectedPickIds: string[]
  * }} ReplacementExpectation
  */
 /** @param {BaseFixture} fixture @param {string} sourceTradeId @param {ReplacementExpectation} expected */
@@ -92,7 +93,16 @@ const verifyTradeReplacement = async (fixture, sourceTradeId, expected) => {
   if (replacement.parent_trade_id !== expected.initialTradeId) failures.push(`replacement parent=${replacement.parent_trade_id}; expected ${expected.initialTradeId}`)
   if (replacement[expected.sourceColumn] !== sourceTradeId) failures.push(`replacement ${expected.sourceColumn}=${replacement[expected.sourceColumn]}; expected ${sourceTradeId}`)
   if (replacement.version !== expected.expectedVersion) failures.push(`replacement version=${replacement.version}; expected ${expected.expectedVersion}`)
-  if ((items ?? []).length !== 2) failures.push(`replacement items=${items?.length ?? 0}; expected 2`)
+  const playerIds = (items ?? []).flatMap((item) => item.player_id ? [item.player_id] : []).sort()
+  const pickIds = (items ?? []).flatMap((item) => item.pick_id ? [item.pick_id] : []).sort()
+  const expectedPlayerIds = [...expected.expectedPlayerIds].sort()
+  const expectedPickIds = [...expected.expectedPickIds].sort()
+  if (JSON.stringify(playerIds) !== JSON.stringify(expectedPlayerIds)) {
+    failures.push(`replacement player ids=${playerIds.join(',')}; expected ${expectedPlayerIds.join(',')}`)
+  }
+  if (JSON.stringify(pickIds) !== JSON.stringify(expectedPickIds)) {
+    failures.push(`replacement pick ids=${pickIds.join(',')}; expected ${expectedPickIds.join(',')}`)
+  }
   return { source, replacement, items: items ?? [], failures }
 }
 

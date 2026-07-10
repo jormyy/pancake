@@ -25,7 +25,6 @@ import {
   parseArgs,
   path,
   readState,
-  resolvedEnv,
   roundedMs,
   runBackendScenarios,
   runBrowserScenarios,
@@ -83,8 +82,7 @@ const main = async () => {
   }
 
   process.env.FAKE_UPSTREAM_PORT = String(args.fakePort)
-  await assertEnv(args.seasons)
-  const env = resolvedEnv()
+  const env = await assertEnv(args.seasons)
   const state = await readState()
   const targetLeagueId = process.env.E2E_LEAGUE_ID ?? state?.leagueId ?? null
   if (env.backendTicksEnabled && !env.e2eAdminSecret) {
@@ -546,6 +544,11 @@ const main = async () => {
         }, null, 2)}\n`)
         const perfFailures = validatePerfDrift(perfMetrics, args.seasons)
         const memoryFailures = validateMemoryDrift(perfMetrics, args.seasons)
+        const fakeUpstreamObserved = fake.state.hits.nbaCdn > 0 && fake.state.hits.sleeper > 0
+        await writeFile(
+          path.join(ARTIFACT_ROOT, `season-${season}`, 'fake-upstream.json'),
+          `${JSON.stringify({ observed: fakeUpstreamObserved, hits: fake.state.hits }, null, 2)}\n`,
+        )
         const failures = [
           ...failuresAtStart,
           ...failuresAtEnd,
@@ -555,6 +558,9 @@ const main = async () => {
           ...backendScenarioFailures(backendScenarioResults),
           ...perfFailures,
           ...memoryFailures,
+          ...(env.backendTicksEnabled && !fakeUpstreamObserved
+            ? [`fake upstream traffic incomplete: NBA CDN=${fake.state.hits.nbaCdn}, Sleeper=${fake.state.hits.sleeper}`]
+            : []),
         ]
 
         if (failures.length > 0) {
@@ -569,7 +575,7 @@ const main = async () => {
             status: 'PASS',
             evidenceIds: [
               'invariants.boundary',
-              'environment.fake_upstream',
+              fakeUpstreamObserved ? 'environment.fake_upstream' : null,
               env.backendTicksEnabled ? 'cross.cors' : null,
               browserCheck ? 'browser.smoke' : null,
               browserAuthCheck ? 'browser.auth' : null,
@@ -597,7 +603,9 @@ const main = async () => {
               realtimeCheck ? 'realtime.delivery' : null,
               pushCheck ? 'push.trade_waiver' : null,
               draftPushCheck ? 'push.draft' : null,
-              midlifeMigrationReport ? 'migration.midlife' : null,
+              midlifeMigrationReport?.status === 'APPLIED' && midlifeMigrationReport.appliedVersions.length > 0
+                ? 'migration.midlife'
+                : null,
               auctionValidation ? 'backend.auction' : null,
               playoffCheck ? 'backend.playoffs' : null,
               tiebreakerCheck ? 'backend.tiebreakers' : null,
@@ -616,7 +624,7 @@ const main = async () => {
               hadPreviousSnapshot ? 'snapshots.no_shrink' : null,
               args.seasons >= 10 && season >= 10 ? 'runtime.drift' : null,
               args.seasons >= 10 && season >= 10 ? 'memory.drift' : null,
-            ].filter(Boolean),
+            ].filter((value) => typeof value === 'string'),
             notes: [
               seasonNotes,
               args.browser ? 'browser smoke passed' : null,

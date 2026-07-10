@@ -354,8 +354,7 @@ export async function runBrowserSmoke({
   sessionName = undefined,
   fullSweep = process.env.E2E_BROWSER_FULL_SWEEP === '1',
 } = {}) {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'anonKey', 'apiBaseUrl'])
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'anonKey', 'apiBaseUrl'])
   const state = await readState()
   const user = state.users[userIndex]
   if (!user) throw new Error(`No seeded user at index ${userIndex}`)

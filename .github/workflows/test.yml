@@ -117,23 +117,29 @@ jobs:
           E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
           npm run test:db
 
+  browser-matrix:
+    name: Browser scenario matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: matrix
+        run: echo "matrix=$(node tests/e2e/browser-scenario-registry.mjs --ci-matrix)" >> "$GITHUB_OUTPUT"
+
   test-browser:
-    name: Browser trade (${{ matrix.mode }})
+    name: Browser (${{ matrix.scenario }})
+    needs: browser-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - mode: proposal
-          - mode: multi-team
-          - mode: accept
-          - mode: terminal
-          - mode: future-pick
-          - mode: future-pick-accept
-          - mode: overflow-accept
-          - mode: post-deadline
-          - mode: veto
+      matrix: ${{ fromJSON(needs.browser-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -153,21 +159,33 @@ jobs:
         shell: bash
         run: |
           supabase start
+          source <(supabase status -o env)
+          export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
+          export EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          export EXPO_PUBLIC_API_URL="$API_URL/functions/v1/api"
+          printf 'E2E_ADMIN_SECRET=local-browser-ci-secret\n' > /tmp/pancake-edge.env
+          supabase functions serve --env-file /tmp/pancake-edge.env > /tmp/pancake-edge.log 2>&1 &
           CI=1 npx expo start --web --port 8082 > /tmp/pancake-web.log 2>&1 &
           for attempt in {1..60}; do
-            curl --fail --silent http://127.0.0.1:8082 >/dev/null && exit 0
+            if curl --fail --silent http://127.0.0.1:8082 >/dev/null &&
+              curl --fail --silent "$API_URL/functions/v1/api/health" >/dev/null; then
+              printf 'E2E_SUPABASE_URL=%s\n' "$API_URL" >> "$GITHUB_ENV"
+              printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY" >> "$GITHUB_ENV"
+              printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
+              printf 'SUPABASE_DB_URL=%s\n' "$DB_URL" >> "$GITHUB_ENV"
+              printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL" >> "$GITHUB_ENV"
+              printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
+              printf 'E2E_ADMIN_SECRET=local-browser-ci-secret\n' >> "$GITHUB_ENV"
+              exit 0
+            fi
             sleep 2
           done
           cat /tmp/pancake-web.log
           exit 1
 
-      - name: Run trade browser flow
-        shell: bash
-        run: |
-          source <(supabase status -o env)
-          E2E_SUPABASE_URL="$API_URL" \
-          E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
-          E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
-          E2E_API_BASE_URL="$API_URL/functions/v1/api" \
-          E2E_FRONTEND_URL="http://127.0.0.1:8082" \
-          node tests/e2e/browser-trade-gameplay.mjs --scenario=${{ matrix.mode }}
+      - name: Seed browser fixture
+        if: matrix.seed
+        run: npm run e2e:seed
+
+      - name: Run browser scenario
+        run: node tests/e2e/browser-ci-scenario.mjs --scenario=${{ matrix.scenario }}

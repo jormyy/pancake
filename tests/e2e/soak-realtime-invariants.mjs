@@ -37,9 +37,10 @@ const withTimeout = (promise, timeoutMs, message) => {
 }
 
 const waitForRealtimeSubscribe = (channel, label) => withTimeout(
+  /** @type {Promise<void>} */
   new Promise((resolve, reject) => {
     channel.subscribe((status, error) => {
-      if (status === 'SUBSCRIBED') resolve()
+      if (status === 'SUBSCRIBED') resolve(undefined)
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         reject(new Error(`D.X.2: realtime ${label} subscribe status ${status}${error?.message ? `: ${error.message}` : ''}`))
       }
@@ -216,11 +217,9 @@ export const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, s
       const warmupDelivery = new Promise((resolve) => {
         resolveWarmup = resolve
       })
-      let channel
+      const channel = client.channel(`e2e_realtime_${season}_${index}`)
       const delivery = new Promise((resolve) => {
-        channel = client
-          .channel(`e2e_realtime_${season}_${index}`)
-          .on('postgres_changes', {
+        channel.on('postgres_changes', {
             event: 'UPDATE',
             schema: 'public',
             table: 'matchups',
@@ -391,37 +390,67 @@ export const applyMidlifeMigration = async (season) => {
   const startedAt = timestamp()
   const target = (process.env.E2E_MIDLIFE_MIGRATION_TARGET ?? '').trim().toLowerCase()
   const env = resolvedEnv()
-  const isLocalSupabase = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/i.test(env.supabaseUrl)
+  const dbUrl = process.env.E2E_MIDLIFE_MIGRATION_DB_URL ?? env.dbUrl
+  const expectedVersion = process.env.E2E_MIDLIFE_EXPECTED_VERSION
+  if (!dbUrl) throw new Error('D.LONG.5 requires E2E_MIDLIFE_MIGRATION_DB_URL or SUPABASE_DB_URL for migration evidence')
+  if (!expectedVersion) throw new Error('D.LONG.5 requires E2E_MIDLIFE_EXPECTED_VERSION')
+  const isLocalSupabase = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/i.test(env.supabaseUrl ?? '')
   const command = process.env.E2E_MIDLIFE_MIGRATION_DB_URL
-    ? ['supabase', 'db', 'push', '--db-url', process.env.E2E_MIDLIFE_MIGRATION_DB_URL, '--yes']
+    ? ['db', 'push', '--db-url', process.env.E2E_MIDLIFE_MIGRATION_DB_URL, '--yes']
     : target === 'linked'
-      ? ['supabase', 'db', 'push', '--linked', '--yes']
-      : ['supabase', 'db', 'push', isLocalSupabase || target === 'local' ? '--local' : '--linked', '--yes']
+      ? ['db', 'push', '--linked', '--yes']
+      : ['db', 'push', isLocalSupabase || target === 'local' ? '--local' : '--linked', '--yes']
+  const readVersions = async () => {
+    const { stdout } = await execFileAsync('psql', [
+      dbUrl,
+      '--tuples-only',
+      '--no-align',
+      '--command',
+      'select version from supabase_migrations.schema_migrations order by version',
+    ], { cwd: ROOT, timeout: 30_000, maxBuffer: 1024 * 1024 })
+    return stdout.split(/\r?\n/).map((version) => version.trim()).filter(Boolean)
+  }
+  const beforeVersions = await readVersions()
   const report = {
-    command: `npx ${command.join(' ')}`,
+    command: `supabase ${command.join(' ')}`,
     target: process.env.E2E_MIDLIFE_MIGRATION_DB_URL ? 'db-url' : target || (isLocalSupabase ? 'local' : 'linked'),
+    expectedVersion,
+    beforeVersions,
+    afterVersions: /** @type {string[]} */ ([]),
+    appliedVersions: /** @type {string[]} */ ([]),
     startedAt,
-    finishedAt: null,
+    finishedAt: /** @type {string | null} */ (null),
     status: 'ERROR',
     stdout: '',
     stderr: '',
   }
 
   try {
-    const { stdout, stderr } = await execFileAsync('npx', command, {
+    if (beforeVersions.includes(expectedVersion)) {
+      throw new Error(`expected migration ${expectedVersion} was already applied before the mid-life boundary`)
+    }
+    const { stdout, stderr } = await execFileAsync('supabase', command, {
       cwd: ROOT,
       timeout: 120_000,
       maxBuffer: 1024 * 1024 * 4,
     })
-    report.status = /Remote database is up to date/i.test(`${stdout}\n${stderr}`)
-      ? 'UP_TO_DATE'
-      : 'APPLIED'
     report.stdout = stdout
     report.stderr = stderr
+    report.afterVersions = await readVersions()
+    report.appliedVersions = report.afterVersions.filter((version) => !beforeVersions.includes(version))
+    if (report.appliedVersions.length === 0) throw new Error('database applied no migrations at the mid-life boundary')
+    if (!report.appliedVersions.includes(expectedVersion)) {
+      throw new Error(`mid-life migration delta did not include expected version ${expectedVersion}`)
+    }
+    const beforeHead = beforeVersions.at(-1)
+    if (beforeHead && report.appliedVersions.some((version) => version <= beforeHead)) {
+      throw new Error('mid-life migration delta did not strictly advance the database head')
+    }
+    report.status = 'APPLIED'
     return report
   } catch (error) {
-    report.stdout = error?.stdout ?? ''
-    report.stderr = error?.stderr ?? ''
+    if (error && typeof error === 'object' && 'stdout' in error) report.stdout = String(error.stdout ?? '')
+    if (error && typeof error === 'object' && 'stderr' in error) report.stderr = String(error.stderr ?? '')
     throw new Error(`D.LONG.5 mid-life migration failed: ${errorMessage(error)}`)
   } finally {
     report.finishedAt = timestamp()

@@ -1,3 +1,5 @@
+import { tradeScenarioArgs } from '../trade-scenario-registry.mjs'
+
 export const parseArgs = () => {
   const args = new Map()
   for (const arg of process.argv.slice(2)) {
@@ -22,15 +24,7 @@ export const parseArgs = () => {
     browserWaiver: args.get('browser-waiver') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER === '1',
     browserWaiverDrop: args.get('browser-waiver-drop') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER_DROP === '1',
     browserWaiverIrBlock: args.get('browser-waiver-ir-block') === 'true' || process.env.E2E_ENABLE_BROWSER_WAIVER_IR_BLOCK === '1',
-    browserTrade: args.get('browser-trade') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE === '1',
-    browserTradeAccept: args.get('browser-trade-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_ACCEPT === '1',
-    browserTradeTerminal: args.get('browser-trade-terminal') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_TERMINAL === '1',
-    browserTradeFuturePick: args.get('browser-trade-future-pick') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK === '1',
-    browserTradeFuturePickAccept: args.get('browser-trade-future-pick-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_FUTURE_PICK_ACCEPT === '1',
-    browserTradeOverflowAccept: args.get('browser-trade-overflow-accept') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT === '1',
-    browserTradePostDeadline: args.get('browser-trade-post-deadline') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE === '1',
-    browserTradeVeto: args.get('browser-trade-veto') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_VETO === '1',
-    browserTradeMultiTeam: args.get('browser-trade-multi-team') === 'true' || process.env.E2E_ENABLE_BROWSER_TRADE_MULTI_TEAM === '1',
+    ...tradeScenarioArgs(args),
     browserLeagueLifecycle: args.get('browser-league-lifecycle') === 'true' || process.env.E2E_ENABLE_BROWSER_LEAGUE_LIFECYCLE === '1',
     leagueLifecycle: args.get('league-lifecycle') === 'true' || process.env.E2E_ENABLE_LEAGUE_LIFECYCLE === '1',
     pickChain: args.get('pick-chain') === 'true' || process.env.E2E_ENABLE_PICK_CHAIN === '1',

@@ -27,6 +27,7 @@ import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
  * @property {string} expectedProposerId
  * @property {string} expectedRecipientId
  * @property {number} expectedVersion
+ * @property {Map<string, { from: string, to: string }>} [expectedRoutes]
  */
 
 /** @param {MultiTeamFixture} fixture */
@@ -128,6 +129,7 @@ const verifyMultiTeamReplacement = async (fixture, sourceTradeId, {
   expectedProposerId,
   expectedRecipientId,
   expectedVersion,
+  expectedRoutes = multiTeamExpectedRoutes(fixture),
 }) => {
   const { data: source, error: sourceError } = await fixture.admin
     .from('trades')
@@ -170,7 +172,6 @@ const verifyMultiTeamReplacement = async (fixture, sourceTradeId, {
   const participants = participantsResult.data ?? []
   const participantIds = new Set(participants.map((participant) => participant.member_id))
   const expectedParticipantIds = [fixture.proposer.id, fixture.recipient.id, fixture.observer.id]
-  const expectedRoutes = multiTeamExpectedRoutes(fixture)
 
   if (replacement.status !== 'pending') failures.push(`replacement status=${replacement.status}; expected pending`)
   if (!replacement.is_multi_team) failures.push('replacement is not marked multi-team')
@@ -358,8 +359,8 @@ export async function runBrowserMultiTeamTradeScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-offer-mobile.png')], { timeout: 60_000 })
 
-    await browser(session, ['open', joinUrl(env.frontendUrl, `/propose-trade?editTradeId=${tradeProposal.trade.id}`)])
-    await installBrowserHooks(session, env)
+    await openOffersTab(session, env)
+    const editClick = await clickTestId(session, `trade-edit-${tradeProposal.trade.id}`, 'multi-team edit action')
     await browser(session, ['wait', '4500'])
     await assertPageText(
       session,
@@ -374,6 +375,10 @@ export async function runBrowserMultiTeamTradeScenario({
       'multi-team edit composer prefilled',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-edit-prefill.png')], { timeout: 60_000 })
+    await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'multi-team edit proposer sender tab')
+    const editRouteClick = await clickTestId(session, `trade-player-route-${fixture.proposer.id}-${fixture.proposerPlayer.id}-${fixture.recipient.id}`, 'multi-team edit changes proposer player route')
+    const editedRoutes = new Map(multiTeamExpectedRoutes(fixture))
+    editedRoutes.set(fixture.proposerPlayer.id, { from: fixture.proposer.id, to: fixture.recipient.id })
     const editSubmitClick = await clickTestId(session, 'trade-submit', 'multi-team edit submit')
     const editReplacement = await waitForMultiTeamReplacement(fixture, tradeProposal.trade.id, {
       initialTradeId: tradeProposal.trade.id,
@@ -382,6 +387,7 @@ export async function runBrowserMultiTeamTradeScenario({
       expectedProposerId: fixture.proposer.id,
       expectedRecipientId: fixture.recipient.id,
       expectedVersion: 2,
+      expectedRoutes: editedRoutes,
     })
     if (editReplacement.failures.length > 0) {
       throw new Error(`multi-team trade edit replacement failed: ${editReplacement.failures.join('; ')}`)
@@ -390,8 +396,8 @@ export async function runBrowserMultiTeamTradeScenario({
 
     await signInBrowser(counterSession, env, fixture.users[1], fixture.password)
     await browser(counterSession, ['set', 'viewport', '1180', '900'])
-    await browser(counterSession, ['open', joinUrl(env.frontendUrl, `/propose-trade?counterTradeId=${editReplacement.replacement.id}`)])
-    await installBrowserHooks(counterSession, env)
+    await openOffersTab(counterSession, env)
+    const counterClick = await clickTestId(counterSession, `trade-counter-${editReplacement.replacement.id}`, 'multi-team counter action')
     await browser(counterSession, ['wait', '4500'])
     await assertPageText(
       counterSession,
@@ -406,6 +412,9 @@ export async function runBrowserMultiTeamTradeScenario({
       'multi-team counter composer prefilled',
     )
     await browser(counterSession, ['screenshot', path.join(artifactDir, 'multi-team-counter-prefill.png')], { timeout: 60_000 })
+    const counterRouteClick = await clickTestId(counterSession, `trade-player-route-${fixture.recipient.id}-${fixture.recipientPlayer.id}-${fixture.proposer.id}`, 'multi-team counter changes recipient player route')
+    const counteredRoutes = new Map(editedRoutes)
+    counteredRoutes.set(fixture.recipientPlayer.id, { from: fixture.recipient.id, to: fixture.proposer.id })
     const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'multi-team counter submit')
     const counterReplacement = await waitForMultiTeamReplacement(fixture, editReplacement.replacement.id, {
       initialTradeId: tradeProposal.trade.id,
@@ -414,6 +423,7 @@ export async function runBrowserMultiTeamTradeScenario({
       expectedProposerId: fixture.recipient.id,
       expectedRecipientId: fixture.proposer.id,
       expectedVersion: 3,
+      expectedRoutes: counteredRoutes,
     })
     if (counterReplacement.failures.length > 0) {
       throw new Error(`multi-team trade counter replacement failed: ${counterReplacement.failures.join('; ')}`)
@@ -447,8 +457,12 @@ export async function runBrowserMultiTeamTradeScenario({
         observerPlayerId: fixture.observerPlayer.id,
       },
       tradeProposal,
+      editClick,
+      editRouteClick,
       editSubmitClick,
       editReplacement,
+      counterClick,
+      counterRouteClick,
       counterSubmitClick,
       counterReplacement,
       notes,
@@ -499,8 +513,12 @@ export async function runBrowserMultiTeamTradeScenario({
     await writeFile(MULTI_TEAM_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    await browser(session, ['close']).catch(() => {})
-    await browser(counterSession, ['close']).catch(() => {})
-    await fixture.dispose()
+    const cleanup = await Promise.allSettled([
+      browser(session, ['close']),
+      browser(counterSession, ['close']),
+      fixture.dispose(),
+    ])
+    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+    if (failures.length > 0) throw new AggregateError(failures, 'Multi-team trade browser cleanup failed')
   }
 }

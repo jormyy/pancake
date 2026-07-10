@@ -1,75 +1,12 @@
-import { runBrowserSmoke } from '../browser-smoke.mjs'
-import { runBrowserAuthScenario } from '../browser-auth.mjs'
-import { runBrowserPerfSmoke } from '../browser-perf-smoke.mjs'
-import { runBrowserGameplayScenario } from '../browser-gameplay.mjs'
-import { runBrowserLeagueLifecycleScenario } from '../browser-league-lifecycle.mjs'
-import {
-  runBrowserLineupAutoSetScenario,
-  runBrowserLineupLockedScenario,
-  runBrowserLineupScenario,
-} from '../browser-lineup-gameplay.mjs'
-import { runBrowserPlayoffChampionScenario } from '../browser-playoff-gameplay.mjs'
-import { runBrowserRookieDraftAutoPickScenario } from '../browser-rookie-draft-gameplay.mjs'
-import {
-  runBrowserWaiverDropScenario,
-  runBrowserWaiverIrBlockScenario,
-  runBrowserWaiverScenario,
-} from '../browser-waiver-gameplay.mjs'
-import {
-  runBrowserTradeScenario,
-  runBrowserTradeAcceptScenario,
-  runBrowserTradeTerminalScenario,
-  runBrowserTradeFuturePickScenario,
-  runBrowserTradeFuturePickAcceptScenario,
-  runBrowserTradeOverflowAcceptScenario,
-  runBrowserTradePostDeadlineScenario,
-  runBrowserTradeVetoScenario,
-  runBrowserMultiTeamTradeScenario,
-} from '../browser-trade-gameplay.mjs'
-import { TRADE_SCENARIOS } from '../trade-scenario-registry.mjs'
-
-const TRADE_RUNNERS = {
-  proposal: runBrowserTradeScenario,
-  accept: runBrowserTradeAcceptScenario,
-  terminal: runBrowserTradeTerminalScenario,
-  'future-pick': runBrowserTradeFuturePickScenario,
-  'future-pick-accept': runBrowserTradeFuturePickAcceptScenario,
-  'overflow-accept': runBrowserTradeOverflowAcceptScenario,
-  'post-deadline': runBrowserTradePostDeadlineScenario,
-  veto: runBrowserTradeVetoScenario,
-  'multi-team': runBrowserMultiTeamTradeScenario,
-}
-
-/** @typedef {{ args: { browserFullSweep?: boolean, [key: string]: unknown }, season: number }} BrowserScenarioInput */
-/** @typedef {{ flag: string, resultKey: string, run: (input: BrowserScenarioInput) => Promise<unknown> }} BrowserScenario */
-/** @type {BrowserScenario[]} */
-const ONE_TIME_BROWSER_SCENARIOS = [
-  { flag: 'browser', resultKey: 'browserCheck', run: ({ args, season }) => runBrowserSmoke({ season, fullSweep: args.browserFullSweep }) },
-  { flag: 'browserAuth', resultKey: 'browserAuthCheck', run: ({ season }) => runBrowserAuthScenario({ season }) },
-  { flag: 'browserPerf', resultKey: 'browserPerfCheck', run: ({ season }) => runBrowserPerfSmoke({ season }) },
-  { flag: 'browserGameplay', resultKey: 'browserGameplayCheck', run: ({ season }) => runBrowserGameplayScenario({ season }) },
-  { flag: 'browserLineup', resultKey: 'browserLineupCheck', run: ({ season }) => runBrowserLineupScenario({ season }) },
-  { flag: 'browserLineupAutoSet', resultKey: 'browserLineupAutoSetCheck', run: ({ season }) => runBrowserLineupAutoSetScenario({ season }) },
-  { flag: 'browserLineupLocked', resultKey: 'browserLineupLockedCheck', run: ({ season }) => runBrowserLineupLockedScenario({ season }) },
-  { flag: 'browserPlayoff', resultKey: 'browserPlayoffCheck', run: ({ season }) => runBrowserPlayoffChampionScenario({ season }) },
-  { flag: 'browserRookieDraft', resultKey: 'browserRookieDraftCheck', run: ({ season }) => runBrowserRookieDraftAutoPickScenario({ season }) },
-  { flag: 'browserWaiver', resultKey: 'browserWaiverCheck', run: ({ season }) => runBrowserWaiverScenario({ season }) },
-  { flag: 'browserWaiverDrop', resultKey: 'browserWaiverDropCheck', run: ({ season }) => runBrowserWaiverDropScenario({ season }) },
-  { flag: 'browserWaiverIrBlock', resultKey: 'browserWaiverIrBlockCheck', run: ({ season }) => runBrowserWaiverIrBlockScenario({ season }) },
-  ...TRADE_SCENARIOS.map((scenario) => ({
-    flag: scenario.flag,
-    resultKey: scenario.resultKey,
-    run: ({ season }) => TRADE_RUNNERS[scenario.id]({ season }),
-  })),
-  { flag: 'browserLeagueLifecycle', resultKey: 'browserLeagueLifecycleCheck', run: ({ season }) => runBrowserLeagueLifecycleScenario({ season }) },
-]
+import { BROWSER_SCENARIOS } from '../browser-scenario-registry.mjs'
 
 export async function runBrowserScenarios({ args, season, shouldRun }) {
+  /** @type {Record<string, unknown>} */
   const results = Object.fromEntries(
-    ONE_TIME_BROWSER_SCENARIOS.map((scenario) => [scenario.resultKey, null]),
+    BROWSER_SCENARIOS.map((scenario) => [scenario.resultKey, null]),
   )
 
-  for (const scenario of ONE_TIME_BROWSER_SCENARIOS) {
+  for (const scenario of BROWSER_SCENARIOS) {
     if (args[scenario.flag] && shouldRun(args, season)) {
       results[scenario.resultKey] = await scenario.run({ args, season })
     }

@@ -170,15 +170,21 @@ const mockBrowserScenarioModules = ({ auth, perf, smoke, trade }: ScenarioMocks)
     runBrowserWaiverIrBlockScenario: noopScenario,
     runBrowserWaiverScenario: noopScenario,
   }))
-  vi.doMock('./e2e/browser-trade-gameplay.mjs', () => ({
+  vi.doMock('./e2e/browser-trade-acceptance-scenarios.mjs', () => ({
     runBrowserTradeAcceptScenario: noopScenario,
     runBrowserTradeFuturePickAcceptScenario: noopScenario,
     runBrowserTradeFuturePickScenario: noopScenario,
     runBrowserTradeOverflowAcceptScenario: noopScenario,
+  }))
+  vi.doMock('./e2e/browser-trade-proposal-scenarios.mjs', () => ({
     runBrowserTradePostDeadlineScenario: noopScenario,
     runBrowserTradeScenario: trade,
+  }))
+  vi.doMock('./e2e/browser-trade-terminal-scenarios.mjs', () => ({
     runBrowserTradeTerminalScenario: noopScenario,
     runBrowserTradeVetoScenario: noopScenario,
+  }))
+  vi.doMock('./e2e/browser-trade-multi-team.mjs', () => ({
     runBrowserMultiTeamTradeScenario: noopScenario,
   }))
 }

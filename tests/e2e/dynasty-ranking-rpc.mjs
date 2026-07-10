@@ -2,8 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import process from 'node:process'
 import { cleanMessage, requireEnv, resolvedEnv } from './env.mjs'
 
-const env = resolvedEnv()
-requireEnv(env, ['supabaseUrl', 'serviceRoleKey'])
+const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey'])
 
 const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, {
   auth: { persistSession: false },

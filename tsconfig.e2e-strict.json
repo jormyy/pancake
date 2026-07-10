@@ -4,20 +4,17 @@
     "checkJs": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "noImplicitAny": false,
     "noEmit": true,
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022"
   },
   "include": [
-    "tests/e2e/browser-agent.mjs",
-    "tests/e2e/browser-runtime-overrides.mjs",
-    "tests/e2e/browser-trade*.mjs",
-    "tests/e2e/env.mjs",
-    "tests/e2e/harness/args.mjs",
-    "tests/e2e/harness/reporting.mjs",
-    "tests/e2e/trade-browser-harness.mjs",
-    "tests/e2e/trade-fixture.mjs",
-    "scripts/check-db-function-sources.mjs"
+    "scripts/**/*.mjs",
+    "tests/e2e/**/*.mjs"
+  ],
+  "exclude": [
+    "node_modules"
   ]
 }

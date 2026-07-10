@@ -5,8 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv } from './env.mjs'
 import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
-const env = resolvedEnv()
-requireEnv(env, ['supabaseUrl', 'dbUrl', 'serviceRoleKey', 'anonKey'])
+const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'dbUrl', 'serviceRoleKey', 'anonKey'])
 
 const rpc = async (admin, name, args) => {
   const { data, error } = await admin.rpc(name, args)
@@ -607,7 +606,9 @@ const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
   const rows = firstPage.rows
   assert.equal(rows.length, 40)
   assert(rows.some((trade) => trade.id === vetoTrade.id), 'vetoable observer trade was displaced by personal history')
-  const nextPage = await fetchPage(firstPage.refs.at(-1).cursor_token)
+  const nextCursor = firstPage.refs.at(-1)?.cursor_token
+  assert(nextCursor, 'first trade page did not return a next cursor')
+  const nextPage = await fetchPage(nextCursor)
   const nextRows = nextPage.rows
   assert.equal(nextRows.length, 40)
   assert.equal(nextRows.some((trade) => rows.some((firstPage) => firstPage.id === trade.id)), false)

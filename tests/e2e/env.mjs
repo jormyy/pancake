@@ -205,9 +205,9 @@ export const isProductionSupabaseUrl = (value) => {
  * @template {keyof Env} Key
  * @param {Env} env
  * @param {Key[]} keys
- * @returns {asserts env is Env & Required<Pick<Env, Key>>}
+ * @returns {Env & { [Property in Key]-?: NonNullable<Env[Property]> }}
  */
-export const requireEnv = (env, keys) => {
+export function requireEnv(env, keys) {
   const missing = keys.filter((key) => !env[key])
   if (missing.length > 0) {
     throw new Error(`Missing required E2E environment: ${missing.join(', ')}`)
@@ -222,6 +222,7 @@ export const requireEnv = (env, keys) => {
         'Use a local/test project, or set E2E_ALLOW_PROD_WRITES=1 only for an intentional, cleanup-backed production run.',
     )
   }
+  return /** @type {Env & { [Property in Key]-?: NonNullable<Env[Property]> }} */ (env)
 }
 
 /** @param {string | undefined} value */

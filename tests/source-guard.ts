@@ -41,6 +41,7 @@ export const latestFunctionDefinition = (functionName: string, schema = 'public'
     for (const event of functionLifecycleEventsInSource(allMigrations())) {
         if (event.key !== key) continue
         if (event.type === 'create') {
+            if (!event.definition) throw new Error(`Missing CREATE definition for ${key}`)
             definition = event.definition
             wasDefined = true
         } else {

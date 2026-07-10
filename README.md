@@ -141,7 +141,7 @@ Dynasty transaction release gates:
 ```bash
 npm run e2e:dynasty-release-final-gate
 npm run e2e:browser-waiver
-npm run e2e:browser-trade-post-deadline
+npm run e2e:browser-trade -- --scenario=post-deadline
 ```
 
 ## Security posture (summary)

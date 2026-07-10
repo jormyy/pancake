@@ -344,8 +344,7 @@ const buildWorkflows = (client, state, context) => {
 }
 
 const main = async () => {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'anonKey'])
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'anonKey'])
   const state = await readState()
   const user = state.users?.[0]
   if (!user) throw new Error('seed state has no user at index 0')

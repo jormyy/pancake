@@ -123,8 +123,7 @@ const signInClient = async (env, email, password) => {
 }
 
 const main = async () => {
-  const env = resolvedEnv()
-  requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
 
   const runId = process.env.E2E_SEED_RUN_ID ?? new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
   const password = `Pancake-e2e-${runId}!`
