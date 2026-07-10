@@ -455,6 +455,8 @@ export default function PlayersScreen() {
                     ListEmptyComponent={
                         listIsInitialLoading
                             ? <EmptyState message="Loading players" description="Refreshing availability, waivers, and fantasy averages." fullScreen={false} />
+                            : search.results.error
+                              ? <EmptyState message="Players could not load." description={search.results.error.message} actionLabel="Retry" onAction={search.results.retry} fullScreen={false} />
                             : playerSupportError && playerSupportForLeague == null
                               ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshPlayerSupport()} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />

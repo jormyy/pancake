@@ -99,17 +99,34 @@ export async function updateProfile(userId: string, updates: { display_name?: st
     if (error) throw error
 }
 
-export async function uploadAvatar(userId: string, imageUri: string): Promise<string> {
-    const response = await fetch(imageUri)
-    const blob = await response.blob()
+type AvatarAsset = {
+    uri: string
+    mimeType?: string | null
+    fileSize?: number | null
+}
 
-    // Fixed path per user so upsert replaces the previous avatar
-    const ext = imageUri.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg'
-    const path = `${userId}/avatar.${ext}`
+const AVATAR_TYPES = new Map([
+    ['image/jpeg', 'jpg'],
+    ['image/png', 'png'],
+    ['image/webp', 'webp'],
+])
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+
+export async function uploadAvatar(userId: string, asset: AvatarAsset): Promise<string> {
+    const response = await fetch(asset.uri)
+    if (!response.ok) throw new Error('Could not read the selected image.')
+    const blob = await response.blob()
+    const contentType = (blob.type || asset.mimeType || '').toLowerCase()
+    const extension = AVATAR_TYPES.get(contentType)
+    if (!extension) throw new Error('Choose a JPEG, PNG, or WebP image.')
+    const byteLength = blob.size || asset.fileSize || 0
+    if (byteLength > MAX_AVATAR_BYTES) throw new Error('Choose an image smaller than 5 MB.')
+
+    const path = `${userId}/avatar.${extension}`
 
     const { error } = await supabase.storage
         .from('avatars')
-        .upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' })
+        .upload(path, blob, { upsert: true, contentType })
     if (error) throw error
 
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)

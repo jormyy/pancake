@@ -7,6 +7,19 @@ export type NotificationPreferences = {
     activityEnabled: boolean
 }
 
+export function createNotificationPreferenceWriter(
+    write: (preferences: NotificationPreferences) => Promise<void>,
+) {
+    let queue: Promise<void> = Promise.resolve()
+    return {
+        enqueue(preferences: NotificationPreferences): Promise<void> {
+            const task = queue.catch(() => undefined).then(() => write(preferences))
+            queue = task
+            return task
+        },
+    }
+}
+
 const DEFAULT_PREFERENCES: NotificationPreferences = {
     tradeEnabled: true,
     waiverEnabled: true,

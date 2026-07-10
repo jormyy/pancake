@@ -10,14 +10,19 @@ import {
     ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useAuth } from '@/hooks/use-auth'
 import { getProfile, updateProfile, uploadAvatar, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
-import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from '@/lib/notification-preferences'
+import {
+    createNotificationPreferenceWriter,
+    getNotificationPreferences,
+    updateNotificationPreferences,
+    type NotificationPreferences,
+} from '@/lib/notification-preferences'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
@@ -47,6 +52,18 @@ export default function ProfileScreen() {
         draftEnabled: true,
         activityEnabled: true,
     })
+    const preferencesRef = useRef(preferences)
+    preferencesRef.current = preferences
+    const preferenceWriterRef = useRef(createNotificationPreferenceWriter(async () => undefined))
+    const preferenceOwnerRef = useRef(0)
+    const preferenceUserId = user?.id
+
+    useEffect(() => {
+        preferenceOwnerRef.current += 1
+        preferenceWriterRef.current = createNotificationPreferenceWriter(
+            preferenceUserId ? (next) => updateNotificationPreferences(preferenceUserId, next) : async () => undefined,
+        )
+    }, [preferenceUserId])
 
     useEffect(() => {
         async function load() {
@@ -126,10 +143,10 @@ export default function ProfileScreen() {
             quality: 0.8,
         })
         if (result.canceled) return
-        const uri = result.assets[0].uri
+        const asset = result.assets[0]
         setAvatarUploading(true)
         try {
-            const url = await uploadAvatar(user.id, uri)
+            const url = await uploadAvatar(user.id, asset)
             setProfile((prev) => prev ? { ...prev, avatar_url: url } : prev)
         } catch (e) {
             showAlert('Error', getErrorMessage(e))
@@ -151,13 +168,20 @@ export default function ProfileScreen() {
 
     async function togglePreference(key: keyof NotificationPreferences) {
         if (!user) return
-        const next = { ...preferences, [key]: !preferences[key] }
+        const owner = preferenceOwnerRef.current
+        const previous = preferencesRef.current
+        const next = { ...previous, [key]: !previous[key] }
+        preferencesRef.current = next
         setPreferences(next)
+        const task = preferenceWriterRef.current.enqueue(next)
         try {
-            await updateNotificationPreferences(user.id, next)
+            await task
         } catch (e) {
-            setPreferences(preferences)
-            showAlert('Error', getErrorMessage(e))
+            if (preferenceOwnerRef.current === owner && preferencesRef.current === next) {
+                preferencesRef.current = previous
+                setPreferences(previous)
+            }
+            if (preferenceOwnerRef.current === owner) showAlert('Error', getErrorMessage(e))
         }
     }
     const showTeamSection = Boolean(current) || leagueLoading

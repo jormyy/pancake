@@ -350,9 +350,10 @@ export async function getPlayerSeasonAveragesFromView(
         .select(PLAYER_SEASON_AVERAGE_SELECT)
         .eq('player_id', playerId)
         .eq('season_year', seasonYear)
-        .single()
+        .maybeSingle()
 
-    if (error || !data) return null
+    if (error) throw error
+    if (!data) return null
     return mapPlayerSeasonAverages(data)
 }
 

@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import { Platform } from 'react-native'
 import { useAuth } from '@/hooks/use-auth'
-import { registerPushToken } from '@/lib/push-token'
+import { registerPushToken, retryPendingPushTokenRevocation } from '@/lib/push-token'
 
 // Show notifications as banners while the app is in foreground
 Notifications.setNotificationHandler({
@@ -26,6 +26,20 @@ export function classifyPushTokenError(error: unknown): 'configuration' | 'retry
 export function usePushNotifications() {
     const { user } = useAuth()
     const userId = user?.id
+
+    useEffect(() => {
+        let active = true
+        let retryTimer: ReturnType<typeof setTimeout> | null = null
+        const retry = async () => {
+            const complete = await retryPendingPushTokenRevocation()
+            if (active && !complete) retryTimer = setTimeout(() => { void retry() }, 60_000)
+        }
+        void retry()
+        return () => {
+            active = false
+            if (retryTimer) clearTimeout(retryTimer)
+        }
+    }, [])
 
     useEffect(() => {
         if (!userId) return

@@ -40,6 +40,7 @@ type CachedPage = {
 }
 const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
 const ROOKIE_SEARCH_MAX_PAGES = 20
+const MAX_MEMORY_PAGES = 12
 const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
@@ -107,6 +108,8 @@ export function usePlayerSearch(
     const [refreshing, setRefreshing] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(false)
+    const [error, setError] = useState<Error | null>(null)
+    const [retryToken, setRetryToken] = useState(0)
     const searchParamsRef = useRef<PlayerSearchParams>(DEFAULT_PLAYER_SEARCH_PARAMS)
     const offsetRef = useRef(0)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
@@ -118,6 +121,16 @@ export function usePlayerSearch(
     const playersRef = useRef<PlayerRow[]>([])
     const pageCacheRef = useRef(new Map<string, CachedPage>())
     const debouncedQuery = useDebouncedValue(query, 300)
+
+    const cachePage = useCallback((key: string, page: CachedPage) => {
+        pageCacheRef.current.delete(key)
+        pageCacheRef.current.set(key, page)
+        while (pageCacheRef.current.size > MAX_MEMORY_PAGES) {
+            const oldestKey = pageCacheRef.current.keys().next().value
+            if (oldestKey == null) break
+            pageCacheRef.current.delete(oldestKey)
+        }
+    }, [])
 
     const weeklyAvailability = useWeeklyAvailability(enabled)
     const todayTeams = useMemo(() => {
@@ -235,6 +248,7 @@ export function usePlayerSearch(
             setLoading(false)
             setRefreshing(false)
             setLoadingMore(false)
+            setError(null)
             return
         }
 
@@ -243,6 +257,7 @@ export function usePlayerSearch(
         offsetRef.current = 0
         setLoadingMore(false)
         setHasMore(false)
+        setError(null)
         pendingScrollTopRef.current = true
         listRef.current?.scrollToOffset({ offset: 0, animated: false })
 
@@ -267,7 +282,7 @@ export function usePlayerSearch(
 
         const persisted = readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
         if (persisted) {
-            pageCacheRef.current.set(searchParamsKey, persisted)
+            cachePage(searchParamsKey, persisted)
             setPlayers(persisted.players)
             playersRef.current = persisted.players
             setHasMore(persisted.hasMore)
@@ -289,19 +304,24 @@ export function usePlayerSearch(
                 if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
                 const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE
                 const page = { players: results, hasMore: hasNext, offset: 0 }
-                pageCacheRef.current.set(searchParamsKey, page)
+                cachePage(searchParamsKey, page)
                 writePersistentCache(playerSearchCacheKey(searchParamsKey), page)
                 playersRef.current = results
                 setPlayers(results)
                 setHasMore(hasNext)
             })
-            .catch(console.error)
+            .catch((cause) => {
+                if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
+                const nextError = cause instanceof Error ? cause : new Error(String(cause))
+                setError(nextError)
+                console.error(nextError)
+            })
             .finally(() => {
                 if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
                 setLoading(false)
                 setRefreshing(false)
             })
-    }, [enabled, leagueId, searchParams, searchParamsKey, fetchCompleteResults])
+    }, [cachePage, enabled, leagueId, retryToken, searchParams, searchParamsKey, fetchCompleteResults])
 
     const loadMore = useCallback(async () => {
         if (!enabled || loadingMore || !hasMore) return
@@ -323,7 +343,7 @@ export function usePlayerSearch(
                         hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE,
                         offset: nextOffset,
                     }
-                    pageCacheRef.current.set(paramsKey, page)
+                    cachePage(paramsKey, page)
                     writePersistentCache(playerSearchCacheKey(paramsKey), page)
                     return merged
                 })
@@ -336,7 +356,9 @@ export function usePlayerSearch(
                 setLoadingMore(false)
             }
         }
-    }, [enabled, loadingMore, hasMore, fetchPage])
+    }, [cachePage, enabled, loadingMore, hasMore, fetchPage])
+
+    const retry = useCallback(() => setRetryToken((token) => token + 1), [])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')
@@ -377,7 +399,7 @@ export function usePlayerSearch(
         health: { value: health, setValue: setHealth },
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
-        results: { players, loading, refreshing, loadingMore, listRef, loadMore },
+        results: { players, loading, refreshing, loadingMore, error, listRef, loadMore, retry },
         activeFilterCount,
         clearAllFilters,
     }

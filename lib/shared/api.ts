@@ -67,16 +67,16 @@ export interface ApiRequestOptions {
     timeoutMs?: number
 }
 
-function buildAbortSignal(timeoutMs: number): AbortSignal {
+function buildAbortSignal(timeoutMs: number): { signal: AbortSignal; cancel: () => void } {
     // Prefer the standard `AbortSignal.timeout` when available. Fall back to
     // a manual AbortController for older runtimes (some RN/Hermes builds).
     const ctor = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal })
     if (typeof ctor.timeout === 'function') {
-        return ctor.timeout(timeoutMs)
+        return { signal: ctor.timeout(timeoutMs), cancel: () => undefined }
     }
     const controller = new AbortController()
-    setTimeout(() => controller.abort(), timeoutMs)
-    return controller.signal
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    return { signal: controller.signal, cancel: () => clearTimeout(timer) }
 }
 
 function isAbortError(err: unknown): boolean {
@@ -98,16 +98,19 @@ export async function apiPost<T = unknown>(
     options: ApiRequestOptions = {},
 ): Promise<T> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    const abort = buildAbortSignal(timeoutMs)
     let res: Response
     try {
         res = await fetch(`${apiUrl()}${path}`, {
             method: 'POST',
             headers: await authHeaders(),
             body: JSON.stringify(body),
-            signal: buildAbortSignal(timeoutMs),
+            signal: abort.signal,
         })
     } catch (err) {
         wrapAbortAsTimeout(err, timeoutMs)
+    } finally {
+        abort.cancel()
     }
 
     const json = await res!.json()

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({
     supabase: {
@@ -8,7 +8,14 @@ vi.mock('@/lib/supabase', () => ({
     },
 }))
 
-import { resolveDefaultApiUrl } from '@/lib/shared/api'
+import { apiPost, resolveDefaultApiUrl } from '@/lib/shared/api'
+import { supabase } from '@/lib/supabase'
+
+afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+})
 
 describe('resolveDefaultApiUrl', () => {
     it('prefers the Supabase Edge API over a stale explicit API URL', () => {
@@ -30,5 +37,23 @@ describe('resolveDefaultApiUrl', () => {
             configuredApiUrl: undefined,
             configuredSupabaseUrl: undefined,
         })).toThrow('EXPO_PUBLIC_API_URL or EXPO_PUBLIC_SUPABASE_URL is required.')
+    })
+})
+
+describe('apiPost timeout lifecycle', () => {
+    it('clears the fallback timeout after a successful request', async () => {
+        vi.useFakeTimers()
+        const timeout = Object.getOwnPropertyDescriptor(AbortSignal, 'timeout')
+        Object.defineProperty(AbortSignal, 'timeout', { configurable: true, value: undefined })
+        vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null })
+        vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+        })))
+
+        await expect(apiPost('/test', {})).resolves.toEqual({ ok: true })
+        expect(vi.getTimerCount()).toBe(0)
+
+        if (timeout) Object.defineProperty(AbortSignal, 'timeout', timeout)
     })
 })
