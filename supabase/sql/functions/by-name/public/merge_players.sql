@@ -76,7 +76,6 @@ BEGIN
   UPDATE waiver_claims       SET drop_player_id = winner_id WHERE drop_player_id = loser_id;
   UPDATE waiver_wire_log     SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE trade_items         SET player_id = winner_id WHERE player_id = loser_id;
-  UPDATE trade_drop_reservations SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE roster_transactions SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE snake_draft_picks   SET player_id = winner_id WHERE player_id = loser_id;
 

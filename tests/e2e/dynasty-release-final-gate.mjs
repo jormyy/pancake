@@ -457,7 +457,6 @@ async function main() {
       })
       await apiPost(env, managerFour.session.token, `/trades/${makeOffer.tradeId}/accept`, {
         memberId: managerFour.id,
-        dropRosterPlayerIds: [],
       })
 
       const reservedEditLogId = await createWaiverLog(admin, fixture.league.id, fixture.season.id, reservedEditClaimPlayer.id)
@@ -567,14 +566,12 @@ async function main() {
 
       await apiPost(env, managerTwo.session.token, `/trades/${proposed.tradeId}/accept`, {
         memberId: managerTwo.id,
-        dropRosterPlayerIds: [],
       })
       const midTrade = await fetchTrade(admin, proposed.tradeId)
       assertCondition(midTrade.status === 'pending', `multi-team mid status=${midTrade.status}`)
 
       await apiPost(env, managerThree.session.token, `/trades/${proposed.tradeId}/accept`, {
         memberId: managerThree.id,
-        dropRosterPlayerIds: [],
       })
       const acceptedTrade = await fetchTrade(admin, proposed.tradeId)
       assertCondition(acceptedTrade.status === 'accepted', `multi-team accepted status=${acceptedTrade.status}`)

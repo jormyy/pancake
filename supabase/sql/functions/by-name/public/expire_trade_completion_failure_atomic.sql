@@ -57,9 +57,6 @@ BEGIN
     RAISE EXCEPTION 'Archived leagues are read-only.';
   END IF;
 
-  DELETE FROM trade_drop_reservations
-   WHERE trade_id = p_trade_id;
-
   UPDATE trades
      SET status = 'expired',
          completed_at = NULL,

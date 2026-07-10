@@ -1,29 +1,13 @@
--- Canonical SQL source for private.prevent_reserved_or_inactive_roster_move.
+-- Canonical SQL source for private.prevent_accepted_or_inactive_roster_move.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.prevent_reserved_or_inactive_roster_move()
+CREATE OR REPLACE FUNCTION private.prevent_accepted_or_inactive_roster_move()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public, private
 AS $$
 BEGIN
-  IF (
-    OLD.member_id IS DISTINCT FROM NEW.member_id OR
-    OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR
-    OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi
-  ) AND EXISTS (
-    SELECT 1
-      FROM trade_drop_reservations AS reservation
-      JOIN trades AS trade
-        ON trade.id = reservation.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE reservation.roster_player_id = OLD.id
-  ) THEN
-    RAISE EXCEPTION 'This roster player is reserved for an accepted trade.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   IF (
     OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR
     OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi

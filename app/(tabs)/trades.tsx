@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
-import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { EmptyState } from '@/components/EmptyState'
 import { isTradingClosed } from '@/lib/league'
 import {
@@ -56,7 +55,6 @@ export default function TradesScreen() {
     const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner } = useLeagueContext()
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
-    const rosterSize = currentLeague?.roster_size ?? 20
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
     const cachedPicks = useMemo(
@@ -76,7 +74,6 @@ export default function TradesScreen() {
     const tradeActions = useTradeActions({
         memberId: myMemberId,
         leagueId,
-        rosterSize,
         onAction: load,
     })
     const {
@@ -200,7 +197,6 @@ export default function TradesScreen() {
         </View></SafeAreaView>
     }
     if (memberships.length === 0) return <NoLeagueState />
-    const remainingDrops = tradeActions.dropPicker?.needed ?? 0
     return <SafeAreaView style={styles.container}><View style={styles.content}>
         <TradeHeader disabled={tradingClosed} onPropose={() => push('/(modals)/propose-trade')} />
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
@@ -214,15 +210,7 @@ export default function TradesScreen() {
                         ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
                         onEndReached={tab === 'history' && tradesHaveMore ? loadMoreTrades : undefined}
                         onEndReachedThreshold={0.4} />}
-    </View><DropPlayerPickerModal
-        visible={tradeActions.dropPicker != null}
-        title={`Drop ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to make room`}
-        subtitle={`Select ${remainingDrops} player${remainingDrops !== 1 ? 's' : ''} to drop, then the trade will be accepted atomically.`}
-        roster={tradeActions.dropPicker?.roster ?? []}
-        dropping={tradeActions.droppingRosterPlayerId}
-        onDrop={(player) => { void tradeActions.selectDrop(player.id) }}
-        onCancel={tradeActions.cancelDrops}
-    /></SafeAreaView>
+    </View></SafeAreaView>
 }
 
 function TradeHeader({ disabled, onPropose }: { disabled: boolean; onPropose: () => void }) {

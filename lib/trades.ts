@@ -342,9 +342,8 @@ export async function editTrade(
 export async function acceptTrade(
     tradeId: string,
     memberId: string,
-    dropRosterPlayerIds: string[] = [],
 ): Promise<void> {
-    await apiPost(`/trades/${tradeId}/accept`, { memberId, dropRosterPlayerIds })
+    await apiPost(`/trades/${tradeId}/accept`, { memberId })
 }
 
 export async function rejectTrade(tradeId: string, memberId: string): Promise<void> {

@@ -82,13 +82,12 @@ const propose = (fixture, items, notes) => rpc(fixture.admin, 'propose_multi_tea
   p_expires_at: null,
 })
 
-const accept = (fixture, tradeId, memberId, dropRosterPlayerIds = []) => rpc(
+const accept = (fixture, tradeId, memberId) => rpc(
   fixture.admin,
   'accept_trade_atomic',
   {
     p_trade_id: tradeId,
     p_accepting_member_id: memberId,
-    p_drop_roster_player_ids: dropRosterPlayerIds,
   },
 )
 
@@ -127,7 +126,6 @@ const assertAggregateFaabRejectionIsAtomic = async (fixture) => {
   await expectRpcError(fixture.admin, 'accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: fixture.recipient.id,
-    p_drop_roster_player_ids: [],
   }, 'enough FAAB')
 
   const { data: participant, error } = await fixture.admin
@@ -204,115 +202,153 @@ const assertExpiredAcceptanceCommits = async (fixture) => {
   assert.equal((await fetchTrade(fixture, tradeId)).status, 'expired')
 }
 
-const assertReplacementAndDropLifecycle = async (fixture) => {
+const assertLazyRosterEnforcement = async (fixture) => {
   await setLeagueRules(fixture, {
-    roster_size: 2,
+    status: 'active',
+    roster_size: 1,
+    ir_slots: 1,
+    taxi_slots: 1,
     waiver_mode: 'faab',
     trade_veto_mode: 'disabled',
     trade_veto_window_hours: 0,
   })
-  const [extraPlayer] = await findAvailablePlayers(
+  await setBalances(fixture, [
+    [fixture.proposer.id, 100],
+    [fixture.recipient.id, 100],
+    [fixture.observer.id, 100],
+  ])
+
+  const recipientClient = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const { error: signInError } = await recipientClient.auth.signInWithPassword({
+    email: fixture.users[1].email,
+    password: fixture.users[1].password,
+  })
+  if (signInError) throw new Error(`lazy-roster sign in ${fixture.users[1].email}: ${signInError.message}`)
+
+  const twoTeamTradeId = await rpc(fixture.admin, 'propose_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_recipient_member_id: fixture.recipient.id,
+    p_offer_player_ids: [fixture.proposerPlayer.id],
+    p_request_player_ids: [],
+    p_offer_pick_ids: [],
+    p_request_pick_ids: [],
+    p_offer_faab_amount: 0,
+    p_request_faab_amount: 1,
+    p_notes: 'DB two-team lazy roster completion',
+    p_expires_at: null,
+  })
+  await accept(fixture, twoTeamTradeId, fixture.recipient.id)
+  assert.equal((await fetchTrade(fixture, twoTeamTradeId)).status, 'completed')
+
+  const activeCount = async (memberId) => {
+    const { count, error } = await fixture.admin.from('roster_players')
+      .select('id', { count: 'exact', head: true })
+      .eq('league_id', fixture.league.id)
+      .eq('league_season_id', fixture.currentSeason.id)
+      .eq('member_id', memberId)
+      .eq('is_on_ir', false)
+      .eq('is_on_taxi', false)
+    if (error) throw new Error(`active roster count: ${error.message}`)
+    return count
+  }
+  assert.equal(await activeCount(fixture.recipient.id), 2, 'two-team trade did not complete above the roster cap')
+
+  await expectRpcError(recipientClient, 'set_player_slot_moves_atomic', {
+    p_member_id: fixture.recipient.id,
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_game_date: new Date().toISOString().slice(0, 10),
+    p_week_number: 1,
+    p_moves: [],
+  }, 'over the active player limit')
+
+  const [freeAgent, proposerExtraOne, proposerExtraTwo] = await findAvailablePlayers(
     fixture.admin,
     fixture.league.id,
     fixture.currentSeason.id,
-    1,
+    3,
     fixture.registerCreatedPlayer,
   )
-  const { data: extraRoster, error: rosterError } = await fixture.admin
-    .from('roster_players')
-    .insert({
+  await expectRpcError(recipientClient, 'add_free_agent_atomic', {
+    p_member_id: fixture.recipient.id,
+    p_league_id: fixture.league.id,
+    p_player_id: freeAgent.id,
+  }, 'active roster is full')
+
+  const { error: injuryError } = await fixture.admin.from('players')
+    .update({ injury_status: 'Out' }).eq('id', fixture.recipientPlayer.id)
+  if (injuryError) throw new Error(`IR eligibility update: ${injuryError.message}`)
+  const { data: recipientRoster, error: recipientRosterError } = await fixture.admin.from('roster_players')
+    .select('id').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
+    .eq('member_id', fixture.recipient.id).eq('player_id', fixture.recipientPlayer.id).single()
+  if (recipientRosterError) throw new Error(`IR roster lookup: ${recipientRosterError.message}`)
+  await rpc(fixture.admin, 'toggle_ir_atomic', {
+    p_roster_player_id: recipientRoster.id,
+    p_to_ir: true,
+    p_user_id: fixture.users[1].id,
+  })
+  assert.equal(await activeCount(fixture.recipient.id), 1, 'IR move did not reduce the over-cap active roster')
+
+  const { error: extraRosterError } = await fixture.admin.from('roster_players').insert([
+    {
       league_id: fixture.league.id,
       league_season_id: fixture.currentSeason.id,
-      member_id: fixture.recipient.id,
-      player_id: extraPlayer.id,
+      member_id: fixture.proposer.id,
+      player_id: proposerExtraOne.id,
       acquired_via: 'e2e_db_trade',
-    })
-    .select('id, player_id')
-    .single()
-  if (rosterError) throw new Error(`drop candidate insert: ${rosterError.message}`)
-
-  const items = [
-    {
-      fromMemberId: fixture.proposer.id,
-      toMemberId: fixture.recipient.id,
-      playerId: fixture.proposerPlayer.id,
     },
+    {
+      league_id: fixture.league.id,
+      league_season_id: fixture.currentSeason.id,
+      member_id: fixture.proposer.id,
+      player_id: proposerExtraTwo.id,
+      acquired_via: 'e2e_db_trade',
+    },
+  ])
+  if (extraRosterError) throw new Error(`over-cap proposer roster insert: ${extraRosterError.message}`)
+  assert.equal(await activeCount(fixture.proposer.id), 2)
+
+  const multiTradeId = await propose(fixture, [
     {
       fromMemberId: fixture.observer.id,
       toMemberId: fixture.recipient.id,
       playerId: fixture.observerPlayer.id,
     },
-    {
-      fromMemberId: fixture.recipient.id,
-      toMemberId: fixture.proposer.id,
-      playerId: fixture.recipientPlayer.id,
-    },
-  ]
-  const originalTradeId = await propose(fixture, items, 'DB drop reservation before edit')
-  await accept(fixture, originalTradeId, fixture.recipient.id, [extraRoster.id])
+    { fromMemberId: fixture.recipient.id, toMemberId: fixture.proposer.id, faabAmount: 1 },
+    { fromMemberId: fixture.proposer.id, toMemberId: fixture.observer.id, faabAmount: 1 },
+  ], 'DB multi-team lazy roster completion')
+  const { data: proposerConsent, error: consentError } = await fixture.admin.from('trade_participants')
+    .select('accepted_at').eq('trade_id', multiTradeId).eq('member_id', fixture.proposer.id).single()
+  if (consentError) throw new Error(`over-cap proposer consent lookup: ${consentError.message}`)
+  assert(proposerConsent.accepted_at, 'over-cap proposer was not auto-consented')
 
-  const { count: originalReservationCount, error: reservationError } = await fixture.admin
-    .from('trade_drop_reservations')
-    .select('id', { count: 'exact', head: true })
-    .eq('trade_id', originalTradeId)
-  if (reservationError) throw new Error(`original reservation lookup: ${reservationError.message}`)
-  assert.equal(originalReservationCount, 1)
+  await accept(fixture, multiTradeId, fixture.recipient.id)
+  await accept(fixture, multiTradeId, fixture.observer.id)
+  assert.equal((await fetchTrade(fixture, multiTradeId)).status, 'completed')
+  assert.equal(await activeCount(fixture.recipient.id), 2, 'multi-team trade did not complete above the roster cap')
 
-  const replacementTradeId = await rpc(fixture.admin, 'edit_multi_team_trade_atomic', {
-    p_trade_id: originalTradeId,
-    p_member_id: fixture.proposer.id,
+  const { error: rookieError } = await fixture.admin.from('players')
+    .update({ nba_draft_number: 1, years_exp: 0 }).eq('id', proposerExtraOne.id)
+  if (rookieError) throw new Error(`taxi eligibility update: ${rookieError.message}`)
+  const { data: taxiRoster, error: taxiRosterError } = await fixture.admin.from('roster_players')
+    .select('id').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
+    .eq('member_id', fixture.proposer.id).eq('player_id', proposerExtraOne.id).single()
+  if (taxiRosterError) throw new Error(`taxi roster lookup: ${taxiRosterError.message}`)
+  await rpc(fixture.admin, 'toggle_taxi_atomic', {
+    p_roster_player_id: taxiRoster.id,
+    p_to_taxi: true,
     p_user_id: fixture.users[0].id,
-    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
-    p_items: items,
-    p_notes: 'DB edited trade replacement',
-    p_expires_at: null,
   })
+  assert.equal(await activeCount(fixture.proposer.id), 1, 'taxi move did not reduce the over-cap active roster')
 
-  const originalTrade = await fetchTrade(fixture, originalTradeId)
-  assert.equal(originalTrade.status, 'edited')
-  assert.equal(originalTrade.replaced_by_trade_id, replacementTradeId)
-  const replacementTrade = await fetchTrade(fixture, replacementTradeId)
-  assert.equal(replacementTrade.edited_from_trade_id, originalTradeId)
-
-  const { count: staleReservationCount, error: staleReservationError } = await fixture.admin
-    .from('trade_drop_reservations')
-    .select('id', { count: 'exact', head: true })
-    .eq('trade_id', originalTradeId)
-  if (staleReservationError) throw new Error(`stale reservation lookup: ${staleReservationError.message}`)
-  assert.equal(staleReservationCount, 0, 'edited trade retained a drop reservation')
-
-  const { data: replacementActivity, error: activityError } = await fixture.admin
-    .from('league_activity')
-    .select('event_type')
-    .eq('related_trade_id', replacementTradeId)
-  if (activityError) throw new Error(`replacement activity lookup: ${activityError.message}`)
-  assert.deepEqual(replacementActivity.map((row) => row.event_type), ['trade_edited'])
-
-  await accept(fixture, replacementTradeId, fixture.recipient.id, [extraRoster.id])
-  const { data: reservedRoster, error: reservedRosterError } = await fixture.admin
-    .from('roster_players')
-    .select('id')
-    .eq('id', extraRoster.id)
-    .maybeSingle()
-  if (reservedRosterError) throw new Error(`reserved roster lookup: ${reservedRosterError.message}`)
-  assert(reservedRoster, 'reserved drop was deleted before unanimous acceptance')
-
-  const { count: activeReservationCount, error: activeReservationError } = await fixture.admin
-    .from('trade_drop_reservations')
-    .select('id', { count: 'exact', head: true })
-    .eq('trade_id', replacementTradeId)
-  if (activeReservationError) throw new Error(`active reservation lookup: ${activeReservationError.message}`)
-  assert.equal(activeReservationCount, 1)
-
-  await accept(fixture, replacementTradeId, fixture.observer.id)
-  assert.equal((await fetchTrade(fixture, replacementTradeId)).status, 'completed')
-  const { data: droppedRoster, error: droppedRosterError } = await fixture.admin
-    .from('roster_players')
-    .select('id')
-    .eq('id', extraRoster.id)
-    .maybeSingle()
-  if (droppedRosterError) throw new Error(`completed drop lookup: ${droppedRosterError.message}`)
-  assert.equal(droppedRoster, null, 'reserved player survived trade completion')
+  const { data: dropRoster, error: dropRosterError } = await fixture.admin.from('roster_players')
+    .select('id').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
+    .eq('member_id', fixture.recipient.id).eq('player_id', fixture.observerPlayer.id).single()
+  if (dropRosterError) throw new Error(`drop roster lookup: ${dropRosterError.message}`)
+  await rpc(recipientClient, 'drop_player_atomic', { p_roster_player_id: dropRoster.id })
+  assert.equal(await activeCount(fixture.recipient.id), 1, 'drop did not reduce the over-cap active roster')
 }
 
 const assertConcurrentAcceptanceCompletesOnce = async (fixture) => {
@@ -394,7 +430,6 @@ const assertCompetingStandardAndMultiTeamTradesSerialize = async (fixture) => {
     rpc(fixture.admin, 'accept_trade_atomic', {
       p_trade_id: standardTradeId,
       p_accepting_member_id: fixture.recipient.id,
-      p_drop_roster_player_ids: [],
     }),
     accept(fixture, multiTradeId, fixture.observer.id),
   ])
@@ -445,7 +480,6 @@ const assertTwoTeamUsesCanonicalRoutes = async (fixture) => {
   const result = await rpc(fixture.admin, 'accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: fixture.recipient.id,
-    p_drop_roster_player_ids: [],
   })
   assert.equal(result.expired, false)
   assert.equal(result.allAccepted, true)
@@ -637,13 +671,13 @@ const run = async () => {
     await assertMultiTeamPayloadBounds(fixture)
     await assertAggregateFaabRejectionIsAtomic(fixture)
     await assertExpiredAcceptanceCommits(fixture)
-    await assertReplacementAndDropLifecycle(fixture)
+    await assertLazyRosterEnforcement(fixture)
     await assertConcurrentAcceptanceCompletesOnce(fixture)
     await assertCompetingStandardAndMultiTeamTradesSerialize(fixture)
     await assertTwoTeamUsesCanonicalRoutes(fixture)
     await assertVetoRowsSurviveMemberHistoryPagination(fixture)
     await assertCompletionFailureIsTerminal(fixture)
-    console.log('PASS multi-team trade DB: payload bounds, canonical routes, keyset pages, mixed-trade races, and terminal failures')
+    console.log('PASS multi-team trade DB: lazy roster limits, canonical routes, keyset pages, mixed-trade races, and terminal failures')
   } finally {
     await fixture.dispose()
   }

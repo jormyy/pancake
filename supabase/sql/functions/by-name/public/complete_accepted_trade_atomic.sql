@@ -13,7 +13,6 @@ AS $$
 DECLARE
   v_trade trades%ROWTYPE;
   v_item trade_items%ROWTYPE;
-  v_drop trade_drop_reservations%ROWTYPE;
   v_league leagues%ROWTYPE;
   v_from_member uuid;
   v_to_member uuid;
@@ -21,7 +20,6 @@ DECLARE
   v_lock_player_id uuid;
   v_clear_player_id uuid;
   v_rows int;
-  v_active_count int;
   v_balance int;
   v_item_faab_amount int;
 BEGIN
@@ -59,17 +57,9 @@ BEGIN
 
   FOR v_lock_player_id IN
     SELECT DISTINCT player_id
-      FROM (
-        SELECT player_id
-          FROM trade_items
-         WHERE trade_id = p_trade_id
-           AND player_id IS NOT NULL
-        UNION ALL
-        SELECT player_id
-          FROM trade_drop_reservations
-         WHERE trade_id = p_trade_id
-      ) AS touched
-     WHERE player_id IS NOT NULL
+      FROM trade_items
+     WHERE trade_id = p_trade_id
+       AND player_id IS NOT NULL
      ORDER BY player_id ASC
   LOOP
     PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_lock_player_id::text));
@@ -158,29 +148,6 @@ BEGIN
       END IF;
 
     END IF;
-  END LOOP;
-
-  FOR v_drop IN
-    SELECT *
-      FROM trade_drop_reservations
-     WHERE trade_id = p_trade_id
-     ORDER BY player_id ASC
-     FOR UPDATE
-  LOOP
-    DELETE FROM trade_drop_reservations
-     WHERE id = v_drop.id;
-
-    PERFORM private.release_roster_player_to_waivers(
-      v_drop.roster_player_id,
-      v_trade.league_id,
-      v_trade.league_season_id,
-      v_drop.member_id,
-      v_drop.player_id,
-      'fa_drop',
-      NULL,
-      NULL,
-      'Reserved drop player is no longer on the expected roster.'
-    );
   END LOOP;
 
   FOR v_clear_player_id IN
@@ -305,32 +272,6 @@ BEGIN
              updated_at = now();
     END IF;
   END LOOP;
-
-  FOR v_to_member IN
-    SELECT v_trade.proposer_member_id
-    UNION
-    SELECT v_trade.recipient_member_id
-    UNION
-    SELECT participant.member_id
-      FROM trade_participants AS participant
-     WHERE participant.trade_id = p_trade_id
-  LOOP
-    SELECT count(*)
-      INTO v_active_count
-      FROM roster_players
-     WHERE league_id = v_trade.league_id
-       AND league_season_id = v_trade.league_season_id
-       AND member_id = v_to_member
-       AND is_on_ir = false
-       AND is_on_taxi = false;
-
-    IF v_active_count > COALESCE(v_league.roster_size, 0) THEN
-      RAISE EXCEPTION 'Trade completion would overfill a roster.'
-        USING ERRCODE = 'PT001';
-    END IF;
-  END LOOP;
-
-  DELETE FROM trade_drop_reservations WHERE trade_id = p_trade_id;
 
   UPDATE trades
      SET status = 'completed',

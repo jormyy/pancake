@@ -380,7 +380,6 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
   const { data, error } = await supabase.rpc('accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: memberId,
-    p_drop_roster_player_ids: optionalUuidArrayField(body, 'dropRosterPlayerIds'),
   })
   if (error) throwDb(error)
   const result = parseMultiTeamAcceptResult(data)

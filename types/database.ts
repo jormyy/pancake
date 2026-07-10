@@ -2471,62 +2471,6 @@ export type Database = {
           },
         ]
       }
-      trade_drop_reservations: {
-        Row: {
-          created_at: string
-          id: string
-          member_id: string
-          player_id: string
-          roster_player_id: string
-          trade_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          member_id: string
-          player_id: string
-          roster_player_id: string
-          trade_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          member_id?: string
-          player_id?: string
-          roster_player_id?: string
-          trade_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "trade_drop_reservations_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "league_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trade_drop_reservations_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
-            referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trade_drop_reservations_roster_player_id_fkey"
-            columns: ["roster_player_id"]
-            isOneToOne: false
-            referencedRelation: "roster_players"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trade_drop_reservations_trade_id_fkey"
-            columns: ["trade_id"]
-            isOneToOne: false
-            referencedRelation: "trades"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       trade_items: {
         Row: {
           created_at: string
@@ -3383,11 +3327,7 @@ export type Database = {
     }
     Functions: {
       accept_trade_atomic: {
-        Args: {
-          p_accepting_member_id: string
-          p_drop_roster_player_ids?: string[]
-          p_trade_id: string
-        }
+        Args: { p_accepting_member_id: string; p_trade_id: string }
         Returns: Json
       }
       activate_rookie_draft_league_atomic: {

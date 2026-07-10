@@ -111,18 +111,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_drop_reservations AS reservation
-      JOIN trades AS trade
-        ON trade.id = reservation.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE reservation.roster_player_id = v_rp.id
-  ) THEN
-    RAISE EXCEPTION 'Player is reserved as a drop for an accepted trade.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_ir_slots := COALESCE(v_league.ir_slots, 2);
 

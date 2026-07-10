@@ -31,7 +31,6 @@ const CORE_TABLES = [
   'snake_draft_picks',
   'standings',
   'sync_jobs',
-  'trade_drop_reservations',
   'trade_items',
   'trade_vetos',
   'trades',

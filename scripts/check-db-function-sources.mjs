@@ -163,10 +163,17 @@ export const functionIdentityArguments = (source, openIndex, maskedSource) => {
   })
 }
 
-/** @param {string} source */
+/** @typedef {{ type: 'create', key: string, identityKey: string, definition: string, start: number, end: number }} FunctionCreateEvent */
+/** @typedef {{ type: 'drop', key: string, identityKey: string, start: number, end: number }} FunctionDropEvent */
+/** @typedef {{ type: 'rename', key: string, identityKey: string, renamedKey: string, renamedIdentityKey: string, start: number, end: number }} FunctionRenameEvent */
+/** @typedef {{ type: 'set_search_path', key: string, identityKey: string, searchPath: string, start: number, end: number }} FunctionSearchPathEvent */
+/** @typedef {FunctionCreateEvent | FunctionDropEvent | FunctionRenameEvent | FunctionSearchPathEvent} FunctionLifecycleEvent */
+
+/** @param {string} source @returns {(FunctionRenameEvent | FunctionSearchPathEvent)[]} */
 const functionAlterEventsInSource = (source) => {
   const searchable = maskSqlNonCode(source, { dollarQuotes: false })
   const pattern = new RegExp(`\\bALTER\\s+FUNCTION\\s+(?:IF\\s+EXISTS\\s+)?(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\(`, 'gi')
+  /** @type {(FunctionRenameEvent | FunctionSearchPathEvent)[]} */
   const events = []
   let match
 
@@ -257,10 +264,11 @@ export const functionDefinitionsInSource = (source) => {
   return definitions
 }
 
-/** @param {string} source */
+/** @param {string} source @returns {FunctionLifecycleEvent[]} */
 export const functionLifecycleEventsInSource = (source) => {
   const searchable = maskSqlNonCode(source)
   const pattern = new RegExp(`\\b(?:(CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION)\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\(|(DROP\\s+FUNCTION(?:\\s+IF\\s+EXISTS)?)\\s+(?:(${IDENTIFIER})\\s*\\.\\s*)?(${IDENTIFIER})\\s*\\()`, 'gi')
+  /** @type {(FunctionCreateEvent | FunctionDropEvent)[]} */
   const events = []
   let match
 

@@ -1,8 +1,8 @@
--- Canonical SQL source for private.prevent_reserved_or_inactive_trade_accept.
+-- Canonical SQL source for private.prevent_conflicting_or_inactive_trade_accept.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.prevent_reserved_or_inactive_trade_accept()
+CREATE OR REPLACE FUNCTION private.prevent_conflicting_or_inactive_trade_accept()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public, private
@@ -52,15 +52,6 @@ BEGIN
          AND rp.player_id = asset.player_id
        WHERE rp.is_on_ir = true
           OR rp.is_on_taxi = true
-          OR EXISTS (
-            SELECT 1
-              FROM trade_drop_reservations AS reservation
-              JOIN trades AS trade
-                ON trade.id = reservation.trade_id
-               AND trade.status = 'accepted'::trade_status
-             WHERE reservation.roster_player_id = rp.id
-               AND reservation.trade_id <> NEW.id
-          )
           OR EXISTS (
             SELECT 1
               FROM trade_items AS other_item

@@ -1,25 +1,13 @@
--- Canonical SQL source for private.prevent_reserved_drop_roster_delete.
+-- Canonical SQL source for private.prevent_accepted_trade_asset_roster_delete.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.prevent_reserved_drop_roster_delete()
+CREATE OR REPLACE FUNCTION private.prevent_accepted_trade_asset_roster_delete()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public, private
 AS $$
 BEGIN
-  IF EXISTS (
-    SELECT 1
-      FROM trade_drop_reservations AS reservation
-      JOIN trades AS trade
-        ON trade.id = reservation.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE reservation.roster_player_id = OLD.id
-  ) THEN
-    RAISE EXCEPTION 'This roster player is reserved for an accepted trade.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   IF EXISTS (
     SELECT 1
       FROM trade_items AS item

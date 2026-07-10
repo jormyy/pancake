@@ -24,10 +24,6 @@ DECLARE
   v_balance int;
   v_faab record;
   v_champion_finalized boolean := false;
-  v_proposer_active_count int;
-  v_proposer_incoming_players int;
-  v_proposer_outgoing_players int;
-  v_proposer_required_drops int := 0;
 BEGIN
   IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' THEN
     RAISE EXCEPTION 'Multi-team trade items must be a JSON array.'
@@ -241,32 +237,6 @@ BEGIN
     END IF;
   END LOOP;
 
-  SELECT count(*)
-    INTO v_proposer_active_count
-    FROM roster_players
-   WHERE league_id = p_league_id
-     AND league_season_id = p_league_season_id
-     AND member_id = p_proposer_member_id
-     AND is_on_ir = false
-     AND is_on_taxi = false;
-
-  SELECT count(*)
-    INTO v_proposer_incoming_players
-    FROM private.parse_multi_team_trade_items(p_items)
-   WHERE to_member_id = p_proposer_member_id
-     AND player_id IS NOT NULL;
-
-  SELECT count(*)
-    INTO v_proposer_outgoing_players
-    FROM private.parse_multi_team_trade_items(p_items)
-   WHERE from_member_id = p_proposer_member_id
-     AND player_id IS NOT NULL;
-
-  v_proposer_required_drops := GREATEST(
-    v_proposer_active_count - v_proposer_outgoing_players + v_proposer_incoming_players - COALESCE(v_league.roster_size, 0),
-    0
-  );
-
   SELECT member_id
     INTO v_first_recipient_member_id
     FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids)
@@ -308,7 +278,7 @@ BEGIN
     member_id,
     sort_order,
     member_id = p_proposer_member_id,
-    CASE WHEN member_id = p_proposer_member_id AND v_proposer_required_drops = 0 THEN now() ELSE NULL END
+    CASE WHEN member_id = p_proposer_member_id THEN now() ELSE NULL END
   FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids)
   ORDER BY sort_order, member_id;
 

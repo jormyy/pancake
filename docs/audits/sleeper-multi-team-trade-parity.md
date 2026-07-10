@@ -4,47 +4,62 @@ Verified against official Sleeper documentation on 2026-07-09:
 
 - [How to Trade](https://support.sleeper.com/en/articles/3188802-how-to-trade)
 - [Welcome to a New Trading Experience](https://support.sleeper.com/en/articles/4238825-welcome-to-a-new-trading-experience)
+- [What are Sleeper's unique features?](https://support.sleeper.com/en/articles/1951583-what-are-sleeper-s-unique-features)
+- [How do I force a trade through?](https://support.sleeper.com/en/articles/4033467-how-do-i-force-a-trade-through)
+- [Basketball trading details](https://support.sleeper.com/en/articles/4702096-trading-details)
 - [Sleeper API transaction model](https://docs.sleeper.com/)
+
+Sleeper's public documentation establishes multiple trade partners, player/pick/FAAB assets,
+all-party acceptance, offer lifecycle actions, review timing, and lazy roster enforcement. Its API
+is read-only and exposes routed ownership fields, but it does not document every composer control or
+post-submission visual treatment. Claims about those detailed UI choices are therefore Pancake
+implementation evidence or compatibility inferences, not documented Sleeper equivalence.
 
 ## Multi-team transaction scope
 
-| Sleeper behavior | Pancake implementation | Executable evidence | Status |
-|---|---|---|---|
-| Select multiple league mates for one proposal | Participant picker supports three or more league members and persists ordered `trade_participants` | `tests/e2e/browser-trade-multi-team.mjs`, `tests/e2e/multi-team-trade-db.mjs` | Match |
-| Show every participating team while composing | Desktop uses parallel team panels; compact widths use a team overview plus sender tabs without hiding the other participants | `tests/e2e/browser-trade-multi-team.mjs` desktop/mobile captures | Match |
-| Choose the destination team for each asset | Every player, pick, or FAAB item has explicit `from_member_id` and `to_member_id`; the composer exposes per-item destination controls | Browser proposal, edit, and counter route assertions; DB canonical-route tests | Match |
-| Trade players | Routed roster-player items are validated and settled atomically | Multi-team release gate and DB settlement tests | Match |
-| Trade current and future draft picks | Routed pick items preserve original-owner identity and transfer current ownership; browser coverage includes future picks | Multi-team browser/DB gates and future-pick trade scenarios | Match |
-| Trade FAAB between teams | Routed FAAB items debit and credit the selected teams with aggregate balance checks | Multi-team release gate and DB aggregate-FAAB tests | Match |
-| Require every party to accept | Each participant owns an acceptance timestamp; completion cannot begin until all required participants accept | Multi-team acceptance, concurrency, and authorization tests | Match |
-| Apply an immediate or delayed review period | League veto mode/window controls immediate settlement or accepted-state review; due trades settle through the atomic processor | Trade-veto browser/backend scenarios and multi-team release gate | Match |
-| Accept, decline, counter, edit, withdraw, and expire offers | Participant-aware lifecycle actions replace offers without mutating the prior version and enforce actor/status/expiry rules | Multi-team proposal/edit/counter browser scenario plus terminal and expiry tests | Match |
-| Make routes understandable after submission | Offer cards group assets by receiving team, identify each sending team, and expose per-participant acceptance state | Multi-team browser offer captures | Match |
+| Behavior | Pancake implementation and evidence | Status |
+|---|---|---|
+| Select multiple league mates and require every party to accept | Ordered `trade_participants`; browser participant/acceptance scenarios; DB unanimous and concurrent-acceptance tests | Match |
+| Route players, current/future picks, and FAAB between participants | Explicit `from_member_id` and `to_member_id`; browser route captures; DB ownership and aggregate-FAAB tests | Match |
+| Show all teams and choose an asset destination while composing | Desktop/compact composer browser captures prove Pancake behavior. Official Sleeper text confirms multiple partners, but not this exact responsive UI | Compatible; exact UI parity inferred |
+| Accept, decline, counter, edit, withdraw, and expire | Browser lifecycle scenarios cover user-visible actions; DB tests cover immutable replacements, authorization, and expiry | Match |
+| Complete trades even when a recipient becomes over the active roster limit | Two-team and multi-team DB settlement tests; `tests/trade-lazy-roster-browser-contract.test.ts` proves the accept UI has no drop step | Match |
+| While over limit, allow trades, drops, scoring, and eligible moves to IR/taxi | DB tests cover over-cap proposal/auto-consent, drops, IR, and taxi; static contract proves scoring functions have no cap gate | Match |
+| While over limit, block free-agent acquisition and starting-lineup edits | DB tests call both user-authorized mutation paths; catalog/static tests require the lineup cap guard and preserve free-agent cap enforcement | Match |
+| Keep submitted routes and consent understandable | Pancake offer cards group receiving/sending teams and show participant consent in browser captures. Official docs do not specify the same card layout | Pancake extension |
 
-The parity claim above is deliberately limited to Sleeper's multi-team transaction workflow. It does
-not claim that Pancake is a clone of the surrounding Sleeper product.
+The roster-limit rule is lazy, not a delayed validation failure. Trade acceptance and settlement do
+not reserve or drop players and do not reject an over-cap result. The affected owner remains able to
+reduce the active count, trade, and accrue points from an already-set lineup, but cannot add a free
+agent or mutate the starting lineup until the count is at or below the configured limit.
+
+## Review governance and timing
+
+| Topic | Sleeper | Pancake | Status |
+|---|---|---|---|
+| Immediate or delayed review | Supports immediate processing or a review period | `disabled`, `commissioner`, and `member_vote` modes with a configurable window | Capability match |
+| Who can stop a reviewed trade | Official docs describe commissioner denial/force-through; native veto voting is unsupported and chat polls are advisory | Commissioner veto or binding member vote, depending on league mode | Governance differs |
+| Delayed processing time | Official trade guidance says accepted delayed trades process at midnight Pacific | Due-trade processor runs on the configured five-minute schedule after the window | Timing differs |
+
+Pancake therefore does not claim exact Sleeper parity for review governance or processing cadence.
 
 ## Adjacent Trade Center features
 
-| Sleeper feature | Pancake status |
+| Feature | Pancake status |
 |---|---|
-| Active offers and trade history | Implemented |
-| Player and draft-pick trade blocks | Implemented |
-| Expiring offers and countdown state | Implemented |
-| Full-league roster browsing | Available through the multi-team composer and team roster views |
-| Trade-interest signals on assets owned by other managers | Not implemented; outside the multi-team transaction scope |
-| Automatic trade-block posts and commissioner polls in league chat | Not implemented; Pancake has no equivalent league-chat surface |
-| Commissioner force-through and reversal of completed trades | Not implemented; Pancake supports commissioner veto but intentionally does not claim parity for these moderation controls |
+| Active offers, history, expiration, player blocks, and draft-pick blocks | Implemented |
+| Full-league roster browsing | Implemented through composer and team-roster views |
+| Trade-interest signals on another manager's assets | Not implemented |
+| Automatic trade-block chat posts and advisory commissioner polls | Not implemented; no equivalent league-chat surface |
+| Commissioner force-through or reversal of completed trades | Not implemented; commissioner veto is a different control |
 
-## Release gate
+## Evidence boundary
 
-The multi-team parity gate must continue to prove all of the following in a real browser and replayed
-database before release:
+Browser evidence proves visible teams, compact/desktop composition, destination controls, offer
+presentation, lifecycle controls, and participant acceptance flows. It does not prove transactional
+atomicity, cap enforcement, or lock ordering.
 
-1. Three visible teams at desktop and compact widths.
-2. A non-default destination route for at least one selected asset.
-3. Player, future-pick, and FAAB persistence with exact sender and receiver identities.
-4. Edit and counter flows preserving all participants while changing an individual route.
-5. Per-participant acceptance followed by atomic settlement after the configured review window.
-6. No horizontal page overflow, clipped primary action, console error, or failed network request at
-   the supported viewport matrix.
+Database evidence proves exact sender/receiver persistence, all-party consent, over-cap settlement,
+lazy action restrictions, FAAB balance safety, asset collision serialization, and terminal failure
+handling. Static/catalog evidence proves the browser accept contract has no eager-drop workflow, the
+obsolete reservation schema is absent, and only lineup mutation entrypoints receive the cap guard.

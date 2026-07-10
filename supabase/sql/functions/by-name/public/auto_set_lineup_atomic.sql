@@ -26,6 +26,7 @@ BEGIN
   END IF;
 
   PERFORM public.assert_current_league_season_for_lineup(p_league_id, p_league_season_id);
+  PERFORM private.assert_roster_within_active_limit(p_league_id, p_league_season_id, p_member_id);
   PERFORM public.auto_set_lineup_atomic_unchecked(
     p_member_id,
     p_league_id,

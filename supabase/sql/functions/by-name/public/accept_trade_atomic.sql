@@ -4,8 +4,7 @@
 
 CREATE OR REPLACE FUNCTION public.accept_trade_atomic(
   p_trade_id uuid,
-  p_accepting_member_id uuid,
-  p_drop_roster_player_ids uuid[] DEFAULT ARRAY[]::uuid[]
+  p_accepting_member_id uuid
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -15,8 +14,7 @@ AS $$
 BEGIN
   RETURN private.accept_trade_participant_atomic(
     p_trade_id,
-    p_accepting_member_id,
-    p_drop_roster_player_ids
+    p_accepting_member_id
   );
 END;
 $$;

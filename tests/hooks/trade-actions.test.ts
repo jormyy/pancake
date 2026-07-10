@@ -4,9 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import type { Trade } from '@/lib/trades'
 
-const { acceptTrade, getRoster } = vi.hoisted(() => ({
+const { acceptTrade } = vi.hoisted(() => ({
     acceptTrade: vi.fn(),
-    getRoster: vi.fn(),
 }))
 
 vi.mock('@/lib/trades', () => ({
@@ -15,7 +14,6 @@ vi.mock('@/lib/trades', () => ({
     vetoTrade: vi.fn(),
     withdrawTrade: vi.fn(),
 }))
-vi.mock('@/lib/roster', () => ({ getRoster }))
 vi.mock('@/lib/alert', () => ({
     confirmAction: vi.fn(),
     getErrorMessage: (error: unknown) => String(error),
@@ -61,25 +59,32 @@ const trade = (id: string): Trade => ({
     }],
 })
 
-const rosterPlayer = (id: string) => ({
-    id: `roster-${id}`,
-    member_id: 'member-a',
-    is_on_ir: false,
-    is_on_taxi: false,
-    acquired_via: 'draft',
-    players: {
-        id, display_name: id, nba_team: 'LAL', position: 'PG', eligible_positions: ['PG'],
-        injury_status: null, nba_id: null, nba_draft_number: null, years_exp: 1,
-    },
-})
-
 describe('useTradeActions', () => {
-    it('discards an overflow workflow when the owning league/member changes', async () => {
-        const roster = deferred<ReturnType<typeof rosterPlayer>[]>()
-        getRoster.mockReturnValue(roster.promise)
+    it('accepts without a client-side roster-cap or drop workflow', async () => {
+        acceptTrade.mockResolvedValue(undefined)
+        let latest!: ReturnType<typeof useTradeActions>
+        const onAction = vi.fn()
+        const Probe = () => {
+            latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.accept(trade('trade-a')) })
+
+        expect(acceptTrade).toHaveBeenCalledWith('trade-a', 'member-a')
+        expect(onAction).toHaveBeenCalledOnce()
+        expect(latest.busyTradeId).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('does not refresh a prior league after an in-flight acceptance changes owner', async () => {
+        const acceptance = deferred<void>()
+        acceptTrade.mockReturnValue(acceptance.promise)
+        const onAction = vi.fn()
         let latest!: ReturnType<typeof useTradeActions>
         const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
-            latest = useTradeActions({ memberId, leagueId, rosterSize: 1, onAction: vi.fn() })
+            latest = useTradeActions({ memberId, leagueId, onAction })
             return null
         }
         let renderer!: ReactTestRenderer
@@ -87,11 +92,10 @@ describe('useTradeActions', () => {
         let pending!: Promise<void>
         await act(async () => { pending = latest.accept(trade('trade-a')); await Promise.resolve() })
         await act(async () => { renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' })) })
-        await act(async () => { roster.resolve([rosterPlayer('one')]); await pending })
+        await act(async () => { acceptance.resolve(); await pending })
 
-        expect(latest.dropPicker).toBeNull()
+        expect(onAction).not.toHaveBeenCalled()
         expect(latest.busyTradeId).toBeNull()
-        expect(acceptTrade).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 })

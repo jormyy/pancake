@@ -252,11 +252,16 @@ BEGIN
     RAISE EXCEPTION 'Private trade parsing helpers are client executable';
   END IF;
   IF to_regprocedure('public.accept_multi_team_trade_atomic(uuid,uuid,uuid[])') IS NOT NULL
+     OR to_regprocedure('public.accept_trade_atomic(uuid,uuid,uuid[])') IS NOT NULL
+     OR to_regprocedure('private.accept_trade_participant_atomic(uuid,uuid,uuid[])') IS NOT NULL
      OR to_regprocedure('private.accept_trade_participant_atomic(uuid,uuid,uuid[],boolean)') IS NOT NULL THEN
     RAISE EXCEPTION 'Superseded trade acceptance entrypoint still exists';
   END IF;
+  IF to_regclass('public.trade_drop_reservations') IS NOT NULL THEN
+    RAISE EXCEPTION 'Obsolete trade-drop reservation table still exists';
+  END IF;
 
-  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid,uuid[])'::regprocedure)
+  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
     INTO v_accept_definition;
   SELECT pg_get_functiondef('public.complete_accepted_trade_atomic(uuid)'::regprocedure)
     INTO v_complete_definition;
@@ -270,6 +275,18 @@ BEGIN
   IF v_create_definition ILIKE '%CREATE TEMP TABLE%'
      OR v_create_definition NOT ILIKE '%jsonb_array_length(p_items) > 100%' THEN
     RAISE EXCEPTION 'Multi-team trade creation is not bounded and temp-table free';
+  END IF;
+  IF v_accept_definition ILIKE '%roster_size%'
+     OR v_accept_definition ILIKE '%drop_roster%'
+     OR v_complete_definition ILIKE '%roster_size%'
+     OR v_complete_definition ILIKE '%trade_drop_reservations%' THEN
+    RAISE EXCEPTION 'Trade execution still enforces eager roster drops or cap rejection';
+  END IF;
+  IF pg_get_functiondef('public.set_player_slot_moves_atomic(uuid,uuid,uuid,date,integer,jsonb)'::regprocedure)
+       NOT ILIKE '%private.assert_roster_within_active_limit%'
+     OR pg_get_functiondef('public.auto_set_lineup_atomic(uuid,uuid,uuid,date,jsonb)'::regprocedure)
+       NOT ILIKE '%private.assert_roster_within_active_limit%' THEN
+    RAISE EXCEPTION 'Lineup entrypoints do not enforce the lazy roster lock';
   END IF;
 
   IF NOT EXISTS (

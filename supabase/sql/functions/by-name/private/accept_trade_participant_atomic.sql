@@ -4,8 +4,7 @@
 
 CREATE OR REPLACE FUNCTION private.accept_trade_participant_atomic(
   p_trade_id uuid,
-  p_accepting_member_id uuid,
-  p_drop_roster_player_ids uuid[]
+  p_accepting_member_id uuid
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -15,16 +14,10 @@ DECLARE
   v_trade trades%ROWTYPE;
   v_item trade_items%ROWTYPE;
   v_league leagues%ROWTYPE;
-  v_drop_ids uuid[] := COALESCE(p_drop_roster_player_ids, ARRAY[]::uuid[]);
   v_from_member uuid;
   v_member_lock uuid;
   v_lock_player_id uuid;
   v_rows int;
-  v_active_count int;
-  v_incoming_players int;
-  v_outgoing_players int;
-  v_required_drops int;
-  v_reserved_drops int;
   v_all_accepted boolean;
   v_veto_window_hours int;
   v_item_faab_amount int;
@@ -96,24 +89,11 @@ BEGIN
     );
   END LOOP;
 
-  IF (SELECT count(*) FROM unnest(v_drop_ids) AS id) <>
-     (SELECT count(DISTINCT id) FROM unnest(v_drop_ids) AS id) THEN
-    RAISE EXCEPTION 'Duplicate drop players are not allowed.';
-  END IF;
-
   FOR v_lock_player_id IN
     SELECT DISTINCT player_id
-      FROM (
-        SELECT player_id
-          FROM trade_items
-         WHERE trade_id = p_trade_id
-           AND player_id IS NOT NULL
-        UNION ALL
-        SELECT player_id
-          FROM roster_players
-         WHERE id = ANY(v_drop_ids)
-      ) AS touched
-     WHERE player_id IS NOT NULL
+      FROM trade_items
+     WHERE trade_id = p_trade_id
+       AND player_id IS NOT NULL
      ORDER BY player_id ASC
   LOOP
     PERFORM pg_advisory_xact_lock(
@@ -234,136 +214,6 @@ BEGIN
 
     END IF;
   END LOOP;
-
-  IF cardinality(v_drop_ids) > 0 THEN
-    WITH locked AS (
-      SELECT *
-        FROM roster_players
-       WHERE id = ANY(v_drop_ids)
-         AND league_id = v_trade.league_id
-         AND league_season_id = v_trade.league_season_id
-         AND member_id = p_accepting_member_id
-         AND is_on_ir = false
-         AND is_on_taxi = false
-       FOR UPDATE
-    )
-    SELECT count(*) INTO v_rows FROM locked;
-
-    IF v_rows <> cardinality(v_drop_ids) THEN
-      RAISE EXCEPTION 'Drop list includes a player that is no longer on your active roster.';
-    END IF;
-
-    IF EXISTS (
-      SELECT 1
-        FROM roster_players AS rp
-        JOIN trade_items AS ti
-          ON ti.trade_id = p_trade_id
-         AND ti.player_id = rp.player_id
-       WHERE rp.id = ANY(v_drop_ids)
-    ) THEN
-      RAISE EXCEPTION 'You cannot drop a player included in this trade.';
-    END IF;
-
-    IF EXISTS (
-      SELECT 1
-        FROM trade_drop_reservations AS reservation
-        JOIN trades AS trade
-          ON trade.id = reservation.trade_id
-         AND trade.status = 'accepted'::trade_status
-       WHERE reservation.roster_player_id = ANY(v_drop_ids)
-         AND reservation.trade_id <> p_trade_id
-    ) THEN
-      RAISE EXCEPTION 'A selected drop player is already reserved for another accepted trade.';
-    END IF;
-  END IF;
-
-  SELECT count(*)
-    INTO v_active_count
-    FROM roster_players
-   WHERE league_id = v_trade.league_id
-     AND league_season_id = v_trade.league_season_id
-     AND member_id = p_accepting_member_id
-     AND is_on_ir = false
-     AND is_on_taxi = false;
-
-  SELECT count(*)
-    INTO v_incoming_players
-    FROM trade_items
-   WHERE trade_id = p_trade_id
-     AND to_member_id = p_accepting_member_id
-     AND player_id IS NOT NULL;
-
-  SELECT count(*)
-    INTO v_outgoing_players
-    FROM trade_items
-   WHERE trade_id = p_trade_id
-     AND from_member_id = p_accepting_member_id
-     AND player_id IS NOT NULL;
-
-  v_required_drops := GREATEST(v_active_count - v_outgoing_players + v_incoming_players - COALESCE(v_league.roster_size, 0), 0);
-  IF cardinality(v_drop_ids) <> v_required_drops THEN
-    RAISE EXCEPTION 'Accepting this trade requires exactly % active roster drop(s).', v_required_drops;
-  END IF;
-
-  FOR v_member_lock IN
-    SELECT participant.member_id
-      FROM trade_participants AS participant
-     WHERE participant.trade_id = p_trade_id
-       AND participant.member_id <> p_accepting_member_id
-       AND participant.accepted_at IS NOT NULL
-  LOOP
-    SELECT count(*)
-      INTO v_active_count
-      FROM roster_players
-     WHERE league_id = v_trade.league_id
-       AND league_season_id = v_trade.league_season_id
-       AND member_id = v_member_lock
-       AND is_on_ir = false
-       AND is_on_taxi = false;
-
-    SELECT count(*)
-      INTO v_incoming_players
-      FROM trade_items
-     WHERE trade_id = p_trade_id
-       AND to_member_id = v_member_lock
-       AND player_id IS NOT NULL;
-
-    SELECT count(*)
-      INTO v_outgoing_players
-      FROM trade_items
-     WHERE trade_id = p_trade_id
-       AND from_member_id = v_member_lock
-       AND player_id IS NOT NULL;
-
-    SELECT count(*)
-      INTO v_reserved_drops
-      FROM trade_drop_reservations
-     WHERE trade_id = p_trade_id
-       AND member_id = v_member_lock;
-
-    IF v_active_count - v_outgoing_players + v_incoming_players - v_reserved_drops > COALESCE(v_league.roster_size, 0) THEN
-      RAISE EXCEPTION 'This trade would overfill an already-accepted participant roster.';
-    END IF;
-  END LOOP;
-
-  DELETE FROM trade_drop_reservations
-   WHERE trade_id = p_trade_id
-     AND member_id = p_accepting_member_id;
-
-  INSERT INTO trade_drop_reservations (
-    trade_id,
-    roster_player_id,
-    member_id,
-    player_id
-  )
-  SELECT
-    p_trade_id,
-    rp.id,
-    rp.member_id,
-    rp.player_id
-  FROM roster_players AS rp
-  WHERE rp.id = ANY(v_drop_ids)
-  ORDER BY rp.player_id ASC;
 
   UPDATE trade_participants
      SET accepted_at = now()
