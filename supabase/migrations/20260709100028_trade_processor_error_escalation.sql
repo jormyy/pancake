@@ -1,7 +1,3 @@
--- Canonical SQL source for public.process_due_accepted_trades_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
-
 CREATE OR REPLACE FUNCTION public.process_due_accepted_trades_atomic(
   p_limit int DEFAULT 50
 )
@@ -102,3 +98,6 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.process_due_accepted_trades_atomic(int) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.process_due_accepted_trades_atomic(int) TO service_role;
