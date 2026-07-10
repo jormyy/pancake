@@ -38,10 +38,12 @@ type CachedPage = {
     players: PlayerRow[]
     hasMore: boolean
     offset: number
+    savedAt?: number
 }
 const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
 const ROOKIE_SEARCH_MAX_PAGES = 20
 const MAX_MEMORY_PAGES = 12
+const MEMORY_PAGE_STALE_MS = 30_000
 const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
@@ -300,10 +302,10 @@ export function usePlayerSearch(
             offsetRef.current = cached.offset
             setLoading(false)
             setRefreshing(false)
-            return
+            if (cached.savedAt != null && Date.now() - cached.savedAt < MEMORY_PAGE_STALE_MS) return
         }
 
-        const persisted = readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
+        const persisted = cached ? null : readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
         if (persisted) {
             cachePage(searchParamsKey, persisted)
             setPlayers(persisted.players)
@@ -320,13 +322,13 @@ export function usePlayerSearch(
 
         const requestId = ++requestSeqRef.current
         setRefreshing(true)
-        setLoading(!persisted && playersRef.current.length === 0)
+        setLoading(!cached && !persisted && playersRef.current.length === 0)
 
         fetchCompleteResults(searchParams)
             .then((results) => {
                 if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
                 const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE
-                const page = { players: results, hasMore: hasNext, offset: 0 }
+                const page = { players: results, hasMore: hasNext, offset: 0, savedAt: Date.now() }
                 cachePage(searchParamsKey, page)
                 writePersistentCache(playerSearchCacheKey(searchParamsKey), page)
                 playersRef.current = results
@@ -365,6 +367,7 @@ export function usePlayerSearch(
                         players: merged,
                         hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE,
                         offset: nextOffset,
+                        savedAt: Date.now(),
                     }
                     cachePage(paramsKey, page)
                     writePersistentCache(playerSearchCacheKey(paramsKey), page)
