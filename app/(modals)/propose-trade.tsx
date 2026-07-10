@@ -448,7 +448,7 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
-    scrollContent: { width: '100%', maxWidth: 900, alignSelf: 'center' },
+    scrollContent: { width: '100%', maxWidth: 900, minWidth: 0, alignSelf: 'center' },
     header: { paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     headerInner: {
         flexDirection: 'row',

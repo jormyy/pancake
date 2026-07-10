@@ -75,7 +75,7 @@ describe('trade notes input', () => {
         const overviews = () => renderer.root.findAll((node) => String(node.type) === 'MultiTeamTradeOverview')
 
         expect(root).toBeDefined()
-        expect(overviews()[0].props.columns).toBe(true)
+        expect(overviews()).toHaveLength(0)
 
         await act(async () => {
             root?.props.onLayout({ nativeEvent: { layout: { width: 700 } } })

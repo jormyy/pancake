@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -59,7 +59,8 @@ export function MultiTeamTradeBuilder({
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
     const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
-    const useColumns = contentWidth >= 880
+    const shellContentWidth = width >= breakpoints.compact ? width - 264 : width
+    const useColumns = Math.min(contentWidth, shellContentWidth) >= 880
     const [activeParticipantId, setActiveParticipantId] = useState(participants[0]?.memberId ?? '')
     const [overviewExpanded, setOverviewExpanded] = useState(false)
     const notesBytes = utf8ByteLength(notes)
@@ -285,7 +286,7 @@ export function MultiTeamTradeBuilder({
 }
 
 const styles = StyleSheet.create({
-    root: { width: '100%' },
+    root: { width: '100%', maxWidth: '100%', minWidth: 0 },
     compactSummary: {
         minHeight: 56,
         marginTop: spacing.md,
