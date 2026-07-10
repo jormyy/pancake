@@ -84,6 +84,10 @@ vi.mock('@/lib/trade-composer', () => ({
     submitTradeComposer: mocks.submitTradeComposer,
     tradeComposerSuccessCopy: () => ({ title: 'Sent', message: 'Trade sent.' }),
     tradeComposerTitle: () => 'Propose Trade',
+    validateTradeExpirationDays: (value: string) => ({
+        days: value === '' ? null : Number(value),
+        error: null,
+    }),
 }))
 vi.mock('@/lib/trades', () => ({
     counterMultiTeamTrade: vi.fn(),

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { MAX_TRADE_EXPIRATION_DAYS } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
@@ -13,6 +14,7 @@ type MultiTeamTradeBuilderProps = {
     faabEnabled: boolean
     notes: string
     expirationDays: string
+    expirationError: string | null
     rosterError: string | null
     rosterLoading: boolean
     avgMap: Map<string, number>
@@ -36,6 +38,7 @@ export function MultiTeamTradeBuilder({
     faabEnabled,
     notes,
     expirationDays,
+    expirationError,
     rosterError,
     rosterLoading,
     avgMap,
@@ -189,14 +192,31 @@ export function MultiTeamTradeBuilder({
                 <View style={styles.termField}>
                     <Text style={styles.termLabel}>Expires in days</Text>
                     <TextInput
-                        style={styles.termInput}
+                        style={[styles.termInput, expirationError && styles.termInputInvalid]}
                         value={expirationDays}
                         onChangeText={(value) => {
-                            if (/^\d*$/.test(value)) onExpirationDaysChange(value)
+                            if (/^\d*$/.test(value) && value.length <= String(MAX_TRADE_EXPIRATION_DAYS).length) {
+                                onExpirationDaysChange(value)
+                            }
                         }}
+                        maxLength={String(MAX_TRADE_EXPIRATION_DAYS).length}
                         keyboardType="numeric"
-                        accessibilityLabel="Trade offer expiration in days"
+                        accessibilityLabel={expirationError
+                            ? `Trade offer expiration in days. ${expirationError}`
+                            : 'Trade offer expiration in days'
+                        }
+                        aria-invalid={Boolean(expirationError)}
                     />
+                    {expirationError ? (
+                        <Text
+                            style={styles.termError}
+                            accessibilityRole="alert"
+                            accessibilityLiveRegion="polite"
+                            testID="trade-expiration-error"
+                        >
+                            {expirationError}
+                        </Text>
+                    ) : null}
                 </View>
             </View>
         </>
@@ -257,6 +277,8 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
+    termInputInvalid: { borderColor: colors.danger },
+    termError: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
     rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: 44, alignItems: 'center' },
     rosterErrorText: { color: colors.dangerDark, fontSize: fontSize.md, fontWeight: fontWeight.semibold, textAlign: 'center' },
     rosterLoadingRow: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },

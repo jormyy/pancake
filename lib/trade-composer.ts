@@ -8,6 +8,7 @@ import type {
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import type { LeagueStatus } from '@/types/database'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
+import { MAX_TRADE_EXPIRATION_DAYS, MIN_TRADE_EXPIRATION_DAYS } from '@pancake/core'
 
 export type TradeComposerMode = 'propose' | 'edit' | 'counter'
 
@@ -52,6 +53,7 @@ export type ComposerPayloadDraft = {
     payload: TradeProposalPayload
     hasOffer: boolean
     hasRequest: boolean
+    expirationError: string | null
 }
 
 type SubmitComposerInput = {
@@ -122,6 +124,8 @@ type SubmitMultiTeamComposerDeps = {
 
 const DEFAULT_EXPIRATION_DAYS = 3
 const DAY_MS = 24 * 60 * 60 * 1000
+const MAX_DATE_MS = 8_640_000_000_000_000
+const EXPIRATION_ERROR = `Expiration must be between ${MIN_TRADE_EXPIRATION_DAYS} and ${MAX_TRADE_EXPIRATION_DAYS} days.`
 
 export function getTradeComposerMode(input: TradeComposerModeInput): TradeComposerModeState {
     const editTradeId = input.editTradeId ?? null
@@ -176,17 +180,33 @@ function parseNonNegativeInt(value: string, fallback = 0): number {
     return Math.max(0, Number.isFinite(parsed) ? parsed : fallback)
 }
 
-function parseOptionalPositiveInt(value: string): number | null {
-    if (value.trim() === '') return null
-    const parsed = parseInt(value, 10)
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+export function validateTradeExpirationDays(value: string): { days: number | null; error: string | null } {
+    const trimmed = value.trim()
+    if (trimmed === '') return { days: null, error: null }
+    if (!/^\d+$/.test(trimmed)) return { days: null, error: EXPIRATION_ERROR }
+
+    const days = Number(trimmed)
+    if (
+        !Number.isSafeInteger(days) ||
+        days < MIN_TRADE_EXPIRATION_DAYS ||
+        days > MAX_TRADE_EXPIRATION_DAYS
+    ) {
+        return { days: null, error: EXPIRATION_ERROR }
+    }
+    return { days, error: null }
 }
 
-function generatedExpirationMs(input: ComposerPayloadInput, nowMs: number): number | null {
-    const expirationDays = parseOptionalPositiveInt(input.expirationDaysInput)
-    if (expirationDays == null) return null
+function generatedExpirationMs(
+    input: ComposerPayloadInput,
+    nowMs: number,
+): { expiresAtMs: number | null; error: string | null } {
+    const expiration = validateTradeExpirationDays(input.expirationDaysInput)
+    if (expiration.error || expiration.days == null) {
+        return { expiresAtMs: null, error: expiration.error }
+    }
+    if (!Number.isFinite(nowMs)) return { expiresAtMs: null, error: EXPIRATION_ERROR }
 
-    let expiresAtMs = nowMs + expirationDays * DAY_MS
+    let expiresAtMs = nowMs + expiration.days * DAY_MS
     if (
         (input.leagueStatus === 'active' || input.leagueStatus === 'playoffs') &&
         input.tradeDeadline
@@ -197,7 +217,10 @@ function generatedExpirationMs(input: ComposerPayloadInput, nowMs: number): numb
         }
     }
 
-    return expiresAtMs > nowMs ? expiresAtMs : null
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs || Math.abs(expiresAtMs) > MAX_DATE_MS) {
+        return { expiresAtMs: null, error: EXPIRATION_ERROR }
+    }
+    return { expiresAtMs, error: null }
 }
 
 export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = Date.now()): ComposerPayloadDraft {
@@ -207,7 +230,7 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
     const requestPickIds = Array.from(input.requestPickIds)
     const offerFaabAmount = parseNonNegativeInt(input.offerFaabInput)
     const requestFaabAmount = parseNonNegativeInt(input.requestFaabInput)
-    const expiresAtMs = generatedExpirationMs(input, nowMs)
+    const expiration = generatedExpirationMs(input, nowMs)
 
     return {
         payload: {
@@ -216,12 +239,13 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
             offerPickIds,
             requestPickIds,
             notes: input.notes.trim() || undefined,
-            expiresAt: expiresAtMs == null ? null : new Date(expiresAtMs).toISOString(),
+            expiresAt: expiration.expiresAtMs == null ? null : new Date(expiration.expiresAtMs).toISOString(),
             offerFaabAmount,
             requestFaabAmount,
         },
         hasOffer: offerPlayerIds.length > 0 || offerPickIds.length > 0 || offerFaabAmount > 0,
         hasRequest: requestPlayerIds.length > 0 || requestPickIds.length > 0 || requestFaabAmount > 0,
+        expirationError: expiration.error,
     }
 }
 
@@ -302,6 +326,8 @@ export async function submitMultiTeamTradeComposer(
         leagueStatus: input.leagueStatus,
         tradeDeadline: input.tradeDeadline,
     })
+    if (draft.expirationError) throw new Error(draft.expirationError)
+
     const payload = {
         participantMemberIds: input.participantMemberIds,
         items: input.items,

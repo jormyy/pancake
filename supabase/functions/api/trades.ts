@@ -1,6 +1,6 @@
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
-import { MAX_TRADE_ITEMS } from '../_shared/tradeLimits.ts'
+import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_ITEMS } from '../_shared/tradeLimits.ts'
 import {
   json,
   NotFoundError,
@@ -52,6 +52,7 @@ type MultiTeamTradePayload = {
 
 const MAX_TRADE_FAAB = 1_000_000
 const MAX_TRADE_NOTES_LENGTH = 2_000
+const DAY_MS = 24 * 60 * 60 * 1_000
 
 type JsonObject = { [key: string]: Json | undefined }
 
@@ -132,11 +133,14 @@ function splitTradeBlockRemove(path: string): { itemId: string } | null {
   return { itemId: match[1] }
 }
 
-function optionalTimestampField(body: Record<string, unknown>, key: string): string | null {
+function optionalTradeExpirationField(body: Record<string, unknown>, key: string): string | null {
   const value = optionalStringField(body, key)
   if (!value) return null
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) throw new ValidationError(`${key} must be a valid timestamp.`)
+  if (date.getTime() - Date.now() > MAX_TRADE_EXPIRATION_DAYS * DAY_MS) {
+    throw new ValidationError(`${key} must be no more than ${MAX_TRADE_EXPIRATION_DAYS} days in the future.`)
+  }
   return date.toISOString()
 }
 
@@ -147,7 +151,7 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
     offerPickIds: optionalUuidArrayField(body, 'offerPickIds'),
     requestPickIds: optionalUuidArrayField(body, 'requestPickIds'),
     notes: optionalStringField(body, 'notes', { maxLength: MAX_TRADE_NOTES_LENGTH }),
-    expiresAt: optionalTimestampField(body, 'expiresAt'),
+    expiresAt: optionalTradeExpirationField(body, 'expiresAt'),
     offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
     requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
   }
@@ -200,7 +204,7 @@ function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: 
     participantMemberIds,
     items,
     notes: optionalStringField(body, 'notes', { maxLength: MAX_TRADE_NOTES_LENGTH }),
-    expiresAt: optionalTimestampField(body, 'expiresAt'),
+    expiresAt: optionalTradeExpirationField(body, 'expiresAt'),
   }
 }
 

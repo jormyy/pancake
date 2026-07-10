@@ -9,6 +9,7 @@ import {
 } from '@/lib/trade-composer'
 import type { MultiTeamTradeProposalPayload, Trade } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
+import { MAX_TRADE_EXPIRATION_DAYS } from '@pancake/core'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW_MS = Date.parse('2026-01-01T00:00:00.000Z')
@@ -87,6 +88,26 @@ describe('prefillTradeComposerFromTrade', () => {
         expect(prefill.requestPickIds).toEqual(['pick-offer'])
         expect(prefill.offerFaabInput).toBe('3')
         expect(prefill.requestFaabInput).toBe('7')
+    })
+
+    it.each(['edit', 'counter'] as const)('fails closed when %s prefills an oversized expiration', (mode) => {
+        const prefill = prefillTradeComposerFromTrade(mode, trade({
+            expiresAt: new Date(NOW_MS + (MAX_TRADE_EXPIRATION_DAYS + 1) * DAY_MS).toISOString(),
+        }), NOW_MS)
+        const draft = buildTradeComposerPayload({
+            offerPlayerIds: prefill.offerPlayerIds,
+            requestPlayerIds: prefill.requestPlayerIds,
+            offerPickIds: prefill.offerPickIds,
+            requestPickIds: prefill.requestPickIds,
+            notes: prefill.notes,
+            offerFaabInput: prefill.offerFaabInput,
+            requestFaabInput: prefill.requestFaabInput,
+            expirationDaysInput: prefill.expirationDays,
+        }, NOW_MS)
+
+        expect(prefill.expirationDays).toBe(String(MAX_TRADE_EXPIRATION_DAYS + 1))
+        expect(draft.expirationError).toBe(`Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`)
+        expect(draft.payload.expiresAt).toBeNull()
     })
 })
 
@@ -187,6 +208,34 @@ describe('buildTradeComposerPayload', () => {
 
         expect(draft.payload.expiresAt).toBe(new Date(NOW_MS + 7 * DAY_MS).toISOString())
     })
+
+    it('accepts the maximum expiration in the two-team builder', () => {
+        const draft = buildTwoTeamTradeComposerPayload([
+            { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'p1' },
+            { kind: 'player', fromMemberId: 'them', toMemberId: 'me', playerId: 'p2' },
+        ], 'me', 'them', {
+            notes: '',
+            expirationDaysInput: String(MAX_TRADE_EXPIRATION_DAYS),
+        }, NOW_MS)
+
+        expect(draft.expirationError).toBeNull()
+        expect(draft.payload.expiresAt).toBe(
+            new Date(NOW_MS + MAX_TRADE_EXPIRATION_DAYS * DAY_MS).toISOString(),
+        )
+    })
+
+    it.each([
+        String(MAX_TRADE_EXPIRATION_DAYS + 1),
+        '9'.repeat(400),
+    ])('rejects expiration %s without throwing in the two-team builder', (expirationDaysInput) => {
+        const draft = buildTwoTeamTradeComposerPayload([
+            { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'p1' },
+            { kind: 'player', fromMemberId: 'them', toMemberId: 'me', playerId: 'p2' },
+        ], 'me', 'them', { notes: '', expirationDaysInput }, NOW_MS)
+
+        expect(draft.expirationError).toBe(`Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`)
+        expect(draft.payload.expiresAt).toBeNull()
+    })
 })
 
 describe('submitTradeComposer', () => {
@@ -278,6 +327,36 @@ describe('submitMultiTeamTradeComposer', () => {
             .toEqualTypeOf<MultiTeamTradeProposalPayload>()
     })
 
+    it('accepts the maximum multi-team expiration', async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date(NOW_MS))
+        const counterMultiTeamTrade = vi.fn()
+
+        await submitMultiTeamTradeComposer({
+            mode: 'counter',
+            editTradeId: null,
+            counterTradeId: 'trade-1',
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            participantMemberIds: ['me', 'them', 'third'],
+            items: [
+                { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+                { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: 1 },
+            ],
+            notes: '',
+            expirationDays: String(MAX_TRADE_EXPIRATION_DAYS),
+        }, {
+            getCurrentSeasonId: vi.fn(),
+            proposeMultiTeamTrade: vi.fn(),
+            counterMultiTeamTrade,
+            editMultiTeamTrade: vi.fn(),
+        })
+
+        expect(counterMultiTeamTrade).toHaveBeenCalledWith('trade-1', 'me', expect.objectContaining({
+            expiresAt: new Date(NOW_MS + MAX_TRADE_EXPIRATION_DAYS * DAY_MS).toISOString(),
+        }))
+    })
+
     it('loads the current season and submits routed assets with a deadline-clamped expiration', async () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date(NOW_MS))
@@ -337,6 +416,37 @@ describe('submitMultiTeamTradeComposer', () => {
             expirationDays: '3',
         }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })).rejects.toThrow('No active season found.')
 
+        expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
+        expect(counterMultiTeamTrade).not.toHaveBeenCalled()
+        expect(editMultiTeamTrade).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        String(MAX_TRADE_EXPIRATION_DAYS + 1),
+        '9'.repeat(400),
+    ])('rejects multi-team expiration %s before mutation', async (expirationDays) => {
+        const getCurrentSeasonId = vi.fn()
+        const proposeMultiTeamTrade = vi.fn()
+        const counterMultiTeamTrade = vi.fn()
+        const editMultiTeamTrade = vi.fn()
+
+        await expect(submitMultiTeamTradeComposer({
+            mode: 'counter',
+            editTradeId: null,
+            counterTradeId: 'trade-1',
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            participantMemberIds: ['me', 'them', 'third'],
+            items: [
+                { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+                { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: 1 },
+            ],
+            notes: '',
+            expirationDays,
+        }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade }))
+            .rejects.toThrow(`Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`)
+
+        expect(getCurrentSeasonId).not.toHaveBeenCalled()
         expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
         expect(counterMultiTeamTrade).not.toHaveBeenCalled()
         expect(editMultiTeamTrade).not.toHaveBeenCalled()

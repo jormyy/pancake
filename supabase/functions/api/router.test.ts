@@ -114,6 +114,7 @@ Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${(expo.addr as Deno.NetAddr).po
 const { handleApiRoute } = await import('./router.ts')
 const { assertUuid } = await import('../_shared/apiRuntime.ts')
 const { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } = await import('../_shared/releaseMetadata.ts')
+const { MAX_TRADE_EXPIRATION_DAYS } = await import('../_shared/tradeLimits.ts')
 
 const API = 'http://localhost/functions/v1/api'
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -458,6 +459,70 @@ Deno.test({
     const oversizedBodyJson = await oversizedBody.json()
     if (oversizedBody.status !== 400 || oversizedBodyJson.error !== 'Request body must not exceed 64 KB') {
       throw new Error(`expected request byte cap rejection, got ${oversizedBody.status}: ${JSON.stringify(oversizedBodyJson)}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'two-team and multi-team trade routes enforce the canonical expiration horizon',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const otherMemberId = '77777777-7777-4777-8777-777777777777'
+    const thirdMemberId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const leagueSeasonId = '88888888-8888-4888-8888-888888888888'
+    const dayMs = 24 * 60 * 60 * 1_000
+    const routeBodies = [
+      {
+        path: '/trades/propose',
+        body: {
+          leagueId: LEAGUE_ID,
+          leagueSeasonId,
+          memberId: MEMBER_ID,
+          recipientMemberId: otherMemberId,
+          offerPlayerIds: [PLAYER_ID],
+          requestPlayerIds: [PLAYER_ID],
+        },
+      },
+      {
+        path: '/trades/propose-multi',
+        body: {
+          leagueId: LEAGUE_ID,
+          leagueSeasonId,
+          memberId: MEMBER_ID,
+          participantMemberIds: [MEMBER_ID, otherMemberId, thirdMemberId],
+          items: [{ fromMemberId: MEMBER_ID, toMemberId: otherMemberId, playerId: PLAYER_ID }],
+        },
+      },
+    ]
+
+    for (const { path, body } of routeBodies) {
+      const boundary = await handleApiRoute(authedRequest('POST', path, {
+        ...body,
+        expiresAt: new Date(Date.now() + MAX_TRADE_EXPIRATION_DAYS * dayMs).toISOString(),
+      }))
+      if (boundary.status !== 200) {
+        throw new Error(`expected ${path} to accept the maximum expiration, got ${boundary.status}: ${await boundary.text()}`)
+      }
+
+      const oversized = await handleApiRoute(authedRequest('POST', path, {
+        ...body,
+        expiresAt: new Date(Date.now() + (MAX_TRADE_EXPIRATION_DAYS + 1) * dayMs).toISOString(),
+      }))
+      const oversizedBody = await oversized.json()
+      const expected = `expiresAt must be no more than ${MAX_TRADE_EXPIRATION_DAYS} days in the future.`
+      if (oversized.status !== 400 || oversizedBody.error !== expected) {
+        throw new Error(`expected ${path} expiration cap rejection, got ${oversized.status}: ${JSON.stringify(oversizedBody)}`)
+      }
+
+      const huge = await handleApiRoute(authedRequest('POST', path, {
+        ...body,
+        expiresAt: '999999999999999999999999999999999999999',
+      }))
+      const hugeBody = await huge.json()
+      if (huge.status !== 400 || hugeBody.error !== 'expiresAt must be a valid timestamp.') {
+        throw new Error(`expected ${path} huge expiration rejection, got ${huge.status}: ${JSON.stringify(hugeBody)}`)
+      }
     }
   },
 })
