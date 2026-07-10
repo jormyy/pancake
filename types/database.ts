@@ -3421,8 +3421,8 @@ export type Database = {
         Args: {
           p_activate_roster_player_id: string
           p_activate_source: string
-          p_free_action: string | null
-          p_free_roster_player_id: string | null
+          p_free_action: string
+          p_free_roster_player_id: string
         }
         Returns: undefined
       }

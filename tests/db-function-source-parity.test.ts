@@ -36,4 +36,21 @@ describe('canonical database function sources', () => {
             { type: 'drop', key: 'Custom.QuotedName', identityKey: 'Custom.QuotedName(text)' },
         ])
     })
+
+    it('keeps overload identities distinct through canonical paths and parity checks', async () => {
+        const {
+            checkFunctionSourceText,
+            latestFunctionDefinitionsInSource,
+            sourcePathForFunctionKey,
+        } = await import('../scripts/check-db-function-sources.mjs')
+        const integerDefinition = 'CREATE FUNCTION public.repeated(value int) RETURNS int AS $$ SELECT value $$ LANGUAGE sql;'
+        const textDefinition = 'CREATE FUNCTION public.repeated(value text) RETURNS text AS $$ SELECT value $$ LANGUAGE sql;'
+        const definitions = latestFunctionDefinitionsInSource(`${integerDefinition}\n${textDefinition}`)
+
+        expect([...definitions.keys()]).toEqual(['public.repeated(integer)', 'public.repeated(text)'])
+        expect(sourcePathForFunctionKey('public.repeated(integer)')).toMatch(/public\/repeated__integer\.sql$/)
+        expect(sourcePathForFunctionKey('public.repeated(text)')).toMatch(/public\/repeated__text\.sql$/)
+        expect(checkFunctionSourceText('public.repeated(integer)', definitions.get('public.repeated(integer)')!, integerDefinition)).toEqual([])
+        expect(checkFunctionSourceText('public.repeated(text)', definitions.get('public.repeated(text)')!, textDefinition)).toEqual([])
+    })
 })

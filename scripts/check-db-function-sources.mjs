@@ -27,8 +27,20 @@ export const dollarQuotedStatement = (source) => {
 
 /** @param {string} source */
 const normalizeSql = (source) => source.replace(/\r\n/g, '\n').trim()
-/** @param {string} schema @param {string} name @param {string} [root] */
-const sourcePathForFunction = (schema, name, root = FUNCTION_SOURCES_DIR) => path.join(root, schema, `${name}.sql`)
+/** @param {string} key @param {string} [root] */
+export const sourcePathForFunctionKey = (key, root = FUNCTION_SOURCES_DIR) => {
+  const signatureStart = key.indexOf('(')
+  const qualifiedName = signatureStart === -1 ? key : key.slice(0, signatureStart)
+  const dot = qualifiedName.indexOf('.')
+  if (dot === -1) throw new Error(`Invalid function key ${key}`)
+  const schema = qualifiedName.slice(0, dot)
+  const name = qualifiedName.slice(dot + 1)
+  const signature = signatureStart === -1 ? '' : key.slice(signatureStart + 1, -1)
+  const signatureSuffix = signature
+    ? `__${signature.replaceAll(/[^A-Za-z0-9]+/g, '_').replaceAll(/^_|_$/g, '') || 'no_args'}`
+    : ''
+  return path.join(root, schema, `${name}${signatureSuffix}.sql`)
+}
 
 /** @param {string} source */
 export const maskSqlNonCode = (source) => {
@@ -213,8 +225,8 @@ export const functionLifecycleEventsInSource = (source) => {
   return events
 }
 
-export const latestFunctionDefinitions = async () => {
-  const migrations = await allMigrations()
+/** @param {string} migrations @returns {Map<string, string>} */
+export const latestFunctionDefinitionsInSource = (migrations) => {
   const definitions = new Map()
   for (const event of functionLifecycleEventsInSource(migrations)) {
     if (event.type === 'create') definitions.set(event.identityKey, { key: event.key, definition: event.definition })
@@ -230,6 +242,8 @@ export const latestFunctionDefinitions = async () => {
   }
   return new Map([...output.entries()].sort(([left], [right]) => left.localeCompare(right)))
 }
+
+export const latestFunctionDefinitions = async () => latestFunctionDefinitionsInSource(await allMigrations())
 
 /** @param {string} schema @param {string} name */
 export const latestFunctionDefinition = async (schema, name) => {
@@ -272,8 +286,7 @@ export const writeFunctionSources = async () => {
 
   try {
     await Promise.all([...definitions].map(async ([key, definition]) => {
-      const [schema, name] = key.split('.')
-      const target = sourcePathForFunction(schema, name, generatedDir)
+      const target = sourcePathForFunctionKey(key, generatedDir)
       await mkdir(path.dirname(target), { recursive: true })
       await writeFile(target, [
         `-- Canonical SQL source for ${key}.`,
@@ -299,29 +312,32 @@ export const writeFunctionSources = async () => {
   }
 }
 
+/** @param {string} key @param {string} migrationDefinition @param {string} source */
+export const checkFunctionSourceText = (key, migrationDefinition, source) => {
+  const events = functionLifecycleEventsInSource(source).filter((event) => event.type === 'create')
+  const expectedEvent = key.includes('(')
+    ? events.find((event) => event.identityKey === key)
+    : events.length === 1 && events[0].key === key ? events[0] : null
+  if (!expectedEvent?.definition) return [`source is missing ${key}`]
+  const failures = events
+    .filter((event) => event !== expectedEvent)
+    .map((event) => `source contains unmanaged function ${event.identityKey}`)
+  if (normalizeSql(expectedEvent.definition) !== normalizeSql(migrationDefinition)) {
+    failures.push(`source does not match latest migration definition for ${key}`)
+  }
+  return failures
+}
+
 /** @param {string} key @param {string} migrationDefinition */
 export const checkFunctionSource = async (key, migrationDefinition) => {
-  const [schema, name] = key.split('.')
-  const sourcePath = sourcePathForFunction(schema, name)
+  const sourcePath = sourcePathForFunctionKey(key)
   const source = await readFile(sourcePath, 'utf8').catch((error) => {
     if (error?.code === 'ENOENT') return null
     throw error
   })
   if (source === null) return [`${path.relative(ROOT, sourcePath)} is missing`]
-
-  const sourceDefinitions = functionDefinitionsInSource(source)
-  const sourceDefinition = sourceDefinitions.get(key)
-  if (!sourceDefinition) return [`${path.relative(ROOT, sourcePath)} is missing ${key}`]
-
-  const extraKeys = [...sourceDefinitions.keys()].filter((sourceKey) => sourceKey !== key)
-  const failures = extraKeys.map((sourceKey) =>
-    `${path.relative(ROOT, sourcePath)} contains unmanaged function ${sourceKey}`)
-
-  if (normalizeSql(sourceDefinition) !== normalizeSql(migrationDefinition)) {
-    failures.push(`${path.relative(ROOT, sourcePath)} does not match latest migration definition for ${key}`)
-  }
-
-  return failures
+  return checkFunctionSourceText(key, migrationDefinition, source)
+    .map((failure) => `${path.relative(ROOT, sourcePath)} ${failure}`)
 }
 
 /** @param {string} dir @returns {Promise<string[]>} */
@@ -347,9 +363,10 @@ export const checkFunctionSources = async () => {
   const expectedKeys = new Set(latestDefinitions.keys())
   for (const file of await sqlFilesUnder(FUNCTION_SOURCES_DIR)) {
     const source = await readFile(file, 'utf8')
-    for (const key of functionDefinitionsInSource(source).keys()) {
-      if (!expectedKeys.has(key)) {
-        failures.push(`${path.relative(ROOT, file)} contains ${key}, which is not defined by the latest migrations`)
+    for (const event of functionLifecycleEventsInSource(source)) {
+      if (event.type !== 'create') continue
+      if (!expectedKeys.has(event.identityKey) && !expectedKeys.has(event.key)) {
+        failures.push(`${path.relative(ROOT, file)} contains ${event.identityKey}, which is not defined by the latest migrations`)
       }
     }
   }
