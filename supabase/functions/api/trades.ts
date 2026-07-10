@@ -63,6 +63,14 @@ const MAX_TRADE_NOTES_LENGTH = 2_000
 
 type JsonObject = { [key: string]: Json | undefined }
 
+async function awaitTradeNotifications(delivery: Promise<unknown>, label: string): Promise<void> {
+  try {
+    await delivery
+  } catch (error) {
+    console.error(`[api/trades] ${label} notification failed`, error)
+  }
+}
+
 type MultiTeamAcceptResult = {
   expired: boolean
   isMultiTeam: boolean
@@ -309,13 +317,13 @@ async function proposeTrade(userId: string, body: Record<string, unknown>): Prom
   }
 
   const recipientMemberId = uuidField(body, 'recipientMemberId')
-  notifyMember(
+  await awaitTradeNotifications(notifyMember(
     recipientMemberId,
     'New Trade Offer',
     'You have a new trade offer waiting for your review.',
     { tradeId },
     'trade',
-  ).catch((error) => console.error('[api/trades] proposal notification failed', error))
+  ), 'proposal')
 
   return { tradeId: String(tradeId) }
 }
@@ -340,7 +348,7 @@ async function proposeMultiTeamTrade(userId: string, body: Record<string, unknow
   }
 
   const tradeIdString = String(tradeId)
-  Promise.all(
+  await awaitTradeNotifications(Promise.all(
     [...new Set(payload.participantMemberIds)].filter((participantId) => participantId !== memberId).map((participantId) =>
       notifyMember(
         participantId,
@@ -350,7 +358,7 @@ async function proposeMultiTeamTrade(userId: string, body: Record<string, unknow
         'trade',
       ),
     ),
-  ).catch((error) => console.error('[api/trades] multi-team proposal notification failed', error))
+  ), 'multi-team proposal')
 
   return { tradeId: tradeIdString }
 }
@@ -395,10 +403,10 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
       ? 'Every participant accepted the multi-team trade. Completion will follow your league veto settings.'
       : 'A participant accepted the multi-team trade offer.'
     : 'The trade was accepted. Completion will follow your league veto settings.'
-  Promise.all(notifyTargets
+  await awaitTradeNotifications(Promise.all(notifyTargets
     .filter((targetMemberId) => targetMemberId !== memberId)
     .map((targetMemberId) => notifyMember(targetMemberId, title, message, { tradeId }, 'trade')),
-  ).catch((notifyError) => console.error('[api/trades] acceptance notification failed', notifyError))
+  ), 'acceptance')
 }
 
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
@@ -413,13 +421,13 @@ async function rejectTrade(userId: string, tradeId: string, body: Record<string,
   if (error) throwDb(error)
   const trade = parseTradeActionResult(data)
 
-  notifyMember(
+  await awaitTradeNotifications(notifyMember(
     trade.proposerMemberId,
     'Trade Rejected',
     'Your trade offer was declined.',
     { tradeId },
     'trade',
-  ).catch((error) => console.error('[api/trades] rejection notification failed', error))
+  ), 'rejection')
 }
 
 async function withdrawTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
@@ -434,13 +442,13 @@ async function withdrawTrade(userId: string, tradeId: string, body: Record<strin
   if (error) throwDb(error)
   const trade = parseTradeActionResult(data)
 
-  notifyMember(
+  await awaitTradeNotifications(notifyMember(
     trade.recipientMemberId,
     'Trade Withdrawn',
     'A trade offer sent to you has been withdrawn.',
     { tradeId },
     'trade',
-  ).catch((error) => console.error('[api/trades] withdrawal notification failed', error))
+  ), 'withdrawal')
 }
 
 async function counterTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
@@ -482,13 +490,13 @@ async function replaceTrade(
   }
 
   const newTradeIdString = String(newTradeId)
-  notifyMember(
+  await awaitTradeNotifications(notifyMember(
     originalTrade[action.notifyMemberColumn],
     action.notificationTitle,
     action.notificationMessage,
     { tradeId: newTradeIdString, [action.sourceTradeMetadataKey]: tradeId },
     'trade',
-  ).catch((error) => console.error(`[api/trades] ${action.logLabel} notification failed`, error))
+  ), action.logLabel)
 
   return { tradeId: newTradeIdString }
 }
@@ -518,7 +526,7 @@ async function replaceMultiTeamTrade(
   }
 
   const newTradeIdString = String(newTradeId)
-  Promise.all(
+  await awaitTradeNotifications(Promise.all(
     [...new Set([memberId, ...payload.participantMemberIds])]
       .filter((participantId) => participantId !== memberId)
       .map((participantId) =>
@@ -530,7 +538,7 @@ async function replaceMultiTeamTrade(
           'trade',
         ),
       ),
-  ).catch((error) => console.error(`[api/trades] ${action.logLabel} notification failed`, error))
+  ), action.logLabel)
 
   return { tradeId: newTradeIdString }
 }
@@ -559,7 +567,7 @@ async function vetoTrade(
 
   const result = parseTradeVetoResult(data)
   if (result.vetoed) {
-    Promise.all(
+    await awaitTradeNotifications(Promise.all(
       result.participantMemberIds.map((participantMemberId) => notifyMember(
         participantMemberId,
         'Trade Vetoed',
@@ -567,7 +575,7 @@ async function vetoTrade(
         { tradeId },
         'trade',
       )),
-    ).catch((error) => console.error('[api/trades] veto notification failed', error))
+    ), 'veto')
   }
 
   return {

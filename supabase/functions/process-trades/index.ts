@@ -1,12 +1,11 @@
 import type { Database } from '../_shared/database.ts'
-import { notifyMember } from '../_shared/notifications.ts'
+import { notifyMembers } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
 import { notifyCompletedTrades, notifyExpiredTrades } from './notifications.ts'
 
 const PROCESS_BATCH_LIMIT = 50
-const NOTIFICATION_CONCURRENCY = 10
 
 type ProcessedTradeRow = Database['public']['Functions']['process_due_accepted_trades_atomic']['Returns'][number]
 type ExpiredTradeRow = {
@@ -33,8 +32,7 @@ async function processAcceptedTrades(): Promise<{ processed: number; failed: num
   const results: ProcessedTradeRow[] = data ?? []
   const partitioned = partitionTradeResults(results)
 
-  await notifyCompletedTrades(partitioned.completed, notifyMember, NOTIFICATION_CONCURRENCY)
-    .catch((notifyError) => console.error('[process-trades] notification failed', notifyError))
+  await notifyCompletedTrades(partitioned.completed, notifyMembers)
 
   if (partitioned.retryableFailures.length > 0) {
     throw new Error(`Retryable trade processing failures: ${partitioned.retryableFailures.map(tradeFailureMessage).join('; ')}`)
@@ -57,6 +55,5 @@ async function expirePendingTrades(): Promise<ExpiredTradeRow[]> {
 
 async function notifyExpiredTradeResults(rows: ExpiredTradeRow[]): Promise<void> {
   if (rows.length === 0) return
-  await notifyExpiredTrades(rows, notifyMember, NOTIFICATION_CONCURRENCY)
-    .catch((notifyError) => console.error('[process-trades] expiration notification failed', notifyError))
+  await notifyExpiredTrades(rows, notifyMembers)
 }

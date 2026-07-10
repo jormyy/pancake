@@ -1,6 +1,7 @@
 const USER_ID = '22222222-2222-4222-8222-222222222222'
 const OTHER_USER_ID = '99999999-9999-4999-8999-999999999999'
 const MEMBER_ID = '33333333-3333-4333-8333-333333333333'
+const OTHER_MEMBER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const DRAFT_ID = '44444444-4444-4444-8444-444444444444'
 const PLAYER_ID = '55555555-5555-4555-8555-555555555555'
 const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
@@ -9,6 +10,20 @@ const postgrestRequests: string[] = []
 const profileMutations: { query: string; body: unknown }[] = []
 let commissionerRole: string | null = 'commissioner'
 let authenticatedUserId = USER_ID
+let pushGate: { promise: Promise<void>; resolve: () => void } | null = null
+let pushStarted = false
+
+const deferred = () => {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => { resolve = done })
+  return { promise, resolve }
+}
+
+const expo = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async () => {
+  pushStarted = true
+  await pushGate?.promise
+  return Response.json({ data: { status: 'ok', id: 'push-test' } })
+})
 
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
@@ -24,10 +39,22 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     }
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'league_id') {
     body = { league_id: LEAGUE_ID }
+  } else if (url.pathname === '/rest/v1/drafts' && url.searchParams.get('select') === 'league_id') {
+    body = { league_id: LEAGUE_ID }
+  } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'id') {
+    body = { id: authenticatedUserId === USER_ID ? MEMBER_ID : OTHER_MEMBER_ID }
+  } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'user_id') {
+    body = { user_id: OTHER_USER_ID }
   } else if (url.pathname === '/rest/v1/league_members' && url.searchParams.get('select') === 'role') {
     body = commissionerRole ? { role: commissionerRole } : null
   } else if (url.pathname === '/rest/v1/profiles' && req.method === 'PATCH') {
     profileMutations.push({ query: url.searchParams.toString(), body: await req.json() })
+  } else if (url.pathname === '/rest/v1/profiles' && url.searchParams.get('select') === 'push_token') {
+    body = { push_token: 'ExponentPushToken[route-lifecycle]' }
+  } else if (url.pathname === '/rest/v1/notification_preferences') {
+    body = []
+  } else if (url.pathname === '/rest/v1/rpc/propose_trade_atomic') {
+    body = UUID
   } else if (url.pathname === '/rest/v1/rpc/make_snake_pick_atomic') {
     body = {
       pick: {
@@ -55,6 +82,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(postgrest.addr as Deno.NetAddr).port}`)
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 Deno.env.set('E2E_ADMIN_SECRET', 'e2e-test-secret')
+Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${(expo.addr as Deno.NetAddr).port}`)
 
 const { handleApiRoute } = await import('./router.ts')
 const { assertUuid } = await import('../_shared/apiRuntime.ts')
@@ -141,6 +169,8 @@ Deno.test({
       ['POST', `/draft/${UUID}/process-expired-pick`],
       ['POST', `/draft/${UUID}/activate-rookie-league`],
       ['POST', `/draft/${UUID}/reseed-picks`],
+      ['POST', `/draft/${UUID}/presence-claim`],
+      ['POST', `/draft/${UUID}/resolve-presence`],
       ['POST', '/playoffs/generate'],
       ['POST', '/playoffs/advance'],
       ['POST', '/sync/stats'],
@@ -170,6 +200,41 @@ Deno.test({
 
     if (failures.length > 0) {
       throw new Error(`routes hit fallback 404: ${failures.join(', ')}`)
+    }
+  },
+})
+
+Deno.test({
+  name: 'draft presence claims derive membership server-side and reject forged identities',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    authenticatedUserId = USER_ID
+    const claimResponse = await handleApiRoute(authedRequest(
+      'POST',
+      `/draft/${DRAFT_ID}/presence-claim`,
+      { memberId: OTHER_MEMBER_ID },
+    ))
+    const claimBody = await claimResponse.json()
+    if (claimResponse.status !== 200 || typeof claimBody.claim !== 'string') {
+      throw new Error(`expected presence claim, got ${claimResponse.status}: ${JSON.stringify(claimBody)}`)
+    }
+
+    const [payload, signature] = claimBody.claim.split('.')
+    const forgedPayload = btoa(JSON.stringify({
+      v: 1,
+      draftId: DRAFT_ID,
+      memberId: OTHER_MEMBER_ID,
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+    })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+    const resolvedResponse = await handleApiRoute(authedRequest(
+      'POST',
+      `/draft/${DRAFT_ID}/resolve-presence`,
+      { claims: [claimBody.claim, `${forgedPayload}.${signature}`, `${payload}.invalid`] },
+    ))
+    const resolvedBody = await resolvedResponse.json()
+    if (resolvedResponse.status !== 200 || JSON.stringify(resolvedBody.memberIds) !== JSON.stringify([MEMBER_ID])) {
+      throw new Error(`expected only authenticated membership, got ${resolvedResponse.status}: ${JSON.stringify(resolvedBody)}`)
     }
   },
 })
@@ -286,6 +351,36 @@ Deno.test({
     if (oversizedBody.status !== 400 || oversizedBodyJson.error !== 'Request body must not exceed 64 KB') {
       throw new Error(`expected request byte cap rejection, got ${oversizedBody.status}: ${JSON.stringify(oversizedBodyJson)}`)
     }
+  },
+})
+
+Deno.test({
+  name: 'trade routes retain notification ownership until deferred delivery settles',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    pushStarted = false
+    pushGate = deferred()
+    let routeCompleted = false
+    const pending = handleApiRoute(authedRequest('POST', '/trades/propose', {
+      leagueId: LEAGUE_ID,
+      leagueSeasonId: '88888888-8888-4888-8888-888888888888',
+      memberId: MEMBER_ID,
+      recipientMemberId: OTHER_MEMBER_ID,
+      offerPlayerIds: [PLAYER_ID],
+    })).then((response) => {
+      routeCompleted = true
+      return response
+    })
+
+    for (let attempt = 0; attempt < 40 && !pushStarted; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 1))
+    if (!pushStarted) throw new Error('trade route did not start notification delivery')
+    if (routeCompleted) throw new Error('trade route returned before notification delivery settled')
+
+    pushGate.resolve()
+    const response = await pending
+    pushGate = null
+    if (response.status !== 200) throw new Error(`expected successful trade proposal, got ${response.status}`)
   },
 })
 
@@ -444,5 +539,8 @@ Deno.test({
   name: 'close API router test server',
   sanitizeOps: false,
   sanitizeResources: false,
-  fn: () => postgrest.shutdown(),
+  fn: () => {
+    postgrest.shutdown()
+    expo.shutdown()
+  },
 })

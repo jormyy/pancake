@@ -1,9 +1,26 @@
 import {
   createNotifyMember,
+  createNotifyMembers,
   NotificationDeliveryError,
+  type NotificationBatchDependencies,
   type NotificationDeliveryFailureCode,
   type NotificationDependencies,
 } from './notificationDelivery.ts'
+
+const deferred = () => {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => { resolve = done })
+  return { promise, resolve }
+}
+
+const flush = () => new Promise<void>((resolve) => queueMicrotask(resolve))
+const waitFor = async (predicate: () => boolean, message: string) => {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (predicate()) return
+    await flush()
+  }
+  throw new Error(message)
+}
 
 const dependencies = (overrides: Partial<NotificationDependencies> = {}): NotificationDependencies => ({
   member: async () => ({ data: { user_id: 'user-a' }, error: null }),
@@ -89,5 +106,74 @@ Deno.test('notification boundary returns explicit sent and skipped outcomes', as
   }))('member-a', 'Title', 'Body')
   if (missingToken.status !== 'skipped' || missingToken.reason !== 'missing_push_token') {
     throw new Error('missing push token did not return an explicit skip')
+  }
+})
+
+Deno.test('bulk notification delivery bounds 600 delayed recipients to six Expo batches and three lookups', async () => {
+  const memberIds = Array.from({ length: 600 }, (_, index) => `member-${index}`)
+  const gates = Array.from({ length: 6 }, deferred)
+  const lookupCalls = { members: 0, preferences: 0, profiles: 0 }
+  const batchSizes: number[] = []
+  let active = 0
+  let maxActive = 0
+  const batchDependencies: NotificationBatchDependencies = {
+    members: async (ids) => {
+      lookupCalls.members += 1
+      return { data: ids.map((id) => ({ id, user_id: `user-${id}` })), error: null }
+    },
+    preferences: async (ids) => {
+      lookupCalls.preferences += 1
+      return {
+        data: ids.map((user_id) => ({
+          user_id,
+          trade_enabled: true,
+          waiver_enabled: true,
+          draft_enabled: true,
+          activity_enabled: true,
+        })),
+        error: null,
+      }
+    },
+    profiles: async (ids) => {
+      lookupCalls.profiles += 1
+      return { data: ids.map((id) => ({ id, push_token: `ExponentPushToken[${id}]` })), error: null }
+    },
+    send: async (_url, init) => {
+      const batchIndex = batchSizes.length
+      const batch = JSON.parse(String(init.body)) as unknown[]
+      batchSizes.push(batch.length)
+      active += 1
+      maxActive = Math.max(maxActive, active)
+      await gates[batchIndex].promise
+      active -= 1
+      return Response.json({ data: batch.map(() => ({ status: 'ok' })) })
+    },
+    pushUrl: 'https://push.invalid/send',
+  }
+
+  let completed = false
+  const pending = createNotifyMembers(batchDependencies)(memberIds.map((memberId) => ({
+    memberId,
+    title: 'Trade Completed',
+    body: 'Assets moved.',
+    category: 'trade',
+  }))).then(() => { completed = true })
+
+  await waitFor(() => batchSizes.length === 2, 'initial Expo batches did not start')
+  if (completed || maxActive !== 2) throw new Error('bulk delivery did not await or bound its initial batches')
+  for (let index = 0; index < gates.length; index += 1) {
+    gates[index].resolve()
+    if (index < gates.length - 2) {
+      await waitFor(() => batchSizes.length === index + 3, `Expo batch ${index + 3} did not start`)
+    }
+  }
+  await pending
+
+  if (batchSizes.length !== 6 || batchSizes.some((size) => size !== 100)) {
+    throw new Error(`expected six 100-message batches, found ${batchSizes.join(',')}`)
+  }
+  if (maxActive !== 2) throw new Error(`expected maximum batch concurrency 2, found ${maxActive}`)
+  if (Object.values(lookupCalls).some((count) => count !== 1)) {
+    throw new Error(`bulk delivery repeated lookups: ${JSON.stringify(lookupCalls)}`)
   }
 })
