@@ -13,8 +13,19 @@ import {
 import { getActiveRookieDraft, reseedRookieDraftPicks, startRookieDraft } from '@/lib/rookieDraft'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { normalizeDraftTimerSeconds, type DraftTimerOption, type RookieRoundOption } from '@/lib/draft-options'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
+
+// Persistent cache so draft-status-gated panels (Auctions, Draft Board)
+// render instantly on revisit while the fresh status fetch updates in place.
+// null is a valid cached status (no joinable draft), hence the wrapper.
+const ACTIVE_DRAFT_CACHE_PREFIX = 'pancake:active-draft:v1:'
+type ActiveDraftCacheEntry = { draft: Draft | null }
+const readActiveDraftCache = (leagueId: string) =>
+    readPersistentCache<ActiveDraftCacheEntry>(`${ACTIVE_DRAFT_CACHE_PREFIX}${leagueId}`) ?? undefined
+const writeActiveDraftCache = (leagueId: string, draft: Draft | null) =>
+    writePersistentCache<ActiveDraftCacheEntry>(`${ACTIVE_DRAFT_CACHE_PREFIX}${leagueId}`, { draft })
 
 export function useLeagueDraftController(leagueId: string | undefined) {
     const { push } = useRouter()
@@ -35,21 +46,24 @@ export function useLeagueDraftController(leagueId: string | undefined) {
     const [rookieRounds, setRookieRounds] = useState<RookieRoundOption>(3)
     const [rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior] =
         useState<RookieTimerExpiryBehavior>('auto_pick')
-    const [activeDraft, setActiveDraft] = useState<Draft | null>(null)
+    const initialCached = leagueId ? readActiveDraftCache(leagueId) : undefined
+    const [activeDraft, setActiveDraft] = useState<Draft | null>(initialCached?.draft ?? null)
     const [activeDraftLoading, setActiveDraftLoading] = useState(true)
-    // True once the first status fetch for this league has resolved, so
-    // panels can wait for it and never flash loading UI on later refreshes.
-    const [activeDraftLoaded, setActiveDraftLoaded] = useState(false)
+    // True once the first status fetch for this league has resolved (or the
+    // persistent cache answered), so panels can render immediately and never
+    // flash loading UI on later refreshes.
+    const [activeDraftLoaded, setActiveDraftLoaded] = useState(initialCached !== undefined)
     const [activeDraftError, setActiveDraftError] = useState<string | null>(null)
 
     useEffect(() => {
         requestSequence.current += 1
         inFlightRequest.current = null
         refreshQueued.current = false
-        setActiveDraft(null)
+        const cached = leagueId ? readActiveDraftCache(leagueId) : undefined
+        setActiveDraft(cached?.draft ?? null)
         setActiveDraftError(null)
         setActiveDraftLoading(Boolean(leagueId))
-        setActiveDraftLoaded(false)
+        setActiveDraftLoaded(cached !== undefined)
         setDraftLoadingOwner(null)
     }, [leagueId])
 
@@ -69,6 +83,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         request.promise = getJoinableDraft(lid, { includeCompletedRookie: true })
             .then((nextDraft) => {
                 if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
+                writeActiveDraftCache(lid, nextDraft)
                 setActiveDraft(nextDraft)
                 setActiveDraftError(null)
             })

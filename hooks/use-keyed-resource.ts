@@ -11,33 +11,48 @@ type ResourceState<Value> = {
     error: string | null
 }
 
+type ResourceCache<Value> = {
+    read: (key: string) => Value | undefined
+    write: (key: string, value: Value) => void
+}
+
 export function useKeyedResource<Value>(
     key: string | null,
     initialValue: Value,
     fetchValue: () => Promise<Value>,
+    // Optional persistent cache: a hit seeds the state as already loaded so
+    // consumers render content instantly (no blank flash) while the fresh
+    // fetch still runs and updates in place.
+    cache?: ResourceCache<Value>,
 ) {
     const activeKey = useRef(key)
     activeKey.current = key
+    const cacheRef = useRef(cache)
+    cacheRef.current = cache
     const generation = useRef(0)
     const loaded = useRef(false)
     const invalidated = useRef(false)
     const inFlight = useRef<{ key: string; promise: Promise<void> } | null>(null)
     const loadRef = useRef<(force?: boolean) => Promise<void>>(() => Promise.resolve())
-    const [state, setState] = useState<ResourceState<Value>>({
-        key,
-        data: initialValue,
-        loading: Boolean(key),
-        loaded: false,
-        error: null,
-    })
+    const seededState = useCallback((nextKey: string | null): ResourceState<Value> => {
+        const cached = nextKey != null ? cacheRef.current?.read(nextKey) : undefined
+        return {
+            key: nextKey,
+            data: cached ?? initialValue,
+            loading: Boolean(nextKey),
+            loaded: cached !== undefined,
+            error: null,
+        }
+    }, [initialValue])
+    const [state, setState] = useState<ResourceState<Value>>(() => seededState(key))
 
     useEffect(() => {
         generation.current += 1
         loaded.current = false
         invalidated.current = false
         inFlight.current = null
-        setState({ key, data: initialValue, loading: Boolean(key), loaded: false, error: null })
-    }, [initialValue, key])
+        setState(seededState(key))
+    }, [key, seededState])
 
     const load = useCallback((force = false): Promise<void> => {
         if (!key) return Promise.resolve()
@@ -55,6 +70,7 @@ export function useKeyedResource<Value>(
             .then((data) => {
                 if (activeKey.current !== key || generation.current !== requestGeneration) return
                 loaded.current = true
+                cacheRef.current?.write(key, data)
                 setState({ key, data, loading: false, loaded: true, error: null })
             })
             .catch((error: unknown) => {

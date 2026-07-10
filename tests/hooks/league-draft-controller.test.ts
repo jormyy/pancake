@@ -31,6 +31,10 @@ vi.mock('@/lib/rookieDraft', () => ({
     reseedRookieDraftPicks: mocks.reseedRookieDraftPicks,
     startRookieDraft: mocks.startRookieDraft,
 }))
+vi.mock('@/lib/persistent-cache', () => ({
+    readPersistentCache: vi.fn(() => null),
+    writePersistentCache: vi.fn(),
+}))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

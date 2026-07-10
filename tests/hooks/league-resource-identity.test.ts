@@ -16,6 +16,10 @@ vi.mock('@/lib/waivers', () => ({ getWaiverPriorityOrder: vi.fn(async () => []) 
 vi.mock('@/lib/transactions', () => ({ getLeagueTransactions }))
 vi.mock('@/lib/rookieDraft', () => ({ getAllLeaguePicks: vi.fn(async () => []) }))
 vi.mock('@/lib/mockDraftRooms', () => ({ getMockDraftRooms }))
+vi.mock('@/lib/persistent-cache', () => ({
+    readPersistentCache: vi.fn(() => null),
+    writePersistentCache: vi.fn(),
+}))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
