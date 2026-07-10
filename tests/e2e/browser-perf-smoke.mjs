@@ -426,7 +426,10 @@ export async function runBrowserPerfSmoke({
         activeReady,
       });
     })()`]))
-    const draftRouteTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room-initial' })
+    const sharedScriptUrls = initialJavaScriptDelivery?.scriptUrls ?? []
+    const draftRouteTiming = await measureNavigationTiming(browser, session, {
+      workflowId: 'auction-draft-room', label: 'draft-room-initial', sharedScriptUrls,
+    })
     await signIn(peerSession, env, state, peerUser)
     await browser(peerSession, ['set', 'viewport', '390', '844'])
     await browser(peerSession, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
@@ -439,7 +442,9 @@ export async function runBrowserPerfSmoke({
     measuredDraftUrl.searchParams.set('e2e_perf_nav', `${Date.now()}`)
     const draftNavigationDiagnostic = await navigateForMeasurement(session, measuredDraftUrl.toString())
     await waitForDraftInProgress(supabase, auction.draftId)
-    const draftLoadTiming = await measureNavigationTiming(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
+    const draftLoadTiming = await measureNavigationTiming(browser, session, {
+      workflowId: 'auction-draft-room', label: 'draft-room', sharedScriptUrls,
+    })
     const draftFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
       .catch((error) => ({ error: error.message }))
     await installHeartbeat(session)
@@ -453,7 +458,9 @@ export async function runBrowserPerfSmoke({
     const measuredHomeUrl = new URL(joinUrl(env.frontendUrl, '/'))
     measuredHomeUrl.searchParams.set('e2e_perf_nav', `${Date.now()}`)
     const homeNavigationDiagnostic = await navigateForMeasurement(session, measuredHomeUrl.toString())
-    const homeLoadTiming = await measureNavigationTiming(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
+    const homeLoadTiming = await measureNavigationTiming(browser, session, {
+      workflowId: 'home-live-lineup', label: 'home', sharedScriptUrls,
+    })
     const homeFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
     await installHeartbeat(session)
     const homeLoad = await runLoadMutations({ supabase, auction: null, matchup })

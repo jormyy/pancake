@@ -9,6 +9,7 @@ import {
   WORKFLOW_READY_IDS,
 } from './e2e/browser-performance-evidence.mjs'
 import budgets from './e2e/performance-budgets.json'
+import { decodeStaticRequestPath } from './e2e/static-web-routing.mjs'
 
 describe('browser performance evidence', () => {
   it('summarizes transferred route bytes and cached route evidence executable in Node', () => {
@@ -21,7 +22,7 @@ describe('browser performance evidence', () => {
       initiatorType: 'script', transferSize: 12300, encodedBodySize: 12000, decodedBodySize: 40000,
     }
 
-    expect(summarizeJavaScriptDelivery([common, route])).toMatchObject({
+    expect(summarizeJavaScriptDelivery([common, route], [common.name])).toMatchObject({
       networkEntryCount: 2,
       webJsEncodedKb: 314.5,
       webJsTransferKb: 11.7,
@@ -32,7 +33,7 @@ describe('browser performance evidence', () => {
     expect(summarizeJavaScriptDelivery([
       { ...common, transferSize: 0, encodedBodySize: common.decodedBodySize },
       { ...route, transferSize: 0, encodedBodySize: route.decodedBodySize },
-    ])).toMatchObject({
+    ], [common.name])).toMatchObject({
       networkEntryCount: 0,
       webJsEncodedKb: 0,
       webJsTransferKb: 0,
@@ -41,6 +42,31 @@ describe('browser performance evidence', () => {
       routeJsNetworkEntryCount: 0,
       routeJsCacheHit: true,
     })
+  })
+
+  it('charges a newly loaded layout chunk to the route unless it was in the cold initial ledger', () => {
+    const initialLayout = {
+      name: 'http://localhost/_expo/static/js/web/_layout-root.js',
+      initiatorType: 'script', transferSize: 0, encodedBodySize: 1000, decodedBodySize: 1000,
+    }
+    const routeLayout = {
+      name: 'http://localhost/_expo/static/js/web/_layout-draft.js',
+      initiatorType: 'script', transferSize: 12300, encodedBodySize: 12000, decodedBodySize: 40000,
+    }
+    expect(summarizeJavaScriptDelivery([initialLayout, routeLayout], [initialLayout.name])).toMatchObject({
+      routeJsEntryCount: 1,
+      routeJsNetworkEntryCount: 1,
+      webJsTransferKb: 11.7,
+    })
+  })
+
+  it('classifies malformed static request paths as HTTP 400', () => {
+    expect(decodeStaticRequestPath('/players/%ZZ')).toEqual({
+      ok: false,
+      status: 400,
+      message: 'Malformed URL encoding',
+    })
+    expect(decodeStaticRequestPath('/players/valid')).toEqual({ ok: true, path: '/players/valid' })
   })
 
   it('owns a ready and trusted feedback probe for every ranked workflow', () => {

@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBrotliCompress, createGzip } from 'node:zlib';
+import { decodeStaticRequestPath } from './static-web-routing.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -89,8 +90,7 @@ function dynamicTemplate(routePath) {
   return null;
 }
 
-function resolveRoute(urlPath) {
-  const decodedPath = decodeURIComponent(urlPath);
+function resolveRoute(decodedPath) {
   const normalized = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
   const stripped = normalized.replace(/^[/\\]+/, '');
   const withoutSlash = stripped === '' ? 'index' : stripped.replace(/[/\\]$/, '');
@@ -116,7 +116,13 @@ if (!existsSync(root)) {
 
 const server = createServer((request, response) => {
   const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
-  const filePath = resolveRoute(requestUrl.pathname);
+  const decoded = decodeStaticRequestPath(requestUrl.pathname);
+  if (!decoded.ok) {
+    response.writeHead(decoded.status, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end(decoded.message);
+    return;
+  }
+  const filePath = resolveRoute(decoded.path);
   if (!filePath) {
     response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     response.end('Not found');

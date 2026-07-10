@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
-import { measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
+import { measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 
 const ROOT = process.cwd()
@@ -373,6 +373,8 @@ export async function runBrowserSmoke({
 
   try {
     await installRuntimeOverrides(browser, session, env)
+    const initialJavaScriptDelivery = await measureJavaScriptDelivery(browser, session)
+    const sharedScriptUrls = initialJavaScriptDelivery.scriptUrls ?? []
     if (fullSweep) {
       const authRoutes = [
         ['auth-sign-in', '/sign-in'],
@@ -412,9 +414,9 @@ export async function runBrowserSmoke({
       await browser(session, ['open', joinUrl(env.frontendUrl, route)])
       const workflowId = routeWorkflowIds.get(label)
       if (workflowId) {
-        const routeTiming = await measureNavigationTiming(browser, session, { workflowId, label })
+        const routeTiming = await measureNavigationTiming(browser, session, { workflowId, label, sharedScriptUrls })
         await browser(session, ['open', joinUrl(env.frontendUrl, route)])
-        const cachedTiming = await measureNavigationTiming(browser, session, { workflowId, label })
+        const cachedTiming = await measureNavigationTiming(browser, session, { workflowId, label, sharedScriptUrls })
         const feedback = await measureWorkflowFeedback(browser, session, { workflowId, label })
         if (cachedTiming && feedback?.observed && feedback.feedbackMs != null) {
           recordWorkflowMeasurement(workflowMeasurements, {
@@ -459,6 +461,7 @@ export async function runBrowserSmoke({
       user: user.email,
       visited,
       workflowMeasurements,
+      initialJavaScriptDelivery,
       artifactDir,
       notes,
     }

@@ -62,12 +62,13 @@ export const recordWorkflowMeasurement = (measurements, next) => {
 
 const browserJson = async (browser, session, source) => parseEvalJson(await browser(session, ['eval', source]))
 
-export const summarizeJavaScriptDelivery = (resources) => {
+export const summarizeJavaScriptDelivery = (resources, sharedScriptUrls = []) => {
   const scripts = resources.filter((entry) =>
     entry.initiatorType === 'script' || /(?:^|\/)index(?:[.-][^/?]+)?\.js(?:$|[?#])/.test(entry.name));
   const entries = scripts.map((entry) => {
     const name = new URL(entry.name).pathname.split('/').at(-1) || entry.name;
     return {
+      url: entry.name,
       name,
       initiator: entry.initiatorType,
       transferSize: Math.round(entry.transferSize || 0),
@@ -75,15 +76,16 @@ export const summarizeJavaScriptDelivery = (resources) => {
       decodedBodySize: Math.round(entry.decodedBodySize || 0),
     };
   });
-  const isShared = (entry) => /^(?:__expo-metro-runtime|__common|entry|_layout)-/.test(entry.name);
+  const shared = new Set(sharedScriptUrls);
   const networkEntries = entries.filter((entry) => entry.transferSize > 0 && entry.encodedBodySize > 0);
-  const routeEntries = entries.filter((entry) => !isShared(entry));
+  const routeEntries = entries.filter((entry) => !shared.has(entry.url));
   const routeNetworkEntries = routeEntries.filter((entry) => entry.transferSize > 0 && entry.encodedBodySize > 0);
   const routeCacheHit = routeEntries.length > 0 && routeNetworkEntries.length === 0
     && routeEntries.every((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0);
   const kb = (bytes) => Math.round(bytes / 1024 * 10) / 10;
   return {
     scriptCount: entries.length,
+    scriptUrls: entries.map((entry) => entry.url),
     scriptEntries: entries,
     networkEntryCount: networkEntries.length,
     webJsEncodedKb: kb(networkEntries.reduce((sum, entry) => sum + entry.encodedBodySize, 0)),
@@ -97,11 +99,12 @@ export const summarizeJavaScriptDelivery = (resources) => {
   };
 }
 
-const javascriptDeliveryExpression = `(${summarizeJavaScriptDelivery.toString()})(performance.getEntriesByType('resource'))`
+const javascriptDeliveryExpression = (sharedScriptUrls = []) =>
+  `(${summarizeJavaScriptDelivery.toString()})(performance.getEntriesByType('resource'), ${JSON.stringify(sharedScriptUrls)})`
 
 /** Captures the current page's actual network-delivered JS and cache evidence. */
 export const measureJavaScriptDelivery = (browser, session) =>
-  browserJson(browser, session, `(() => JSON.stringify(${javascriptDeliveryExpression}))()`)
+  browserJson(browser, session, `(() => JSON.stringify(${javascriptDeliveryExpression()}))()`)
 
 /**
  * @param {(session: string, args: string[]) => Promise<string>} browser
@@ -131,9 +134,9 @@ const waitForWorkflowReady = async (browser, session, workflowId, label = '') =>
  * the bytes received before content decoding, so it reflects the server's actual compression.
  * @param {(session: string, args: string[]) => Promise<string>} browser
  * @param {string} session
- * @param {{ workflowId: string, label?: string }} options
+ * @param {{ workflowId: string, label?: string, sharedScriptUrls?: string[] }} options
  */
-export const measureNavigationTiming = async (browser, session, { workflowId, label = '' }) => {
+export const measureNavigationTiming = async (browser, session, { workflowId, label = '', sharedScriptUrls = [] }) => {
   const ready = await waitForWorkflowReady(browser, session, workflowId, label)
   const timing = await browserJson(browser, session, `(() => {
     const nav = performance.getEntriesByType('navigation')[0];
@@ -143,7 +146,7 @@ export const measureNavigationTiming = async (browser, session, { workflowId, la
       .filter((entry) => entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest')
       .map((entry) => entry.duration)
       .filter((duration) => Number.isFinite(duration) && duration >= 0);
-    const delivery = ${javascriptDeliveryExpression};
+    const delivery = ${javascriptDeliveryExpression(sharedScriptUrls)};
     return JSON.stringify({
       navigationLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
       cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
