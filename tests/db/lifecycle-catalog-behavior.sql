@@ -131,6 +131,75 @@ END $$;
 RESET ROLE;
 
 DO $$
+DECLARE
+  v_complete_definition text;
+  v_trade_id uuid;
+  v_retry record;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+  SELECT pg_get_functiondef('public.complete_accepted_trade_atomic(uuid)'::regprocedure)
+    INTO v_complete_definition;
+  SELECT id INTO v_trade_id
+    FROM public.trades
+   WHERE league_id = '00000000-0000-0000-0000-000000030101'
+     AND status = 'accepted'
+   ORDER BY id
+   LIMIT 1;
+  UPDATE public.trades
+     SET veto_window_expires_at = now() - interval '1 second'
+   WHERE id = v_trade_id;
+
+  EXECUTE $mutation$
+    CREATE OR REPLACE FUNCTION public.complete_accepted_trade_atomic(p_trade_id uuid)
+    RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $body$
+    BEGIN
+      RAISE EXCEPTION 'injected retryable failure' USING ERRCODE = '40001';
+    END;
+    $body$;
+  $mutation$;
+
+  SELECT * INTO v_retry
+    FROM public.process_due_accepted_trades_atomic(1);
+  IF v_retry.trade_id <> v_trade_id
+     OR v_retry.status <> 'failed_retryable'
+     OR v_retry.error_code <> '40001' THEN
+    RAISE EXCEPTION 'Transient completion failure was not classified for retry';
+  END IF;
+
+  EXECUTE $mutation$
+    CREATE OR REPLACE FUNCTION public.complete_accepted_trade_atomic(p_trade_id uuid)
+    RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $body$
+    BEGIN
+      RAISE EXCEPTION 'injected unexpected failure' USING ERRCODE = 'XX999';
+    END;
+    $body$;
+  $mutation$;
+
+  BEGIN
+    PERFORM public.process_due_accepted_trades_atomic(1);
+    RAISE EXCEPTION 'Unexpected completion failure was swallowed';
+  EXCEPTION WHEN SQLSTATE 'XX999' THEN
+    NULL;
+  END;
+
+  EXECUTE v_complete_definition;
+  UPDATE public.trades
+     SET veto_window_expires_at = now() + interval '1 day'
+   WHERE id = v_trade_id;
+EXCEPTION WHEN OTHERS THEN
+  EXECUTE v_complete_definition;
+  RAISE;
+END $$;
+
+DO $$
 BEGIN
   BEGIN
     INSERT INTO public.roster_players (
@@ -189,6 +258,10 @@ BEGIN
   END IF;
   IF to_regclass('public.idx_trade_vetos_trade_member') IS NOT NULL THEN
     RAISE EXCEPTION 'Duplicate trade veto index still exists';
+  END IF;
+  IF to_regclass('public.idx_trades_league_proposer_recent') IS NOT NULL
+     OR to_regclass('public.idx_trades_league_recipient_recent') IS NOT NULL THEN
+    RAISE EXCEPTION 'Dominated trade feed indexes still exist';
   END IF;
   IF to_regclass('public.idx_trades_veto_feed') IS NULL THEN
     RAISE EXCEPTION 'Bounded veto feed index is missing';
@@ -271,6 +344,22 @@ BEGIN
      OR v_complete_definition ILIKE '%COALESCE(item.from_member_id%'
      OR v_complete_definition ILIKE '%COALESCE(v_item.to_member_id%' THEN
     RAISE EXCEPTION 'Trade execution still has legacy side-based route fallback';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_proc AS procedure
+      JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname IN ('public', 'private')
+       AND procedure.proname = ANY(ARRAY[
+         'prevent_accepted_trade_asset_roster_delete',
+         'prevent_accepted_or_inactive_roster_move',
+         'prevent_conflicting_or_inactive_trade_accept',
+         'validate_waiver_claim_drop_player',
+         'drop_player_atomic', 'toggle_ir_atomic', 'toggle_taxi_atomic'
+       ])
+       AND pg_get_functiondef(procedure.oid) ~* 'COALESCE\s*\(\s*(?:item|ti|other_item)\.from_member_id'
+  ) THEN
+    RAISE EXCEPTION 'Accepted-asset guards still have legacy side-based route fallback';
   END IF;
   IF v_create_definition ILIKE '%CREATE TEMP TABLE%'
      OR v_create_definition NOT ILIKE '%jsonb_array_length(p_items) > 100%' THEN

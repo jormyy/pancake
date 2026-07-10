@@ -50,10 +50,7 @@ BEGIN
      WHERE item.player_id = p_drop_player_id
        AND trade.league_id = p_league_id
        AND trade.league_season_id = p_league_season_id
-       AND COALESCE(
-         item.from_member_id,
-         CASE WHEN item.side = 'proposer'::trade_side THEN trade.proposer_member_id ELSE trade.recipient_member_id END
-       ) = p_member_id
+       AND item.from_member_id = p_member_id
   ) THEN
     RETURN QUERY SELECT v_roster_player_id, 'Drop player is reserved for an accepted trade.';
     RETURN;

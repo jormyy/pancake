@@ -24,6 +24,15 @@ describe('Sleeper lazy roster-limit contracts', () => {
         const lineupMoves = read('supabase/sql/functions/by-name/public/set_player_slot_moves_atomic.sql')
         const autoLineup = read('supabase/sql/functions/by-name/public/auto_set_lineup_atomic.sql')
         const capGuard = read('supabase/sql/functions/by-name/private/assert_roster_within_active_limit.sql')
+        const routeGuards = [
+            'private/prevent_accepted_trade_asset_roster_delete.sql',
+            'private/prevent_accepted_or_inactive_roster_move.sql',
+            'private/prevent_conflicting_or_inactive_trade_accept.sql',
+            'private/validate_waiver_claim_drop_player.sql',
+            'public/drop_player_atomic.sql',
+            'public/toggle_ir_atomic.sql',
+            'public/toggle_taxi_atomic.sql',
+        ].map((file) => read(`supabase/sql/functions/by-name/${file}`)).join('\n')
         const computePoints = read('supabase/sql/functions/by-name/public/compute_fantasy_points.sql')
         const finalizeWeek = read('supabase/sql/functions/by-name/public/finalize_score_week_atomic.sql')
 
@@ -35,6 +44,8 @@ describe('Sleeper lazy roster-limit contracts', () => {
         expect(capGuard).toContain('over the active player limit')
         expect(computePoints).not.toMatch(/roster_size|assert_roster_within_active_limit/)
         expect(finalizeWeek).not.toMatch(/roster_size|assert_roster_within_active_limit/)
+        expect(routeGuards).not.toMatch(/COALESCE\s*\(\s*(?:item|ti|other_item)\.from_member_id/i)
+        expect(routeGuards).not.toMatch(/CASE\s+WHEN\s+(?:item|ti|other_item)\.side/i)
     })
 
     it('removes the obsolete reservation schema while retaining accepted-asset guards', () => {
