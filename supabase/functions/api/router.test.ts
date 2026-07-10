@@ -12,19 +12,11 @@ const legacyPushMutations: { query: string; body: unknown }[] = []
 const optimizerRequests: { internalToken: string | null; body: unknown }[] = []
 let commissionerRole: string | null = 'commissioner'
 let authenticatedUserId = USER_ID
-let pushGate: { promise: Promise<void>; resolve: () => void } | null = null
 let pushStarted = false
 let pushCredentialRpcMissing = false
 
-const deferred = () => {
-  let resolve!: () => void
-  const promise = new Promise<void>((done) => { resolve = done })
-  return { promise, resolve }
-}
-
-const expo = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async () => {
+const expo = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, () => {
   pushStarted = true
-  await pushGate?.promise
   return Response.json({ data: { status: 'ok', id: 'push-test' } })
 })
 
@@ -459,32 +451,20 @@ Deno.test({
 })
 
 Deno.test({
-  name: 'trade routes retain notification ownership until deferred delivery settles',
+  name: 'trade routes leave notification delivery to the transactional outbox',
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
     pushStarted = false
-    pushGate = deferred()
-    let routeCompleted = false
-    const pending = handleApiRoute(authedRequest('POST', '/trades/propose', {
+    const response = await handleApiRoute(authedRequest('POST', '/trades/propose', {
       leagueId: LEAGUE_ID,
       leagueSeasonId: '88888888-8888-4888-8888-888888888888',
       memberId: MEMBER_ID,
       recipientMemberId: OTHER_MEMBER_ID,
       offerPlayerIds: [PLAYER_ID],
-    })).then((response) => {
-      routeCompleted = true
-      return response
-    })
-
-    for (let attempt = 0; attempt < 40 && !pushStarted; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 1))
-    if (!pushStarted) throw new Error('trade route did not start notification delivery')
-    if (routeCompleted) throw new Error('trade route returned before notification delivery settled')
-
-    pushGate.resolve()
-    const response = await pending
-    pushGate = null
+    }))
     if (response.status !== 200) throw new Error(`expected successful trade proposal, got ${response.status}`)
+    if (pushStarted) throw new Error('trade route bypassed the transactional notification outbox')
   },
 })
 
