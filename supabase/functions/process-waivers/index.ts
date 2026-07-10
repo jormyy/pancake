@@ -2,12 +2,12 @@ import { supabase } from '../_shared/supabase.ts'
 import type { Database } from '../_shared/database.ts'
 import { notifyMember } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
+import { runBounded, type AsyncJob } from '../_shared/runBounded.ts'
 
 const PROCESS_BATCH_LIMIT = 100
 const NOTIFICATION_CONCURRENCY = 10
 
 type WaiverProcessRow = Database['public']['Functions']['process_due_waiver_claims_atomic']['Returns'][number]
-type NotificationJob = () => Promise<void>
 
 serveInternal('process-waivers', async () => {
   const processed = await processWaiverClaims()
@@ -34,7 +34,7 @@ async function playerNames(playerIds: string[]): Promise<Map<string, string>> {
   return names
 }
 
-function notificationJob(row: WaiverProcessRow, names: Map<string, string>): NotificationJob | null {
+function notificationJob(row: WaiverProcessRow, names: Map<string, string>): AsyncJob | null {
   if (!row.member_id || !row.player_id || !row.status) return null
   const memberId = row.member_id
   const playerId = row.player_id
@@ -52,18 +52,6 @@ function notificationJob(row: WaiverProcessRow, names: Map<string, string>): Not
   return () => notifyMember(memberId, 'Waiver Claim Failed', `Your claim for ${name} failed: ${reason}`, undefined, 'waiver')
 }
 
-async function runBounded(jobs: NotificationJob[], concurrency: number): Promise<void> {
-  let next = 0
-  const workerCount = Math.min(concurrency, jobs.length)
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (next < jobs.length) {
-      const job = jobs[next++]
-      await job().catch((error) => console.error('[process-waivers] notification failed', error))
-    }
-  })
-  await Promise.all(workers)
-}
-
 async function notifyClaimResults(rows: WaiverProcessRow[]): Promise<void> {
   const playerIds = rows.flatMap((row) => row.player_id ? [row.player_id] : [])
   const names = await playerNames(playerIds)
@@ -73,6 +61,7 @@ async function notifyClaimResults(rows: WaiverProcessRow[]): Promise<void> {
   })
   if (jobs.length > 0) {
     await runBounded(jobs, NOTIFICATION_CONCURRENCY)
+      .catch((error) => console.error('[process-waivers] notification failed', error))
   }
 }
 

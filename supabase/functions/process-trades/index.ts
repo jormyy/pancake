@@ -3,8 +3,10 @@ import { notifyMember } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
+import { notifyCompletedTrades } from './notifications.ts'
 
 const PROCESS_BATCH_LIMIT = 50
+const NOTIFICATION_CONCURRENCY = 10
 
 type ProcessedTradeRow = Database['public']['Functions']['process_due_accepted_trades_atomic']['Returns'][number]
 type ExpiredTradeRow = {
@@ -31,17 +33,12 @@ async function processAcceptedTrades(): Promise<{ processed: number; failed: num
   const results: ProcessedTradeRow[] = data ?? []
   const partitioned = partitionTradeResults(results)
 
-  for (const result of partitioned.completed) {
-    await Promise.all(
-      result.participant_member_ids.map((participantMemberId) => notifyMember(
-        participantMemberId,
-        'Trade Completed',
-        'Assets have moved. Check your roster.',
-        { tradeId: result.trade_id },
-        'trade',
-      )),
-    ).catch((notifyError) => console.error('[process-trades] notification failed', notifyError))
-  }
+  await notifyCompletedTrades(
+    partitioned.completed,
+    notifyMember,
+    NOTIFICATION_CONCURRENCY,
+    (notifyError) => console.error('[process-trades] notification failed', notifyError),
+  )
 
   if (partitioned.retryableFailures.length > 0) {
     throw new Error(`Retryable trade processing failures: ${partitioned.retryableFailures.map(tradeFailureMessage).join('; ')}`)
