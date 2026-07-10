@@ -1,4 +1,9 @@
-import { deliverTradeNotificationOutbox, type TradeNotificationOutboxRow } from './outbox.ts'
+import {
+  deliverTradeNotificationOutbox,
+  OUTBOX_CLAIM_LIMIT,
+  OUTBOX_LEASE_SECONDS,
+  type TradeNotificationOutboxRow,
+} from './outbox.ts'
 import { NotificationDeliveryError } from '../_shared/notificationDelivery.ts'
 
 const row = (id: string): TradeNotificationOutboxRow => ({
@@ -9,6 +14,38 @@ const row = (id: string): TradeNotificationOutboxRow => ({
   body: 'An accepted trade could not be completed.',
   data: { tradeId: `trade-${id}` },
   category: 'trade',
+})
+
+Deno.test('trade notification claims fit in one bounded delivery wave', async () => {
+  if (OUTBOX_CLAIM_LIMIT !== 10 || OUTBOX_LEASE_SECONDS !== 60) {
+    throw new Error('notification claim policy changed without updating its delivery bound')
+  }
+
+  let active = 0
+  let maximumActive = 0
+  await deliverTradeNotificationOutbox(
+    Array.from({ length: OUTBOX_CLAIM_LIMIT }, (_, index) => row(String(index))),
+    async (messages) => {
+      active += 1
+      maximumActive = Math.max(maximumActive, active)
+      await new Promise((resolve) => setTimeout(resolve, 1))
+      active -= 1
+      return messages.map((message) => ({
+        memberId: message.memberId,
+        status: 'sent' as const,
+        ticketId: `ticket-${message.memberId}`,
+        pushToken: `token-${message.memberId}`,
+      }))
+    },
+    async () => {},
+    async () => {},
+    async () => {},
+    async () => {},
+  )
+
+  if (maximumActive !== OUTBOX_CLAIM_LIMIT) {
+    throw new Error(`claimed rows did not start in one wave: ${maximumActive}`)
+  }
 })
 
 Deno.test('trade notification outbox persists tickets without acknowledging delivery', async () => {

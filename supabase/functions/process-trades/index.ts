@@ -3,7 +3,11 @@ import { notifyMembers } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
-import { deliverTradeNotificationOutbox } from './outbox.ts'
+import {
+  deliverTradeNotificationOutbox,
+  OUTBOX_CLAIM_LIMIT,
+  OUTBOX_LEASE_SECONDS,
+} from './outbox.ts'
 import {
   deferTradeNotificationReceipts,
   settleTradeNotificationReceipts,
@@ -13,7 +17,7 @@ import {
 } from './receipts.ts'
 
 const PROCESS_BATCH_LIMIT = 50
-const OUTBOX_BATCH_LIMIT = 200
+const RECEIPT_BATCH_LIMIT = 200
 const EXPO_RECEIPTS_URL = Deno.env.get('EXPO_RECEIPTS_URL') ?? 'https://exp.host/--/api/v2/push/getReceipts'
 const configuredReceiptDelay = Number(Deno.env.get('EXPO_RECEIPT_DELAY_SECONDS') ?? 900)
 const RECEIPT_DELAY_SECONDS = Number.isInteger(configuredReceiptDelay) && configuredReceiptDelay >= 0
@@ -68,8 +72,8 @@ async function processAcceptedTrades(): Promise<{
 
 async function drainNotificationOutbox(): Promise<{ ticketed: number; failed: number; discarded: number; deadLettered: number }> {
   const { data, error } = await supabase.rpc('claim_notification_outbox_atomic', {
-    p_limit: OUTBOX_BATCH_LIMIT,
-    p_lease_seconds: 60,
+    p_limit: OUTBOX_CLAIM_LIMIT,
+    p_lease_seconds: OUTBOX_LEASE_SECONDS,
   })
   if (error) throw error
   const rows: OutboxRow[] = data ?? []
@@ -133,7 +137,7 @@ async function drainNotificationReceipts(): Promise<{
   deadLettered: number
 }> {
   const { data, error } = await supabase.rpc('claim_notification_receipts_atomic', {
-    p_limit: OUTBOX_BATCH_LIMIT,
+    p_limit: RECEIPT_BATCH_LIMIT,
     p_lease_seconds: 60,
   })
   if (error) throw error

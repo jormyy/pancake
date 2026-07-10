@@ -3,7 +3,9 @@ import type { NotificationMessage, NotifyMembers } from '../_shared/notification
 import { notificationFailureDisposition } from '../_shared/notificationDelivery.ts'
 import { runBounded } from '../_shared/runBounded.ts'
 
-const OUTBOX_MUTATION_CONCURRENCY = 10
+export const OUTBOX_CLAIM_LIMIT = 10
+export const OUTBOX_LEASE_SECONDS = 60
+const OUTBOX_MUTATION_CONCURRENCY = OUTBOX_CLAIM_LIMIT
 
 export type TradeNotificationOutboxRow = {
   id: string
