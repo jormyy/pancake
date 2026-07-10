@@ -149,4 +149,20 @@ describe('multi-team trade state', () => {
             expect.objectContaining({ faabAmount: 12, fromMemberId: 'C', toMemberId: 'A' }),
         ]))
     })
+
+    it('round-trips an explicit FAAB route that differs from the sender default', () => {
+        const state = multiTeamTradeStateFromTrade(routedTrade([
+            {
+                kind: 'player', playerId: 'player-1', playerName: 'Player One', position: 'PG',
+                eligiblePositions: ['PG'], nbaTeam: 'LAL', nbaId: null, injuryStatus: null, yearsExp: 1,
+                fromMemberId: 'A', toMemberId: 'C',
+            },
+            { kind: 'faab', amount: 9, fromMemberId: 'A', toMemberId: 'B' },
+        ]), 'A')
+
+        expect(buildMultiTeamTradeItems(state, true)).toEqual(expect.arrayContaining([
+            expect.objectContaining({ playerId: 'player-1', fromMemberId: 'A', toMemberId: 'C' }),
+            expect.objectContaining({ faabAmount: 9, fromMemberId: 'A', toMemberId: 'B' }),
+        ]))
+    })
 })

@@ -68,6 +68,7 @@ export function useMultiTeamTradeComposer({
                 resolvedDestination(composerState, memberId, 'pick', pickId),
             ])),
             faabInput: participant.faabInput,
+            faabDestinationId: participant.faabDestinationId ?? participant.defaultDestinationId,
         }
     }), [composerState, participantIds, participantPicks, participantRosters])
 
@@ -114,6 +115,10 @@ export function useMultiTeamTradeComposer({
 
     const setParticipantFaab = useCallback((memberId: string, value: string) => {
         dispatch({ type: 'set-faab', memberId, value })
+    }, [])
+
+    const setParticipantFaabDestination = useCallback((memberId: string, toMemberId: string) => {
+        dispatch({ type: 'set-faab-destination', memberId, toMemberId })
     }, [])
 
     const prefillFromTrade = useCallback((trade: Trade, actorMemberId = myMemberId) => {
@@ -210,6 +215,10 @@ export function useMultiTeamTradeComposer({
         }
     }, [enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey])
 
+    const assetsReady = enabled && !rosterLoading && !rosterError &&
+        loadedParticipantKey === selectedParticipantKey &&
+        participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
+
     return {
         selectedParticipantIds,
         participantIds,
@@ -221,6 +230,7 @@ export function useMultiTeamTradeComposer({
         rosterLoading,
         rosterError,
         loadedParticipantKey,
+        assetsReady,
         reset,
         prefillFromTrade,
         retry,
@@ -233,6 +243,7 @@ export function useMultiTeamTradeComposer({
         setParticipantPlayerDestination,
         setParticipantPickDestination,
         setParticipantFaab,
+        setParticipantFaabDestination,
         participantName,
         buildMultiTeamItems,
     }

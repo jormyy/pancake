@@ -17,6 +17,7 @@ type ParticipantTradePanelProps = {
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
     onFaabChange: (memberId: string, value: string) => void
+    onFaabDestinationChange: (memberId: string, toMemberId: string) => void
 }
 
 type RouteOptionsProps = {
@@ -75,6 +76,7 @@ export function ParticipantTradePanel({
     onPlayerDestinationChange,
     onPickDestinationChange,
     onFaabChange,
+    onFaabDestinationChange,
 }: ParticipantTradePanelProps) {
     const selectedPlayers = participant.roster.filter((player) => participant.selectedPlayerIds.has(player.players.id))
     const selectedPicks = participant.picks.filter((pick) => participant.selectedPickIds.has(pick.pickId))
@@ -164,14 +166,26 @@ export function ParticipantTradePanel({
             ) : null}
             {faabEnabled ? (
                 <View style={styles.faabRow}>
-                    <Text style={styles.termLabel}>FAAB to {destinationName}</Text>
+                    <Text style={styles.termLabel}>FAAB to {participantName(participant.faabDestinationId)}</Text>
                     <TextInput
                         style={styles.termInput}
                         value={participant.faabInput}
                         onChangeText={(value) => onFaabChange(participant.memberId, value)}
                         keyboardType="numeric"
-                        accessibilityLabel={`FAAB sent by ${participantName(participant.memberId)} to ${destinationName}`}
+                        accessibilityLabel={`FAAB sent by ${participantName(participant.memberId)} to ${participantName(participant.faabDestinationId)}`}
                     />
+                    {participant.destinationIds.length > 1 && (parseInt(participant.faabInput, 10) || 0) > 0 ? (
+                        <RouteOptions
+                            destinationIds={participant.destinationIds}
+                            selectedId={participant.faabDestinationId}
+                            participantName={participantName}
+                            accessibilityLabel={(destinationId) =>
+                                `Route FAAB from ${participantName(participant.memberId)} to ${participantName(destinationId)}`
+                            }
+                            testID={(destinationId) => `trade-faab-route-${participant.memberId}-${destinationId}`}
+                            onChange={(destinationId) => onFaabDestinationChange(participant.memberId, destinationId)}
+                        />
+                    ) : null}
                 </View>
             ) : null}
         </View>

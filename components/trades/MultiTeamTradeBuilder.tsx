@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
@@ -14,6 +14,7 @@ type MultiTeamTradeBuilderProps = {
     notes: string
     expirationDays: string
     rosterError: string | null
+    rosterLoading: boolean
     avgMap: Map<string, number>
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
     participantName: (memberId: string) => string
@@ -24,6 +25,7 @@ type MultiTeamTradeBuilderProps = {
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
     onFaabChange: (memberId: string, value: string) => void
+    onFaabDestinationChange: (memberId: string, toMemberId: string) => void
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
 }
@@ -36,6 +38,7 @@ export function MultiTeamTradeBuilder({
     notes,
     expirationDays,
     rosterError,
+    rosterLoading,
     avgMap,
     avgStatsMap,
     participantName,
@@ -46,6 +49,7 @@ export function MultiTeamTradeBuilder({
     onPlayerDestinationChange,
     onPickDestinationChange,
     onFaabChange,
+    onFaabDestinationChange,
     onNotesChange,
     onExpirationDaysChange,
 }: MultiTeamTradeBuilderProps) {
@@ -91,6 +95,15 @@ export function MultiTeamTradeBuilder({
         )
     }
 
+    if (rosterLoading) {
+        return (
+            <View style={styles.rosterLoadingRow} accessibilityRole="progressbar" accessibilityLabel="Loading trade assets">
+                <ActivityIndicator color={colors.primary} />
+                <Text style={styles.rosterLoadingText}>Loading rosters and picks...</Text>
+            </View>
+        )
+    }
+
     const panels = participants.map((participant) => (
         <ParticipantTradePanel
             key={participant.memberId}
@@ -107,6 +120,7 @@ export function MultiTeamTradeBuilder({
             onPlayerDestinationChange={onPlayerDestinationChange}
             onPickDestinationChange={onPickDestinationChange}
             onFaabChange={onFaabChange}
+            onFaabDestinationChange={onFaabDestinationChange}
         />
     ))
 
@@ -247,4 +261,6 @@ const styles = StyleSheet.create({
     },
     rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: 44, alignItems: 'center' },
     rosterErrorText: { color: colors.dangerDark, fontSize: fontSize.md, fontWeight: fontWeight.semibold, textAlign: 'center' },
+    rosterLoadingRow: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+    rosterLoadingText: { color: colors.textMuted, fontSize: fontSize.md, fontWeight: fontWeight.semibold },
 })

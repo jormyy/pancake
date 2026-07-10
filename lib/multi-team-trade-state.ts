@@ -7,6 +7,7 @@ type ParticipantTradeDraft = {
     playerDestinations: AssetDestinations
     pickDestinations: AssetDestinations
     faabInput: string
+    faabDestinationId: string | null
 }
 
 export type MultiTeamTradeState = {
@@ -22,6 +23,7 @@ export type MultiTeamTradeAction =
     | { type: 'set-default-destination'; memberId: string; toMemberId: string }
     | { type: 'set-asset-destination'; asset: 'player' | 'pick'; memberId: string; assetId: string; toMemberId: string }
     | { type: 'set-faab'; memberId: string; value: string }
+    | { type: 'set-faab-destination'; memberId: string; toMemberId: string }
     | { type: 'prefill'; state: MultiTeamTradeState }
     | { type: 'reset'; actorMemberId: string }
 
@@ -30,6 +32,7 @@ const emptyParticipant = (memberId: string, participantIds: string[]): Participa
     playerDestinations: {},
     pickDestinations: {},
     faabInput: '0',
+    faabDestinationId: null,
 })
 
 export function createMultiTeamTradeState(actorMemberId: string): MultiTeamTradeState {
@@ -72,6 +75,10 @@ function reconcileParticipants(state: MultiTeamTradeState, participantIds: strin
             defaultDestinationId,
             playerDestinations: cleanDestinations(current.playerDestinations, memberId, participantIds),
             pickDestinations: cleanDestinations(current.pickDestinations, memberId, participantIds),
+            faabDestinationId: current.faabDestinationId &&
+                current.faabDestinationId !== memberId && participantIds.includes(current.faabDestinationId)
+                ? current.faabDestinationId
+                : null,
         }
     }
     return { ...state, participantOrder: participantIds, participants }
@@ -152,6 +159,12 @@ export function multiTeamTradeReducer(
         case 'set-faab':
             if (!/^\d*$/.test(action.value)) return state
             return updateParticipant(state, action.memberId, (participant) => ({ ...participant, faabInput: action.value }))
+        case 'set-faab-destination':
+            if (action.memberId === action.toMemberId || !state.participantOrder.includes(action.toMemberId)) return state
+            return updateParticipant(state, action.memberId, (participant) => ({
+                ...participant,
+                faabDestinationId: action.toMemberId === participant.defaultDestinationId ? null : action.toMemberId,
+            }))
         case 'prefill':
             return action.state
         case 'reset':
@@ -190,7 +203,11 @@ export function buildMultiTeamTradeItems(
         }))
         const faabAmount = parseInt(participant.faabInput || '0', 10) || 0
         const faab = faabEnabled && faabAmount > 0
-            ? [{ fromMemberId: memberId, toMemberId: participant.defaultDestinationId, faabAmount }]
+            ? [{
+                fromMemberId: memberId,
+                toMemberId: participant.faabDestinationId ?? participant.defaultDestinationId,
+                faabAmount,
+            }]
             : []
         return [...players, ...picks, ...faab]
     })
@@ -232,11 +249,15 @@ export function multiTeamTradeStateFromTrade(trade: Trade, actorMemberId: string
         if (!participant.defaultDestinationId) participant.defaultDestinationId = item.toMemberId
         if (item.kind === 'player') participant.playerDestinations[item.playerId] = item.toMemberId
         else if (item.kind === 'pick') participant.pickDestinations[item.pickId] = item.toMemberId
-        else participant.faabInput = String((parseInt(participant.faabInput, 10) || 0) + item.amount)
+        else {
+            participant.faabInput = String((parseInt(participant.faabInput, 10) || 0) + item.amount)
+            participant.faabDestinationId = item.toMemberId
+        }
     }
 
     for (const [memberId, participant] of Object.entries(state.participants)) {
         participant.defaultDestinationId ||= defaultDestinationFor(memberId, participantOrder)
+        if (participant.faabDestinationId === participant.defaultDestinationId) participant.faabDestinationId = null
         for (const destinations of [participant.playerDestinations, participant.pickDestinations]) {
             for (const [assetId, destinationId] of Object.entries(destinations)) {
                 if (destinationId === participant.defaultDestinationId) destinations[assetId] = null

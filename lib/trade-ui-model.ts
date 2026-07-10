@@ -19,4 +19,5 @@ export type TradeParticipantView = {
     playerDestinationIds: Record<string, string>
     pickDestinationIds: Record<string, string>
     faabInput: string
+    faabDestinationId: string
 }

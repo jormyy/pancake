@@ -176,7 +176,7 @@ export default function ProposeTradeScreen() {
         })
         : null
     const tradingClosed = isTradingClosed(currentLeague)
-    const canSubmit = !tradingClosed && !submitting && !composer.rosterLoading && (
+    const canSubmit = !tradingClosed && !submitting && composer.assetsReady && (
         multiTeamMode
             ? isMultiTeamTradeSubmittable(participantIds, items)
             : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest)
@@ -321,6 +321,7 @@ export default function ProposeTradeScreen() {
                         notes={notes}
                         expirationDays={expirationDays}
                         rosterError={composer.rosterError}
+                        rosterLoading={composer.rosterLoading}
                         avgMap={composer.avgMap}
                         avgStatsMap={composer.avgStatsMap}
                         participantName={composer.participantName}
@@ -331,6 +332,7 @@ export default function ProposeTradeScreen() {
                         onPlayerDestinationChange={composer.setParticipantPlayerDestination}
                         onPickDestinationChange={composer.setParticipantPickDestination}
                         onFaabChange={composer.setParticipantFaab}
+                        onFaabDestinationChange={composer.setParticipantFaabDestination}
                         onNotesChange={setNotes}
                         onExpirationDaysChange={setExpirationDays}
                     />
