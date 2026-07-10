@@ -26,7 +26,7 @@ jobs:
       E2E_REMOTE_API_URL: ${{ secrets.PANCAKE_API_URL }}
       EXPO_PUBLIC_API_URL: ${{ secrets.PANCAKE_API_URL }}
       PANCAKE_EDGE_INTERNAL_TOKEN: ${{ secrets.PANCAKE_EDGE_INTERNAL_TOKEN }}
-      PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: '1'
+      PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -45,9 +45,10 @@ jobs:
           test "${GITHUB_REF}" = "refs/heads/main"
           for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF \
             E2E_SUPABASE_URL E2E_SUPABASE_PUBLISHABLE_KEY E2E_PANCAKE_SUPABASE_SECRET_KEY \
-            E2E_REMOTE_API_URL PANCAKE_EDGE_INTERNAL_TOKEN; do
+            E2E_REMOTE_API_URL PANCAKE_EDGE_INTERNAL_TOKEN PANCAKE_LEGACY_SUPABASE_JWT_ROTATED; do
             test -n "${!name:-}" || { echo "Missing protected production credential: $name"; exit 1; }
           done
+          test "$PANCAKE_LEGACY_SUPABASE_JWT_ROTATED" = '1'
 
       - name: Install dependencies
         run: npm ci

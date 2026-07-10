@@ -64,6 +64,8 @@ describe('release E2E contracts', () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-readiness.yml'), 'utf8')
     expect(workflow).toContain('environment: production')
     expect(workflow).toContain('test "${GITHUB_REF}" = "refs/heads/main"')
+    expect(workflow).toContain('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}')
+    expect(workflow).not.toContain("PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: '1'")
     for (const command of [
       'npm run prod:check',
       'npm run prod:data-health -- --linked',
@@ -225,6 +227,21 @@ describe('release E2E contracts', () => {
       }],
     }, 'report.json')
     expect(routeFailures).toContain('workflow: route JS 500KB exceeds 220KB')
+
+    const measuredRoute = {
+      id: 'workflow', feedbackMs: 1, feedbackObserved: true, feedbackInteraction: 'real-action',
+      routeWebJsKb: 1, routeJsEncodedKb: 1, routeJsDecodedKb: 2,
+      routeJsCacheHit: false, routeJsEntryCount: 1, routeJsNetworkEntryCount: 1,
+      routeJsLedger: [{ url: 'https://app.test/route.js', encodedBodySize: 1024, decodedBodySize: 2048 }],
+    }
+    expect(validateWorkflowReportKeys(manifest, {
+      status: 'PASS',
+      workflowMeasurements: [{ ...measuredRoute, warmCachedRequestMs: 2, coldFullLoadMs: 1500 }],
+    }, 'report.json')).toContain('workflow: report.json cold full load 1500ms exceeds 1000ms')
+    expect(validateWorkflowReportKeys(manifest, {
+      status: 'PASS',
+      workflowMeasurements: [{ ...measuredRoute, warmCachedRequestMs: 400, coldFullLoadMs: 3 }],
+    }, 'report.json')).toContain('workflow: report.json warmed cached request 400ms exceeds 300ms')
 
     const dataFailures = validateDataLatencyReport(manifest, {
       status: 'PASS', schemaVersion: '1', repositorySchemaVersion: '1',
