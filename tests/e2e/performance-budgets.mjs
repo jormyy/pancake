@@ -33,7 +33,12 @@ const getPath = (value, dottedPath) => dottedPath
 const isFiniteNonnegativeNumber = (value) => Number.isFinite(value) && value >= 0
 const isPositiveInteger = (value) => Number.isInteger(value) && value > 0
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const MUTATION_ENTRY_KEYS = ['bidAmount', 'bidderId', 'matchupUpdated']
+const MUTATION_ENTRY_KEYS = ['awayPoints', 'bidAmount', 'bidderId', 'homePoints', 'matchupId', 'nominationId']
+const DRAFT_VISIBLE_UPDATE_KEYS = ['bidAmount', 'bidderId', 'entityId', 'kind', 'observed', 'observedText']
+const HOME_VISIBLE_UPDATE_KEYS = ['awayPoints', 'entityId', 'homePoints', 'kind', 'observed', 'observedText']
+
+const hasExactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) &&
+  JSON.stringify(Object.keys(value).sort()) === JSON.stringify(keys)
 
 export const validateBrowserMutationLoad = (surface, load) => {
   const failures = []
@@ -46,17 +51,44 @@ export const validateBrowserMutationLoad = (surface, load) => {
   }
   for (const [index, mutation] of load.mutations.entries()) {
     const label = `${surface} mutation ${index + 1}`
-    if (!mutation || typeof mutation !== 'object' || Array.isArray(mutation) ||
-        JSON.stringify(Object.keys(mutation).sort()) !== JSON.stringify(MUTATION_ENTRY_KEYS)) {
+    if (!hasExactKeys(mutation, MUTATION_ENTRY_KEYS)) {
       failures.push(`${label} must use the exact mutation evidence schema`)
       continue
     }
-    if (mutation.matchupUpdated !== true) failures.push(`${label} must prove its matchup update`)
+    if (typeof mutation.matchupId !== 'string' || !UUID_RE.test(mutation.matchupId)) failures.push(`${label} matchupId must be a UUID`)
+    if (!isFiniteNonnegativeNumber(mutation.homePoints)) failures.push(`${label} homePoints must be a finite nonnegative number`)
+    if (!isFiniteNonnegativeNumber(mutation.awayPoints)) failures.push(`${label} awayPoints must be a finite nonnegative number`)
     if (surface === 'draft') {
       if (!Number.isInteger(mutation.bidAmount) || mutation.bidAmount <= 0) failures.push(`${label} bidAmount must be a positive integer`)
       if (typeof mutation.bidderId !== 'string' || !UUID_RE.test(mutation.bidderId)) failures.push(`${label} bidderId must be a UUID`)
-    } else if (mutation.bidAmount !== null || mutation.bidderId !== null) {
+      if (typeof mutation.nominationId !== 'string' || !UUID_RE.test(mutation.nominationId)) failures.push(`${label} nominationId must be a UUID`)
+    } else if (mutation.bidAmount !== null || mutation.bidderId !== null || mutation.nominationId !== null) {
       failures.push(`${label} must not claim draft bid evidence`)
+    }
+  }
+
+  const finalMutation = load.mutations.at(-1)
+  const visible = load.visibleUpdate
+  const expectedVisibleKeys = surface === 'draft' ? DRAFT_VISIBLE_UPDATE_KEYS : HOME_VISIBLE_UPDATE_KEYS
+  if (!hasExactKeys(visible, expectedVisibleKeys)) {
+    failures.push(`${surface} visible update must use the exact evidence schema`)
+  } else {
+    if (visible.observed !== true) failures.push(`${surface} visible update was not observed`)
+    if (typeof visible.observedText !== 'string' || visible.observedText.length === 0) {
+      failures.push(`${surface} visible update text is missing`)
+    }
+    if (surface === 'draft') {
+      if (visible.kind !== 'auction-bid') failures.push('draft visible update kind must be auction-bid')
+      if (visible.entityId !== finalMutation?.nominationId || visible.bidAmount !== finalMutation?.bidAmount ||
+          visible.bidderId !== finalMutation?.bidderId) {
+        failures.push('draft visible update does not match the final mutation')
+      }
+    } else {
+      if (visible.kind !== 'matchup-score') failures.push('home visible update kind must be matchup-score')
+      if (visible.entityId !== finalMutation?.matchupId || visible.homePoints !== finalMutation?.homePoints ||
+          visible.awayPoints !== finalMutation?.awayPoints) {
+        failures.push('home visible update does not match the final mutation')
+      }
     }
   }
   return failures

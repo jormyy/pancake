@@ -203,7 +203,7 @@ const waitForDraftInProgress = async (supabase, draftId) => {
 const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
   const { data, error } = await supabase
     .from('matchups')
-    .select('id, home_points, away_points')
+    .select('id, week_number, home_points, away_points')
     .eq('league_id', state.leagueId)
     .eq('league_season_id', leagueSeasonId)
     .order('week_number', { ascending: true })
@@ -225,7 +225,7 @@ const ensurePerfMatchup = async (supabase, state, leagueSeasonId, members) => {
       home_points: 0,
       away_points: 0,
     }, { onConflict: 'league_id,league_season_id,week_number,home_member_id,away_member_id' })
-    .select('id, home_points, away_points')
+    .select('id, week_number, home_points, away_points')
     .single()
   if (createError) throw new Error(`D.X.4 matchup fixture upsert failed: ${createError.message}`)
   return created
@@ -322,6 +322,21 @@ const collectHeartbeat = async (session) => {
   return parseEvalJson(output)
 }
 
+/** @param {{ data: any, error: { message: string } | null, status?: number }} response */
+export const requireAffectedMatchup = (response, expectedId, attempt) => {
+  const { data, error } = response
+  if (error) throw new Error(`D.X.4 matchup mutation ${attempt} failed: ${error.message}`)
+  if (!data || data.id !== expectedId) {
+    throw new Error(`D.X.4 matchup mutation ${attempt} affected no matching row`)
+  }
+  const homePoints = Number(data.home_points)
+  const awayPoints = Number(data.away_points)
+  if (!Number.isFinite(homePoints) || homePoints < 0 || !Number.isFinite(awayPoints) || awayPoints < 0) {
+    throw new Error(`D.X.4 matchup mutation ${attempt} returned invalid scores`)
+  }
+  return { matchupId: data.id, homePoints, awayPoints }
+}
+
 const runLoadMutations = async ({ supabase, auction, matchup }) => {
   const startedAt = Date.now()
   if (!auction?.nominationId && !matchup?.id) {
@@ -355,23 +370,97 @@ const runLoadMutations = async ({ supabase, auction, matchup }) => {
       if (bidError) throw new Error(`D.X.4 auction bid mutation ${index + 1} failed: ${bidError.message}`)
     }
 
+    let affectedMatchup = null
     if (matchup?.id) {
-      const { error: matchupError } = await supabase
+      const response = await supabase
         .from('matchups')
         .update({
           home_points: Number(matchup.home_points ?? 0) + index + 1,
           away_points: Number(matchup.away_points ?? 0) + index + 2,
         })
         .eq('id', matchup.id)
-      if (matchupError) throw new Error(`D.X.4 matchup mutation ${index + 1} failed: ${matchupError.message}`)
+        .select('id, home_points, away_points')
+        .single()
+      affectedMatchup = requireAffectedMatchup(response, matchup.id, index + 1)
     }
-    mutations.push({ bidAmount: amount, bidderId, matchupUpdated: Boolean(matchup?.id) })
+    mutations.push({
+      bidAmount: amount,
+      bidderId,
+      nominationId: auction?.nominationId ?? null,
+      ...affectedMatchup,
+    })
   }
   return {
     count: mutations.length,
     durationMs: Date.now() - startedAt,
     mutations,
   }
+}
+
+const waitForVisibleUpdate = async ({ session, surface, load, matchup, auction, viewerUserId }) => {
+  const finalMutation = load.mutations.at(-1)
+  if (!finalMutation) throw new Error(`D.X.4 ${surface} visible update has no final mutation`)
+  const expected = surface === 'draft'
+    ? {
+        amount: finalMutation.bidAmount,
+        bidCount: load.count,
+        leader: auction.members.find((member) => member.id === finalMutation.bidderId),
+      }
+    : {
+        homePoints: finalMutation.homePoints.toFixed(1),
+        awayPoints: finalMutation.awayPoints.toFixed(1),
+        weekNumber: matchup.week_number,
+      }
+  let lastText = ''
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const output = parseEvalJson(await browser(session, ['eval', `(() => {
+      const surface = ${JSON.stringify(surface)};
+      const expected = ${JSON.stringify(expected)};
+      if (surface === 'draft') {
+        const text = document.body?.innerText || '';
+        const leader = expected.leader?.user_id === ${JSON.stringify(viewerUserId)}
+          ? "You're leading"
+          : expected.leader?.team_name + ' leads';
+        return JSON.stringify({
+          observed: text.includes('$' + expected.amount) && text.includes(leader) &&
+            text.includes(expected.bidCount + ' bids'),
+          text: text.slice(0, 1000),
+        });
+      }
+      const heading = document.querySelector('[aria-label="Week ' + expected.weekNumber + ' matchup"]');
+      const text = heading?.parentElement?.parentElement?.innerText || '';
+      return JSON.stringify({
+        observed: text.includes(expected.homePoints) && text.includes(expected.awayPoints),
+        text: text.slice(0, 1000),
+      });
+    })()`]))
+    lastText = output.text
+    if (output.observed) {
+      return surface === 'draft'
+        ? {
+            kind: 'auction-bid', entityId: finalMutation.nominationId,
+            bidAmount: finalMutation.bidAmount, bidderId: finalMutation.bidderId,
+            observed: true, observedText: lastText,
+          }
+        : {
+            kind: 'matchup-score', entityId: finalMutation.matchupId,
+            homePoints: finalMutation.homePoints, awayPoints: finalMutation.awayPoints,
+            observed: true, observedText: lastText,
+          }
+    }
+    await browser(session, ['wait', '250'])
+  }
+  return surface === 'draft'
+    ? {
+        kind: 'auction-bid', entityId: finalMutation.nominationId,
+        bidAmount: finalMutation.bidAmount, bidderId: finalMutation.bidderId,
+        observed: false, observedText: lastText,
+      }
+    : {
+        kind: 'matchup-score', entityId: finalMutation.matchupId,
+        homePoints: finalMutation.homePoints, awayPoints: finalMutation.awayPoints,
+        observed: false, observedText: lastText,
+      }
 }
 
 export async function runBrowserPerfSmoke({
@@ -478,6 +567,9 @@ export async function runBrowserPerfSmoke({
 
     const draftLoad = await runLoadMutations({ supabase, auction, matchup })
     await browser(session, ['wait', '2500'])
+    draftLoad.visibleUpdate = await waitForVisibleUpdate({
+      session, surface: 'draft', load: draftLoad, matchup, auction, viewerUserId: user.id,
+    })
     const draftPerf = await collectHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-after-load.png')], { timeout: 60_000 })
 
@@ -491,6 +583,9 @@ export async function runBrowserPerfSmoke({
     await installHeartbeat(session)
     const homeLoad = await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])
+    homeLoad.visibleUpdate = await waitForVisibleUpdate({
+      session, surface: 'home', load: homeLoad, matchup, auction, viewerUserId: user.id,
+    })
     const homePerf = await collectHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'home-after-live-load.png')], { timeout: 60_000 })
 

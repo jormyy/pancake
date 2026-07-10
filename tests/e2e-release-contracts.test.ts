@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { assertFullSweepRoutes, REQUIRED_FULL_SWEEP_LABELS } from './e2e/browser-smoke.mjs'
+import { requireAffectedMatchup } from './e2e/browser-perf-smoke.mjs'
 import { productionBrowserFailures } from './e2e/production-web-hydration.mjs'
 import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.mjs'
 import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
@@ -502,42 +503,73 @@ describe('release E2E contracts', () => {
       workflows: [],
     }
     const draftMutation = {
+      awayPoints: 2,
       bidAmount: 1,
       bidderId: '11111111-1111-4111-8111-111111111111',
-      matchupUpdated: true,
+      homePoints: 1,
+      matchupId: '22222222-2222-4222-8222-222222222222',
+      nominationId: '33333333-3333-4333-8333-333333333333',
     }
-    const homeMutation = { bidAmount: null, bidderId: null, matchupUpdated: true }
+    const homeMutation = { ...draftMutation, bidAmount: null, bidderId: null, nominationId: null }
     const report = {
       status: 'PASS',
       draftPerf: { ticks: 10, maxLagMs: 1, maxLongTaskMs: 1, longTaskSupported: true },
       homePerf: { ticks: 10, maxLagMs: 1, maxLongTaskMs: 1, longTaskSupported: true },
       load: {
         durationMs: 3,
-        draft: { count: 2, durationMs: 3, mutations: [draftMutation, draftMutation] },
-        home: { count: 2, durationMs: 2, mutations: [homeMutation, homeMutation] },
+        draft: {
+          count: 2,
+          durationMs: 3,
+          mutations: [draftMutation, draftMutation],
+          visibleUpdate: {
+            kind: 'auction-bid', entityId: draftMutation.nominationId,
+            bidAmount: draftMutation.bidAmount, bidderId: draftMutation.bidderId,
+            observed: true, observedText: '$1 You\'re leading 2 bids',
+          },
+        },
+        home: {
+          count: 2,
+          durationMs: 2,
+          mutations: [homeMutation, homeMutation],
+          visibleUpdate: {
+            kind: 'matchup-score', entityId: homeMutation.matchupId,
+            homePoints: homeMutation.homePoints, awayPoints: homeMutation.awayPoints,
+            observed: true, observedText: '1.0 vs 2.0',
+          },
+        },
       },
       workflowMeasurements: [],
     }
     expect(validateBrowserPerfReport(manifest, report)).toEqual([])
 
-    expect(validateBrowserMutationLoad('draft', { count: 1, durationMs: 0, mutations: [draftMutation] })).toEqual([])
-    expect(validateBrowserMutationLoad('home', { count: 1, durationMs: 0, mutations: [homeMutation] })).toEqual([])
+    expect(validateBrowserMutationLoad('draft', {
+      count: 1, durationMs: 0, mutations: [draftMutation], visibleUpdate: report.load.draft.visibleUpdate,
+    })).toEqual([])
+    expect(validateBrowserMutationLoad('home', {
+      count: 1, durationMs: 0, mutations: [homeMutation], visibleUpdate: report.load.home.visibleUpdate,
+    })).toEqual([])
     for (const mutation of [
       {},
       { ...draftMutation, bidAmount: '1' },
       { ...draftMutation, bidderId: null },
-      { ...draftMutation, matchupUpdated: false },
+      { ...draftMutation, matchupId: null },
+      { ...draftMutation, homePoints: Number.NaN },
     ]) {
-      expect(validateBrowserMutationLoad('draft', { count: 1, durationMs: 1, mutations: [mutation] }).length)
+      expect(validateBrowserMutationLoad('draft', {
+        count: 1, durationMs: 1, mutations: [mutation], visibleUpdate: report.load.draft.visibleUpdate,
+      }).length)
         .toBeGreaterThan(0)
     }
     for (const mutation of [
       {},
       { ...homeMutation, bidAmount: 1 },
       { ...homeMutation, bidderId: draftMutation.bidderId },
-      { ...homeMutation, matchupUpdated: false },
+      { ...homeMutation, nominationId: draftMutation.nominationId },
+      { ...homeMutation, awayPoints: Number.NaN },
     ]) {
-      expect(validateBrowserMutationLoad('home', { count: 1, durationMs: 1, mutations: [mutation] }).length)
+      expect(validateBrowserMutationLoad('home', {
+        count: 1, durationMs: 1, mutations: [mutation], visibleUpdate: report.load.home.visibleUpdate,
+      }).length)
         .toBeGreaterThan(0)
     }
 
@@ -585,6 +617,16 @@ describe('release E2E contracts', () => {
       ...report,
       load: { ...report.load, durationMs: 2 },
     })).toContain('mutation loop duration must equal the slowest surface')
+
+    expect(() => requireAffectedMatchup(
+      { data: null, error: null, status: 204 },
+      draftMutation.matchupId,
+      1,
+    )).toThrow('affected no matching row')
+    expect(validateBrowserMutationLoad('home', {
+      ...report.load.home,
+      visibleUpdate: { ...report.load.home.visibleUpdate, observed: false },
+    })).toContain('home visible update was not observed')
   })
 
   it('uses the exact semantic mutation contract in the browser producer', async () => {
@@ -967,15 +1009,28 @@ describe('release E2E contracts', () => {
         load: {
           durationMs: 1,
           draft: { count: 1, durationMs: 1, mutations: [{
+            awayPoints: 2,
             bidAmount: 1,
             bidderId: '11111111-1111-4111-8111-111111111111',
-            matchupUpdated: true,
-          }] },
+            homePoints: 1,
+            matchupId: '22222222-2222-4222-8222-222222222222',
+            nominationId: '33333333-3333-4333-8333-333333333333',
+          }], visibleUpdate: {
+            kind: 'auction-bid', entityId: '33333333-3333-4333-8333-333333333333',
+            bidAmount: 1, bidderId: '11111111-1111-4111-8111-111111111111',
+            observed: true, observedText: '$1 You\'re leading 1 bid',
+          } },
           home: { count: 1, durationMs: 1, mutations: [{
+            awayPoints: 2,
             bidAmount: null,
             bidderId: null,
-            matchupUpdated: true,
-          }] },
+            homePoints: 1,
+            matchupId: '22222222-2222-4222-8222-222222222222',
+            nominationId: null,
+          }], visibleUpdate: {
+            kind: 'matchup-score', entityId: '22222222-2222-4222-8222-222222222222',
+            homePoints: 1, awayPoints: 2, observed: true, observedText: '1.0 vs 2.0',
+          } },
         },
         workflowMeasurements: [],
       } },
