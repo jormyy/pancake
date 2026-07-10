@@ -1,5 +1,8 @@
 -- Add multi-team trade edit/counter replacement RPCs and release reservations on replaced offers.
 
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 CREATE OR REPLACE FUNCTION private.replace_multi_team_trade_offer(
   p_trade_id uuid,
   p_member_id uuid,
@@ -244,3 +247,6 @@ GRANT EXECUTE ON FUNCTION public.counter_multi_team_trade_atomic(uuid, uuid, uui
 REVOKE ALL ON FUNCTION public.edit_multi_team_trade_atomic(uuid, uuid, uuid, uuid[], jsonb, text, timestamptz) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.edit_multi_team_trade_atomic(uuid, uuid, uuid, uuid[], jsonb, text, timestamptz) TO service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

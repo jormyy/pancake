@@ -30,18 +30,17 @@ CREATE TRIGGER normalize_legacy_push_token_write
   FOR EACH ROW
   EXECUTE FUNCTION private.normalize_legacy_push_token_write();
 
-WITH ranked_tokens AS (
-  SELECT
-    id,
-    row_number() OVER (PARTITION BY push_token ORDER BY id) AS owner_rank
+WITH duplicate_tokens AS (
+  SELECT push_token
   FROM public.profiles
   WHERE push_token IS NOT NULL
+  GROUP BY push_token
+  HAVING count(*) > 1
 )
 UPDATE public.profiles AS profile
    SET push_token = NULL
-  FROM ranked_tokens AS ranked
- WHERE profile.id = ranked.id
-   AND ranked.owner_rank > 1;
+  FROM duplicate_tokens AS duplicate
+ WHERE profile.push_token = duplicate.push_token;
 
 -- Preserve existing registrations without inventing a client-visible credential.
 UPDATE public.profiles

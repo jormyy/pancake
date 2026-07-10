@@ -2,6 +2,9 @@
 -- Authenticated reads remain governed by RLS; public anon reads are limited to
 -- non-user NBA/player reference content.
 
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 REVOKE SELECT ON TABLE public.bids FROM anon;
 REVOKE SELECT ON TABLE public.draft_audit_logs FROM anon;
 REVOKE SELECT ON TABLE public.draft_budgets FROM anon;
@@ -35,3 +38,6 @@ REVOKE SELECT ON TABLE public.waiver_priorities FROM anon;
 REVOKE SELECT ON TABLE public.waiver_wire_log FROM anon;
 REVOKE SELECT ON TABLE public.weekly_add_counts FROM anon;
 REVOKE SELECT ON TABLE public.weekly_lineups FROM anon;
+
+RESET statement_timeout;
+RESET lock_timeout;

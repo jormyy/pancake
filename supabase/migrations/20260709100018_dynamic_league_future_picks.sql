@@ -1,4 +1,7 @@
 -- Keep creator and joining-manager rookie pick banks on the same rolling horizon.
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
 CREATE OR REPLACE FUNCTION public.create_league(
   p_name           text,
   p_team_name      text,
@@ -85,3 +88,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.create_league(text, text, int) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_league(text, text, int) TO authenticated, service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

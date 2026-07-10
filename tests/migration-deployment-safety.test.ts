@@ -76,7 +76,13 @@ const topLevelStatements = (source: string): string[] => {
     if (current.trim()) statements.push(current.trim())
     return statements
 }
-const lockTakingStatement = (statement: string) => /^(?:ALTER\s+TABLE|DROP\s+(?:TABLE|TRIGGER|INDEX|POLICY|FUNCTION|TYPE)|CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+(?:TRIGGER|POLICY)|INSERT\s+INTO|UPDATE\s+(?!pg_temp\.)|DELETE\s+FROM|TRUNCATE)/i.test(statement)
+const lockTakingStatement = (statement: string) => /^(?:ALTER\s+TABLE|DROP\s+(?:TABLE|VIEW|MATERIALIZED\s+VIEW|TRIGGER|INDEX|POLICY|FUNCTION|TYPE)|CREATE\s+(?:(?:UNIQUE\s+)?INDEX|TABLE|(?:OR\s+REPLACE\s+)?VIEW|MATERIALIZED\s+VIEW|TYPE|TRIGGER|POLICY)|GRANT\b|REVOKE\b|INSERT\s+INTO|UPDATE\s+(?!pg_temp\.)|DELETE\s+FROM|TRUNCATE)/i.test(statement) || (
+    /^WITH\b/i.test(statement) && /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\b/i.test(statement)
+)
+const knownNonLockingStatement = (statement: string) => /^(?:SET\b|RESET\b|CREATE\s+OR\s+REPLACE\s+FUNCTION\b|COMMENT\s+ON\b)/i.test(statement)
+const unclassifiedStatements = (source: string) => topLevelStatements(source).filter(
+    (statement) => !lockTakingStatement(statement) && !knownNonLockingStatement(statement),
+)
 const lockTakingStatements = (source: string) => topLevelStatements(source).filter(lockTakingStatement)
 const bounded = (source: string) => {
     const statements = topLevelStatements(source)
@@ -127,7 +133,9 @@ const pushTokenCredentialUpgradeContract = (source: string) => {
     const pairConstraint = source.indexOf('ADD CONSTRAINT profiles_push_token_revocation_pair')
     return addHash >= 0 && compatibilityTrigger > addHash && credentialBackfill > compatibilityTrigger &&
         uniqueIndex > credentialBackfill && pairConstraint > uniqueIndex &&
-        !source.includes('SET push_token = NULL\n WHERE push_token IS NOT NULL')
+        source.includes('GROUP BY push_token\n  HAVING count(*) > 1') &&
+        source.includes('WHERE profile.push_token = duplicate.push_token') &&
+        !source.includes('row_number() OVER (PARTITION BY push_token')
 }
 
 describe('branch migration deployment safety', () => {
@@ -137,7 +145,10 @@ describe('branch migration deployment safety', () => {
             .filter((filename) => lockTakingStatements(read(filename)).length > 0)
 
         expect(migrations).not.toEqual([])
-        for (const migration of migrations) expect(bounded(read(migration)), migration).toBe(true)
+        for (const migration of migrations) {
+            expect(unclassifiedStatements(read(migration)), migration).toEqual([])
+            expect(bounded(read(migration)), migration).toBe(true)
+        }
 
         const mutation = read('20260709100027_sleeper_lazy_roster_limits.sql')
             .replace('RESET statement_timeout;', '')
@@ -159,6 +170,12 @@ describe('branch migration deployment safety', () => {
 
     it.each([
         'DROP FUNCTION public.example()',
+        'CREATE TABLE public.example (id uuid)',
+        'CREATE VIEW public.example_view AS SELECT 1 AS id',
+        'CREATE MATERIALIZED VIEW public.example_mv AS SELECT 1 AS id',
+        'CREATE TYPE public.example_status AS ENUM (\'ready\')',
+        'GRANT SELECT ON public.example TO authenticated',
+        'REVOKE SELECT ON public.example FROM authenticated',
         'INSERT INTO public.example (id) VALUES (1)',
         'UPDATE example SET id = 2',
         'DELETE FROM example WHERE id = 2',
@@ -166,6 +183,10 @@ describe('branch migration deployment safety', () => {
         expect(lockTakingStatements(`CREATE FUNCTION public.f() RETURNS void LANGUAGE plpgsql AS $$ BEGIN UPDATE hidden SET id = 1; END; $$;`)).toEqual([])
         expect(lockTakingStatements(statement)).toEqual([statement])
         expect(bounded(`SET lock_timeout = '5s'; SET statement_timeout = '1min'; ${statement}; RESET statement_timeout; RESET lock_timeout;`)).toBe(true)
+    })
+
+    it('fails closed on an unknown top-level migration statement', () => {
+        expect(unclassifiedStatements('VACUUM public.example;')).toEqual(['VACUUM public.example'])
     })
 
     it('preserves legacy push tokens through a paired-state compatibility trigger', () => {

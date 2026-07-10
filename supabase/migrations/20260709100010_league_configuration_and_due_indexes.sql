@@ -42,8 +42,8 @@ CREATE INDEX idx_waiver_claims_pending_player_candidates
 
 DROP INDEX IF EXISTS public.idx_waiver_claims_pending_due_processing;
 
-RESET statement_timeout;
-RESET lock_timeout;
-
 REVOKE ALL ON FUNCTION public.update_league_configuration_atomic(uuid, jsonb, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.update_league_configuration_atomic(uuid, jsonb, jsonb) TO authenticated, service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;
