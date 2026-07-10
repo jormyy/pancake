@@ -15,8 +15,16 @@ import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constant
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { ErrorBanner } from '@/components/ui'
-import { type TabKey } from '@/components/trades/TradeCard'
-import { TradeListRow } from '@/components/trades/TradeListRow'
+import type { TradeTabKey } from '@/lib/trade-ui-model'
+import {
+    TradeBlockListingRow,
+    TradeBlockPickRow,
+    TradeBlockPlayerRow,
+    TradeEmptyRow,
+    TradeOfferRow,
+    TradePickRow,
+    TradeSectionRow,
+} from '@/components/trades/TradeListRow'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import {
@@ -53,7 +61,7 @@ export default function TradesScreen() {
         () => myMemberId && leagueId ? readPersistentCache<TradePickItem[]>(picksCacheKey(myMemberId, leagueId)) : null,
         [leagueId, myMemberId],
     )
-    const [tab, setTab] = useState<TabKey>('picks')
+    const [tab, setTab] = useState<TradeTabKey>('picks')
     const {
         trades,
         loading,
@@ -122,14 +130,33 @@ export default function TradesScreen() {
         leagueBlockItems: blockItems,
     }), [blockItems, blockLoading, blockRoster, loading, myMemberId, picksList, tab, trades])
     const { historyTrades, listData, pendingInboxCount } = screenModel
-    const renderItem = useCallback(({ item }: { item: TradeListItem }) => (
-        <TradeListRow item={item} myTeamName={myTeamName} myMemberId={myMemberId} leagueId={leagueId}
-            rosterSize={rosterSize} tab={tab} tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
-            isCommissioner={isCommissioner} listedPlayerIds={listedPlayerIds} listedPickIds={listedPickIds}
-            blockBusyId={blockBusyId} blockAvgMap={blockAvgMap} blockAvgStatsMap={blockAvgStatsMap}
-            onListPlayer={handleListPlayer} onListPick={handleListPick} onRemoveBlockItem={handleRemoveBlockItem}
-            onTradeAction={load} />
-    ), [blockAvgMap, blockAvgStatsMap, blockBusyId, currentLeague?.trade_veto_mode, handleListPick, handleListPlayer,
+    const renderItem = useCallback(({ item }: { item: TradeListItem }) => {
+        switch (item._type) {
+            case 'header':
+                return <TradeSectionRow item={item} />
+            case 'empty':
+                return <TradeEmptyRow item={item} />
+            case 'pick':
+                return <TradePickRow item={item} myTeamName={myTeamName} />
+            case 'blockItem':
+                return <TradeBlockListingRow item={item} myMemberId={myMemberId} tab={tab}
+                    blockBusyId={blockBusyId} onRemove={handleRemoveBlockItem} />
+            case 'blockPlayer': {
+                const playerId = item.player.players.id
+                return <TradeBlockPlayerRow item={item} listed={listedPlayerIds.has(playerId)}
+                    busy={blockBusyId === playerId} blockAvgMap={blockAvgMap}
+                    blockAvgStatsMap={blockAvgStatsMap} onList={handleListPlayer} />
+            }
+            case 'blockPick':
+                return <TradeBlockPickRow item={item} listed={listedPickIds.has(item.pick.pickId)}
+                    busy={blockBusyId === item.pick.pickId} onList={handleListPick} />
+            case 'trade':
+                return <TradeOfferRow item={item} myMemberId={myMemberId} leagueId={leagueId}
+                    rosterSize={rosterSize} tab={tab}
+                    tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
+                    isCommissioner={isCommissioner} onAction={load} />
+        }
+    }, [blockAvgMap, blockAvgStatsMap, blockBusyId, currentLeague?.trade_veto_mode, handleListPick, handleListPlayer,
         handleRemoveBlockItem, isCommissioner, leagueId, listedPickIds, listedPlayerIds, load, myMemberId,
         myTeamName, rosterSize, tab])
 
@@ -137,7 +164,7 @@ export default function TradesScreen() {
         : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
             : tab === 'leagueBlock' ? blockLoading && blockItems.length === 0
                 : loading && trades.length === 0
-    const tabOptions: SegmentOption<TabKey>[] = [
+    const tabOptions: SegmentOption<TradeTabKey>[] = [
         { label: 'Picks', value: 'picks' },
         { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
         { label: 'Your Block', value: 'block' },
@@ -190,7 +217,7 @@ function TradeHeader({ disabled, onPropose }: { disabled: boolean; onPropose: ()
     </View>
 }
 
-function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TabKey>[]; tab: TabKey; setTab: (tab: TabKey) => void }) {
+function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKey>[]; tab: TradeTabKey; setTab: (tab: TradeTabKey) => void }) {
     return <View style={styles.tabRow}><SegmentedControl options={options} value={tab} onChange={setTab}
         accessibilityLabel="Trade sections" scrollable /></View>
 }

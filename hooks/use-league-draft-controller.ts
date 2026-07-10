@@ -12,11 +12,7 @@ import {
 } from '@/lib/draft'
 import { getActiveRookieDraft, reseedRookieDraftPicks, startRookieDraft } from '@/lib/rookieDraft'
 import { confirmAction, showAlert } from '@/lib/alert'
-import {
-    normalizeDraftTimerSeconds,
-    type DraftTimerOption,
-    type RookieRoundOption,
-} from '@/components/league/DraftChips'
+import { normalizeDraftTimerSeconds, type DraftTimerOption, type RookieRoundOption } from '@/lib/draft-options'
 
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
 

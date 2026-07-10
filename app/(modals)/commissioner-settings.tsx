@@ -17,9 +17,9 @@ import { styles } from '@/components/commissioner/settings-styles'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import {
-    COMMISSIONER_SCORING_FIELDS,
     useCommissionerSettingsController,
 } from '@/hooks/use-commissioner-settings-controller'
+import { COMMISSIONER_SCORING_FIELDS } from '@/lib/commissioner-settings-fields'
 
 const SLOT_TYPES = LINEUP_SLOT_TYPES
 

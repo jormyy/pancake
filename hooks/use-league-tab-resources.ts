@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueStandings, type StandingRow } from '@/lib/scoring'
 import { getWaiverPriorityOrder, type WaiverPriorityRow } from '@/lib/waivers'
@@ -6,201 +6,126 @@ import { getLeagueTransactions, type TransactionRow } from '@/lib/transactions'
 import { getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
+import { useKeyedResource } from '@/hooks/use-keyed-resource'
 
 const ACTIVITY_LIMIT = 50
+const EMPTY_STANDINGS: StandingRow[] = []
+const EMPTY_TRANSACTIONS: TransactionRow[] = []
+const EMPTY_WAIVER_ORDER: WaiverPriorityRow[] = []
+const EMPTY_PICKS: LeaguePickItem[] = []
+const EMPTY_MOCK_ROOMS: MockDraftRoom[] = []
 
 export function useLeagueTabResources(
     leagueId: string | undefined,
     memberId: string | undefined,
     activeTab: LeagueTab,
 ) {
-    const resourceKey = `${leagueId ?? ''}:${memberId ?? ''}`
-    const [dataKey, setDataKey] = useState(resourceKey)
-    const [standings, setStandings] = useState<StandingRow[]>([])
-    const [transactions, setTransactions] = useState<TransactionRow[]>([])
-    const [waiverOrder, setWaiverOrder] = useState<WaiverPriorityRow[]>([])
-    const [currentLeaguePicks, setCurrentLeaguePicks] = useState<LeaguePickItem[]>([])
-    const [mockRooms, setMockRooms] = useState<MockDraftRoom[]>([])
+    const leagueKey = leagueId ?? null
+    const memberKey = leagueId && memberId ? `${leagueId}:${memberId}` : null
+    const standings = useKeyedResource(
+        leagueKey,
+        EMPTY_STANDINGS,
+        useCallback(() => leagueId ? getLeagueStandings(leagueId) : Promise.resolve([]), [leagueId]),
+    )
+    const history = useKeyedResource(
+        leagueKey,
+        EMPTY_TRANSACTIONS,
+        useCallback(() => leagueId ? getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : Promise.resolve([]), [leagueId]),
+    )
+    const waiverOrder = useKeyedResource(
+        leagueKey,
+        EMPTY_WAIVER_ORDER,
+        useCallback(() => leagueId ? getWaiverPriorityOrder(leagueId) : Promise.resolve([]), [leagueId]),
+    )
+    const picks = useKeyedResource(
+        leagueKey,
+        EMPTY_PICKS,
+        useCallback(() => leagueId ? getAllLeaguePicks(leagueId) : Promise.resolve([]), [leagueId]),
+    )
+    const mockRooms = useKeyedResource(
+        memberKey,
+        EMPTY_MOCK_ROOMS,
+        useCallback(() => leagueId && memberId ? getMockDraftRooms(leagueId, memberId) : Promise.resolve([]), [leagueId, memberId]),
+    )
+    const resources = useMemo(() => ({
+        results: standings,
+        history,
+        settings: waiverOrder,
+        draftBoard: picks,
+        mockRooms,
+    }), [history, mockRooms, picks, standings, waiverOrder])
+    const activeResource = activeTab === 'auctions' ? null : resources[activeTab]
     const [activityOffset, setActivityOffset] = useState(0)
     const [activityHasMore, setActivityHasMore] = useState(false)
     const [activityLoadingMore, setActivityLoadingMore] = useState(false)
     const [activityLoadMoreError, setActivityLoadMoreError] = useState<string | null>(null)
-    const [tabLoading, setTabLoading] = useState<Partial<Record<LeagueTab, boolean>>>({ results: true })
-    const [tabError, setTabError] = useState<Partial<Record<LeagueTab, string>>>({})
-    const loadedTabs = useRef<Set<LeagueTab>>(new Set())
-    const inFlightTabs = useRef(new Map<LeagueTab, { leagueId: string; promise: Promise<void> }>())
-    const invalidatedInFlightTabs = useRef(new Set<LeagueTab>())
-    const requestIds = useRef(new Map<LeagueTab, number>())
-    const activityRequest = useRef<{ leagueId: string; requestId: number } | null>(null)
-    const nextActivityRequestId = useRef(0)
-    const activeTabRef = useRef(activeTab)
-    const activeLeagueIdRef = useRef(leagueId)
-    const activeMemberIdRef = useRef(memberId)
-    activeTabRef.current = activeTab
-    activeLeagueIdRef.current = leagueId
-    activeMemberIdRef.current = memberId
+    const activityRequest = useRef<symbol | null>(null)
 
     useEffect(() => {
-        loadedTabs.current.clear()
-        inFlightTabs.current.clear()
-        invalidatedInFlightTabs.current.clear()
-        requestIds.current.clear()
-        activityRequest.current = null
-        nextActivityRequestId.current += 1
-        setStandings([])
-        setTransactions([])
-        setWaiverOrder([])
-        setCurrentLeaguePicks([])
-        setMockRooms([])
         setActivityOffset(0)
         setActivityHasMore(false)
         setActivityLoadingMore(false)
         setActivityLoadMoreError(null)
-        setTabError({})
-        setTabLoading({ results: true })
-        setDataKey(resourceKey)
-    }, [leagueId, memberId, resourceKey])
+        activityRequest.current = null
+    }, [leagueKey])
 
-    const runTabFetch = useCallback(async (nextTab: LeagueTab, lid: string) => {
-        const requestedMemberId = memberId
-        const requestId = (requestIds.current.get(nextTab) ?? 0) + 1
-        requestIds.current.set(nextTab, requestId)
-        setTabLoading((prev) => ({ ...prev, [nextTab]: true }))
-        setTabError((prev) => {
-            const next = { ...prev }
-            delete next[nextTab]
-            return next
-        })
-        try {
-            let commit: () => void = () => {}
-            if (nextTab === 'results') {
-                const data = await getLeagueStandings(lid)
-                commit = () => setStandings(data)
-            } else if (nextTab === 'history') {
-                const data = await getLeagueTransactions(lid, ACTIVITY_LIMIT, 0)
-                commit = () => {
-                    setTransactions(data)
-                    setActivityOffset(0)
-                    setActivityHasMore(data.length === ACTIVITY_LIMIT)
-                }
-            } else if (nextTab === 'settings') {
-                const data = await getWaiverPriorityOrder(lid)
-                commit = () => setWaiverOrder(data)
-            } else if (nextTab === 'draftBoard') {
-                const data = await getAllLeaguePicks(lid)
-                commit = () => setCurrentLeaguePicks(data)
-            } else if (nextTab === 'mockRooms' && memberId) {
-                const data = await getMockDraftRooms(lid, memberId)
-                commit = () => setMockRooms(data)
-            }
-            if (activeLeagueIdRef.current !== lid || activeMemberIdRef.current !== requestedMemberId || requestIds.current.get(nextTab) !== requestId) return
-            commit()
-            loadedTabs.current.add(nextTab)
-        } catch (error) {
-            if (activeLeagueIdRef.current === lid && activeMemberIdRef.current === requestedMemberId && requestIds.current.get(nextTab) === requestId) {
-                setTabError((prev) => ({
-                    ...prev,
-                    [nextTab]: error instanceof Error ? error.message : 'Unknown error',
-                }))
-            }
-        } finally {
-            if (activeLeagueIdRef.current === lid && activeMemberIdRef.current === requestedMemberId && requestIds.current.get(nextTab) === requestId) {
-                setTabLoading((prev) => ({ ...prev, [nextTab]: false }))
-            }
-        }
-    }, [memberId])
-
-    const fetchTab = useCallback((nextTab: LeagueTab, lid: string): Promise<void> => {
-        const existing = inFlightTabs.current.get(nextTab)
-        if (existing?.leagueId === lid) return existing.promise
-
-        const request = { leagueId: lid, promise: Promise.resolve() }
-        request.promise = runTabFetch(nextTab, lid).finally(async () => {
-            if (inFlightTabs.current.get(nextTab) !== request) return
-            inFlightTabs.current.delete(nextTab)
-            if (!invalidatedInFlightTabs.current.delete(nextTab)) return
-            loadedTabs.current.delete(nextTab)
-            if (activeLeagueIdRef.current === lid) await fetchTab(nextTab, lid)
-        })
-        inFlightTabs.current.set(nextTab, request)
-        return request.promise
-    }, [runTabFetch])
-
-    const ensureTab = useCallback((nextTab: LeagueTab) => {
-        if (leagueId && !loadedTabs.current.has(nextTab)) void fetchTab(nextTab, leagueId)
-    }, [fetchTab, leagueId])
-
-    const invalidateTab = useCallback((nextTab: LeagueTab) => {
-        loadedTabs.current.delete(nextTab)
-        if (inFlightTabs.current.has(nextTab)) {
-            invalidatedInFlightTabs.current.add(nextTab)
-            return
-        }
-        if (activeTabRef.current === nextTab) ensureTab(nextTab)
-    }, [ensureTab])
-
-    const refreshTab = useCallback((nextTab: LeagueTab): Promise<void> => {
-        if (!leagueId) return Promise.resolve()
-        loadedTabs.current.delete(nextTab)
-        const existing = inFlightTabs.current.get(nextTab)
-        if (existing?.leagueId === leagueId) {
-            invalidatedInFlightTabs.current.add(nextTab)
-            return existing.promise
-        }
-        return fetchTab(nextTab, leagueId)
-    }, [fetchTab, leagueId])
+    useEffect(() => {
+        if (activityOffset === 0) setActivityHasMore(history.data.length === ACTIVITY_LIMIT)
+    }, [activityOffset, history.data.length])
 
     useFocusEffect(useCallback(() => {
-        ensureTab(activeTab)
-    }, [activeTab, ensureTab]))
+        void activeResource?.ensure()
+    }, [activeResource]))
+
+    const ensureTab = useCallback((tab: LeagueTab) => {
+        if (tab !== 'auctions') void resources[tab].ensure()
+    }, [resources])
+    const invalidateTab = useCallback((tab: LeagueTab) => {
+        if (tab !== 'auctions') resources[tab].invalidate(activeTab === tab)
+    }, [activeTab, resources])
+    const refreshTab = useCallback((tab: LeagueTab) =>
+        tab === 'auctions' ? Promise.resolve() : resources[tab].refresh(), [resources])
 
     const loadMoreActivity = useCallback(async () => {
         if (!leagueId || activityRequest.current) return
-        const request = { leagueId, requestId: ++nextActivityRequestId.current }
+        const request = Symbol('activity')
         activityRequest.current = request
         setActivityLoadingMore(true)
         try {
             const nextOffset = activityOffset + ACTIVITY_LIMIT
             const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, nextOffset)
-            if (activeLeagueIdRef.current !== leagueId || activityRequest.current !== request) return
-            setTransactions((prev) => [...prev, ...data])
+            if (activityRequest.current !== request) return
+            history.setData((current) => [...current, ...data])
             setActivityOffset(nextOffset)
             setActivityHasMore(data.length === ACTIVITY_LIMIT)
             setActivityLoadMoreError(null)
         } catch (error) {
-            if (activeLeagueIdRef.current === leagueId && activityRequest.current === request) {
+            if (activityRequest.current === request) {
                 setActivityLoadMoreError(error instanceof Error ? error.message : 'Could not load more activity')
             }
         } finally {
             if (activityRequest.current === request) {
                 activityRequest.current = null
-                if (activeLeagueIdRef.current === leagueId) setActivityLoadingMore(false)
+                setActivityLoadingMore(false)
             }
         }
-    }, [activityOffset, leagueId])
+    }, [activityOffset, history, leagueId])
 
-    const refreshMockRooms = useCallback(async () => {
-        if (!leagueId || !memberId) return
-        await refreshTab('mockRooms')
-    }, [leagueId, memberId, refreshTab])
-
-    const ownsResource = dataKey === resourceKey
     return {
-        activityHasMore: ownsResource && activityHasMore,
-        activityLoadMoreError: ownsResource ? activityLoadMoreError : null,
-        activityLoadingMore: ownsResource && activityLoadingMore,
-        currentLeaguePicks: ownsResource ? currentLeaguePicks : [],
+        activityHasMore,
+        activityLoadMoreError,
+        activityLoadingMore,
+        currentLeaguePicks: picks.data,
         ensureTab,
-        fetchTab,
         invalidateTab,
-        isTabLoading: ownsResource ? tabLoading[activeTab] === true : true,
+        isTabLoading: activeResource?.loading ?? false,
         loadMoreActivity,
-        mockRooms: ownsResource ? mockRooms : [],
+        mockRooms: mockRooms.data,
         refreshTab,
-        refreshMockRooms,
-        standings: ownsResource ? standings : [],
-        tabError: ownsResource ? tabError[activeTab] : undefined,
-        transactions: ownsResource ? transactions : [],
-        waiverOrder: ownsResource ? waiverOrder : [],
+        refreshMockRooms: mockRooms.refresh,
+        standings: standings.data,
+        tabError: activeResource?.error ?? undefined,
+        transactions: history.data,
+        waiverOrder: waiverOrder.data,
     }
 }

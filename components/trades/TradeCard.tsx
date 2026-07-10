@@ -15,9 +15,8 @@ import { Badge } from '@/components/Badge'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { tradeDisplayPerspective } from '@/lib/trade-perspective'
 import type { TradeVetoMode } from '@/types/app'
-import { rollbackTradeDrop, selectTradeDrop } from '@/lib/trade-drop-selection'
+import type { TradeTabKey } from '@/lib/trade-ui-model'
 
-export type TabKey = 'picks' | 'offers' | 'history' | 'block' | 'leagueBlock'
 const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending',
     accepted: 'Accepted',
@@ -141,7 +140,7 @@ export function TradeCard({
     myMemberId: string
     leagueId: string
     rosterSize: number
-    tab: TabKey
+    tab: TradeTabKey
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
     onAction: () => void
@@ -149,7 +148,7 @@ export function TradeCard({
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
-    const participants = trade.participants ?? []
+    const participants = trade.participants
     const isMultiParticipant = participants.some((participant) => participant.memberId === myMemberId)
     const isTradeParty = isProposer || isRecipient || isMultiParticipant
     const opponentName = trade.isMultiTeam && participants.length > 0
@@ -163,8 +162,6 @@ export function TradeCard({
     const perspective = tradeDisplayPerspective(trade, myMemberId)
     const iReceive = perspective.receives
     const iGive = perspective.gives
-    const iReceiveFaab = 0
-    const iGiveFaab = 0
     const receiveLabel = perspective.receiveLabel
     const giveLabel = perspective.giveLabel
 
@@ -241,7 +238,7 @@ export function TradeCard({
     }
 
     async function handleDropAndAccept(rosterPlayerId: string) {
-        const next = selectTradeDrop(droppedIds, rosterPlayerId)
+        const next = new Set([...droppedIds, rosterPlayerId])
         setDroppedIds(next)
 
         if (next.size < neededDrops) return
@@ -252,7 +249,11 @@ export function TradeCard({
             setDropPickerVisible(false)
             onAction()
         } catch (e) {
-            setDroppedIds((current) => rollbackTradeDrop(current, rosterPlayerId))
+            setDroppedIds((current) => {
+                const retryable = new Set(current)
+                retryable.delete(rosterPlayerId)
+                return retryable
+            })
             showAlert('Error', getErrorMessage(e) ?? 'Could not accept trade.')
         } finally {
             setDropping(null)
@@ -346,9 +347,7 @@ export function TradeCard({
             ) : (
                 <>
                     <AssetList items={iReceive} label={receiveLabel} />
-                    {iReceiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iReceiveFaab}</Text> : null}
                     <AssetList items={iGive} label={giveLabel} />
-                    {iGiveFaab > 0 ? <Text style={styles.assetPlayer}>FAAB ${iGiveFaab}</Text> : null}
                 </>
             )}
 

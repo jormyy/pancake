@@ -14,31 +14,16 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NOMINATION_ORDER_MODE_LABELS } from '@/lib/draft'
+import { draftAgeLabel, draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
 import { breakpoints, colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, tints } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { playerHeadshotUrl } from '@/lib/format'
-import { MotionPressable, MotionView } from '@/components/Motion'
+import { MotionPressable } from '@/components/Motion'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
+import { AuctionDraftSidePanel } from '@/components/league/draft-room/AuctionDraftSidePanel'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
-import { useAuctionDraftRoomController, type DraftTab } from '@/hooks/useAuctionDraftRoomController'
-
-function ageLabel(age: number | null | undefined): string | null {
-    if (age == null || !Number.isFinite(age)) return null
-    return `Age ${Number(age).toFixed(1)}`
-}
-
-function playerMeta(parts: (string | null | undefined)[]): string {
-    return parts.filter(Boolean).join(' · ') || '—'
-}
-
-function auctionEventTime(value: string | null | undefined): string | null {
-    if (!value) return null
-    return new Date(value).toLocaleTimeString(undefined, {
-        hour: 'numeric',
-        minute: '2-digit',
-    })
-}
+import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 
 // Approximate height of a two-line history row (padding + name + meta lines).
 const HISTORY_ROW_HEIGHT = 54
@@ -220,11 +205,11 @@ export default function DraftRoomScreen() {
                                     {item.display_name}
                                 </Text>
                                 <Text style={styles.playerResultMeta}>
-                                    {playerMeta([
+                                    {draftPlayerMeta([
                                         item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
                                         item.nba_team,
                                         item.position,
-                                        ageLabel(item.age),
+                                        draftAgeLabel(item.age),
                                     ])}
                                 </Text>
                             </View>
@@ -380,10 +365,10 @@ export default function DraftRoomScreen() {
                                                     {openNomination.player?.displayName ?? 'Unknown Player'}
                                                 </Text>
                                                 <Text style={styles.playerMeta} numberOfLines={compactLandscape ? 1 : undefined}>
-                                                    {playerMeta([
+                                                    {draftPlayerMeta([
                                                         openNomination.player?.nbaTeam,
                                                         openNomination.player?.position,
-                                                        ageLabel(openNomination.player?.age),
+                                                        draftAgeLabel(openNomination.player?.age),
                                                     ])}
                                                 </Text>
                                             </View>
@@ -529,7 +514,7 @@ export default function DraftRoomScreen() {
                                                     </View>
                                                     <View style={styles.bidHistoryInfo}>
                                                         <Text style={styles.bidHistoryTeam} numberOfLines={1}>{bid.teamName}</Text>
-                                                        <Text style={styles.bidHistoryMeta}>{auctionEventTime(bid.placedAt) ?? 'Just now'}</Text>
+                                                        <Text style={styles.bidHistoryMeta}>{draftEventTime(bid.placedAt) ?? 'Just now'}</Text>
                                                     </View>
                                                     <Text style={[styles.bidHistoryAmount, isHighBid && styles.bidHistoryAmountHigh]}>
                                                         ${bid.amount}
@@ -544,113 +529,18 @@ export default function DraftRoomScreen() {
 
                     </View>
 
-                    <View style={[styles.column, compactLandscape && styles.columnCompact, isDesktop && styles.columnSideDesktop]}>
-                        {/* Tab switcher */}
-                        <View style={styles.tabRow}>
-                            {(['budgets', 'history'] as DraftTab[]).map((t) => (
-                                <MotionPressable
-                                    key={t}
-                                    style={[styles.tabChip, tab === t && styles.tabChipActive]}
-                                    onPress={() => setTab(t)}
-                                    pressedScale={0.94}
-                                >
-                                    <Text
-                                        style={[styles.tabChipText, tab === t && styles.tabChipTextActive]}
-                                    >
-                                        {t === 'budgets'
-                                            ? 'Budgets'
-                                            : `History (${closedNominations.length})`}
-                                    </Text>
-                                </MotionPressable>
-                            ))}
-                        </View>
-
-                        {tab === 'budgets' ? (
-                            <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
-                                {budgets
-                                    .slice()
-                                    .sort((a, b) => b.remaining - a.remaining)
-                                    .map((b, i) => (
-                                        <View
-                                            key={b.memberId}
-                                            style={[styles.budgetRow, i > 0 && styles.budgetDivider]}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.budgetTeam,
-                                                    b.memberId === myMemberId && styles.meAccent,
-                                                ]}
-                                                numberOfLines={1}
-                                            >
-                                                {b.teamName}
-                                                {b.memberId === myMemberId ? ' (you)' : ''}
-                                            </Text>
-                                            <Text style={styles.budgetWon}>
-                                                {wonCountByMember.get(b.memberId) ?? 0} won
-                                            </Text>
-                                            <Text
-                                                style={[
-                                                    styles.budgetAmount,
-                                                    b.memberId === myMemberId && styles.meAccent,
-                                                ]}
-                                            >
-                                                ${b.remaining}
-                                            </Text>
-                                        </View>
-                                    ))}
-                            </MotionView>
-                        ) : closedNominations.length === 0 ? (
-                            <View style={styles.empty}>
-                                <Text style={styles.emptyText}>No players sold yet.</Text>
-                            </View>
-                        ) : (
-                            <MotionView style={[styles.card, compactLandscape && styles.cardCompact]} preset="rise" delay={80}>
-                                {/* Bounded height so the list virtualizes instead of laying
-                                    out every closed nomination inside the page ScrollView. */}
-                                <View style={{ height: historyListHeight }}>
-                                    <FlashList
-                                        data={closedNominations}
-                                        keyExtractor={(n) => n.id}
-                                        nestedScrollEnabled
-                                        renderItem={({ item, index }) => {
-                                            const winnerTeam = item.winningMemberId
-                                                ? budgetByMember.get(item.winningMemberId)?.teamName
-                                                : undefined
-                                            return (
-                                                <View style={[styles.historyRow, index > 0 && styles.budgetDivider]}>
-                                                    <Avatar
-                                                        name={item.player?.displayName ?? 'Player'}
-                                                        color={colors.bgMuted}
-                                                        uri={playerHeadshotUrl(item.player?.nbaId)}
-                                                        size={34}
-                                                    />
-                                                    <View style={styles.flex1}>
-                                                        <Text style={styles.historyPlayer}>
-                                                            {item.player?.displayName ?? 'Unknown'}
-                                                        </Text>
-                                                        <Text style={styles.historyMeta}>
-                                                            {playerMeta([
-                                                                `#${item.nominationOrder}`,
-                                                                auctionEventTime(item.nominatedAt),
-                                                                item.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
-                                                                ageLabel(item.player?.age),
-                                                            ])}
-                                                        </Text>
-                                                    </View>
-                                                    {item.status === 'sold' && (
-                                                        <Text style={styles.historyPrice}>${item.finalPrice}</Text>
-                                                    )}
-                                                    {item.status === 'no_bid' && (
-                                                        <Text style={styles.historyNoBid}>FA</Text>
-                                                    )}
-                                                </View>
-                                            )
-                                        }}
-                                    />
-                                </View>
-                            </MotionView>
-                        )}
-                    </View>
+                    <AuctionDraftSidePanel
+                        tab={tab}
+                        onTabChange={setTab}
+                        budgets={budgets}
+                        closedNominations={closedNominations}
+                        budgetByMember={budgetByMember}
+                        wonCountByMember={wonCountByMember}
+                        myMemberId={myMemberId}
+                        compact={compactLandscape}
+                        desktop={isDesktop}
+                        historyListHeight={historyListHeight}
+                    />
                 </View>
             </ScrollView>
             </KeyboardAvoidingView>
@@ -687,7 +577,6 @@ const styles = StyleSheet.create({
     column: { gap: spacing.lg },
     columnCompact: { gap: spacing.sm },
     columnMainDesktop: { flex: 3, minWidth: 0 },
-    columnSideDesktop: { flex: 2, minWidth: 0 },
 
     budgetChip: {
         backgroundColor: colors.primaryLight,
@@ -946,46 +835,6 @@ const styles = StyleSheet.create({
     waitingRow: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
     waitingText: { fontSize: fontSize.md, color: colors.textMuted },
     waitingTeam: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-
-    tabRow: { flexDirection: 'row', gap: spacing.md },
-    tabChip: {
-        flex: 1,
-        minHeight: 44,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    tabChipActive: { backgroundColor: colors.primary },
-    tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    tabChipTextActive: { color: colors.textWhite },
-
-    budgetRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-    budgetDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
-    budgetTeam: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    budgetAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    budgetWon: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted, marginRight: spacing.lg },
-    meAccent: { color: colors.primaryDark },
-
-    historyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: spacing.md },
-    historyPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
-    historyMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
-    historyPrice: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    historyNoBid: {
-        fontSize: fontSize['2sm'],
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.md,
-        paddingVertical: 3,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-    },
-
-    empty: { alignItems: 'center', paddingVertical: spacing['3xl'] },
-    emptyText: { fontSize: fontSize.sm, color: colors.textPlaceholder },
 
     draftEndedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing['4xl'], gap: spacing.lg },
     draftEndedTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },

@@ -34,6 +34,34 @@ export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
     tradeVetoThresholdPercent: '',
 }
 
+const DRAFT_SCALAR_FIELDS = [
+    'rosterSize',
+    'irSlots',
+    'taxiSlots',
+    'auctionBudget',
+    'playoffWeek',
+    'weeklyAddLimit',
+    'waiverMode',
+    'faabBudget',
+    'tradeVetoMode',
+    'tradeVetoWindowHours',
+    'tradeVetoThresholdPercent',
+] as const
+
+function sameRecord<Value>(left: Record<string, Value>, right: Record<string, Value>): boolean {
+    const leftKeys = Object.keys(left)
+    return leftKeys.length === Object.keys(right).length &&
+        leftKeys.every((key) => Object.hasOwn(right, key) && left[key] === right[key])
+}
+
+function sameCommissionerSettingsDraft(
+    left: CommissionerSettingsDraft,
+    right: CommissionerSettingsDraft,
+): boolean {
+    return DRAFT_SCALAR_FIELDS.every((field) => left[field] === right[field]) &&
+        sameRecord(left.scoring, right.scoring) && sameRecord(left.slots, right.slots)
+}
+
 export function waiverModeFromValue(value: string | null | undefined): WaiverMode {
     return value === 'rolling' ? 'rolling' : 'faab'
 }
@@ -54,8 +82,8 @@ type CommissionerHydrationInput = {
 
 export function commissionerHydrationDecision(input: CommissionerHydrationInput): 'hydrate' | 'preserve' | 'conflict' {
     if (input.force || input.hydratedLeagueId !== input.incomingLeagueId) return 'hydrate'
-    const dirty = JSON.stringify(input.draft) !== JSON.stringify(input.baseline)
-    const remoteChanged = JSON.stringify(input.remote) !== JSON.stringify(input.baseline)
+    const dirty = !sameCommissionerSettingsDraft(input.draft, input.baseline)
+    const remoteChanged = !sameCommissionerSettingsDraft(input.remote, input.baseline)
     if (!remoteChanged) return dirty ? 'preserve' : 'hydrate'
     return dirty ? 'conflict' : 'hydrate'
 }

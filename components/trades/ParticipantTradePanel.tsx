@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import type { TradeParticipantView } from '@/hooks/use-multi-team-trade-composer'
+import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
 type ParticipantTradePanelProps = {
     participant: TradeParticipantView

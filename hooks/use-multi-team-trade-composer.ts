@@ -11,24 +11,7 @@ import {
     resolvedDestination,
 } from '@/lib/multi-team-trade-state'
 import { isTradeableRosterPlayer } from '@/lib/trade-assets'
-
-export type TradeComposerMember = {
-    id: string
-    team_name: string | null
-}
-
-export type TradeParticipantView = {
-    memberId: string
-    destinationIds: string[]
-    defaultDestinationId: string
-    roster: RosterPlayer[]
-    picks: TradePickItem[]
-    selectedPlayerIds: Set<string>
-    selectedPickIds: Set<string>
-    playerDestinationIds: Record<string, string>
-    pickDestinationIds: Record<string, string>
-    faabInput: string
-}
+import type { TradeComposerMember, TradeParticipantView } from '@/lib/trade-ui-model'
 
 type UseMultiTeamTradeComposerArgs = {
     enabled: boolean

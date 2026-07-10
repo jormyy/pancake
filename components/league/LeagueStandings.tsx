@@ -5,7 +5,6 @@ import { colors, fontSize, fontWeight, radii, spacing, srOnly } from '@/constant
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
-import { standingsPointMetricLabels } from '@/components/league/LeagueStandingsIntro'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
 import type { LeagueStatus } from '@/types/database'
@@ -651,3 +650,9 @@ const styles = StyleSheet.create({
         lineHeight: 16,
     },
 })
+function standingsPointMetricLabels(showPa: boolean, showMaxPf: boolean) {
+    const labels = ['PF']
+    if (showMaxPf) labels.push('MAX PF')
+    if (showPa) labels.push('PA')
+    return labels
+}

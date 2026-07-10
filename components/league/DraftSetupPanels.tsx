@@ -16,9 +16,8 @@ import {
     ROOKIE_TIMER_EXPIRY_CHIPS,
     rookieRoundChipLabel,
     type DraftControlProps,
-    type DraftTimerOption,
-    type RookieRoundOption,
 } from '@/components/league/DraftChips'
+import type { DraftTimerOption, RookieRoundOption } from '@/lib/draft-options'
 import { ActiveDraftEntry, ActiveDraftErrorNotice, DraftPrepNotice } from '@/components/league/DraftActiveState'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 import { PicksBankList } from '@/components/league/LeaguePicksBank'

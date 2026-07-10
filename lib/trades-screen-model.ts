@@ -1,6 +1,6 @@
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
-import type { TabKey } from '@/components/trades/TradeCard'
+import type { TradeTabKey } from '@/lib/trade-ui-model'
 import {
     isIncomingTradeForMember,
     isOutgoingTradeForMember,
@@ -18,7 +18,7 @@ export type TradeListItem =
     | { _type: 'blockPick'; pick: TradePickItem }
 
 type TradeListInput = {
-    tab: TabKey
+    tab: TradeTabKey
     vetoableTrades: Trade[]
     incomingTrades: Trade[]
     outgoingTrades: Trade[]
@@ -87,13 +87,13 @@ export const tradeListItemType = (item: TradeListItem) => item._type
 
 export type TradeScreenResource = 'picks' | 'block' | 'trades'
 
-export function tradeScreenResource(tab: TabKey): TradeScreenResource {
+export function tradeScreenResource(tab: TradeTabKey): TradeScreenResource {
     if (tab === 'picks') return 'picks'
     if (tab === 'block' || tab === 'leagueBlock') return 'block'
     return 'trades'
 }
 
-export function tradeLoadingMessage(tab: TabKey): string {
+export function tradeLoadingMessage(tab: TradeTabKey): string {
     if (tab === 'picks') return 'Loading draft picks'
     if (tab === 'block') return 'Loading your trade block'
     if (tab === 'leagueBlock') return 'Loading league trade block'

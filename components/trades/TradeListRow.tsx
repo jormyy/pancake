@@ -1,10 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { memo } from 'react'
 import { useRouter } from 'expo-router'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { SectionHeader } from '@/components/SectionHeader'
-import { TradeCard, type TabKey } from '@/components/trades/TradeCard'
+import { TradeCard } from '@/components/trades/TradeCard'
+import type { TradeTabKey } from '@/lib/trade-ui-model'
 import { colors, fontSize, fontWeight, INJURY_COLORS, radii, spacing, uiColors } from '@/constants/tokens'
 import { playerHeadshotUrl, yearShort } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
@@ -13,112 +15,129 @@ import type { TradeBlockItem, TradePickItem } from '@/lib/trades'
 import type { TradeListItem } from '@/lib/trades-screen-model'
 import type { TradeVetoMode } from '@/lib/league'
 
-type Props = {
-    item: TradeListItem
+type ItemOf<Type extends TradeListItem['_type']> = Extract<TradeListItem, { _type: Type }>
+
+export const TradeSectionRow = memo(function TradeSectionRow({ item }: { item: ItemOf<'header'> }) {
+    return item.label ? <SectionHeader label={item.label} /> : null
+})
+
+export const TradeEmptyRow = memo(function TradeEmptyRow({ item }: { item: ItemOf<'empty'> }) {
+    return <View style={styles.emptyRow}><Text style={styles.emptyText}>{item.message}</Text></View>
+})
+
+export const TradePickRow = memo(function TradePickRow({
+    item,
+    myTeamName,
+}: {
+    item: ItemOf<'pick'>
     myTeamName: string
+}) {
+    const isOwn = item.pick.originalTeamName === myTeamName
+    return (
+        <View style={styles.pickRow}>
+            <View style={styles.pickCircle}><Text style={styles.pickCircleText}>{yearShort(item.pick.seasonYear)}</Text></View>
+            <Text style={styles.pickLabel}>Round {item.pick.round}</Text>
+            <View style={styles.pickSpacer} />
+            <View style={[styles.pickChip, !isOwn && styles.pickChipTraded]}>
+                <Text style={styles.pickChipText} numberOfLines={1}>
+                    {isOwn ? 'Own pick' : `From ${item.pick.originalTeamName}`}
+                </Text>
+            </View>
+        </View>
+    )
+})
+
+export const TradeBlockListingRow = memo(function TradeBlockListingRow({
+    item,
+    myMemberId,
+    tab,
+    blockBusyId,
+    onRemove,
+}: {
+    item: ItemOf<'blockItem'>
     myMemberId: string
-    leagueId: string
-    rosterSize: number
-    tab: TabKey
-    tradeVetoMode: TradeVetoMode
-    isCommissioner: boolean
-    listedPlayerIds: Set<string>
-    listedPickIds: Set<string>
+    tab: TradeTabKey
     blockBusyId: string | null
+    onRemove: (item: TradeBlockItem) => void | Promise<void>
+}) {
+    const { push } = useRouter()
+    const block = item.item
+    const mine = block.memberId === myMemberId
+    const label = block.asset.kind === 'player'
+        ? block.asset.playerName
+        : block.asset.kind === 'pick'
+            ? `${block.asset.seasonYear} Round ${block.asset.round} pick`
+            : `FAAB $${block.asset.amount}`
+    const positions = block.asset.kind === 'player' ? playerEligiblePositions(block.asset) : []
+    return (
+        <View style={styles.blockRow}>
+            {block.asset.kind === 'player' ? (
+                <Avatar name={block.asset.playerName} uri={playerHeadshotUrl(block.asset.nbaId) ?? undefined}
+                    color={colors.bgMuted} textColor={colors.textSecondary} size={38} />
+            ) : null}
+            <View style={styles.blockInfo}>
+                <Text style={styles.blockTitle}>{label}</Text>
+                {block.asset.kind === 'player' ? (
+                    <>
+                        <View style={styles.blockMetaRow}>
+                            <Text style={styles.blockMeta}>{block.teamName}</Text>
+                            {block.asset.nbaTeam ? <Text style={styles.blockMeta}>{block.asset.nbaTeam}</Text> : null}
+                            {positions.map((position) => <PosTag key={position} position={position} />)}
+                            {block.asset.injuryStatus ? <Badge label={block.asset.injuryStatus}
+                                color={INJURY_COLORS[block.asset.injuryStatus] ?? colors.textMuted} variant="solid" /> : null}
+                        </View>
+                        <Text style={styles.blockContext} numberOfLines={1}>{playerSeasonContextText(block.asset)}</Text>
+                    </>
+                ) : <Text style={styles.blockMeta}>{block.teamName}</Text>}
+                {block.note ? <Text style={styles.blockNote}>{block.note}</Text> : null}
+            </View>
+            {mine && tab === 'leagueBlock' ? (
+                <View style={[styles.blockAction, styles.blockActionDisabled]} accessibilityLabel={`${label} is your listing`} accessibilityRole="text">
+                    <Text style={styles.blockActionText}>Yours</Text>
+                </View>
+            ) : mine ? (
+                <Pressable style={styles.blockAction} onPress={() => onRemove(block)}
+                    disabled={blockBusyId === block.id} accessibilityRole="button"
+                    accessibilityLabel={`Remove ${label} from trade block`}>
+                    <Text style={styles.blockActionText}>Remove</Text>
+                </Pressable>
+            ) : (
+                <Pressable style={styles.blockAction} onPress={() => push({
+                    pathname: '/(modals)/propose-trade',
+                    params: {
+                        recipientMemberId: block.memberId,
+                        requestPlayerId: block.asset.kind === 'player' ? block.asset.playerId : undefined,
+                        requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
+                    },
+                })} accessibilityRole="button" accessibilityLabel={`Offer for ${label}`}>
+                    <Text style={styles.blockActionText}>Offer</Text>
+                </Pressable>
+            )}
+        </View>
+    )
+})
+
+export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
+    item,
+    listed,
+    busy,
+    blockAvgMap,
+    blockAvgStatsMap,
+    onList,
+}: {
+    item: ItemOf<'blockPlayer'>
+    listed: boolean
+    busy: boolean
     blockAvgMap: Map<string, number>
     blockAvgStatsMap: Map<string, { avg_minutes_played: number | null }>
-    onListPlayer: (player: RosterPlayer) => void | Promise<void>
-    onListPick: (pick: TradePickItem) => void | Promise<void>
-    onRemoveBlockItem: (item: TradeBlockItem) => void | Promise<void>
-    onTradeAction: () => void | Promise<void>
-}
-
-export function TradeListRow(props: Props) {
-    const { push } = useRouter()
-    const { item } = props
-    if (item._type === 'header') return item.label ? <SectionHeader label={item.label} /> : null
-    if (item._type === 'empty') {
-        return <View style={styles.emptyRow}><Text style={styles.emptyText}>{item.message}</Text></View>
-    }
-    if (item._type === 'pick') {
-        const isOwn = item.pick.originalTeamName === props.myTeamName
-        return (
-            <View style={styles.pickRow}>
-                <View style={styles.pickCircle}><Text style={styles.pickCircleText}>{yearShort(item.pick.seasonYear)}</Text></View>
-                <Text style={styles.pickLabel}>Round {item.pick.round}</Text>
-                <View style={styles.pickSpacer} />
-                <View style={[styles.pickChip, !isOwn && styles.pickChipTraded]}>
-                    <Text style={styles.pickChipText} numberOfLines={1}>
-                        {isOwn ? 'Own pick' : `From ${item.pick.originalTeamName}`}
-                    </Text>
-                </View>
-            </View>
-        )
-    }
-    if (item._type === 'blockItem') {
-        const block = item.item
-        const mine = block.memberId === props.myMemberId
-        const label = block.asset.kind === 'player'
-            ? block.asset.playerName
-            : block.asset.kind === 'pick'
-                ? `${block.asset.seasonYear} Round ${block.asset.round} pick`
-                : `FAAB $${block.asset.amount}`
-        const positions = block.asset.kind === 'player' ? playerEligiblePositions(block.asset) : []
-        return (
-            <View style={styles.blockRow}>
-                {block.asset.kind === 'player' ? (
-                    <Avatar name={block.asset.playerName} uri={playerHeadshotUrl(block.asset.nbaId) ?? undefined}
-                        color={colors.bgMuted} textColor={colors.textSecondary} size={38} />
-                ) : null}
-                <View style={styles.blockInfo}>
-                    <Text style={styles.blockTitle}>{label}</Text>
-                    {block.asset.kind === 'player' ? (
-                        <>
-                            <View style={styles.blockMetaRow}>
-                                <Text style={styles.blockMeta}>{block.teamName}</Text>
-                                {block.asset.nbaTeam ? <Text style={styles.blockMeta}>{block.asset.nbaTeam}</Text> : null}
-                                {positions.map((position) => <PosTag key={position} position={position} />)}
-                                {block.asset.injuryStatus ? <Badge label={block.asset.injuryStatus}
-                                    color={INJURY_COLORS[block.asset.injuryStatus] ?? colors.textMuted} variant="solid" /> : null}
-                            </View>
-                            <Text style={styles.blockContext} numberOfLines={1}>{playerSeasonContextText(block.asset)}</Text>
-                        </>
-                    ) : <Text style={styles.blockMeta}>{block.teamName}</Text>}
-                    {block.note ? <Text style={styles.blockNote}>{block.note}</Text> : null}
-                </View>
-                {mine && props.tab === 'leagueBlock' ? (
-                    <View style={[styles.blockAction, styles.blockActionDisabled]} accessibilityLabel={`${label} is your listing`} accessibilityRole="text">
-                        <Text style={styles.blockActionText}>Yours</Text>
-                    </View>
-                ) : mine ? (
-                    <Pressable style={styles.blockAction} onPress={() => props.onRemoveBlockItem(block)}
-                        disabled={props.blockBusyId === block.id} accessibilityRole="button"
-                        accessibilityLabel={`Remove ${label} from trade block`}>
-                        <Text style={styles.blockActionText}>Remove</Text>
-                    </Pressable>
-                ) : (
-                    <Pressable style={styles.blockAction} onPress={() => push({
-                        pathname: '/(modals)/propose-trade',
-                        params: {
-                            recipientMemberId: block.memberId,
-                            requestPlayerId: block.asset.kind === 'player' ? block.asset.playerId : undefined,
-                            requestPickId: block.asset.kind === 'pick' ? block.asset.pickId : undefined,
-                        },
-                    })} accessibilityRole="button" accessibilityLabel={`Offer for ${label}`}>
-                        <Text style={styles.blockActionText}>Offer</Text>
-                    </Pressable>
-                )}
-            </View>
-        )
-    }
-    if (item._type === 'blockPlayer') {
+    onList: (player: RosterPlayer) => void | Promise<void>
+}) {
         const player = item.player.players
-        const listed = props.listedPlayerIds.has(player.id)
         const positions = playerEligiblePositions({ position: player.position, eligiblePositions: player.eligible_positions })
         const context = playerSeasonContextText({
             yearsExp: player.years_exp,
-            avgFantasyPoints: props.blockAvgMap.get(player.id) ?? null,
-            avgMinutesPlayed: props.blockAvgStatsMap.get(player.id)?.avg_minutes_played ?? null,
+            avgFantasyPoints: blockAvgMap.get(player.id) ?? null,
+            avgMinutesPlayed: blockAvgStatsMap.get(player.id)?.avg_minutes_played ?? null,
         })
         return (
             <View style={styles.blockRow}>
@@ -135,35 +154,65 @@ export function TradeListRow(props: Props) {
                     <Text style={styles.blockContext} numberOfLines={1}>{context}</Text>
                 </View>
                 <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
-                    onPress={() => props.onListPlayer(item.player)} disabled={listed || props.blockBusyId === player.id}
+                    onPress={() => onList(item.player)} disabled={listed || busy}
                     accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}
-                    accessibilityState={{ disabled: listed || props.blockBusyId === player.id }}>
+                    accessibilityState={{ disabled: listed || busy }}>
                     <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
                 </Pressable>
             </View>
         )
-    }
-    if (item._type === 'blockPick') {
-        const listed = props.listedPickIds.has(item.pick.pickId)
-        return (
-            <View style={styles.blockRow}>
-                <View style={styles.blockInfo}>
-                    <Text style={styles.blockTitle}>{item.pick.seasonYear} Round {item.pick.round}</Text>
-                    <Text style={styles.blockMeta}>via {item.pick.originalTeamName}</Text>
-                </View>
-                <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
-                    onPress={() => props.onListPick(item.pick)} disabled={listed || props.blockBusyId === item.pick.pickId}
-                    accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.pick.seasonYear} round ${item.pick.round} pick on trade block`}
-                    accessibilityState={{ disabled: listed || props.blockBusyId === item.pick.pickId }}>
-                    <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
-                </Pressable>
+})
+
+export const TradeBlockPickRow = memo(function TradeBlockPickRow({
+    item,
+    listed,
+    busy,
+    onList,
+}: {
+    item: ItemOf<'blockPick'>
+    listed: boolean
+    busy: boolean
+    onList: (pick: TradePickItem) => void | Promise<void>
+}) {
+    return (
+        <View style={styles.blockRow}>
+            <View style={styles.blockInfo}>
+                <Text style={styles.blockTitle}>{item.pick.seasonYear} Round {item.pick.round}</Text>
+                <Text style={styles.blockMeta}>via {item.pick.originalTeamName}</Text>
             </View>
-        )
-    }
-    return <TradeCard trade={item.trade} myMemberId={props.myMemberId} leagueId={props.leagueId}
-        rosterSize={props.rosterSize} tab={props.tab} tradeVetoMode={props.tradeVetoMode}
-        isCommissioner={props.isCommissioner} onAction={props.onTradeAction} />
-}
+            <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
+                onPress={() => onList(item.pick)} disabled={listed || busy}
+                accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${item.pick.seasonYear} round ${item.pick.round} pick on trade block`}
+                accessibilityState={{ disabled: listed || busy }}>
+                <Text style={styles.blockActionText}>{listed ? 'Listed' : 'List'}</Text>
+            </Pressable>
+        </View>
+    )
+})
+
+export const TradeOfferRow = memo(function TradeOfferRow({
+    item,
+    myMemberId,
+    leagueId,
+    rosterSize,
+    tab,
+    tradeVetoMode,
+    isCommissioner,
+    onAction,
+}: {
+    item: ItemOf<'trade'>
+    myMemberId: string
+    leagueId: string
+    rosterSize: number
+    tab: TradeTabKey
+    tradeVetoMode: TradeVetoMode
+    isCommissioner: boolean
+    onAction: () => void | Promise<void>
+}) {
+    return <TradeCard trade={item.trade} myMemberId={myMemberId} leagueId={leagueId}
+        rosterSize={rosterSize} tab={tab} tradeVetoMode={tradeVetoMode}
+        isCommissioner={isCommissioner} onAction={onAction} />
+})
 
 const styles = StyleSheet.create({
     emptyRow: { minHeight: 56, justifyContent: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.md },

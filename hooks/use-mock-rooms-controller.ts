@@ -8,7 +8,7 @@ import {
     type MockDraftRoomKind,
 } from '@/lib/mockDraftRooms'
 import type { NominationOrderMode, RookieTimerExpiryBehavior } from '@/lib/draft'
-import type { DraftTimerOption, RookieRoundOption } from '@/components/league/DraftChips'
+import type { DraftTimerOption, RookieRoundOption } from '@/lib/draft-options'
 import { showAlert } from '@/lib/alert'
 
 function defaultRoomDateInput(): string {

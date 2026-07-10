@@ -9,14 +9,14 @@ type DraftOrderEntry = {
     teamName: string
 }
 
-type DraftBudget = {
+export type DraftBudget = {
     memberId: string
     teamName: string
     remaining: number
     initialBudget: number
 }
 
-type Nomination = {
+export type DraftNomination = {
     id: string
     status: 'open' | 'sold' | 'no_bid' | 'withdrawn'
     nominatingMemberId: string
@@ -95,9 +95,9 @@ export type DraftState = {
     draft: Draft
     order: DraftOrderEntry[]
     budgets: DraftBudget[]
-    nominations: Nomination[]
+    nominations: DraftNomination[]
     activeBids: AuctionBid[]
-    openNomination: Nomination | null
+    openNomination: DraftNomination | null
     currentNominatorMemberId: string | null
 }
 
@@ -288,7 +288,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
     const ageByPlayerId = await getLatestDynastyAges(playerIds)
 
     type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null; nba_id: string | null }
-    const mappedNominations: Nomination[] = nominations.map((n) => ({
+    const mappedNominations: DraftNomination[] = nominations.map((n) => ({
         id: n.id,
         status: n.status,
         nominatingMemberId: n.nominating_member_id,
