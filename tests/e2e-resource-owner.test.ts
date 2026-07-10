@@ -31,6 +31,22 @@ describe('scenario resource ownership', () => {
         expect(calls).toEqual(['second', 'first'])
     })
 
+    it('preserves nested cleanup failures in the owning resource error', async () => {
+        const owner = createScenarioResourceOwner('scenario')
+        owner.register('fixture', async () => {
+            throw new AggregateError([
+                new Error('league delete failed'),
+                new Error('user delete failed'),
+            ], 'fixture cleanup failed')
+        })
+
+        await expect(owner.dispose()).rejects.toMatchObject({
+            errors: [expect.objectContaining({
+                message: 'fixture: fixture cleanup failed: league delete failed: user delete failed',
+            })],
+        })
+    })
+
     it('rejects disposable fixture creation without an owner before touching the database', async () => {
         const from = vi.fn()
         await expect(createDisposableLeagueFromSeedUsers({

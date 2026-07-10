@@ -61,10 +61,10 @@ export async function runBrowserTradeScenario({
       session,
       [
         'Propose Trade',
-        'DEAL OVERVIEW',
-        'BUILD THE DEAL',
-        'You send',
-        `${fixture.recipient.team_name} sends`,
+        'DEAL SUMMARY',
+        'EDIT ASSETS SENT BY',
+        'YOU SEND',
+        `To ${fixture.recipient.team_name}`,
         fixture.proposerPlayer.display_name,
       ],
       'trade proposal before submit',
@@ -92,9 +92,11 @@ export async function runBrowserTradeScenario({
     await browser(session, ['wait', '3500'])
     await assertPageText(session, [
       'Edit Trade',
+      '2 teams · 2 assets routed',
       fixture.proposerPlayer.display_name,
-      fixture.recipientPlayer.display_name,
     ], 'two-team edit composer prefilled')
+    await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'two-team edit recipient sender tab')
+    await assertPageText(session, [fixture.recipientPlayer.display_name], 'two-team edit recipient asset prefilled')
     await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'two-team edit proposer sender tab')
     const editAssetClick = await clickTestId(session, `trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`, 'two-team edit add proposer future pick')
     const editSubmitClick = await clickTestId(session, 'trade-submit', 'two-team edit submit')
@@ -233,10 +235,10 @@ export async function runBrowserTradePostDeadlineScenario({
       session,
       [
         'Propose Trade',
-        'DEAL OVERVIEW',
-        'BUILD THE DEAL',
-        'You send',
-        `${fixture.recipient.team_name} sends`,
+        'DEAL SUMMARY',
+        'EDIT ASSETS SENT BY',
+        'YOU SEND',
+        `To ${fixture.recipient.team_name}`,
         fixture.proposerPlayer.display_name,
         'Trades are locked only from the trade deadline until the champion is finalized.',
       ],

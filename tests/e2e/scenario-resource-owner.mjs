@@ -2,8 +2,13 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 
 const activeScenarioOwner = new AsyncLocalStorage()
 
-/** @param {unknown} error */
-const errorText = (error) => error instanceof Error ? error.message : String(error)
+/** @param {unknown} error @returns {string} */
+const errorText = (error) => {
+  if (error instanceof AggregateError) {
+    return [error.message, ...error.errors.map(errorText)].join(': ')
+  }
+  return error instanceof Error ? error.message : String(error)
+}
 
 /** @param {string} label */
 export const createScenarioResourceOwner = (label) => {

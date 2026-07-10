@@ -166,8 +166,20 @@ export const createFixtureResourceOwner = (admin, { ambient = true } = {}) => {
           .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
           .eq('league_id', leagueId)
           .eq('status', 'accepted')
+        const { error: transactionError } = await admin
+          .from('roster_transactions')
+          .delete()
+          .eq('league_id', leagueId)
+        const { error: pickError } = await admin
+          .from('draft_picks')
+          .update({ rookie_draft_id: null })
+          .eq('league_id', leagueId)
+        const { error: draftError } = await admin.from('drafts').delete().eq('league_id', leagueId)
         const { error } = await admin.from('leagues').delete().eq('id', leagueId)
         if (terminalError) failures.push(new Error(`fixture accepted-trade cleanup: ${terminalError.message}`))
+        if (transactionError) failures.push(new Error(`fixture transaction cleanup: ${transactionError.message}`))
+        if (pickError) failures.push(new Error(`fixture draft-pick cleanup: ${pickError.message}`))
+        if (draftError) failures.push(new Error(`fixture draft cleanup: ${draftError.message}`))
         if (error) failures.push(new Error(`fixture league cleanup: ${error.message}`))
         else leagueId = null
       }
