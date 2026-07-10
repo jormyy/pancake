@@ -8,7 +8,7 @@ import type {
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import type { LeagueStatus } from '@/types/database'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
-import { MAX_TRADE_EXPIRATION_DAYS } from '@pancake/core'
+import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_LENGTH } from '@pancake/core'
 
 export type TradeComposerMode = 'propose' | 'edit' | 'counter'
 
@@ -53,6 +53,7 @@ export type ComposerPayloadDraft = {
     payload: TradeProposalPayload
     hasOffer: boolean
     hasRequest: boolean
+    notesError: string | null
     expirationError: string | null
 }
 
@@ -126,6 +127,7 @@ const DEFAULT_EXPIRATION_DAYS = 3
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_DATE_MS = 8_640_000_000_000_000
 const EXPIRATION_ERROR = `Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`
+const NOTES_ERROR = `Notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters.`
 
 export function getTradeComposerMode(input: TradeComposerModeInput): TradeComposerModeState {
     const editTradeId = input.editTradeId ?? null
@@ -196,6 +198,10 @@ export function validateTradeExpirationDays(value: string): { days: number | nul
     return { days, error: null }
 }
 
+export function validateTradeNotes(value: string): { error: string | null } {
+    return { error: value.length > MAX_TRADE_NOTES_LENGTH ? NOTES_ERROR : null }
+}
+
 function generatedExpirationMs(
     input: ComposerPayloadInput,
     nowMs: number,
@@ -230,6 +236,7 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
     const requestPickIds = Array.from(input.requestPickIds)
     const offerFaabAmount = parseNonNegativeInt(input.offerFaabInput)
     const requestFaabAmount = parseNonNegativeInt(input.requestFaabInput)
+    const notesError = validateTradeNotes(input.notes).error
     const expiration = generatedExpirationMs(input, nowMs)
 
     return {
@@ -245,6 +252,7 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
         },
         hasOffer: offerPlayerIds.length > 0 || offerPickIds.length > 0 || offerFaabAmount > 0,
         hasRequest: requestPlayerIds.length > 0 || requestPickIds.length > 0 || requestFaabAmount > 0,
+        notesError,
         expirationError: expiration.error,
     }
 }
@@ -276,6 +284,9 @@ export async function submitTradeComposer(
     input: SubmitComposerInput,
     deps: SubmitComposerDeps,
 ): Promise<void> {
+    const notesError = validateTradeNotes(input.payload.notes ?? '').error
+    if (notesError) throw new Error(notesError)
+
     if (input.mode === 'counter' && input.counterTradeId) {
         await deps.counterTrade(input.counterTradeId, input.myMemberId, input.payload)
         return
@@ -326,12 +337,13 @@ export async function submitMultiTeamTradeComposer(
         leagueStatus: input.leagueStatus,
         tradeDeadline: input.tradeDeadline,
     })
+    if (draft.notesError) throw new Error(draft.notesError)
     if (draft.expirationError) throw new Error(draft.expirationError)
 
     const payload = {
         participantMemberIds: input.participantMemberIds,
         items: input.items,
-        notes: input.notes.trim() || undefined,
+        notes: draft.payload.notes,
         expiresAt: draft.payload.expiresAt,
     }
 

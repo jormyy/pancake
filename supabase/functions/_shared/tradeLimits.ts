@@ -2,3 +2,4 @@
 
 export const MAX_TRADE_ITEMS = 100
 export const MAX_TRADE_EXPIRATION_DAYS = 30
+export const MAX_TRADE_NOTES_LENGTH = 2_000

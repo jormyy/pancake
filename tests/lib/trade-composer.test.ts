@@ -9,7 +9,7 @@ import {
 } from '@/lib/trade-composer'
 import type { MultiTeamTradeProposalPayload, Trade } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
-import { MAX_TRADE_EXPIRATION_DAYS } from '@pancake/core'
+import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_LENGTH } from '@pancake/core'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW_MS = Date.parse('2026-01-01T00:00:00.000Z')
@@ -108,6 +108,24 @@ describe('prefillTradeComposerFromTrade', () => {
         expect(prefill.expirationDays).toBe(String(MAX_TRADE_EXPIRATION_DAYS + 1))
         expect(draft.expirationError).toBe(`Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`)
         expect(draft.payload.expiresAt).toBeNull()
+    })
+
+    it.each(['edit', 'counter'] as const)('fails closed when %s prefills oversized notes', (mode) => {
+        const prefill = prefillTradeComposerFromTrade(mode, trade({
+            notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH + 1),
+        }), NOW_MS)
+        const draft = buildTradeComposerPayload({
+            offerPlayerIds: prefill.offerPlayerIds,
+            requestPlayerIds: prefill.requestPlayerIds,
+            offerPickIds: prefill.offerPickIds,
+            requestPickIds: prefill.requestPickIds,
+            notes: prefill.notes,
+            offerFaabInput: prefill.offerFaabInput,
+            requestFaabInput: prefill.requestFaabInput,
+            expirationDaysInput: prefill.expirationDays,
+        }, NOW_MS)
+
+        expect(draft.notesError).toBe(`Notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters.`)
     })
 })
 
@@ -224,6 +242,25 @@ describe('buildTradeComposerPayload', () => {
         )
     })
 
+    it('accepts 2,000 notes characters and rejects 2,001 in the two-team builder', () => {
+        const items = [
+            { kind: 'player' as const, fromMemberId: 'me', toMemberId: 'them', playerId: 'p1' },
+            { kind: 'player' as const, fromMemberId: 'them', toMemberId: 'me', playerId: 'p2' },
+        ]
+        const boundary = buildTwoTeamTradeComposerPayload(items, 'me', 'them', {
+            notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH),
+            expirationDaysInput: '3',
+        }, NOW_MS)
+        const oversized = buildTwoTeamTradeComposerPayload(items, 'me', 'them', {
+            notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH + 1),
+            expirationDaysInput: '3',
+        }, NOW_MS)
+
+        expect(boundary.notesError).toBeNull()
+        expect(boundary.payload.notes).toHaveLength(MAX_TRADE_NOTES_LENGTH)
+        expect(oversized.notesError).toBe(`Notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters.`)
+    })
+
     it.each([
         String(MAX_TRADE_EXPIRATION_DAYS + 1),
         '9'.repeat(400),
@@ -313,6 +350,39 @@ describe('submitTradeComposer', () => {
         expect(proposeTrade).not.toHaveBeenCalled()
         expect(editTrade).not.toHaveBeenCalled()
     })
+
+    it('rejects oversized notes before any two-team mutation', async () => {
+        const getCurrentSeasonId = vi.fn()
+        const proposeTrade = vi.fn()
+        const counterTrade = vi.fn()
+        const editTrade = vi.fn()
+        const payload = buildTradeComposerPayload({
+            offerPlayerIds: ['p1'],
+            requestPlayerIds: ['p2'],
+            offerPickIds: [],
+            requestPickIds: [],
+            notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH + 1),
+            offerFaabInput: '0',
+            requestFaabInput: '0',
+            expirationDaysInput: '3',
+        }, NOW_MS).payload
+
+        await expect(submitTradeComposer({
+            mode: 'counter',
+            editTradeId: null,
+            counterTradeId: 'trade-1',
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            selectedRecipientId: 'them',
+            payload,
+        }, { getCurrentSeasonId, proposeTrade, counterTrade, editTrade }))
+            .rejects.toThrow(`Notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters.`)
+
+        expect(getCurrentSeasonId).not.toHaveBeenCalled()
+        expect(proposeTrade).not.toHaveBeenCalled()
+        expect(counterTrade).not.toHaveBeenCalled()
+        expect(editTrade).not.toHaveBeenCalled()
+    })
 })
 
 describe('submitMultiTeamTradeComposer', () => {
@@ -343,7 +413,7 @@ describe('submitMultiTeamTradeComposer', () => {
                 { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
                 { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: 1 },
             ],
-            notes: '',
+            notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH),
             expirationDays: String(MAX_TRADE_EXPIRATION_DAYS),
         }, {
             getCurrentSeasonId: vi.fn(),
@@ -354,6 +424,7 @@ describe('submitMultiTeamTradeComposer', () => {
 
         expect(counterMultiTeamTrade).toHaveBeenCalledWith('trade-1', 'me', expect.objectContaining({
             expiresAt: new Date(NOW_MS + MAX_TRADE_EXPIRATION_DAYS * DAY_MS).toISOString(),
+            notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH),
         }))
     })
 
@@ -445,6 +516,34 @@ describe('submitMultiTeamTradeComposer', () => {
             expirationDays,
         }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade }))
             .rejects.toThrow(`Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`)
+
+        expect(getCurrentSeasonId).not.toHaveBeenCalled()
+        expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
+        expect(counterMultiTeamTrade).not.toHaveBeenCalled()
+        expect(editMultiTeamTrade).not.toHaveBeenCalled()
+    })
+
+    it('rejects oversized multi-team notes before mutation', async () => {
+        const getCurrentSeasonId = vi.fn()
+        const proposeMultiTeamTrade = vi.fn()
+        const counterMultiTeamTrade = vi.fn()
+        const editMultiTeamTrade = vi.fn()
+
+        await expect(submitMultiTeamTradeComposer({
+            mode: 'counter',
+            editTradeId: null,
+            counterTradeId: 'trade-1',
+            myMemberId: 'me',
+            leagueId: 'league-1',
+            participantMemberIds: ['me', 'them', 'third'],
+            items: [
+                { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+                { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: 1 },
+            ],
+            notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH + 1),
+            expirationDays: '3',
+        }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade }))
+            .rejects.toThrow(`Notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters.`)
 
         expect(getCurrentSeasonId).not.toHaveBeenCalled()
         expect(proposeMultiTeamTrade).not.toHaveBeenCalled()

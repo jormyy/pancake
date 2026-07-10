@@ -88,6 +88,9 @@ vi.mock('@/lib/trade-composer', () => ({
         days: value === '' ? null : Number(value),
         error: null,
     }),
+    validateTradeNotes: (value: string) => ({
+        error: value.length > 2_000 ? 'Notes must contain at most 2000 characters.' : null,
+    }),
 }))
 vi.mock('@/lib/trades', () => ({
     counterMultiTeamTrade: vi.fn(),
@@ -108,7 +111,7 @@ vi.mock('@/lib/league', () => ({
     getLeagueMembers: mocks.getLeagueMembers,
     isTradingClosed: () => false,
 }))
-vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: () => null }))
+vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: 'MultiTeamTradeBuilder' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
 vi.mock('@/components/ui', () => ({ ErrorBanner: () => null }))
 
@@ -143,6 +146,20 @@ beforeEach(() => {
 })
 
 describe('propose trade async ownership', () => {
+    it.each([
+        [2_000, false],
+        [2_001, true],
+    ])('sets Send readiness for %i note characters', async (length, disabled) => {
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+
+        const builder = renderer.root.findByProps({ expirationDays: '3', notes: '' })
+        await act(async () => { builder.props.onNotesChange('n'.repeat(length)) })
+
+        expect(renderer.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(disabled)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('announces the 100-item ceiling without disabling a valid boundary draft', async () => {
         mocks.tradeItems = Array.from({ length: 100 }, (_, index) => ({
             kind: 'player' as const,

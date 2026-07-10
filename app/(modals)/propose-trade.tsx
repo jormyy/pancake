@@ -22,6 +22,7 @@ import {
     tradeComposerSuccessCopy,
     tradeComposerTitle,
     validateTradeExpirationDays,
+    validateTradeNotes,
 } from '@/lib/trade-composer'
 import {
     counterMultiTeamTrade,
@@ -192,6 +193,7 @@ export default function ProposeTradeScreen() {
     }, [multiTeamMode, toggleParticipant])
 
     const items = composer.buildMultiTeamItems()
+    const notesError = validateTradeNotes(notes).error
     const expirationError = validateTradeExpirationDays(expirationDays).error
     const twoTeamDraft = selectedRecipientId
         ? buildTwoTeamTradeComposerPayload(items, myMemberId, selectedRecipientId, {
@@ -208,7 +210,8 @@ export default function ProposeTradeScreen() {
         : items.length === MAX_TRADE_ITEMS
             ? 'Trade item limit reached. Remove an item before selecting another.'
             : null
-    const canSubmit = !tradingClosed && !submitting && composer.assetsReady && withinItemLimit && !expirationError && (
+    const canSubmit = !tradingClosed && !submitting && composer.assetsReady && withinItemLimit &&
+        !notesError && !expirationError && (
         multiTeamMode
             ? isMultiTeamTradeSubmittable(participantIds, items)
             : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest)
@@ -369,6 +372,7 @@ export default function ProposeTradeScreen() {
                         myMemberId={myMemberId}
                         faabEnabled={faabEnabled}
                         notes={notes}
+                        notesError={notesError}
                         expirationDays={expirationDays}
                         expirationError={expirationError}
                         rosterError={composer.rosterError}

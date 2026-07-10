@@ -1,6 +1,10 @@
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
-import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_ITEMS } from '../_shared/tradeLimits.ts'
+import {
+  MAX_TRADE_EXPIRATION_DAYS,
+  MAX_TRADE_ITEMS,
+  MAX_TRADE_NOTES_LENGTH,
+} from '../_shared/tradeLimits.ts'
 import {
   json,
   NotFoundError,
@@ -51,7 +55,6 @@ type MultiTeamTradePayload = {
 }
 
 const MAX_TRADE_FAAB = 1_000_000
-const MAX_TRADE_NOTES_LENGTH = 2_000
 const DAY_MS = 24 * 60 * 60 * 1_000
 
 type JsonObject = { [key: string]: Json | undefined }

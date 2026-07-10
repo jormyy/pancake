@@ -114,7 +114,7 @@ Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${(expo.addr as Deno.NetAddr).po
 const { handleApiRoute } = await import('./router.ts')
 const { assertUuid } = await import('../_shared/apiRuntime.ts')
 const { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } = await import('../_shared/releaseMetadata.ts')
-const { MAX_TRADE_EXPIRATION_DAYS } = await import('../_shared/tradeLimits.ts')
+const { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_LENGTH } = await import('../_shared/tradeLimits.ts')
 
 const API = 'http://localhost/functions/v1/api'
 const UUID = '11111111-1111-4111-8111-111111111111'
@@ -464,7 +464,7 @@ Deno.test({
 })
 
 Deno.test({
-  name: 'two-team and multi-team trade routes enforce the canonical expiration horizon',
+  name: 'two-team and multi-team trade routes enforce canonical term limits',
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -497,6 +497,24 @@ Deno.test({
     ]
 
     for (const { path, body } of routeBodies) {
+      const notesBoundary = await handleApiRoute(authedRequest('POST', path, {
+        ...body,
+        notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH),
+      }))
+      if (notesBoundary.status !== 200) {
+        throw new Error(`expected ${path} to accept maximum notes, got ${notesBoundary.status}: ${await notesBoundary.text()}`)
+      }
+
+      const oversizedNotes = await handleApiRoute(authedRequest('POST', path, {
+        ...body,
+        notes: 'n'.repeat(MAX_TRADE_NOTES_LENGTH + 1),
+      }))
+      const oversizedNotesBody = await oversizedNotes.json()
+      const expectedNotes = `notes must contain at most ${MAX_TRADE_NOTES_LENGTH} characters`
+      if (oversizedNotes.status !== 400 || oversizedNotesBody.error !== expectedNotes) {
+        throw new Error(`expected ${path} notes cap rejection, got ${oversizedNotes.status}: ${JSON.stringify(oversizedNotesBody)}`)
+      }
+
       const boundary = await handleApiRoute(authedRequest('POST', path, {
         ...body,
         expiresAt: new Date(Date.now() + MAX_TRADE_EXPIRATION_DAYS * dayMs).toISOString(),

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
-import { MAX_TRADE_EXPIRATION_DAYS } from '@pancake/core'
+import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_LENGTH } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
 import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
@@ -13,6 +13,7 @@ type MultiTeamTradeBuilderProps = {
     myMemberId: string
     faabEnabled: boolean
     notes: string
+    notesError: string | null
     expirationDays: string
     expirationError: string | null
     rosterError: string | null
@@ -37,6 +38,7 @@ export function MultiTeamTradeBuilder({
     myMemberId,
     faabEnabled,
     notes,
+    notesError,
     expirationDays,
     expirationError,
     rosterError,
@@ -179,14 +181,40 @@ export function MultiTeamTradeBuilder({
             )}
             <Text style={styles.sectionLabel}>NOTES (optional)</Text>
             <TextInput
-                style={styles.notesInput}
+                style={[styles.notesInput, notesError && styles.notesInputInvalid]}
                 placeholder="Add a message to your trade offer..."
                 placeholderTextColor={colors.textPlaceholder}
                 value={notes}
                 onChangeText={onNotesChange}
+                maxLength={MAX_TRADE_NOTES_LENGTH}
                 multiline
                 numberOfLines={3}
+                accessibilityLabel={notesError
+                    ? `Trade notes. ${notesError}`
+                    : `Trade notes. ${notes.length} of ${MAX_TRADE_NOTES_LENGTH} characters.`
+                }
+                aria-invalid={Boolean(notesError)}
+                testID="trade-notes-input"
             />
+            <View style={styles.notesMeta}>
+                {notesError ? (
+                    <Text
+                        style={styles.notesError}
+                        accessibilityRole="alert"
+                        accessibilityLiveRegion="polite"
+                        testID="trade-notes-error"
+                    >
+                        {notesError}
+                    </Text>
+                ) : null}
+                <Text
+                    style={[styles.notesCount, notesError && styles.notesCountInvalid]}
+                    accessibilityLabel={`Trade notes character count: ${notes.length} of ${MAX_TRADE_NOTES_LENGTH}`}
+                    testID="trade-notes-count"
+                >
+                    {notes.length} / {MAX_TRADE_NOTES_LENGTH}
+                </Text>
+            </View>
             <Text style={styles.sectionLabel}>TERMS</Text>
             <View style={styles.termsRow}>
                 <View style={styles.termField}>
@@ -263,6 +291,19 @@ const styles = StyleSheet.create({
         minHeight: 80,
         textAlignVertical: 'top',
     },
+    notesInputInvalid: { borderColor: colors.danger },
+    notesMeta: {
+        minHeight: 20,
+        marginHorizontal: spacing.xl,
+        marginTop: spacing.xs,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+    },
+    notesError: { flex: 1, color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    notesCount: { marginLeft: 'auto', color: colors.textMuted, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    notesCountInvalid: { color: colors.dangerDark },
     termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.xl },
     termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
     termLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
