@@ -5,6 +5,7 @@ import {
   VETO_REPORT_PATH,
   assertPageText,
   browser,
+  cleanupBrowserResources,
   clickTestId,
   clickLastButton,
   describeEndpoint,
@@ -138,8 +139,7 @@ export async function runBrowserTradeVetoScenario({
     await writeFile(VETO_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    await browser(session, ['close']).catch(() => {})
-    await fixture.dispose()
+    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }
 
@@ -314,13 +314,10 @@ export async function runBrowserTradeTerminalScenario({
     await writeFile(TERMINAL_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    const cleanup = await Promise.allSettled([
-      browser(rejectSession, ['close']),
-      browser(withdrawSession, ['close']),
-      rejectFixture.dispose(),
-      withdrawFixture.dispose(),
-    ])
-    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-    if (failures.length > 0) throw new AggregateError(failures, 'Terminal trade browser cleanup failed')
+    await cleanupBrowserResources({
+      browser,
+      sessions: [rejectSession, withdrawSession],
+      disposers: [rejectFixture.dispose, withdrawFixture.dispose],
+    })
   }
 }

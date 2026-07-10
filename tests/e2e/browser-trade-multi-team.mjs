@@ -17,6 +17,7 @@ import {
   tradeSessionName,
 } from './trade-browser-harness.mjs'
 import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
+import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 /** @typedef {Awaited<ReturnType<typeof setupMultiTeamTradeGameplayFixture>>} MultiTeamFixture */
 /**
@@ -513,12 +514,6 @@ export async function runBrowserMultiTeamTradeScenario({
     await writeFile(MULTI_TEAM_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    const cleanup = await Promise.allSettled([
-      browser(session, ['close']),
-      browser(counterSession, ['close']),
-      fixture.dispose(),
-    ])
-    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-    if (failures.length > 0) throw new AggregateError(failures, 'Multi-team trade browser cleanup failed')
+    await cleanupBrowserResources({ browser, sessions: [session, counterSession], disposers: [fixture.dispose] })
   }
 }

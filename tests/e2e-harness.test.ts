@@ -141,22 +141,41 @@ describe('e2e backend scenario registry', () => {
 
     const results = await runBackendScenarios({ args, context, runners, shouldRun })
 
-    expect(runners.assertLeagueLifecycleScenario).toHaveBeenCalledWith(context)
-    expect(runners.assertAuctionBidValidation).toHaveBeenCalledWith({
+    expect(runners.assertLeagueLifecycleScenario).toHaveBeenCalledWith(expect.objectContaining(context))
+    expect(runners.assertAuctionBidValidation).toHaveBeenCalledWith(expect.objectContaining({
       supabase: context.supabase,
       leagueId: context.leagueId,
       season: context.season,
-    })
-    expect(runners.assertInjuryStatusFilterScenario).toHaveBeenCalledWith({
+    }))
+    expect(runners.assertInjuryStatusFilterScenario).toHaveBeenCalledWith(expect.objectContaining({
       supabase: context.supabase,
       env: context.env,
       season: context.season,
       fakePort: context.fakePort,
-    })
+    }))
     expect(runners.assertPlayoffBracketScenario).not.toHaveBeenCalled()
     expect(results.auctionValidation).toEqual({ ok: 'auction' })
     expect(backendScenarioFailures(results)).toEqual(['league failed', 'draft push failed'])
     expect(shouldRun).toHaveBeenCalledTimes(4)
+  })
+
+  it('aggregates scenario and cleanup failures', async () => {
+    const { runBackendScenarios } = await import('./e2e/harness/backend-scenarios.mjs')
+    const dispose = vi.fn(async () => { throw new Error('fixture leaked') })
+    const runners = {
+      assertLeagueLifecycleScenario: vi.fn(async (context) => {
+        context.resourceOwner.register('fixture', dispose)
+        throw new Error('scenario failed')
+      }),
+    }
+
+    await expect(runBackendScenarios({
+      args: { leagueLifecycle: true },
+      context: { season: 1 },
+      runners,
+      shouldRun: () => true,
+    })).rejects.toThrow('backend leagueLifecycle and cleanup failed')
+    expect(dispose).toHaveBeenCalledOnce()
   })
 })
 

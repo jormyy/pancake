@@ -244,13 +244,27 @@ const setupWaiverGameplayFixture = async (env, season, { requiresDrop = false, h
     irRosterPlayer,
     waiverLog,
     dispose: async () => {
-      if (irPlayer) await admin.from('players').update({ injury_status: null }).eq('id', irPlayer.id)
-      await resources.dispose()
-      await admin.from('players').delete().like('sportsdata_id', `e2e-waiver-${runId}-%`)
+      const cleanup = await Promise.allSettled([
+        resources.dispose(),
+        irPlayer
+          ? admin.from('players').update({ injury_status: null }).eq('id', irPlayer.id).then(({ error }) => {
+              if (error) throw new Error(error.message)
+            })
+          : Promise.resolve(),
+        admin.from('players').delete().like('sportsdata_id', `e2e-waiver-${runId}-%`).then(({ error }) => {
+          if (error) throw new Error(error.message)
+        }),
+      ])
+      const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+      if (failures.length > 0) throw new AggregateError(failures, 'Waiver fixture cleanup failed')
     },
   }
   } catch (error) {
-    await resources.dispose().catch(() => {})
+    try {
+      await resources.dispose()
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Waiver fixture setup and cleanup failed')
+    }
     throw error
   }
 }

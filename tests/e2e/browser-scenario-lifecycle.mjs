@@ -4,8 +4,15 @@ import { normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 
 const ROOT = process.cwd()
 
+/** @typedef {{ timeout?: number, maxBuffer?: number }} BrowserOptions */
+/** @typedef {(session: string, command: string[], options?: BrowserOptions) => Promise<string>} Browser */
+/** @typedef {{ dispose: () => Promise<void> }} DisposableFixture */
+/** @typedef {{ fields: Record<string, unknown>, failures: string[] }} ScenarioResult */
+
+/** @param {unknown} error */
 const errorText = (error) => error instanceof Error ? error.message : String(error)
 
+/** @param {Browser} browser @param {string} session @param {string[]} command @param {string} label */
 const browserOutput = async (browser, session, command, label) => {
   try {
     return await browser(session, command)
@@ -14,8 +21,10 @@ const browserOutput = async (browser, session, command, label) => {
   }
 }
 
+/** @param {string} filePath @param {string} value */
 const writeText = (filePath, value) => writeFile(filePath, `${value}\n`)
 
+/** @param {{ browser: Browser, session: string, artifactDir: string, screenshot: boolean }} input */
 const captureDiagnostics = async ({ browser, session, artifactDir, screenshot }) => {
   const [consoleOutput, errorOutput, networkOutput] = await Promise.all([
     browserOutput(browser, session, ['console'], 'console'),
@@ -33,16 +42,37 @@ const captureDiagnostics = async ({ browser, session, artifactDir, screenshot })
   return { consoleOutput, errorOutput, networkOutput }
 }
 
-const cleanupResources = async (browser, session, dispose) => {
+/** @param {{ browser: Browser, sessions: string[], disposers?: (() => Promise<void>)[] }} input */
+export const cleanupBrowserResources = async ({ browser, sessions, disposers = [] }) => {
   const results = await Promise.allSettled([
-    browser(session, ['close'], { timeout: 10_000 }),
-    dispose(),
+    ...sessions.map((session) => browser(session, ['close'], { timeout: 10_000 })),
+    ...disposers.map((dispose) => dispose()),
   ])
-  return results.flatMap((result, index) => result.status === 'rejected'
-    ? [new Error(`${index === 0 ? 'browser close' : 'fixture disposal'} failed: ${errorText(result.reason)}`)]
-    : [])
+  const failures = results.flatMap((result, index) => {
+    if (result.status !== 'rejected') return []
+    const resource = index < sessions.length
+      ? `browser close ${sessions[index]}`
+      : `fixture disposal ${index - sessions.length + 1}`
+    return [new Error(`${resource} failed: ${errorText(result.reason)}`)]
+  })
+  if (failures.length > 0) throw new AggregateError(failures, 'Browser resources were not released')
 }
 
+/**
+ * @param {{
+ *   browser: Browser,
+ *   session: string,
+ *   artifactDir: string,
+ *   reportPath: string,
+ *   season: number,
+ *   fixture: DisposableFixture,
+ *   fixtureSummary: () => Record<string, unknown>,
+ *   notes: string[],
+ *   failureLabel: string,
+ *   run: (context: { record: (values: Record<string, unknown>) => void }) => Promise<ScenarioResult>,
+ *   verifyFailure: () => Promise<Record<string, unknown>>,
+ * }} input
+ */
 export async function runBrowserScenarioLifecycle({
   browser,
   session,
@@ -59,7 +89,9 @@ export async function runBrowserScenarioLifecycle({
   await mkdir(artifactDir, { recursive: true })
   let report
   let primaryError = null
+  /** @type {Record<string, unknown>} */
   const debug = {}
+  /** @param {Record<string, unknown>} values */
   const record = (values) => Object.assign(debug, values)
 
   try {
@@ -116,11 +148,16 @@ export async function runBrowserScenarioLifecycle({
       : writeError
   }
 
-  const cleanupErrors = await cleanupResources(browser, session, fixture.dispose)
-  if (primaryError || cleanupErrors.length > 0) {
-    if (primaryError && cleanupErrors.length === 0) throw primaryError
+  let cleanupError = null
+  try {
+    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
+  } catch (error) {
+    cleanupError = error
+  }
+  if (primaryError || cleanupError) {
+    if (primaryError && !cleanupError) throw primaryError
     throw new AggregateError(
-      [...(primaryError ? [primaryError] : []), ...cleanupErrors],
+      [...(primaryError ? [primaryError] : []), ...(cleanupError ? [cleanupError] : [])],
       `${failureLabel}${primaryError ? ' failed' : ''}; cleanup was not clean`,
     )
   }

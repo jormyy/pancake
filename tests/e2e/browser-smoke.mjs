@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -457,6 +458,7 @@ export async function runBrowserSmoke({
       notes,
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
     return report
   } catch (error) {
     const report = {
@@ -471,9 +473,10 @@ export async function runBrowserSmoke({
       notes,
     }
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+    await writeFile(path.join(artifactDir, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`)
     throw error
   } finally {
-    await browser(session, ['close']).catch(() => {})
+    await cleanupBrowserResources({ browser, sessions: [session] })
   }
 }
 

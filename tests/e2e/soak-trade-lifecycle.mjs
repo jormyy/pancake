@@ -25,9 +25,42 @@ import {
   expectAuthedBackendError,
 } from './soak-draft-playoff.mjs'
 
-export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePort }) => {
+export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, fakePort, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.2 injury'
+  const fakeStateBefore = await (await fetch(`http://127.0.0.1:${fakePort}/admin/state`)).json()
+  resourceOwner.register('fake upstream injuries', async () => {
+    await Promise.all(['1001', '1002'].map((playerId) => postJson(
+      `http://127.0.0.1:${fakePort}/admin/injury`,
+      { playerId, injuryStatus: fakeStateBefore.players?.[playerId]?.injury_status ?? null },
+    )))
+  })
+  const beforePlayers = await Promise.all([
+    readPlayerBySleeperId(supabase, '1001', label),
+    readPlayerBySleeperId(supabase, '1002', label),
+  ])
+  resourceOwner.register('injury fixture players', async () => {
+    const failures = []
+    for (const [sleeperId, before] of [['1001', beforePlayers[0]], ['1002', beforePlayers[1]]]) {
+      const restoreFields = before ? {
+        sportsdata_id: before.sportsdata_id,
+        first_name: before.first_name,
+        last_name: before.last_name,
+        sleeper_id: before.sleeper_id,
+        position: before.position,
+        eligible_positions: before.eligible_positions,
+        status: before.status,
+        injury_status: before.injury_status,
+        nba_team: before.nba_team,
+        years_exp: before.years_exp,
+      } : null
+      const { error } = before
+        ? await supabase.from('players').update(restoreFields).eq('id', before.id)
+        : await supabase.from('players').delete().eq('sleeper_id', sleeperId)
+      if (error) failures.push(new Error(`${sleeperId}: ${error.message}`))
+    }
+    if (failures.length > 0) throw new AggregateError(failures, 'injury fixture restore failed')
+  })
   const expectedSleeperBaseUrl = `http://127.0.0.1:${fakePort}/v1`
   const backendStatus = await backendGetJson(env, '/e2e/status')
   if (backendStatus.sleeperBaseUrl !== expectedSleeperBaseUrl) {
@@ -109,7 +142,7 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
 
 const tradeAcceptFixtureSeasonYear = () => 8100 + Number(Date.now().toString().slice(-6))
 
-export const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, season }) => {
+export const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.2 trade'
   const fixtureSeasonYear = tradeAcceptFixtureSeasonYear()
@@ -119,6 +152,7 @@ export const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, st
     season,
     label,
     userCount: 2,
+    resourceOwner,
     seasonYear: fixtureSeasonYear,
   })
   const [proposer, recipient] = fixture.members
@@ -346,7 +380,7 @@ export const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, st
   return { failures, artifact }
 }
 
-export const assertTradeVetoScenario = async ({ supabase, env, state, season }) => {
+export const assertTradeVetoScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const label = 'D.SEA.2 trade veto'
   const failures = []
   const fixture = await createDisposableLeagueFromSeedUsers({
@@ -355,6 +389,7 @@ export const assertTradeVetoScenario = async ({ supabase, env, state, season }) 
     season,
     label,
     userCount: 10,
+    resourceOwner,
   })
   const [commissioner, proposer, recipient, ...voters] = fixture.members
   const acceptedAt = new Date().toISOString()
@@ -464,7 +499,7 @@ export const assertTradeVetoScenario = async ({ supabase, env, state, season }) 
   return { failures, artifact }
 }
 
-export const assertLeagueLifecycleScenario = async ({ supabase, env, state, season }) => {
+export const assertLeagueLifecycleScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SET.2'
   const users = state.users.slice(0, 10)
@@ -477,6 +512,10 @@ export const assertLeagueLifecycleScenario = async ({ supabase, env, state, seas
   })
   if (createError) throw new Error(`${label}: create_league failed: ${createError.message}`)
   if (!createdLeague?.id) throw new Error(`${label}: create_league returned no league id`)
+  resourceOwner.register(`league ${createdLeague.id}`, async () => {
+    const { error } = await supabase.from('leagues').delete().eq('id', createdLeague.id)
+    if (error) throw new Error(error.message)
+  })
   if (!/^[A-Z0-9]{16}$/.test(createdLeague.invite_code ?? '')) {
     failures.push(`${label}: invite_code=${createdLeague.invite_code ?? '<missing>'}; expected 16 uppercase alnum chars`)
   }
@@ -581,7 +620,7 @@ export const assertLeagueLifecycleScenario = async ({ supabase, env, state, seas
   return { failures, artifact }
 }
 
-export const assertCommissionerSettingsScenario = async ({ supabase, env, state, season }) => {
+export const assertCommissionerSettingsScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SET.3'
   const fixture = await createDisposableLeagueFromSeedUsers({
@@ -590,6 +629,7 @@ export const assertCommissionerSettingsScenario = async ({ supabase, env, state,
     season,
     label,
     userCount: 2,
+    resourceOwner,
     status: 'setup',
   })
   const commissioner = await signInSupabaseClient(env, state.users[0].email, state.password, label)

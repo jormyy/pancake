@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
+import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -186,13 +188,21 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
   ]
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
-  const [commissioner, manager] = await Promise.all(users.map((user) => createConfirmedUser(admin, user)))
-  const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const resources = createFixtureResourceOwner(admin)
   const session = safeName(`pancake-league-lifecycle-${runId}-s${season}-${process.pid}`)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-league-lifecycle')
+  let sessionList = 'session list not captured'
   await mkdir(artifactDir, { recursive: true })
 
   try {
+    const createdUsers = []
+    for (const user of users) {
+      const createdUser = await createConfirmedUser(admin, user)
+      resources.registerUser(createdUser.id)
+      createdUsers.push(createdUser)
+    }
+    const [commissioner, manager] = createdUsers
+    sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
     await installRuntimeOverrides(browser, session, env)
 
     await signIn(session, env, commissioner)
@@ -219,8 +229,9 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     if (createdLeagueError || !createdLeague) {
       throw new Error(`D.SET.2 browser created league lookup: ${createdLeagueError?.message ?? 'missing league'}`)
     }
+    resources.registerLeague(createdLeague.id)
 
-    await browser(session, ['close']).catch(() => {})
+    await browser(session, ['close'], { timeout: 10_000 })
     await installRuntimeOverrides(browser, session, env)
     await signIn(session, env, manager)
     await browser(session, ['open', joinUrl(env.frontendUrl, '/join-league')])
@@ -282,7 +293,7 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    await browser(session, ['close']).catch(() => {})
+    await cleanupBrowserResources({ browser, sessions: [session], disposers: [resources.dispose] })
   }
 }
 

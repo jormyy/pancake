@@ -23,6 +23,7 @@ export {
   tradeSessionName,
 } from './trade-browser-harness.mjs'
 export { setupTradeGameplayFixture } from './trade-fixture.mjs'
+export { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 export * from './browser-trade-fixtures.mjs'
 export * from './browser-trade-verification.mjs'
 

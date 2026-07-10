@@ -4,6 +4,7 @@ import process from 'node:process'
 import { resolvedEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -226,7 +227,7 @@ const runOneAuthUser = async ({ state, env, season, userIndex, sessionList }) =>
       notes,
     }
   } finally {
-    await browser(session, ['close'], { timeout: 10_000 })
+    await cleanupBrowserResources({ browser, sessions: [session] })
   }
 }
 
@@ -272,6 +273,10 @@ export async function runBrowserAuthScenario({
     reports: completedReports,
   }
   await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`)
+  await writeFile(
+    path.join(ARTIFACT_ROOT, `season-${season}`, 'auth', 'summary.json'),
+    `${JSON.stringify(report, null, 2)}\n`,
+  )
   if (report.status !== 'PASS') {
     const failures = reports
       .filter((row) => row.status !== 'PASS')

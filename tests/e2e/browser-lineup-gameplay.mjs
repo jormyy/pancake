@@ -253,18 +253,29 @@ const setupLineupFixture = async (env, season) => {
     player,
     rosterRow,
     dispose: async () => {
-      await resources.dispose()
-      await admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year)
+      const cleanup = await Promise.allSettled([
+        resources.dispose(),
+        admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year).then(({ error }) => {
+          if (error) throw new Error(error.message)
+        }),
+      ])
+      const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+      if (failures.length > 0) throw new AggregateError(failures, 'Lineup fixture cleanup failed')
     },
   }
   } catch (error) {
-    await resources.dispose().catch(() => {})
+    try {
+      await resources.dispose()
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Lineup fixture setup and cleanup failed')
+    }
     throw error
   }
 }
 
 const setupLockedLineupFixture = async (env, season) => {
   const fixture = await setupLineupFixture(env, season)
+  try {
   const [lockedPlayer, benchPlayer] = await findPgPlayersWithNbaTeams(
     fixture.admin,
     fixture.league.id,
@@ -338,6 +349,14 @@ const setupLockedLineupFixture = async (env, season) => {
     lockedRosterRow: (rosterRows ?? []).find((row) => row.player_id === lockedPlayer.id),
     benchRosterRow: (rosterRows ?? []).find((row) => row.player_id === benchPlayer.id),
     lockedLineup: lineup,
+  }
+  } catch (error) {
+    try {
+      await fixture.dispose()
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Locked lineup fixture setup and cleanup failed')
+    }
+    throw error
   }
 }
 

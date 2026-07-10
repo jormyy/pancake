@@ -1,3 +1,5 @@
+import { createScenarioResourceOwner, throwWithCleanup } from '../scenario-resource-owner.mjs'
+
 const BACKEND_SCENARIOS = [
   {
     flag: 'leagueLifecycle',
@@ -12,6 +14,7 @@ const BACKEND_SCENARIOS = [
       supabase: context.supabase,
       leagueId: context.leagueId,
       season: context.season,
+      resourceOwner: context.resourceOwner,
     }),
   },
   {
@@ -53,6 +56,7 @@ const BACKEND_SCENARIOS = [
       env: context.env,
       season: context.season,
       fakePort: context.fakePort,
+      resourceOwner: context.resourceOwner,
     }),
   },
   {
@@ -83,6 +87,7 @@ const BACKEND_SCENARIOS = [
       state: context.state,
       season: context.season,
       fakePort: context.fakePort,
+      resourceOwner: context.resourceOwner,
     }),
   },
   {
@@ -104,7 +109,21 @@ export async function runBackendScenarios({ args, context, runners, shouldRun })
   for (const scenario of BACKEND_SCENARIOS) {
     if (!args[scenario.flag] || !shouldRun(args, context.season)) continue
 
-    const check = await scenario.run({ context, runners })
+    const resourceOwner = createScenarioResourceOwner(`backend ${scenario.flag}`)
+    let check
+    let primaryError = null
+    try {
+      check = await scenario.run({ context: { ...context, resourceOwner }, runners })
+    } catch (error) {
+      primaryError = error
+    }
+    let cleanupError = null
+    try {
+      await resourceOwner.dispose()
+    } catch (error) {
+      cleanupError = error
+    }
+    throwWithCleanup(primaryError, cleanupError, `backend ${scenario.flag}`)
     results[scenario.resultKey] = check
     if (scenario.failuresKey) {
       results[scenario.failuresKey].push(...(check?.failures ?? []))

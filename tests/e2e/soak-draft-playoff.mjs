@@ -54,7 +54,7 @@ const findRookieDraftCandidates = async ({ supabase, leagueId, leagueSeasonId, d
   return candidates
 }
 
-export const createRookieDraftFixture = async ({ supabase, env, state, season, label }) => {
+export const createRookieDraftFixture = async ({ supabase, env, state, season, label, resourceOwner }) => {
   const fixtureSeasonYear = rookieFixtureSeasonYear()
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
@@ -62,6 +62,7 @@ export const createRookieDraftFixture = async ({ supabase, env, state, season, l
     season,
     label,
     userCount: 4,
+    resourceOwner,
     seasonYear: fixtureSeasonYear,
   })
   const [member1, member2, member3, member4] = fixture.members
@@ -149,7 +150,7 @@ export const createRookieDraftFixture = async ({ supabase, env, state, season, l
   }
 }
 
-export const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season }) => {
+export const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.5'
   const {
@@ -160,7 +161,7 @@ export const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, 
     slots,
     rookies,
     expectedOrder,
-  } = await createRookieDraftFixture({ supabase, env, state, season, label })
+  } = await createRookieDraftFixture({ supabase, env, state, season, label, resourceOwner })
 
   for (const [index, expectedMemberId] of expectedOrder.entries()) {
     if (slots[index]?.member_id !== expectedMemberId) {
@@ -264,7 +265,7 @@ export const assertRookieDraftAutoPickScenario = async ({ supabase, env, state, 
   return { failures, artifact }
 }
 
-const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
+const createDisposablePlayoffLeague = async ({ supabase, state, season, resourceOwner }) => {
   const playoffStartWeek = 20
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
@@ -272,6 +273,7 @@ const createDisposablePlayoffLeague = async ({ supabase, state, season }) => {
     season,
     label: 'D.SEA.4',
     userCount: 10,
+    resourceOwner,
     playoffStartWeek,
   })
   await ensureSyntheticSeasonWeeks(supabase, fixture.leagueSeason.season_year, playoffStartWeek + 2, 'D.SEA.4')
@@ -314,9 +316,9 @@ const playoffPairExists = (rows, homeId, awayId) => rows.some((row) => (
   row.away_member_id === awayId
 ))
 
-export const assertPlayoffBracketScenario = async ({ supabase, env, state, season }) => {
+export const assertPlayoffBracketScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
-  const fixture = await createDisposablePlayoffLeague({ supabase, state, season })
+  const fixture = await createDisposablePlayoffLeague({ supabase, state, season, resourceOwner })
   const accessToken = await signInForAccessToken(env, state.users[0].email, state.password)
   let generateResult = null
   let advanceBeforeFinalized = null
@@ -500,7 +502,7 @@ const insertFullRpsTieRows = async (supabase, fixture) => {
   return rows
 }
 
-export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, season }) => {
+export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const maxFixture = await createDisposableLeagueFromSeedUsers({
     supabase,
@@ -508,6 +510,7 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
     season,
     label: 'D.SEA.3',
     userCount: 4,
+    resourceOwner,
     playoffStartWeek: 20,
   })
   await ensureSyntheticSeasonWeeks(supabase, maxFixture.leagueSeason.season_year, 21, 'D.SEA.3')
@@ -565,6 +568,7 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
     season,
     label: 'D.SEA.3 RPS',
     userCount: 4,
+    resourceOwner,
     playoffStartWeek: 20,
   })
   await ensureSyntheticSeasonWeeks(supabase, rpsFixture.leagueSeason.season_year, 21, 'D.SEA.3 RPS')

@@ -5,6 +5,7 @@ import {
   ROOT,
   assertPageText,
   browser,
+  cleanupBrowserResources,
   clickTestId,
   describeEndpoint,
   installBrowserHooks,
@@ -200,13 +201,7 @@ export async function runBrowserTradeScenario({
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    const cleanup = await Promise.allSettled([
-      browser(session, ['close']),
-      browser(counterSession, ['close']),
-      fixture.dispose(),
-    ])
-    const failures = cleanup.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-    if (failures.length > 0) throw new AggregateError(failures, 'Two-team trade browser cleanup failed')
+    await cleanupBrowserResources({ browser, sessions: [session, counterSession], disposers: [fixture.dispose] })
   }
 }
 
@@ -335,7 +330,6 @@ export async function runBrowserTradePostDeadlineScenario({
     await writeFile(POST_DEADLINE_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    await browser(session, ['close']).catch(() => {})
-    await fixture.dispose()
+    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }

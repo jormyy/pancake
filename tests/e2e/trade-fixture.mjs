@@ -147,10 +147,8 @@ export const createFixtureResourceOwner = (admin) => {
           .eq('league_id', leagueId)
           .eq('status', 'accepted')
         const { error } = await admin.from('leagues').delete().eq('id', leagueId)
-        if (error) {
-          if (terminalError) failures.push(new Error(`fixture accepted-trade cleanup: ${terminalError.message}`))
-          failures.push(new Error(`fixture league cleanup: ${error.message}`))
-        }
+        if (terminalError) failures.push(new Error(`fixture accepted-trade cleanup: ${terminalError.message}`))
+        if (error) failures.push(new Error(`fixture league cleanup: ${error.message}`))
         else leagueId = null
       }
       const results = await Promise.all([...userIds].map(async (userId) => ({

@@ -55,7 +55,7 @@ const readScoringMatchup = async (supabase, matchupId, label) => {
   return data
 }
 
-export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, season }) => {
+export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.2'
   const fixtureSeasonYear = scoringFixtureSeasonYear()
@@ -69,6 +69,7 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     season,
     label,
     userCount: 2,
+    resourceOwner,
     seasonYear: fixtureSeasonYear,
   })
   const [homeMember, awayMember] = fixture.members
@@ -406,7 +407,7 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
 
 const resetFixtureSeasonYear = () => 9000 + Number(Date.now().toString().slice(-6))
 
-export const assertSeasonResetScenario = async ({ supabase, env, state, season }) => {
+export const assertSeasonResetScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.6'
   const fixtureSeasonYear = resetFixtureSeasonYear()
@@ -416,6 +417,7 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season }
     season,
     label,
     userCount: 4,
+    resourceOwner,
     seasonYear: fixtureSeasonYear,
   })
   const [member1, member2, member3, member4] = fixture.members

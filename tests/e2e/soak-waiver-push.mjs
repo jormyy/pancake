@@ -19,8 +19,12 @@ import {
 import {
   createRookieDraftFixture,
 } from './soak-draft-playoff.mjs'
+import {
+  createScenarioResourceOwner,
+  throwWithCleanup,
+} from './scenario-resource-owner.mjs'
 
-export const assertWaiverProcessingScenario = async ({ supabase, env, state, season }) => {
+export const assertWaiverProcessingScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const label = 'D.SEA.2 waiver processing'
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
@@ -28,6 +32,7 @@ export const assertWaiverProcessingScenario = async ({ supabase, env, state, sea
     season,
     label,
     userCount: 4,
+    resourceOwner,
     seasonYear: 4300 + season,
   })
   const [priorityOne, priorityTwo, priorityThree, priorityFour] = fixture.members
@@ -392,7 +397,7 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
   return artifact
 }
 
-const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, fakePort }) => {
+const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, fakePort, resourceOwner }) => {
   if (!state?.runId || !Array.isArray(state.users) || state.users.length < 3) {
     throw new Error('D.X.1: waiver push scenario requires tests/e2e-state.json from npm run e2e:seed')
   }
@@ -404,6 +409,7 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
     season,
     label,
     userCount: 3,
+    resourceOwner,
     seasonYear: 6200 + season,
   })
 
@@ -414,6 +420,13 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
   }
 
   const tokenValue = `ExponentPushToken[e2e-waiver-${state.runId}-${season}]`
+  const { data: previousProfile, error: profileReadError } = await supabase
+    .from('profiles').select('push_token').eq('id', recipientUser.id).single()
+  if (profileReadError) throw new Error(`${label} token read: ${profileReadError.message}`)
+  resourceOwner.register(`push token ${recipientUser.id}`, async () => {
+    const { error } = await supabase.from('profiles').update({ push_token: previousProfile.push_token }).eq('id', recipientUser.id)
+    if (error) throw new Error(error.message)
+  })
   const [{ error: profileError }, { error: leagueError }, { error: priorityError }] = await Promise.all([
     supabase
       .from('profiles')
@@ -516,7 +529,7 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
   }
 }
 
-export const assertDraftPushNotification = async ({ supabase, env, state, season, fakePort }) => {
+export const assertDraftPushNotification = async ({ supabase, env, state, season, fakePort, resourceOwner }) => {
   const failures = []
   const label = 'D.X.1'
   const {
@@ -525,7 +538,7 @@ export const assertDraftPushNotification = async ({ supabase, env, state, season
     slots,
     rookies,
     expectedOrder,
-  } = await createRookieDraftFixture({ supabase, env, state, season, label })
+  } = await createRookieDraftFixture({ supabase, env, state, season, label, resourceOwner })
 
   const firstSlot = slots[0]
   if (!firstSlot) throw new Error(`${label}: draft push fixture created no rookie draft slots`)
@@ -533,6 +546,13 @@ export const assertDraftPushNotification = async ({ supabase, env, state, season
   if (!recipientMember) throw new Error(`${label}: draft push member lookup failed for ${firstSlot.member_id}`)
 
   const tokenValue = `ExponentPushToken[e2e-draft-${state.runId ?? 'run'}-${season}]`
+  const { data: previousProfile, error: profileReadError } = await supabase
+    .from('profiles').select('push_token').eq('id', recipientMember.user_id).single()
+  if (profileReadError) throw new Error(`${label} draft push token read: ${profileReadError.message}`)
+  resourceOwner.register(`push token ${recipientMember.user_id}`, async () => {
+    const { error } = await supabase.from('profiles').update({ push_token: previousProfile.push_token }).eq('id', recipientMember.user_id)
+    if (error) throw new Error(error.message)
+  })
   const { error: profileError } = await supabase
     .from('profiles')
     .update({ push_token: tokenValue })
@@ -574,17 +594,28 @@ export const assertDraftPushNotification = async ({ supabase, env, state, season
 }
 
 export const assertPushNotifications = async (params) => {
-  await postJson(`http://127.0.0.1:${params.fakePort}/admin/clear-pushes`, {})
-  // The push pipeline is verified end-to-end by the real, server-emitted waiver
-  // notification. (The former trade-push check drove the removed /notify/trade
-  // endpoint; real trade notifications are now emitted server-side by the
-  // /trades/* routes during the main soak.)
-  const waiver = await assertWaiverPushNotification(params)
+  const label = `season ${params.season} push notifications`
+  const resourceOwner = createScenarioResourceOwner(label)
+  let primaryError
 
-  await writeFile(
-    path.join(ARTIFACT_ROOT, `season-${params.season}`, 'push-notifications.json'),
-    `${JSON.stringify({ waiver }, null, 2)}\n`,
-  )
+  try {
+    await postJson(`http://127.0.0.1:${params.fakePort}/admin/clear-pushes`, {})
+    // The push pipeline is verified end-to-end by the real, server-emitted waiver
+    // notification. (The former trade-push check drove the removed /notify/trade
+    // endpoint; real trade notifications are now emitted server-side by the
+    // /trades/* routes during the main soak.)
+    const waiver = await assertWaiverPushNotification({ ...params, resourceOwner })
+
+    await writeFile(
+      path.join(ARTIFACT_ROOT, `season-${params.season}`, 'push-notifications.json'),
+      `${JSON.stringify({ waiver }, null, 2)}\n`,
+    )
+  } catch (error) {
+    primaryError = error
+  }
+
+  const cleanupError = await resourceOwner.dispose().catch((error) => error)
+  throwWithCleanup(primaryError, cleanupError, label)
 }
 
 export const assertCorsPreflight = async (env) => {

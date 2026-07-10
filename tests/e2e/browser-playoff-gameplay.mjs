@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
+import { createFixtureResourceOwner } from './trade-fixture.mjs'
+import { cleanupBrowserResources } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
@@ -152,8 +154,14 @@ const setupBrowserPlayoffFixture = async (env, season) => {
   })
 
   const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const resources = createFixtureResourceOwner(admin)
+  try {
   const createdUsers = []
-  for (const user of users) createdUsers.push(await createConfirmedUser(admin, user))
+  for (const user of users) {
+    const createdUser = await createConfirmedUser(admin, user)
+    resources.registerUser(createdUser.id)
+    createdUsers.push(createdUser)
+  }
 
   const { error: profileError } = await admin.from('profiles').upsert(
     createdUsers.map((user) => ({
@@ -172,6 +180,7 @@ const setupBrowserPlayoffFixture = async (env, season) => {
     p_auction_budget: 200,
   })
   if (createError) throw new Error(`create_league: ${createError.message}`)
+  resources.registerLeague(league.id)
   if (!commissionerAuth.accessToken) throw new Error('commissioner sign-in returned no access token')
 
   for (const user of createdUsers.slice(1)) {
@@ -290,6 +299,15 @@ const setupBrowserPlayoffFixture = async (env, season) => {
     championUser,
     advanceBeforeFinalized,
     semifinalAdvanceBeforeFinalized,
+    dispose: resources.dispose,
+  }
+  } catch (error) {
+    try {
+      await resources.dispose()
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Playoff fixture setup and cleanup failed')
+    }
+    throw error
   }
 }
 
@@ -386,7 +404,7 @@ export async function runBrowserPlayoffChampionScenario({
     await writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
   } finally {
-    await browser(session, ['close']).catch(() => {})
+    await cleanupBrowserResources({ browser, sessions: [session], disposers: [fixture.dispose] })
   }
 }
 

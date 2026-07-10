@@ -74,4 +74,28 @@ describe('browser scenario lifecycle', () => {
             verifyFailure: async () => ({}),
         })).rejects.toThrow('cleanup was not clean')
     })
+
+    it('still disposes the fixture when browser close fails', async () => {
+        const { artifactDir, reportPath } = await createTempPaths()
+        const dispose = vi.fn(async () => undefined)
+        const browser = vi.fn(async (_session: string, command: string[]) => {
+            if (command[0] === 'close') throw new Error('close failed')
+            return browserOutput(command)
+        })
+
+        await expect(runBrowserScenarioLifecycle({
+            browser,
+            session: 'session',
+            artifactDir,
+            reportPath,
+            season: 1,
+            fixture: { dispose },
+            fixtureSummary: () => ({}),
+            notes: [],
+            failureLabel: 'scenario failed',
+            run: async () => ({ fields: {}, failures: [] }),
+            verifyFailure: async () => ({}),
+        })).rejects.toThrow('cleanup was not clean')
+        expect(dispose).toHaveBeenCalledOnce()
+    })
 })
