@@ -176,7 +176,7 @@ describe('commissioner admin actions', () => {
         const testLeague = league('league')
         let latest!: ReturnType<typeof useCommissionerAdminActions>
         const Probe = () => {
-            latest = useCommissionerAdminActions({ league: testLeague, refresh: vi.fn(), onDeleted: vi.fn() })
+            latest = useCommissionerAdminActions({ ownerId: 'user', league: testLeague, refresh: vi.fn(), onDeleted: vi.fn() })
             return null
         }
         let renderer!: ReactTestRenderer
@@ -196,7 +196,7 @@ describe('commissioner admin actions', () => {
         mocks.apiPost.mockResolvedValue(undefined)
         let latest!: ReturnType<typeof useCommissionerAdminActions>
         const Probe = () => {
-            latest = useCommissionerAdminActions({ league: league('league-a'), refresh: vi.fn(), onDeleted: vi.fn() })
+            latest = useCommissionerAdminActions({ ownerId: 'user', league: league('league-a'), refresh: vi.fn(), onDeleted: vi.fn() })
             return null
         }
         let renderer!: ReactTestRenderer
@@ -211,13 +211,46 @@ describe('commissioner admin actions', () => {
         })
         await act(async () => { renderer.unmount() })
     })
+
+    it('ignores admin completion after authenticated league ownership changes', async () => {
+        const first = deferred<void>()
+        mocks.apiPost.mockReturnValueOnce(first.promise).mockResolvedValueOnce(undefined)
+        let latest!: ReturnType<typeof useCommissionerAdminActions>
+        const Probe = ({ ownerId, leagueId }: { ownerId: string; leagueId: string }) => {
+            latest = useCommissionerAdminActions({
+                ownerId,
+                league: league(leagueId),
+                refresh: vi.fn(),
+                onDeleted: vi.fn(),
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { ownerId: 'user-a', leagueId: 'a' })) })
+        const oldAction = latest.lowerPriorityActions.find((action) => action.id === 'process-waivers')
+        let oldRequest!: Promise<void>
+        await act(async () => { oldRequest = oldAction?.onPress() as Promise<void>; await Promise.resolve() })
+
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { ownerId: 'user-b', leagueId: 'b' }))
+        })
+        expect(latest.busyAction).toBeNull()
+        const newAction = latest.lowerPriorityActions.find((action) => action.id === 'process-waivers')
+        await act(async () => { await newAction?.onPress() })
+        expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
+
+        await act(async () => { first.resolve(); await oldRequest })
+        expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
+        expect(latest.busyAction).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
 })
 
 describe('commissioner overrides', () => {
     it('rejects partial and unsafe integer strings without mutating league state', async () => {
         let latest!: ReturnType<typeof useCommissionerOverrides>
         const Probe = () => {
-            latest = useCommissionerOverrides('league', [{ id: 'member' }])
+            latest = useCommissionerOverrides('user', 'league', [{ id: 'member' }])
             return null
         }
         let renderer!: ReactTestRenderer
@@ -237,7 +270,7 @@ describe('commissioner overrides', () => {
         mocks.adjustFaabBalance.mockResolvedValue(undefined)
         let latest!: ReturnType<typeof useCommissionerOverrides>
         const Probe = () => {
-            latest = useCommissionerOverrides('league', [{ id: 'member' }])
+            latest = useCommissionerOverrides('user', 'league', [{ id: 'member' }])
             return null
         }
         let renderer!: ReactTestRenderer
@@ -246,6 +279,33 @@ describe('commissioner overrides', () => {
         await act(async () => { await latest.handleFaabOverride() })
 
         expect(mocks.adjustFaabBalance).toHaveBeenCalledWith('league', 'member', 12)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('does not clear new-owner override fields when an old mutation completes', async () => {
+        const oldUpdate = deferred<void>()
+        mocks.adjustFaabBalance.mockReturnValueOnce(oldUpdate.promise)
+        let latest!: ReturnType<typeof useCommissionerOverrides>
+        const Probe = ({ ownerId, leagueId }: { ownerId: string; leagueId: string }) => {
+            latest = useCommissionerOverrides(ownerId, leagueId, [{ id: `member-${leagueId}` }])
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { ownerId: 'user-a', leagueId: 'a' })) })
+        await act(async () => { latest.setOverrideFaab('12') })
+        let pending!: Promise<unknown>
+        await act(async () => { pending = latest.handleFaabOverride(); await Promise.resolve() })
+
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { ownerId: 'user-b', leagueId: 'b' }))
+            await Promise.resolve()
+        })
+        await act(async () => { latest.setOverrideFaab('9') })
+        await act(async () => { oldUpdate.resolve(); await pending })
+
+        expect(latest.overrideFaab).toBe('9')
+        expect(latest.overrideSaving).toBe(false)
+        expect(mocks.showSuccess).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 })

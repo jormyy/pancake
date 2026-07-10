@@ -24,6 +24,7 @@ vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache, writePersistentC
 vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
     disposeTableChangeSubscription: vi.fn(),
+    reportRealtimeCleanup: vi.fn(),
     subscribeToTableChanges: vi.fn(() => ({})),
 }))
 
@@ -114,6 +115,39 @@ describe('useMatchupData date ownership', () => {
 
         expect(latest.matchup).toBeUndefined()
         expect(getWeekDays).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('hides cached matchup state on the first render for a new owner key', async () => {
+        readPersistentCache.mockImplementation((key: string) => key.includes('league-a') ? {
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: lineup('old-mine'), oppLineup: lineup('old-opp'),
+        } : undefined)
+        const snapshots: { requested: string; matchupId?: string; mine?: string; loading: boolean; refId?: string }[] = []
+        const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
+            const value = useMatchupData({ id: memberId }, { id: `user-${leagueId}` }, { id: leagueId })
+            snapshots.push({
+                requested: leagueId,
+                matchupId: value.matchup?.id,
+                mine: value.myLineup?.bench[0]?.playerId,
+                loading: value.matchupLoading,
+                refId: value.matchupRef.current?.id,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { memberId: 'member-a', leagueId: 'league-a' })) })
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' }))
+        })
+
+        expect(snapshots.find((snapshot) => snapshot.requested === 'league-b')).toEqual({
+            requested: 'league-b',
+            matchupId: undefined,
+            mine: undefined,
+            loading: true,
+            refId: undefined,
+        })
         await act(async () => { renderer.unmount() })
     })
 })

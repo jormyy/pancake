@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { LeagueInfo } from '@/types/app'
 import { apiPost } from '@/lib/shared/api'
 import { advanceSeason } from '@/lib/rookieDraft'
@@ -12,31 +12,65 @@ import {
 } from '@/lib/commissioner-settings-policy'
 
 export function useCommissionerAdminActions({
+    ownerId,
     league,
     refresh,
     onDeleted,
 }: {
+    ownerId: string | null
     league: LeagueInfo | null
     refresh: () => Promise<void>
     onDeleted: () => void
 }) {
-    const [busyAction, setBusyAction] = useState<CommissionerActionId | null>(null)
-    const runAdmin = async (
+    const ownerKey = ownerId && league ? `${ownerId}:${league.id}` : null
+    const activeOwnerKeyRef = useRef(ownerKey)
+    activeOwnerKeyRef.current = ownerKey
+    const mutationSequenceRef = useRef(0)
+    const activeMutationRef = useRef<{ ownerKey: string; token: number } | null>(null)
+    const [busy, setBusy] = useState<{
+        ownerKey: string
+        action: CommissionerActionId
+        token: number
+    } | null>(null)
+
+    const beginMutation = useCallback((capturedOwnerKey: string, action: CommissionerActionId) => {
+        if (activeOwnerKeyRef.current !== capturedOwnerKey) return null
+        if (activeMutationRef.current?.ownerKey === capturedOwnerKey) return null
+        const mutation = { ownerKey: capturedOwnerKey, token: ++mutationSequenceRef.current }
+        activeMutationRef.current = mutation
+        setBusy({ ...mutation, action })
+        return mutation
+    }, [])
+
+    const ownsMutation = useCallback((mutation: { ownerKey: string; token: number }) => (
+        activeOwnerKeyRef.current === mutation.ownerKey
+        && activeMutationRef.current?.token === mutation.token
+    ), [])
+
+    const finishMutation = useCallback((mutation: { ownerKey: string; token: number }) => {
+        if (activeMutationRef.current?.token !== mutation.token) return
+        activeMutationRef.current = null
+        setBusy((current) => current?.token === mutation.token ? null : current)
+    }, [])
+
+    const runAdmin = useCallback(async (
         path: string,
         message: string,
         action: CommissionerActionId,
         body: Record<string, unknown> = {},
     ) => {
-        setBusyAction(action)
+        if (!ownerKey) return
+        const mutation = beginMutation(ownerKey, action)
+        if (!mutation) return
         try {
             await apiPost(path, body)
-            showSuccess('Done', message)
+            if (ownsMutation(mutation)) showSuccess('Done', message)
         } catch (error) {
-            showAlert('Error', getErrorMessage(error))
+            if (ownsMutation(mutation)) showAlert('Error', getErrorMessage(error))
         } finally {
-            setBusyAction(null)
+            finishMutation(mutation)
         }
-    }
+    }, [beginMutation, finishMutation, ownerKey, ownsMutation])
 
     const actions = useMemo(() => {
         const generateSchedule = (force: boolean) => league ? runAdmin(
@@ -81,15 +115,20 @@ export function useCommissionerAdminActions({
                 'Advance Season',
                 'This will create a new season, carry rosters forward, and set the league to offseason. Continue?',
                 async () => {
-                    setBusyAction('advance-season')
+                    if (!ownerKey) return
+                    const mutation = beginMutation(ownerKey, 'advance-season')
+                    if (!mutation) return
                     try {
                         await advanceSeason(league.id)
+                        if (!ownsMutation(mutation)) return
                         await refresh()
-                        showSuccess('Done', 'Season advanced. Start the rookie draft when ready.')
+                        if (ownsMutation(mutation)) {
+                            showSuccess('Done', 'Season advanced. Start the rookie draft when ready.')
+                        }
                     } catch (error) {
-                        showAlert('Error', getErrorMessage(error))
+                        if (ownsMutation(mutation)) showAlert('Error', getErrorMessage(error))
                     } finally {
-                        setBusyAction(null)
+                        finishMutation(mutation)
                     }
                 },
                 'Advance',
@@ -110,7 +149,7 @@ export function useCommissionerAdminActions({
             scheduleActions,
             utilityActions,
         })
-    }, [league, refresh])
+    }, [beginMutation, finishMutation, league, ownerKey, ownsMutation, refresh, runAdmin])
 
     const handleDeleteLeague = () => {
         if (!league) return
@@ -118,16 +157,21 @@ export function useCommissionerAdminActions({
             'Archive League',
             `${ARCHIVE_LEAGUE_DESCRIPTION} Archive ${league.name}?`,
             async () => {
-                setBusyAction('delete-league')
+                if (!ownerKey) return
+                const mutation = beginMutation(ownerKey, 'delete-league')
+                if (!mutation) return
                 try {
                     await deleteLeague(league.id)
+                    if (!ownsMutation(mutation)) return
                     await refresh()
-                    showSuccess('League archived', 'The league has been archived and hidden from your league list.')
-                    onDeleted()
+                    if (ownsMutation(mutation)) {
+                        showSuccess('League archived', 'The league has been archived and hidden from your league list.')
+                        onDeleted()
+                    }
                 } catch (error) {
-                    showAlert('Error', getErrorMessage(error))
+                    if (ownsMutation(mutation)) showAlert('Error', getErrorMessage(error))
                 } finally {
-                    setBusyAction(null)
+                    finishMutation(mutation)
                 }
             },
             'Archive League',
@@ -135,5 +179,6 @@ export function useCommissionerAdminActions({
         )
     }
 
+    const busyAction = busy?.ownerKey === ownerKey ? busy.action : null
     return { ...actions, busyAction, handleDeleteLeague }
 }

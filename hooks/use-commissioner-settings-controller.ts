@@ -17,8 +17,9 @@ export function useCommissionerSettingsController() {
         refresh,
         onSaved: back,
     })
-    const overrides = useCommissionerOverrides(league?.id, settings.members)
+    const overrides = useCommissionerOverrides(user?.id ?? null, league?.id, settings.members)
     const admin = useCommissionerAdminActions({
+        ownerId: user?.id ?? null,
         league,
         refresh,
         onDeleted: back,
