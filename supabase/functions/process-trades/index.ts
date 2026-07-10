@@ -4,7 +4,12 @@ import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
 import { deliverTradeNotificationOutbox } from './outbox.ts'
-import { settleTradeNotificationReceipts, type ExpoPushReceipt, type TradeNotificationReceiptRow } from './receipts.ts'
+import {
+  deferTradeNotificationReceipts,
+  settleTradeNotificationReceipts,
+  type ExpoPushReceipt,
+  type TradeNotificationReceiptRow,
+} from './receipts.ts'
 
 const PROCESS_BATCH_LIMIT = 50
 const OUTBOX_BATCH_LIMIT = 200
@@ -139,7 +144,7 @@ async function drainNotificationReceipts(): Promise<{
     receipts = await fetchExpoReceipts(rows.map((row) => row.expo_ticket_id))
   } catch (receiptError) {
     const message = receiptError instanceof Error ? receiptError.message : String(receiptError)
-    await Promise.all(rows.map((row) => deferReceipt(row, message)))
+    await deferTradeNotificationReceipts(rows, (row) => deferReceipt(row, message))
     return { delivered: 0, retried: 0, deferred: rows.length, discarded: 0, deadLettered: 0 }
   }
 
@@ -149,7 +154,10 @@ async function drainNotificationReceipts(): Promise<{
     .select('id, user_id')
     .in('id', memberIds)
   if (memberError) {
-    await Promise.all(rows.map((row) => deferReceipt(row, `Receipt member lookup failed: ${memberError.message}`)))
+    await deferTradeNotificationReceipts(
+      rows,
+      (row) => deferReceipt(row, `Receipt member lookup failed: ${memberError.message}`),
+    )
     return { delivered: 0, retried: 0, deferred: rows.length, discarded: 0, deadLettered: 0 }
   }
   const userByMemberId = new Map((members ?? []).map((member) => [member.id, member.user_id]))
