@@ -30,6 +30,8 @@ const getPath = (value, dottedPath) => dottedPath
     return current[key]
   }, value)
 
+const isFiniteNonnegativeNumber = (value) => Number.isFinite(value) && value >= 0
+
 export const validateManifest = (manifest) => {
   const failures = []
   const workflows = manifest.workflows ?? []
@@ -93,18 +95,18 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
 
   if (report.draftPerf?.longTaskSupported !== true || report.homePerf?.longTaskSupported !== true) failures.push('browser long-task observation was unavailable')
   for (const [surface, measurement] of [['draft', report.draftPerf], ['home', report.homePerf]]) {
-    if (!Number.isFinite(measurement?.maxLagMs) || measurement.maxLagMs < 0) {
+    if (!isFiniteNonnegativeNumber(measurement?.maxLagMs)) {
       failures.push(`${surface} heartbeat lag must be a finite nonnegative number`)
     } else if (measurement.maxLagMs > budgets.maxHeartbeatLagMs) {
       failures.push(`${surface} heartbeat lag ${measurement.maxLagMs}ms exceeds ${budgets.maxHeartbeatLagMs}ms`)
     }
-    if (!Number.isFinite(measurement?.maxLongTaskMs) || measurement.maxLongTaskMs < 0) {
+    if (!isFiniteNonnegativeNumber(measurement?.maxLongTaskMs)) {
       failures.push(`${surface} max long task must be a finite nonnegative number`)
     } else if (measurement.maxLongTaskMs > budgets.longTaskMs) {
       failures.push(`${surface} long task ${measurement.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
     }
   }
-  if (!Number.isFinite(report.load?.durationMs) || report.load.durationMs < 0) {
+  if (!isFiniteNonnegativeNumber(report.load?.durationMs)) {
     failures.push('mutation loop duration must be a finite nonnegative number')
   } else if (report.load.durationMs > budgets.maxMutationLoopMs) {
     failures.push(`mutation loop ${report.load.durationMs}ms exceeds ${budgets.maxMutationLoopMs}ms`)
@@ -116,8 +118,8 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
 }
 
 const budgetMeasurementKeys = {
-  feedbackMs: 'feedbackMs',
-  fullLoadMs: 'coldFullLoadMs',
+  feedbackMs: { key: 'feedbackMs', label: 'feedback' },
+  fullLoadMs: { key: 'coldFullLoadMs', label: 'cold full load' },
 }
 
 /** @param {any} manifest @param {any} report @param {string} reportPath @param {ReleaseProvenance} [expectedProvenance] */
@@ -145,17 +147,19 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath, expecte
       continue
     }
 
-    for (const [budgetKey, measurementKey] of Object.entries(budgetMeasurementKeys)) {
-      if (workflow.budgets?.[budgetKey] != null && !Number.isFinite(measurement[measurementKey])) {
-        failures.push(`${workflow.id}: ${reportPath} is missing numeric ${measurementKey}`)
+    for (const [budgetKey, timing] of Object.entries(budgetMeasurementKeys)) {
+      if (workflow.budgets?.[budgetKey] != null && !isFiniteNonnegativeNumber(measurement[timing.key])) {
+        failures.push(`${workflow.id}: ${reportPath} ${timing.label} must be a finite nonnegative number`)
       }
     }
-    const timedWarmRequest = Number.isInteger(measurement.warmRequestCount) && measurement.warmRequestCount > 0 &&
-      Number.isFinite(measurement.warmCachedRequestMs) && measurement.warmCachedRequestMs >= 0
+    const hasTimedWarmRequest = Number.isInteger(measurement.warmRequestCount) && measurement.warmRequestCount > 0
+    const timedWarmRequest = hasTimedWarmRequest && isFiniteNonnegativeNumber(measurement.warmCachedRequestMs)
     const explicitNoWarmRequest = measurement.warmRequestCount === 0 && measurement.warmCachedRequestMs == null &&
       measurement.warmRequestEvidence === 'no-fetch-or-xhr-observed'
     if (!timedWarmRequest && !explicitNoWarmRequest) {
-      failures.push(`${workflow.id}: ${reportPath} is missing explicit warm request evidence`)
+      failures.push(hasTimedWarmRequest
+        ? `${workflow.id}: ${reportPath} warmed cached request must be a finite nonnegative number`
+        : `${workflow.id}: ${reportPath} is missing explicit warm request evidence`)
     }
     if (measurement.feedbackObserved !== true || !measurement.feedbackInteraction) failures.push(`${workflow.id}: ${reportPath} is missing observed interaction feedback`)
     if (workflow.id === 'home-live-lineup') {
@@ -184,13 +188,13 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath, expecte
       }
     }
 
-    if (measurement.feedbackMs != null && measurement.feedbackMs > workflow.budgets.feedbackMs) {
+    if (isFiniteNonnegativeNumber(measurement.feedbackMs) && measurement.feedbackMs > workflow.budgets.feedbackMs) {
       failures.push(`${workflow.id}: ${reportPath} feedback ${measurement.feedbackMs}ms exceeds ${workflow.budgets.feedbackMs}ms`)
     }
-    if (measurement.warmCachedRequestMs != null && measurement.warmCachedRequestMs > workflow.budgets.cachedRequestMs) {
+    if (isFiniteNonnegativeNumber(measurement.warmCachedRequestMs) && measurement.warmCachedRequestMs > workflow.budgets.cachedRequestMs) {
       failures.push(`${workflow.id}: ${reportPath} warmed cached request ${measurement.warmCachedRequestMs}ms exceeds ${workflow.budgets.cachedRequestMs}ms`)
     }
-    if (measurement.coldFullLoadMs != null && measurement.coldFullLoadMs > workflow.budgets.fullLoadMs) {
+    if (isFiniteNonnegativeNumber(measurement.coldFullLoadMs) && measurement.coldFullLoadMs > workflow.budgets.fullLoadMs) {
       failures.push(`${workflow.id}: ${reportPath} cold full load ${measurement.coldFullLoadMs}ms exceeds ${workflow.budgets.fullLoadMs}ms`)
     }
   }
@@ -236,7 +240,7 @@ export const validateDataLatencyReport = (manifest, report, requireComplete, exp
     if (requireComplete && measured.status !== 'PASS') {
       failures.push(`${workflow.id}: data latency workflow status is ${measured.status ?? 'missing'}`)
     }
-    if (!Number.isFinite(measured.totalMedianMs) || measured.totalMedianMs < 0) {
+    if (!isFiniteNonnegativeNumber(measured.totalMedianMs)) {
       failures.push(`${workflow.id}: data latency total must be a finite nonnegative number`)
     } else if (measured.totalMedianMs > workflowBudget) {
       failures.push(`${workflow.id}: data latency total ${measured.totalMedianMs}ms exceeds ${workflowBudget}ms`)
@@ -267,12 +271,12 @@ export const validateDataLatencyReport = (manifest, report, requireComplete, exp
       }
       if (step.status !== 'PASS') {
         failures.push(`${workflow.id}: data step ${step.label} status ${step.status}${step.error ? ` (${step.error})` : ''}`)
-      } else if (!Number.isFinite(step.medianMs) || step.medianMs < 0) {
+      } else if (!isFiniteNonnegativeNumber(step.medianMs)) {
         failures.push(`${workflow.id}: data step ${step.label} median must be a finite nonnegative number`)
       } else if (step.medianMs > requestBudget) {
         failures.push(`${workflow.id}: data step ${step.label} ${step.medianMs}ms exceeds ${requestBudget}ms`)
       }
-      if (step.status === 'PASS' && (!Number.isFinite(step.maxMs) || step.maxMs < 0)) {
+      if (step.status === 'PASS' && !isFiniteNonnegativeNumber(step.maxMs)) {
         failures.push(`${workflow.id}: data step ${step.label} max must be a finite nonnegative number`)
       } else if (step.status === 'PASS' && step.maxMs > manifest.globalBudgets.maxDbQueryMs) {
         failures.push(`${workflow.id}: data step ${step.label} max ${step.maxMs}ms exceeds ${manifest.globalBudgets.maxDbQueryMs}ms`)

@@ -719,6 +719,43 @@ describe('release E2E contracts', () => {
     }, 'report.json')).toEqual([])
   })
 
+  it('rejects missing, nonnumeric, and negative workflow timing evidence', () => {
+    const manifest = {
+      globalBudgets: { maxInitialWebJsKb: 350, maxRouteWebJsKb: 220 },
+      workflows: [{
+        id: 'workflow',
+        budgets: { feedbackMs: 100, cachedRequestMs: 300, fullLoadMs: 1000 },
+        measurement: { report: 'report.json' },
+      }],
+    }
+    const measurement = {
+      id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, warmRequestCount: 1,
+      warmRequestEvidence: 'fetch-or-xhr-duration', coldFullLoadMs: 3,
+      feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 1,
+      routeJsCacheHit: false, routeJsEntryCount: 1, routeJsNetworkEntryCount: 1,
+      routeJsDecodedKb: 2, routeJsEncodedKb: 1,
+      routeJsLedger: [{ url: 'https://app.test/route.js', encodedBodySize: 1024, decodedBodySize: 2048 }],
+    }
+    const cases = [
+      ['feedbackMs', 'workflow: report.json feedback must be a finite nonnegative number'],
+      ['coldFullLoadMs', 'workflow: report.json cold full load must be a finite nonnegative number'],
+      ['warmCachedRequestMs', 'workflow: report.json warmed cached request must be a finite nonnegative number'],
+    ] as const
+
+    for (const [field, failure] of cases) {
+      for (const value of [undefined, Number.NaN, -1]) {
+        expect(validateWorkflowReportKeys(manifest, {
+          status: 'PASS',
+          workflowMeasurements: [{ ...measurement, [field]: value }],
+        }, 'report.json')).toContain(failure)
+      }
+      expect(validateWorkflowReportKeys(manifest, {
+        status: 'PASS',
+        workflowMeasurements: [{ ...measurement, [field]: 0 }],
+      }, 'report.json')).toEqual([])
+    }
+  })
+
   it('rejects oversized cached chunks and report-controlled data budgets', () => {
     const workflow = {
       id: 'workflow', budgets: { feedbackMs: 100, cachedRequestMs: 300, fullLoadMs: 1000 },
