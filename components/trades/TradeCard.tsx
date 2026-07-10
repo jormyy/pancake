@@ -372,6 +372,7 @@ const styles = StyleSheet.create({
     },
     actionBtn: {
         flex: 1,
+        minHeight: 44,
         paddingVertical: 9,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,

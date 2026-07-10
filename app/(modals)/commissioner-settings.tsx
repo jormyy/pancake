@@ -11,7 +11,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack } from 'expo-router'
 import type { TradeVetoMode, WaiverMode } from '@/lib/league'
 import { colors } from '@/constants/tokens'
-import type { CommissionerAction } from '@/components/commissioner/settings-policy'
+import type { CommissionerAction } from '@/lib/commissioner-settings-policy'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import { styles } from '@/components/commissioner/settings-styles'
 import { EmptyState } from '@/components/EmptyState'
@@ -64,7 +64,9 @@ export default function CommissionerSettingsScreen() {
     }
 
     function renderAction(action: CommissionerAction, grid = false) {
-        const color = action.color ?? colors.primary
+        const color = action.intent === 'danger'
+            ? colors.danger
+            : action.intent === 'primary' ? colors.primaryDark : colors.primary
         const accessibilityLabel = action.description ? `${action.label}. ${action.description}` : action.label
         const button = (
             <Pressable
@@ -342,7 +344,7 @@ export default function CommissionerSettingsScreen() {
                             {renderAction({
                                 id: 'delete-league',
                                 label: 'Delete League',
-                                color: colors.danger,
+                                intent: 'danger',
                                 onPress: handleDeleteLeague,
                                 description: 'Permanently removes the league, all rosters, history, and picks for every manager. This cannot be undone.',
                             })}

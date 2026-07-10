@@ -3,13 +3,12 @@ import type { LeagueInfo } from '@/types/app'
 import { apiPost } from '@/lib/shared/api'
 import { advanceSeason } from '@/lib/rookieDraft'
 import { deleteLeague } from '@/lib/league'
-import { colors } from '@/constants/tokens'
 import { confirmAction, getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
 import {
     commissionerLifecyclePolicy,
     type CommissionerAction,
     type CommissionerActionId,
-} from '@/components/commissioner/settings-policy'
+} from '@/lib/commissioner-settings-policy'
 
 export function useCommissionerAdminActions({
     league,
@@ -50,7 +49,7 @@ export function useCommissionerAdminActions({
             {
                 id: 'reset-schedule',
                 label: 'Reset & Regenerate Schedule',
-                color: colors.danger,
+                intent: 'danger',
                 description: 'Deletes every existing matchup and rebuilds the season schedule from scratch.',
                 onPress: () => confirmAction(
                     'Reset Schedule',
@@ -75,7 +74,7 @@ export function useCommissionerAdminActions({
         const annualCycleActions: CommissionerAction[] = [{
             id: 'advance-season',
             label: 'Advance to Next Season',
-            color: colors.primaryDark,
+            intent: 'primary',
             description: 'Closes the current season and rolls all teams into the next league year. The finished season becomes read-only history.',
             onPress: () => league ? confirmAction(
                 'Advance Season',

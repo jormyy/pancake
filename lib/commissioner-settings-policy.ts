@@ -20,7 +20,7 @@ export type CommissionerAction = {
     id: CommissionerActionId
     label: string
     onPress: () => void | Promise<void>
-    color?: string
+    intent?: 'primary' | 'danger'
     description?: string
 }
 
