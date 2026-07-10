@@ -21,12 +21,14 @@ import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { bindBrowserScenarioRunners } from './browser-scenario-contract.mjs'
+import { resolveReleaseProvenance } from './release-provenance.mjs'
 
 /** @param {unknown} error */
 const errorText = (error) => error instanceof Error ? error.message : error == null ? null : String(error)
 const REGISTRY_ARTIFACT_ROOT = path.join(process.cwd(), 'tests/artifacts/registry')
 
 export const writeRegisteredScenarioReport = async (scenario, context, { outcome, primaryError, cleanupError }) => {
+  const provenance = context.provenance ?? await resolveReleaseProvenance()
   const result = outcome.ok ? outcome.value : null
   const resultPassed = result != null && typeof result === 'object' && Reflect.get(result, 'status') === 'PASS'
   const contractError = outcome.ok && !resultPassed
@@ -40,6 +42,7 @@ export const writeRegisteredScenarioReport = async (scenario, context, { outcome
     season: context.season,
     error: errorText(primaryError) ?? contractError,
     cleanupError: errorText(cleanupError),
+    provenance,
     result,
   }
   const registryRoot = context.registryArtifactRoot ?? REGISTRY_ARTIFACT_ROOT

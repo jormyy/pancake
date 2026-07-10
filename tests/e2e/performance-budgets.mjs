@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { resolveReleaseProvenance, validateReleaseProvenance } from './release-provenance.mjs'
 
 const ROOT = process.cwd()
 const MANIFEST_PATH = path.join(ROOT, 'tests/e2e/performance-budgets.json')
@@ -81,7 +82,7 @@ export const validateManifest = (manifest) => {
   return failures
 }
 
-export const validateBrowserPerfReport = (manifest, report) => {
+export const validateBrowserPerfReport = (manifest, report, expectedProvenance = undefined) => {
   const failures = []
   const budgets = manifest.globalBudgets
 
@@ -100,7 +101,7 @@ export const validateBrowserPerfReport = (manifest, report) => {
   if (report.draftPerf?.maxLongTaskMs > budgets.longTaskMs) failures.push(`draft long task ${report.draftPerf.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
   if (report.homePerf?.maxLongTaskMs > budgets.longTaskMs) failures.push(`home long task ${report.homePerf.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
 
-  failures.push(...validateWorkflowReportKeys(manifest, report, 'tests/e2e-browser-perf-report.md'))
+  failures.push(...validateWorkflowReportKeys(manifest, report, 'tests/e2e-browser-perf-report.md', expectedProvenance))
 
   return failures
 }
@@ -111,8 +112,9 @@ const budgetMeasurementKeys = {
   fullLoadMs: 'coldFullLoadMs',
 }
 
-export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
+export const validateWorkflowReportKeys = (manifest, report, reportPath, expectedProvenance = undefined) => {
   const failures = []
+  failures.push(...validateReleaseProvenance(report, expectedProvenance, reportPath))
   if (report.status !== 'PASS') {
     failures.push(`${reportPath} status is ${report.status ?? 'missing'}`)
   }
@@ -180,8 +182,9 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
   return failures
 }
 
-export const validateDataLatencyReport = (manifest, report, requireComplete) => {
+export const validateDataLatencyReport = (manifest, report, requireComplete, expectedProvenance = undefined) => {
   const failures = []
+  failures.push(...validateReleaseProvenance(report, expectedProvenance, 'data latency report'))
   const byWorkflow = new Map((report.workflows ?? []).map((workflow) => [workflow.id, workflow]))
   const workflows = manifest.workflows ?? []
   const requestBudget = manifest.globalBudgets.maxDbQueryMs
@@ -228,7 +231,7 @@ export const validateDataLatencyReport = (manifest, report, requireComplete) => 
   return failures
 }
 
-export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons) => {
+export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons, expectedProvenance = undefined) => {
   const failures = []
   const byKey = new Map(reports.map((report) => [`${report.scenario}:${report.season}`, report]))
   for (let season = 1; season <= expectedSeasons; season += 1) {
@@ -238,14 +241,15 @@ export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons
         failures.push(`season ${season}: retained ${scenario} report is missing`)
         continue
       }
+      failures.push(...validateReleaseProvenance(retained, expectedProvenance, `season ${season} retained ${scenario}`))
       if (retained.status !== 'PASS') failures.push(`season ${season}: retained ${scenario} status is ${retained.status ?? 'missing'}`)
       if (!retained.result || typeof retained.result !== 'object') {
         failures.push(`season ${season}: retained ${scenario} result is missing`)
         continue
       }
       const reportFailures = scenario === 'performance'
-        ? validateBrowserPerfReport(manifest, retained.result)
-        : validateWorkflowReportKeys(manifest, retained.result, reportPath)
+        ? validateBrowserPerfReport(manifest, retained.result, expectedProvenance)
+        : validateWorkflowReportKeys(manifest, retained.result, reportPath, expectedProvenance)
       failures.push(...reportFailures.map((failure) => `season ${season}: ${failure}`))
     }
   }
@@ -302,6 +306,15 @@ const main = async () => {
   const reportPresent = existsSync(PERF_REPORT_PATH)
   const dataReportPresent = existsSync(DATA_LATENCY_REPORT_PATH)
   const reportFailures = []
+  const optionalReports = Array.from(new Set(
+    manifest.workflows
+      .map((workflow) => workflow.measurement?.report)
+      .filter((reportPath) => reportPath && reportPath !== 'tests/e2e-browser-perf-report.md'),
+  ))
+  const hasWorkflowReport = optionalReports.some((reportPath) => existsSync(path.join(ROOT, reportPath)))
+  const expectedProvenance = reportPresent || dataReportPresent || hasWorkflowReport || requiredSeasonReports > 0
+    ? await resolveReleaseProvenance()
+    : undefined
 
   if (cliArgs.some((arg) => arg.startsWith('--require-season-reports=')) && (!Number.isInteger(requiredSeasonReports) || requiredSeasonReports < 1)) reportFailures.push('--require-season-reports must be a positive integer')
 
@@ -312,23 +325,18 @@ const main = async () => {
     reportFailures.push(`required data latency report is missing: ${path.relative(ROOT, DATA_LATENCY_REPORT_PATH)}`)
   }
   if (reportPresent) {
-    reportFailures.push(...validateBrowserPerfReport(manifest, readJsonFile(PERF_REPORT_PATH)))
+    reportFailures.push(...validateBrowserPerfReport(manifest, readJsonFile(PERF_REPORT_PATH), expectedProvenance))
   }
   if (dataReportPresent) {
-    reportFailures.push(...validateDataLatencyReport(manifest, readJsonFile(DATA_LATENCY_REPORT_PATH), requireDataReport))
+    reportFailures.push(...validateDataLatencyReport(manifest, readJsonFile(DATA_LATENCY_REPORT_PATH), requireDataReport, expectedProvenance))
   }
-  const optionalReports = Array.from(new Set(
-    manifest.workflows
-      .map((workflow) => workflow.measurement?.report)
-      .filter((reportPath) => reportPath && reportPath !== 'tests/e2e-browser-perf-report.md'),
-  ))
   for (const reportPath of optionalReports) {
     const absoluteReportPath = path.join(ROOT, reportPath)
     if (!existsSync(absoluteReportPath)) {
       if (requireWorkflowReports) reportFailures.push(`required workflow report is missing: ${reportPath}`)
       continue
     }
-    reportFailures.push(...validateWorkflowReportKeys(manifest, readJsonFile(absoluteReportPath), reportPath))
+    reportFailures.push(...validateWorkflowReportKeys(manifest, readJsonFile(absoluteReportPath), reportPath, expectedProvenance))
   }
   if (requiredSeasonReports > 0) {
     const retainedReports = []
@@ -339,7 +347,7 @@ const main = async () => {
         if (existsSync(reportPath)) retainedReports.push(readJsonFile(reportPath))
       }
     }
-    reportFailures.push(...validateRetainedSeasonReports(manifest, retainedReports, requiredSeasonReports))
+    reportFailures.push(...validateRetainedSeasonReports(manifest, retainedReports, requiredSeasonReports, expectedProvenance))
   }
 
   await writeReport({ manifest, manifestFailures, reportFailures, reportPresent, dataReportPresent })

@@ -59,10 +59,18 @@ const allowedConsoleErrorPatterns = [
   /favicon\.ico.*(?:404|not found)/i,
 ]
 
-/** @param {{ consoleOutput: string; errorOutput: string }} output */
-export const browserDiagnosticFailures = ({ consoleOutput, errorOutput }) => {
+/** @param {{ consoleOutput: string; errorOutput: string; networkOutput?: string }} output */
+export const browserDiagnosticFailures = ({ consoleOutput, errorOutput, networkOutput = undefined }) => {
   /** @type {string[]} */
   const failures = []
+  for (const [label, output] of Object.entries({ console: consoleOutput, errors: errorOutput })) {
+    if (typeof output !== 'string' || output.includes(`${label} unavailable:`)) {
+      failures.push(`${label} diagnostics unavailable`)
+    }
+  }
+  if (networkOutput !== undefined && (typeof networkOutput !== 'string' || networkOutput.includes('network unavailable:'))) {
+    failures.push('network diagnostics unavailable')
+  }
   const browserErrors = normalizeBrowserErrors(errorOutput)
   if (browserErrors) failures.push(`browser errors: ${browserErrors}`)
   const consoleErrors = consoleOutput

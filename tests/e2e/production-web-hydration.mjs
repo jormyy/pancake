@@ -4,6 +4,7 @@ import path from 'node:path'
 import { clickLinkByName, createBrowser, fillSignInCredentials } from './browser-agent.mjs'
 import { browserDiagnosticFailures } from './browser-runtime-overrides.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
+import { resolveReleaseProvenance } from './release-provenance.mjs'
 
 const frontendUrl = process.env.E2E_FRONTEND_URL ?? 'http://127.0.0.1:8082'
 const artifactPath = path.join(process.cwd(), 'tests/artifacts/stack/production-hydration.json')
@@ -23,6 +24,7 @@ const waitForPath = async (pathname) => {
 }
 
 const verifyHydration = async () => runWithScenarioResourceOwner('production-web-hydration', async () => {
+  const provenance = await resolveReleaseProvenance()
   await browser(session, ['open', frontendUrl])
   await waitForPath('/sign-in')
   await fillSignInCredentials(browser, session, 'hydration-check@example.com', 'not-a-real-password')
@@ -39,7 +41,7 @@ const verifyHydration = async () => runWithScenarioResourceOwner('production-web
   ])
   const failures = productionBrowserFailures({ consoleOutput, errorOutput })
   if (failures.length > 0) throw new Error(`Production hydration diagnostics failed: ${failures.join('; ')}`)
-  return { status: 'PASS', finalUrl, consoleOutput, errorOutput }
+  return { status: 'PASS', finalUrl, consoleOutput, errorOutput, provenance }
 })
 
 const main = async () => {

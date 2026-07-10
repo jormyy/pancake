@@ -5,6 +5,7 @@ import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import { describeEndpoint, resolvedEnv, requireEnv } from './env.mjs'
 import { resolveSchemaProvenance } from './schema-provenance.mjs'
+import { resolveReleaseProvenance } from './release-provenance.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -360,6 +361,7 @@ const main = async () => {
 
   const context = await findContext(client, state)
   const schemaProvenance = await resolveSchemaProvenance()
+  const provenance = await resolveReleaseProvenance()
   const workflowPromises = buildWorkflows(client, state, context)
   const workflows = []
   for (const workflowPromise of workflowPromises) workflows.push(await workflowPromise)
@@ -386,6 +388,7 @@ const main = async () => {
     runId: state.runId,
     leagueId: state.leagueId,
     user: user.email,
+    provenance,
     ...schemaProvenance,
     budgets: {
       dataRequestMs: DATA_REQUEST_BUDGET_MS,

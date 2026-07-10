@@ -7,6 +7,7 @@ import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-ru
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
 import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
+import { resolveReleaseProvenance } from './release-provenance.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -360,6 +361,7 @@ export async function runBrowserSmoke({
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, scenario)
   await mkdir(artifactDir, { recursive: true })
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
+  const provenance = await resolveReleaseProvenance()
 
   const visited = []
   const workflowMeasurements = []
@@ -464,6 +466,7 @@ export async function runBrowserSmoke({
       visited,
       workflowMeasurements,
       initialJavaScriptDelivery,
+      provenance,
       artifactDir,
       notes,
     }

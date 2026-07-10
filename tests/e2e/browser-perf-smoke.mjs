@@ -8,6 +8,7 @@ import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-ru
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
 import { createDisposableLeagueFromSeedUsers } from './soak-fixtures.mjs'
+import { resolveReleaseProvenance } from './release-provenance.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -407,6 +408,7 @@ export async function runBrowserPerfSmoke({
   const peerSession = `${session}-peer`
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-perf')
   await mkdir(artifactDir, { recursive: true })
+  const provenance = await resolveReleaseProvenance()
 
   const notes = [
     `Frontend: ${describeEndpoint(env.frontendUrl)}`,
@@ -521,6 +523,7 @@ export async function runBrowserPerfSmoke({
       draftPerf,
       homePerf,
       initialJavaScriptDelivery,
+      provenance,
       navigationDiagnostics: {
         activeAuctionOpen: { wallMs: activeOpenWallMs, pageState: activeOpenPageState },
         coldHome: coldHomeNavigationDiagnostic,

@@ -117,6 +117,8 @@ describe('release E2E contracts', () => {
     expect(productionBrowserFailures({ consoleOutput: '', errorOutput: 'TypeError: render failed' }))
       .toEqual([expect.stringContaining('browser errors')])
     expect(productionBrowserFailures({ consoleOutput: '[warn] benign warning', errorOutput: '' })).toEqual([])
+    expect(productionBrowserFailures({ consoleOutput: 'console unavailable: transport failed', errorOutput: '' }))
+      .toContain('console diagnostics unavailable')
   })
 
   it('gates every browser evidence surface on console and browser errors', async () => {
@@ -206,7 +208,7 @@ describe('release E2E contracts', () => {
     tempDirs.push(registryArtifactRoot)
     await writeRegisteredScenarioReport(
       { id: 'smoke', evidenceId: 'browser.smoke', evidence: 'smoke evidence' },
-      { season: 3, registryArtifactRoot },
+      { season: 3, registryArtifactRoot, provenance: { commitSha: 'a', runId: 'run', bundleDigest: 'bundle' } },
       { outcome: { ok: false }, primaryError: new Error('setup failed'), cleanupError: null },
     )
     const report = JSON.parse(await readFile(path.join(registryArtifactRoot, 'smoke-season-3.json'), 'utf8'))
@@ -218,11 +220,26 @@ describe('release E2E contracts', () => {
     tempDirs.push(registryArtifactRoot)
     await writeRegisteredScenarioReport(
       { id: 'smoke', evidenceId: 'browser.smoke', evidence: 'smoke evidence' },
-      { season: 2, registryArtifactRoot },
+      { season: 2, registryArtifactRoot, provenance: { commitSha: 'a', runId: 'run', bundleDigest: 'bundle' } },
       { outcome: { ok: true, value: {} }, primaryError: null, cleanupError: null },
     )
     expect(JSON.parse(await readFile(path.join(registryArtifactRoot, 'smoke-season-2.json'), 'utf8')))
       .toMatchObject({ status: 'FAIL', error: 'Scenario returned no status instead of PASS' })
+  })
+
+  it('rejects copied evidence from another commit, run, or bundle', () => {
+    const expected = { commitSha: 'a'.repeat(40), runId: 'run-current', bundleDigest: 'b'.repeat(64) }
+    const manifest = { globalBudgets: { maxInitialWebJsKb: 350, maxRouteWebJsKb: 220 }, workflows: [] }
+    const failures = validateWorkflowReportKeys(manifest, {
+      status: 'PASS',
+      provenance: { commitSha: 'c'.repeat(40), runId: 'run-stale', bundleDigest: 'd'.repeat(64) },
+      workflowMeasurements: [],
+    }, 'report.json', expected)
+    expect(failures).toEqual(expect.arrayContaining([
+      expect.stringContaining('provenance commitSha'),
+      expect.stringContaining('provenance runId'),
+      expect.stringContaining('provenance bundleDigest'),
+    ]))
   })
 
   it('requires smoke and performance timing evidence for every retained season', () => {
