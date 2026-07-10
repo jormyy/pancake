@@ -1,5 +1,5 @@
 import { normalizeName } from '../_shared/nameMatch.ts'
-import * as cheerio from 'npm:cheerio'
+import * as cheerio from 'npm:cheerio@1.2.0'
 
 type CheerioSelection = ReturnType<cheerio.CheerioAPI>
 

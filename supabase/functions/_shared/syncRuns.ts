@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
 import { requiredSecretKey } from './supabase.ts'
 import { errorMessage } from './responses.ts'
 

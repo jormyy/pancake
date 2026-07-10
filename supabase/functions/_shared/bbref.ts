@@ -1,5 +1,5 @@
-import * as cheerio from 'npm:cheerio'
-import type { AnyNode } from 'npm:domhandler'
+import * as cheerio from 'npm:cheerio@1.2.0'
+import type { AnyNode } from 'npm:domhandler@5.0.3'
 import { errorMessage, errorStatus } from './responses.ts'
 
 const BBREF_BASE = 'https://www.basketball-reference.com'

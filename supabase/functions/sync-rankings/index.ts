@@ -4,7 +4,7 @@ import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { buildDynastyRankingPayload, RANKINGS_SOURCE, type PlayerForRanking } from './match.ts'
 import { parseDynastyRankingsHtml, selectedDynastyRankingType, type RankingRow } from './parser.ts'
-import * as cheerio from 'npm:cheerio'
+import * as cheerio from 'npm:cheerio@1.2.0'
 
 const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
 const POINTS_RANKING_TYPE = 'POINT'

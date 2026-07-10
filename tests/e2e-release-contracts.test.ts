@@ -269,15 +269,20 @@ describe('release E2E contracts', () => {
     await writeFile(configPath, '[functions.api]\nverify_jwt = false\n')
     await writeFile(path.join(functionsRoot, 'api.ts'), "import { runtimeValue } from '../../constants/runtime.ts'\nexport { runtimeValue }\n")
 
-    const options = { functionsRoot, metadataPath, artifactRoot: root, configPaths: [configPath] }
+    const lockPath = path.join(root, 'deno.lock')
+    await writeFile(lockPath, '{"version":"5"}\n')
+    const options = { functionsRoot, metadataPath, artifactRoot: root, deploymentInputPaths: [configPath, lockPath] }
     const initial = await digestEdgeArtifact(options)
     await writeFile(dependencyPath, 'export const runtimeValue = 2\n')
     const dependencyChanged = await digestEdgeArtifact(options)
     await writeFile(configPath, '[functions.api]\nverify_jwt = true\n')
     const configChanged = await digestEdgeArtifact(options)
+    await writeFile(lockPath, '{"version":"5","remote":{"dependency":"digest"}}\n')
+    const lockChanged = await digestEdgeArtifact(options)
 
     expect(dependencyChanged).not.toBe(initial)
     expect(configChanged).not.toBe(dependencyChanged)
+    expect(lockChanged).not.toBe(configChanged)
   })
 
   it('requires independent deployed frontend and Edge attestations', () => {
