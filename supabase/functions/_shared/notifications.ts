@@ -56,6 +56,13 @@ export const notifyMembers = createNotifyMembers({
       .in('id', userIds)
     return { data, error }
   },
+  invalidateToken: async (userId, token) => {
+    const { data, error } = await supabase.rpc('clear_push_token_for_user_atomic', {
+      p_user_id: userId,
+      p_token: token,
+    })
+    return { data: data ?? false, error }
+  },
   send: (url, init) => fetch(url, init),
   pushUrl: EXPO_PUSH_URL,
 })

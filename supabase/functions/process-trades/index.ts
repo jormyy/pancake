@@ -29,6 +29,7 @@ async function processAcceptedTrades(): Promise<{
   failures: string[]
   notificationsDelivered: number
   notificationsDeferred: number
+  notificationsDiscarded: number
 }> {
   const expired = await expirePendingTrades()
 
@@ -54,10 +55,11 @@ async function processAcceptedTrades(): Promise<{
     failures: partitioned.terminalFailures.map(tradeFailureMessage),
     notificationsDelivered: notificationResult.delivered,
     notificationsDeferred: notificationResult.failed,
+    notificationsDiscarded: notificationResult.discarded,
   }
 }
 
-async function drainNotificationOutbox(): Promise<{ delivered: number; failed: number }> {
+async function drainNotificationOutbox(): Promise<{ delivered: number; failed: number; discarded: number }> {
   const { data, error } = await supabase.rpc('claim_notification_outbox_atomic', {
     p_limit: OUTBOX_BATCH_LIMIT,
     p_lease_seconds: 60,

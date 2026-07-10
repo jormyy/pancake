@@ -1,6 +1,7 @@
 import {
   createNotifyMember,
   createNotifyMembers,
+  isPermanentNotificationFailure,
   NotificationDeliveryError,
   type NotificationBatchDependencies,
   type NotificationDeliveryFailureCode,
@@ -106,6 +107,57 @@ Deno.test('notification boundary returns explicit sent and skipped outcomes', as
   }))('member-a', 'Title', 'Body')
   if (missingToken.status !== 'skipped' || missingToken.reason !== 'missing_push_token') {
     throw new Error('missing push token did not return an explicit skip')
+  }
+})
+
+Deno.test('bulk notification delivery clears invalid tokens and classifies the rejection as permanent', async () => {
+  const invalidated: Array<{ userId: string; token: string }> = []
+  const batchDependencies: NotificationBatchDependencies = {
+    members: async () => ({ data: [{ id: 'member-a', user_id: 'user-a' }], error: null }),
+    preferences: async () => ({
+      data: [{
+        user_id: 'user-a',
+        trade_enabled: true,
+        waiver_enabled: true,
+        draft_enabled: true,
+        activity_enabled: true,
+      }],
+      error: null,
+    }),
+    profiles: async () => ({
+      data: [{ id: 'user-a', push_token: 'ExponentPushToken[invalid]' }],
+      error: null,
+    }),
+    invalidateToken: async (userId, token) => {
+      invalidated.push({ userId, token })
+      return { data: true, error: null }
+    },
+    send: async () => Response.json({
+      data: [{
+        status: 'error',
+        message: 'The device is not registered',
+        details: { error: 'DeviceNotRegistered' },
+      }],
+    }),
+    pushUrl: 'https://push.invalid/send',
+  }
+
+  try {
+    await createNotifyMembers(batchDependencies)([{
+      memberId: 'member-a',
+      title: 'Accepted Trade Expired',
+      body: 'Check the trade activity.',
+      category: 'trade',
+    }])
+    throw new Error('expected invalid token delivery to fail')
+  } catch (error) {
+    if (!isPermanentNotificationFailure(error)) throw error
+  }
+  if (JSON.stringify(invalidated) !== JSON.stringify([{
+    userId: 'user-a',
+    token: 'ExponentPushToken[invalid]',
+  }])) {
+    throw new Error(`invalid token was not cleared exactly once: ${JSON.stringify(invalidated)}`)
   }
 })
 

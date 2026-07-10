@@ -3,6 +3,7 @@ import { runBounded } from './runBounded.ts'
 const PUSH_TIMEOUT_MS = 8000
 const EXPO_BATCH_SIZE = 100
 const EXPO_BATCH_CONCURRENCY = 2
+const PERMANENT_EXPO_ERRORS = new Set(['DeviceNotRegistered', 'InvalidCredentials', 'MessageTooBig'])
 
 type NotificationCategory = 'trade' | 'waiver' | 'draft' | 'activity'
 type NotificationPreferenceColumn = 'trade_enabled' | 'waiver_enabled' | 'draft_enabled' | 'activity_enabled'
@@ -37,6 +38,8 @@ export class NotificationDeliveryError extends Error {
   readonly code: NotificationDeliveryFailureCode
   readonly memberId: string
   readonly userId: string | null
+  readonly retryable: boolean
+  readonly expoError: string | null
 
   constructor({
     code,
@@ -44,18 +47,24 @@ export class NotificationDeliveryError extends Error {
     memberId,
     userId = null,
     cause,
+    retryable = true,
+    expoError = null,
   }: {
     code: NotificationDeliveryFailureCode
     message: string
     memberId: string
     userId?: string | null
     cause?: unknown
+    retryable?: boolean
+    expoError?: string | null
   }) {
     super(message, { cause })
     this.name = 'NotificationDeliveryError'
     this.code = code
     this.memberId = memberId
     this.userId = userId
+    this.retryable = retryable
+    this.expoError = expoError
   }
 }
 
@@ -103,8 +112,15 @@ export type NotificationBatchDependencies = {
   members: (memberIds: string[]) => Promise<LookupResult<Array<{ id: string; user_id: string }>>>
   preferences: (userIds: string[]) => Promise<LookupResult<Array<NotificationPreferences & { user_id: string }>>>
   profiles: (userIds: string[]) => Promise<LookupResult<Array<{ id: string; push_token: string | null }>>>
+  invalidateToken?: (userId: string, token: string) => Promise<LookupResult<boolean>>
   send: (url: string, init: RequestInit) => Promise<Response>
   pushUrl: string
+}
+
+export function isPermanentNotificationFailure(error: unknown): boolean {
+  if (error instanceof NotificationDeliveryError) return !error.retryable
+  return error instanceof AggregateError && error.errors.length > 0 &&
+    error.errors.every((failure) => isPermanentNotificationFailure(failure))
 }
 
 const preferenceColumns: Record<NotificationCategory, NotificationPreferenceColumn> = {
@@ -213,17 +229,36 @@ const sendBatch = async (
     })
   }
 
-  const failures = deliveries.flatMap((delivery, index) => {
+  const failures: NotificationDeliveryError[] = []
+  for (const [index, delivery] of deliveries.entries()) {
     const ticket = record(delivery)
-    if (ticket?.status === 'ok') return []
+    if (ticket?.status === 'ok') continue
     const message = messages[index]
-    return [new NotificationDeliveryError({
+    const details = record(ticket?.details)
+    const expoError = typeof details?.error === 'string' ? details.error : null
+    const invalidToken = expoError === 'DeviceNotRegistered'
+    if (invalidToken && dependencies.invalidateToken) {
+      const invalidation = await dependencies.invalidateToken(message.userId, message.token)
+      if (invalidation.error) {
+        failures.push(new NotificationDeliveryError({
+          code: 'profile_lookup',
+          message: `invalid push token cleanup failed: ${invalidation.error.message}`,
+          memberId: message.memberId,
+          userId: message.userId,
+          cause: invalidation.error,
+        }))
+        continue
+      }
+    }
+    failures.push(new NotificationDeliveryError({
       code: ticket?.status === 'error' ? 'expo_status' : 'expo_response',
       message: typeof ticket?.message === 'string' ? ticket.message : 'Expo rejected a push notification.',
       memberId: message.memberId,
       userId: message.userId,
-    })]
-  })
+      retryable: ticket?.status !== 'error' || !expoError || !PERMANENT_EXPO_ERRORS.has(expoError),
+      expoError,
+    }))
+  }
   if (failures.length > 0) {
     throw new AggregateError(failures, `${failures.length} Expo push notification${failures.length === 1 ? '' : 's'} failed`)
   }

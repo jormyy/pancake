@@ -1,6 +1,7 @@
 import type { Json } from '../_shared/database.ts'
 import type { NotificationMessage, NotifyMembers } from '../_shared/notifications.ts'
-import { runBounded, type AsyncJob } from '../_shared/runBounded.ts'
+import { isPermanentNotificationFailure } from '../_shared/notificationDelivery.ts'
+import { runBounded } from '../_shared/runBounded.ts'
 
 const OUTBOX_MUTATION_CONCURRENCY = 10
 
@@ -33,27 +34,31 @@ function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
   }
 }
 
-async function mutateRows(rows: TradeNotificationOutboxRow[], mutation: (row: TradeNotificationOutboxRow) => Promise<void>) {
-  const jobs: AsyncJob[] = rows.map((row) => () => mutation(row))
-  await runBounded(jobs, OUTBOX_MUTATION_CONCURRENCY)
-}
-
 export async function deliverTradeNotificationOutbox(
   rows: TradeNotificationOutboxRow[],
   notify: NotifyMembers,
   complete: Complete,
   fail: Fail,
-): Promise<{ delivered: number; failed: number }> {
-  if (rows.length === 0) return { delivered: 0, failed: 0 }
+): Promise<{ delivered: number; failed: number; discarded: number }> {
+  if (rows.length === 0) return { delivered: 0, failed: 0, discarded: 0 }
 
-  try {
-    await notify(rows.map(messageFor))
-  } catch (error) {
-    const message = errorMessage(error)
-    await mutateRows(rows, (row) => fail(row, message))
-    return { delivered: 0, failed: rows.length }
-  }
-
-  await mutateRows(rows, complete)
-  return { delivered: rows.length, failed: 0 }
+  let delivered = 0
+  let failed = 0
+  let discarded = 0
+  await runBounded(rows.map((row) => async () => {
+    try {
+      await notify([messageFor(row)])
+      await complete(row)
+      delivered += 1
+    } catch (error) {
+      if (isPermanentNotificationFailure(error)) {
+        await complete(row)
+        discarded += 1
+      } else {
+        await fail(row, errorMessage(error))
+        failed += 1
+      }
+    }
+  }), OUTBOX_MUTATION_CONCURRENCY)
+  return { delivered, failed, discarded }
 }
