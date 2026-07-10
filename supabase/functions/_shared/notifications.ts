@@ -1,15 +1,7 @@
 import { supabase } from './supabase.ts'
 import { createNotifyMember } from './notificationDelivery.ts'
 
-export {
-  createNotifyMember,
-  NotificationDeliveryError,
-  type NotificationCategory,
-  type NotificationDeliveryFailureCode,
-  type NotificationDeliveryResult,
-  type NotificationDependencies,
-  type NotifyMember,
-} from './notificationDelivery.ts'
+export type { NotifyMember } from './notificationDelivery.ts'
 
 const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
 
