@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
+import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
 
 const mocks = vi.hoisted(() => ({
     callbacks: null as null | {
@@ -26,8 +27,6 @@ vi.mock('@/lib/trades-realtime', () => ({
         return []
     },
 }))
-
-import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

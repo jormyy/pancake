@@ -59,8 +59,7 @@ export const runMutationScenarios = async ({ runScenario }) => {
   return scenarios
 }
 
-const required = (name) => {
-  const value = process.env[name]
+const required = (name, value) => {
   if (!value) throw new Error(`${name} is required`)
   return value
 }
@@ -68,13 +67,13 @@ const required = (name) => {
 const main = async () => {
   const pairId = process.argv.find((arg) => arg.startsWith('--pair='))?.split('=')[1]
   if (!pairId || !/^[a-z0-9-]+$/.test(pairId)) throw new Error('--pair requires a filesystem-safe identifier')
-  const frontendUrl = required('E2E_FRONTEND_URL').replace(/\/$/, '')
-  const edgeUrl = required('E2E_API_BASE_URL').replace(/\/$/, '')
+  const frontendUrl = required('E2E_FRONTEND_URL', process.env.E2E_FRONTEND_URL).replace(/\/$/, '')
+  const edgeUrl = required('E2E_API_BASE_URL', process.env.E2E_API_BASE_URL).replace(/\/$/, '')
   const expected = {
-    frontendSha: required('E2E_COMPAT_FRONTEND_SHA'),
-    frontendDigest: required('E2E_COMPAT_FRONTEND_DIGEST'),
-    edgeSha: required('E2E_COMPAT_EDGE_SHA'),
-    edgeDigest: required('E2E_COMPAT_EDGE_DIGEST'),
+    frontendSha: required('E2E_COMPAT_FRONTEND_SHA', process.env.E2E_COMPAT_FRONTEND_SHA),
+    frontendDigest: required('E2E_COMPAT_FRONTEND_DIGEST', process.env.E2E_COMPAT_FRONTEND_DIGEST),
+    edgeSha: required('E2E_COMPAT_EDGE_SHA', process.env.E2E_COMPAT_EDGE_SHA),
+    edgeDigest: required('E2E_COMPAT_EDGE_DIGEST', process.env.E2E_COMPAT_EDGE_DIGEST),
   }
   const nonce = `${process.env.GITHUB_RUN_ID ?? 'local'}-${Date.now()}`
   const [frontend, edge] = await Promise.all([
