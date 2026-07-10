@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeStatus } from '@pancake/core'
+import { isTradeHistoryForMember } from '@/lib/trade-perspective'
 export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
@@ -557,6 +558,49 @@ export async function getTradesForScreen(
     return {
         trades: await enrichTradesWithStats(visible, leagueId),
         nextCursor: { token: refs.at(-1)!.cursor_token },
+    }
+}
+
+export async function getTradeHistoryForScreen(
+    memberId: string,
+    leagueId: string,
+    limit = 40,
+    cursor: TradePageCursor | null = null,
+): Promise<TradePage> {
+    const parsedOffset = Number.parseInt(cursor?.token ?? '0', 10)
+    const offset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0
+    const { data: refs, error: refsError } = await supabase
+        .from('trade_participants')
+        .select('trade_id, trades!inner(status)')
+        .eq('league_id', leagueId)
+        .eq('member_id', memberId)
+        .neq('trades.status', 'pending')
+        .order('proposed_at', { ascending: false })
+        .order('trade_id', { ascending: false })
+        .range(offset, offset + limit - 1)
+        .overrideTypes<{ trade_id: string }[]>()
+
+    if (refsError) throw refsError
+    if (!refs || refs.length === 0) return { trades: [], nextCursor: null }
+
+    const { data, error } = await supabase
+        .from('trades')
+        .select(TRADE_SELECT)
+        .in('id', refs.map((ref) => ref.trade_id))
+        .overrideTypes<TradeQueryRow[]>()
+
+    if (error) throw error
+
+    const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
+    const history = refs
+        .map((ref) => rowsById.get(ref.trade_id))
+        .filter((row): row is TradeQueryRow => row != null)
+        .map((row) => mapTradeRow(row, memberId))
+        .filter((trade) => isTradeHistoryForMember(trade, memberId))
+
+    return {
+        trades: await enrichTradesWithStats(history, leagueId),
+        nextCursor: refs.length === limit ? { token: String(offset + refs.length) } : null,
     }
 }
 

@@ -60,12 +60,14 @@ export function selectTradeScreenSections(
 
 type TradeScreenModelInput = Omit<TradeListInput, keyof TradeScreenSections> & {
     trades: Trade[]
+    historyTrades?: Trade[]
     blockItems: TradeBlockItem[]
     memberId: string
 }
 
 export function buildTradeScreenModel(input: TradeScreenModelInput) {
-    const sections = selectTradeScreenSections(input.trades, input.blockItems, input.memberId)
+    const selected = selectTradeScreenSections(input.trades, input.blockItems, input.memberId)
+    const sections = { ...selected, historyTrades: input.historyTrades ?? selected.historyTrades }
     return {
         ...sections,
         listData: buildTradeList({ ...input, ...sections }),
@@ -85,11 +87,12 @@ export function tradeListKey(item: TradeListItem, index: number): string {
 
 export const tradeListItemType = (item: TradeListItem) => item._type
 
-export type TradeScreenResource = 'picks' | 'block' | 'trades'
+export type TradeScreenResource = 'picks' | 'block' | 'trades' | 'history'
 
 export function tradeScreenResource(tab: TradeTabKey): TradeScreenResource {
     if (tab === 'picks') return 'picks'
     if (tab === 'block' || tab === 'leagueBlock') return 'block'
+    if (tab === 'history') return 'history'
     return 'trades'
 }
 

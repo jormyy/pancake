@@ -3,10 +3,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
+import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import type { Trade, TradeBlockItem, TradePage } from '@/lib/trades'
 
-const { addTradeBlockItem, getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
+const { addTradeBlockItem, getTradeHistoryForScreen, getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
     addTradeBlockItem: vi.fn(),
+    getTradeHistoryForScreen: vi.fn(),
     getTradesForScreen: vi.fn(),
     getTradeBlockItems: vi.fn(),
     getRoster: vi.fn(),
@@ -16,6 +18,7 @@ vi.mock('@/lib/trades', () => ({
     addTradeBlockItem,
     getTradeBlockItems,
     getTradesForScreen,
+    getTradeHistoryForScreen,
     removeTradeBlockItem: vi.fn(),
 }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
@@ -70,6 +73,23 @@ beforeEach(() => {
 })
 
 describe('trade resource identity', () => {
+    it('paginates history only through the server-owned history feed', async () => {
+        const initial = Array.from({ length: 40 }, (_, index) => trade(`history-${index}`))
+        getTradeHistoryForScreen
+            .mockResolvedValueOnce({ trades: initial, nextCursor: { token: '40' } })
+            .mockResolvedValueOnce({ trades: [trade('history-40')], nextCursor: null })
+        let latest!: ReturnType<typeof useTradeHistoryFeed>
+        const Probe = () => { latest = useTradeHistoryFeed('member-a', 'league-a', true); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        await act(async () => { await latest.loadMore() })
+
+        expect(getTradesForScreen).not.toHaveBeenCalled()
+        expect(getTradeHistoryForScreen.mock.calls.map((call) => call[3]?.token ?? null)).toEqual([null, '40'])
+        expect(latest.trades.at(-1)?.id).toBe('history-40')
+        await act(async () => { renderer.unmount() })
+    })
+
     it('clears old trades and rejects stale completion after an uncached identity switch', async () => {
         const first = deferred<TradePage>()
         const second = deferred<TradePage>()

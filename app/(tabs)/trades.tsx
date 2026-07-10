@@ -34,6 +34,7 @@ import {
 } from '@/lib/realtime'
 import { tradeScreenWatches } from '@/lib/trades-realtime'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
+import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import {
@@ -65,12 +66,17 @@ export default function TradesScreen() {
     const {
         trades,
         loading,
-        loadingMore: tradesLoadingMore,
-        hasMore: tradesHaveMore,
         error: tradesError,
         refresh: load,
-        loadMore: loadMoreTrades,
     } = useTradesFeed(myMemberId, leagueId)
+    const {
+        trades: historyTrades,
+        loading: historyLoading,
+        hasMore: historyHasMore,
+        error: historyError,
+        refresh: refreshHistoryFeed,
+        loadMore: loadMoreHistory,
+    } = useTradeHistoryFeed(myMemberId, leagueId, tab === 'history')
     const tradeActions = useTradeActions({
         memberId: myMemberId,
         leagueId,
@@ -105,18 +111,24 @@ export default function TradesScreen() {
     useEffect(() => {
         if (!myMemberId || !leagueId) return
         const refreshTrades = debounceRealtimeRefresh(() => { void load() })
+        const refreshHistory = debounceRealtimeRefresh(() => {
+            if (tab === 'history') void refreshHistoryFeed()
+        })
         const refreshTradeBlock = debounceRealtimeRefresh(() => { void loadBlock() })
         const refreshDraftPicks = debounceRealtimeRefresh(() => { void refreshPicks() })
         const channel = subscribeToTableChanges(`trades-screen:${leagueId}:${myMemberId}`, {
             mode: 'per-watch',
             watches: tradeScreenWatches(leagueId, {
-                trades: refreshTrades.trigger,
+                trades: () => {
+                    refreshTrades.trigger()
+                    refreshHistory.trigger()
+                },
                 tradeBlock: refreshTradeBlock.trigger,
                 draftPicks: refreshDraftPicks.trigger,
             }),
         })
-        return () => disposeTableChangeSubscription(channel, [refreshTrades, refreshTradeBlock, refreshDraftPicks])
-    }, [leagueId, load, loadBlock, myMemberId, refreshPicks])
+        return () => disposeTableChangeSubscription(channel, [refreshTrades, refreshHistory, refreshTradeBlock, refreshDraftPicks])
+    }, [leagueId, load, loadBlock, myMemberId, refreshHistoryFeed, refreshPicks, tab])
 
     useEffect(() => {
         if (tab === 'block' || tab === 'leagueBlock') void loadBlock()
@@ -126,15 +138,16 @@ export default function TradesScreen() {
     const screenModel = useMemo(() => buildTradeScreenModel({
         tab,
         trades,
+        historyTrades,
         blockItems,
         memberId: myMemberId,
         picks: picksList,
-        tradesLoading: loading,
+        tradesLoading: tab === 'history' ? historyLoading : loading,
         blockLoading,
         blockRoster,
         leagueBlockItems: blockItems,
-    }), [blockItems, blockLoading, blockRoster, loading, myMemberId, picksList, tab, trades])
-    const { historyTrades, listData, pendingInboxCount } = screenModel
+    }), [blockItems, blockLoading, blockRoster, historyLoading, historyTrades, loading, myMemberId, picksList, tab, trades])
+    const { listData, pendingInboxCount } = screenModel
     const renderItem = useCallback(({ item }: { item: TradeListItem }) => {
         switch (item._type) {
             case 'header':
@@ -170,7 +183,8 @@ export default function TradesScreen() {
     const activeTabLoading = tab === 'picks' ? picksLoading && picksList.length === 0
         : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
             : tab === 'leagueBlock' ? blockLoading && blockItems.length === 0
-                : loading && trades.length === 0
+                : tab === 'history' ? historyLoading && historyTrades.length === 0
+                    : loading && trades.length === 0
     const tabOptions: SegmentOption<TradeTabKey>[] = [
         { label: 'Picks', value: 'picks' },
         { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
@@ -179,14 +193,14 @@ export default function TradesScreen() {
         { label: 'History', value: 'history' },
     ]
     const activeResource = tradeScreenResource(tab)
-    const activeError = activeResource === 'picks' ? picksError : activeResource === 'block' ? blockError : tradesError
-    const retryActiveResource = activeResource === 'picks' ? refreshPicks : activeResource === 'block' ? loadBlock : load
-
-    useEffect(() => {
-        if (tab === 'history' && historyTrades.length === 0 && tradesHaveMore && !tradesLoadingMore) {
-            void loadMoreTrades()
-        }
-    }, [historyTrades.length, loadMoreTrades, tab, tradesHaveMore, tradesLoadingMore])
+    const activeError = activeResource === 'picks' ? picksError
+        : activeResource === 'block' ? blockError
+            : activeResource === 'history' ? historyError
+                : tradesError
+    const retryActiveResource = activeResource === 'picks' ? refreshPicks
+        : activeResource === 'block' ? loadBlock
+            : activeResource === 'history' ? refreshHistoryFeed
+                : load
 
     if (memberships.length === 0 && leagueLoading) {
         return <SafeAreaView style={styles.container}><View style={styles.content}>
@@ -200,7 +214,7 @@ export default function TradesScreen() {
     return <SafeAreaView style={styles.container}><View style={styles.content}>
         <TradeHeader disabled={tradingClosed} onPropose={() => push('/(modals)/propose-trade')} />
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
-        {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : 'trades'}. Tap to retry.`}
+        {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'}. Tap to retry.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
         {activeTabLoading ? <EmptyState fullScreen={false} message={tradeLoadingMessage(tab)}
             description="Cached trade content stays visible while fresh data updates in place." />
@@ -208,7 +222,7 @@ export default function TradesScreen() {
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
                         ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
-                        onEndReached={tab === 'history' && tradesHaveMore ? loadMoreTrades : undefined}
+                        onEndReached={tab === 'history' && historyHasMore ? loadMoreHistory : undefined}
                         onEndReachedThreshold={0.4} />}
     </View></SafeAreaView>
 }

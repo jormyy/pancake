@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 import { isTradeVisibleOnScreen, type Trade, type TradePickItem } from '@/lib/trades'
-import { buildTradeList, selectTradeScreenSections, tradeScreenResource } from '@/lib/trades-screen-model'
+import { buildTradeList, buildTradeScreenModel, selectTradeScreenSections, tradeScreenResource } from '@/lib/trades-screen-model'
 
 const NOW = Date.parse('2026-07-09T12:00:00Z')
 
@@ -111,6 +111,20 @@ describe('trade screen read model', () => {
         expect(tradeScreenResource('block')).toBe('block')
         expect(tradeScreenResource('leagueBlock')).toBe('block')
         expect(tradeScreenResource('offers')).toBe('trades')
-        expect(tradeScreenResource('history')).toBe('trades')
+        expect(tradeScreenResource('history')).toBe('history')
+    })
+
+    it('uses the separately owned history feed without changing offer classification', () => {
+        const history = trade({ id: 'history', status: 'completed' })
+        const model = buildTradeScreenModel({
+            ...listBase,
+            tab: 'history',
+            trades: [trade({ id: 'incoming' })],
+            historyTrades: [history],
+            blockItems: [],
+            memberId: 'recipient',
+        })
+        expect(model.historyTrades.map(({ id }) => id)).toEqual(['history'])
+        expect(model.incomingTrades.map(({ id }) => id)).toEqual(['incoming'])
     })
 })
