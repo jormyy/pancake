@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AuthProvider, useAuth } from '@/hooks/use-auth'
 
 const mocks = vi.hoisted(() => ({
     getSession: vi.fn(),
@@ -29,8 +30,6 @@ vi.mock('@/lib/supabase', () => ({
     },
 }))
 vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: mocks.clearPersistentCaches }))
-
-import { AuthProvider, useAuth } from '@/hooks/use-auth'
 
 type Snapshot = { userId: string | null; loading: boolean }
 
