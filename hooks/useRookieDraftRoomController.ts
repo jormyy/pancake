@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert } from 'react-native'
+import { Alert, AppState, type AppStateStatus } from 'react-native'
 import {
     activateRookieDraftLeague,
     commissionerSnakePick,
+    getRookieDraftPollRevision,
     getRookieDraftState,
     getRookiePlayers,
     makeSnakePick,
@@ -40,8 +41,8 @@ export function useRookieDraftRoomController({
     leagueId?: string
     rosterSize: number
 }) {
-    const memberIdRef = useRef<string | undefined>(undefined)
-    if (memberId) memberIdRef.current = memberId
+    const memberIdRef = useRef(memberId)
+    memberIdRef.current = memberId
 
     const [state, setState] = useState<RookieDraftState | null>(null)
     const [loading, setLoading] = useState(true)
@@ -65,24 +66,64 @@ export function useRookieDraftRoomController({
     const queryRef = useRef('')
     const loadSeqRef = useRef(0)
     const prospectsSeqRef = useRef(0)
+    const renderedDraftIdRef = useRef(draftId)
+    const stateDraftIdRef = useRef(draftId)
+    const activeDraftIdRef = useRef(draftId)
+    const pollRevisionRef = useRef<string | null>(null)
+    activeDraftIdRef.current = draftId
+
+    if (renderedDraftIdRef.current !== draftId) {
+        renderedDraftIdRef.current = draftId
+        loadSeqRef.current += 1
+        prospectsSeqRef.current += 1
+        pollRevisionRef.current = null
+        draftEndCheckedRef.current = false
+        autoPickAttemptRef.current = null
+    }
+    const ownsDraft = stateDraftIdRef.current === draftId
+    const visibleState = ownsDraft ? state : null
+
+    useEffect(() => {
+        loadSeqRef.current += 1
+        prospectsSeqRef.current += 1
+        stateDraftIdRef.current = draftId
+        pollRevisionRef.current = null
+        draftEndCheckedRef.current = false
+        autoPickAttemptRef.current = null
+        queryRef.current = ''
+        setState(null)
+        setLoading(Boolean(draftId))
+        setQuery('')
+        setProspects([])
+        setProspectsLoading(Boolean(draftId))
+        setPicking(false)
+        setActiveTab('prospects')
+        setSecondsLeft(null)
+        setPickError(null)
+        setRosterOverflow(null)
+        setRosterForDrop([])
+        setResolvingOverflow(false)
+        setTrimOverflow(null)
+        setTrimmingId(null)
+    }, [draftId])
 
     const load = useCallback(async () => {
-        if (!draftId) {
+        const requestedDraftId = draftId
+        if (!requestedDraftId) {
             setLoading(false)
             return
         }
         const seq = ++loadSeqRef.current
         try {
-            const data = await getRookieDraftState(draftId)
-            if (seq !== loadSeqRef.current) return // superseded by a newer load
-            // Only commit a definite state — getRookieDraftState() returns null
-            // (not a throw) on a transient fetch failure; committing null would
-            // blank the entire live draft room.
+            const data = await getRookieDraftState(requestedDraftId)
+            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return
             if (data) setState(data)
         } catch (e) {
+            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return
             console.error(e)
+            setPickError(getErrorMessage(e) ?? 'Failed to refresh draft')
         } finally {
-            if (seq === loadSeqRef.current) setLoading(false)
+            if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) setLoading(false)
         }
     }, [draftId])
 
@@ -98,32 +139,52 @@ export function useRookieDraftRoomController({
         setProspectsLoading(true)
         try {
             const data = await getRookiePlayers(requestedDraftId, requestedQuery)
-            if (prospectsSeqRef.current !== requestId) return
+            if (prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId) return
             setProspects(data)
         } catch (e) {
-            if (prospectsSeqRef.current !== requestId) return
+            if (prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId) return
             console.error(e)
         } finally {
-            if (prospectsSeqRef.current === requestId) setProspectsLoading(false)
+            if (prospectsSeqRef.current === requestId && activeDraftIdRef.current === requestedDraftId) setProspectsLoading(false)
         }
     }, [draftId])
 
     useEffect(() => {
-        load()
+        void load()
         if (!draftId) return
-        channelRef.current = subscribeToRookieDraft(draftId, () => {
-            load()
-            loadProspects(queryRef.current.trim() || undefined)
+        const requestedDraftId = draftId
+        const channel = subscribeToRookieDraft(requestedDraftId, () => {
+            pollRevisionRef.current = null
+            void load()
+            void loadProspects(queryRef.current.trim() || undefined)
         })
-        // Poll fallback (mirrors the auction room) so a missed realtime event or
-        // a transient null can't leave the room stale on your own clock.
-        const poll = setInterval(load, 5000)
+        channelRef.current = channel
+        let appState: AppStateStatus = AppState.currentState
+        const pollRevision = async () => {
+            if (appState !== 'active' || activeDraftIdRef.current !== requestedDraftId) return
+            try {
+                const revision = await getRookieDraftPollRevision(requestedDraftId)
+                if (activeDraftIdRef.current !== requestedDraftId) return
+                const previous = pollRevisionRef.current
+                pollRevisionRef.current = revision
+                if (previous !== null && revision !== previous) await load()
+            } catch (error) {
+                if (activeDraftIdRef.current === requestedDraftId) console.error(error)
+            }
+        }
+        const poll = setInterval(() => { void pollRevision() }, 15_000)
+        const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+            const becameActive = appState !== 'active' && nextState === 'active'
+            appState = nextState
+            if (becameActive) void pollRevision()
+        })
         return () => {
-            if (channelRef.current) {
-                reportRealtimeCleanup('rookie draft', unsubscribeFromRookieDraft(channelRef.current))
+            if (channelRef.current === channel) {
+                reportRealtimeCleanup('rookie draft', unsubscribeFromRookieDraft(channel))
                 channelRef.current = null
             }
             clearInterval(poll)
+            appStateSubscription.remove()
         }
     }, [draftId, load, loadProspects])
 
@@ -143,10 +204,10 @@ export function useRookieDraftRoomController({
     }, [query, loadProspects])
 
     const clockEnd = useMemo(() => {
-        if (state?.draft.status !== 'in_progress') return null
-        if (!state.nextPick?.timerExpiresAt) return null
-        return new Date(state.nextPick.timerExpiresAt).getTime()
-    }, [state?.draft.status, state?.nextPick?.timerExpiresAt])
+        if (visibleState?.draft.status !== 'in_progress') return null
+        if (!visibleState.nextPick?.timerExpiresAt) return null
+        return new Date(visibleState.nextPick.timerExpiresAt).getTime()
+    }, [visibleState?.draft.status, visibleState?.nextPick?.timerExpiresAt])
 
     useEffect(() => {
         if (!clockEnd) {
@@ -160,12 +221,12 @@ export function useRookieDraftRoomController({
     }, [clockEnd])
 
     useEffect(() => {
-        if (secondsLeft !== 0 || !draftId || !state?.nextPick || picking) return
-        if (state.draft.timerExpiryBehavior !== 'auto_pick') return
+        if (secondsLeft !== 0 || !draftId || !visibleState?.nextPick || picking) return
+        if (visibleState.draft.timerExpiryBehavior !== 'auto_pick') return
         const stableMemberId = memberIdRef.current ?? memberId
-        if (!stableMemberId || state.nextPick.memberId !== stableMemberId) return
+        if (!stableMemberId || visibleState.nextPick.memberId !== stableMemberId) return
 
-        const attemptKey = `${draftId}:${state.nextPick.overallPick}:${state.nextPick.timerExpiresAt ?? ''}`
+        const attemptKey = `${draftId}:${visibleState.nextPick.overallPick}:${visibleState.nextPick.timerExpiresAt ?? ''}`
         if (autoPickAttemptRef.current === attemptKey) return
         autoPickAttemptRef.current = attemptKey
 
@@ -177,9 +238,9 @@ export function useRookieDraftRoomController({
                 setPickError(getErrorMessage(e) ?? 'Auto-pick failed')
             }
         })()
-    }, [draftId, load, loadProspects, memberId, picking, secondsLeft, state?.draft.timerExpiryBehavior, state?.nextPick])
+    }, [draftId, load, loadProspects, memberId, picking, secondsLeft, visibleState?.draft.timerExpiryBehavior, visibleState?.nextPick])
 
-    const draftCompleted = state?.draft.status === 'completed'
+    const draftCompleted = visibleState?.draft.status === 'completed'
     useEffect(() => {
         const stableMemberId = memberIdRef.current ?? memberId
         if (!draftCompleted || !stableMemberId || !leagueId || draftEndCheckedRef.current) return
@@ -273,7 +334,7 @@ export function useRookieDraftRoomController({
     }
 
     async function handleCommissionerPick(player: RookieProspect) {
-        const targetMemberId = state?.nextPick?.memberId
+        const targetMemberId = visibleState?.nextPick?.memberId
         if (!draftId || !targetMemberId || picking) return
 
         setPickError(null)
@@ -335,22 +396,22 @@ export function useRookieDraftRoomController({
     }
 
     return {
-        state,
-        loading,
+        state: visibleState,
+        loading: ownsDraft ? loading : true,
         query,
         setQuery,
-        prospects,
-        prospectsLoading,
-        picking,
+        prospects: ownsDraft ? prospects : [],
+        prospectsLoading: ownsDraft ? prospectsLoading : true,
+        picking: ownsDraft ? picking : false,
         activeTab,
         setActiveTab,
         secondsLeft,
-        pickError,
-        rosterOverflow,
-        rosterForDrop,
-        resolvingOverflow,
-        trimOverflow,
-        trimmingId,
+        pickError: ownsDraft ? pickError : null,
+        rosterOverflow: ownsDraft ? rosterOverflow : null,
+        rosterForDrop: ownsDraft ? rosterForDrop : [],
+        resolvingOverflow: ownsDraft ? resolvingOverflow : false,
+        trimOverflow: ownsDraft ? trimOverflow : null,
+        trimmingId: ownsDraft ? trimmingId : null,
         memberId: memberId ?? memberIdRef.current,
         refresh: load,
         handleTrimDrop,
