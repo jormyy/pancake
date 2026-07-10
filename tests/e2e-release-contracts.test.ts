@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { assertFullSweepRoutes, REQUIRED_FULL_SWEEP_LABELS } from './e2e/browser-smoke.mjs'
+import { productionBrowserFailures } from './e2e/production-web-hydration.mjs'
 import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.mjs'
 import { validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 
@@ -61,6 +62,14 @@ describe('release E2E contracts', () => {
     const rootLayout = await readFile(path.join(process.cwd(), 'app/_layout.tsx'), 'utf8')
     expect(rootLayout).toContain("router.replace('/sign-in')")
     expect(rootLayout).not.toContain("router.replace('/(auth)/sign-in')")
+  })
+
+  it('fails production hydration on browser, console, and React hydration errors', () => {
+    expect(productionBrowserFailures({ consoleOutput: 'console clean', errorOutput: '' })).toEqual([])
+    expect(productionBrowserFailures({ consoleOutput: '[error] Hydration failed because the server rendered HTML did not match', errorOutput: '' }))
+      .toEqual([expect.stringContaining('console errors')])
+    expect(productionBrowserFailures({ consoleOutput: '', errorOutput: 'TypeError: render failed' }))
+      .toEqual([expect.stringContaining('browser errors')])
   })
 
   it('rejects a declared workflow budget when any measurement is absent', () => {
