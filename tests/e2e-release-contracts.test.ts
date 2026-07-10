@@ -208,6 +208,31 @@ describe('release E2E contracts', () => {
     delete process.env.PANCAKE_RELEASE_SHA
   })
 
+  it('covers Edge dependencies outside the functions tree and gateway configuration', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-edge-inputs-'))
+    tempDirs.push(root)
+    const functionsRoot = path.join(root, 'supabase/functions')
+    const metadataPath = path.join(functionsRoot, '_shared/releaseMetadata.ts')
+    const dependencyPath = path.join(root, 'constants/runtime.ts')
+    const configPath = path.join(root, 'supabase/config.toml')
+    await mkdir(path.dirname(metadataPath), { recursive: true })
+    await mkdir(path.dirname(dependencyPath), { recursive: true })
+    await writeFile(metadataPath, 'placeholder\n')
+    await writeFile(dependencyPath, 'export const runtimeValue = 1\n')
+    await writeFile(configPath, '[functions.api]\nverify_jwt = false\n')
+    await writeFile(path.join(functionsRoot, 'api.ts'), "import { runtimeValue } from '../../constants/runtime.ts'\nexport { runtimeValue }\n")
+
+    const options = { functionsRoot, metadataPath, artifactRoot: root, configPaths: [configPath] }
+    const initial = await digestEdgeArtifact(options)
+    await writeFile(dependencyPath, 'export const runtimeValue = 2\n')
+    const dependencyChanged = await digestEdgeArtifact(options)
+    await writeFile(configPath, '[functions.api]\nverify_jwt = true\n')
+    const configChanged = await digestEdgeArtifact(options)
+
+    expect(dependencyChanged).not.toBe(initial)
+    expect(configChanged).not.toBe(dependencyChanged)
+  })
+
   it('requires independent deployed frontend and Edge attestations', () => {
     expect(validateReleaseBaselineProvenance({
       frontend: { commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) },
