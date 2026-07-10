@@ -25,7 +25,7 @@
     "private.ensure_season_faab_balances(uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.fail_waiver_claim(uuid,uuid,uuid,uuid,uuid,waiver_claim_status,text,text,text,jsonb)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.ineligible_ir_player_names(uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
-    "private.is_valid_stats_sync_metadata(jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.is_valid_stats_sync_metadata(jsonb,text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_commissioner(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_league_member(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.log_league_activity(uuid,uuid,text,text,text,uuid,uuid,uuid,uuid,uuid,jsonb)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

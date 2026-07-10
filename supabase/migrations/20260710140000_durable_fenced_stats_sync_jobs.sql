@@ -46,7 +46,7 @@ CREATE INDEX sync_jobs_dispatchable_stats_idx
   WHERE job_type LIKE 'sync_stats_range:%'
     AND status IN ('pending', 'running', 'failed');
 
-CREATE OR REPLACE FUNCTION private.is_valid_stats_sync_metadata(p_metadata jsonb)
+CREATE OR REPLACE FUNCTION private.is_valid_stats_sync_metadata(p_metadata jsonb, p_job_type text)
 RETURNS boolean
 LANGUAGE plpgsql
 IMMUTABLE
@@ -56,6 +56,8 @@ DECLARE
   v_start_date date;
   v_end_date date;
   v_next_date date;
+  v_job_start_date text;
+  v_job_end_date text;
 BEGIN
   IF p_metadata IS NULL
      OR jsonb_typeof(p_metadata) IS DISTINCT FROM 'object'
@@ -64,7 +66,16 @@ BEGIN
      OR jsonb_typeof(p_metadata -> 'nextDate') IS DISTINCT FROM 'string'
      OR (p_metadata ->> 'startDate') !~ '^\d{4}-\d{2}-\d{2}$'
      OR (p_metadata ->> 'endDate') !~ '^\d{4}-\d{2}-\d{2}$'
-     OR (p_metadata ->> 'nextDate') !~ '^\d{4}-\d{2}-\d{2}$' THEN
+     OR (p_metadata ->> 'nextDate') !~ '^\d{4}-\d{2}-\d{2}$'
+     OR p_metadata ? 'invalidMetadata'
+     OR p_job_type !~ '^sync_stats_range:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$' THEN
+    RETURN false;
+  END IF;
+
+  v_job_start_date := split_part(p_job_type, ':', 2);
+  v_job_end_date := split_part(p_job_type, ':', 3);
+  IF p_metadata ->> 'startDate' IS DISTINCT FROM v_job_start_date
+     OR p_metadata ->> 'endDate' IS DISTINCT FROM v_job_end_date THEN
     RETURN false;
   END IF;
 
@@ -107,7 +118,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION private.is_valid_stats_sync_metadata(jsonb) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION private.is_valid_stats_sync_metadata(jsonb, text) FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.create_or_resume_stats_sync_job_atomic(
   p_start_date date,
@@ -174,17 +185,17 @@ BEGIN
          failed_items = CASE WHEN public.sync_jobs.status = 'failed' THEN 0 ELSE public.sync_jobs.failed_items END,
          completed_items = CASE
            WHEN public.sync_jobs.status = 'failed'
-             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN 0
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata, public.sync_jobs.job_type) THEN 0
            ELSE public.sync_jobs.completed_items
          END,
          total_items = CASE
            WHEN public.sync_jobs.status = 'failed'
-             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN excluded.total_items
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata, public.sync_jobs.job_type) THEN excluded.total_items
            ELSE public.sync_jobs.total_items
          END,
          metadata = CASE
            WHEN public.sync_jobs.status = 'failed'
-             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN excluded.metadata
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata, public.sync_jobs.job_type) THEN excluded.metadata
            ELSE public.sync_jobs.metadata
          END,
          completed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.completed_at END,
@@ -280,9 +291,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_job_type text;
 BEGIN
+  SELECT job_type INTO v_job_type
+    FROM public.sync_jobs
+   WHERE id = p_job_id AND status = 'running' AND claim_token = p_claim_token;
+  IF NOT FOUND THEN RETURN false; END IF;
   IF p_completed_items IS NULL OR p_completed_items < 0
-     OR NOT private.is_valid_stats_sync_metadata(p_metadata) THEN
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata, v_job_type) THEN
     RAISE EXCEPTION 'Stats sync checkpoint is invalid.';
   END IF;
 
@@ -310,9 +327,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_job_type text;
 BEGIN
+  SELECT job_type INTO v_job_type
+    FROM public.sync_jobs
+   WHERE id = p_job_id AND status = 'running' AND claim_token = p_claim_token;
+  IF NOT FOUND THEN RETURN false; END IF;
   IF p_completed_items IS NULL OR p_completed_items < 0
-     OR NOT private.is_valid_stats_sync_metadata(p_metadata) THEN
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata, v_job_type) THEN
     RAISE EXCEPTION 'Stats sync release is invalid.';
   END IF;
 
@@ -342,9 +365,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_job_type text;
 BEGIN
+  SELECT job_type INTO v_job_type
+    FROM public.sync_jobs
+   WHERE id = p_job_id AND status = 'running' AND claim_token = p_claim_token;
+  IF NOT FOUND THEN RETURN false; END IF;
   IF p_completed_items IS NULL OR p_completed_items < 0
-     OR NOT private.is_valid_stats_sync_metadata(p_metadata) THEN
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata, v_job_type) THEN
     RAISE EXCEPTION 'Stats sync completion is invalid.';
   END IF;
 
@@ -376,9 +405,16 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_job_type text;
 BEGIN
+  SELECT job_type INTO v_job_type
+    FROM public.sync_jobs
+   WHERE id = p_job_id AND status = 'running' AND claim_token = p_claim_token;
+  IF NOT FOUND THEN RETURN false; END IF;
   IF p_completed_items IS NULL OR p_completed_items < 0
-     OR p_metadata IS NULL OR jsonb_typeof(p_metadata) IS DISTINCT FROM 'object' THEN
+     OR p_metadata IS NULL OR jsonb_typeof(p_metadata) IS DISTINCT FROM 'object'
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata - 'invalidMetadata', v_job_type) THEN
     RAISE EXCEPTION 'Stats sync failure checkpoint is invalid.';
   END IF;
 

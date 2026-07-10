@@ -48,6 +48,16 @@ async function rpc(name, args) {
   return data
 }
 
+async function rpcResult(name, args) {
+  return admin.rpc(name, args)
+}
+
+async function assertRpcRejected(name, args, expectedError, failureMessage) {
+  const { error } = await rpcResult(name, args)
+  assert.ok(error, failureMessage)
+  assert.match(error.message, expectedError)
+}
+
 async function invokeStatsWorker(jobId) {
   const response = await fetch(`${env.supabaseUrl.replace(/\/$/, '')}/functions/v1/sync-stats`, {
     method: 'POST',
@@ -268,6 +278,32 @@ try {
   })
   assert.ok(invalidCheckpointError, 'checkpoint accepted malformed durable stats metadata')
   assert.match(invalidCheckpointError.message, /checkpoint is invalid/)
+  const mismatchedMetadata = {
+    startDate: '1948-01-01',
+    endDate: '1948-01-02',
+    nextDate: '1948-01-01',
+  }
+  const mismatchedTransitionArgs = {
+      p_job_id: jobId,
+      p_claim_token: firstClaim.claim_token,
+      p_completed_items: 1,
+      p_metadata: mismatchedMetadata,
+  }
+  await assertRpcRejected('checkpoint_stats_sync_job_atomic', mismatchedTransitionArgs, /checkpoint is invalid/,
+    'checkpoint accepted metadata for a different immutable range')
+  await assertRpcRejected('release_stats_sync_job_atomic', mismatchedTransitionArgs, /release is invalid/,
+    'release accepted metadata for a different immutable range')
+  await assertRpcRejected('complete_stats_sync_job_atomic', mismatchedTransitionArgs, /completion is invalid/,
+    'completion accepted metadata for a different immutable range')
+  const { error: mismatchedFailureError } = await admin.rpc('fail_stats_sync_job_atomic', {
+    p_job_id: jobId,
+    p_claim_token: firstClaim.claim_token,
+    p_completed_items: 1,
+    p_metadata: mismatchedMetadata,
+    p_error: 'must not persist',
+  })
+  assert.ok(mismatchedFailureError, 'failure transition accepted metadata for a different immutable range')
+  assert.match(mismatchedFailureError.message, /failure checkpoint is invalid/)
   assert.equal(await rpc('create_or_resume_stats_sync_job_atomic', {
     p_start_date: RANGE.startDate,
     p_end_date: RANGE.endDate,
@@ -456,6 +492,14 @@ try {
     '3',
     'terminal malformed job exceeded the retry cap',
   )
+
+  scalar(`
+    UPDATE public.sync_jobs
+       SET metadata = '{"startDate":"1948-01-01","endDate":"1948-01-02","nextDate":"1948-01-01"}'::jsonb,
+           completed_items = 7,
+           total_items = 9
+     WHERE id = '${malformedJobId}';
+  `)
 
   const resumedMalformedId = await rpc('create_or_resume_stats_sync_job_atomic', {
     p_start_date: MALFORMED_RANGE.startDate,

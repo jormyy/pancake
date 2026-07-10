@@ -2,7 +2,7 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.is_valid_stats_sync_metadata(p_metadata jsonb)
+CREATE OR REPLACE FUNCTION private.is_valid_stats_sync_metadata(p_metadata jsonb, p_job_type text)
 RETURNS boolean
 LANGUAGE plpgsql
 IMMUTABLE
@@ -12,6 +12,8 @@ DECLARE
   v_start_date date;
   v_end_date date;
   v_next_date date;
+  v_job_start_date text;
+  v_job_end_date text;
 BEGIN
   IF p_metadata IS NULL
      OR jsonb_typeof(p_metadata) IS DISTINCT FROM 'object'
@@ -20,7 +22,16 @@ BEGIN
      OR jsonb_typeof(p_metadata -> 'nextDate') IS DISTINCT FROM 'string'
      OR (p_metadata ->> 'startDate') !~ '^\d{4}-\d{2}-\d{2}$'
      OR (p_metadata ->> 'endDate') !~ '^\d{4}-\d{2}-\d{2}$'
-     OR (p_metadata ->> 'nextDate') !~ '^\d{4}-\d{2}-\d{2}$' THEN
+     OR (p_metadata ->> 'nextDate') !~ '^\d{4}-\d{2}-\d{2}$'
+     OR p_metadata ? 'invalidMetadata'
+     OR p_job_type !~ '^sync_stats_range:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$' THEN
+    RETURN false;
+  END IF;
+
+  v_job_start_date := split_part(p_job_type, ':', 2);
+  v_job_end_date := split_part(p_job_type, ':', 3);
+  IF p_metadata ->> 'startDate' IS DISTINCT FROM v_job_start_date
+     OR p_metadata ->> 'endDate' IS DISTINCT FROM v_job_end_date THEN
     RETURN false;
   END IF;
 

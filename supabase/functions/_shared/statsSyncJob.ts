@@ -54,6 +54,7 @@ export function parseStatsSyncJobMetadata(value: unknown): StatsSyncJobMetadata 
   const endDate = metadata.endDate
   const nextDate = metadata.nextDate
   const afterGameId = metadata.afterGameId
+  if ('invalidMetadata' in metadata) throw new Error('Stats sync job metadata is invalid')
   if (typeof startDate !== 'string' || !isIsoDate(startDate)) {
     throw new Error('Stats sync job startDate is invalid')
   }

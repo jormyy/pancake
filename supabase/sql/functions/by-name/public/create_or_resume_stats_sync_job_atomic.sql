@@ -67,17 +67,17 @@ BEGIN
          failed_items = CASE WHEN public.sync_jobs.status = 'failed' THEN 0 ELSE public.sync_jobs.failed_items END,
          completed_items = CASE
            WHEN public.sync_jobs.status = 'failed'
-             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN 0
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata, public.sync_jobs.job_type) THEN 0
            ELSE public.sync_jobs.completed_items
          END,
          total_items = CASE
            WHEN public.sync_jobs.status = 'failed'
-             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN excluded.total_items
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata, public.sync_jobs.job_type) THEN excluded.total_items
            ELSE public.sync_jobs.total_items
          END,
          metadata = CASE
            WHEN public.sync_jobs.status = 'failed'
-             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata) THEN excluded.metadata
+             AND NOT private.is_valid_stats_sync_metadata(public.sync_jobs.metadata, public.sync_jobs.job_type) THEN excluded.metadata
            ELSE public.sync_jobs.metadata
          END,
          completed_at = CASE WHEN public.sync_jobs.status = 'failed' THEN NULL ELSE public.sync_jobs.completed_at END,

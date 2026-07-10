@@ -28,10 +28,15 @@ function metadataJson(metadata: StatsSyncJobMetadata): Json {
   }
 }
 
-function failureMetadataJson(metadata: Json): Json {
-  return metadata !== null && typeof metadata === 'object' && !Array.isArray(metadata)
-    ? metadata
-    : { invalidMetadata: metadata }
+function failureMetadataJson(metadata: Json, jobType: string): Json {
+  const match = jobType.match(/^sync_stats_range:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/)
+  if (!match) throw new Error('Stats sync job type is invalid')
+  return {
+    startDate: match[1],
+    endDate: match[2],
+    nextDate: match[1],
+    invalidMetadata: metadata,
+  }
 }
 
 async function claimRangeJob(jobId?: string): Promise<StatsSyncClaim | null> {
@@ -136,7 +141,7 @@ async function runClaimedRangeJob(claim: StatsSyncClaim): Promise<Record<string,
     }
     await failRangeJob(
       claim,
-      currentMetadata ? metadataJson(currentMetadata) : failureMetadataJson(claim.metadata),
+      currentMetadata ? metadataJson(currentMetadata) : failureMetadataJson(claim.metadata, claim.job_type),
       currentCompletedItems,
       error,
     )

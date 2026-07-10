@@ -13,9 +13,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_job_type text;
 BEGIN
+  SELECT job_type INTO v_job_type
+    FROM public.sync_jobs
+   WHERE id = p_job_id AND status = 'running' AND claim_token = p_claim_token;
+  IF NOT FOUND THEN RETURN false; END IF;
   IF p_completed_items IS NULL OR p_completed_items < 0
-     OR NOT private.is_valid_stats_sync_metadata(p_metadata) THEN
+     OR NOT private.is_valid_stats_sync_metadata(p_metadata, v_job_type) THEN
     RAISE EXCEPTION 'Stats sync checkpoint is invalid.';
   END IF;
 
