@@ -22,7 +22,7 @@ const EMPTY_SNAPSHOT: Snapshot = {
 const snapshots = new Map<string, Snapshot>()
 const listenersByDate = new Map<string, Set<Listener>>()
 const inFlightByDate = new Map<string, Promise<void>>()
-const silentRefreshListeners = new Set<() => void>()
+const silentRefreshListenersByDate = new Map<string, Set<() => void>>()
 let todayPoll: ReturnType<typeof setInterval> | null = null
 const MAX_SNAPSHOT_DATES = 14
 
@@ -77,12 +77,18 @@ function ensureTodayPoll() {
         }
 
         await loadSnapshot(today)
-        for (const listener of silentRefreshListeners) listener()
+        for (const listener of silentRefreshListenersByDate.get(today) ?? []) listener()
     }, 15_000)
 }
 
 export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void) {
-    const [snapshot, setSnapshot] = useState<Snapshot>(() => snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT)
+    const [resource, setResource] = useState<{ date: string; snapshot: Snapshot }>(() => ({
+        date: selectedDate,
+        snapshot: snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT,
+    }))
+    const snapshot = resource.date === selectedDate
+        ? resource.snapshot
+        : snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT
 
     const liveStatsRef = useRef<Map<string, LiveStatLine>>(snapshot.liveStats)
     const teamMatchupsRef = useRef<Map<string, { opponent: string; isHome: boolean }>>(snapshot.teamMatchups)
@@ -96,28 +102,35 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
 
     useEffect(() => {
         if (onSilentRefresh) {
-            silentRefreshListeners.add(onSilentRefresh)
+            let listeners = silentRefreshListenersByDate.get(selectedDate)
+            if (!listeners) {
+                listeners = new Set()
+                silentRefreshListenersByDate.set(selectedDate, listeners)
+            }
+            listeners.add(onSilentRefresh)
             return () => {
-                silentRefreshListeners.delete(onSilentRefresh)
+                listeners?.delete(onSilentRefresh)
+                if (listeners?.size === 0) silentRefreshListenersByDate.delete(selectedDate)
             }
         }
-    }, [onSilentRefresh])
+    }, [onSilentRefresh, selectedDate])
 
     useEffect(() => {
-        setSnapshot(snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT)
+        setResource({ date: selectedDate, snapshot: snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT })
 
         let listeners = listenersByDate.get(selectedDate)
         if (!listeners) {
             listeners = new Set()
             listenersByDate.set(selectedDate, listeners)
         }
-        listeners.add(setSnapshot)
+        const listener: Listener = (nextSnapshot) => setResource({ date: selectedDate, snapshot: nextSnapshot })
+        listeners.add(listener)
 
         loadSnapshot(selectedDate)
         if (selectedDate === todayET()) ensureTodayPoll()
 
         return () => {
-            listeners?.delete(setSnapshot)
+            listeners?.delete(listener)
             if (listeners?.size === 0) listenersByDate.delete(selectedDate)
             evictSnapshots()
         }

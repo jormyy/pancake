@@ -24,6 +24,7 @@ import {
     type PlayerSearchParams,
 } from '@/lib/player-search-state'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { AppState, type AppStateStatus } from 'react-native'
 
 export type SortMode = PlayerSearchSortMode
 type SortDir = PlayerSearchSortDir
@@ -45,7 +46,7 @@ const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
 
-function useWeeklyAvailability(enabled: boolean) {
+export function useWeeklyAvailability(enabled: boolean) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
 
@@ -56,18 +57,40 @@ function useWeeklyAvailability(enabled: boolean) {
             return
         }
         let cancelled = false
-        const seasonYear = currentSeasonYear()
-        const today = todayET()
-        getCurrentWeekNumber(seasonYear).then((weekNum) => {
-            if (cancelled) return
-            return getWeekDays(weekNum ?? 1, seasonYear)
-        }).then((days) => {
-            if (!cancelled && days) setWeekDays(days)
-        }).catch(console.error)
-        getStartedTeams(today).then((teams) => {
-            if (!cancelled) setStartedTeams(teams)
-        }).catch(console.error)
-        return () => { cancelled = true }
+        let appState: AppStateStatus = AppState.currentState
+        let loadedDate: string | null = null
+        const load = async (includeSchedule: boolean) => {
+            const seasonYear = currentSeasonYear()
+            const today = todayET()
+            try {
+                const [teams, days] = await Promise.all([
+                    getStartedTeams(today),
+                    includeSchedule || loadedDate !== today
+                        ? getCurrentWeekNumber(seasonYear).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear))
+                        : Promise.resolve(null),
+                ])
+                if (cancelled) return
+                loadedDate = today
+                setStartedTeams(teams)
+                if (days) setWeekDays(days)
+            } catch (error) {
+                if (!cancelled) console.error(error)
+            }
+        }
+        void load(true)
+        const poll = setInterval(() => {
+            if (appState === 'active') void load(false)
+        }, 15_000)
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            const becameActive = appState !== 'active' && nextState === 'active'
+            appState = nextState
+            if (becameActive) void load(true)
+        })
+        return () => {
+            cancelled = true
+            clearInterval(poll)
+            subscription.remove()
+        }
     }, [enabled])
 
     const gamesLeft = useMemo(() => {
