@@ -22,4 +22,12 @@ describe('comprehensive repository gates', () => {
             'npm run check:db-function-catalog',
         ]) expect(workflow).toContain(command)
     })
+
+    it('serves database Edge integration with a matching internal token', () => {
+        const workflow = read('.github/workflows/test.yml')
+        expect(workflow).toContain(
+            'supabase functions serve --env-file /tmp/pancake-database-edge.env',
+        )
+        expect(workflow.match(/PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token/g)).toHaveLength(2)
+    })
 })

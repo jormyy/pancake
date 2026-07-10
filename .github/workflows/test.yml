@@ -118,6 +118,18 @@ jobs:
         shell: bash
         run: |
           source <(supabase status -o env)
+          printf 'PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token\n' > /tmp/pancake-database-edge.env
+          supabase functions serve --env-file /tmp/pancake-database-edge.env > /tmp/pancake-database-edge.log 2>&1 &
+          for attempt in {1..60}; do
+            if curl --fail --silent "$API_URL/functions/v1/api/health" >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              cat /tmp/pancake-database-edge.log
+              exit 1
+            fi
+            sleep 2
+          done
           SUPABASE_DB_URL="$DB_URL" npm run check:db-function-catalog
           find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} .sql \; | sort > /tmp/expected-migrations
           psql "$DB_URL" -Atc "select version || '_' || name from supabase_migrations.schema_migrations order by version" > /tmp/applied-migrations
@@ -126,6 +138,7 @@ jobs:
           SUPABASE_DB_URL="$DB_URL" \
           E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
           E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+          PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token \
           npm run test:db
 
   browser-matrix:
