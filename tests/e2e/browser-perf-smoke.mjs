@@ -9,6 +9,7 @@ import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSes
 import { combineNavigationPhases, hasRequestTimingEvidence, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
 import { createDisposableLeagueFromSeedUsers } from './soak-fixtures.mjs'
 import { resolveReleaseProvenance } from './release-provenance.mjs'
+import { validateBrowserMutationLoad } from './performance-budgets.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -500,13 +501,8 @@ export async function runBrowserPerfSmoke({
 
     const failures = []
     failures.push(...browserDiagnosticFailures({ consoleOutput, errorOutput }))
-    for (const { surface, load } of [
-      { surface: 'draft', load: draftLoad },
-      { surface: 'home', load: homeLoad },
-    ]) {
-      if (!Number.isInteger(load.count) || load.count < 1) failures.push(`${surface} mutation count was not a positive integer`)
-      if (load.mutations.length !== load.count) failures.push(`${surface} mutation ledger did not match its count`)
-    }
+    failures.push(...validateBrowserMutationLoad('draft', draftLoad))
+    failures.push(...validateBrowserMutationLoad('home', homeLoad))
     if (draftLoad.count !== homeLoad.count) failures.push('draft and home mutation counts did not match')
     if (draftPerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`draft heartbeat lag ${draftPerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (homePerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`home heartbeat lag ${homePerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)

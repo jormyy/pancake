@@ -10,7 +10,7 @@ import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
 import { DATA_LATENCY_STEP_KEYS } from './e2e/data-latency-contract.mjs'
 import { runDataLatencyWorkflow } from './e2e/data-latency-bench.mjs'
-import { validateBrowserPerfReport, validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
+import { validateBrowserMutationLoad, validateBrowserPerfReport, validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 import { digestReleaseBundle, selectRepositoryCommit } from './e2e/release-provenance.mjs'
 import { planReleaseMigrations, planReleaseMigrationsFromHistory, validateAppliedMigrationDelta } from './e2e/release-soak-migration-plan.mjs'
@@ -501,18 +501,45 @@ describe('release E2E contracts', () => {
       },
       workflows: [],
     }
+    const draftMutation = {
+      bidAmount: 1,
+      bidderId: '11111111-1111-4111-8111-111111111111',
+      matchupUpdated: true,
+    }
+    const homeMutation = { bidAmount: null, bidderId: null, matchupUpdated: true }
     const report = {
       status: 'PASS',
       draftPerf: { ticks: 10, maxLagMs: 1, maxLongTaskMs: 1, longTaskSupported: true },
       homePerf: { ticks: 10, maxLagMs: 1, maxLongTaskMs: 1, longTaskSupported: true },
       load: {
         durationMs: 3,
-        draft: { count: 2, durationMs: 3, mutations: [{}, {}] },
-        home: { count: 2, durationMs: 2, mutations: [{}, {}] },
+        draft: { count: 2, durationMs: 3, mutations: [draftMutation, draftMutation] },
+        home: { count: 2, durationMs: 2, mutations: [homeMutation, homeMutation] },
       },
       workflowMeasurements: [],
     }
     expect(validateBrowserPerfReport(manifest, report)).toEqual([])
+
+    expect(validateBrowserMutationLoad('draft', { count: 1, durationMs: 0, mutations: [draftMutation] })).toEqual([])
+    expect(validateBrowserMutationLoad('home', { count: 1, durationMs: 0, mutations: [homeMutation] })).toEqual([])
+    for (const mutation of [
+      {},
+      { ...draftMutation, bidAmount: '1' },
+      { ...draftMutation, bidderId: null },
+      { ...draftMutation, matchupUpdated: false },
+    ]) {
+      expect(validateBrowserMutationLoad('draft', { count: 1, durationMs: 1, mutations: [mutation] }).length)
+        .toBeGreaterThan(0)
+    }
+    for (const mutation of [
+      {},
+      { ...homeMutation, bidAmount: 1 },
+      { ...homeMutation, bidderId: draftMutation.bidderId },
+      { ...homeMutation, matchupUpdated: false },
+    ]) {
+      expect(validateBrowserMutationLoad('home', { count: 1, durationMs: 1, mutations: [mutation] }).length)
+        .toBeGreaterThan(0)
+    }
 
     for (const ticks of [1, 9]) {
       expect(validateBrowserPerfReport(manifest, {
@@ -558,6 +585,12 @@ describe('release E2E contracts', () => {
       ...report,
       load: { ...report.load, durationMs: 2 },
     })).toContain('mutation loop duration must equal the slowest surface')
+  })
+
+  it('uses the exact semantic mutation contract in the browser producer', async () => {
+    const producer = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
+    expect(producer).toContain("validateBrowserMutationLoad('draft', draftLoad)")
+    expect(producer).toContain("validateBrowserMutationLoad('home', homeLoad)")
   })
 
   it('rejects skeletal complete data-latency PASS evidence', async () => {
@@ -933,8 +966,16 @@ describe('release E2E contracts', () => {
         homePerf: { ticks: 10, maxLagMs: 0, maxLongTaskMs: 0, longTaskSupported: true },
         load: {
           durationMs: 1,
-          draft: { count: 1, durationMs: 1, mutations: [{}] },
-          home: { count: 1, durationMs: 1, mutations: [{}] },
+          draft: { count: 1, durationMs: 1, mutations: [{
+            bidAmount: 1,
+            bidderId: '11111111-1111-4111-8111-111111111111',
+            matchupUpdated: true,
+          }] },
+          home: { count: 1, durationMs: 1, mutations: [{
+            bidAmount: null,
+            bidderId: null,
+            matchupUpdated: true,
+          }] },
         },
         workflowMeasurements: [],
       } },

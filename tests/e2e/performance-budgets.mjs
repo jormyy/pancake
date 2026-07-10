@@ -32,6 +32,35 @@ const getPath = (value, dottedPath) => dottedPath
 
 const isFiniteNonnegativeNumber = (value) => Number.isFinite(value) && value >= 0
 const isPositiveInteger = (value) => Number.isInteger(value) && value > 0
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const MUTATION_ENTRY_KEYS = ['bidAmount', 'bidderId', 'matchupUpdated']
+
+export const validateBrowserMutationLoad = (surface, load) => {
+  const failures = []
+  if (surface !== 'draft' && surface !== 'home') return [`unknown mutation surface ${surface}`]
+  if (!isPositiveInteger(load?.count)) failures.push(`${surface} mutation count must be a positive integer`)
+  if (!isFiniteNonnegativeNumber(load?.durationMs)) failures.push(`${surface} mutation duration must be a finite nonnegative number`)
+  if (!Array.isArray(load?.mutations) || load.mutations.length !== load.count) {
+    failures.push(`${surface} mutation ledger must match its count`)
+    return failures
+  }
+  for (const [index, mutation] of load.mutations.entries()) {
+    const label = `${surface} mutation ${index + 1}`
+    if (!mutation || typeof mutation !== 'object' || Array.isArray(mutation) ||
+        JSON.stringify(Object.keys(mutation).sort()) !== JSON.stringify(MUTATION_ENTRY_KEYS)) {
+      failures.push(`${label} must use the exact mutation evidence schema`)
+      continue
+    }
+    if (mutation.matchupUpdated !== true) failures.push(`${label} must prove its matchup update`)
+    if (surface === 'draft') {
+      if (!Number.isInteger(mutation.bidAmount) || mutation.bidAmount <= 0) failures.push(`${label} bidAmount must be a positive integer`)
+      if (typeof mutation.bidderId !== 'string' || !UUID_RE.test(mutation.bidderId)) failures.push(`${label} bidderId must be a UUID`)
+    } else if (mutation.bidAmount !== null || mutation.bidderId !== null) {
+      failures.push(`${label} must not claim draft bid evidence`)
+    }
+  }
+  return failures
+}
 
 export const validateManifest = (manifest) => {
   const failures = []
@@ -125,17 +154,8 @@ export const validateBrowserPerfReport = (manifest, report, expectedProvenance =
   } else if (report.load.durationMs > budgets.maxMutationLoopMs) {
     failures.push(`mutation loop ${report.load.durationMs}ms exceeds ${budgets.maxMutationLoopMs}ms`)
   }
-  for (const [surface, load] of [['draft', report.load?.draft], ['home', report.load?.home]]) {
-    if (!isPositiveInteger(load?.count)) {
-      failures.push(`${surface} mutation count must be a positive integer`)
-    }
-    if (!isFiniteNonnegativeNumber(load?.durationMs)) {
-      failures.push(`${surface} mutation duration must be a finite nonnegative number`)
-    }
-    if (!Array.isArray(load?.mutations) || load.mutations.length !== load.count) {
-      failures.push(`${surface} mutation ledger must match its count`)
-    }
-  }
+  failures.push(...validateBrowserMutationLoad('draft', report.load?.draft))
+  failures.push(...validateBrowserMutationLoad('home', report.load?.home))
   if (isPositiveInteger(report.load?.draft?.count) && isPositiveInteger(report.load?.home?.count) &&
       report.load.draft.count !== report.load.home.count) {
     failures.push('draft and home mutation counts must match')
