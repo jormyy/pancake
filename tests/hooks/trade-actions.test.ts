@@ -4,18 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import type { Trade } from '@/lib/trades'
 
-const { acceptTrade } = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
     acceptTrade: vi.fn(),
-}))
-
-vi.mock('@/lib/trades', () => ({
-    acceptTrade,
+    confirmAction: vi.fn(),
     rejectTrade: vi.fn(),
     vetoTrade: vi.fn(),
     withdrawTrade: vi.fn(),
 }))
+
+vi.mock('@/lib/trades', () => ({
+    acceptTrade: mocks.acceptTrade,
+    rejectTrade: mocks.rejectTrade,
+    vetoTrade: mocks.vetoTrade,
+    withdrawTrade: mocks.withdrawTrade,
+}))
 vi.mock('@/lib/alert', () => ({
-    confirmAction: vi.fn(),
+    confirmAction: mocks.confirmAction,
     getErrorMessage: (error: unknown) => String(error),
     showAlert: vi.fn(),
 }))
@@ -65,7 +69,7 @@ const trade = (id: string): Trade => ({
 
 describe('useTradeActions', () => {
     it('accepts without a client-side roster-cap or drop workflow', async () => {
-        acceptTrade.mockResolvedValue(undefined)
+        mocks.acceptTrade.mockResolvedValue(undefined)
         let latest!: ReturnType<typeof useTradeActions>
         const onAction = vi.fn()
         const Probe = () => {
@@ -76,7 +80,7 @@ describe('useTradeActions', () => {
         await act(async () => { renderer = create(React.createElement(Probe)) })
         await act(async () => { await latest.accept(trade('trade-a')) })
 
-        expect(acceptTrade).toHaveBeenCalledWith('trade-a', 'member-a')
+        expect(mocks.acceptTrade).toHaveBeenCalledWith('trade-a', 'member-a')
         expect(onAction).toHaveBeenCalledOnce()
         expect(latest.busyTradeId).toBeNull()
         await act(async () => { renderer.unmount() })
@@ -84,7 +88,7 @@ describe('useTradeActions', () => {
 
     it('does not refresh a prior league after an in-flight acceptance changes owner', async () => {
         const acceptance = deferred<void>()
-        acceptTrade.mockReturnValue(acceptance.promise)
+        mocks.acceptTrade.mockReturnValue(acceptance.promise)
         const onAction = vi.fn()
         let latest!: ReturnType<typeof useTradeActions>
         const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
@@ -105,7 +109,7 @@ describe('useTradeActions', () => {
 
     it('serializes mutations so another trade cannot supersede or re-enable the first', async () => {
         const first = deferred<void>()
-        acceptTrade.mockReturnValueOnce(first.promise)
+        mocks.acceptTrade.mockReturnValueOnce(first.promise)
         const onAction = vi.fn()
         let latest!: ReturnType<typeof useTradeActions>
         const Probe = () => {
@@ -119,11 +123,34 @@ describe('useTradeActions', () => {
             pending = latest.accept(trade('trade-a'))
             await latest.accept(trade('trade-b'))
         })
-        expect(acceptTrade).toHaveBeenCalledTimes(1)
+        expect(mocks.acceptTrade).toHaveBeenCalledTimes(1)
         expect(latest.busyTradeId).toBe('trade-a')
         await act(async () => { first.resolve(); await pending })
         expect(onAction).toHaveBeenCalledOnce()
         expect(latest.busyTradeId).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('cancels a terminal confirmation when the active owner changes', async () => {
+        let confirm!: () => Promise<void>
+        mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })
+        mocks.rejectTrade.mockResolvedValue(undefined)
+        let latest!: ReturnType<typeof useTradeActions>
+        const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
+            latest = useTradeActions({ memberId, leagueId, onAction: vi.fn() })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(Probe, { memberId: 'member-a', leagueId: 'league-a' }))
+        })
+        await act(async () => { latest.reject('trade-a') })
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' }))
+        })
+        await act(async () => { await confirm() })
+
+        expect(mocks.rejectTrade).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 })

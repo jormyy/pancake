@@ -55,7 +55,7 @@ export function useTradeActions({
         operation: (tradeId: string, memberId: string) => Promise<void>,
         fallbackMessage: string,
     ) => {
-        if (!memberId || mutationInFlight.current) return
+        if (!memberId || identityRef.current !== identity || mutationInFlight.current) return
         mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
