@@ -575,6 +575,7 @@ export async function runBrowserPerfSmoke({
       status: 'FAIL',
       season,
       artifactDir,
+      provenance,
       error: error instanceof Error ? error.message : String(error),
       notes,
     }

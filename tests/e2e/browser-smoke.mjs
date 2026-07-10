@@ -482,6 +482,7 @@ export async function runBrowserSmoke({
       user: user.email,
       visited,
       artifactDir,
+      provenance,
       error: error instanceof Error ? error.message : String(error),
       notes,
     }

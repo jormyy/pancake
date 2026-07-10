@@ -23,8 +23,8 @@ const waitForPath = async (pathname) => {
   throw new Error(`Production hydration did not navigate to ${pathname}; last URL was ${currentUrl}`)
 }
 
-const verifyHydration = async () => runWithScenarioResourceOwner('production-web-hydration', async () => {
-  const provenance = await resolveReleaseProvenance()
+/** @param {{ commitSha: string, runId: string, bundleDigest: string }} provenance */
+const verifyHydration = async (provenance) => runWithScenarioResourceOwner('production-web-hydration', async () => {
   await browser(session, ['open', frontendUrl])
   await waitForPath('/sign-in')
   await fillSignInCredentials(browser, session, 'hydration-check@example.com', 'not-a-real-password')
@@ -46,13 +46,14 @@ const verifyHydration = async () => runWithScenarioResourceOwner('production-web
 
 const main = async () => {
   await mkdir(path.dirname(artifactPath), { recursive: true })
+  const provenance = await resolveReleaseProvenance()
   try {
-    const result = await verifyHydration()
+    const result = await verifyHydration(provenance)
     await writeFile(artifactPath, `${JSON.stringify(result, null, 2)}\n`)
     console.log(`Production hydration PASS: ${result.finalUrl}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    await writeFile(artifactPath, `${JSON.stringify({ status: 'FAIL', error: message }, null, 2)}\n`)
+    await writeFile(artifactPath, `${JSON.stringify({ status: 'FAIL', error: message, provenance }, null, 2)}\n`)
     throw error
   }
 }
