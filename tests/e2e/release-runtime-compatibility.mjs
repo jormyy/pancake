@@ -16,6 +16,7 @@ export const validateReleaseCompatibilityEvidence = ({
   const failures = []
   const expected = new Map([
     ['deployed-frontend-candidate-edge', { frontendSha: deployedFrontendSha, edgeSha: candidateSha }],
+    ['deployed-frontend-deployed-edge', { frontendSha: deployedFrontendSha, edgeSha: deployedEdgeSha }],
     ['candidate-frontend-deployed-edge', { frontendSha: candidateSha, edgeSha: deployedEdgeSha }],
   ])
   for (const [id, identity] of expected) {
@@ -55,13 +56,20 @@ const required = (name, value) => {
 }
 
 const main = async () => {
-  const [oldFrontendReportPath, oldEdgeReportPath] = process.argv.slice(2)
-  if (!oldFrontendReportPath || !oldEdgeReportPath) throw new Error('Two browser report paths are required')
-  const [oldFrontendReport, oldEdgeReport] = await Promise.all([
-    readFile(oldFrontendReportPath, 'utf8').then(JSON.parse),
-    readFile(oldEdgeReportPath, 'utf8').then(JSON.parse),
+  const [oldFrontendNewEdgeReportPath, deployedPairReportPath, newFrontendOldEdgeReportPath] = process.argv.slice(2)
+  if (!oldFrontendNewEdgeReportPath || !deployedPairReportPath || !newFrontendOldEdgeReportPath) {
+    throw new Error('Three browser report paths are required')
+  }
+  const [oldFrontendNewEdgeReport, deployedPairReport, newFrontendOldEdgeReport] = await Promise.all([
+    readFile(oldFrontendNewEdgeReportPath, 'utf8').then(JSON.parse),
+    readFile(deployedPairReportPath, 'utf8').then(JSON.parse),
+    readFile(newFrontendOldEdgeReportPath, 'utf8').then(JSON.parse),
   ])
-  for (const [label, report] of [['deployed-frontend-candidate-edge', oldFrontendReport], ['candidate-frontend-deployed-edge', oldEdgeReport]]) {
+  for (const [label, report] of [
+    ['deployed-frontend-candidate-edge', oldFrontendNewEdgeReport],
+    ['deployed-frontend-deployed-edge', deployedPairReport],
+    ['candidate-frontend-deployed-edge', newFrontendOldEdgeReport],
+  ]) {
     const reportFailures = validateMutationCompatibilityReport(report)
     if (reportFailures.length > 0) throw new Error(`${label}: ${reportFailures.join('; ')}`)
   }
@@ -85,19 +93,27 @@ const main = async () => {
   const pairs = [
     {
       id: 'deployed-frontend-candidate-edge',
-      status: oldFrontendReport.status,
-      error: oldFrontendReport.failures?.join('; '),
+      status: oldFrontendNewEdgeReport.status,
+      error: oldFrontendNewEdgeReport.failures?.join('; '),
       frontend: { commitSha: deployedFrontendSha, bundleDigest: deployedFrontendCompatibilityDigest },
       edge: { commitSha: candidateSha, edgeArtifactDigest: candidateEdgeDigest },
-      mutationEvidenceIds: oldFrontendReport.scenarios.filter((scenario) => scenario.status === 'PASS').map((scenario) => scenario.id),
+      mutationEvidenceIds: oldFrontendNewEdgeReport.scenarios.filter((scenario) => scenario.status === 'PASS').map((scenario) => scenario.id),
+    },
+    {
+      id: 'deployed-frontend-deployed-edge',
+      status: deployedPairReport.status,
+      error: deployedPairReport.failures?.join('; '),
+      frontend: { commitSha: deployedFrontendSha, bundleDigest: deployedFrontendCompatibilityDigest },
+      edge: { commitSha: deployedEdgeSha, edgeArtifactDigest: deployedEdgeDigest },
+      mutationEvidenceIds: deployedPairReport.scenarios.filter((scenario) => scenario.status === 'PASS').map((scenario) => scenario.id),
     },
     {
       id: 'candidate-frontend-deployed-edge',
-      status: oldEdgeReport.status,
-      error: oldEdgeReport.failures?.join('; '),
+      status: newFrontendOldEdgeReport.status,
+      error: newFrontendOldEdgeReport.failures?.join('; '),
       frontend: { commitSha: candidateSha, bundleDigest: candidateFrontendDigest },
       edge: { commitSha: deployedEdgeSha, edgeArtifactDigest: deployedEdgeDigest },
-      mutationEvidenceIds: oldEdgeReport.scenarios.filter((scenario) => scenario.status === 'PASS').map((scenario) => scenario.id),
+      mutationEvidenceIds: newFrontendOldEdgeReport.scenarios.filter((scenario) => scenario.status === 'PASS').map((scenario) => scenario.id),
     },
   ]
   const failures = validateReleaseCompatibilityEvidence({

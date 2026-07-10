@@ -330,6 +330,13 @@ describe('release E2E contracts', () => {
         edge: { commitSha: deployedEdgeSha, edgeArtifactDigest: '0'.repeat(64) },
         mutationEvidenceIds: [...REQUIRED_MUTATION_SCENARIOS],
       },
+      {
+        id: 'deployed-frontend-deployed-edge',
+        status: 'PASS',
+        frontend: { commitSha: deployedFrontendSha, bundleDigest: 'd'.repeat(64) },
+        edge: { commitSha: deployedEdgeSha, edgeArtifactDigest: '0'.repeat(64) },
+        mutationEvidenceIds: [...REQUIRED_MUTATION_SCENARIOS],
+      },
     ]
     const input = {
       candidateSha,
@@ -357,6 +364,16 @@ describe('release E2E contracts', () => {
     })).toContain('deployed-frontend-candidate-edge mutation contract failed: removed route /league/legacy-summary')
     expect(validateReleaseCompatibilityEvidence({
       ...input,
+      pairs: passingPairs.filter((pair) => pair.id !== 'deployed-frontend-deployed-edge'),
+    })).toContain('deployed-frontend-deployed-edge evidence is missing')
+    expect(validateReleaseCompatibilityEvidence({
+      ...input,
+      pairs: passingPairs.map((pair) => pair.id === 'deployed-frontend-deployed-edge'
+        ? { ...pair, status: 'FAIL', error: 'removed RPC create_league' }
+        : pair),
+    })).toContain('deployed-frontend-deployed-edge mutation contract failed: removed RPC create_league')
+    expect(validateReleaseCompatibilityEvidence({
+      ...input,
       deployedFrontendRebuild: { ...input.deployedFrontendRebuild, exactProductionRebuildVerified: false },
     })).toContain('deployed frontend exact production rebuild was not verified')
 
@@ -364,7 +381,8 @@ describe('release E2E contracts', () => {
     expect(soakWorkflow).toContain('test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
     expect(soakWorkflow).toContain('export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=')
     expect(soakWorkflow).not.toContain("printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s")
-    expect(soakWorkflow.match(/release-mutation-compatibility\.mjs/g)).toHaveLength(2)
+    expect(soakWorkflow.match(/release-mutation-compatibility\.mjs/g)).toHaveLength(3)
+    expect(soakWorkflow).toContain('--pair=deployed-frontend-deployed-edge')
     expect(soakWorkflow).not.toContain('browser-ci-scenario.mjs --scenario=smoke')
   })
 
