@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
     buildMultiTeamTradeItems,
     createMultiTeamTradeState,
+    canUpdateTradeFaabInput,
     isMultiTeamTradeSubmittable,
     multiTeamTradeReducer,
     multiTeamTradeStateFromTrade,
+    validateTradeFaabInput,
 } from '@/lib/multi-team-trade-state'
 import type { RoutedTradeItem, Trade } from '@/lib/trades'
-import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
+import { MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 
 const members = ['B', 'C']
 
@@ -155,6 +157,42 @@ describe('multi-team trade state', () => {
 
         expect(rebuilt).toHaveLength(MAX_TRADE_ITEMS + 1)
         expect(isMultiTeamTradeSubmittable(state.participantOrder, rebuilt)).toBe(false)
+    })
+
+    it('accepts maximum FAAB, prevents overflow, and lets oversized prefills be reduced', () => {
+        let state = multiTeamTradeReducer(createMultiTeamTradeState('A'), {
+            type: 'set-participants',
+            actorMemberId: 'A',
+            participantIds: ['A', 'B', 'C'],
+        })
+        state = multiTeamTradeReducer(state, {
+            type: 'set-faab', memberId: 'A', toMemberId: 'B', value: String(MAX_TRADE_FAAB_AMOUNT),
+        })
+        expect(state.participants.A.faabInputs.B).toBe(String(MAX_TRADE_FAAB_AMOUNT))
+
+        state = multiTeamTradeReducer(state, {
+            type: 'set-faab', memberId: 'A', toMemberId: 'B', value: String(MAX_TRADE_FAAB_AMOUNT + 1),
+        })
+        expect(state.participants.A.faabInputs.B).toBe(String(MAX_TRADE_FAAB_AMOUNT))
+        expect(canUpdateTradeFaabInput(String(MAX_TRADE_FAAB_AMOUNT), String(MAX_TRADE_FAAB_AMOUNT + 1))).toBe(false)
+
+        const prefilled = multiTeamTradeStateFromTrade(routedTrade([
+            { kind: 'faab', amount: MAX_TRADE_FAAB_AMOUNT + 1, fromMemberId: 'A', toMemberId: 'B' },
+            { kind: 'pick', pickId: 'pick-1', seasonYear: 2028, round: 1, originalTeamName: 'C Team', fromMemberId: 'C', toMemberId: 'A' },
+        ]), 'A')
+        const oversizedItems = buildMultiTeamTradeItems(prefilled, true)
+        expect(validateTradeFaabInput(prefilled.participants.A.faabInputs.B).error)
+            .toBe('FAAB amount cannot exceed 1,000,000.')
+        expect(isMultiTeamTradeSubmittable(prefilled.participantOrder, oversizedItems)).toBe(false)
+
+        const reduced = multiTeamTradeReducer(prefilled, {
+            type: 'set-faab', memberId: 'A', toMemberId: 'B', value: String(MAX_TRADE_FAAB_AMOUNT),
+        })
+        expect(reduced.participants.A.faabInputs.B).toBe(String(MAX_TRADE_FAAB_AMOUNT))
+        expect(isMultiTeamTradeSubmittable(
+            reduced.participantOrder,
+            buildMultiTeamTradeItems(reduced, true),
+        )).toBe(true)
     })
 
     it('requires every selected participant to send or receive an asset before submission', () => {

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { canUpdateTradeFaabInput, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
 type ParticipantTradePanelProps = {
@@ -165,20 +166,42 @@ export function ParticipantTradePanel({
             {faabEnabled ? (
                 <View style={styles.faabRow}>
                     <Text style={styles.routePickerLabel}>FAAB ROUTES</Text>
-                    {participant.destinationIds.map((destinationId) => (
-                        <View key={destinationId} style={styles.faabDestinationRow}>
-                            <Text style={styles.termLabel}>To {participantName(destinationId)}</Text>
-                            <TextInput
-                                style={styles.termInput}
-                                value={participant.faabInputs[destinationId] ?? '0'}
-                                onChangeText={(value) => onFaabChange(participant.memberId, destinationId, value)}
-                                keyboardType="numeric"
-                                accessibilityLabel={`FAAB sent by ${participantName(participant.memberId)} to ${participantName(destinationId)}`}
-                                testID={`trade-faab-${participant.memberId}-${destinationId}`}
-                                id={`trade-faab-${participant.memberId}-${destinationId}`}
-                            />
-                        </View>
-                    ))}
+                    {participant.destinationIds.map((destinationId) => {
+                        const value = participant.faabInputs[destinationId] ?? '0'
+                        const error = validateTradeFaabInput(value).error
+                        return (
+                            <View key={destinationId} style={styles.faabDestinationRow}>
+                                <Text style={styles.termLabel}>To {participantName(destinationId)}</Text>
+                                <TextInput
+                                    style={[styles.termInput, error && styles.termInputInvalid]}
+                                    value={value}
+                                    onChangeText={(nextValue) => {
+                                        if (canUpdateTradeFaabInput(value, nextValue)) {
+                                            onFaabChange(participant.memberId, destinationId, nextValue)
+                                        }
+                                    }}
+                                    keyboardType="numeric"
+                                    accessibilityLabel={error
+                                        ? `FAAB sent by ${participantName(participant.memberId)} to ${participantName(destinationId)}. ${error}`
+                                        : `FAAB sent by ${participantName(participant.memberId)} to ${participantName(destinationId)}`
+                                    }
+                                    aria-invalid={Boolean(error)}
+                                    testID={`trade-faab-${participant.memberId}-${destinationId}`}
+                                    id={`trade-faab-${participant.memberId}-${destinationId}`}
+                                />
+                                {error ? (
+                                    <Text
+                                        style={styles.faabError}
+                                        accessibilityRole="alert"
+                                        accessibilityLiveRegion="polite"
+                                        testID={`trade-faab-error-${participant.memberId}-${destinationId}`}
+                                    >
+                                        {error}
+                                    </Text>
+                                ) : null}
+                            </View>
+                        )
+                    })}
                 </View>
             ) : null}
         </View>
@@ -230,4 +253,6 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
+    termInputInvalid: { borderColor: colors.danger },
+    faabError: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 })

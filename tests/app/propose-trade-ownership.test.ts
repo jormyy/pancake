@@ -2,7 +2,11 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProposeTradeScreen from '@/app/(modals)/propose-trade'
-import { MAX_TRADE_PARTICIPANTS } from '@pancake/core'
+import { MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
+
+type MockTradeItem =
+    | { kind: 'player'; fromMemberId: string; toMemberId: string; playerId: string }
+    | { kind: 'faab'; fromMemberId: string; toMemberId: string; faabAmount: number }
 
 const mocks = vi.hoisted(() => ({
     back: vi.fn(),
@@ -23,7 +27,7 @@ const mocks = vi.hoisted(() => ({
     showAlert: vi.fn(),
     showSuccess: vi.fn(),
     submitTradeComposer: vi.fn(),
-    tradeItems: [] as { kind: 'player'; fromMemberId: string; toMemberId: string; playerId: string }[],
+    tradeItems: [] as MockTradeItem[],
 }))
 
 vi.mock('react-native', () => ({
@@ -70,7 +74,14 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
     }),
 }))
 vi.mock('@/lib/trade-composer', () => ({
-    buildTwoTeamTradeComposerPayload: () => ({ hasOffer: true, hasRequest: true, payload: {} }),
+    buildTwoTeamTradeComposerPayload: (items: MockTradeItem[]) => ({
+        hasOffer: true,
+        hasRequest: true,
+        faabError: items.some((item) => item.kind === 'faab' && item.faabAmount > 1_000_000)
+            ? 'FAAB amount cannot exceed 1,000,000.'
+            : null,
+        payload: {},
+    }),
     getTradeComposerMode: (params: Record<string, string | undefined>) => ({
         mode: params.editTradeId ? 'edit' : params.counterTradeId ? 'counter' : 'propose',
         editTradeId: params.editTradeId ?? null,
@@ -151,6 +162,34 @@ beforeEach(() => {
 })
 
 describe('propose trade async ownership', () => {
+    it.each([
+        ['2-Team', MAX_TRADE_FAAB_AMOUNT, false],
+        ['2-Team', MAX_TRADE_FAAB_AMOUNT + 1, true],
+        ['Multi-Team', MAX_TRADE_FAAB_AMOUNT, false],
+        ['Multi-Team', MAX_TRADE_FAAB_AMOUNT + 1, true],
+    ] as const)('%s Send readiness for FAAB amount %i', async (mode, amount, disabled) => {
+        if (mode === 'Multi-Team') {
+            mocks.participantIds = ['member-a', 'member-b', 'member-c']
+            mocks.tradeItems = [
+                { kind: 'faab', fromMemberId: 'member-a', toMemberId: 'member-b', faabAmount: amount },
+                { kind: 'player', fromMemberId: 'member-c', toMemberId: 'member-a', playerId: 'player-c' },
+            ]
+        } else {
+            mocks.tradeItems = [
+                { kind: 'faab', fromMemberId: 'member-a', toMemberId: 'member-b', faabAmount: amount },
+                { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'player-b' },
+            ]
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        if (mode === 'Multi-Team') {
+            await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
+        }
+
+        expect(renderer.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(disabled)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('disables a 13th participant selection at the 12-team boundary', async () => {
         mocks.participantIds = Array.from(
             { length: MAX_TRADE_PARTICIPANTS },

@@ -4,6 +4,7 @@ export const MAX_TRADE_ITEMS = 100
 export const MAX_TRADE_EXPIRATION_DAYS = 30
 export const MAX_TRADE_NOTES_BYTES = 2_000
 export const MAX_TRADE_PARTICIPANTS = 12
+export const MAX_TRADE_FAAB_AMOUNT = 1_000_000
 
 export function utf8ByteLength(value: string): number {
     let bytes = 0

@@ -2,6 +2,7 @@ import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
   MAX_TRADE_EXPIRATION_DAYS,
+  MAX_TRADE_FAAB_AMOUNT,
   MAX_TRADE_ITEMS,
   MAX_TRADE_NOTES_BYTES,
   MAX_TRADE_PARTICIPANTS,
@@ -55,7 +56,6 @@ type MultiTeamTradePayload = {
   expiresAt: string | null
 }
 
-const MAX_TRADE_FAAB = 1_000_000
 const DAY_MS = 24 * 60 * 60 * 1_000
 
 type JsonObject = { [key: string]: Json | undefined }
@@ -156,8 +156,8 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
     requestPickIds: optionalUuidArrayField(body, 'requestPickIds'),
     notes: optionalStringField(body, 'notes', { maxUtf8Bytes: MAX_TRADE_NOTES_BYTES }),
     expiresAt: optionalTradeExpirationField(body, 'expiresAt'),
-    offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
-    requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0,
+    offerFaabAmount: optionalIntegerField(body, 'offerFaabAmount', { min: 0, max: MAX_TRADE_FAAB_AMOUNT }) ?? 0,
+    requestFaabAmount: optionalIntegerField(body, 'requestFaabAmount', { min: 0, max: MAX_TRADE_FAAB_AMOUNT }) ?? 0,
   }
   const itemCount = payload.offerPlayerIds.length + payload.requestPlayerIds.length +
     payload.offerPickIds.length + payload.requestPickIds.length +
@@ -184,7 +184,7 @@ function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: 
     const toMemberId = uuidField(item, 'toMemberId')
     const playerId = optionalUuidField(item, 'playerId')
     const pickId = optionalUuidField(item, 'pickId')
-    const faabAmount = optionalIntegerField(item, 'faabAmount', { min: 0, max: MAX_TRADE_FAAB }) ?? 0
+    const faabAmount = optionalIntegerField(item, 'faabAmount', { min: 0, max: MAX_TRADE_FAAB_AMOUNT }) ?? 0
     const assetCount = (playerId ? 1 : 0) + (pickId ? 1 : 0) + (faabAmount > 0 ? 1 : 0)
     if (assetCount !== 1) {
       throw new ValidationError(`items[${index}] must include exactly one playerId, pickId, or positive faabAmount.`)

@@ -7,7 +7,7 @@ import type {
 } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import type { LeagueStatus } from '@/types/database'
-import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
+import { isMultiTeamTradeSubmittable, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 
 export type TradeComposerMode = 'propose' | 'edit' | 'counter'
@@ -53,6 +53,7 @@ export type ComposerPayloadDraft = {
     payload: TradeProposalPayload
     hasOffer: boolean
     hasRequest: boolean
+    faabError: string | null
     notesError: string | null
     expirationError: string | null
 }
@@ -234,8 +235,11 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
     const requestPlayerIds = Array.from(input.requestPlayerIds)
     const offerPickIds = Array.from(input.offerPickIds)
     const requestPickIds = Array.from(input.requestPickIds)
-    const offerFaabAmount = parseNonNegativeInt(input.offerFaabInput)
-    const requestFaabAmount = parseNonNegativeInt(input.requestFaabInput)
+    const offerFaab = validateTradeFaabInput(input.offerFaabInput)
+    const requestFaab = validateTradeFaabInput(input.requestFaabInput)
+    const offerFaabAmount = offerFaab.error ? parseNonNegativeInt(input.offerFaabInput) : offerFaab.amount
+    const requestFaabAmount = requestFaab.error ? parseNonNegativeInt(input.requestFaabInput) : requestFaab.amount
+    const faabError = offerFaab.error ?? requestFaab.error
     const notesError = validateTradeNotes(input.notes).error
     const expiration = generatedExpirationMs(input, nowMs)
 
@@ -252,6 +256,7 @@ export function buildTradeComposerPayload(input: ComposerPayloadInput, nowMs = D
         },
         hasOffer: offerPlayerIds.length > 0 || offerPickIds.length > 0 || offerFaabAmount > 0,
         hasRequest: requestPlayerIds.length > 0 || requestPickIds.length > 0 || requestFaabAmount > 0,
+        faabError,
         notesError,
         expirationError: expiration.error,
     }
@@ -284,6 +289,9 @@ export async function submitTradeComposer(
     input: SubmitComposerInput,
     deps: SubmitComposerDeps,
 ): Promise<void> {
+    const faabError = validateTradeFaabInput(String(input.payload.offerFaabAmount ?? 0)).error ??
+        validateTradeFaabInput(String(input.payload.requestFaabAmount ?? 0)).error
+    if (faabError) throw new Error(faabError)
     const notesError = validateTradeNotes(input.payload.notes ?? '').error
     if (notesError) throw new Error(notesError)
 

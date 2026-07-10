@@ -219,7 +219,7 @@ export default function ProposeTradeScreen() {
         !notesError && !expirationError && (
         multiTeamMode
             ? isMultiTeamTradeSubmittable(participantIds, items)
-            : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest)
+            : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest && !twoTeamDraft.faabError)
     )
 
     const handleSubmit = useCallback(async () => {

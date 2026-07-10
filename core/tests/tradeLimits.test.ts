@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     MAX_TRADE_EXPIRATION_DAYS,
+    MAX_TRADE_FAAB_AMOUNT,
     MAX_TRADE_ITEMS,
     MAX_TRADE_NOTES_BYTES,
     MAX_TRADE_PARTICIPANTS,
@@ -11,6 +12,7 @@ describe('trade limits', () => {
     it('exports canonical trade bounds', () => {
         expect(MAX_TRADE_ITEMS).toBe(100)
         expect(MAX_TRADE_EXPIRATION_DAYS).toBe(30)
+        expect(MAX_TRADE_FAAB_AMOUNT).toBe(1_000_000)
         expect(MAX_TRADE_NOTES_BYTES).toBe(2_000)
         expect(MAX_TRADE_PARTICIPANTS).toBe(12)
     })

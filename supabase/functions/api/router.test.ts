@@ -116,6 +116,7 @@ const { assertUuid } = await import('../_shared/apiRuntime.ts')
 const { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } = await import('../_shared/releaseMetadata.ts')
 const {
   MAX_TRADE_EXPIRATION_DAYS,
+  MAX_TRADE_FAAB_AMOUNT,
   MAX_TRADE_NOTES_BYTES,
   MAX_TRADE_PARTICIPANTS,
 } = await import('../_shared/tradeLimits.ts')
@@ -532,6 +533,28 @@ Deno.test({
         if (oversizedNotes.status !== 400 || oversizedNotesBody.error !== expectedNotes) {
           throw new Error(`expected ${path} notes cap rejection, got ${oversizedNotes.status}: ${JSON.stringify(oversizedNotesBody)}`)
         }
+      }
+
+      const withFaab = (faabAmount: number) => path === '/trades/propose'
+        ? { ...body, offerFaabAmount: faabAmount }
+        : {
+            ...body,
+            items: [
+              ...('items' in body && Array.isArray(body.items) ? body.items : []),
+              { fromMemberId: thirdMemberId, toMemberId: otherMemberId, faabAmount },
+            ],
+          }
+      const faabBoundary = await handleApiRoute(authedRequest('POST', path, withFaab(MAX_TRADE_FAAB_AMOUNT)))
+      if (faabBoundary.status !== 200) {
+        throw new Error(`expected ${path} to accept maximum FAAB, got ${faabBoundary.status}: ${await faabBoundary.text()}`)
+      }
+      const oversizedFaab = await handleApiRoute(authedRequest('POST', path, withFaab(MAX_TRADE_FAAB_AMOUNT + 1)))
+      const oversizedFaabBody = await oversizedFaab.json()
+      const expectedFaab = path === '/trades/propose'
+        ? `offerFaabAmount must be at most ${MAX_TRADE_FAAB_AMOUNT}`
+        : `faabAmount must be at most ${MAX_TRADE_FAAB_AMOUNT}`
+      if (oversizedFaab.status !== 400 || oversizedFaabBody.error !== expectedFaab) {
+        throw new Error(`expected ${path} FAAB cap rejection, got ${oversizedFaab.status}: ${JSON.stringify(oversizedFaabBody)}`)
       }
 
       const boundary = await handleApiRoute(authedRequest('POST', path, {

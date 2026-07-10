@@ -1,5 +1,5 @@
 import type { MultiTeamTradeItemPayload, Trade } from '@/lib/trades'
-import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
+import { MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 
 type AssetDestinations = Record<string, string | null>
 
@@ -8,6 +8,23 @@ type ParticipantTradeDraft = {
     playerDestinations: AssetDestinations
     pickDestinations: AssetDestinations
     faabInputs: Record<string, string>
+}
+
+const FAAB_ERROR = `FAAB amount cannot exceed ${MAX_TRADE_FAAB_AMOUNT.toLocaleString('en-US')}.`
+
+export function validateTradeFaabInput(value: string): { amount: number; error: string | null } {
+    if (value === '') return { amount: 0, error: null }
+    if (!/^\d+$/.test(value)) return { amount: 0, error: 'FAAB amount must be a whole number.' }
+    const amount = BigInt(value)
+    if (amount > BigInt(MAX_TRADE_FAAB_AMOUNT)) return { amount: 0, error: FAAB_ERROR }
+    return { amount: Number(amount), error: null }
+}
+
+export function canUpdateTradeFaabInput(currentValue: string, nextValue: string): boolean {
+    if (!/^\d*$/.test(nextValue)) return false
+    if (!validateTradeFaabInput(nextValue).error) return true
+    if (!/^\d+$/.test(currentValue) || nextValue === '') return false
+    return BigInt(nextValue) < BigInt(currentValue)
 }
 
 export type MultiTeamTradeState = {
@@ -168,11 +185,13 @@ export function multiTeamTradeReducer(
             })
         }
         case 'set-faab':
-            if (!/^\d*$/.test(action.value) || action.memberId === action.toMemberId ||
+            if (action.memberId === action.toMemberId ||
                 !state.participantOrder.includes(action.toMemberId)) return state
             return updateParticipant(state, action.memberId, (participant) => {
+                const currentValue = participant.faabInputs[action.toMemberId] ?? '0'
+                if (!canUpdateTradeFaabInput(currentValue, action.value)) return participant
                 const currentAmount = parseInt(participant.faabInputs[action.toMemberId] || '0', 10) || 0
-                const nextAmount = parseInt(action.value || '0', 10) || 0
+                const nextAmount = validateTradeFaabInput(action.value).amount
                 if (currentAmount <= 0 && nextAmount > 0 && draftItemCount(state) >= MAX_TRADE_ITEMS) {
                     return participant
                 }
@@ -247,6 +266,7 @@ function isMultiTeamTradeItemPayload(value: unknown): value is MultiTeamTradeIte
     }
     if (item.kind === 'faab') {
         return Number.isInteger(item.faabAmount) && (item.faabAmount as number) > 0 &&
+            (item.faabAmount as number) <= MAX_TRADE_FAAB_AMOUNT &&
             item.playerId === undefined && item.pickId === undefined
     }
     return false

@@ -10,7 +10,7 @@ import {
 } from '@/lib/trade-composer'
 import type { MultiTeamTradeProposalPayload, Trade } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
-import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES } from '@pancake/core'
+import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_NOTES_BYTES } from '@pancake/core'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const NOW_MS = Date.parse('2026-01-01T00:00:00.000Z')
@@ -127,6 +127,25 @@ describe('prefillTradeComposerFromTrade', () => {
         }, NOW_MS)
 
         expect(draft.notesError).toBe(`Notes must contain at most ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`)
+    })
+
+    it.each(['edit', 'counter'] as const)('fails closed when %s prefills oversized FAAB', (mode) => {
+        const prefill = prefillTradeComposerFromTrade(mode, trade({
+            proposerFaabAmount: MAX_TRADE_FAAB_AMOUNT + 1,
+            recipientFaabAmount: MAX_TRADE_FAAB_AMOUNT + 1,
+        }), NOW_MS)
+        const draft = buildTradeComposerPayload({
+            offerPlayerIds: prefill.offerPlayerIds,
+            requestPlayerIds: prefill.requestPlayerIds,
+            offerPickIds: prefill.offerPickIds,
+            requestPickIds: prefill.requestPickIds,
+            notes: prefill.notes,
+            offerFaabInput: prefill.offerFaabInput,
+            requestFaabInput: prefill.requestFaabInput,
+            expirationDaysInput: prefill.expirationDays,
+        }, NOW_MS)
+
+        expect(draft.faabError).toBe('FAAB amount cannot exceed 1,000,000.')
     })
 })
 
@@ -262,6 +281,22 @@ describe('buildTradeComposerPayload', () => {
         expect(oversized.notesError).toBe(`Notes must contain at most ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`)
     })
 
+    it('accepts maximum FAAB and rejects the next amount in the two-team builder', () => {
+        const reciprocalPick = { kind: 'pick' as const, fromMemberId: 'them', toMemberId: 'me', pickId: 'pick-1' }
+        const boundary = buildTwoTeamTradeComposerPayload([
+            { kind: 'faab', fromMemberId: 'me', toMemberId: 'them', faabAmount: MAX_TRADE_FAAB_AMOUNT },
+            reciprocalPick,
+        ], 'me', 'them', { notes: '', expirationDaysInput: '3' }, NOW_MS)
+        const oversized = buildTwoTeamTradeComposerPayload([
+            { kind: 'faab', fromMemberId: 'me', toMemberId: 'them', faabAmount: MAX_TRADE_FAAB_AMOUNT + 1 },
+            reciprocalPick,
+        ], 'me', 'them', { notes: '', expirationDaysInput: '3' }, NOW_MS)
+
+        expect(boundary.faabError).toBeNull()
+        expect(boundary.payload.offerFaabAmount).toBe(MAX_TRADE_FAAB_AMOUNT)
+        expect(oversized.faabError).toBe('FAAB amount cannot exceed 1,000,000.')
+    })
+
     it.each([
         ['ASCII boundary', 'n'.repeat(2_000), null],
         ['accented boundary', 'é'.repeat(1_000), null],
@@ -379,15 +414,33 @@ describe('submitTradeComposer', () => {
         }, NOW_MS).payload
 
         await expect(submitTradeComposer({
-            mode: 'counter',
-            editTradeId: null,
-            counterTradeId: 'trade-1',
-            myMemberId: 'me',
-            leagueId: 'league-1',
-            selectedRecipientId: 'them',
-            payload,
+            mode: 'counter', editTradeId: null, counterTradeId: 'trade-1', myMemberId: 'me',
+            leagueId: 'league-1', selectedRecipientId: 'them', payload,
         }, { getCurrentSeasonId, proposeTrade, counterTrade, editTrade }))
             .rejects.toThrow(`Notes must contain at most ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`)
+
+        expect(getCurrentSeasonId).not.toHaveBeenCalled()
+        expect(proposeTrade).not.toHaveBeenCalled()
+        expect(counterTrade).not.toHaveBeenCalled()
+        expect(editTrade).not.toHaveBeenCalled()
+    })
+
+    it('rejects oversized FAAB before any two-team mutation', async () => {
+        const getCurrentSeasonId = vi.fn()
+        const proposeTrade = vi.fn()
+        const counterTrade = vi.fn()
+        const editTrade = vi.fn()
+        const payload = buildTradeComposerPayload({
+            offerPlayerIds: ['p1'], requestPlayerIds: ['p2'], offerPickIds: [], requestPickIds: [],
+            notes: '', offerFaabInput: String(MAX_TRADE_FAAB_AMOUNT + 1), requestFaabInput: '0',
+            expirationDaysInput: '3',
+        }, NOW_MS).payload
+
+        await expect(submitTradeComposer({
+            mode: 'counter', editTradeId: null, counterTradeId: 'trade-1', myMemberId: 'me',
+            leagueId: 'league-1', selectedRecipientId: 'them', payload,
+        }, { getCurrentSeasonId, proposeTrade, counterTrade, editTrade }))
+            .rejects.toThrow('FAAB amount cannot exceed 1,000,000.')
 
         expect(getCurrentSeasonId).not.toHaveBeenCalled()
         expect(proposeTrade).not.toHaveBeenCalled()
@@ -422,7 +475,7 @@ describe('submitMultiTeamTradeComposer', () => {
             participantMemberIds: ['me', 'them', 'third'],
             items: [
                 { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
-                { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: 1 },
+                { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: MAX_TRADE_FAAB_AMOUNT },
             ],
             notes: 'n'.repeat(MAX_TRADE_NOTES_BYTES),
             expirationDays: String(MAX_TRADE_EXPIRATION_DAYS),
@@ -560,6 +613,29 @@ describe('submitMultiTeamTradeComposer', () => {
         expect(proposeMultiTeamTrade).not.toHaveBeenCalled()
         expect(counterMultiTeamTrade).not.toHaveBeenCalled()
         expect(editMultiTeamTrade).not.toHaveBeenCalled()
+    })
+
+    it('rejects oversized multi-team FAAB before mutation', async () => {
+        const deps = {
+            getCurrentSeasonId: vi.fn(),
+            proposeMultiTeamTrade: vi.fn(),
+            counterMultiTeamTrade: vi.fn(),
+            editMultiTeamTrade: vi.fn(),
+        }
+        await expect(submitMultiTeamTradeComposer({
+            mode: 'counter', editTradeId: null, counterTradeId: 'trade-1', myMemberId: 'me',
+            leagueId: 'league-1', participantMemberIds: ['me', 'them', 'third'],
+            items: [
+                { kind: 'player', fromMemberId: 'me', toMemberId: 'them', playerId: 'player-1' },
+                { kind: 'faab', fromMemberId: 'third', toMemberId: 'me', faabAmount: MAX_TRADE_FAAB_AMOUNT + 1 },
+            ],
+            notes: '', expirationDays: '3',
+        }, deps)).rejects.toThrow('Multi-team trades require exactly one valid asset per route')
+
+        expect(deps.getCurrentSeasonId).not.toHaveBeenCalled()
+        expect(deps.proposeMultiTeamTrade).not.toHaveBeenCalled()
+        expect(deps.counterMultiTeamTrade).not.toHaveBeenCalled()
+        expect(deps.editMultiTeamTrade).not.toHaveBeenCalled()
     })
 
     it('submits multi-team counters and edits without looking up the current season', async () => {
