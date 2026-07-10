@@ -1,10 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors, type WebOnlyViewStyle } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -31,6 +31,7 @@ type MultiTeamTradeBuilderProps = {
     onFaabChange: (memberId: string, toMemberId: string, value: string) => void
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
+    reviewOnly?: boolean
 }
 
 export function MultiTeamTradeBuilder({
@@ -56,6 +57,7 @@ export function MultiTeamTradeBuilder({
     onFaabChange,
     onNotesChange,
     onExpirationDaysChange,
+    reviewOnly = false,
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
     const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
@@ -137,6 +139,35 @@ export function MultiTeamTradeBuilder({
         label: participant.memberId === myMemberId ? 'You' : participantName(participant.memberId),
     }))
 
+    if (reviewOnly) {
+        return (
+            <View
+                style={styles.reviewRoot}
+                onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
+            >
+                <View style={styles.reviewHeading}>
+                    <Text style={styles.reviewEyebrow}>FINAL REVIEW</Text>
+                    <Text style={styles.reviewTitle}>
+                        {participants.length}-team trade · {items.length} {items.length === 1 ? 'asset' : 'assets'}
+                    </Text>
+                </View>
+                <MultiTeamTradeOverview
+                    participants={overviewParticipants}
+                    items={overviewItems}
+                    columns={useColumns}
+                />
+                <View style={styles.reviewTerms}>
+                    <Text style={styles.reviewTermsLabel}>TERMS</Text>
+                    <Text style={styles.reviewTermsValue}>
+                        Expires in {expirationDays} {expirationDays === '1' ? 'day' : 'days'}
+                    </Text>
+                    <Text style={styles.reviewTermsLabel}>NOTE</Text>
+                    <Text style={styles.reviewTermsValue}>{notes.trim() || 'No note added'}</Text>
+                </View>
+            </View>
+        )
+    }
+
     return (
         <View
             style={styles.root}
@@ -147,11 +178,13 @@ export function MultiTeamTradeBuilder({
             ) : (
                 <>
                     <Pressable
-                        style={styles.compactSummary}
+                        style={[styles.compactSummary, Platform.OS === 'web' && styles.compactSummarySticky]}
                         onPress={() => setOverviewExpanded((expanded) => !expanded)}
                         accessibilityRole="button"
                         accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${participants.length} teams and ${items.length} routed assets.`}
                         accessibilityState={{ expanded: overviewExpanded }}
+                        testID="trade-deal-summary"
+                        id="trade-deal-summary"
                     >
                         <View style={styles.compactSummaryCopy}>
                             <Text style={styles.compactSummaryTitle}>DEAL SUMMARY</Text>
@@ -287,6 +320,39 @@ export function MultiTeamTradeBuilder({
 
 const styles = StyleSheet.create({
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
+    reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing['4xl'] },
+    reviewHeading: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
+    reviewEyebrow: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
+        letterSpacing: 0,
+    },
+    reviewTitle: {
+        marginTop: spacing.xs,
+        fontSize: fontSize.xl,
+        fontWeight: fontWeight.extrabold,
+        color: colors.textPrimary,
+    },
+    reviewTerms: {
+        marginHorizontal: spacing.xl,
+        marginTop: spacing.xl,
+        paddingTop: spacing.lg,
+        gap: spacing.xs,
+        borderTopWidth: 1,
+        borderTopColor: uiColors.borderNeutral,
+    },
+    reviewTermsLabel: {
+        marginTop: spacing.sm,
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.bold,
+        color: colors.textPlaceholder,
+    },
+    reviewTermsValue: {
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.semibold,
+        color: colors.textPrimary,
+    },
     compactSummary: {
         minHeight: 56,
         marginTop: spacing.md,
@@ -301,6 +367,11 @@ const styles = StyleSheet.create({
         borderColor: uiColors.borderNeutral,
         backgroundColor: uiColors.surfaceAlt,
     },
+    compactSummarySticky: {
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+    } as unknown as WebOnlyViewStyle,
     compactSummaryCopy: { minWidth: 0, flex: 1 },
     compactSummaryTitle: {
         fontSize: fontSize.xs,

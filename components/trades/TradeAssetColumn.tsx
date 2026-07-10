@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
@@ -77,8 +78,8 @@ function PlayerRow({
                 ) : null}
             </View>
             {selected && (
-                <View style={styles.checkBadge}>
-                    <Text style={styles.checkBadgeText}>+</Text>
+                <View style={styles.removeBadge} aria-hidden>
+                    <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
         </Pressable>
@@ -123,8 +124,8 @@ function PickRow({
                 ) : null}
             </View>
             {selected && (
-                <View style={styles.checkBadge}>
-                    <Text style={styles.checkBadgeText}>+</Text>
+                <View style={styles.removeBadge} aria-hidden>
+                    <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
         </Pressable>
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
     playerMeta: { fontSize: 12, color: colors.textMuted },
     playerContext: { fontSize: 11, color: colors.primaryDark, fontWeight: fontWeight.bold },
     routeMeta: { fontSize: 11, color: colors.textSecondary, fontWeight: fontWeight.semibold },
-    checkBadge: {
+    removeBadge: {
         width: 24,
         height: 24,
         borderRadius: 12,
@@ -292,7 +293,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    checkBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg, lineHeight: 22 },
     emptyRowText: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.lg,

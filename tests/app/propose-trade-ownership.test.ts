@@ -26,11 +26,13 @@ const mocks = vi.hoisted(() => ({
     prefillFromTrade: vi.fn(),
     showAlert: vi.fn(),
     showSuccess: vi.fn(),
+    submitMultiTeamTradeComposer: vi.fn(),
     submitTradeComposer: vi.fn(),
     tradeItems: [] as MockTradeItem[],
 }))
 
 vi.mock('react-native', () => ({
+    Modal: 'Modal',
     Platform: { OS: 'ios', select: <Value,>(options: { default?: Value; ios?: Value }) => options.ios ?? options.default },
     Pressable: 'Pressable',
     ScrollView: 'ScrollView',
@@ -93,7 +95,7 @@ vi.mock('@/lib/trade-composer', () => ({
         notes: '',
         expirationDays: '3',
     }),
-    submitMultiTeamTradeComposer: vi.fn(),
+    submitMultiTeamTradeComposer: mocks.submitMultiTeamTradeComposer,
     submitTradeComposer: mocks.submitTradeComposer,
     tradeComposerSuccessCopy: () => ({ title: 'Sent', message: 'Trade sent.' }),
     tradeComposerTitle: () => 'Propose Trade',
@@ -154,6 +156,7 @@ beforeEach(() => {
     mocks.getLeagueMembers.mockResolvedValue([{ id: 'member-b', team_name: 'Team B' }])
     mocks.getTradeById.mockResolvedValue(null)
     mocks.participantIds = ['member-a', 'member-b']
+    mocks.submitMultiTeamTradeComposer.mockResolvedValue(undefined)
     mocks.submitTradeComposer.mockResolvedValue(undefined)
     mocks.tradeItems = [
         { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
@@ -162,6 +165,30 @@ beforeEach(() => {
 })
 
 describe('propose trade async ownership', () => {
+    it('reviews a multi-team trade before confirming submission', async () => {
+        mocks.participantIds = ['member-a', 'member-b', 'member-c']
+        mocks.tradeItems = [
+            { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
+            { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-c', playerId: 'player-b' },
+            { kind: 'player', fromMemberId: 'member-c', toMemberId: 'member-a', playerId: 'player-c' },
+        ]
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
+
+        const review = renderer.root.findByProps({ testID: 'trade-submit' })
+        expect(review.props.accessibilityLabel).toBe('Review multi-team trade')
+        await act(async () => { review.props.onPress() })
+        expect(renderer.root.findByProps({ presentationStyle: 'fullScreen' }).props.visible).toBe(true)
+        expect(mocks.submitMultiTeamTradeComposer).not.toHaveBeenCalled()
+
+        await act(async () => {
+            await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress()
+        })
+        expect(mocks.submitMultiTeamTradeComposer).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.unmount() })
+    })
+
     it.each([
         ['2-Team', MAX_TRADE_FAAB_AMOUNT, false],
         ['2-Team', MAX_TRADE_FAAB_AMOUNT + 1, true],

@@ -100,24 +100,6 @@ export function ParticipantTradePanel({
                     />
                 </View>
             ) : null}
-            <TradeAssetColumn
-                title={participant.memberId === myMemberId ? 'YOU SEND' : `${participantName(participant.memberId).toUpperCase()} SENDS`}
-                subtitle={`To ${destinationName}`}
-                side="give"
-                twoColumn={useColumns}
-                roster={participant.roster}
-                picks={participant.picks}
-                avgMap={avgMap}
-                avgStatsMap={avgStatsMap}
-                selectedPlayerIds={participant.selectedPlayerIds}
-                selectedPickIds={participant.selectedPickIds}
-                playerDestinationLabel={(playerId) => participantName(participant.playerDestinationIds[playerId])}
-                pickDestinationLabel={(pickId) => participantName(participant.pickDestinationIds[pickId])}
-                onTogglePlayer={(playerId) => onTogglePlayer(participant.memberId, playerId)}
-                onTogglePick={(pickId) => onTogglePick(participant.memberId, pickId)}
-                emptyText="No tradeable active players."
-                testIdPrefix={`trade-${participant.memberId}`}
-            />
             {participant.destinationIds.length > 1 && (selectedPlayers.length > 0 || selectedPicks.length > 0) ? (
                 <View style={styles.selectedRoutes}>
                     <Text style={styles.routePickerLabel}>SELECTED ROUTES</Text>
@@ -163,6 +145,24 @@ export function ParticipantTradePanel({
                     })}
                 </View>
             ) : null}
+            <TradeAssetColumn
+                title={participant.memberId === myMemberId ? 'YOU SEND' : `${participantName(participant.memberId).toUpperCase()} SENDS`}
+                subtitle={`To ${destinationName}`}
+                side="give"
+                twoColumn={useColumns}
+                roster={participant.roster}
+                picks={participant.picks}
+                avgMap={avgMap}
+                avgStatsMap={avgStatsMap}
+                selectedPlayerIds={participant.selectedPlayerIds}
+                selectedPickIds={participant.selectedPickIds}
+                playerDestinationLabel={(playerId) => participantName(participant.playerDestinationIds[playerId])}
+                pickDestinationLabel={(pickId) => participantName(participant.pickDestinationIds[pickId])}
+                onTogglePlayer={(playerId) => onTogglePlayer(participant.memberId, playerId)}
+                onTogglePick={(pickId) => onTogglePick(participant.memberId, pickId)}
+                emptyText="No tradeable active players."
+                testIdPrefix={`trade-${participant.memberId}`}
+            />
             {faabEnabled ? (
                 <View style={styles.faabRow}>
                     <Text style={styles.routePickerLabel}>FAAB ROUTES</Text>

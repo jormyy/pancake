@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
@@ -55,6 +55,7 @@ export default function ProposeTradeScreen() {
     const [loading, setLoading] = useState(true)
     const [membersError, setMembersError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
+    const [reviewing, setReviewing] = useState(false)
     const ownerIdentity = myMemberId && leagueId ? `${leagueId}:${myMemberId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
@@ -96,6 +97,7 @@ export default function ProposeTradeScreen() {
     useEffect(() => {
         submissionRef.current = null
         setSubmitting(false)
+        setReviewing(false)
     }, [ownerIdentity])
 
     const loadMembers = useCallback(async () => {
@@ -288,6 +290,31 @@ export default function ProposeTradeScreen() {
         twoTeamDraft,
     ])
 
+    const multiTeamBuilderProps = {
+        participants: composer.participantViews,
+        items,
+        myMemberId,
+        faabEnabled,
+        notes,
+        notesError,
+        expirationDays,
+        expirationError,
+        rosterError: composer.rosterError,
+        rosterLoading: composer.rosterLoading,
+        avgMap: composer.avgMap,
+        avgStatsMap: composer.avgStatsMap,
+        participantName: composer.participantName,
+        onRetry: composer.retry,
+        onTogglePlayer: composer.toggleParticipantPlayer,
+        onTogglePick: composer.toggleParticipantPick,
+        onDestinationChange: composer.setParticipantDestination,
+        onPlayerDestinationChange: composer.setParticipantPlayerDestination,
+        onPickDestinationChange: composer.setParticipantPickDestination,
+        onFaabChange: composer.setParticipantFaab,
+        onNotesChange: setNotes,
+        onExpirationDaysChange: setExpirationDays,
+    }
+
     if (!current) {
         return (
             <SafeAreaView style={styles.container} edges={['top']}>
@@ -305,15 +332,17 @@ export default function ProposeTradeScreen() {
                     </Pressable>
                     <Text style={styles.headerTitle} numberOfLines={1}>{tradeComposerTitle(mode)}</Text>
                     <Pressable
-                        onPress={handleSubmit}
+                        onPress={multiTeamMode ? () => setReviewing(true) : handleSubmit}
                         style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
                         disabled={!canSubmit}
                         accessibilityRole="button"
-                        accessibilityLabel="Send trade proposal"
+                        accessibilityLabel={multiTeamMode ? 'Review multi-team trade' : 'Send trade proposal'}
                         testID="trade-submit"
                         id="trade-submit"
                     >
-                        <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Send</Text>
+                        <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>
+                            {multiTeamMode ? 'Review' : 'Send'}
+                        </Text>
                     </Pressable>
                 </View>
             </View>
@@ -385,30 +414,7 @@ export default function ProposeTradeScreen() {
                             fullScreen={false} framed />
                     </>
                 ) : composer.participantViews.length >= 2 ? (
-                    <MultiTeamTradeBuilder
-                        participants={composer.participantViews}
-                        items={items}
-                        myMemberId={myMemberId}
-                        faabEnabled={faabEnabled}
-                        notes={notes}
-                        notesError={notesError}
-                        expirationDays={expirationDays}
-                        expirationError={expirationError}
-                        rosterError={composer.rosterError}
-                        rosterLoading={composer.rosterLoading}
-                        avgMap={composer.avgMap}
-                        avgStatsMap={composer.avgStatsMap}
-                        participantName={composer.participantName}
-                        onRetry={composer.retry}
-                        onTogglePlayer={composer.toggleParticipantPlayer}
-                        onTogglePick={composer.toggleParticipantPick}
-                        onDestinationChange={composer.setParticipantDestination}
-                        onPlayerDestinationChange={composer.setParticipantPlayerDestination}
-                        onPickDestinationChange={composer.setParticipantPickDestination}
-                        onFaabChange={composer.setParticipantFaab}
-                        onNotesChange={setNotes}
-                        onExpirationDaysChange={setExpirationDays}
-                    />
+                    <MultiTeamTradeBuilder {...multiTeamBuilderProps} />
                 ) : !loading ? (
                     <EmptyState
                         icon={multiTeamMode ? 'group-add' : 'swap-horiz'}
@@ -423,6 +429,44 @@ export default function ProposeTradeScreen() {
                 ) : null}
                 <View style={styles.bottomSpace} />
             </ScrollView>
+            {reviewing ? (
+                <Modal
+                    visible
+                    animationType="slide"
+                    presentationStyle="fullScreen"
+                    onRequestClose={() => setReviewing(false)}
+                >
+                    <SafeAreaView style={styles.container} edges={['top']}>
+                        <View style={styles.header}>
+                            <View style={styles.headerInner}>
+                                <Pressable
+                                    onPress={() => setReviewing(false)}
+                                    style={styles.headerButton}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Back to trade editor"
+                                >
+                                    <Text style={styles.cancelText}>Back</Text>
+                                </Pressable>
+                                <Text style={styles.headerTitle} numberOfLines={1}>Review Trade</Text>
+                                <Pressable
+                                    onPress={handleSubmit}
+                                    style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+                                    disabled={!canSubmit}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Confirm and send multi-team trade"
+                                    testID="trade-confirm-submit"
+                                    id="trade-confirm-submit"
+                                >
+                                    <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Confirm</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                            <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
+                        </ScrollView>
+                    </SafeAreaView>
+                </Modal>
+            ) : null}
         </SafeAreaView>
     )
 }

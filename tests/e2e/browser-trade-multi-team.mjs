@@ -18,6 +18,13 @@ import {
 } from './trade-browser-harness.mjs'
 import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
+const reviewAndConfirmMultiTeamTrade = async (session, label) => {
+  const reviewClick = await clickTestId(session, 'trade-submit', `${label} review`)
+  await assertPageText(session, ['Review Trade', 'FINAL REVIEW', 'DEAL OVERVIEW'], `${label} final review`)
+  const confirmClick = await clickTestId(session, 'trade-confirm-submit', `${label} confirm`)
+  return { reviewClick, confirmClick }
+}
+
 /** @typedef {Awaited<ReturnType<typeof setupMultiTeamTradeGameplayFixture>>} MultiTeamFixture */
 /**
  * @typedef {object} ReplacementOptions
@@ -299,7 +306,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['wait', '500'])
     await assertPageText(
       session,
-      ['DEAL OVERVIEW', 'You send', `${recipientTeamName} sends`, `${observerTeamName} sends`],
+      ['DEAL SUMMARY', 'EDIT ASSETS SENT BY', 'You', recipientTeamName, observerTeamName],
       'mobile multi-team sender tabs',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder-mobile.png')], { timeout: 60_000 })
@@ -317,7 +324,7 @@ export async function runBrowserMultiTeamTradeScenario({
     const proposerPlayerRouteClick = await clickTestId(session, `trade-player-route-${fixture.proposer.id}-${fixture.proposerPlayer.id}-${fixture.observer.id}`, 'multi-team proposer player per-asset route selection')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-selected.png')], { timeout: 60_000 })
-    const submitClick = await clickTestId(session, 'trade-submit', 'multi-team trade proposal submit')
+    const submitClick = await reviewAndConfirmMultiTeamTrade(session, 'multi-team trade proposal')
     const tradeProposal = await waitForMultiTeamTradeProposal(fixture)
     debug = {
       ...debug,
@@ -362,6 +369,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await openOffersTab(session, env)
     const editClick = await clickTestId(session, `trade-edit-${tradeProposal.trade.id}`, 'multi-team edit action')
     await browser(session, ['wait', '4500'])
+    await clickTestId(session, 'trade-deal-summary', 'multi-team edit deal summary')
     await assertPageText(
       session,
       [
@@ -379,7 +387,7 @@ export async function runBrowserMultiTeamTradeScenario({
     const editRouteClick = await clickTestId(session, `trade-player-route-${fixture.proposer.id}-${fixture.proposerPlayer.id}-${fixture.recipient.id}`, 'multi-team edit changes proposer player route')
     const editedRoutes = new Map(multiTeamExpectedRoutes(fixture))
     editedRoutes.set(fixture.proposerPlayer.id, { from: fixture.proposer.id, to: fixture.recipient.id })
-    const editSubmitClick = await clickTestId(session, 'trade-submit', 'multi-team edit submit')
+    const editSubmitClick = await reviewAndConfirmMultiTeamTrade(session, 'multi-team edit')
     const editReplacement = await waitForMultiTeamReplacement(fixture, tradeProposal.trade.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'edited',
@@ -415,7 +423,7 @@ export async function runBrowserMultiTeamTradeScenario({
     const counterRouteClick = await clickTestId(counterSession, `trade-player-route-${fixture.recipient.id}-${fixture.recipientPlayer.id}-${fixture.proposer.id}`, 'multi-team counter changes recipient player route')
     const counteredRoutes = new Map(editedRoutes)
     counteredRoutes.set(fixture.recipientPlayer.id, { from: fixture.recipient.id, to: fixture.proposer.id })
-    const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'multi-team counter submit')
+    const counterSubmitClick = await reviewAndConfirmMultiTeamTrade(counterSession, 'multi-team counter')
     const counterReplacement = await waitForMultiTeamReplacement(fixture, editReplacement.replacement.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'countered',
