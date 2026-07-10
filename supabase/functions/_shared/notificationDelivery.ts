@@ -3,7 +3,8 @@ import { runBounded } from './runBounded.ts'
 const PUSH_TIMEOUT_MS = 8000
 const EXPO_BATCH_SIZE = 100
 const EXPO_BATCH_CONCURRENCY = 2
-const PERMANENT_EXPO_ERRORS = new Set(['DeviceNotRegistered', 'InvalidCredentials', 'MessageTooBig'])
+const DISCARD_EXPO_ERRORS = new Set(['DeviceNotRegistered'])
+const DEAD_LETTER_EXPO_ERRORS = new Set(['MessageTooBig', 'MismatchSenderId'])
 
 type NotificationCategory = 'trade' | 'waiver' | 'draft' | 'activity'
 type NotificationPreferenceColumn = 'trade_enabled' | 'waiver_enabled' | 'draft_enabled' | 'activity_enabled'
@@ -21,7 +22,7 @@ export type NotificationDeliveryFailureCode =
   | 'expo_status'
 
 type NotificationDeliveryResult =
-  | { status: 'sent' }
+  | { status: 'sent'; ticketId?: string; pushToken?: string }
   | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' }
 
 export type NotificationMessage = {
@@ -118,9 +119,27 @@ export type NotificationBatchDependencies = {
 }
 
 export function isPermanentNotificationFailure(error: unknown): boolean {
-  if (error instanceof NotificationDeliveryError) return !error.retryable
-  return error instanceof AggregateError && error.errors.length > 0 &&
-    error.errors.every((failure) => isPermanentNotificationFailure(failure))
+  return notificationFailureDisposition(error) !== 'retry'
+}
+
+export type NotificationFailureDisposition = 'discard' | 'dead_letter' | 'retry'
+
+function deliveryErrors(error: unknown): NotificationDeliveryError[] {
+  if (error instanceof NotificationDeliveryError) return [error]
+  if (error instanceof AggregateError) return error.errors.flatMap(deliveryErrors)
+  return []
+}
+
+export function notificationFailureDisposition(error: unknown): NotificationFailureDisposition {
+  const failures = deliveryErrors(error)
+  if (failures.length === 0) return 'retry'
+  if (failures.every((failure) => failure.expoError && DISCARD_EXPO_ERRORS.has(failure.expoError))) {
+    return 'discard'
+  }
+  if (failures.every((failure) => failure.expoError && DEAD_LETTER_EXPO_ERRORS.has(failure.expoError))) {
+    return 'dead_letter'
+  }
+  return 'retry'
 }
 
 const preferenceColumns: Record<NotificationCategory, NotificationPreferenceColumn> = {
@@ -170,7 +189,7 @@ type PreparedNotification = NotificationMessage & { userId: string; token: strin
 const sendBatch = async (
   dependencies: NotificationBatchDependencies,
   messages: PreparedNotification[],
-): Promise<void> => {
+): Promise<NotificationBatchResult[]> => {
   const memberIds = messages.map((message) => message.memberId)
   let response: Response
   try {
@@ -230,10 +249,28 @@ const sendBatch = async (
   }
 
   const failures: NotificationDeliveryError[] = []
+  const results: NotificationBatchResult[] = []
   for (const [index, delivery] of deliveries.entries()) {
     const ticket = record(delivery)
-    if (ticket?.status === 'ok') continue
     const message = messages[index]
+    if (ticket?.status === 'ok') {
+      if (typeof ticket.id !== 'string' || ticket.id.length === 0) {
+        failures.push(new NotificationDeliveryError({
+          code: 'expo_response',
+          message: 'Expo accepted a push notification without returning a ticket id.',
+          memberId: message.memberId,
+          userId: message.userId,
+        }))
+      } else {
+        results.push({
+          memberId: message.memberId,
+          status: 'sent',
+          ticketId: ticket.id,
+          pushToken: message.token,
+        })
+      }
+      continue
+    }
     const details = record(ticket?.details)
     const expoError = typeof details?.error === 'string' ? details.error : null
     const invalidToken = expoError === 'DeviceNotRegistered'
@@ -255,13 +292,15 @@ const sendBatch = async (
       message: typeof ticket?.message === 'string' ? ticket.message : 'Expo rejected a push notification.',
       memberId: message.memberId,
       userId: message.userId,
-      retryable: ticket?.status !== 'error' || !expoError || !PERMANENT_EXPO_ERRORS.has(expoError),
+      retryable: ticket?.status !== 'error' || !expoError ||
+        (!DISCARD_EXPO_ERRORS.has(expoError) && !DEAD_LETTER_EXPO_ERRORS.has(expoError)),
       expoError,
     }))
   }
   if (failures.length > 0) {
     throw new AggregateError(failures, `${failures.length} Expo push notification${failures.length === 1 ? '' : 's'} failed`)
   }
+  return results
 }
 
 export function createNotifyMembers(
@@ -311,11 +350,14 @@ export function createNotifyMembers(
       prepared.push({ ...message, userId, token })
     }
 
+    const delivered: NotificationBatchResult[] = []
     await runBounded(
-      chunks(prepared, batchSize).map((batch) => () => sendBatch(dependencies, batch)),
+      chunks(prepared, batchSize).map((batch) => async () => {
+        delivered.push(...await sendBatch(dependencies, batch))
+      }),
       concurrency,
     )
-    results.push(...prepared.map((message) => ({ memberId: message.memberId, status: 'sent' as const })))
+    results.push(...delivered)
     return results
   }
 }

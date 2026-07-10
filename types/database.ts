@@ -1518,12 +1518,17 @@ export type Database = {
           claimed_at: string | null
           created_at: string
           data: Json
+          dead_lettered_at: string | null
           dedupe_key: string
           delivered_at: string | null
           event_type: string
+          expo_ticket_id: string | null
           id: string
           last_error: string | null
           member_id: string
+          push_token: string | null
+          receipt_attempt_count: number
+          ticketed_at: string | null
           title: string
         }
         Insert: {
@@ -1535,12 +1540,17 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string
           data?: Json
+          dead_lettered_at?: string | null
           dedupe_key: string
           delivered_at?: string | null
           event_type: string
+          expo_ticket_id?: string | null
           id?: string
           last_error?: string | null
           member_id: string
+          push_token?: string | null
+          receipt_attempt_count?: number
+          ticketed_at?: string | null
           title: string
         }
         Update: {
@@ -1552,12 +1562,17 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string
           data?: Json
+          dead_lettered_at?: string | null
           dedupe_key?: string
           delivered_at?: string | null
           event_type?: string
+          expo_ticket_id?: string | null
           id?: string
           last_error?: string | null
           member_id?: string
+          push_token?: string | null
+          receipt_attempt_count?: number
+          ticketed_at?: string | null
           title?: string
         }
         Relationships: [
@@ -3503,6 +3518,16 @@ export type Database = {
           title: string
         }[]
       }
+      claim_notification_receipts_atomic: {
+        Args: { p_lease_seconds?: number; p_limit?: number }
+        Returns: {
+          claim_token: string
+          expo_ticket_id: string
+          id: string
+          member_id: string
+          push_token: string
+        }[]
+      }
       clear_ineligible_taxi_players: { Args: never; Returns: number }
       clear_push_token_for_user_atomic: {
         Args: { p_token: string; p_user_id: string }
@@ -3673,6 +3698,19 @@ export type Database = {
         Returns: string
       }
       current_season_year_et: { Args: { p_now?: string }; Returns: number }
+      dead_letter_notification_outbox_atomic: {
+        Args: { p_claim_token: string; p_error: string; p_id: string }
+        Returns: boolean
+      }
+      defer_notification_receipt_atomic: {
+        Args: {
+          p_claim_token: string
+          p_error: string
+          p_id: string
+          p_retry_delay_seconds?: number
+        }
+        Returns: boolean
+      }
       delete_league_atomic: { Args: { p_league_id: string }; Returns: Json }
       drop_and_add_free_agent_atomic: {
         Args: {
@@ -4015,6 +4053,16 @@ export type Database = {
           p_request_player_ids: string[]
         }
         Returns: string
+      }
+      record_notification_outbox_ticket_atomic: {
+        Args: {
+          p_claim_token: string
+          p_expo_ticket_id: string
+          p_id: string
+          p_push_token: string
+          p_receipt_delay_seconds?: number
+        }
+        Returns: boolean
       }
       refresh_player_search_caches: { Args: never; Returns: undefined }
       register_push_token_atomic: {

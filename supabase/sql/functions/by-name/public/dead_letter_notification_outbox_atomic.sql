@@ -1,10 +1,11 @@
--- Canonical SQL source for public.complete_notification_outbox_atomic.
+-- Canonical SQL source for public.dead_letter_notification_outbox_atomic.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.complete_notification_outbox_atomic(
+CREATE OR REPLACE FUNCTION public.dead_letter_notification_outbox_atomic(
   p_id uuid,
-  p_claim_token uuid
+  p_claim_token uuid,
+  p_error text
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -13,10 +14,10 @@ SET search_path = public
 AS $$
 BEGIN
   UPDATE notification_outbox
-     SET delivered_at = now(),
+     SET dead_lettered_at = now(),
          claimed_at = NULL,
          claim_token = NULL,
-         last_error = NULL
+         last_error = left(COALESCE(p_error, 'Permanent notification delivery failure'), 2000)
    WHERE id = p_id
      AND claim_token = p_claim_token
      AND delivered_at IS NULL

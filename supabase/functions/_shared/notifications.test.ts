@@ -198,7 +198,7 @@ Deno.test('bulk notification delivery bounds 600 delayed recipients to six Expo 
       maxActive = Math.max(maxActive, active)
       await gates[batchIndex].promise
       active -= 1
-      return Response.json({ data: batch.map(() => ({ status: 'ok' })) })
+      return Response.json({ data: batch.map((_, index) => ({ status: 'ok', id: `ticket-${batchIndex}-${index}` })) })
     },
     pushUrl: 'https://push.invalid/send',
   }

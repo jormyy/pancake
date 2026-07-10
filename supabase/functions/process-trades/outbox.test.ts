@@ -11,67 +11,75 @@ const row = (id: string): TradeNotificationOutboxRow => ({
   category: 'trade',
 })
 
-Deno.test('trade notification outbox acknowledges every row only after delivery', async () => {
+Deno.test('trade notification outbox persists tickets without acknowledging delivery', async () => {
+  const ticketed: string[] = []
   const completed: string[] = []
-  const failed: string[] = []
-  const rows = [row('a'), row('b')]
   const result = await deliverTradeNotificationOutbox(
-    rows,
-    async (messages) => messages.map((message) => ({ memberId: message.memberId, status: 'sent' as const })),
+    [row('a'), row('b')],
+    async (messages) => messages.map((message) => ({
+      memberId: message.memberId,
+      status: 'sent' as const,
+      ticketId: `ticket-${message.memberId}`,
+      pushToken: `token-${message.memberId}`,
+    })),
+    async (entry, ticketId, pushToken) => { ticketed.push(`${entry.id}:${ticketId}:${pushToken}`) },
     async (entry) => { completed.push(entry.id) },
-    async (entry) => { failed.push(entry.id) },
+    async () => {},
+    async () => {},
   )
 
-  if (JSON.stringify(result) !== JSON.stringify({ delivered: 2, failed: 0, discarded: 0 }) ||
-      JSON.stringify(completed.sort()) !== JSON.stringify(['a', 'b']) || failed.length !== 0) {
-    throw new Error(`outbox acknowledgements were incorrect: ${JSON.stringify({ result, completed, failed })}`)
+  if (JSON.stringify(result) !== JSON.stringify({ ticketed: 2, failed: 0, discarded: 0, deadLettered: 0 }) ||
+      ticketed.length !== 2 || completed.length !== 0) {
+    throw new Error(`outbox ticket persistence was incorrect: ${JSON.stringify({ result, ticketed, completed })}`)
   }
 })
 
 Deno.test('trade notification outbox releases every lease for durable retry after delivery failure', async () => {
-  const completed: string[] = []
   const failed: Array<{ id: string; error: string }> = []
-  const rows = [row('a'), row('b')]
   const result = await deliverTradeNotificationOutbox(
-    rows,
+    [row('a'), row('b')],
     async () => { throw new Error('Expo unavailable') },
-    async (entry) => { completed.push(entry.id) },
+    async () => {},
+    async () => {},
     async (entry, error) => { failed.push({ id: entry.id, error }) },
+    async () => {},
   )
 
-  if (JSON.stringify(result) !== JSON.stringify({ delivered: 0, failed: 2, discarded: 0 }) || completed.length !== 0 ||
+  if (JSON.stringify(result) !== JSON.stringify({ ticketed: 0, failed: 2, discarded: 0, deadLettered: 0 }) ||
       failed.some((entry) => entry.error !== 'Expo unavailable') || failed.length !== 2) {
-    throw new Error(`outbox retry state was incorrect: ${JSON.stringify({ result, completed, failed })}`)
+    throw new Error(`outbox retry state was incorrect: ${JSON.stringify({ result, failed })}`)
   }
 })
 
-Deno.test('trade notification outbox settles successful and permanent rows without duplicate retry', async () => {
+Deno.test('trade notification outbox separates invalid-device discard, payload dead letter, and credential retry', async () => {
   const completed: string[] = []
   const failed: string[] = []
-  const deliveries: string[] = []
-  const rows = [row('ok'), row('invalid')]
+  const deadLettered: string[] = []
   const result = await deliverTradeNotificationOutbox(
-    rows,
+    [row('device'), row('payload'), row('credentials')],
     async (messages) => {
-      deliveries.push(messages[0].memberId)
-      if (messages[0].memberId.endsWith('invalid')) {
-        throw new AggregateError([new NotificationDeliveryError({
-          code: 'expo_status',
-          message: 'Device not registered',
-          memberId: messages[0].memberId,
-          retryable: false,
-          expoError: 'DeviceNotRegistered',
-        })], 'Expo rejected the token')
-      }
-      return [{ memberId: messages[0].memberId, status: 'sent' }]
+      const memberId = messages[0].memberId
+      const expoError = memberId.endsWith('device')
+        ? 'DeviceNotRegistered'
+        : memberId.endsWith('payload') ? 'MessageTooBig' : 'InvalidCredentials'
+      throw new AggregateError([new NotificationDeliveryError({
+        code: 'expo_status',
+        message: expoError,
+        memberId,
+        retryable: expoError === 'InvalidCredentials',
+        expoError,
+      })], 'Expo rejected the notification')
     },
+    async () => {},
     async (entry) => { completed.push(entry.id) },
     async (entry) => { failed.push(entry.id) },
+    async (entry) => { deadLettered.push(entry.id) },
   )
 
-  if (JSON.stringify(result) !== JSON.stringify({ delivered: 1, failed: 0, discarded: 1 }) ||
-      JSON.stringify(completed.sort()) !== JSON.stringify(['invalid', 'ok']) || failed.length !== 0 ||
-      JSON.stringify(deliveries.sort()) !== JSON.stringify(['member-invalid', 'member-ok'])) {
-    throw new Error(`partial outbox settlement was incorrect: ${JSON.stringify({ result, completed, failed, deliveries })}`)
+  if (JSON.stringify(result) !== JSON.stringify({ ticketed: 0, failed: 1, discarded: 1, deadLettered: 1 }) ||
+      JSON.stringify(completed) !== JSON.stringify(['device']) ||
+      JSON.stringify(failed) !== JSON.stringify(['credentials']) ||
+      JSON.stringify(deadLettered) !== JSON.stringify(['payload'])) {
+    throw new Error(`outbox failure partition was incorrect: ${JSON.stringify({ result, completed, failed, deadLettered })}`)
   }
 })
