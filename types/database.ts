@@ -1508,6 +1508,68 @@ export type Database = {
           },
         ]
       }
+      notification_outbox: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          body: string
+          category: string
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          data: Json
+          dedupe_key: string
+          delivered_at: string | null
+          event_type: string
+          id: string
+          last_error: string | null
+          member_id: string
+          title: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          body: string
+          category: string
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          data?: Json
+          dedupe_key: string
+          delivered_at?: string | null
+          event_type: string
+          id?: string
+          last_error?: string | null
+          member_id: string
+          title: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          body?: string
+          category?: string
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          data?: Json
+          dedupe_key?: string
+          delivered_at?: string | null
+          event_type?: string
+          id?: string
+          last_error?: string | null
+          member_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           activity_enabled: boolean
@@ -3416,6 +3478,18 @@ export type Database = {
         Args: { p_claim_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined
       }
+      claim_notification_outbox_atomic: {
+        Args: { p_lease_seconds?: number; p_limit?: number }
+        Returns: {
+          body: string
+          category: string
+          claim_token: string
+          data: Json
+          id: string
+          member_id: string
+          title: string
+        }[]
+      }
       clear_ineligible_taxi_players: { Args: never; Returns: number }
       close_auction_nomination_atomic: {
         Args: { p_nomination_id: string }
@@ -3450,6 +3524,10 @@ export type Database = {
       complete_accepted_trade_atomic: {
         Args: { p_trade_id: string }
         Returns: undefined
+      }
+      complete_notification_outbox_atomic: {
+        Args: { p_claim_token: string; p_id: string }
+        Returns: boolean
       }
       compute_fantasy_points: {
         Args: { p_league_id: string; p_stat_id: string }
@@ -3645,6 +3723,10 @@ export type Database = {
         Returns: undefined
       }
       expire_waiver_wire_logs: { Args: never; Returns: number }
+      fail_notification_outbox_atomic: {
+        Args: { p_claim_token: string; p_error: string; p_id: string }
+        Returns: boolean
+      }
       finalize_score_week_atomic: {
         Args: {
           p_finalized_at?: string

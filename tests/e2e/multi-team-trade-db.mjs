@@ -758,6 +758,73 @@ const assertCompletionFailureIsTerminal = async (fixture) => {
   const completedTrade = await fetchTrade(fixture, tradeId)
   assert.equal(completedTrade.status, 'expired')
   assert.match(completedTrade.completion_failure_reason, /enough FAAB/i)
+
+  const { data: activity, error: activityError } = await fixture.admin
+    .from('league_activity')
+    .select('event_type, body, related_trade_id')
+    .eq('related_trade_id', tradeId)
+    .eq('event_type', 'trade_completion_failed')
+  if (activityError) throw new Error(`terminal trade activity lookup: ${activityError.message}`)
+  assert.equal(activity.length, 1)
+  assert.match(activity[0].body, /enough FAAB/i)
+
+  const { data: queued, error: queuedError } = await fixture.admin
+    .from('notification_outbox')
+    .select('id, member_id, dedupe_key, delivered_at')
+    .like('dedupe_key', `trade_terminal_failure:${tradeId}:%`)
+  if (queuedError) throw new Error(`terminal trade outbox lookup: ${queuedError.message}`)
+  assert.deepEqual(new Set(queued.map((entry) => entry.member_id)), new Set([
+    fixture.proposer.id,
+    fixture.recipient.id,
+    fixture.observer.id,
+  ]))
+  assert.equal(new Set(queued.map((entry) => entry.dedupe_key)).size, 3)
+
+  const claimed = await rpc(fixture.admin, 'claim_notification_outbox_atomic', {
+    p_limit: 200,
+    p_lease_seconds: 60,
+  })
+  const targetClaims = claimed.filter((entry) => queued.some((queuedEntry) => queuedEntry.id === entry.id))
+  assert.equal(targetClaims.length, 3)
+  const [retry, ...deliver] = targetClaims
+  assert.equal(await rpc(fixture.admin, 'fail_notification_outbox_atomic', {
+    p_id: retry.id,
+    p_claim_token: retry.claim_token,
+    p_error: 'simulated push outage',
+  }), true)
+  for (const entry of deliver) {
+    assert.equal(await rpc(fixture.admin, 'complete_notification_outbox_atomic', {
+      p_id: entry.id,
+      p_claim_token: entry.claim_token,
+    }), true)
+  }
+
+  const { data: deferred, error: deferredError } = await fixture.admin
+    .from('notification_outbox')
+    .select('attempt_count, available_at, claimed_at, claim_token, last_error')
+    .eq('id', retry.id)
+    .single()
+  if (deferredError) throw new Error(`deferred outbox lookup: ${deferredError.message}`)
+  assert.equal(deferred.attempt_count, 1)
+  assert.equal(deferred.claimed_at, null)
+  assert.equal(deferred.claim_token, null)
+  assert.equal(deferred.last_error, 'simulated push outage')
+
+  const { error: retryDueError } = await fixture.admin
+    .from('notification_outbox')
+    .update({ available_at: new Date(Date.now() - 1_000).toISOString() })
+    .eq('id', retry.id)
+  if (retryDueError) throw new Error(`outbox retry scheduling fixture: ${retryDueError.message}`)
+  const retried = (await rpc(fixture.admin, 'claim_notification_outbox_atomic', {
+    p_limit: 200,
+    p_lease_seconds: 60,
+  })).find((entry) => entry.id === retry.id)
+  assert(retried, 'failed notification was not reclaimable for retry')
+  assert.notEqual(retried.claim_token, retry.claim_token)
+  assert.equal(await rpc(fixture.admin, 'complete_notification_outbox_atomic', {
+    p_id: retried.id,
+    p_claim_token: retried.claim_token,
+  }), true)
 }
 
 const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
