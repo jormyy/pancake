@@ -72,4 +72,24 @@ describe('canonical database function sources', () => {
         expect(definitions.get('public.final_name')).toContain('SET search_path = public')
         expect(definitions.get('public.original')).toContain('SELECT NULL::uuid')
     })
+
+    it('detects owner and ACL mutations independently of function source', async () => {
+        const { catalogMetadataFailures } = await import('../scripts/check-db-function-sources.mjs')
+        const expected = {
+            owner: 'postgres',
+            acl: ['service_role|EXECUTE|false|postgres'],
+        }
+
+        expect(catalogMetadataFailures('public.example()', expected, expected)).toEqual([])
+        expect(catalogMetadataFailures('public.example()', expected, {
+            ...expected,
+            owner: 'authenticated',
+        })).toEqual([
+            'public.example(): owner differs: expected postgres, found authenticated',
+        ])
+        expect(catalogMetadataFailures('public.example()', expected, {
+            ...expected,
+            acl: ['authenticated|EXECUTE|false|postgres'],
+        })).toEqual(['public.example(): ACL differs'])
+    })
 })

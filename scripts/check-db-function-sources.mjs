@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 const ROOT = process.cwd()
 const MIGRATIONS_DIR = path.join(ROOT, 'supabase/migrations')
 const FUNCTION_SOURCES_DIR = path.join(ROOT, 'supabase/sql/functions/by-name')
+const FUNCTION_CATALOG_MANIFEST = path.join(ROOT, 'supabase/sql/function-catalog.json')
 
 /** @param {string} source */
 export const dollarQuotedStatement = (source) => {
@@ -489,6 +490,38 @@ const functionFingerprintSql = (alias) => `jsonb_build_object(
   'rows', ${alias}.prorows
 )`
 
+const functionAclSql = (alias) => `COALESCE((
+  SELECT jsonb_agg(
+    COALESCE(grantee.rolname, 'PUBLIC') || '|' || privilege.privilege_type || '|' ||
+      privilege.is_grantable::text || '|' || COALESCE(grantor.rolname, 'PUBLIC')
+    ORDER BY COALESCE(grantee.rolname, 'PUBLIC'), privilege.privilege_type,
+      privilege.is_grantable, COALESCE(grantor.rolname, 'PUBLIC')
+  )
+  FROM aclexplode(COALESCE(${alias}.proacl, acldefault('f', ${alias}.proowner))) AS privilege
+  LEFT JOIN pg_roles AS grantee ON grantee.oid = privilege.grantee
+  LEFT JOIN pg_roles AS grantor ON grantor.oid = privilege.grantor
+), '[]'::jsonb)`
+
+export const catalogMetadataFailures = (key, expected, actual) => {
+  const failures = []
+  if (actual.owner !== expected.owner) {
+    failures.push(`${key}: owner differs: expected ${expected.owner}, found ${actual.owner}`)
+  }
+  if (JSON.stringify(actual.acl) !== JSON.stringify(expected.acl)) {
+    failures.push(`${key}: ACL differs`)
+  }
+  return failures
+}
+
+const readFunctionCatalogManifest = async () => {
+  const source = await readFile(FUNCTION_CATALOG_MANIFEST, 'utf8')
+  const manifest = JSON.parse(source)
+  if (manifest?.version !== 1 || typeof manifest.functions !== 'object' || manifest.functions === null) {
+    throw new Error('supabase/sql/function-catalog.json has an unsupported shape')
+  }
+  return manifest
+}
+
 /** @param {string} definition @param {string} scratchName */
 const scratchFunctionDefinition = (definition, scratchName) => {
   const pattern = new RegExp(`(CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+)(?:${IDENTIFIER}\\s*\\.\\s*)?${IDENTIFIER}`, 'i')
@@ -513,15 +546,30 @@ export const checkFunctionCatalog = async () => {
     })
   }
 
+  const manifest = await readFunctionCatalogManifest()
+  const sourceKeys = sources.map((source) => `${source.schema}.${source.name}(${source.identityArguments})`).sort()
+  const manifestKeys = Object.keys(manifest.functions).sort()
+  if (JSON.stringify(sourceKeys) !== JSON.stringify(manifestKeys)) {
+    return [{
+      functionKey: 'supabase/sql/function-catalog.json',
+      problem: 'canonical function keys differ from the ownership/ACL manifest',
+    }]
+  }
+
   const values = sources.map((source) => `(
     ${sqlLiteral(source.scratchName)}, ${sqlLiteral(source.schema)},
-    ${sqlLiteral(source.name)}, ${sqlLiteral(source.identityArguments)}
+    ${sqlLiteral(source.name)}, ${sqlLiteral(source.identityArguments)},
+    ${sqlLiteral(manifest.functions[`${source.schema}.${source.name}(${source.identityArguments})`].owner)},
+    ${sqlLiteral(JSON.stringify(manifest.functions[`${source.schema}.${source.name}(${source.identityArguments})`].acl))}::jsonb
   )`).join(',\n')
   const definitions = sources.map((source) => source.definition).join('\n\n')
   const catalogCte = (schemaPredicate) => `SELECT
       namespace.nspname AS schema_name,
       procedure.proname,
+      procedure.oid,
       replace(pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ',') AS identity_arguments,
+      owner.rolname AS owner,
+      ${functionAclSql('procedure')} AS acl,
       language.lanname AS language,
       procedure.prosrc,
       procedure.probin,
@@ -543,17 +591,23 @@ export const checkFunctionCatalog = async () => {
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
     JOIN pg_language AS language ON language.oid = procedure.prolang
+    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
     WHERE procedure.prokind = 'f' AND ${schemaPredicate}`
   const sql = `
 BEGIN;
 SET LOCAL check_function_bodies = off;
 CREATE SCHEMA db_source_check;
 ${definitions}
-WITH expected(scratch_name, schema_name, function_name, identity_arguments) AS (VALUES ${values}),
+WITH expected(scratch_name, schema_name, function_name, identity_arguments, owner, acl) AS (VALUES ${values}),
 live AS (${catalogCte("namespace.nspname IN ('public', 'private', 'analytics')")}),
 scratch AS (${catalogCte("namespace.nspname = 'db_source_check'")}),
 comparison AS (
   SELECT expected.schema_name || '.' || expected.function_name || '(' || expected.identity_arguments || ')' AS function_key,
+    live.oid AS live_oid,
+    expected.owner AS expected_owner,
+    live.owner AS live_owner,
+    expected.acl AS expected_acl,
+    live.acl AS live_acl,
     ${functionFingerprintSql('live')} AS live_fingerprint,
     ${functionFingerprintSql('scratch')} AS source_fingerprint
   FROM expected
@@ -573,10 +627,18 @@ SELECT COALESCE(jsonb_agg(issue ORDER BY issue->>'functionKey'), '[]'::jsonb)
 FROM (
   SELECT jsonb_build_object(
     'functionKey', comparison.function_key,
-    'problem', CASE WHEN comparison.live_fingerprint IS NULL THEN 'missing from live catalog' ELSE 'definition differs from canonical source' END
+    'problem', CASE
+      WHEN comparison.live_oid IS NULL THEN 'missing from live catalog'
+      WHEN comparison.live_fingerprint <> comparison.source_fingerprint THEN 'definition differs from canonical source'
+      WHEN comparison.live_owner <> comparison.expected_owner THEN 'owner differs from canonical manifest'
+      ELSE 'ACL differs from canonical manifest'
+    END
   ) AS issue
   FROM comparison
-  WHERE comparison.live_fingerprint IS NULL OR comparison.live_fingerprint <> comparison.source_fingerprint
+  WHERE comparison.live_oid IS NULL
+     OR comparison.live_fingerprint <> comparison.source_fingerprint
+     OR comparison.live_owner <> comparison.expected_owner
+     OR comparison.live_acl <> comparison.expected_acl
   UNION ALL
   SELECT jsonb_build_object('functionKey', extras.function_key, 'problem', 'missing canonical source') FROM extras
 ) AS issues;
@@ -589,6 +651,44 @@ ROLLBACK;
     input: sql,
   })
   return JSON.parse(output.trim().split('\n').find((line) => line.startsWith('[')) ?? '[]')
+}
+
+export const writeFunctionCatalogManifest = async () => {
+  const databaseUrl = process.env.SUPABASE_DB_URL
+  if (!databaseUrl) throw new Error('SUPABASE_DB_URL is required for --write-catalog-manifest')
+  const sql = `
+SELECT jsonb_build_object(
+  'version', 1,
+  'functions', jsonb_object_agg(
+    namespace.nspname || '.' || procedure.proname || '(' ||
+      replace(pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ',') || ')',
+    jsonb_build_object('owner', owner.rolname, 'acl', ${functionAclSql('procedure')})
+    ORDER BY namespace.nspname, procedure.proname, procedure.proargtypes
+  )
+)
+FROM pg_proc AS procedure
+JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+WHERE procedure.prokind = 'f'
+  AND namespace.nspname IN ('public', 'private', 'analytics');
+`
+  const output = execFileSync('psql', [databaseUrl, '--quiet', '--tuples-only', '--no-align', '--set', 'ON_ERROR_STOP=1'], {
+    encoding: 'utf8',
+    input: sql,
+  }).trim()
+  const manifest = JSON.parse(output)
+  const entries = Object.entries(manifest.functions).sort(([left], [right]) => left.localeCompare(right))
+  const lines = entries.map(([key, metadata], index) =>
+    `    ${JSON.stringify(key)}: ${JSON.stringify(metadata)}${index === entries.length - 1 ? '' : ','}`)
+  await writeFile(FUNCTION_CATALOG_MANIFEST, [
+    '{',
+    '  "version": 1,',
+    '  "functions": {',
+    ...lines,
+    '  }',
+    '}',
+    '',
+  ].join('\n'), 'utf8')
 }
 
 const runCli = async () => {
@@ -605,8 +705,12 @@ const runCli = async () => {
     }
     return
   }
+  if (command === '--write-catalog-manifest') {
+    await writeFunctionCatalogManifest()
+    return
+  }
   if (command !== '--check') {
-    throw new Error(`Unknown command ${command}. Use --check, --check-catalog, or --write.`)
+    throw new Error(`Unknown command ${command}. Use --check, --check-catalog, --write-catalog-manifest, or --write.`)
   }
 
   const failures = await checkFunctionSources()
