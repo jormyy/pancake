@@ -50,6 +50,9 @@ export {
 } from './positions'
 export type { LineupSlotType, SlotType } from './positions'
 
+// Trades
+export { MAX_TRADE_ITEMS } from './trades/limits'
+
 // Types
 export {
     LEAGUE_STATUSES,

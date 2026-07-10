@@ -402,6 +402,14 @@ Deno.test({
       throw new Error(`expected trade participant minimum rejection, got ${undersizedParticipants.status}: ${JSON.stringify(undersizedParticipantsBody)}`)
     }
 
+    const boundaryItems = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
+      ...baseBody,
+      items: Array.from({ length: 100 }, () => item),
+    }))
+    if (boundaryItems.status !== 200) {
+      throw new Error(`expected 100 trade items to reach RPC execution, got ${boundaryItems.status}: ${await boundaryItems.text()}`)
+    }
+
     const oversizedItems = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
       ...baseBody,
       items: Array.from({ length: 101 }, () => item),

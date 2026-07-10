@@ -167,6 +167,7 @@ const outputs = [
   ['supabase/functions/_shared/scoreShared.ts', await scoreShared()],
   ['supabase/functions/_shared/scoringCore.ts', await scoringCore()],
   ['supabase/functions/_shared/season.ts', `${HEADER}${await read('core/src/season/year.ts')}`],
+  ['supabase/functions/_shared/tradeLimits.ts', `${HEADER}${await read('core/src/trades/limits.ts')}`],
   ['supabase/functions/_shared/syncScores.ts', await syncScores()],
 ]
 

@@ -7,6 +7,7 @@ import {
     multiTeamTradeStateFromTrade,
 } from '@/lib/multi-team-trade-state'
 import type { RoutedTradeItem, Trade } from '@/lib/trades'
+import { MAX_TRADE_ITEMS } from '@pancake/core'
 
 const members = ['B', 'C']
 
@@ -55,6 +56,56 @@ function routedTrade(items: RoutedTradeItem[]): Trade {
 }
 
 describe('multi-team trade state', () => {
+    it('accepts 100 items, rejects 101, and prevents the 101st composer selection', () => {
+        const participantIds = ['A', 'B', 'C']
+        const items = Array.from({ length: MAX_TRADE_ITEMS + 1 }, (_, index) => ({
+            kind: 'player' as const,
+            fromMemberId: participantIds[index % participantIds.length],
+            toMemberId: participantIds[(index + 1) % participantIds.length],
+            playerId: `player-${index}`,
+        }))
+        expect(isMultiTeamTradeSubmittable(participantIds, items.slice(0, MAX_TRADE_ITEMS))).toBe(true)
+        expect(isMultiTeamTradeSubmittable(participantIds, items)).toBe(false)
+
+        let state = multiTeamTradeReducer(createMultiTeamTradeState('A'), {
+            type: 'set-participants',
+            actorMemberId: 'A',
+            participantIds,
+        })
+        for (let index = 0; index < MAX_TRADE_ITEMS + 1; index += 1) {
+            state = multiTeamTradeReducer(state, {
+                type: 'select-asset',
+                asset: 'player',
+                memberId: participantIds[index % participantIds.length],
+                assetId: `player-${index}`,
+            })
+        }
+        expect(buildMultiTeamTradeItems(state, false)).toHaveLength(MAX_TRADE_ITEMS)
+        expect(buildMultiTeamTradeItems(state, false).some((item) =>
+            item.kind === 'player' && item.playerId === `player-${MAX_TRADE_ITEMS}`)).toBe(false)
+    })
+
+    it('retains an oversized legacy prefill but fails it closed until items are removed', () => {
+        const items = Array.from({ length: MAX_TRADE_ITEMS + 1 }, (_, index): RoutedTradeItem => ({
+            kind: 'player',
+            playerId: `player-${index}`,
+            playerName: `Player ${index}`,
+            position: 'PG',
+            eligiblePositions: ['PG'],
+            nbaTeam: null,
+            nbaId: null,
+            injuryStatus: null,
+            yearsExp: 1,
+            fromMemberId: ['A', 'B', 'C'][index % 3],
+            toMemberId: ['B', 'C', 'A'][index % 3],
+        }))
+        const state = multiTeamTradeStateFromTrade(routedTrade(items), 'A')
+        const rebuilt = buildMultiTeamTradeItems(state, false)
+
+        expect(rebuilt).toHaveLength(MAX_TRADE_ITEMS + 1)
+        expect(isMultiTeamTradeSubmittable(state.participantOrder, rebuilt)).toBe(false)
+    })
+
     it('requires every selected participant to send or receive an asset before submission', () => {
         expect(isMultiTeamTradeSubmittable(['A', 'B', 'C'], [
             { kind: 'player', fromMemberId: 'A', toMemberId: 'B', playerId: 'player-1' },

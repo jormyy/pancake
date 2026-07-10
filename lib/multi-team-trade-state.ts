@@ -1,4 +1,5 @@
 import type { MultiTeamTradeItemPayload, Trade } from '@/lib/trades'
+import { MAX_TRADE_ITEMS } from '@pancake/core'
 
 type AssetDestinations = Record<string, string | null>
 
@@ -92,6 +93,14 @@ function updateParticipant(
     }
 }
 
+function draftItemCount(state: MultiTeamTradeState): number {
+    return Object.values(state.participants).reduce((count, participant) => (
+        count + Object.keys(participant.playerDestinations).length +
+        Object.keys(participant.pickDestinations).length +
+        Object.values(participant.faabInputs).filter((value) => (parseInt(value || '0', 10) || 0) > 0).length
+    ), 0)
+}
+
 export function multiTeamTradeReducer(
     state: MultiTeamTradeState,
     action: MultiTeamTradeAction,
@@ -119,7 +128,10 @@ export function multiTeamTradeReducer(
                 const key = action.asset === 'player' ? 'playerDestinations' : 'pickDestinations'
                 const destinations = { ...participant[key] }
                 if (action.assetId in destinations) delete destinations[action.assetId]
-                else destinations[action.assetId] = null
+                else {
+                    if (draftItemCount(state) >= MAX_TRADE_ITEMS) return participant
+                    destinations[action.assetId] = null
+                }
                 return { ...participant, [key]: destinations }
             })
         }
@@ -127,6 +139,7 @@ export function multiTeamTradeReducer(
             return updateParticipant(state, action.memberId, (participant) => {
                 const key = action.asset === 'player' ? 'playerDestinations' : 'pickDestinations'
                 if (action.assetId in participant[key]) return participant
+                if (draftItemCount(state) >= MAX_TRADE_ITEMS) return participant
                 return { ...participant, [key]: { ...participant[key], [action.assetId]: null } }
             })
         }
@@ -154,10 +167,17 @@ export function multiTeamTradeReducer(
         case 'set-faab':
             if (!/^\d*$/.test(action.value) || action.memberId === action.toMemberId ||
                 !state.participantOrder.includes(action.toMemberId)) return state
-            return updateParticipant(state, action.memberId, (participant) => ({
-                ...participant,
-                faabInputs: { ...participant.faabInputs, [action.toMemberId]: action.value },
-            }))
+            return updateParticipant(state, action.memberId, (participant) => {
+                const currentAmount = parseInt(participant.faabInputs[action.toMemberId] || '0', 10) || 0
+                const nextAmount = parseInt(action.value || '0', 10) || 0
+                if (currentAmount <= 0 && nextAmount > 0 && draftItemCount(state) >= MAX_TRADE_ITEMS) {
+                    return participant
+                }
+                return {
+                    ...participant,
+                    faabInputs: { ...participant.faabInputs, [action.toMemberId]: action.value },
+                }
+            })
         case 'prefill':
             return action.state
         case 'reset':
@@ -234,7 +254,7 @@ export function isMultiTeamTradeSubmittable(
     items: readonly unknown[],
 ): boolean {
     const participants = new Set(participantIds.filter(Boolean))
-    if (participants.size < 3 || items.length === 0) return false
+    if (participants.size < 3 || items.length === 0 || items.length > MAX_TRADE_ITEMS) return false
     const involved = new Set<string>()
     for (const item of items) {
         if (!isMultiTeamTradeItemPayload(item)) return false

@@ -1,5 +1,6 @@
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
+import { MAX_TRADE_ITEMS } from '../_shared/tradeLimits.ts'
 import {
   json,
   NotFoundError,
@@ -153,14 +154,18 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
   const itemCount = payload.offerPlayerIds.length + payload.requestPlayerIds.length +
     payload.offerPickIds.length + payload.requestPickIds.length +
     (payload.offerFaabAmount > 0 ? 1 : 0) + (payload.requestFaabAmount > 0 ? 1 : 0)
-  if (itemCount > 100) throw new ValidationError('A trade cannot include more than 100 items.')
+  if (itemCount > MAX_TRADE_ITEMS) {
+    throw new ValidationError(`A trade cannot include more than ${MAX_TRADE_ITEMS} items.`)
+  }
   return payload
 }
 
 function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: string): MultiTeamTradePayload {
   const rawItems = body.items
   if (!Array.isArray(rawItems)) throw new ValidationError('items must be an array.')
-  if (rawItems.length > 100) throw new ValidationError('A trade cannot include more than 100 items.')
+  if (rawItems.length > MAX_TRADE_ITEMS) {
+    throw new ValidationError(`A trade cannot include more than ${MAX_TRADE_ITEMS} items.`)
+  }
 
   const items = rawItems.map((raw, index): MultiTeamTradeItemPayload => {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {

@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     showAlert: vi.fn(),
     showSuccess: vi.fn(),
     submitTradeComposer: vi.fn(),
+    tradeItems: [] as { kind: 'player'; fromMemberId: string; toMemberId: string; playerId: string }[],
 }))
 
 vi.mock('react-native', () => ({
@@ -44,10 +45,7 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         assetsReady: true,
         avgMap: new Map(),
         avgStatsMap: new Map(),
-        buildMultiTeamItems: () => [
-            { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
-            { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'player-b' },
-        ],
+        buildMultiTeamItems: () => mocks.tradeItems,
         loadedParticipantKey: 'member-a,member-b',
         participantIds: ['member-a', 'member-b'],
         participantName: vi.fn(),
@@ -134,9 +132,46 @@ beforeEach(() => {
     mocks.getLeagueMembers.mockResolvedValue([{ id: 'member-b', team_name: 'Team B' }])
     mocks.getTradeById.mockResolvedValue(null)
     mocks.submitTradeComposer.mockResolvedValue(undefined)
+    mocks.tradeItems = [
+        { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
+        { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'player-b' },
+    ]
 })
 
 describe('propose trade async ownership', () => {
+    it('announces the 100-item ceiling without disabling a valid boundary draft', async () => {
+        mocks.tradeItems = Array.from({ length: 100 }, (_, index) => ({
+            kind: 'player' as const,
+            fromMemberId: index % 2 === 0 ? 'member-a' : 'member-b',
+            toMemberId: index % 2 === 0 ? 'member-b' : 'member-a',
+            playerId: `player-${index}`,
+        }))
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+
+        const banner = renderer.root.findByProps({ testID: 'trade-item-limit' })
+        expect(banner.props.children.props.children).toBe('Trade item limit reached. Remove an item before selecting another.')
+        expect(renderer.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('announces an oversized draft and disables submission', async () => {
+        mocks.tradeItems = Array.from({ length: 101 }, (_, index) => ({
+            kind: 'player' as const,
+            fromMemberId: index % 2 === 0 ? 'member-a' : 'member-b',
+            toMemberId: index % 2 === 0 ? 'member-b' : 'member-a',
+            playerId: `player-${index}`,
+        }))
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+
+        const banner = renderer.root.findByProps({ testID: 'trade-item-limit' })
+        expect(banner.props.accessibilityRole).toBe('alert')
+        expect(banner.props.children.props.children).toBe('This trade has 101 items. Remove 1 to meet the 100-item limit.')
+        expect(renderer.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(true)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('does not show a source-trade error after the modal unmounts', async () => {
         const sourceTrade = deferred<never>()
         mocks.params = { editTradeId: 'trade-a' }

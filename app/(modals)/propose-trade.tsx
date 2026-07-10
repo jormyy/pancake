@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { MAX_TRADE_ITEMS } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
@@ -199,7 +200,13 @@ export default function ProposeTradeScreen() {
         })
         : null
     const tradingClosed = isTradingClosed(currentLeague)
-    const canSubmit = !tradingClosed && !submitting && composer.assetsReady && (
+    const withinItemLimit = items.length <= MAX_TRADE_ITEMS
+    const itemLimitMessage = items.length > MAX_TRADE_ITEMS
+        ? `This trade has ${items.length} items. Remove ${items.length - MAX_TRADE_ITEMS} to meet the ${MAX_TRADE_ITEMS}-item limit.`
+        : items.length === MAX_TRADE_ITEMS
+            ? 'Trade item limit reached. Remove an item before selecting another.'
+            : null
+    const canSubmit = !tradingClosed && !submitting && composer.assetsReady && withinItemLimit && (
         multiTeamMode
             ? isMultiTeamTradeSubmittable(participantIds, items)
             : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest)
@@ -304,6 +311,16 @@ export default function ProposeTradeScreen() {
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>
                         <Text style={styles.lockBannerText}>Trades are locked only from the trade deadline until the champion is finalized.</Text>
+                    </View>
+                ) : null}
+                {itemLimitMessage ? (
+                    <View
+                        style={styles.lockBanner}
+                        accessibilityRole="alert"
+                        accessibilityLiveRegion="polite"
+                        testID="trade-item-limit"
+                    >
+                        <Text style={styles.lockBannerText}>{itemLimitMessage}</Text>
                     </View>
                 ) : null}
                 <Text style={styles.sectionLabel}>TRADE WITH</Text>
