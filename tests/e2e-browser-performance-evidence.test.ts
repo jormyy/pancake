@@ -241,6 +241,7 @@ describe('browser performance evidence', () => {
 
     await expect(measureWorkflowFeedback(browser, 'session', { workflowId: 'waiver-add-claim' }))
       .resolves.toMatchObject({ feedbackMs: 7.1, observed: true, interaction: 'waiver-faab-input' })
+    expect(browser).toHaveBeenCalledWith('session', ['fill', '[aria-label="FAAB bid amount"]', ''])
     expect(browser).toHaveBeenCalledWith('session', ['type', '[aria-label="FAAB bid amount"]', '2'])
     expect(browser).toHaveBeenCalledWith('session', ['fill', '[aria-label="FAAB bid amount"]', '0'])
   })

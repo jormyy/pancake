@@ -291,7 +291,8 @@ const clickMeasuredTarget = async (browser, session, { selector, expected, inter
   return collectFeedback(browser, session, interaction, target)
 }
 
-const typeMeasuredTarget = async (browser, session, { selector, value, expected, interaction, target }) => {
+const typeMeasuredTarget = async (browser, session, { selector, value, expected, interaction, target, clear = false }) => {
+  if (clear) await browser(session, ['fill', selector, ''])
   const prepared = await prepareFeedbackObserver(browser, session, expected)
   if (prepared.expectedBeforeAction) throw new Error(`${interaction} expected state was already active`)
   await browser(session, ['type', selector, value])
@@ -380,6 +381,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
       selector, value,
       expected: `document.querySelector(${JSON.stringify(selector)})?.value === ${JSON.stringify(value)}`,
       interaction: 'waiver-faab-input', target: 'FAAB bid amount',
+      clear: true,
     })
     await browser(session, ['fill', selector, '0'])
     return result
