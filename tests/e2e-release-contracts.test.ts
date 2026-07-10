@@ -56,6 +56,10 @@ describe('release E2E contracts', () => {
       expect(source, file).not.toContain('EXPO_USE_METRO_REQUIRE=1')
       expect(source, file).toContain('npm run e2e:web-hydration')
     }
+
+    const staticServer = await readFile(path.join(process.cwd(), 'tests/e2e/static-web-server.mjs'), 'utf8')
+    expect(staticServer).toContain("'content-encoding': encoding")
+    expect(staticServer).toContain('createBrotliCompress()')
   })
 
   it('uses the public sign-in path for the production auth guard', async () => {
@@ -88,6 +92,14 @@ describe('release E2E contracts', () => {
       status: 'PASS',
       workflowMeasurements: [{ id: 'workflow', feedbackMs: 1, fullLoadMs: 2 }],
     }, 'report.json')).toContain('workflow: report.json is missing numeric cachedRequestMs')
+
+    expect(validateWorkflowReportKeys(manifest, {
+      status: 'PASS',
+      workflowMeasurements: [{
+        id: 'workflow', feedbackMs: 1, cachedRequestMs: 2, fullLoadMs: 3,
+        feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
+      }],
+    }, 'report.json')).toContain('workflow: report.json is missing positive routeWebJsKb')
   })
 
   it('rejects any missing route from a full browser sweep', () => {

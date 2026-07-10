@@ -143,7 +143,7 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
     if (workflow.id === 'home-live-lineup') {
       if (!Number.isFinite(measurement.initialWebJsKb) || measurement.initialWebJsKb <= 0) failures.push(`${workflow.id}: ${reportPath} is missing positive initialWebJsKb`)
       else if (measurement.initialWebJsKb > manifest.globalBudgets.maxInitialWebJsKb) failures.push(`${workflow.id}: initial JS ${measurement.initialWebJsKb}KB exceeds ${manifest.globalBudgets.maxInitialWebJsKb}KB`)
-    } else if (!Number.isFinite(measurement.routeWebJsKb)) failures.push(`${workflow.id}: ${reportPath} is missing numeric routeWebJsKb`)
+    } else if (!Number.isFinite(measurement.routeWebJsKb) || measurement.routeWebJsKb <= 0) failures.push(`${workflow.id}: ${reportPath} is missing positive routeWebJsKb`)
     else if (measurement.routeWebJsKb > manifest.globalBudgets.maxRouteWebJsKb) failures.push(`${workflow.id}: route JS ${measurement.routeWebJsKb}KB exceeds ${manifest.globalBudgets.maxRouteWebJsKb}KB`)
 
     if (measurement.feedbackMs != null && measurement.feedbackMs > workflow.budgets.feedbackMs) {

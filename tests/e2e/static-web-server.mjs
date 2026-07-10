@@ -2,6 +2,7 @@ import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createBrotliCompress, createGzip } from 'node:zlib';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +38,15 @@ const contentTypes = new Map([
   ['.woff', 'font/woff'],
   ['.woff2', 'font/woff2'],
 ]);
+const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.map', '.svg', '.wasm']);
+
+function acceptedEncoding(request, extension) {
+  if (!compressibleExtensions.has(extension)) return null;
+  const value = request.headers['accept-encoding'] ?? '';
+  if (/\bbr\b/.test(value)) return 'br';
+  if (/\bgzip\b/.test(value)) return 'gzip';
+  return null;
+}
 
 function insideRoot(filePath) {
   const relative = path.relative(root, filePath);
@@ -115,11 +125,16 @@ const server = createServer((request, response) => {
 
   const extension = path.extname(filePath);
   const immutableAsset = filePath.includes(`${path.sep}_expo${path.sep}static${path.sep}`);
+  const encoding = acceptedEncoding(request, extension);
   response.writeHead(200, {
     'cache-control': immutableAsset ? 'public, max-age=31536000, immutable' : 'no-store',
     'content-type': contentTypes.get(extension) ?? 'application/octet-stream',
+    ...(encoding ? { 'content-encoding': encoding, vary: 'Accept-Encoding' } : {}),
   });
-  createReadStream(filePath).pipe(response);
+  const source = createReadStream(filePath);
+  if (encoding === 'br') source.pipe(createBrotliCompress()).pipe(response);
+  else if (encoding === 'gzip') source.pipe(createGzip()).pipe(response);
+  else source.pipe(response);
 });
 
 server.listen(port, host, () => {
