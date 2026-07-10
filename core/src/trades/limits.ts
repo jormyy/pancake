@@ -1,3 +1,2 @@
 export const MAX_TRADE_ITEMS = 100
-export const MIN_TRADE_EXPIRATION_DAYS = 1
 export const MAX_TRADE_EXPIRATION_DAYS = 30
