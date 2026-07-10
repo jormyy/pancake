@@ -157,6 +157,19 @@ const assertMultiTeamPayloadBounds = async (fixture) => {
     p_league_season_id: fixture.currentSeason.id,
     p_proposer_member_id: fixture.proposer.id,
     p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id],
+    p_items: [{
+      fromMemberId: fixture.proposer.id,
+      toMemberId: fixture.recipient.id,
+      faabAmount: 1,
+    }],
+    p_notes: 'DB undersized multi-team payload',
+    p_expires_at: null,
+  }, 'requires at least 3 teams')
+  await expectRpcError(fixture.admin, 'propose_multi_team_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
     p_items: Array.from({ length: 101 }, () => ({
       fromMemberId: fixture.proposer.id,
       toMemberId: fixture.recipient.id,
@@ -169,7 +182,7 @@ const assertMultiTeamPayloadBounds = async (fixture) => {
     p_league_id: fixture.league.id,
     p_league_season_id: fixture.currentSeason.id,
     p_proposer_member_id: fixture.proposer.id,
-    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id],
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
     p_items: [{
       fromMemberId: fixture.proposer.id,
       toMemberId: fixture.recipient.id,
@@ -182,7 +195,7 @@ const assertMultiTeamPayloadBounds = async (fixture) => {
     p_league_id: fixture.league.id,
     p_league_season_id: fixture.currentSeason.id,
     p_proposer_member_id: fixture.proposer.id,
-    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id],
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
     p_items: [{ fromMemberId: fixture.proposer.id, toMemberId: fixture.recipient.id, faabAmount: 1 }],
     p_notes: 'x'.repeat(2001),
     p_expires_at: null,
@@ -404,6 +417,11 @@ const assertCompetingStandardAndMultiTeamTradesSerialize = async (fixture) => {
     trade_veto_mode: 'disabled',
     trade_veto_window_hours: 0,
   })
+  await setBalances(fixture, [
+    [fixture.proposer.id, 100],
+    [fixture.recipient.id, 100],
+    [fixture.observer.id, 100],
+  ])
   const [player] = await findAvailablePlayers(
     fixture.admin,
     fixture.league.id,
@@ -438,15 +456,23 @@ const assertCompetingStandardAndMultiTeamTradesSerialize = async (fixture) => {
     p_league_id: fixture.league.id,
     p_league_season_id: fixture.currentSeason.id,
     p_proposer_member_id: fixture.proposer.id,
-    p_participant_member_ids: [fixture.proposer.id, fixture.observer.id],
-    p_items: [{
-      fromMemberId: fixture.proposer.id,
-      toMemberId: fixture.observer.id,
-      playerId: player.id,
-    }],
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
+    p_items: [
+      {
+        fromMemberId: fixture.proposer.id,
+        toMemberId: fixture.observer.id,
+        playerId: player.id,
+      },
+      {
+        fromMemberId: fixture.recipient.id,
+        toMemberId: fixture.proposer.id,
+        faabAmount: 1,
+      },
+    ],
     p_notes: 'DB multi-team versus standard race',
     p_expires_at: null,
   })
+  await accept(fixture, multiTradeId, fixture.recipient.id)
 
   const results = await Promise.allSettled([
     rpc(fixture.admin, 'accept_trade_atomic', {
@@ -625,15 +651,23 @@ const assertCompetingAcceptedPickTradesSerialize = async (fixture) => {
     p_league_id: fixture.league.id,
     p_league_season_id: fixture.currentSeason.id,
     p_proposer_member_id: fixture.proposer.id,
-    p_participant_member_ids: [fixture.proposer.id, fixture.observer.id],
-    p_items: [{
-      fromMemberId: fixture.proposer.id,
-      toMemberId: fixture.observer.id,
-      pickId: pick.id,
-    }],
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
+    p_items: [
+      {
+        fromMemberId: fixture.proposer.id,
+        toMemberId: fixture.observer.id,
+        pickId: pick.id,
+      },
+      {
+        fromMemberId: fixture.recipient.id,
+        toMemberId: fixture.observer.id,
+        faabAmount: 1,
+      },
+    ],
     p_notes: 'DB competing multi-team accepted-pick reservation',
     p_expires_at: null,
   })
+  await accept(fixture, multiTradeId, fixture.recipient.id)
 
   const results = await Promise.allSettled([
     accept(fixture, standardTradeId, fixture.recipient.id),

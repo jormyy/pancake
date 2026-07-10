@@ -383,13 +383,24 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     const otherMemberId = '77777777-7777-4777-8777-777777777777'
+    const thirdMemberId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     const baseBody = {
       leagueId: LEAGUE_ID,
       leagueSeasonId: '88888888-8888-4888-8888-888888888888',
       memberId: MEMBER_ID,
-      participantMemberIds: [MEMBER_ID, otherMemberId],
+      participantMemberIds: [MEMBER_ID, otherMemberId, thirdMemberId],
     }
     const item = { fromMemberId: MEMBER_ID, toMemberId: otherMemberId, playerId: PLAYER_ID }
+
+    const undersizedParticipants = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
+      ...baseBody,
+      participantMemberIds: [MEMBER_ID, otherMemberId],
+      items: [item],
+    }))
+    const undersizedParticipantsBody = await undersizedParticipants.json()
+    if (undersizedParticipants.status !== 400 || undersizedParticipantsBody.error !== 'A multi-team trade requires at least 3 teams.') {
+      throw new Error(`expected trade participant minimum rejection, got ${undersizedParticipants.status}: ${JSON.stringify(undersizedParticipantsBody)}`)
+    }
 
     const oversizedItems = await handleApiRoute(authedRequest('POST', '/trades/propose-multi', {
       ...baseBody,

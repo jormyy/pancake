@@ -157,7 +157,7 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
   return payload
 }
 
-function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePayload {
+function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: string): MultiTeamTradePayload {
   const rawItems = body.items
   if (!Array.isArray(rawItems)) throw new ValidationError('items must be an array.')
   if (rawItems.length > 100) throw new ValidationError('A trade cannot include more than 100 items.')
@@ -183,7 +183,11 @@ function multiTeamTradePayload(body: Record<string, unknown>): MultiTeamTradePay
   })
 
   const participantMemberIds = optionalUuidArrayField(body, 'participantMemberIds')
-  if (participantMemberIds.length > 12) {
+  const participantCount = new Set([proposerMemberId, ...participantMemberIds]).size
+  if (participantCount < 3) {
+    throw new ValidationError('A multi-team trade requires at least 3 teams.')
+  }
+  if (participantCount > 12) {
     throw new ValidationError('A trade cannot include more than 12 teams.')
   }
 
@@ -242,7 +246,7 @@ async function proposeTrade(userId: string, body: Record<string, unknown>): Prom
 async function proposeMultiTeamTrade(userId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await verifyOwnMember(userId, memberId)
-  const payload = multiTeamTradePayload(body)
+  const payload = multiTeamTradePayload(body, memberId)
 
   const { data: tradeId, error } = await supabase.rpc('propose_multi_team_trade_atomic', {
     p_league_id: uuidField(body, 'leagueId'),
@@ -346,7 +350,7 @@ async function replaceMultiTeamTrade(
 ): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
-  const payload = multiTeamTradePayload(body)
+  const payload = multiTeamTradePayload(body, memberId)
 
   const { data: newTradeId, error } = await supabase.rpc(action.rpc, {
     p_trade_id: tradeId,
