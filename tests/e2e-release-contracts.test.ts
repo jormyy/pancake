@@ -184,6 +184,7 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('uses: ./.github/workflows/production-readiness.yml')
     expect(workflow).toContain('Restore baseline Edge after failed Edge phase')
     expect(workflow).toContain("needs.deploy-edge.result == 'failure'")
+    expect(workflow).toContain("needs.deploy-edge.result == 'cancelled'")
     for (const label of [
       'candidate-current-backend',
       'current-after-migration',
@@ -195,6 +196,7 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('Verify promoted production')
     expect(workflow).toContain('Restore baseline release after failed promotion')
     expect(workflow).toContain("needs.promote.result == 'failure'")
+    expect(workflow).toContain("needs.promote.result == 'cancelled'")
     expect(workflow).toContain("needs.promote.result == 'success' && needs.verify-production.result != 'success'")
     expect(workflow).toContain("needs.verify-production.result != 'success'")
     expect(workflow).toContain('Restore and attest baseline frontend')
@@ -459,6 +461,15 @@ describe('release E2E contracts', () => {
     expect(perfSource).toContain('await ensurePerfSeasonWeek(supabase, fixture.leagueSeason.season_year, resourceOwner)')
     expect(perfSource).not.toContain('stale auction draft cleanup')
     expect(registrySource).toContain('(resourceOwner) => scenario.run({ ...context, resourceOwner })')
+  })
+
+  it('terminates the waiver backlog lock backend and proves cleanup before passing', async () => {
+    const source = await readFile(path.join(process.cwd(), 'tests/e2e/waiver-backlog-db.mjs'), 'utf8')
+    expect(source).toContain('PGAPPNAME: lockApplicationName')
+    expect(source).toContain('SELECT pg_terminate_backend(pid) FROM pg_stat_activity')
+    expect(source).toContain("'backends', (SELECT count(*) FROM pg_stat_activity")
+    expect(source).toContain("'locks', (SELECT count(*) FROM pg_locks")
+    expect(source).toContain('if (leaked)')
   })
 
   it('binds post-migration data latency evidence to repository schema head', async () => {
