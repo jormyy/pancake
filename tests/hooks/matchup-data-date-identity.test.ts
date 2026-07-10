@@ -57,6 +57,28 @@ beforeEach(() => {
 })
 
 describe('useMatchupData date ownership', () => {
+    it('retains a cached matchup when a refresh fails', async () => {
+        readPersistentCache.mockReturnValue({
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: lineup('cached-mine'), oppLineup: lineup('cached-opp'),
+        })
+        getMyMatchup.mockRejectedValue(new Error('offline'))
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = () => {
+            latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+
+        await act(async () => { await latest.refresh() })
+
+        expect(latest.matchup?.id).toBe('matchup')
+        expect(latest.myLineup?.bench[0]?.playerId).toBe('cached-mine')
+        expect(latest.error).toBe('Failed to load matchup')
+        await act(async () => { renderer.unmount() })
+    })
+
     it('does not let an old action reload cancel or overwrite the selected day', async () => {
         readPersistentCache.mockReturnValue({
             today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],

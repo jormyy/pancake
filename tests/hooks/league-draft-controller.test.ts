@@ -61,4 +61,22 @@ describe('useLeagueDraftController', () => {
         expect(latest.activeDraftLoading).toBe(false)
         renderer.unmount()
     })
+
+    it('retains a visible draft when a later refresh fails', async () => {
+        getJoinableDraft.mockResolvedValueOnce(draft('visible')).mockRejectedValueOnce(new Error('offline'))
+        let latest!: ReturnType<typeof useLeagueDraftController>
+        const Probe = () => {
+            latest = useLeagueDraftController('league')
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        expect(latest.activeDraft?.id).toBe('visible')
+
+        await act(async () => { await latest.fetchActiveDraft('league') })
+
+        expect(latest.activeDraft?.id).toBe('visible')
+        expect(latest.activeDraftError).toBe('offline')
+        await act(async () => { renderer.unmount() })
+    })
 })

@@ -261,7 +261,6 @@ export function useMatchupData(
         } catch (e) {
             if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
             console.error(e)
-            setMatchup(null)
             setError('Failed to load matchup')
         } finally {
             if (seq === loadSeqRef.current && activeResourceKeyRef.current === capturedResourceKey) {

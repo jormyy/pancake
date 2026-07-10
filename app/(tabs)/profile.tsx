@@ -15,20 +15,19 @@ import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useAuth } from '@/hooks/use-auth'
-import { getProfile, updateProfile, uploadAvatar, signOut } from '@/lib/auth'
+import { updateProfile, uploadAvatar, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import {
     createNotificationPreferenceWriter,
-    getNotificationPreferences,
     updateNotificationPreferences,
     type NotificationPreferences,
 } from '@/lib/notification-preferences'
+import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/ui'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
-import type { Profile } from '@/types/database'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
@@ -39,54 +38,37 @@ export default function ProfileScreen() {
     const narrow = useWindowDimensions().width < 480
     const rowStyle = [styles.row, narrow && styles.rowNarrow]
     const valueStyle = [styles.rowValue, narrow && styles.rowValueNarrow]
-    const [profile, setProfile] = useState<Profile | null>(null)
-    const [profileLoaded, setProfileLoaded] = useState(false)
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
     const [avatarUploading, setAvatarUploading] = useState(false)
-    const [preferences, setPreferences] = useState<NotificationPreferences>({
-        tradeEnabled: true,
-        waiverEnabled: true,
-        draftEnabled: true,
-        activityEnabled: true,
-    })
+    const preferenceUserId = user?.id
+    const activeUserIdRef = useRef(preferenceUserId)
+    activeUserIdRef.current = preferenceUserId
+    const { profile, profileLoaded, preferences, setProfile, setPreferences } =
+        useProfileResource(preferenceUserId)
     const preferencesRef = useRef(preferences)
     preferencesRef.current = preferences
-    const preferenceWriterRef = useRef(createNotificationPreferenceWriter(async () => undefined))
-    const preferenceOwnerRef = useRef(0)
-    const preferenceUserId = user?.id
-
-    useEffect(() => {
-        preferenceOwnerRef.current += 1
-        preferenceWriterRef.current = createNotificationPreferenceWriter(
+    const preferenceSessionRef = useRef({
+        ownerId: preferenceUserId,
+        writer: createNotificationPreferenceWriter(
             preferenceUserId ? (next) => updateNotificationPreferences(preferenceUserId, next) : async () => undefined,
-        )
-    }, [preferenceUserId])
+        ),
+    })
+    if (preferenceSessionRef.current.ownerId !== preferenceUserId) {
+        preferenceSessionRef.current = {
+            ownerId: preferenceUserId,
+            writer: createNotificationPreferenceWriter(
+                preferenceUserId ? (next) => updateNotificationPreferences(preferenceUserId, next) : async () => undefined,
+            ),
+        }
+    }
 
     useEffect(() => {
-        async function load() {
-            if (!user) {
-                setProfile(null)
-                setProfileLoaded(false)
-                return
-            }
-            setProfileLoaded(false)
-            try {
-                const p = await getProfile(user.id)
-                const prefs = await getNotificationPreferences(user.id)
-                setProfile(p)
-                setPreferences(prefs)
-                setDisplayName(p.display_name ?? '')
-            } catch (e) {
-                console.error(e)
-            } finally {
-                setProfileLoaded(true)
-            }
-        }
-        load()
-    }, [user])
+        setEditing(false)
+        setDisplayName(profileLoaded ? profile?.display_name ?? '' : '')
+    }, [preferenceUserId, profile?.display_name, profileLoaded])
 
     // Sync team name from context whenever it changes
     useEffect(() => {
@@ -95,6 +77,7 @@ export default function ProfileScreen() {
 
     async function handleSave() {
         if (!user) return
+        const ownerId = user.id
         const trimmedDisplay = displayName.trim()
         const trimmedTeam = teamName.trim()
         if (!trimmedDisplay) {
@@ -110,6 +93,7 @@ export default function ProfileScreen() {
                 saves.push(updateTeamName(current.id, trimmedTeam))
             }
             await Promise.all(saves)
+            if (activeUserIdRef.current !== ownerId) return
             setProfile((prev) => prev ? { ...prev, display_name: trimmedDisplay } : prev)
             setEditing(false)
             if (current && trimmedTeam !== current.team_name) {
@@ -117,9 +101,9 @@ export default function ProfileScreen() {
             }
             showAlert('Saved', 'Your profile has been updated.')
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (activeUserIdRef.current === ownerId) showAlert('Error', getErrorMessage(e))
         } finally {
-            setSaving(false)
+            if (activeUserIdRef.current === ownerId) setSaving(false)
         }
     }
 
@@ -131,6 +115,7 @@ export default function ProfileScreen() {
 
     async function handlePickAvatar() {
         if (!user) return
+        const ownerId = user.id
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
         if (status !== 'granted') {
             showAlert('Permission Required', 'Allow photo library access to change your profile picture.')
@@ -146,12 +131,13 @@ export default function ProfileScreen() {
         const asset = result.assets[0]
         setAvatarUploading(true)
         try {
-            const url = await uploadAvatar(user.id, asset)
+            const url = await uploadAvatar(ownerId, asset)
+            if (activeUserIdRef.current !== ownerId) return
             setProfile((prev) => prev ? { ...prev, avatar_url: url } : prev)
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            if (activeUserIdRef.current === ownerId) showAlert('Error', getErrorMessage(e))
         } finally {
-            setAvatarUploading(false)
+            if (activeUserIdRef.current === ownerId) setAvatarUploading(false)
         }
     }
 
@@ -167,21 +153,21 @@ export default function ProfileScreen() {
     }
 
     async function togglePreference(key: keyof NotificationPreferences) {
-        if (!user) return
-        const owner = preferenceOwnerRef.current
+        if (!user || !profileLoaded) return
+        const session = preferenceSessionRef.current
         const previous = preferencesRef.current
         const next = { ...previous, [key]: !previous[key] }
         preferencesRef.current = next
         setPreferences(next)
-        const task = preferenceWriterRef.current.enqueue(next)
+        const task = session.writer.enqueue(next)
         try {
             await task
         } catch (e) {
-            if (preferenceOwnerRef.current === owner && preferencesRef.current === next) {
+            if (preferenceSessionRef.current === session && preferencesRef.current === next) {
                 preferencesRef.current = previous
                 setPreferences(previous)
             }
-            if (preferenceOwnerRef.current === owner) showAlert('Error', getErrorMessage(e))
+            if (preferenceSessionRef.current === session) showAlert('Error', getErrorMessage(e))
         }
     }
     const showTeamSection = Boolean(current) || leagueLoading
@@ -290,10 +276,11 @@ export default function ProfileScreen() {
                                 <Pressable
                                     style={styles.row}
                                     onPress={() => togglePreference(key)}
+                                    disabled={!profileLoaded}
                                     role="switch"
                                     aria-checked={enabled}
                                     accessibilityRole="switch"
-                                    accessibilityState={{ checked: enabled }}
+                                    accessibilityState={{ checked: enabled, disabled: !profileLoaded }}
                                 >
                                     <Text style={[styles.rowLabel, styles.switchLabel]}>{label}</Text>
                                     <View style={[styles.toggle, enabled && styles.toggleOn]}>

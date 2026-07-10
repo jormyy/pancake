@@ -167,6 +167,36 @@ describe('commissioner settings resource', () => {
         expect(latest.saving).toBe(false)
         await act(async () => { renderer.unmount() })
     })
+
+    it('does not carry an unsaved draft to a different owner in the same league', async () => {
+        mocks.getLineupSlots.mockResolvedValue([])
+        const testLeague = league('shared', 20)
+        let latest!: ReturnType<typeof useCommissionerSettingsResource>
+        const Probe = ({ ownerId }: { ownerId: string }) => {
+            latest = useCommissionerSettingsResource({
+                league: testLeague,
+                ownerId,
+                isCommissioner: true,
+                refresh: vi.fn(),
+                onSaved: vi.fn(),
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(Probe, { ownerId: 'user-a' }))
+            await Promise.resolve()
+        })
+        await act(async () => { latest.updateField('rosterSize', '99') })
+
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { ownerId: 'user-b' }))
+            await Promise.resolve()
+        })
+
+        expect(latest.draft.rosterSize).toBe('20')
+        await act(async () => { renderer.unmount() })
+    })
 })
 
 describe('commissioner admin actions', () => {

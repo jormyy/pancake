@@ -59,7 +59,7 @@ export function useCommissionerSettingsResource({
     const [baseline, setBaseline] = useState<CommissionerSettingsDraft>(EMPTY_COMMISSIONER_SETTINGS_DRAFT)
     const draftRef = useRef(draft)
     const baselineRef = useRef(baseline)
-    const hydratedLeagueId = useRef<string | null>(null)
+    const hydratedOwnerKey = useRef<string | null>(null)
     const forceHydrate = useRef(false)
     draftRef.current = draft
     baselineRef.current = baseline
@@ -72,6 +72,7 @@ export function useCommissionerSettingsResource({
     const mutation = useRef<{ ownerKey: string; token: symbol } | null>(null)
     const [savingOwnerKey, setSavingOwnerKey] = useState<string | null>(null)
     activeOwnerKey.current = ownerKey
+    const ownsDraft = hydratedOwnerKey.current === ownerKey
 
     useEffect(() => {
         let cancelled = false
@@ -91,8 +92,8 @@ export function useCommissionerSettingsResource({
                 if (cancelled) return
                 const nextDraft = remoteDraft(league, slotData)
                 const hydration = commissionerHydrationDecision({
-                    incomingLeagueId: league.id,
-                    hydratedLeagueId: hydratedLeagueId.current,
+                    incomingLeagueId: ownerKey ?? league.id,
+                    hydratedLeagueId: hydratedOwnerKey.current,
                     draft: draftRef.current,
                     baseline: baselineRef.current,
                     remote: nextDraft,
@@ -106,7 +107,7 @@ export function useCommissionerSettingsResource({
                     return
                 }
                 if (hydration === 'hydrate') {
-                    hydratedLeagueId.current = league.id
+                    hydratedOwnerKey.current = ownerKey
                     setDraft(nextDraft)
                     setBaseline(nextDraft)
                 }
@@ -119,7 +120,7 @@ export function useCommissionerSettingsResource({
                 }
             })
         return () => { cancelled = true }
-    }, [isCommissioner, league, loadAttempt])
+    }, [isCommissioner, league, loadAttempt, ownerKey])
 
     const updateField = <Key extends keyof CommissionerSettingsDraft>(
         key: Key,
@@ -177,10 +178,10 @@ export function useCommissionerSettingsResource({
 
     return {
         adjustSlot,
-        draft,
+        draft: ownsDraft ? draft : EMPTY_COMMISSIONER_SETTINGS_DRAFT,
         loadError,
-        loadState,
-        members,
+        loadState: ownerKey && !ownsDraft ? 'loading' : loadState,
+        members: ownsDraft ? members : [],
         retryLoad: () => {
             forceHydrate.current = true
             setLoadAttempt((attempt) => attempt + 1)

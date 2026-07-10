@@ -59,7 +59,6 @@ export function useLeagueDraftController(leagueId: string | undefined) {
             })
             .catch((error: unknown) => {
                 if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
-                setActiveDraft(null)
                 setActiveDraftError(error instanceof Error ? error.message : 'Could not load active draft')
             })
             .finally(() => {

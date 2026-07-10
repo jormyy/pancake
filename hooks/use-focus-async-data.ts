@@ -1,6 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 
+function dependenciesEqual(previous: React.DependencyList, next: React.DependencyList) {
+    return previous.length === next.length && previous.every((value, index) => Object.is(value, next[index]))
+}
+
 /**
  * Refreshes stale data when the screen gains focus.
  * Existing data stays visible while refreshes run.
@@ -22,37 +26,59 @@ export function useFocusAsyncData<T>(
     const lastLoadedAtRef = useRef(0)
     const inFlightRef = useRef<Promise<void> | null>(null)
     const hasDataRef = useRef(hasInitialData)
-    const isFirstRunRef = useRef(true)
-    // Bumped on every deps change so a fetch started for the previous identity
-    // (e.g. the old league) can never commit its result over the new one.
     const genRef = useRef(0)
+    const renderedDepsRef = useRef(deps)
+    const stateGenerationRef = useRef(0)
+    const forceQueuedRef = useRef(false)
+    const queuedRefreshRef = useRef<Promise<void> | null>(null)
     const staleMs = options.staleMs ?? 30_000
 
-    // Reset freshness gate when deps change so the next focus fetches fresh
-    // data for the new identity (e.g. after a league switch). Skip the first
-    // run so we don't clobber the initial mount state before any fetch.
-    useEffect(() => {
-        if (isFirstRunRef.current) {
-            isFirstRunRef.current = false
-            return
-        }
-        // Abandon any in-flight fetch for the previous deps so the new identity
-        // fetches fresh (without this, load() would return the stale task and
-        // commit the old league's data).
+    // Effects run after a render. Advance ownership during render so consumers
+    // never observe the previous identity's data for one committed frame.
+    if (!dependenciesEqual(renderedDepsRef.current, deps)) {
+        renderedDepsRef.current = deps
         genRef.current += 1
         inFlightRef.current = null
+        forceQueuedRef.current = false
+        queuedRefreshRef.current = null
+        hasDataRef.current = hasInitialData
+        lastLoadedAtRef.current = 0
+    }
+    const generation = genRef.current
+    const ownsState = stateGenerationRef.current === generation
+
+    // Reset freshness gate when deps change so the next focus fetches fresh
+    // data for the new identity (e.g. after a league switch).
+    useEffect(() => {
         const hasNextInitialData = options.initialData !== undefined
         hasDataRef.current = hasNextInitialData
         lastLoadedAtRef.current = 0
+        stateGenerationRef.current = generation
         setData(hasNextInitialData ? options.initialData as T : null)
         setLoading(!hasNextInitialData)
         setRefreshing(false)
         setError(null)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, deps)
+    }, [...deps, generation])
 
-    const load = useCallback(async (loadOptions: { force?: boolean } = {}) => {
-        if (inFlightRef.current) return inFlightRef.current
+    const load = useCallback(async (loadOptions: { force?: boolean } = {}): Promise<void> => {
+        if (inFlightRef.current) {
+            if (!loadOptions.force) return inFlightRef.current
+            forceQueuedRef.current = true
+            if (!queuedRefreshRef.current) {
+                const queuedGeneration = genRef.current
+                queuedRefreshRef.current = inFlightRef.current
+                    .then(async () => {
+                        if (queuedGeneration !== genRef.current || !forceQueuedRef.current) return
+                        forceQueuedRef.current = false
+                        await load({ force: true })
+                    })
+                    .finally(() => {
+                        if (queuedGeneration === genRef.current) queuedRefreshRef.current = null
+                    })
+            }
+            return queuedRefreshRef.current
+        }
         const hasData = hasDataRef.current
         const isFresh = Date.now() - lastLoadedAtRef.current < staleMs
         if (!loadOptions.force && hasData && isFresh) return
@@ -66,6 +92,7 @@ export function useFocusAsyncData<T>(
                 const result = await fetcher()
                 if (gen !== genRef.current) return // deps changed mid-fetch — drop stale result
                 setData(result)
+                stateGenerationRef.current = gen
                 hasDataRef.current = true
                 lastLoadedAtRef.current = Date.now()
             } catch (e) {
@@ -93,5 +120,11 @@ export function useFocusAsyncData<T>(
 
     const refresh = useCallback(() => load({ force: true }), [load])
 
-    return { data, loading, refreshing, error, refresh }
+    return {
+        data: ownsState ? data : hasInitialData ? options.initialData as T : null,
+        loading: ownsState ? loading : !hasInitialData,
+        refreshing: ownsState ? refreshing : false,
+        error: ownsState ? error : null,
+        refresh,
+    }
 }
