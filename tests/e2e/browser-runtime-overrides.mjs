@@ -59,7 +59,9 @@ const allowedConsoleErrorPatterns = [
   /favicon\.ico.*(?:404|not found)/i,
 ]
 
+/** @param {{ consoleOutput: string; errorOutput: string }} output */
 export const browserDiagnosticFailures = ({ consoleOutput, errorOutput }) => {
+  /** @type {string[]} */
   const failures = []
   const browserErrors = normalizeBrowserErrors(errorOutput)
   if (browserErrors) failures.push(`browser errors: ${browserErrors}`)
