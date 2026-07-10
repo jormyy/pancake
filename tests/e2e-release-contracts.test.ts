@@ -9,6 +9,7 @@ import { writeRegisteredScenarioReport } from './e2e/browser-scenario-registry.m
 import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
 import { DATA_LATENCY_STEP_KEYS } from './e2e/data-latency-contract.mjs'
+import { runDataLatencyWorkflow } from './e2e/data-latency-bench.mjs'
 import { validateBrowserPerfReport, validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 import { digestReleaseBundle, selectRepositoryCommit } from './e2e/release-provenance.mjs'
@@ -517,6 +518,43 @@ describe('release E2E contracts', () => {
       'dynasty-hub: data latency steps do not match the canonical ordered contract',
       'dynasty-hub: data step roster-news-scope median must be a finite nonnegative number',
     ]))
+  })
+
+  it('binds executable data-latency steps to explicit canonical keys before execution', async () => {
+    const workflowId = 'dynasty-hub'
+    let executions = 0
+    const definition = (key: string) => Object.assign(async () => {
+      executions += 1
+      return {
+        workflowId,
+        label: key,
+        samples: 3,
+        medianMs: 1,
+        maxMs: 1,
+        rowCount: 0,
+        status: 'PASS',
+      }
+    }, { key, label: key })
+    const canonical = DATA_LATENCY_STEP_KEYS[workflowId].map(definition)
+
+    await expect(runDataLatencyWorkflow(workflowId, canonical)).resolves.toMatchObject({
+      id: workflowId,
+      status: 'PASS',
+      totalMedianMs: 3,
+    })
+    expect(executions).toBe(3)
+
+    for (const malformed of [
+      [canonical[2], canonical[1], canonical[0]],
+      [canonical[0], canonical[0], canonical[2]],
+      [canonical[0], canonical[1], definition('search-page')],
+    ]) {
+      executions = 0
+      await expect(runDataLatencyWorkflow(workflowId, malformed)).rejects.toThrow(
+        'executable step keys do not match the canonical data latency contract',
+      )
+      expect(executions).toBe(0)
+    }
   })
 
   it('fails responsive scenarios when viewport setup fails', async () => {

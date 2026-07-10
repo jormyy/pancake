@@ -56,3 +56,11 @@ export const DATA_LATENCY_STEP_KEYS = Object.freeze({
     'roster-news-scope',
   ]),
 })
+
+export const assertDataLatencyStepDefinitions = (workflowId, steps) => {
+  const expectedKeys = DATA_LATENCY_STEP_KEYS[workflowId]
+  const actualKeys = steps.map((step) => step?.key)
+  if (!expectedKeys || JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) {
+    throw new Error(`${workflowId} executable step keys do not match the canonical data latency contract`)
+  }
+}

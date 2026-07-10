@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { describeEndpoint, resolvedEnv, requireEnv } from './env.mjs'
 import { resolveSchemaProvenance } from './schema-provenance.mjs'
 import { resolveReleaseProvenance } from './release-provenance.mjs'
-import { DATA_LATENCY_STEP_KEYS } from './data-latency-contract.mjs'
+import { assertDataLatencyStepDefinitions } from './data-latency-contract.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -89,19 +89,16 @@ const skipStep = (workflowId, label, reason) => ({
   reason,
 })
 
-const runWorkflow = async (id, steps) => {
-  const stepKeys = DATA_LATENCY_STEP_KEYS[id]
-  if (!stepKeys || stepKeys.length !== steps.length) {
-    throw new Error(`${id} executable steps do not match the canonical data latency contract`)
-  }
+export const runDataLatencyWorkflow = async (id, steps) => {
+  assertDataLatencyStepDefinitions(id, steps)
   const results = []
-  for (const [index, step] of steps.entries()) {
+  for (const step of steps) {
     try {
-      results.push({ ...await step(), key: stepKeys[index] })
+      results.push({ ...await step(), key: step.key })
     } catch (error) {
       results.push({
         workflowId: id,
-        key: stepKeys[index],
+        key: step.key,
         label: step.label ?? 'unnamed step',
         samples: 0,
         medianMs: 0,
@@ -211,14 +208,14 @@ const findContext = async (client, state) => {
   }
 }
 
-const step = (workflowId, label, fn) => Object.assign(
+const step = (workflowId, key, label, fn) => Object.assign(
   () => timedStep(workflowId, label, fn),
-  { label },
+  { key, label },
 )
 
-const optionalStep = (workflowId, label, condition, reason, fn) => Object.assign(
+const optionalStep = (workflowId, key, label, condition, reason, fn) => Object.assign(
   () => condition ? timedStep(workflowId, label, fn) : skipStep(workflowId, label, reason),
-  { label },
+  { key, label },
 )
 
 const buildWorkflows = (client, state, context) => {
@@ -230,28 +227,28 @@ const buildWorkflows = (client, state, context) => {
   const weekNumber = matchup?.week_number ?? 1
 
   return [
-    runWorkflow('home-live-lineup', [
-      optionalStep('home-live-lineup', 'current matchup row', Boolean(matchup), 'no matchup fixture found', () =>
+    runDataLatencyWorkflow('home-live-lineup', [
+      optionalStep('home-live-lineup', 'current-matchup', 'current matchup row', Boolean(matchup), 'no matchup fixture found', () =>
         unwrap(client.from('matchups').select('id, home_points, away_points, winner_member_id, is_finalized, home_member_id, away_member_id').eq('id', matchup.id).single())),
-      optionalStep('home-live-lineup', 'league week matchup rows', Boolean(matchup), 'no matchup fixture found', () =>
+      optionalStep('home-live-lineup', 'week-matchups', 'league week matchup rows', Boolean(matchup), 'no matchup fixture found', () =>
         unwrap(client.from('matchups').select('id, home_member_id, away_member_id, home_points, away_points, is_finalized').eq('league_id', leagueId).eq('league_season_id', seasonId).eq('week_number', weekNumber))),
-      step('home-live-lineup', 'my roster for lineup render', () =>
+      step('home-live-lineup', 'my-roster', 'my roster for lineup render', () =>
         unwrap(client.from('roster_players').select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status)').eq('member_id', memberId).eq('league_id', leagueId).eq('league_season_id', seasonId))),
-      optionalStep('home-live-lineup', 'opponent roster for lineup render', Boolean(context.opponentMemberId), 'no opponent member found', () =>
+      optionalStep('home-live-lineup', 'opponent-roster', 'opponent roster for lineup render', Boolean(context.opponentMemberId), 'no opponent member found', () =>
         unwrap(client.from('roster_players').select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status)').eq('member_id', context.opponentMemberId).eq('league_id', leagueId).eq('league_season_id', seasonId))),
-      step('home-live-lineup', 'today NBA games', () =>
+      step('home-live-lineup', 'today-games', 'today NBA games', () =>
         unwrap(client.from('nba_games').select('id, home_team, away_team, status, game_time').eq('game_date', context.today))),
     ]),
-    runWorkflow('lineup-day-change', [
-      step('lineup-day-change', 'lineup slot templates', () =>
+    runDataLatencyWorkflow('lineup-day-change', [
+      step('lineup-day-change', 'slot-templates', 'lineup slot templates', () =>
         unwrap(client.from('lineup_slot_templates').select('slot_type, slot_count').eq('league_id', leagueId))),
-      step('lineup-day-change', 'weekly lineup assignment rows', () =>
+      step('lineup-day-change', 'lineup-assignments', 'weekly lineup assignment rows', () =>
         unwrap(client.from('weekly_lineups').select('player_id, slot_type').eq('member_id', memberId).eq('league_id', leagueId).eq('league_season_id', seasonId).eq('game_date', context.today))),
-      step('lineup-day-change', 'same-day lock context games', () =>
+      step('lineup-day-change', 'lock-context-games', 'same-day lock context games', () =>
         unwrap(client.from('nba_games').select('home_team, away_team, status, game_time').eq('game_date', context.today))),
     ]),
-    runWorkflow('player-search-filter', [
-      step('player-search-filter', 'search_players first page RPC', () =>
+    runDataLatencyWorkflow('player-search-filter', [
+      step('player-search-filter', 'search-page', 'search_players first page RPC', () =>
         unwrap(client.rpc('search_players', {
           p_query: '',
           p_position: 'ALL',
@@ -269,21 +266,21 @@ const buildWorkflows = (client, state, context) => {
           p_limit: PLAYER_SEARCH_PAGE_SIZE,
           p_offset: 0,
         }))),
-      step('player-search-filter', 'availability owned players', () =>
+      step('player-search-filter', 'owned-players', 'availability owned players', () =>
         unwrap(client.from('roster_players').select('player_id, member_id, league_members(team_name)').eq('league_id', leagueId).eq('league_season_id', seasonId))),
-      step('player-search-filter', 'availability waiver players', () =>
+      step('player-search-filter', 'waiver-players', 'availability waiver players', () =>
         unwrap(client.from('waiver_wire_log').select('player_id').eq('league_id', leagueId).eq('league_season_id', seasonId).is('cleared_at', null))),
     ]),
-    runWorkflow('player-detail-open', [
-      optionalStep('player-detail-open', 'player row', Boolean(playerId), 'no player fixture found', () =>
+    runDataLatencyWorkflow('player-detail-open', [
+      optionalStep('player-detail-open', 'player', 'player row', Boolean(playerId), 'no player fixture found', () =>
         unwrap(client.from('players').select('*').eq('id', playerId).single())),
-      optionalStep('player-detail-open', 'available seasons', Boolean(playerId), 'no player fixture found', () =>
+      optionalStep('player-detail-open', 'seasons', 'available seasons', Boolean(playerId), 'no player fixture found', () =>
         unwrap(client.from('mv_player_season_averages').select('season_year').eq('player_id', playerId).order('season_year', { ascending: false }))),
-      optionalStep('player-detail-open', 'season averages view', Boolean(playerId), 'no player fixture found', () =>
+      optionalStep('player-detail-open', 'season-averages', 'season averages view', Boolean(playerId), 'no player fixture found', () =>
         unwrap(client.from('mv_player_season_averages').select('*').eq('player_id', playerId).eq('season_year', context.seasonYear).maybeSingle())),
-      optionalStep('player-detail-open', 'game log first page', Boolean(playerId), 'no player fixture found', () =>
+      optionalStep('player-detail-open', 'game-log', 'game log first page', Boolean(playerId), 'no player fixture found', () =>
         unwrap(client.from('player_game_stats').select('id, points, rebounds, assists, did_not_play, minutes_played, nba_games!inner(id, nba_game_id, game_date, home_team, away_team)').eq('player_id', playerId).eq('season_year', context.seasonYear).like('nba_games.nba_game_id', '002%').order('game_date', { ascending: false }).range(0, 15))),
-      optionalStep('player-detail-open', 'projection row RPC', Boolean(playerId), 'no player fixture found', () =>
+      optionalStep('player-detail-open', 'projection', 'projection row RPC', Boolean(playerId), 'no player fixture found', () =>
         unwrap(client.rpc('get_league_projection_rows', {
           p_league_id: leagueId,
           p_season_year: context.seasonYear,
@@ -294,59 +291,59 @@ const buildWorkflows = (client, state, context) => {
           p_offset: 0,
         }))),
     ]),
-    runWorkflow('roster-review-manage', [
-      step('roster-review-manage', 'roster players with player rows', () =>
+    runDataLatencyWorkflow('roster-review-manage', [
+      step('roster-review-manage', 'roster', 'roster players with player rows', () =>
         unwrap(client.from('roster_players').select('id, is_on_ir, is_on_taxi, acquired_via, players(id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number, years_exp)').eq('member_id', memberId).eq('league_season_id', seasonId).order('is_on_taxi').order('is_on_ir'))),
-      step('roster-review-manage', 'member draft picks', () =>
+      step('roster-review-manage', 'draft-picks', 'member draft picks', () =>
         unwrap(client.from('draft_picks').select('id, season_year, round, original_owner:league_members!draft_picks_original_owner_id_fkey(team_name)').eq('current_owner_id', memberId).eq('league_id', leagueId).eq('is_used', false).order('season_year', { ascending: true }).order('round', { ascending: true }))),
-      step('roster-review-manage', 'my waiver claims', () =>
+      step('roster-review-manage', 'waiver-claims', 'my waiver claims', () =>
         unwrap(client.from('waiver_claims').select('id, player_id, drop_player_id, status, submitted_at, process_date, priority_at_submission, bid_amount, claim_order, failure_reason').eq('member_id', memberId).eq('league_season_id', seasonId).in('status', ['pending', 'succeeded', 'failed_priority', 'failed_roster']).order('claim_order', { ascending: true }).order('submitted_at', { ascending: false }).limit(20))),
-      step('roster-review-manage', 'my waiver priority', () =>
+      step('roster-review-manage', 'waiver-priority', 'my waiver priority', () =>
         unwrap(client.from('waiver_priorities').select('priority').eq('member_id', memberId).eq('league_season_id', seasonId).maybeSingle())),
     ]),
-    runWorkflow('waiver-add-claim', [
-      step('waiver-add-claim', 'active waiver wire entries', () =>
+    runDataLatencyWorkflow('waiver-add-claim', [
+      step('waiver-add-claim', 'waiver-wire', 'active waiver wire entries', () =>
         unwrap(client.from('waiver_wire_log').select('id, player_id, clears_at, players(display_name, position, nba_team, injury_status)').eq('league_id', leagueId).eq('league_season_id', seasonId).is('cleared_at', null).order('clears_at', { ascending: true }))),
-      step('waiver-add-claim', 'member transaction state', () =>
+      step('waiver-add-claim', 'transaction-state', 'member transaction state', () =>
         unwrap(client.rpc('get_member_transaction_state', {
           p_member_id: memberId,
           p_league_id: leagueId,
         }))),
-      step('waiver-add-claim', 'claim modal roster choices', () =>
+      step('waiver-add-claim', 'roster-choices', 'claim modal roster choices', () =>
         unwrap(client.from('roster_players').select('id, player_id, players(display_name, position, nba_team)').eq('member_id', memberId).eq('league_id', leagueId).eq('league_season_id', seasonId))),
     ]),
-    runWorkflow('trade-review-act', [
-      step('trade-review-act', 'trades involving member', () =>
+    runDataLatencyWorkflow('trade-review-act', [
+      step('trade-review-act', 'trades', 'trades involving member', () =>
         unwrap(client.from('trades').select('id, status, proposed_at, accepted_at, veto_window_expires_at, proposer_member_id, recipient_member_id, trade_items(id, side, player_id, pick_id)').eq('league_id', leagueId).or(`proposer_member_id.eq.${memberId},recipient_member_id.eq.${memberId}`).order('proposed_at', { ascending: false }).limit(50))),
-      step('trade-review-act', 'tradeable roster players', () =>
+      step('trade-review-act', 'roster-assets', 'tradeable roster players', () =>
         unwrap(client.from('roster_players').select('id, player_id, players(display_name, position, nba_team)').eq('member_id', memberId).eq('league_id', leagueId).eq('league_season_id', seasonId))),
-      step('trade-review-act', 'tradeable draft picks', () =>
+      step('trade-review-act', 'pick-assets', 'tradeable draft picks', () =>
         unwrap(client.from('draft_picks').select('id, season_year, round').eq('current_owner_id', memberId).eq('league_id', leagueId).eq('is_used', false).order('season_year', { ascending: true }).order('round', { ascending: true }))),
     ]),
-    runWorkflow('auction-draft-room', [
-      optionalStep('auction-draft-room', 'auction draft row', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
+    runDataLatencyWorkflow('auction-draft-room', [
+      optionalStep('auction-draft-room', 'draft', 'auction draft row', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
         unwrap(client.from('drafts').select('id, league_id, status, draft_type, current_nomination_order, budget_per_team, started_at').eq('id', context.auctionDraft.id).single())),
-      optionalStep('auction-draft-room', 'auction draft order', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
+      optionalStep('auction-draft-room', 'order', 'auction draft order', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
         unwrap(client.from('draft_orders').select('position, member_id, league_members(team_name)').eq('draft_id', context.auctionDraft.id).order('position'))),
-      optionalStep('auction-draft-room', 'auction budgets', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
+      optionalStep('auction-draft-room', 'budgets', 'auction budgets', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
         unwrap(client.from('draft_budgets').select('member_id, remaining, initial_budget, league_members(team_name)').eq('draft_id', context.auctionDraft.id))),
-      optionalStep('auction-draft-room', 'auction nominations', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
+      optionalStep('auction-draft-room', 'nominations', 'auction nominations', Boolean(context.auctionDraft?.id), 'no auction draft found', () =>
         unwrap(client.from('nominations').select('id, status, current_bid_amount, current_bidder_id, countdown_expires_at, winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order, player_id, players(display_name, nba_team, position)').eq('draft_id', context.auctionDraft.id).order('nomination_order'))),
     ]),
-    runWorkflow('rookie-draft-room', [
-      optionalStep('rookie-draft-room', 'rookie draft row', Boolean(context.rookieDraft?.id), 'no rookie draft found', () =>
+    runDataLatencyWorkflow('rookie-draft-room', [
+      optionalStep('rookie-draft-room', 'draft', 'rookie draft row', Boolean(context.rookieDraft?.id), 'no rookie draft found', () =>
         unwrap(client.from('drafts').select('id, league_id, status, draft_type, current_nomination_order, rounds, started_at').eq('id', context.rookieDraft.id).single())),
-      optionalStep('rookie-draft-room', 'snake pick board', Boolean(context.rookieDraft?.id), 'no rookie draft found', () =>
+      optionalStep('rookie-draft-room', 'pick-board', 'snake pick board', Boolean(context.rookieDraft?.id), 'no rookie draft found', () =>
         unwrap(client.from('snake_draft_picks').select('id, overall_pick, round, pick_in_round, member_id, player_id, picked_at, draft_pick_id').eq('draft_id', context.rookieDraft.id).order('overall_pick'))),
-      step('rookie-draft-room', 'rookie player board', () =>
+      step('rookie-draft-room', 'player-board', 'rookie player board', () =>
         unwrap(client.from('players').select('id, display_name, nba_team, position, nba_draft_number').not('nba_draft_number', 'is', null).order('nba_draft_number', { ascending: true }).limit(100))),
     ]),
-    runWorkflow('dynasty-hub', [
-      step('dynasty-hub', 'dynasty rankings first page', () =>
+    runDataLatencyWorkflow('dynasty-hub', [
+      step('dynasty-hub', 'rankings', 'dynasty rankings first page', () =>
         unwrap(client.from('dynasty_rankings').select('id, source, scoring_format, source_url, source_metadata, source_rank, source_player_name, source_team, source_positions, age, rank_change, games_played, field_goal_pct, free_throw_pct, three_pointers_made, points, rebounds, assists, steals, blocks, turnovers, comment, fetched_at, player:players!dynasty_rankings_player_id_fkey(id, display_name, nba_team, position, eligible_positions, injury_status, years_exp, headshot_url, nba_id)').eq('source', 'hashtagbasketball.com').order('source_rank', { ascending: true }).range(0, 50))),
-      step('dynasty-hub', 'dynasty news first page', () =>
+      step('dynasty-hub', 'news', 'dynasty news first page', () =>
         unwrap(client.from('dynasty_news').select('id, player_id, source, title, summary, url, published_at').order('published_at', { ascending: false }).limit(30))),
-      step('dynasty-hub', 'my roster news scope', () =>
+      step('dynasty-hub', 'roster-news-scope', 'my roster news scope', () =>
         unwrap(client.from('roster_players').select('player_id').eq('member_id', memberId).eq('league_id', leagueId).eq('league_season_id', seasonId))),
     ]),
   ]
@@ -418,7 +415,9 @@ const main = async () => {
   if (failures.length > 0) process.exitCode = 1
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exit(1)
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
+}
