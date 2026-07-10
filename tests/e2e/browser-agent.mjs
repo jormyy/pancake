@@ -121,11 +121,13 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /** @param {Browser} browser @param {string} session @param {string} role @param {string} name */
 const refForRoleByName = async (browser, session, role, name) => {
-  const snapshot = await browser(session, ['snapshot'])
   const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`)
-  const match = snapshot.match(pattern)
-  if (!match) throw new Error(`Could not find ${role} "${name}" in browser snapshot.`)
-  return match[1]
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const match = (await browser(session, ['snapshot'])).match(pattern)
+    if (match) return match[1]
+    if (attempt < 19) await browser(session, ['wait', '250'])
+  }
+  throw new Error(`Could not find ${role} "${name}" in browser snapshot.`)
 }
 
 /** @param {Browser} browser @param {string} session @param {string} name @param {string} value */
@@ -136,6 +138,11 @@ const fillTextboxByName = async (browser, session, name, value) => {
 /** @param {Browser} browser @param {string} session @param {string} name */
 export const clickButtonByName = async (browser, session, name) => {
   await browser(session, ['click', await refForRoleByName(browser, session, 'button', name)])
+}
+
+/** @param {Browser} browser @param {string} session @param {string} name */
+export const clickLinkByName = async (browser, session, name) => {
+  await browser(session, ['click', await refForRoleByName(browser, session, 'link', name)])
 }
 
 /** @param {Browser} browser @param {string} session @param {string} email @param {string} password */

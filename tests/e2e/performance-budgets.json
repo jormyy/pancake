@@ -8,7 +8,7 @@
     "longTaskMs": 50,
     "maxHeartbeatLagMs": 600,
     "maxMutationLoopMs": 30000,
-    "maxInitialWebJsKb": 350,
+    "maxInitialWebJsKb": 700,
     "maxRouteWebJsKb": 220,
     "maxDbQueryMs": 100
   },

@@ -45,6 +45,7 @@ jobs:
           export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
           export EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
           export EXPO_PUBLIC_API_URL="$API_URL/functions/v1/api"
+          mkdir -p tests/artifacts/stack
           printf 'E2E_SUPABASE_URL=%s\n' "$API_URL" >> "$GITHUB_ENV"
           printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY" >> "$GITHUB_ENV"
           printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
@@ -61,17 +62,19 @@ jobs:
           SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
           EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send
           EOF
-          supabase functions serve --env-file /tmp/pancake-edge.env > /tmp/pancake-edge.log 2>&1 &
-          CI=1 npx expo start --web --port 8082 > /tmp/pancake-web.log 2>&1 &
+          supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
+          EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npx expo export --platform web > tests/artifacts/stack/web-build.log 2>&1
+          node tests/e2e/static-web-server.mjs --root=dist --port=8082 > tests/artifacts/stack/web.log 2>&1 &
           for attempt in {1..60}; do
             if curl --fail --silent http://127.0.0.1:8082 >/dev/null &&
               curl --fail --silent "$API_URL/functions/v1/api/health" >/dev/null; then
+              npm run e2e:web-hydration
               exit 0
             fi
             sleep 2
           done
-          cat /tmp/pancake-web.log
-          cat /tmp/pancake-edge.log
+          cat tests/artifacts/stack/web.log
+          cat tests/artifacts/stack/edge.log
           exit 1
       - name: Seed release fixture
         run: npm run e2e:seed
@@ -80,7 +83,7 @@ jobs:
       - name: Run coverage-enforcing soak
         run: npm run e2e:soak:release
       - name: Enforce browser and data performance budgets
-        run: npm run perf:budget -- --require-report --require-data-report --require-workflow-reports
+        run: npm run perf:budget -- --require-report --require-data-report --require-workflow-reports --require-season-reports=20
       - name: Retain soak evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -92,6 +95,7 @@ jobs:
             tests/e2e-browser-*-report.md
             tests/e2e-browser-*-report.json
             tests/e2e-data-latency-report.md
+            tests/e2e-seed-report.md
             tests/performance-budget-report.md
             tests/artifacts/
             tests/snapshots/

@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
+import { measureNavigationTiming, measureVisibleFeedback } from './browser-performance-evidence.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -35,6 +36,27 @@ const routeWorkflowIds = new Map([
   ['rookie-draft-room', 'rookie-draft-room'],
 ])
 
+const workflowInputSelectors = new Map([
+  ['player-search-filter', ['input[placeholder="Search players..."]', 'input[placeholder*="Search"]']],
+  ['dynasty-hub', ['input[placeholder*="Search dynasty"]', 'input[placeholder*="Search rankings"]']],
+  ['waiver-add-claim', ['[aria-label="FAAB bid amount"]', 'input']],
+  ['trade-review-act', ['textarea[placeholder*="message"]']],
+])
+
+const recordWorkflowMeasurement = (measurements, next) => {
+  const existing = measurements.find((measurement) => measurement.id === next.id)
+  if (!existing) {
+    measurements.push(next)
+    return
+  }
+  for (const key of ['feedbackMs', 'cachedRequestMs', 'fullLoadMs', 'initialWebJsKb', 'routeWebJsKb']) {
+    if (Number.isFinite(next[key])) existing[key] = Math.max(Number(existing[key] ?? 0), next[key])
+  }
+  existing.feedbackObserved = existing.feedbackObserved === true && next.feedbackObserved === true
+  existing.feedbackInteraction = `${existing.feedbackInteraction},${next.feedbackInteraction}`
+  existing.routes = [...new Set([...(existing.routes ?? [existing.route]), next.route])]
+}
+
 export const REQUIRED_FULL_SWEEP_LABELS = [
   'auth-sign-in', 'auth-sign-up',
   'home', 'players', 'roster', 'trades', 'league', 'dynasty',
@@ -47,68 +69,6 @@ export const assertFullSweepRoutes = (visited) => {
   const visitedSet = new Set(visited)
   const missing = REQUIRED_FULL_SWEEP_LABELS.filter((label) => !visitedSet.has(label))
   if (missing.length > 0) throw new Error(`Full sweep omitted required routes: ${missing.join(', ')}`)
-}
-
-const parseEvalJson = (output) => {
-  const line = output.split('\n').filter(Boolean).at(-1)
-  const value = JSON.parse(line)
-  return typeof value === 'string' ? JSON.parse(value) : value
-}
-
-const browserNavigationTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(() => {
-      const nav = performance.getEntriesByType('navigation')[0];
-      if (!nav) return JSON.stringify(null);
-      const requests = performance.getEntriesByType('resource')
-        .filter((entry) => entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest')
-        .map((entry) => entry.duration)
-        .filter((duration) => Number.isFinite(duration) && duration >= 0);
-      return JSON.stringify({
-        fullLoadMs: Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0),
-        cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
-        domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
-        responseEndMs: Math.round(nav.responseEnd || 0),
-        transferSize: Math.round(nav.transferSize || 0),
-        encodedBodySize: Math.round(nav.encodedBodySize || 0)
-      });
-    })()`,
-  ])
-  return parseEvalJson(output)
-}
-
-const browserFrameFeedbackTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(async () => {
-      const started = performance.now();
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      return JSON.stringify({ feedbackMs: Math.round((performance.now() - started) * 10) / 10 });
-    })()`,
-  ])
-  return parseEvalJson(output)
-}
-
-const playerSearchFeedbackTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(async () => {
-      const input = document.querySelector('input[placeholder="Search players..."], input');
-      if (!input) return JSON.stringify(null);
-      const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-      const previousValue = input.value;
-      const started = performance.now();
-      descriptor?.set?.call(input, 'e2e');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const feedbackMs = Math.round((performance.now() - started) * 10) / 10;
-      descriptor?.set?.call(input, previousValue);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      return JSON.stringify({ feedbackMs });
-    })()`,
-  ])
-  return parseEvalJson(output)
 }
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -448,20 +408,27 @@ export async function runBrowserSmoke({
       await browser(session, ['wait', '1500'])
       const workflowId = routeWorkflowIds.get(label)
       if (workflowId) {
-        const timing = await browserNavigationTiming(session).catch(() => null)
-        const feedback = label === 'players'
-          ? await playerSearchFeedbackTiming(session).catch(() => null)
-          : await browserFrameFeedbackTiming(session).catch(() => null)
-        if (timing && feedback?.feedbackMs != null) {
-          workflowMeasurements.push({
+        const routeTiming = await measureNavigationTiming(browser, session)
+        await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+        await browser(session, ['wait', '1000'])
+        const cachedTiming = await measureNavigationTiming(browser, session)
+        const feedback = await measureVisibleFeedback(browser, session, {
+          inputSelectors: workflowInputSelectors.get(workflowId) ?? [],
+        })
+        if (cachedTiming && feedback?.observed && feedback.feedbackMs != null) {
+          recordWorkflowMeasurement(workflowMeasurements, {
             id: workflowId,
             label,
             route,
-            ...timing,
+            ...cachedTiming,
             feedbackMs: feedback.feedbackMs,
+            feedbackObserved: true,
+            feedbackInteraction: feedback.interaction,
+            initialWebJsKb: routeTiming?.webJsEncodedKb,
+            routeWebJsKb: routeTiming?.webJsTransferKb,
           })
         } else {
-          throw new Error(`Performance measurement missing for ${workflowId}`)
+          throw new Error(`Observed performance feedback missing for ${workflowId}`)
         }
       }
       await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)

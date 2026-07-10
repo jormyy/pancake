@@ -9,10 +9,12 @@ const PERF_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-perf-report.md')
 const DATA_LATENCY_REPORT_PATH = path.join(ROOT, 'tests/e2e-data-latency-report.md')
 const REPORT_PATH = path.join(ROOT, 'tests/performance-budget-report.md')
 
-const args = new Set(process.argv.slice(2))
+const cliArgs = process.argv.slice(2)
+const args = new Set(cliArgs)
 const requireReport = args.has('--require-report')
 const requireDataReport = args.has('--require-data-report')
 const requireWorkflowReports = args.has('--require-workflow-reports')
+const requiredSeasonReports = Number(cliArgs.find((arg) => arg.startsWith('--require-season-reports='))?.split('=')[1] ?? 0)
 
 const readJsonFile = (filePath) => JSON.parse(readFileSync(filePath, 'utf8'))
 
@@ -24,7 +26,7 @@ const getPath = (value, dottedPath) => dottedPath
     return current[key]
   }, value)
 
-const validateManifest = (manifest) => {
+export const validateManifest = (manifest) => {
   const failures = []
   const workflows = manifest.workflows ?? []
   const budgets = manifest.globalBudgets ?? {}
@@ -70,7 +72,7 @@ const validateManifest = (manifest) => {
     if (!ranks.has(rank)) failures.push(`missing workflow rank ${rank}`)
   }
 
-  for (const key of ['instantFeedbackMs', 'cachedRequestMs', 'fullWorkflowMs', 'maxHeartbeatLagMs', 'maxMutationLoopMs']) {
+  for (const key of ['instantFeedbackMs', 'cachedRequestMs', 'fullWorkflowMs', 'longTaskMs', 'maxHeartbeatLagMs', 'maxMutationLoopMs', 'maxInitialWebJsKb', 'maxRouteWebJsKb', 'maxDbQueryMs']) {
     if (!Number.isFinite(budgets[key]) || budgets[key] <= 0) {
       failures.push(`globalBudgets.${key} must be a positive number`)
     }
@@ -79,7 +81,7 @@ const validateManifest = (manifest) => {
   return failures
 }
 
-const validateBrowserPerfReport = (manifest, report) => {
+export const validateBrowserPerfReport = (manifest, report) => {
   const failures = []
   const budgets = manifest.globalBudgets
 
@@ -94,6 +96,9 @@ const validateBrowserPerfReport = (manifest, report) => {
   if (report.load?.durationMs > budgets.maxMutationLoopMs) {
     failures.push(`mutation loop ${report.load.durationMs}ms exceeds ${budgets.maxMutationLoopMs}ms`)
   }
+  if (report.draftPerf?.longTaskSupported !== true || report.homePerf?.longTaskSupported !== true) failures.push('browser long-task observation was unavailable')
+  if (report.draftPerf?.maxLongTaskMs > budgets.longTaskMs) failures.push(`draft long task ${report.draftPerf.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
+  if (report.homePerf?.maxLongTaskMs > budgets.longTaskMs) failures.push(`home long task ${report.homePerf.maxLongTaskMs}ms exceeds ${budgets.longTaskMs}ms`)
 
   failures.push(...validateWorkflowReportKeys(manifest, report, 'tests/e2e-browser-perf-report.md'))
 
@@ -121,6 +126,7 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
   }
   const measurements = Array.isArray(report.workflowMeasurements) ? report.workflowMeasurements : []
   const byWorkflow = new Map(measurements.map((measurement) => [measurement.id, measurement]))
+  if (byWorkflow.size !== measurements.length) failures.push(`${reportPath} contains duplicate workflow measurements`)
   for (const workflow of manifest.workflows.filter((item) => item.measurement?.report === reportPath)) {
     const measurement = byWorkflow.get(workflow.id)
     if (!measurement) {
@@ -133,6 +139,12 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
         failures.push(`${workflow.id}: ${reportPath} is missing numeric ${measurementKey}`)
       }
     }
+    if (measurement.feedbackObserved !== true || !measurement.feedbackInteraction) failures.push(`${workflow.id}: ${reportPath} is missing observed interaction feedback`)
+    if (workflow.id === 'home-live-lineup') {
+      if (!Number.isFinite(measurement.initialWebJsKb) || measurement.initialWebJsKb <= 0) failures.push(`${workflow.id}: ${reportPath} is missing positive initialWebJsKb`)
+      else if (measurement.initialWebJsKb > manifest.globalBudgets.maxInitialWebJsKb) failures.push(`${workflow.id}: initial JS ${measurement.initialWebJsKb}KB exceeds ${manifest.globalBudgets.maxInitialWebJsKb}KB`)
+    } else if (!Number.isFinite(measurement.routeWebJsKb)) failures.push(`${workflow.id}: ${reportPath} is missing numeric routeWebJsKb`)
+    else if (measurement.routeWebJsKb > manifest.globalBudgets.maxRouteWebJsKb) failures.push(`${workflow.id}: route JS ${measurement.routeWebJsKb}KB exceeds ${manifest.globalBudgets.maxRouteWebJsKb}KB`)
 
     if (measurement.feedbackMs != null && measurement.feedbackMs > workflow.budgets.feedbackMs) {
       failures.push(`${workflow.id}: ${reportPath} feedback ${measurement.feedbackMs}ms exceeds ${workflow.budgets.feedbackMs}ms`)
@@ -148,11 +160,11 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath) => {
   return failures
 }
 
-const validateDataLatencyReport = (manifest, report, requireComplete) => {
+export const validateDataLatencyReport = (manifest, report, requireComplete) => {
   const failures = []
   const byWorkflow = new Map((report.workflows ?? []).map((workflow) => [workflow.id, workflow]))
   const workflows = manifest.workflows ?? []
-  const requestBudget = report.budgets?.dataRequestMs ?? manifest.globalBudgets.cachedRequestMs
+  const requestBudget = report.budgets?.dataRequestMs ?? manifest.globalBudgets.maxDbQueryMs
   const workflowBudget = report.budgets?.workflowTotalMs ?? manifest.globalBudgets.fullWorkflowMs
 
   if (report.status !== 'PASS') failures.push(`data latency report status is ${report.status ?? 'missing'}`)
@@ -176,9 +188,34 @@ const validateDataLatencyReport = (manifest, report, requireComplete) => {
       } else if (step.medianMs > requestBudget) {
         failures.push(`${workflow.id}: data step ${step.label} ${step.medianMs}ms exceeds ${requestBudget}ms`)
       }
+      if (step.status === 'PASS' && (!Number.isFinite(step.maxMs) || step.maxMs > manifest.globalBudgets.maxDbQueryMs)) failures.push(`${workflow.id}: data step ${step.label} max ${step.maxMs ?? 'missing'}ms exceeds ${manifest.globalBudgets.maxDbQueryMs}ms`)
     }
   }
 
+  return failures
+}
+
+export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons) => {
+  const failures = []
+  const byKey = new Map(reports.map((report) => [`${report.scenario}:${report.season}`, report]))
+  for (let season = 1; season <= expectedSeasons; season += 1) {
+    for (const [scenario, reportPath] of [['smoke', 'tests/e2e-browser-report.md'], ['performance', 'tests/e2e-browser-perf-report.md']]) {
+      const retained = byKey.get(`${scenario}:${season}`)
+      if (!retained) {
+        failures.push(`season ${season}: retained ${scenario} report is missing`)
+        continue
+      }
+      if (retained.status !== 'PASS') failures.push(`season ${season}: retained ${scenario} status is ${retained.status ?? 'missing'}`)
+      if (!retained.result || typeof retained.result !== 'object') {
+        failures.push(`season ${season}: retained ${scenario} result is missing`)
+        continue
+      }
+      const reportFailures = scenario === 'performance'
+        ? validateBrowserPerfReport(manifest, retained.result)
+        : validateWorkflowReportKeys(manifest, retained.result, reportPath)
+      failures.push(...reportFailures.map((failure) => `season ${season}: ${failure}`))
+    }
+  }
   return failures
 }
 
@@ -233,6 +270,8 @@ const main = async () => {
   const dataReportPresent = existsSync(DATA_LATENCY_REPORT_PATH)
   const reportFailures = []
 
+  if (cliArgs.some((arg) => arg.startsWith('--require-season-reports=')) && (!Number.isInteger(requiredSeasonReports) || requiredSeasonReports < 1)) reportFailures.push('--require-season-reports must be a positive integer')
+
   if (!reportPresent && requireReport) {
     reportFailures.push(`required browser perf report is missing: ${path.relative(ROOT, PERF_REPORT_PATH)}`)
   }
@@ -257,6 +296,17 @@ const main = async () => {
       continue
     }
     reportFailures.push(...validateWorkflowReportKeys(manifest, readJsonFile(absoluteReportPath), reportPath))
+  }
+  if (requiredSeasonReports > 0) {
+    const retainedReports = []
+    const registryRoot = path.join(ROOT, 'tests/artifacts/registry')
+    for (let season = 1; season <= requiredSeasonReports; season += 1) {
+      for (const scenario of ['smoke', 'performance']) {
+        const reportPath = path.join(registryRoot, `${scenario}-season-${season}.json`)
+        if (existsSync(reportPath)) retainedReports.push(readJsonFile(reportPath))
+      }
+    }
+    reportFailures.push(...validateRetainedSeasonReports(manifest, retainedReports, requiredSeasonReports))
   }
 
   await writeReport({ manifest, manifestFailures, reportFailures, reportPresent, dataReportPresent })

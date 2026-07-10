@@ -55,7 +55,7 @@ function RootContent() {
         if (session && inAuthGroup) {
             router.replace('/')
         } else if (!session && !inAuthGroup) {
-            router.replace('/(auth)/sign-in')
+            router.replace('/sign-in')
         }
     }, [session, loading, inAuthGroup, router])
 

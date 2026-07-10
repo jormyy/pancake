@@ -114,8 +114,9 @@ const server = createServer((request, response) => {
   }
 
   const extension = path.extname(filePath);
+  const immutableAsset = filePath.includes(`${path.sep}_expo${path.sep}static${path.sep}`);
   response.writeHead(200, {
-    'cache-control': 'no-store',
+    'cache-control': immutableAsset ? 'public, max-age=31536000, immutable' : 'no-store',
     'content-type': contentTypes.get(extension) ?? 'application/octet-stream',
   });
   createReadStream(filePath).pipe(response);

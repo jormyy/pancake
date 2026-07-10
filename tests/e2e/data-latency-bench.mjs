@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -8,8 +8,9 @@ import { describeEndpoint, resolvedEnv, requireEnv } from './env.mjs'
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-data-latency-report.md')
+const PERFORMANCE_BUDGETS = JSON.parse(readFileSync(path.join(ROOT, 'tests/e2e/performance-budgets.json'), 'utf8')).globalBudgets
 
-const DATA_REQUEST_BUDGET_MS = Number(process.env.E2E_DATA_REQUEST_BUDGET_MS ?? 300)
+const DATA_REQUEST_BUDGET_MS = Number(process.env.E2E_DATA_REQUEST_BUDGET_MS ?? PERFORMANCE_BUDGETS.maxDbQueryMs)
 const WORKFLOW_TOTAL_BUDGET_MS = Number(process.env.E2E_WORKFLOW_DATA_BUDGET_MS ?? 1000)
 const SAMPLE_COUNT = Math.max(1, Number(process.env.E2E_DATA_LATENCY_SAMPLES ?? 3))
 const PLAYER_SEARCH_PAGE_SIZE = 20
@@ -70,7 +71,7 @@ const timedStep = async (workflowId, label, fn) => {
     medianMs,
     maxMs,
     rowCount,
-    status: medianMs <= DATA_REQUEST_BUDGET_MS ? 'PASS' : 'FAIL',
+    status: maxMs <= DATA_REQUEST_BUDGET_MS ? 'PASS' : 'FAIL',
   }
 }
 
@@ -368,7 +369,7 @@ const main = async () => {
     }
     for (const stepResult of workflow.steps) {
       if (stepResult.status === 'FAIL') {
-        failures.push(`${workflow.id} / ${stepResult.label}: ${stepResult.error ?? `${stepResult.medianMs}ms exceeded ${DATA_REQUEST_BUDGET_MS}ms`}`)
+        failures.push(`${workflow.id} / ${stepResult.label}: ${stepResult.error ?? `max ${stepResult.maxMs}ms exceeded ${DATA_REQUEST_BUDGET_MS}ms`}`)
       }
     }
   }

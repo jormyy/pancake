@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
@@ -6,17 +7,20 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { installRuntimeOverrides, normalizeBrowserErrors } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { ownScenarioResource, releaseScenarioResource } from './scenario-resource-owner.mjs'
+import { measureNavigationTiming, measureVisibleFeedback } from './browser-performance-evidence.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-perf-report.md')
+const PERFORMANCE_BUDGETS = JSON.parse(readFileSync(path.join(ROOT, 'tests/e2e/performance-budgets.json'), 'utf8')).globalBudgets
 
 const BROWSER_SETTLE_MS = Number(process.env.E2E_BROWSER_PERF_SETTLE_MS ?? 2000)
 const MUTATION_COUNT = Number(process.env.E2E_BROWSER_PERF_MUTATIONS ?? 24)
 const MAX_HEARTBEAT_LAG_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LAG_MS ?? 600)
 const MAX_SCRIPT_MS = Number(process.env.E2E_BROWSER_PERF_MAX_SCRIPT_MS ?? 30000)
 const MAX_FEEDBACK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_FEEDBACK_MS ?? 100)
+const MAX_LONG_TASK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LONG_TASK_MS ?? PERFORMANCE_BUDGETS.longTaskMs)
 const BROWSER_COMMAND_TIMEOUT_MS = Number(process.env.E2E_BROWSER_PERF_COMMAND_TIMEOUT_MS ?? 90_000)
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
@@ -42,42 +46,6 @@ const parseEvalJson = (output) => {
   return typeof value === 'string' ? JSON.parse(value) : value
 }
 
-const browserNavigationTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(() => {
-      const nav = performance.getEntriesByType('navigation')[0];
-      if (!nav) return JSON.stringify(null);
-      const requests = performance.getEntriesByType('resource')
-        .filter((entry) => entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest')
-        .map((entry) => entry.duration)
-        .filter((duration) => Number.isFinite(duration) && duration >= 0);
-      const fullLoadMs = Math.round(nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd || 0);
-      return JSON.stringify({
-        fullLoadMs,
-        cachedRequestMs: requests.length > 0 ? Math.round(Math.max(...requests)) : null,
-        domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
-        responseEndMs: Math.round(nav.responseEnd || 0),
-        transferSize: Math.round(nav.transferSize || 0),
-        encodedBodySize: Math.round(nav.encodedBodySize || 0)
-      });
-    })()`,
-  ])
-  return parseOptionalEvalJson(output)
-}
-
-const browserFrameFeedbackTiming = async (session) => {
-  const output = await browser(session, [
-    'eval',
-    `(async () => {
-      const started = performance.now();
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      return JSON.stringify({ feedbackMs: Math.round((performance.now() - started) * 10) / 10 });
-    })()`,
-  ])
-  return parseEvalJson(output)
-}
-
 const bidPressFeedbackTiming = async (session) => {
   const output = await browser(session, [
     'eval',
@@ -89,19 +57,24 @@ const bidPressFeedbackTiming = async (session) => {
       const labelNode = candidates[0]?.node ?? null;
       const button = labelNode?.closest?.('[role="button"], button, [tabindex]') ?? labelNode?.parentElement ?? null;
       if (!button) return JSON.stringify(null);
+      const previousTabIndex = button.getAttribute('tabindex');
+      if (!(button instanceof HTMLButtonElement) && previousTabIndex === null) button.setAttribute('tabindex', '0');
       const started = performance.now();
       const eventInit = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'mouse' };
       const down = typeof PointerEvent === 'function'
         ? new PointerEvent('pointerdown', eventInit)
         : new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      button.focus();
       button.dispatchEvent(down);
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const feedbackMs = Math.round((performance.now() - started) * 10) / 10;
+      const observed = document.activeElement === button;
       const up = typeof PointerEvent === 'function'
         ? new PointerEvent('pointerup', eventInit)
         : new MouseEvent('mouseup', { bubbles: true, cancelable: true });
       button.dispatchEvent(up);
-      return JSON.stringify({ feedbackMs, target: (button.innerText || button.textContent || '').trim() });
+      if (previousTabIndex === null) button.removeAttribute('tabindex');
+      return JSON.stringify({ feedbackMs, observed, interaction: 'bid-pointer-focus', target: (button.innerText || button.textContent || '').trim() });
     })()`,
   ])
   return parseOptionalEvalJson(output)
@@ -306,7 +279,8 @@ const installHeartbeat = async (session) => {
         maxLagMs: 0,
         startedAt: performance.now(),
         last: performance.now(),
-        longTasks: []
+        longTasks: [],
+        longTaskSupported: false
       };
       if (window.__pancakePerfTimer) clearInterval(window.__pancakePerfTimer);
       window.__pancakePerfTimer = setInterval(() => {
@@ -324,6 +298,7 @@ const installHeartbeat = async (session) => {
             }
           });
           window.__pancakePerfObserver.observe({ entryTypes: ['longtask'] });
+          window.__pancakePerf.longTaskSupported = true;
         } catch {}
       }
       return JSON.stringify({ ok: true });
@@ -342,6 +317,7 @@ const collectHeartbeat = async (session) => {
         elapsedMs: Math.round(performance.now() - (perf.startedAt || performance.now())),
         longTaskCount: (perf.longTasks || []).length,
         maxLongTaskMs: Math.round(Math.max(0, ...(perf.longTasks || []).map((entry) => entry.duration || 0))),
+        longTaskSupported: perf.longTaskSupported === true,
         bodyTextSample: (document.body?.innerText || '').slice(0, 500)
       });
     })()`,
@@ -455,10 +431,11 @@ export async function runBrowserPerfSmoke({
 
   try {
     await signIn(session, env, state, user)
-    await browser(session, ['set', 'viewport', '390', '844']).catch(() => {})
+    await browser(session, ['set', 'viewport', '390', '844'])
 
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
+    const draftRouteTiming = await measureNavigationTiming(browser, session)
     await signIn(peerSession, env, state, peerUser)
     await browser(peerSession, ['set', 'viewport', '390', '844'])
     await browser(peerSession, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
@@ -470,24 +447,25 @@ export async function runBrowserPerfSmoke({
     await browser(session, ['open', joinUrl(env.frontendUrl, `/draft-room?draftId=${auction.draftId}`)])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
     await waitForDraftInProgress(supabase, auction.draftId)
-    const draftLoadTiming = await browserNavigationTiming(session).catch(() => null)
+    const draftLoadTiming = await measureNavigationTiming(browser, session)
     const draftFeedback = await bidPressFeedbackTiming(session).catch((error) => ({ error: error.message }))
     await installHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-before-load.png')], { timeout: 60_000 })
 
-    const load = await runLoadMutations({ supabase, auction, matchup })
+    const draftLoad = await runLoadMutations({ supabase, auction, matchup })
     await browser(session, ['wait', '2500'])
     const draftPerf = await collectHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-after-load.png')], { timeout: 60_000 })
 
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
+    const homeRouteTiming = await measureNavigationTiming(browser, session)
     await browser(session, ['open', joinUrl(env.frontendUrl, '/')])
     await browser(session, ['wait', String(BROWSER_SETTLE_MS)])
-    const homeLoadTiming = await browserNavigationTiming(session).catch(() => null)
-    const homeFeedback = await browserFrameFeedbackTiming(session).catch(() => null)
+    const homeLoadTiming = await measureNavigationTiming(browser, session)
+    const homeFeedback = await measureVisibleFeedback(browser, session)
     await installHeartbeat(session)
-    await runLoadMutations({ supabase, auction: null, matchup })
+    const homeLoad = await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])
     const homePerf = await collectHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'home-after-live-load.png')], { timeout: 60_000 })
@@ -501,11 +479,15 @@ export async function runBrowserPerfSmoke({
     if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     if (draftPerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`draft heartbeat lag ${draftPerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
     if (homePerf.maxLagMs > MAX_HEARTBEAT_LAG_MS) failures.push(`home heartbeat lag ${homePerf.maxLagMs}ms exceeded ${MAX_HEARTBEAT_LAG_MS}ms`)
-    if (load.durationMs > MAX_SCRIPT_MS) failures.push(`mutation loop took ${load.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
-    if (draftFeedback?.feedbackMs == null) failures.push(`draft bid feedback measurement missing${draftFeedback?.error ? `: ${draftFeedback.error}` : ''}`)
+    if (draftLoad.durationMs > MAX_SCRIPT_MS) failures.push(`draft mutation loop took ${draftLoad.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
+    if (homeLoad.durationMs > MAX_SCRIPT_MS) failures.push(`home mutation loop took ${homeLoad.durationMs}ms exceeded ${MAX_SCRIPT_MS}ms`)
+    if (draftFeedback?.feedbackMs == null || !draftFeedback.observed) failures.push(`observed draft bid feedback measurement missing${draftFeedback?.error ? `: ${draftFeedback.error}` : ''}`)
     if (!Number.isFinite(draftLoadTiming?.cachedRequestMs) || !Number.isFinite(draftLoadTiming?.fullLoadMs)) failures.push('draft navigation timing measurement missing')
-    if (!Number.isFinite(homeFeedback?.feedbackMs) || !Number.isFinite(homeLoadTiming?.cachedRequestMs) || !Number.isFinite(homeLoadTiming?.fullLoadMs)) failures.push('home workflow timing measurement missing')
+    if (!homeFeedback?.observed || !Number.isFinite(homeFeedback?.feedbackMs) || !Number.isFinite(homeLoadTiming?.cachedRequestMs) || !Number.isFinite(homeLoadTiming?.fullLoadMs)) failures.push('observed home workflow timing measurement missing')
     if (draftFeedback?.feedbackMs > MAX_FEEDBACK_MS) failures.push(`draft bid feedback ${draftFeedback.feedbackMs}ms exceeded ${MAX_FEEDBACK_MS}ms`)
+    if (homeFeedback?.feedbackMs > MAX_FEEDBACK_MS) failures.push(`home feedback ${homeFeedback.feedbackMs}ms exceeded ${MAX_FEEDBACK_MS}ms`)
+    if (draftPerf.maxLongTaskMs > MAX_LONG_TASK_MS) failures.push(`draft long task ${draftPerf.maxLongTaskMs}ms exceeded ${MAX_LONG_TASK_MS}ms`)
+    if (homePerf.maxLongTaskMs > MAX_LONG_TASK_MS) failures.push(`home long task ${homePerf.maxLongTaskMs}ms exceeded ${MAX_LONG_TASK_MS}ms`)
     if (draftPerf.ticks < 10 || homePerf.ticks < 10) failures.push('browser heartbeat did not collect enough samples')
     await disposeNomination()
     releaseScenarioResource(nominationResourceKey)
@@ -520,7 +502,7 @@ export async function runBrowserPerfSmoke({
         playerId: auction.player.id,
       },
       matchupId: matchup?.id ?? null,
-      load,
+      load: { draft: draftLoad, home: homeLoad, durationMs: Math.max(draftLoad.durationMs, homeLoad.durationMs) },
       draftFeedback,
       draftPerf,
       homePerf,
@@ -530,18 +512,27 @@ export async function runBrowserPerfSmoke({
           route: `/draft-room?draftId=${auction.draftId}`,
           ...(draftFeedback?.feedbackMs != null ? { feedbackMs: draftFeedback.feedbackMs } : {}),
           ...draftLoadTiming,
+          feedbackObserved: draftFeedback?.observed === true,
+          feedbackInteraction: draftFeedback?.interaction,
+          initialWebJsKb: draftRouteTiming?.webJsEncodedKb,
+          routeWebJsKb: draftRouteTiming?.webJsTransferKb,
         },
         {
           id: 'home-live-lineup',
           route: '/',
           feedbackMs: homeFeedback?.feedbackMs,
           ...homeLoadTiming,
+          feedbackObserved: homeFeedback?.observed === true,
+          feedbackInteraction: homeFeedback?.interaction,
+          initialWebJsKb: homeRouteTiming?.webJsEncodedKb,
+          routeWebJsKb: homeRouteTiming?.webJsTransferKb,
         },
       ],
       thresholds: {
         maxHeartbeatLagMs: MAX_HEARTBEAT_LAG_MS,
         maxScriptMs: MAX_SCRIPT_MS,
         maxFeedbackMs: MAX_FEEDBACK_MS,
+        maxLongTaskMs: MAX_LONG_TASK_MS,
       },
       notes,
       failures,
