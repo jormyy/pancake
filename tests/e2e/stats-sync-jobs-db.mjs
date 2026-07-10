@@ -15,6 +15,8 @@ const TERMINAL_RANGE = { startDate: '1947-06-01', endDate: '1947-06-02' }
 const TERMINAL_JOB_TYPE = `sync_stats_range:${TERMINAL_RANGE.startDate}:${TERMINAL_RANGE.endDate}`
 const MALFORMED_RANGE = { startDate: '1947-07-01', endDate: '1947-07-02' }
 const MALFORMED_JOB_TYPE = `sync_stats_range:${MALFORMED_RANGE.startDate}:${MALFORMED_RANGE.endDate}`
+const INVALID_JOB_TYPE = 'sync_stats_range:1947-02-30:1947-03-01'
+const INVALID_JOB_ID = '00000000-0000-4000-8000-00000000002f'
 const configured = resolvedEnv()
 const internalToken = envValue('PANCAKE_EDGE_INTERNAL_TOKEN', 'EDGE_FUNCTION_INTERNAL_TOKEN') ??
   (configured.supabaseUrl && ['127.0.0.1', 'localhost'].includes(new URL(configured.supabaseUrl).hostname)
@@ -73,8 +75,23 @@ async function invokeStatsWorker(jobId) {
   return { status: response.status, body: await response.json().catch(() => null) }
 }
 
+async function invokeStatsDispatcher() {
+  const response = await fetch(`${env.supabaseUrl.replace(/\/$/, '')}/functions/v1/sync-stats`, {
+    method: 'POST',
+    headers: {
+      apikey: env.serviceRoleKey,
+      Authorization: `Bearer ${env.serviceRoleKey}`,
+      'Content-Type': 'application/json',
+      'x-internal-function-token': env.internalToken,
+    },
+    body: JSON.stringify({ dispatch: true }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  return { status: response.status, body: await response.json().catch(() => null) }
+}
+
 async function cleanup() {
-  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}', '${POST_MIGRATION_LEGACY_JOB_TYPE}', '${TERMINAL_JOB_TYPE}', '${MALFORMED_JOB_TYPE}');`)
+  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}', '${POST_MIGRATION_LEGACY_JOB_TYPE}', '${TERMINAL_JOB_TYPE}', '${MALFORMED_JOB_TYPE}', '${INVALID_JOB_TYPE}');`)
 }
 
 try {
@@ -247,6 +264,34 @@ try {
     p_completed_items: 1,
     p_metadata: { ...POST_MIGRATION_LEGACY_RANGE, nextDate: '1947-05-04' },
   }), true, 'fenced owner could not complete a reclaimed post-migration legacy job')
+
+  scalar(`
+    INSERT INTO public.sync_jobs (
+      id, job_type, status, total_items, completed_items, failed_items, error_log, metadata
+    ) VALUES (
+      '${INVALID_JOB_ID}', '${INVALID_JOB_TYPE}', 'pending', 1, 0, 0, '[]'::jsonb,
+      '{"startDate":"1947-02-30","endDate":"1947-03-01","nextDate":"1947-02-30"}'::jsonb
+    );
+  `)
+  const invalidDispatch = await invokeStatsDispatcher()
+  assert.equal(invalidDispatch.status, 200, 'dispatcher surfaced an invalid calendar range to the Edge worker')
+  assert.equal(invalidDispatch.body?.status, 'idle', 'dispatcher treated an invalid calendar range as claimable work')
+  const { data: invalidJob, error: invalidJobError } = await admin
+    .from('sync_jobs')
+    .select('status, failed_items, error_log, claim_token, claimed_at')
+    .eq('id', INVALID_JOB_ID)
+    .single()
+  if (invalidJobError) throw invalidJobError
+  assert.equal(invalidJob.status, 'failed', 'invalid calendar range was not durably terminalized')
+  assert.equal(invalidJob.failed_items, 3, 'invalid calendar range did not consume the bounded retry budget')
+  assert.equal(invalidJob.error_log.length, 1)
+  assert.match(invalidJob.error_log[0], /invalid stats sync job type/i)
+  assert.equal(invalidJob.claim_token, null)
+  assert.equal(invalidJob.claimed_at, null)
+  assert.equal((await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: INVALID_JOB_ID,
+    p_stale_after_seconds: 60,
+  })).length, 0, 'terminal invalid calendar range was reclaimed')
 
   const createdIds = await Promise.all(Array.from({ length: 24 }, () =>
     rpc('create_or_resume_stats_sync_job_atomic', {

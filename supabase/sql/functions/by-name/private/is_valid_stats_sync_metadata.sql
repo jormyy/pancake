@@ -24,7 +24,7 @@ BEGIN
      OR (p_metadata ->> 'endDate') !~ '^\d{4}-\d{2}-\d{2}$'
      OR (p_metadata ->> 'nextDate') !~ '^\d{4}-\d{2}-\d{2}$'
      OR p_metadata ? 'invalidMetadata'
-     OR p_job_type !~ '^sync_stats_range:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}$' THEN
+     OR NOT private.is_valid_stats_sync_job_type(p_job_type) THEN
     RETURN false;
   END IF;
 
