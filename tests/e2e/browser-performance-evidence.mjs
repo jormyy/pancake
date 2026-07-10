@@ -257,13 +257,15 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
 
   if (workflowId === 'player-detail-open') {
     const target = await markDynamicTarget(browser, session,
-      `[...document.querySelectorAll('[role="button"], button, [tabindex="0"]')].find((node) => /^\\d{4}.\\d{2}$/.test(node.textContent?.trim() || '') && !document.body.innerText.includes((node.textContent?.trim() || '') + ' Averages'))`,
+      `[...document.querySelectorAll('*')].find((node) => node.textContent?.trim() === 'Drop')?.closest('button, [role="button"], [tabindex="0"]')`,
       'data-e2e-feedback-target')
-    return clickMeasuredTarget(browser, session, {
+    const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
-      expected: `document.body.innerText.includes((document.querySelector('[data-e2e-feedback-target="true"]')?.textContent?.trim() || '') + ' Averages')`,
-      interaction: 'player-season-change', target,
+      expected: `document.querySelector('[role="dialog"]') && document.querySelector('[role="dialog"]')?.textContent?.includes('placed on waivers')`,
+      interaction: 'player-drop-confirmation', target,
     })
+    await clickUnmeasured(browser, session, '[role="dialog"] [aria-label="Cancel"]')
+    return result
   }
 
   if (workflowId === 'auction-draft-room') {
