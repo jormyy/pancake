@@ -1,6 +1,32 @@
--- Canonical SQL source for public.claim_notification_outbox_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+SET lock_timeout = '5s';
+SET statement_timeout = '2min';
+
+UPDATE public.notification_outbox
+   SET data = jsonb_set(
+         data,
+         '{originalOutboxCategory}',
+         to_jsonb(category),
+         true
+       ),
+       category = 'trade',
+       dead_lettered_at = COALESCE(dead_lettered_at, now()),
+       expo_ticket_id = NULL,
+       push_token = NULL,
+       ticketed_at = NULL,
+       claimed_at = NULL,
+       claim_token = NULL,
+       last_error = left(
+         COALESCE(last_error || '; ', '') || 'Unsupported legacy notification outbox category',
+         2000
+       )
+ WHERE category <> 'trade';
+
+ALTER TABLE public.notification_outbox
+  ADD CONSTRAINT notification_outbox_trade_category
+  CHECK (category = 'trade') NOT VALID;
+
+ALTER TABLE public.notification_outbox
+  VALIDATE CONSTRAINT notification_outbox_trade_category;
 
 CREATE OR REPLACE FUNCTION public.claim_notification_outbox_atomic(
   p_limit int DEFAULT 100,
@@ -53,3 +79,10 @@ BEGIN
   FROM claimed;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.claim_notification_outbox_atomic(int, int)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_notification_outbox_atomic(int, int) TO service_role;
+
+RESET statement_timeout;
+RESET lock_timeout;

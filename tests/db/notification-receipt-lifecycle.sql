@@ -38,6 +38,18 @@ DECLARE
   v_state text;
   v_row public.notification_outbox%ROWTYPE;
 BEGIN
+  BEGIN
+    INSERT INTO public.notification_outbox (
+      dedupe_key, member_id, event_type, title, body, category
+    ) VALUES (
+      'unsupported-category', '00000000-0000-0000-0000-000000091201',
+      'waiver_processed', 'Waiver', 'Waiver body', 'waiver'
+    );
+    RAISE EXCEPTION 'Notification outbox accepted a non-trade category';
+  EXCEPTION WHEN check_violation THEN
+    NULL;
+  END;
+
   INSERT INTO public.notification_outbox (dedupe_key, member_id, event_type, title, body, category)
   VALUES (
     'receipt-global-outage', '00000000-0000-0000-0000-000000091201',
