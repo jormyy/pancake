@@ -24,7 +24,7 @@ export type StatsSyncJobUnitResult = {
   metadata: StatsSyncJobMetadata
 }
 
-export function addStatsSyncDays(dateKey: string, days: number): string {
+function addStatsSyncDays(dateKey: string, days: number): string {
   const [year, month, day] = dateKey.split('-').map(Number)
   return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10)
 }
