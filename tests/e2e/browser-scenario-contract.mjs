@@ -1,6 +1,6 @@
 /**
  * @typedef {{ id: string }} ScenarioDefinition
- * @typedef {(context: { args: Record<string, unknown>, season: number }) => Promise<unknown>} ScenarioRunner
+ * @typedef {(context: { args: Record<string, unknown>, season: number, resourceOwner?: unknown }) => Promise<unknown>} ScenarioRunner
  */
 
 /**

@@ -58,7 +58,7 @@ export const writeRegisteredScenarioReport = async (scenario, context, { outcome
 const standardRunners = {
   smoke: ({ args, season }) => runBrowserSmoke({ season, fullSweep: args.browserFullSweep }),
   auth: ({ season }) => runBrowserAuthScenario({ season }),
-  performance: ({ season }) => runBrowserPerfSmoke({ season }),
+  performance: ({ season, resourceOwner = undefined }) => runBrowserPerfSmoke({ season, resourceOwner }),
   auction: ({ season }) => runBrowserGameplayScenario({ season }),
   lineup: ({ season }) => runBrowserLineupScenario({ season }),
   'lineup-auto-set': ({ season }) => runBrowserLineupAutoSetScenario({ season }),
@@ -82,7 +82,7 @@ export const BROWSER_SCENARIOS = bindBrowserScenarioRunners(BROWSER_SCENARIO_MAN
     run: async (context) => {
       const result = await runWithScenarioResourceOwner(
         `browser ${scenario.id}`,
-        () => scenario.run(context),
+        (resourceOwner) => scenario.run({ ...context, resourceOwner }),
         { onComplete: (completion) => writeRegisteredScenarioReport(scenario, context, completion) },
       )
       if (!result || typeof result !== 'object' || Reflect.get(result, 'status') !== 'PASS') {

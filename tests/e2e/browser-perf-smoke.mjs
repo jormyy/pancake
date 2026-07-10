@@ -6,8 +6,8 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
-import { ownScenarioResource, releaseScenarioResource } from './scenario-resource-owner.mjs'
 import { measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback } from './browser-performance-evidence.mjs'
+import { createDisposableLeagueFromSeedUsers } from './soak-fixtures.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -77,28 +77,7 @@ const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
   const player = (players ?? []).find((row) => row.display_name && !rosteredIds.has(row.id))
   if (player) return player
-
-  const sportsdataId = `e2e-perf-free-agent-${leagueSeasonId}`
-  const { data: fallbackPlayer, error: fallbackError } = await supabase
-    .from('players')
-    .upsert({
-      sportsdata_id: sportsdataId,
-      nba_id: sportsdataId,
-      sleeper_id: sportsdataId,
-      first_name: 'E2E',
-      last_name: `PerfFreeAgent${leagueSeasonId.slice(0, 8)}`,
-      nba_team: 'FA',
-      position: 'PG',
-      eligible_positions: ['PG'],
-      status: 'Active',
-      injury_status: null,
-      years_exp: 1,
-      nba_draft_number: null,
-    }, { onConflict: 'sportsdata_id' })
-    .select('id, display_name')
-    .single()
-  if (fallbackError) throw new Error(`D.X.4 perf free-agent fixture upsert failed: ${fallbackError.message}`)
-  return fallbackPlayer
+  throw new Error('D.X.4 perf fixture has no available player among the first 200 player rows')
 }
 
 const ensurePerfAuction = async (supabase, state) => {
@@ -113,15 +92,6 @@ const ensurePerfAuction = async (supabase, state) => {
   if (members.length !== 2) throw new Error('D.X.4: browser perf auction requires two league members')
   const player = await findAvailablePlayer(supabase, state.leagueId, currentSeason.id)
   const now = new Date().toISOString()
-
-  const { error: cleanupError } = await supabase
-    .from('drafts')
-    .update({ status: 'completed', completed_at: now })
-    .eq('league_id', state.leagueId)
-    .eq('league_season_id', currentSeason.id)
-    .eq('draft_type', 'auction')
-    .in('status', ['pending', 'in_progress', 'paused'])
-  if (cleanupError) throw new Error(`D.X.4 stale auction draft cleanup failed: ${cleanupError.message}`)
 
   const { data: draft, error: draftError } = await supabase
     .from('drafts')
@@ -358,26 +328,12 @@ const runLoadMutations = async ({ supabase, auction, matchup }) => {
   }
 }
 
-const closePerfNomination = async (supabase, auction) => {
-  const past = new Date(Date.now() - 1000).toISOString()
-  const { error: expireError } = await supabase
-    .from('nominations')
-    .update({ countdown_expires_at: past })
-    .eq('id', auction.nominationId)
-    .eq('status', 'open')
-  if (expireError) throw new Error(`D.X.4 auction nomination cleanup expire failed: ${expireError.message}`)
-
-  const { error: closeError } = await supabase.rpc('close_auction_nomination_atomic', {
-    p_nomination_id: auction.nominationId,
-  })
-  if (closeError) throw new Error(`D.X.4 auction nomination cleanup close failed: ${closeError.message}`)
-}
-
 export async function runBrowserPerfSmoke({
   season = 0,
   sessionName = undefined,
+  resourceOwner = undefined,
 } = {}) {
-  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey'])
+  const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
   const state = await readState()
   const user = state.users?.[0]
   const peerUser = state.users?.[1]
@@ -385,16 +341,17 @@ export async function runBrowserPerfSmoke({
   if (!peerUser) throw new Error('D.X.4: no second seeded user found for browser perf presence')
   if (!state.password) throw new Error('D.X.4: tests/e2e-state.json is missing the seeded user password')
   const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
-  const auction = await ensurePerfAuction(supabase, state)
-  const nominationResourceKey = `perf-nomination:${auction.nominationId}`
-  let nominationNeedsCleanup = true
-  const disposeNomination = async () => {
-    if (!nominationNeedsCleanup) return
-    await closePerfNomination(supabase, auction)
-    nominationNeedsCleanup = false
-  }
-  ownScenarioResource(nominationResourceKey, `performance nomination ${auction.nominationId}`, disposeNomination)
-  const matchup = await ensurePerfMatchup(supabase, state, auction.leagueSeasonId, auction.members)
+  const fixture = await createDisposableLeagueFromSeedUsers({
+    supabase,
+    state,
+    season,
+    label: 'browser performance',
+    userCount: 2,
+    resourceOwner,
+  })
+  const perfState = { ...state, leagueId: fixture.league.id }
+  const auction = await ensurePerfAuction(supabase, perfState)
+  const matchup = await ensurePerfMatchup(supabase, perfState, auction.leagueSeasonId, auction.members)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-perf-${state.runId ?? 'run'}-s${season}-${process.pid}`)
   const peerSession = `${session}-peer`
@@ -487,14 +444,12 @@ export async function runBrowserPerfSmoke({
     if (draftPerf.maxLongTaskMs > MAX_LONG_TASK_MS) failures.push(`draft long task ${draftPerf.maxLongTaskMs}ms exceeded ${MAX_LONG_TASK_MS}ms`)
     if (homePerf.maxLongTaskMs > MAX_LONG_TASK_MS) failures.push(`home long task ${homePerf.maxLongTaskMs}ms exceeded ${MAX_LONG_TASK_MS}ms`)
     if (draftPerf.ticks < 10 || homePerf.ticks < 10) failures.push('browser heartbeat did not collect enough samples')
-    await disposeNomination()
-    releaseScenarioResource(nominationResourceKey)
-
     const report = {
       status: failures.length === 0 ? 'PASS' : 'FAIL',
       season,
       artifactDir,
       auction: {
+        leagueId: fixture.league.id,
         draftId: auction.draftId,
         nominationId: auction.nominationId,
         playerId: auction.player.id,

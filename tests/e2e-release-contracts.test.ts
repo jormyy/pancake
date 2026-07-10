@@ -54,6 +54,15 @@ describe('release E2E contracts', () => {
     }
   })
 
+  it('runs performance mutations only inside an owned disposable league', async () => {
+    const perfSource = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
+    const registrySource = await readFile(path.join(process.cwd(), 'tests/e2e/browser-scenario-registry.mjs'), 'utf8')
+    expect(perfSource).toContain('createDisposableLeagueFromSeedUsers({')
+    expect(perfSource).toContain('resourceOwner,')
+    expect(perfSource).not.toContain('stale auction draft cleanup')
+    expect(registrySource).toContain('(resourceOwner) => scenario.run({ ...context, resourceOwner })')
+  })
+
   it('builds measured browser evidence with production Metro optimizations', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
     expect(manifest.globalBudgets.maxInitialWebJsKb).toBe(700)
