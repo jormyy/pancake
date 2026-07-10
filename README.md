@@ -116,6 +116,9 @@ npm audit --audit-level=high       # dependency audit
 Production deploys must publish `dist/release-provenance.json` and configure the Edge
 `PANCAKE_RELEASE_SHA` and `PANCAKE_RELEASE_BUNDLE_DIGEST` values from the same build. Dispatch
 the protected hosted-readiness workflow with that full SHA and bundle digest after deployment.
+External deployment automation must emit the `production_deployed` repository dispatch with
+`client_payload.release_sha` and `client_payload.bundle_digest`; `workflow_dispatch` remains the
+manual recovery path.
 
 Cross-cutting guard tests: `tests/scoring-parity.test.ts` (scoring drift),
 `tests/rls-grants.test.ts` (service-role-only RPCs never granted to client roles, default

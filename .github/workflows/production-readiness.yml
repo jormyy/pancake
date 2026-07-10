@@ -11,6 +11,8 @@ on:
         description: SHA-256 digest emitted by build:web:release
         required: true
         type: string
+  repository_dispatch:
+    types: [production_deployed]
 
 permissions:
   contents: read
@@ -37,12 +39,12 @@ jobs:
       PANCAKE_EDGE_INTERNAL_TOKEN: ${{ secrets.PANCAKE_EDGE_INTERNAL_TOKEN }}
       PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}
       E2E_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
-      E2E_EXPECTED_RELEASE_SHA: ${{ inputs.release_sha }}
-      E2E_EXPECTED_BUNDLE_DIGEST: ${{ inputs.bundle_digest }}
+      E2E_EXPECTED_RELEASE_SHA: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha }}
+      E2E_EXPECTED_BUNDLE_DIGEST: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.bundle_digest || inputs.bundle_digest }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.release_sha }}
+          ref: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha }}
           fetch-depth: 0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
