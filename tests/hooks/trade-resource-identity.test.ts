@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
+import type { RosterStatsMaps } from '@/lib/roster-stats'
 import type { Trade, TradeBlockItem, TradePage } from '@/lib/trades'
 
 const { addTradeBlockItem, getRosterStatsMaps, getTradeHistoryForScreen, getTradesForScreen, getTradeBlockItems, getRoster } = vi.hoisted(() => ({
@@ -276,6 +277,86 @@ describe('trade resource identity', () => {
         expect(latest.roster.map((item) => item.players.id)).toEqual(['player-a'])
         expect(latest.error).toBeNull()
         expect(latest.busyId).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('settles a successful trade-block mutation while optional averages remain pending', async () => {
+        const stats = deferred<RosterStatsMaps>()
+        const player = rosterPlayer('player-a')
+        addTradeBlockItem.mockResolvedValue(undefined)
+        getTradeBlockItems.mockResolvedValue([])
+        getRoster.mockResolvedValue([player])
+        getRosterStatsMaps.mockReturnValue(stats.promise)
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = () => { latest = useTradeBlock('member', 'league'); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+
+        await act(async () => { await latest.addPlayer(player) })
+
+        expect(addTradeBlockItem).toHaveBeenCalledTimes(1)
+        expect(getRosterStatsMaps).toHaveBeenCalledWith(['player-a'], 'league')
+        expect(latest.roster.map((entry) => entry.players.id)).toEqual(['player-a'])
+        expect(latest.busyId).toBeNull()
+        expect(latest.loading).toBe(false)
+        expect(latest.error).toBeNull()
+
+        await act(async () => { await latest.addPlayer(rosterPlayer('player-b')) })
+        expect(addTradeBlockItem).toHaveBeenCalledTimes(2)
+        expect(latest.busyId).toBeNull()
+
+        await act(async () => {
+            stats.resolve({
+                avgMap: new Map([['player-a', 42]]),
+                avgStatsMap: new Map(),
+            })
+            await stats.promise
+        })
+        expect(latest.avgMap.get('player-a')).toBe(42)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('discards stale optional trade-block averages after an identity change', async () => {
+        const firstStats = deferred<RosterStatsMaps>()
+        const secondStats = deferred<RosterStatsMaps>()
+        getTradeBlockItems.mockResolvedValue([])
+        getRoster.mockImplementation((_memberId: string, leagueId: string) =>
+            Promise.resolve([rosterPlayer(`player-${leagueId}`)]))
+        getRosterStatsMaps
+            .mockReturnValueOnce(firstStats.promise)
+            .mockReturnValueOnce(secondStats.promise)
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = ({ leagueId }: { leagueId: string }) => {
+            latest = useTradeBlock('member', leagueId)
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { leagueId: 'a' })) })
+
+        await act(async () => { await latest.refresh() })
+        expect(getRosterStatsMaps).toHaveBeenCalledWith(['player-a'], 'a')
+
+        await act(async () => { renderer.update(React.createElement(Probe, { leagueId: 'b' })) })
+        await act(async () => { await latest.refresh() })
+        expect(getRosterStatsMaps).toHaveBeenCalledWith(['player-b'], 'b')
+
+        await act(async () => {
+            firstStats.resolve({
+                avgMap: new Map([['player-a', 99]]),
+                avgStatsMap: new Map(),
+            })
+            await firstStats.promise
+        })
+        expect(latest.avgMap.has('player-a')).toBe(false)
+
+        await act(async () => {
+            secondStats.resolve({
+                avgMap: new Map([['player-b', 7]]),
+                avgStatsMap: new Map(),
+            })
+            await secondStats.promise
+        })
+        expect(latest.avgMap.get('player-b')).toBe(7)
         await act(async () => { renderer.unmount() })
     })
 

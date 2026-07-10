@@ -34,6 +34,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
     const loadSequence = useRef(0)
+    const statsLoadSequence = useRef(0)
     const mutationGeneration = useRef(0)
     const mutationQueue = useRef<Promise<void>>(Promise.resolve())
     const [dataKey, setDataKey] = useState<string | null>(resourceKey)
@@ -65,17 +66,6 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
             writePersistentCache(tradeBlockCacheKey(memberId, leagueId), { items: nextItems, roster: nextRoster })
-
-            try {
-                const stats = await getRosterStatsMaps(nextRoster.map((player) => player.players.id), leagueId)
-                if (loadSequence.current !== requestId) return
-                setAvgMap(stats.avgMap)
-                setAvgStatsMap(stats.avgStatsMap)
-            } catch (statsError) {
-                if (loadSequence.current === requestId) {
-                    console.warn('Could not load optional trade-block player averages.', statsError)
-                }
-            }
         } catch (cause) {
             if (loadSequence.current !== requestId) return
             console.error(cause)
@@ -87,6 +77,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
 
     useEffect(() => {
         loadSequence.current += 1
+        statsLoadSequence.current += 1
         mutationGeneration.current += 1
         mutationQueue.current = Promise.resolve()
         setItems(cached?.items ?? [])
@@ -99,8 +90,34 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         setDataKey(resourceKey)
     }, [cached, resourceKey])
 
+    useEffect(() => {
+        const requestId = ++statsLoadSequence.current
+        setAvgMap(EMPTY_AVG_MAP)
+        setAvgStatsMap(EMPTY_STATS_MAP)
+        if (!memberId || !leagueId || dataKey !== resourceKey || roster.length === 0) return
+
+        const loadStats = async () => {
+            try {
+                const stats = await getRosterStatsMaps(roster.map((player) => player.players.id), leagueId)
+                if (statsLoadSequence.current !== requestId) return
+                setAvgMap(stats.avgMap)
+                setAvgStatsMap(stats.avgStatsMap)
+            } catch (statsError) {
+                if (statsLoadSequence.current === requestId) {
+                    console.warn('Could not load optional trade-block player averages.', statsError)
+                }
+            }
+        }
+        void loadStats()
+
+        return () => {
+            if (statsLoadSequence.current === requestId) statsLoadSequence.current += 1
+        }
+    }, [dataKey, leagueId, memberId, resourceKey, roster])
+
     useEffect(() => () => {
         loadSequence.current += 1
+        statsLoadSequence.current += 1
         mutationGeneration.current += 1
         mutationQueue.current = Promise.resolve()
     }, [])
