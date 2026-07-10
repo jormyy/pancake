@@ -61,7 +61,9 @@ export function useWeeklyAvailability(enabled: boolean) {
         let cancelled = false
         let appState: AppStateStatus = AppState.currentState
         let loadedDate: string | null = null
+        let requestSequence = 0
         const load = async (includeSchedule: boolean) => {
+            const requestId = ++requestSequence
             const seasonYear = currentSeasonYear()
             const today = todayET()
             try {
@@ -71,12 +73,12 @@ export function useWeeklyAvailability(enabled: boolean) {
                         ? getCurrentWeekNumber(seasonYear).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear))
                         : Promise.resolve(null),
                 ])
-                if (cancelled) return
+                if (cancelled || requestSequence !== requestId) return
                 loadedDate = today
                 setStartedTeams(teams)
                 if (days) setWeekDays(days)
             } catch (error) {
-                if (!cancelled) console.error(error)
+                if (!cancelled && requestSequence === requestId) console.error(error)
             }
         }
         void load(true)
@@ -90,6 +92,7 @@ export function useWeeklyAvailability(enabled: boolean) {
         })
         return () => {
             cancelled = true
+            requestSequence += 1
             clearInterval(poll)
             subscription.remove()
         }
