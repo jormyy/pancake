@@ -4,20 +4,93 @@ import { describe, expect, it } from 'vitest'
 
 const migrationsDirectory = path.join(process.cwd(), 'supabase/migrations')
 const read = (filename: string) => readFileSync(path.join(migrationsDirectory, filename), 'utf8')
-const blocking = /\b(?:ALTER TABLE|DROP TABLE|DROP TRIGGER|CREATE TRIGGER|DROP INDEX|CREATE (?:UNIQUE )?INDEX|DROP POLICY|CREATE POLICY|UPDATE public\.)\b/gi
+const topLevelStatements = (source: string): string[] => {
+    const statements: string[] = []
+    let current = ''
+    let dollarQuote: string | null = null
+    let singleQuoted = false
+    let doubleQuoted = false
+    let lineComment = false
+    let blockComment = false
+
+    for (let index = 0; index < source.length; index += 1) {
+        const char = source[index]
+        const next = source[index + 1]
+        if (lineComment) {
+            if (char === '\n') lineComment = false
+            continue
+        }
+        if (blockComment) {
+            if (char === '*' && next === '/') {
+                blockComment = false
+                index += 1
+            }
+            continue
+        }
+        if (dollarQuote) {
+            if (source.startsWith(dollarQuote, index)) {
+                current += dollarQuote
+                index += dollarQuote.length - 1
+                dollarQuote = null
+            }
+            continue
+        }
+        if (singleQuoted) {
+            current += char
+            if (char === "'" && next === "'") current += source[index += 1]
+            else if (char === "'") singleQuoted = false
+            continue
+        }
+        if (doubleQuoted) {
+            current += char
+            if (char === '"' && next === '"') current += source[index += 1]
+            else if (char === '"') doubleQuoted = false
+            continue
+        }
+        if (char === '-' && next === '-') {
+            lineComment = true
+            index += 1
+            continue
+        }
+        if (char === '/' && next === '*') {
+            blockComment = true
+            index += 1
+            continue
+        }
+        if (char === "'") singleQuoted = true
+        else if (char === '"') doubleQuoted = true
+        else if (char === '$') {
+            const delimiter = source.slice(index).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/)?.[0]
+            if (delimiter) {
+                dollarQuote = delimiter
+                current += delimiter
+                index += delimiter.length - 1
+                continue
+            }
+        }
+        if (char === ';') {
+            if (current.trim()) statements.push(current.trim())
+            current = ''
+        } else current += char
+    }
+    if (current.trim()) statements.push(current.trim())
+    return statements
+}
+const lockTakingStatement = (statement: string) => /^(?:ALTER\s+TABLE|DROP\s+(?:TABLE|TRIGGER|INDEX|POLICY|FUNCTION|TYPE)|CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+(?:TRIGGER|POLICY)|INSERT\s+INTO|UPDATE\s+(?!pg_temp\.)|DELETE\s+FROM|TRUNCATE)/i.test(statement)
+const lockTakingStatements = (source: string) => topLevelStatements(source).filter(lockTakingStatement)
 const bounded = (source: string) => {
-    const executable = source.replace(/--[^\n]*/g, '')
-    const blockingOffsets = [...executable.matchAll(blocking)].map((match) => match.index)
-    if (blockingOffsets.length === 0) return false
-    const firstBlocking = blockingOffsets[0]
-    const lastBlocking = blockingOffsets.at(-1)!
-    const lockTimeout = executable.indexOf("SET lock_timeout = '5s';")
-    const statementTimeout = executable.search(/SET statement_timeout = '(?:[1-9]\d*(?:ms|s|min|h))';/)
-    const statementReset = executable.lastIndexOf('RESET statement_timeout;')
-    const lockReset = executable.lastIndexOf('RESET lock_timeout;')
+    const statements = topLevelStatements(source)
+    const mutations = statements.map((statement, index) => lockTakingStatement(statement) ? index : -1)
+        .filter((index) => index >= 0)
+    if (mutations.length === 0) return false
+    const lockTimeout = statements.findIndex((statement) => statement === "SET lock_timeout = '5s'")
+    const statementTimeout = statements.findIndex((statement) =>
+        /^SET statement_timeout = '(?:[1-9]\d*(?:ms|s|min|h))'$/.test(statement))
+    const statementReset = statements.findLastIndex((statement) => statement === 'RESET statement_timeout')
+    const lockReset = statements.findLastIndex((statement) => statement === 'RESET lock_timeout')
     return lockTimeout >= 0 && statementTimeout >= 0 &&
-        lockTimeout < firstBlocking && statementTimeout < firstBlocking &&
-        statementReset > lastBlocking && lockReset > lastBlocking
+        lockTimeout < mutations[0] && statementTimeout < mutations[0] &&
+        statementReset > mutations.at(-1)! && lockReset > mutations.at(-1)!
 }
 const onlineRouteConstraintSequence = (source: string, route: 'from' | 'to') => {
     const constraint = `trade_items_${route}_member_present`
@@ -48,18 +121,20 @@ const canonicalAssetTriggerContract = (source: string) => source.includes(
 )
 const pushTokenCredentialUpgradeContract = (source: string) => {
     const addHash = source.indexOf('ADD COLUMN push_token_revocation_hash text')
-    const clearLegacyTokens = source.indexOf('UPDATE public.profiles\n   SET push_token = NULL')
+    const compatibilityTrigger = source.indexOf('CREATE TRIGGER normalize_legacy_push_token_write')
+    const credentialBackfill = source.indexOf('SET push_token_revocation_hash = encode(extensions.gen_random_bytes(32)')
     const uniqueIndex = source.indexOf('CREATE UNIQUE INDEX profiles_push_token_unique')
     const pairConstraint = source.indexOf('ADD CONSTRAINT profiles_push_token_revocation_pair')
-    return addHash >= 0 && clearLegacyTokens > addHash &&
-        uniqueIndex > clearLegacyTokens && pairConstraint > uniqueIndex
+    return addHash >= 0 && compatibilityTrigger > addHash && credentialBackfill > compatibilityTrigger &&
+        uniqueIndex > credentialBackfill && pairConstraint > uniqueIndex &&
+        !source.includes('SET push_token = NULL\n WHERE push_token IS NOT NULL')
 }
 
 describe('branch migration deployment safety', () => {
     it('bounds every lock-taking migration in the unpublished 20260709 series', () => {
         const migrations = readdirSync(migrationsDirectory)
             .filter((filename) => filename.endsWith('.sql') && filename.startsWith('20260709'))
-            .filter((filename) => new RegExp(blocking.source, 'i').test(read(filename)))
+            .filter((filename) => lockTakingStatements(read(filename)).length > 0)
 
         expect(migrations).not.toEqual([])
         for (const migration of migrations) expect(bounded(read(migration)), migration).toBe(true)
@@ -82,11 +157,22 @@ describe('branch migration deployment safety', () => {
         }
     })
 
-    it('invalidates uncredentialed legacy push tokens before enforcing paired state', () => {
+    it.each([
+        'DROP FUNCTION public.example()',
+        'INSERT INTO public.example (id) VALUES (1)',
+        'UPDATE example SET id = 2',
+        'DELETE FROM example WHERE id = 2',
+    ])('recognizes top-level %s without matching function-body DML', (statement) => {
+        expect(lockTakingStatements(`CREATE FUNCTION public.f() RETURNS void LANGUAGE plpgsql AS $$ BEGIN UPDATE hidden SET id = 1; END; $$;`)).toEqual([])
+        expect(lockTakingStatements(statement)).toEqual([statement])
+        expect(bounded(`SET lock_timeout = '5s'; SET statement_timeout = '1min'; ${statement}; RESET statement_timeout; RESET lock_timeout;`)).toBe(true)
+    })
+
+    it('preserves legacy push tokens through a paired-state compatibility trigger', () => {
         const migration = read('20260709100035_push_token_revocation_credentials.sql')
         expect(pushTokenCredentialUpgradeContract(migration)).toBe(true)
         expect(pushTokenCredentialUpgradeContract(
-            migration.replace('UPDATE public.profiles\n   SET push_token = NULL', 'SELECT push_token FROM public.profiles'),
+            migration.replace('CREATE TRIGGER normalize_legacy_push_token_write', 'CREATE TRIGGER removed_compatibility'),
         )).toBe(false)
     })
 
