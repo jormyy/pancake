@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert } from 'react-native'
 import {
     setPlayerSlotMoves,
@@ -44,11 +44,32 @@ export function useLineupActions({
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
+    const ownerIdentity = actionContext
+        ? `${actionContext.memberId}:${actionContext.leagueId}:${actionContext.seasonId}:${selectedDate}`
+        : null
+    const renderedOwnerRef = useRef(ownerIdentity)
+    const activeOwnerRef = useRef(ownerIdentity)
+    const mutationGenerationRef = useRef(0)
+    const [stateOwnerIdentity, setStateOwnerIdentity] = useState(ownerIdentity)
+    activeOwnerRef.current = ownerIdentity
+    if (renderedOwnerRef.current !== ownerIdentity) {
+        renderedOwnerRef.current = ownerIdentity
+        mutationGenerationRef.current += 1
+    }
+    const ownsActionState = stateOwnerIdentity === ownerIdentity
+    const mutationIsCurrent = (generation: number, identity: string | null) =>
+        mutationGenerationRef.current === generation && activeOwnerRef.current === identity
 
     useEffect(() => {
+        mutationGenerationRef.current += 1
+        setStateOwnerIdentity(ownerIdentity)
         setSelected(null)
+        setSaving(false)
+        setAutoSetting(false)
+        setAutoSetModalVisible(false)
         setActivationOverflowPending(null)
-    }, [actionContext?.leagueId, actionContext?.memberId, actionContext?.seasonId, selectedDate])
+        setActivationOverflowSaving(false)
+    }, [ownerIdentity])
 
     const handleTap = useCallback(async (newSel: Sel) => {
         if (selectedDate < todayET()) {
@@ -87,6 +108,8 @@ export function useLineupActions({
         }
 
         setSaving(true)
+        const mutationGeneration = mutationGenerationRef.current
+        const mutationOwner = ownerIdentity
         try {
             if (plan.kind === 'activate') {
                 await activateRosterPlayerWithLineup({
@@ -117,13 +140,13 @@ export function useLineupActions({
                     plan.moves,
                 )
             }
-            await reloadLineup(selectedDate)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) await reloadLineup(selectedDate)
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) Alert.alert('Error', getErrorMessage(e))
         } finally {
-            setSaving(false)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
         }
-    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup])
+    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir' | 'taxi', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return
@@ -147,6 +170,8 @@ export function useLineupActions({
             return
         }
         setActivationOverflowSaving(true)
+        const mutationGeneration = mutationGenerationRef.current
+        const mutationOwner = ownerIdentity
         try {
             await activateRosterPlayerWithLineup({
                 activateRosterPlayerId: activationOverflowPending.rosterPlayerId,
@@ -160,12 +185,13 @@ export function useLineupActions({
                 weekNumber: actionContext.weekNumber,
                 slotType: activationOverflowPending.slotType,
             })
+            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             setActivationOverflowPending(null)
             await reloadLineup(selectedDate)
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) Alert.alert('Error', getErrorMessage(e))
         } finally {
-            setActivationOverflowSaving(false)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setActivationOverflowSaving(false)
         }
     }
 
@@ -176,11 +202,14 @@ export function useLineupActions({
     async function doAutoSet(date: string | null, restOfSeason?: boolean) {
         if (!actionContext || !league) return
         setAutoSetting(true)
+        const mutationGeneration = mutationGenerationRef.current
+        const mutationOwner = ownerIdentity
         try {
             const result = await autoSetLineup(
                 actionContext.memberId, actionContext.leagueId, actionContext.seasonId,
                 actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason,
             )
+            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             await reloadLineup(selectedDate)
             if (restOfSeason && result?.failed) {
                 Alert.alert(
@@ -195,9 +224,11 @@ export function useLineupActions({
                 Alert.alert('Done', 'Lineup set for the rest of the season.')
             }
         } catch (e) {
-            Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+                Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
+            }
         } finally {
-            setAutoSetting(false)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setAutoSetting(false)
         }
     }
 
@@ -206,15 +237,15 @@ export function useLineupActions({
     }
 
     return {
-        selected,
+        selected: ownsActionState ? selected : null,
         setSelected,
-        saving,
-        autoSetting,
-        autoSetModalVisible,
+        saving: ownsActionState ? saving : false,
+        autoSetting: ownsActionState ? autoSetting : false,
+        autoSetModalVisible: ownsActionState ? autoSetModalVisible : false,
         setAutoSetModalVisible,
-        activationOverflowPending,
+        activationOverflowPending: ownsActionState ? activationOverflowPending : null,
         setActivationOverflowPending,
-        activationOverflowSaving,
+        activationOverflowSaving: ownsActionState ? activationOverflowSaving : false,
         handleTap,
         handleOverflowDrop,
         handleOverflowMoveToIR,

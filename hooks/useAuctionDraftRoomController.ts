@@ -26,6 +26,7 @@ export function useAuctionDraftRoomController({
     memberId?: string
 }) {
     const [state, setState] = useState<DraftState | null>(null)
+    const [stateDraftId, setStateDraftId] = useState(draftId)
     const [tab, setTab] = useState<DraftTab>('budgets')
     const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -70,14 +71,16 @@ export function useAuctionDraftRoomController({
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
-    const countdownNomination = state?.openNomination
-    const draftLeagueId = state?.draft.leagueId ?? null
+    const visibleState = stateDraftId === draftId ? state : null
+    const countdownNomination = visibleState?.openNomination
+    const draftLeagueId = visibleState?.draft.leagueId ?? null
     activeDraftIdRef.current = draftId
 
     useEffect(() => {
         loadSeqRef.current += 1
         searchSeqRef.current += 1
         setState(null)
+        setStateDraftId(draftId)
         setLoadError(null)
         setBidText('1')
         setBidding(false)
@@ -115,6 +118,7 @@ export function useAuctionDraftRoomController({
             // whole live auction room for seconds during bidding,
             // and would also reseed the bid field on the next good poll.
             if (s) {
+                setStateDraftId(requestedDraftId)
                 setState(s)
                 nominationModeRef.current = s.draft.nominationOrderMode
                 const nom = s.openNomination ?? null
@@ -252,7 +256,7 @@ export function useAuctionDraftRoomController({
     }, [searchQuery, draftId, nominating])
 
     async function handleBid() {
-        if (!state?.openNomination || !memberId || !draftId) return
+        if (!visibleState?.openNomination || !memberId || !draftId) return
         if (!realtimeConnected) {
             showAlert('Live connection unavailable', 'Reconnect to the live draft before bidding.')
             return
@@ -260,9 +264,9 @@ export function useAuctionDraftRoomController({
         const requestedDraftId = draftId
         // Guard the typed bid only at submit time: must be a whole-dollar amount
         // at least the minimum and within remaining budget.
-        const min = Math.max(1, (state.openNomination.currentBidAmount ?? 0) + 1)
+        const min = Math.max(1, (visibleState.openNomination.currentBidAmount ?? 0) + 1)
         // Match bidValid's fallback; the RPC is the authoritative budget check.
-        const remaining = state.budgets.find((b) => b.memberId === memberId)?.remaining ?? Infinity
+        const remaining = visibleState.budgets.find((b) => b.memberId === memberId)?.remaining ?? Infinity
         const amount = parseInt(bidText, 10)
         if (isNaN(amount) || amount < min) {
             showAlert('Invalid bid', `Enter a whole-dollar bid of at least $${min}.`)
@@ -274,7 +278,7 @@ export function useAuctionDraftRoomController({
         }
         setBidding(true)
         try {
-            await placeBid(draftId, memberId, state.openNomination.id, amount)
+            await placeBid(draftId, memberId, visibleState.openNomination.id, amount)
             if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
@@ -285,11 +289,11 @@ export function useAuctionDraftRoomController({
     }
 
     async function handleWithdraw() {
-        if (!state?.openNomination || !memberId || !draftId) return
+        if (!visibleState?.openNomination || !memberId || !draftId) return
         const requestedDraftId = draftId
         setWithdrawing(true)
         try {
-            await withdrawNomination(draftId, memberId, state.openNomination.id)
+            await withdrawNomination(draftId, memberId, visibleState.openNomination.id)
             if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
@@ -335,14 +339,14 @@ export function useAuctionDraftRoomController({
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
     const closedNominations = useMemo(
         () =>
-            state
-                ? state.nominations.filter((n) => n.status !== 'open').reverse()
+            visibleState
+                ? visibleState.nominations.filter((n) => n.status !== 'open').reverse()
                 : [],
-        [state],
+        [visibleState],
     )
     const budgetByMember = useMemo(
-        () => new Map((state?.budgets ?? []).map((b) => [b.memberId, b])),
-        [state],
+        () => new Map((visibleState?.budgets ?? []).map((b) => [b.memberId, b])),
+        [visibleState],
     )
     const wonCountByMember = useMemo(() => {
         const counts = new Map<string, number>()
@@ -354,7 +358,7 @@ export function useAuctionDraftRoomController({
     }, [closedNominations])
 
     return {
-        state,
+        state: visibleState,
         tab,
         setTab,
         loadError: loadError ?? (realtimeStatus !== 'SUBSCRIBED' && realtimeStatus !== 'CONNECTING'

@@ -119,14 +119,20 @@ describe('auction draft resource identity', () => {
         const next = new Promise<DraftState>((resolve) => { resolveNext = resolve })
         mocks.getDraftState.mockResolvedValueOnce(state('draft-a')).mockReturnValue(next)
         let latest!: ReturnType<typeof useAuctionDraftRoomController>
+        const snapshots: { requested: string; visible?: string }[] = []
         const Probe = ({ draftId }: { draftId: string }) => {
             latest = useAuctionDraftRoomController({ draftId, memberId: 'member' })
+            snapshots.push({ requested: draftId, visible: latest.state?.draft.id })
             return null
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'draft-a' })); await Promise.resolve() })
         expect(latest.state?.draft.id).toBe('draft-a')
         await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'draft-b' })) })
+        expect(snapshots.find((snapshot) => snapshot.requested === 'draft-b')).toEqual({
+            requested: 'draft-b',
+            visible: undefined,
+        })
         expect(latest.state).toBeNull()
         await act(async () => { resolveNext(state('draft-b')); await next })
         expect(latest.state?.draft.id).toBe('draft-b')

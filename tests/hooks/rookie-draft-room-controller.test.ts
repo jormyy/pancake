@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     getRoster: vi.fn(),
     getState: vi.fn(),
     getPlayers: vi.fn(),
+    makePick: vi.fn(),
     subscribe: vi.fn(),
     unsubscribe: vi.fn(),
 }))
@@ -30,7 +31,7 @@ vi.mock('@/lib/rookieDraft', () => ({
     getRookieDraftPollRevision: mocks.getRevision,
     getRookieDraftState: mocks.getState,
     getRookiePlayers: mocks.getPlayers,
-    makeSnakePick: vi.fn(),
+    makeSnakePick: mocks.makePick,
     processExpiredSnakePick: vi.fn(),
     subscribeToRookieDraft: mocks.subscribe,
     unsubscribeFromRookieDraft: mocks.unsubscribe,
@@ -135,5 +136,34 @@ describe('useRookieDraftRoomController', () => {
         expect(mocks.getRevision).toHaveBeenCalledTimes(2)
         await act(async () => { renderer.unmount() })
         vi.useRealTimers()
+    })
+
+    it('discards overflow state from a pick that completes after the draft changes', async () => {
+        const pick = deferred<{ rosterOverflow: boolean; taxiSlotsAvailable: boolean }>()
+        mocks.makePick.mockReturnValue(pick.promise)
+        mocks.getState.mockImplementation((id: string) => Promise.resolve(draftState(id)))
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        const Probe = ({ draftId }: { draftId: string }) => {
+            latest = useRookieDraftRoomController({ draftId, memberId: 'member', leagueId: 'league', rosterSize: 20 })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'a' })); await Promise.resolve() })
+        let pending!: Promise<void>
+        await act(async () => {
+            pending = latest.handlePick({
+                id: 'rookie', display_name: 'Rookie', nba_team: 'LAL', position: 'PG', nba_id: null, nba_draft_number: 1,
+            })
+            await Promise.resolve()
+        })
+        await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'b' })); await Promise.resolve() })
+        await act(async () => { pick.resolve({ rosterOverflow: true, taxiSlotsAvailable: true }); await pending })
+
+        expect(latest.state?.draft.id).toBe('b')
+        expect(latest.rosterOverflow).toBeNull()
+        expect(latest.rosterForDrop).toEqual([])
+        expect(latest.picking).toBe(false)
+        expect(mocks.getRoster).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
     })
 })

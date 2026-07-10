@@ -70,7 +70,23 @@ export function useRookieDraftRoomController({
     const stateDraftIdRef = useRef(draftId)
     const activeDraftIdRef = useRef(draftId)
     const pollRevisionRef = useRef<string | null>(null)
+    const ownerIdentity = `${draftId ?? ''}:${memberId ?? ''}:${leagueId ?? ''}`
+    const renderedOwnerRef = useRef(ownerIdentity)
+    const activeOwnerRef = useRef(ownerIdentity)
+    const mutationGenerationRef = useRef(0)
+    const [actionStateOwner, setActionStateOwner] = useState(ownerIdentity)
     activeDraftIdRef.current = draftId
+    activeOwnerRef.current = ownerIdentity
+
+    if (renderedOwnerRef.current !== ownerIdentity) {
+        renderedOwnerRef.current = ownerIdentity
+        mutationGenerationRef.current += 1
+        draftEndCheckedRef.current = false
+        autoPickAttemptRef.current = null
+    }
+    const ownsActionState = actionStateOwner === ownerIdentity
+    const mutationIsCurrent = (generation: number, identity: string) =>
+        mutationGenerationRef.current === generation && activeOwnerRef.current === identity
 
     if (renderedDraftIdRef.current !== draftId) {
         renderedDraftIdRef.current = draftId
@@ -106,6 +122,18 @@ export function useRookieDraftRoomController({
         setTrimOverflow(null)
         setTrimmingId(null)
     }, [draftId])
+
+    useEffect(() => {
+        mutationGenerationRef.current += 1
+        setActionStateOwner(ownerIdentity)
+        setPicking(false)
+        setPickError(null)
+        setRosterOverflow(null)
+        setRosterForDrop([])
+        setResolvingOverflow(false)
+        setTrimOverflow(null)
+        setTrimmingId(null)
+    }, [ownerIdentity])
 
     const load = useCallback(async () => {
         const requestedDraftId = draftId
@@ -231,14 +259,18 @@ export function useRookieDraftRoomController({
         autoPickAttemptRef.current = attemptKey
 
         ;(async () => {
+            const generation = mutationGenerationRef.current
+            const identity = ownerIdentity
             try {
                 await processExpiredSnakePick(draftId, stableMemberId)
-                await Promise.all([load(), loadProspects(queryRef.current.trim() || undefined)])
+                if (mutationIsCurrent(generation, identity)) {
+                    await Promise.all([load(), loadProspects(queryRef.current.trim() || undefined)])
+                }
             } catch (e) {
-                setPickError(getErrorMessage(e) ?? 'Auto-pick failed')
+                if (mutationIsCurrent(generation, identity)) setPickError(getErrorMessage(e) ?? 'Auto-pick failed')
             }
         })()
-    }, [draftId, load, loadProspects, memberId, picking, secondsLeft, visibleState?.draft.timerExpiryBehavior, visibleState?.nextPick])
+    }, [draftId, load, loadProspects, memberId, ownerIdentity, picking, secondsLeft, visibleState?.draft.timerExpiryBehavior, visibleState?.nextPick])
 
     const draftCompleted = visibleState?.draft.status === 'completed'
     useEffect(() => {
@@ -247,8 +279,11 @@ export function useRookieDraftRoomController({
 
         draftEndCheckedRef.current = true
         ;(async () => {
+            const generation = mutationGenerationRef.current
+            const identity = ownerIdentity
             try {
                 const roster = await getRoster(stableMemberId, leagueId)
+                if (!mutationIsCurrent(generation, identity)) return
                 const active = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
                 const excess = active.length - rosterSize
                 if (excess > 0) {
@@ -256,49 +291,57 @@ export function useRookieDraftRoomController({
                 } else if (draftId) {
                     setTrimOverflow(null)
                     await activateRookieDraftLeague(draftId)
-                    await load()
+                    if (mutationIsCurrent(generation, identity)) await load()
                 }
             } catch (e) {
-                console.error('[rookie-draft] post-draft roster check:', e)
+                if (mutationIsCurrent(generation, identity)) console.error('[rookie-draft] post-draft roster check:', e)
             }
         })()
-    }, [draftCompleted, draftId, leagueId, rosterSize, memberId, load])
+    }, [draftCompleted, draftId, leagueId, rosterSize, memberId, load, ownerIdentity])
 
     async function handleTrimDrop(rosterPlayerId: string) {
         if (trimmingId) return
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
         setTrimmingId(rosterPlayerId)
         try {
             await dropPlayer(rosterPlayerId)
+            if (!mutationIsCurrent(generation, identity)) return
             const stableMemberId = memberIdRef.current ?? memberId
             if (stableMemberId && leagueId) {
                 const roster = await getRoster(stableMemberId, leagueId)
+                if (!mutationIsCurrent(generation, identity)) return
                 const active = roster.filter((player) => !player.is_on_ir && !player.is_on_taxi)
                 const excess = active.length - rosterSize
                 setTrimOverflow(excess <= 0 ? null : { excess, dropList: active })
                 if (excess <= 0 && draftId) {
                     await activateRookieDraftLeague(draftId)
-                    await load()
+                    if (mutationIsCurrent(generation, identity)) await load()
                 }
             } else {
                 setTrimOverflow(null)
             }
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
+            if (mutationIsCurrent(generation, identity)) Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
         } finally {
-            setTrimmingId(null)
+            if (mutationIsCurrent(generation, identity)) setTrimmingId(null)
         }
     }
 
     async function handlePick(player: RookieProspect) {
         const stableMemberId = memberIdRef.current
         if (!draftId || !stableMemberId || picking) return
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
 
         setPickError(null)
         setPicking(true)
         try {
             const result = await makeSnakePick(draftId, stableMemberId, player.id)
+            if (!mutationIsCurrent(generation, identity)) return
             setQuery('')
             await Promise.all([load(), loadProspects()])
+            if (!mutationIsCurrent(generation, identity)) return
 
             if (result?.rosterOverflow) {
                 let newRosterPlayerId: string | null = null
@@ -306,6 +349,7 @@ export function useRookieDraftRoomController({
                 if (leagueId) {
                     try {
                         const roster = await getRoster(stableMemberId, leagueId)
+                        if (!mutationIsCurrent(generation, identity)) return
                         const match = roster.find((rosterPlayer) => rosterPlayer.players?.id === player.id)
                         newRosterPlayerId = match?.id ?? null
                         dropList = roster.filter(
@@ -327,71 +371,83 @@ export function useRookieDraftRoomController({
                 })
             }
         } catch (e) {
-            setPickError(getErrorMessage(e) ?? 'Pick failed')
+            if (mutationIsCurrent(generation, identity)) setPickError(getErrorMessage(e) ?? 'Pick failed')
         } finally {
-            setPicking(false)
+            if (mutationIsCurrent(generation, identity)) setPicking(false)
         }
     }
 
     async function handleCommissionerPick(player: RookieProspect) {
         const targetMemberId = visibleState?.nextPick?.memberId
         if (!draftId || !targetMemberId || picking) return
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
 
         setPickError(null)
         setPicking(true)
         try {
             await commissionerSnakePick(draftId, targetMemberId, player.id)
+            if (!mutationIsCurrent(generation, identity)) return
             setQuery('')
             await Promise.all([load(), loadProspects()])
         } catch (e) {
-            setPickError(getErrorMessage(e) ?? 'Commissioner pick failed')
+            if (mutationIsCurrent(generation, identity)) setPickError(getErrorMessage(e) ?? 'Commissioner pick failed')
         } finally {
-            setPicking(false)
+            if (mutationIsCurrent(generation, identity)) setPicking(false)
         }
     }
 
     async function resolveByTaxi() {
         if (!rosterOverflow?.newRosterPlayerId || resolvingOverflow) return
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
+        const requestedRosterPlayerId = rosterOverflow.newRosterPlayerId
         setResolvingOverflow(true)
         try {
             const stableMemberId = memberIdRef.current ?? memberId
             if (stableMemberId && leagueId) {
                 const roster = await getRoster(stableMemberId, leagueId)
-                const rookie = roster.find((rosterPlayer) => rosterPlayer.id === rosterOverflow.newRosterPlayerId)
+                if (!mutationIsCurrent(generation, identity)) return
+                const rookie = roster.find((rosterPlayer) => rosterPlayer.id === requestedRosterPlayerId)
                 const lockMessage = await getRosterStatusChangeLockMessage(rookie)
+                if (!mutationIsCurrent(generation, identity)) return
                 if (lockMessage) {
                     Alert.alert('Roster locked', lockMessage)
                     return
                 }
             }
 
-            await toggleTaxi(rosterOverflow.newRosterPlayerId, true)
+            await toggleTaxi(requestedRosterPlayerId, true)
+            if (!mutationIsCurrent(generation, identity)) return
             setRosterOverflow(null)
             if (draftId) {
                 await activateRookieDraftLeague(draftId)
                 await load()
             }
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to move to taxi')
+            if (mutationIsCurrent(generation, identity)) Alert.alert('Error', getErrorMessage(e) ?? 'Failed to move to taxi')
         } finally {
-            setResolvingOverflow(false)
+            if (mutationIsCurrent(generation, identity)) setResolvingOverflow(false)
         }
     }
 
     async function resolveByDrop(rosterPlayerId: string) {
         if (resolvingOverflow) return
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
         setResolvingOverflow(true)
         try {
             await dropPlayer(rosterPlayerId)
+            if (!mutationIsCurrent(generation, identity)) return
             setRosterOverflow(null)
             if (draftId) {
                 await activateRookieDraftLeague(draftId)
                 await load()
             }
         } catch (e) {
-            Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
+            if (mutationIsCurrent(generation, identity)) Alert.alert('Error', getErrorMessage(e) ?? 'Failed to drop player')
         } finally {
-            setResolvingOverflow(false)
+            if (mutationIsCurrent(generation, identity)) setResolvingOverflow(false)
         }
     }
 
@@ -402,16 +458,16 @@ export function useRookieDraftRoomController({
         setQuery,
         prospects: ownsDraft ? prospects : [],
         prospectsLoading: ownsDraft ? prospectsLoading : true,
-        picking: ownsDraft ? picking : false,
+        picking: ownsDraft && ownsActionState ? picking : false,
         activeTab,
         setActiveTab,
         secondsLeft,
-        pickError: ownsDraft ? pickError : null,
-        rosterOverflow: ownsDraft ? rosterOverflow : null,
-        rosterForDrop: ownsDraft ? rosterForDrop : [],
-        resolvingOverflow: ownsDraft ? resolvingOverflow : false,
-        trimOverflow: ownsDraft ? trimOverflow : null,
-        trimmingId: ownsDraft ? trimmingId : null,
+        pickError: ownsDraft && ownsActionState ? pickError : null,
+        rosterOverflow: ownsDraft && ownsActionState ? rosterOverflow : null,
+        rosterForDrop: ownsDraft && ownsActionState ? rosterForDrop : [],
+        resolvingOverflow: ownsDraft && ownsActionState ? resolvingOverflow : false,
+        trimOverflow: ownsDraft && ownsActionState ? trimOverflow : null,
+        trimmingId: ownsDraft && ownsActionState ? trimmingId : null,
         memberId: memberId ?? memberIdRef.current,
         refresh: load,
         handleTrimDrop,
