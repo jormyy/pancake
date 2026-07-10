@@ -248,18 +248,11 @@ function SidebarNavButton({
     badge?: number
     accessibilityLabel?: string
 }) {
-    // Expo Router's asChild slot flattens styles before Pressable can evaluate a style callback.
-    const [hovered, setHovered] = useState(false)
-    const [pressed, setPressed] = useState(false)
     const button = (
         <Pressable
             onPress={onPress}
-            onHoverIn={() => setHovered(true)}
-            onHoverOut={() => setHovered(false)}
-            onPressIn={() => setPressed(true)}
-            onPressOut={() => setPressed(false)}
             disabled={disabled || loading}
-            style={[
+            style={({ hovered, pressed }: PressableState) => [
                 styles.sideNavItem,
                 active && styles.sideNavItemActive,
                 hovered && !active && styles.sideNavItemHover,
