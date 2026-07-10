@@ -113,6 +113,29 @@ describe('trade resource identity', () => {
         renderer.unmount()
     })
 
+    it('synchronously clears old history and rejects its stale completion after identity changes', async () => {
+        const first = deferred<TradePage>()
+        const second = deferred<TradePage>()
+        getTradeHistoryForScreen.mockImplementation((memberId: string) =>
+            memberId === 'member-a' ? first.promise : second.promise)
+        let latest!: ReturnType<typeof useTradeHistoryFeed>
+        const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
+            latest = useTradeHistoryFeed(memberId, leagueId, true)
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { memberId: 'member-a', leagueId: 'league-a' })) })
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { memberId: 'member-b', leagueId: 'league-b' }))
+            expect(latest.trades).toEqual([])
+        })
+        await act(async () => { first.resolve({ trades: [trade('stale')], nextCursor: null }); await first.promise })
+        expect(latest.trades).toEqual([])
+        await act(async () => { second.resolve({ trades: [trade('current')], nextCursor: null }); await second.promise })
+        expect(latest.trades.map((item) => item.id)).toEqual(['current'])
+        await act(async () => { renderer.unmount() })
+    })
+
     it('cancels pagination on refresh and synchronously rejects duplicate page requests', async () => {
         const page = deferred<TradePage>()
         const refreshed = deferred<TradePage>()
