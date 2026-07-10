@@ -1,8 +1,11 @@
 import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
+import * as SecureStore from 'expo-secure-store'
+import { Platform } from 'react-native'
 import { apiPost } from '@/lib/shared/api'
 
 const PERSIST_RETRY_DELAYS_MS = [250, 1_000]
+const REGISTERED_PUSH_TOKEN_KEY = 'pancake.registered-push-token.v1'
 
 let mutationQueue: Promise<void> = Promise.resolve()
 
@@ -36,17 +39,44 @@ async function persistToken(
     }
 }
 
-export function registerPushToken(token: string, ownsRequest: () => boolean): Promise<void> {
-    return persistToken(token, true, ownsRequest)
+async function readRegisteredPushToken(): Promise<string | null> {
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+        return localStorage.getItem(REGISTERED_PUSH_TOKEN_KEY)
+    }
+    return SecureStore.getItemAsync(REGISTERED_PUSH_TOKEN_KEY)
+}
+
+async function storeRegisteredPushToken(token: string): Promise<void> {
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+        localStorage.setItem(REGISTERED_PUSH_TOKEN_KEY, token)
+        return
+    }
+    await SecureStore.setItemAsync(REGISTERED_PUSH_TOKEN_KEY, token)
+}
+
+async function clearRegisteredPushToken(): Promise<void> {
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+        localStorage.removeItem(REGISTERED_PUSH_TOKEN_KEY)
+        return
+    }
+    await SecureStore.deleteItemAsync(REGISTERED_PUSH_TOKEN_KEY)
+}
+
+export async function registerPushToken(token: string, ownsRequest: () => boolean): Promise<void> {
+    await persistToken(token, true, ownsRequest)
+    if (ownsRequest()) await storeRegisteredPushToken(token)
 }
 
 export async function unregisterCurrentDevicePushToken(): Promise<void> {
-    if (!Device.isDevice) return
-    let token: string
-    try {
-        token = (await Notifications.getExpoPushTokenAsync()).data
-    } catch {
-        return
+    let token = await readRegisteredPushToken()
+    if (!token) {
+        if (!Device.isDevice) return
+        try {
+            token = (await Notifications.getExpoPushTokenAsync()).data
+        } catch (error) {
+            throw new Error('Could not identify this device push token for revocation.', { cause: error })
+        }
     }
     await persistToken(token, false, () => true)
+    await clearRegisteredPushToken()
 }

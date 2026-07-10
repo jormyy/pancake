@@ -44,18 +44,13 @@ describe('signOut', () => {
         expect(unregisterCurrentDevicePushToken).toHaveBeenCalledOnce()
     })
 
-    it('still signs out when push-token cleanup fails', async () => {
+    it('keeps the authenticated session when push-token cleanup fails', async () => {
         vi.mocked(unregisterCurrentDevicePushToken).mockRejectedValueOnce(new Error('offline'))
-        vi.spyOn(console, 'error').mockImplementation(() => undefined)
         mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
 
-        await signOut()
+        await expect(signOut()).rejects.toThrow('offline')
 
-        expect(mockAuth.signOut).toHaveBeenCalledOnce()
-        expect(console.error).toHaveBeenCalledWith(
-            'Could not unregister this device from push notifications.',
-            expect.any(Error),
-        )
+        expect(mockAuth.signOut).not.toHaveBeenCalled()
     })
 })
 

@@ -44,11 +44,7 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    try {
-        await unregisterCurrentDevicePushToken()
-    } catch (error) {
-        console.error('Could not unregister this device from push notifications.', error)
-    }
+    await unregisterCurrentDevicePushToken()
     const { error } = await supabase.auth.signOut()
     if (error) {
         // Server sign-out failed (network error, unexpected server error, etc.).

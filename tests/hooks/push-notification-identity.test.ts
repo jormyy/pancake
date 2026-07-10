@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     userId: 'user-a' as string | null,
     getExpoPushTokenAsync: vi.fn(),
     apiPost: vi.fn(),
+    secureToken: null as string | null,
 }))
 
 vi.mock('expo-device', () => ({ isDevice: true }))
@@ -19,6 +20,11 @@ vi.mock('expo-notifications', () => ({
     setNotificationHandler: vi.fn(),
 }))
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }))
+vi.mock('expo-secure-store', () => ({
+    getItemAsync: vi.fn(async () => mocks.secureToken),
+    setItemAsync: vi.fn(async (_key: string, value: string) => { mocks.secureToken = value }),
+    deleteItemAsync: vi.fn(async () => { mocks.secureToken = null }),
+}))
 vi.mock('@/hooks/use-auth', () => ({
     useAuth: () => ({ user: mocks.userId ? { id: mocks.userId } : null }),
 }))
@@ -28,6 +34,7 @@ vi.mock('@/lib/shared/api', () => ({ apiPost: mocks.apiPost }))
 
 beforeEach(() => {
     mocks.userId = 'user-a'
+    mocks.secureToken = null
     mocks.getExpoPushTokenAsync.mockReset()
     mocks.apiPost.mockReset().mockResolvedValue({ ok: true })
 })
