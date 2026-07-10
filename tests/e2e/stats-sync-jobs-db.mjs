@@ -8,6 +8,9 @@ const JOB_TYPE = `sync_stats_range:${RANGE.startDate}:${RANGE.endDate}`
 const LEGACY_RANGE = { startDate: '1947-04-01', endDate: '1947-04-03' }
 const LEGACY_JOB_TYPE = `sync_stats_range:${LEGACY_RANGE.startDate}:${LEGACY_RANGE.endDate}`
 const LEGACY_JOB_ID = '00000000-0000-4000-8000-00000000000f'
+const POST_MIGRATION_LEGACY_RANGE = { startDate: '1947-05-01', endDate: '1947-05-03' }
+const POST_MIGRATION_LEGACY_JOB_TYPE = `sync_stats_range:${POST_MIGRATION_LEGACY_RANGE.startDate}:${POST_MIGRATION_LEGACY_RANGE.endDate}`
+const POST_MIGRATION_LEGACY_JOB_ID = '00000000-0000-4000-8000-00000000001f'
 const env = requireEnv(resolvedEnv(), ['supabaseUrl', 'serviceRoleKey', 'dbUrl'])
 const admin = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
 
@@ -27,7 +30,7 @@ async function rpc(name, args) {
 }
 
 async function cleanup() {
-  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}');`)
+  scalar(`DELETE FROM public.sync_jobs WHERE job_type IN ('${JOB_TYPE}', '${LEGACY_JOB_TYPE}', '${POST_MIGRATION_LEGACY_JOB_TYPE}');`)
 }
 
 try {
@@ -75,6 +78,65 @@ try {
     p_completed_items: 1,
     p_metadata: { ...LEGACY_RANGE, nextDate: '1947-04-04' },
   }), true, 'fenced owner could not complete after rejecting the stale predeploy worker')
+
+  scalar(`
+    INSERT INTO public.sync_jobs (
+      id, job_type, status, total_items, completed_items, failed_items, error_log,
+      metadata, started_at, created_at, claimed_at, claim_token
+    ) VALUES (
+      '${POST_MIGRATION_LEGACY_JOB_ID}', '${POST_MIGRATION_LEGACY_JOB_TYPE}', 'pending', 3, 0, 0, '[]'::jsonb,
+      '{"startDate":"${POST_MIGRATION_LEGACY_RANGE.startDate}","endDate":"${POST_MIGRATION_LEGACY_RANGE.endDate}","nextDate":"${POST_MIGRATION_LEGACY_RANGE.startDate}"}'::jsonb,
+      now() - interval '1 hour', now() - interval '1 hour', NULL, NULL
+    );
+  `)
+  const { error: postMigrationLegacyStartError } = await admin
+    .from('sync_jobs')
+    .update({
+      status: 'running',
+      metadata: {
+        ...POST_MIGRATION_LEGACY_RANGE,
+        nextDate: POST_MIGRATION_LEGACY_RANGE.startDate,
+        claimedAt: new Date().toISOString(),
+      },
+    })
+    .eq('id', POST_MIGRATION_LEGACY_JOB_ID)
+  assert.equal(postMigrationLegacyStartError, null, 'post-migration legacy worker could not start through its predeploy transition')
+  assert.equal(
+    scalar(`SELECT claimed_at IS NOT NULL FROM public.sync_jobs WHERE id = '${POST_MIGRATION_LEGACY_JOB_ID}';`),
+    't',
+    'post-migration legacy claim did not receive a rollout lease',
+  )
+  const livePostMigrationLegacyClaims = await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: POST_MIGRATION_LEGACY_JOB_ID,
+    p_stale_after_seconds: 60,
+  })
+  assert.equal(livePostMigrationLegacyClaims.length, 0, 'post-migration legacy worker was reclaimed before its drain window elapsed')
+
+  scalar(`
+    UPDATE public.sync_jobs
+       SET claimed_at = NULL,
+           created_at = now() - interval '16 minutes'
+     WHERE id = '${POST_MIGRATION_LEGACY_JOB_ID}';
+  `)
+  const crashedPostMigrationLegacyClaims = await rpc('claim_stats_sync_job_atomic', {
+    p_job_id: POST_MIGRATION_LEGACY_JOB_ID,
+    p_stale_after_seconds: 60,
+  })
+  assert.equal(crashedPostMigrationLegacyClaims.length, 1, 'crashed post-migration legacy worker was not reclaimed after its drain window')
+  const postMigrationLegacyTakeover = crashedPostMigrationLegacyClaims[0]
+
+  const { error: stalePostMigrationLegacyWriteError } = await admin
+    .from('sync_jobs')
+    .update({ status: 'failed', completed_items: 999 })
+    .eq('id', POST_MIGRATION_LEGACY_JOB_ID)
+  assert.ok(stalePostMigrationLegacyWriteError, 'post-migration legacy worker mutated a token-owned stats job after takeover')
+  assert.match(stalePostMigrationLegacyWriteError.message, /owned by a fenced claim/)
+  assert.equal(await rpc('complete_stats_sync_job_atomic', {
+    p_job_id: POST_MIGRATION_LEGACY_JOB_ID,
+    p_claim_token: postMigrationLegacyTakeover.claim_token,
+    p_completed_items: 1,
+    p_metadata: { ...POST_MIGRATION_LEGACY_RANGE, nextDate: '1947-05-04' },
+  }), true, 'fenced owner could not complete a reclaimed post-migration legacy job')
 
   const createdIds = await Promise.all(Array.from({ length: 24 }, () =>
     rpc('create_or_resume_stats_sync_job_atomic', {
@@ -181,7 +243,7 @@ try {
   assert.equal(resumed.claim_token, null)
   assert.equal(resumed.claimed_at, null)
 
-  console.log('PASS stats sync jobs: rollout drain, concurrent dedupe, fencing, dispatcher rescue, and failure resume')
+  console.log('PASS stats sync jobs: rollout drain/crash rescue, concurrent dedupe, fencing, dispatcher rescue, and failure resume')
 } finally {
   await cleanup()
 }

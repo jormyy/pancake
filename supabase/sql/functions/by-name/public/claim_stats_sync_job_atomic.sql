@@ -35,7 +35,7 @@ BEGIN
            AND (
              (
                job.claim_token IS NULL
-               AND job.claimed_at <= now() - interval '15 minutes'
+               AND COALESCE(job.claimed_at, job.created_at) <= now() - interval '15 minutes'
              )
              OR (
                job.claim_token IS NOT NULL
