@@ -14,6 +14,16 @@ export type StatsSyncGame = Pick<
   Database['public']['Tables']['nba_games']['Row'],
   'id' | 'nba_game_id' | 'week_number' | 'season_year' | 'status'
 >
+
+// How long a Final game's synced stats stay fresh before we re-fetch its box
+// score. Live-poll calls syncStatsForDates every minute during live windows;
+// without this fence every already-Final game (all of yesterday's plus today's
+// finished games) got a CDN box-score fetch and a full player_game_stats
+// read/diff per tick. A 30-minute recheck cadence still catches NBA stat
+// corrections promptly, and the daily/weekly correction paths
+// (syncStatsForCompletedWeeks' 4-day window) flow through the same query, so
+// corrections keep propagating — just at most twice an hour per game.
+const FINAL_STATS_RECHECK_MS = 30 * 60 * 1000
 type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert']
 
 // Returns YYYY-MM-DD for the given Date in America/New_York (ET).
@@ -109,6 +119,10 @@ async function statsGamesForDate(dateStr: string, afterGameId?: string, limit?: 
     .like('nba_game_id', '002%')
     .order('id', { ascending: true })
   if (!isPast) query = query.neq('status', 'Scheduled')
+  // Skip Final games whose stats were synced within the recheck window; they
+  // get re-fetched (for stat corrections) once the fence expires.
+  const recheckCutoff = new Date(Date.now() - FINAL_STATS_RECHECK_MS).toISOString()
+  query = query.or(`status.neq.Final,stats_synced_at.is.null,stats_synced_at.lt.${recheckCutoff}`)
   if (afterGameId) query = query.gt('id', afterGameId)
   if (limit !== undefined) query = query.limit(limit)
   const { data, error } = await query
@@ -147,10 +161,19 @@ async function syncStatsGameWithResolver(
   }
   // Callers report this as stat lines synced for the game; keep that meaning
   // rather than silently redefining the metric as "rows written".
-  if (boxScore.gameStatus === 3 && game.status !== 'Final') {
+  if (boxScore.gameStatus === 3) {
+    // Stamp stats_synced_at so statsGamesForDate can skip this Final game for
+    // the next FINAL_STATS_RECHECK_MS instead of re-fetching every tick.
+    const update: Database['public']['Tables']['nba_games']['Update'] = {
+      stats_synced_at: new Date().toISOString(),
+    }
+    if (game.status !== 'Final') {
+      update.status = 'Final'
+      update.updated_at = new Date().toISOString()
+    }
     const { error } = await supabase
       .from('nba_games')
-      .update({ status: 'Final', updated_at: new Date().toISOString() })
+      .update(update)
       .eq('id', game.id)
     if (error) throw error
   }

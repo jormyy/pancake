@@ -225,6 +225,12 @@ async function fetchRosterPlayers(memberId: string, leagueId: string, seasonId: 
 const templateCache = new Map<string, { at: number; promise: ReturnType<typeof fetchSlotTemplates> }>()
 const rosterCache = new Map<string, { at: number; promise: ReturnType<typeof fetchRosterPlayers> }>()
 
+// A realtime lineup event can follow a roster change (add then slot) inside the
+// TTL; dropping the member's cached roster keeps the next silent refresh honest.
+export function invalidateCachedRoster(memberId: string, leagueId: string, seasonId: string): void {
+    rosterCache.delete(`${memberId}:${leagueId}:${seasonId}`)
+}
+
 function ttlCached<T>(
     cache: Map<string, { at: number; promise: Promise<T> }>,
     key: string,

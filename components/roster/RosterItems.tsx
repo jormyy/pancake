@@ -173,8 +173,8 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     taxiSlotsAvailable: boolean
     avgFpts?: number
     avgMinutes?: number | null
-    onPress: () => void
-    onLongPress: () => void
+    onPress: (item: RosterPlayer) => void
+    onLongPress: (item: RosterPlayer) => void
     onToggleIR: (item: RosterPlayer) => void
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
@@ -186,8 +186,8 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
         <View style={styles.playerRow}>
             <MotionPressable
                 style={styles.playerRowMain}
-                onPress={onPress}
-                onLongPress={onLongPress}
+                onPress={() => onPress(item)}
+                onLongPress={() => onLongPress(item)}
                 delayLongPress={400}
                 pressedScale={0.985}
                 accessibilityRole="button"
@@ -330,7 +330,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
     taxiingId: string | null
     avgFpts?: number
     avgMinutes?: number | null
-    onPress: () => void
+    onPress: (item: RosterPlayer) => void
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const player = item.players
@@ -340,7 +340,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
         <View style={styles.playerRow}>
             <MotionPressable
                 style={styles.playerRowMain}
-                onPress={onPress}
+                onPress={() => onPress(item)}
                 pressedScale={0.985}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${player.display_name}`}

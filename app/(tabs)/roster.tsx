@@ -146,8 +146,8 @@ function RosterTablePlayerItem({
     stats?: RosterAverage
     isBusy: boolean
     taxiSlotsAvailable: boolean
-    onPress: () => void
-    onLongPress?: () => void
+    onPress: (item: RosterPlayer) => void
+    onLongPress?: (item: RosterPlayer) => void
     onToggleIR: (item: RosterPlayer) => void
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
@@ -164,8 +164,8 @@ function RosterTablePlayerItem({
         <View style={styles.rosterTableRow}>
             <Pressable
                 style={styles.rosterTableOpen}
-                onPress={onPress}
-                onLongPress={onLongPress}
+                onPress={() => onPress(item)}
+                onLongPress={onLongPress ? () => onLongPress(item) : undefined}
                 disabled={isBusy}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.players.display_name}`}
@@ -593,6 +593,10 @@ export default function RosterScreen() {
     const taxiSlots = league?.taxi_slots ?? 3
     const trimBusyId = droppingId ?? togglingId ?? taxiingId
 
+    const handleOpenRosterPlayer = useCallback((item: RosterPlayer) => {
+        push(`/player/${item.players.id}`)
+    }, [push])
+
     const renderRosterItem = useCallback(({ item }: { item: RosterListItem }) => {
         if (item._isHeader) {
             if (item._section === 'active') {
@@ -658,7 +662,7 @@ export default function RosterScreen() {
                         stats={avgStatsMap.get(taxiItem.players.id)}
                         isBusy={taxiingId === taxiItem.id}
                         taxiSlotsAvailable={taxi.length < taxiSlots}
-                        onPress={() => push(`/player/${taxiItem.players.id}`)}
+                        onPress={handleOpenRosterPlayer}
                         onToggleIR={handleToggleIR}
                         onToggleTaxi={handleToggleTaxi}
                     />
@@ -670,7 +674,7 @@ export default function RosterScreen() {
                     taxiingId={taxiingId}
                     avgFpts={avgMap.get((item as RosterPlayer).players.id)}
                     avgMinutes={avgStatsMap.get((item as RosterPlayer).players.id)?.avg_minutes_played}
-                    onPress={() => push(`/player/${(item as RosterPlayer).players.id}`)}
+                    onPress={handleOpenRosterPlayer}
                     onToggleTaxi={handleToggleTaxi}
                 />
             )
@@ -685,8 +689,8 @@ export default function RosterScreen() {
                     stats={avgStatsMap.get(rosterItem.players.id)}
                     isBusy={togglingId === rosterItem.id || taxiingId === rosterItem.id || droppingId === rosterItem.id}
                     taxiSlotsAvailable={taxi.length < taxiSlots}
-                    onPress={() => push(`/player/${rosterItem.players.id}`)}
-                    onLongPress={() => handleDropPrompt(rosterItem)}
+                    onPress={handleOpenRosterPlayer}
+                    onLongPress={handleDropPrompt}
                     onToggleIR={handleToggleIR}
                     onToggleTaxi={handleToggleTaxi}
                 />
@@ -701,8 +705,8 @@ export default function RosterScreen() {
                 taxiSlotsAvailable={taxi.length < taxiSlots}
                 avgFpts={avgMap.get(rosterItem.players.id)}
                 avgMinutes={avgStatsMap.get(rosterItem.players.id)?.avg_minutes_played}
-                onPress={() => push(`/player/${rosterItem.players.id}`)}
-                onLongPress={() => handleDropPrompt(rosterItem)}
+                onPress={handleOpenRosterPlayer}
+                onLongPress={handleDropPrompt}
                 onToggleIR={handleToggleIR}
                 onToggleTaxi={handleToggleTaxi}
             />
@@ -710,7 +714,7 @@ export default function RosterScreen() {
     }, [
         showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots,
         togglingId, taxiingId, droppingId, cancellingId, waiverPriority,
-        currentLeague?.waiver_mode, current?.team_name, push,
+        currentLeague?.waiver_mode, current?.team_name, handleOpenRosterPlayer,
         handleCancelClaim, handleEditClaimBid, handleReorderClaim,
         handleToggleIR, handleToggleTaxi, handleDropPrompt,
     ])

@@ -263,13 +263,14 @@ export default function PlayersScreen() {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
         .join(','), [search.availability.gamesLeft])
+    const quickAddHandleAdd = quickAdd.handleAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
         if (waiverIds.has(player.id)) {
             push(`/(modals)/claim-player?playerId=${player.id}`)
         } else {
-            void quickAdd.handleAdd(player)
+            void quickAddHandleAdd(player)
         }
-    }, [waiverIds, push, quickAdd])
+    }, [waiverIds, push, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])

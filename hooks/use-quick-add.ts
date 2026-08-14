@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { Alert } from 'react-native'
 import { PlayerRow } from '@/lib/players'
 import {
@@ -39,8 +39,8 @@ export function useQuickAdd(
         generationRef.current += 1
     }
     const ownsState = stateOwnerIdentity === ownerIdentity
-    const isCurrent = (generation: number, identity: string | null) =>
-        generationRef.current === generation && activeOwnerRef.current === identity
+    const isCurrent = useCallback((generation: number, identity: string | null) =>
+        generationRef.current === generation && activeOwnerRef.current === identity, [])
 
     useEffect(() => {
         generationRef.current += 1
@@ -65,7 +65,7 @@ export function useQuickAdd(
             }
             return roster
         },
-        [memberId, ownerIdentity]
+        [memberId, ownerIdentity, isCurrent]
     )
 
     const claimWaiver = useCallback(
@@ -101,10 +101,10 @@ export function useQuickAdd(
                 ],
             )
         },
-        [memberId, ownerIdentity, refreshOwned, refreshTransactionState]
+        [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent]
     )
 
-    async function addFreeAgentWithFallback(player: PlayerRow, lid: string) {
+    const addFreeAgentWithFallback = useCallback(async (player: PlayerRow, lid: string) => {
         if (!memberId) return
         const generation = generationRef.current
         const identity = ownerIdentity
@@ -124,17 +124,17 @@ export function useQuickAdd(
         } finally {
             if (isCurrent(generation, identity)) setAdding(null)
         }
-    }
+    }, [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent])
 
-    async function proceedAfterIR(player: PlayerRow, lid: string) {
+    const proceedAfterIR = useCallback(async (player: PlayerRow, lid: string) => {
         if (waiverIds.has(player.id)) {
             claimWaiver(player, lid)
         } else {
             await addFreeAgentWithFallback(player, lid)
         }
-    }
+    }, [waiverIds, claimWaiver, addFreeAgentWithFallback])
 
-    async function continueAfterIRResolution(lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) {
+    const continueAfterIRResolution = useCallback(async (lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) => {
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
         } else {
@@ -142,9 +142,9 @@ export function useQuickAdd(
             setIrModal(null)
             await proceedAfterIR(pending, lid)
         }
-    }
+    }, [irModal, proceedAfterIR])
 
-    async function handleAdd(player: PlayerRow) {
+    const handleAdd = useCallback(async (player: PlayerRow) => {
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
@@ -188,9 +188,9 @@ export function useQuickAdd(
                 refreshTransactionState?.()
             }
         }
-    }
+    }, [memberId, leagueId, ownerIdentity, rosterSize, waiverIds, checkIR, claimWaiver, refreshOwned, refreshTransactionState, isCurrent])
 
-    async function handleDropAndAdd(rosterPlayer: RosterPlayer) {
+    const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
         if (!memberId || !dropPickerPlayer || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
@@ -211,9 +211,9 @@ export function useQuickAdd(
         } finally {
             if (isCurrent(generation, identity)) setDropping(null)
         }
-    }
+    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshOwned, refreshTransactionState, isCurrent])
 
-    async function handleIRActivate(rp: RosterPlayer) {
+    const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
@@ -224,9 +224,9 @@ export function useQuickAdd(
         } else {
             await continueAfterIRResolution(leagueId, result.roster, result.remaining)
         }
-    }
+    }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent])
 
-    async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
+    const handleDropAndIRActivate = useCallback(async (toDrop: RosterPlayer, activatePlayer: RosterPlayer) => {
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
@@ -237,9 +237,9 @@ export function useQuickAdd(
         } else {
             await continueAfterIRResolution(leagueId, result.roster, result.remaining)
         }
-    }
+    }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent])
 
-    return {
+    return useMemo(() => ({
         adding: ownsState ? adding : null,
         dropPickerPlayer: ownsState ? dropPickerPlayer : null, setDropPickerPlayer,
         myRoster: ownsState ? myRoster : [],
@@ -249,5 +249,8 @@ export function useQuickAdd(
         handleDropAndAdd,
         handleIRActivate,
         handleDropAndIRActivate,
-    }
+    }), [
+        ownsState, adding, dropPickerPlayer, myRoster, dropping, irModal,
+        handleAdd, handleDropAndAdd, handleIRActivate, handleDropAndIRActivate,
+    ])
 }
