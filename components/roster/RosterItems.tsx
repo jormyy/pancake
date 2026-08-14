@@ -210,20 +210,22 @@ export function RosterPlayerItem({
                     <View style={styles.playerMetaRow}>
                         {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
                         {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                        {avgFpts != null ? (
-                            <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
-                        ) : null}
-                        {avgMinutes != null ? (
-                            <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
-                        ) : null}
-                    </View>
-                    {player.injury_status ? (
-                        <View style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+                        {player.injury_status ? (
                             <Badge
                                 label={player.injury_status}
                                 color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
                                 variant="solid"
                             />
+                        ) : null}
+                    </View>
+                    {avgFpts != null || avgMinutes != null ? (
+                        <View style={styles.playerMetaRow}>
+                            {avgFpts != null ? (
+                                <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
+                            ) : null}
+                            {avgMinutes != null ? (
+                                <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
+                            ) : null}
                         </View>
                     ) : null}
                 </View>
@@ -292,7 +294,16 @@ export function ReadOnlyRosterPlayerItem({
                 <View style={styles.playerMetaRow}>
                     {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
                     {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {player.injury_status ? (
+                        <Badge
+                            label={player.injury_status}
+                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                            variant="solid"
+                        />
+                    ) : null}
                     {yearsLabel ? <Text style={styles.playerMeta}>{yearsLabel}</Text> : null}
+                </View>
+                <View style={styles.playerMetaRow}>
                     {avgFpts != null ? (
                         <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
                     ) : null}
@@ -301,15 +312,8 @@ export function ReadOnlyRosterPlayerItem({
                     ) : null}
                     {!hasStats ? <Text style={styles.playerMeta}>No season stats</Text> : null}
                 </View>
-                {(player.injury_status || item.is_on_ir || item.is_on_taxi) ? (
+                {(item.is_on_ir || item.is_on_taxi) ? (
                     <View style={styles.readOnlyBadges}>
-                        {player.injury_status ? (
-                            <Badge
-                                label={player.injury_status}
-                                color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
-                                variant="solid"
-                            />
-                        ) : null}
                         {item.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
                         {item.is_on_taxi ? <Badge label="TX" color={colors.textMuted} variant="soft" /> : null}
                     </View>

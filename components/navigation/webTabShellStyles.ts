@@ -58,8 +58,11 @@ export const styles = StyleSheet.create({
         height: 42,
     },
     brandMarkCompact: {
+        // 44px box matches the league switcher and menu button so the three
+        // header controls share one vertical center line; the mark itself
+        // renders 34px inside via resizeMode="contain".
         width: 34,
-        height: 34,
+        height: 44,
     },
     brandTitle: {
         fontSize: 21,
@@ -124,7 +127,13 @@ export const styles = StyleSheet.create({
     },
     // Light variant for the mobile top bar (web is light-themed). Kept at the
     // touch-target floor while staying visually aligned with the compact brand mark.
+    leagueSwitchWrapLight: {
+        // The sidebar spacing below the switcher misaligns the fixed-height
+        // mobile top bar; the topbar centers a strict 44px control instead.
+        marginBottom: 0,
+    },
     leagueSwitchLight: {
+        height: 44,
         minHeight: 44,
         paddingVertical: spacing.xs,
         paddingHorizontal: spacing.md,

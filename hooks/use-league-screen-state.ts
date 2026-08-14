@@ -120,7 +120,9 @@ export function useLeagueScreenState() {
 
     const handleTabChange = (nextTab: LeagueTab) => {
         setTab(nextTab)
-        router.push(`/league?tab=${nextTab}`)
+        // setParams (not push) keeps the current screen instance mounted, so the
+        // pill tab bar keeps its scroll position instead of resetting to the start.
+        router.setParams({ tab: nextTab })
     }
 
     const shareInviteCode = useCallback(async () => {

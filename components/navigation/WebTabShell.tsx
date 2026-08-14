@@ -13,7 +13,6 @@ import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
-type LeagueTab = 'results' | 'auctions' | 'mockRooms' | 'draftBoard' | 'settings' | 'history'
 type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
 
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
@@ -22,15 +21,6 @@ const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
     { label: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Trades', href: '/trades', icon: 'swap-horiz' },
-]
-
-const LEAGUE_NAV: { label: string; tab: LeagueTab; icon: IconName }[] = [
-    { label: 'Results', tab: 'results', icon: 'emoji-events' },
-    { label: 'Auctions', tab: 'auctions', icon: 'attach-money' },
-    { label: 'Mock Rooms', tab: 'mockRooms', icon: 'groups' },
-    { label: 'Draft Board', tab: 'draftBoard', icon: 'view-list' },
-    { label: 'Settings', tab: 'settings', icon: 'settings' },
-    { label: 'History', tab: 'history', icon: 'history' },
 ]
 
 const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
@@ -172,7 +162,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const currentTeamName = current.team_name ?? 'Team'
 
     return (
-        <View style={styles.leagueSwitchWrap}>
+        <View style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
             <Pressable
                 onPress={() => setOpen((value) => !value)}
                 style={({ hovered, pressed }: PressableState) => [
@@ -446,14 +436,10 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
     const router = useRouter()
     const { currentLeague, isCommissioner } = useLeagueContext()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
+    // League sub-tabs are reachable from the League tab's own pill bar — the
+    // sheet only carries destinations the bottom bar doesn't already cover.
     const menuItems = useMemo(
         () => [
-            ...LEAGUE_NAV.map((item) => ({
-                key: item.tab,
-                label: item.label,
-                icon: item.icon,
-                onPress: () => router.push(`/league?tab=${item.tab}`),
-            })),
             { key: 'draft-room', label: 'Draft Room', icon: 'flash-on' as IconName, onPress: openDraftRoom, loading: draftLoading },
             { key: 'playoffs', label: 'Playoffs', icon: 'account-tree' as IconName, onPress: () => router.push('/(modals)/bracket') },
             ...(isCommissioner
