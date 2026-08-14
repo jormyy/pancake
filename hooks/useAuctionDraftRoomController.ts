@@ -14,7 +14,11 @@ import {
     type NominationOrderMode,
 } from '@/lib/draft'
 import { getErrorMessage, showAlert } from '@/lib/alert'
-import { reportRealtimeCleanup, type RealtimeSubscriptionStatus } from '@/lib/realtime'
+import {
+    debounceRealtimeRefresh,
+    reportRealtimeCleanup,
+    type RealtimeSubscriptionStatus,
+} from '@/lib/realtime'
 
 export type DraftTab = 'budgets' | 'history'
 
@@ -153,11 +157,15 @@ export function useAuctionDraftRoomController({
         if (!draftId) return
         let active = true
         load()
-        const channel = subscribeToDraft(draftId, draftLeagueId, load, (status) => {
+        // A bidding war fires several inserts per second and every one of them
+        // reloads the whole draft state; coalesce the burst into one reload.
+        const refresh = debounceRealtimeRefresh(() => { void load() })
+        const channel = subscribeToDraft(draftId, draftLeagueId, refresh.trigger, (status) => {
             if (active) setRealtimeStatus(status)
         })
         return () => {
             active = false
+            refresh.cancel()
             reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
         }
     }, [draftId, draftLeagueId, load])

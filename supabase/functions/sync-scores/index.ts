@@ -1,21 +1,16 @@
 import { supabase } from '../_shared/supabase.ts'
 import { syncScores } from '../_shared/syncScores.ts'
-import { syncStatsByDate } from '../_shared/syncStats.ts'
+import { syncStatsForDates } from '../_shared/syncStats.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import {
   LIVE_POLL_LEASE_TTL_SECONDS,
   LIVE_POLL_LOCK_KEY,
-  dateFromETDate,
   livePollCandidateDates,
 } from '../_shared/livePoll.ts'
 
 async function syncStatsForScoreCandidateDates(): Promise<number> {
-  let statLines = 0
-  for (const date of livePollCandidateDates()) {
-    statLines += await syncStatsByDate(dateFromETDate(date))
-  }
-  return statLines
+  return await syncStatsForDates(livePollCandidateDates())
 }
 
 serveInternal('sync-scores', async (req) => {

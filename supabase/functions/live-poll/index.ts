@@ -15,14 +15,13 @@
  */
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
-import { syncStatsByDate } from '../_shared/syncStats.ts'
+import { syncStatsForDates } from '../_shared/syncStats.ts'
 import { syncScores } from '../_shared/syncScores.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import {
   LIVE_POLL_LEASE_TTL_SECONDS,
   LIVE_POLL_LOCK_KEY,
-  dateFromETDate,
   livePollCandidateDates,
 } from '../_shared/livePoll.ts'
 
@@ -52,7 +51,7 @@ serveInternal('live-poll', async () => {
     if (!cdnGames.length) {
       if (activeGames && activeGames.length > 0) {
         console.log(`[live-poll] ${activeGames.length} DB-active games, CDN unavailable — syncing stats + scores`)
-        await syncCandidateDates(candidateDates)
+        await syncStatsForDates(candidateDates)
         await syncScores()
         return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames.length })
       }
@@ -114,7 +113,7 @@ serveInternal('live-poll', async () => {
     const shouldSync = nowActive > 0 || allDone || (activeGames?.length ?? 0) > 0
     if (shouldSync) {
       console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}`)
-      await syncCandidateDates(candidateDates)
+      await syncStatsForDates(candidateDates)
       await syncScores()
       return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive, allDone })
     }
@@ -129,9 +128,3 @@ serveInternal('live-poll', async () => {
     if (releaseErr) console.error('[live-poll] release lease failed:', releaseErr)
   }
 })
-
-async function syncCandidateDates(candidateDates: string[]): Promise<void> {
-  for (const date of candidateDates) {
-    await syncStatsByDate(dateFromETDate(date))
-  }
-}

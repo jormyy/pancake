@@ -32,7 +32,13 @@ vi.mock('@/lib/draft', () => ({
     withdrawNomination: vi.fn(),
 }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: String, showAlert: vi.fn() }))
-vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn() }))
+// Pass-through debounce: these cases assert loader identity and fail-closed
+// behavior, not coalescing. Burst coalescing is covered in
+// tests/hooks/auction-draft-realtime-coalescing.test.ts against the real helper.
+vi.mock('@/lib/realtime', () => ({
+    reportRealtimeCleanup: vi.fn(),
+    debounceRealtimeRefresh: (onChange: () => void) => ({ trigger: onChange, cancel: () => {} }),
+}))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

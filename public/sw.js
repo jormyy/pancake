@@ -6,7 +6,9 @@
  * - Cross-origin requests (Supabase, realtime, external APIs) are never
  *   intercepted — the app's own offline/empty states handle them.
  */
-const VERSION = 'pancake-v1'
+// Replaced with the release commit by scripts/stamp-release-provenance.mjs at
+// build time, so each deploy gets its own caches and drops the previous ones.
+const VERSION = 'pancake-dev'
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const SHELL_URL = '/'
