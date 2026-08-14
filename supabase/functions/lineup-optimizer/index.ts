@@ -1,7 +1,10 @@
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
-import { SLOT_ELIGIBLE } from '../../../constants/slots.ts'
+// The app-side constants/slots.ts pulls in @pancake/core, which the Deno
+// bundler cannot resolve; use the generated edge-shared map instead. It only
+// lacks the BE entry, which is filtered out before slot filling anyway.
+import { SLOT_ALLOWED_POSITIONS as SLOT_ELIGIBLE } from '../_shared/scoreLineups.ts'
 import { MANUAL_DATE_LIMIT, processManualDates, type ManualOptimizationResult } from './manual.ts'
 
 type OptimizerSetting = {
