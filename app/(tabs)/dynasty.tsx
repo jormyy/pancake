@@ -175,14 +175,19 @@ function RankingsTableHeader() {
 function RankingRow({
     player,
     showStats,
+    narrow,
     onPress,
 }: {
     player: DynastyRankPlayer
     showStats: boolean
+    narrow: boolean
     onPress: () => void
 }) {
     const positions = playerPositions(player)
     const canOpen = player.playerId != null
+    const rowStyle = [styles.rankRow, narrow && styles.rankRowNarrow]
+    const rowTopStyle = [styles.rankRowTop, narrow && styles.rankRowTopNarrow]
+    const rankNumberStyle = [styles.rankNumber, narrow && styles.rankNumberNarrow]
     // hashtagbasketball stacks the write-up directly beneath that player's stats
     // (same column); we mirror that — stats on top, comment on the line below.
     const commentNode = player.comment ? <Text style={styles.comment}>{player.comment}</Text> : null
@@ -191,9 +196,9 @@ function RankingRow({
     // ranked slots (e.g. an incoming 2026 first-rounder), so render a slim row.
     if (player.isDraftPick) {
         return (
-            <View style={styles.rankRow}>
-                <View style={styles.rankRowTop}>
-                    <View style={styles.rankNumber}>
+            <View style={rowStyle}>
+                <View style={rowTopStyle}>
+                    <View style={rankNumberStyle}>
                         <Text style={styles.rankNumberText}>{player.dynastyRank}</Text>
                         <RankMovement value={player.rankChange} />
                     </View>
@@ -213,12 +218,12 @@ function RankingRow({
         <Pressable
             onPress={onPress}
             disabled={!canOpen}
-            style={styles.rankRow}
+            style={rowStyle}
             accessibilityRole={canOpen ? 'button' : undefined}
             accessibilityLabel={canOpen ? `Open ${player.displayName}` : player.displayName}
         >
-            <View style={styles.rankRowTop}>
-                <View style={styles.rankNumber}>
+            <View style={rowTopStyle}>
+                <View style={rankNumberStyle}>
                     <Text style={styles.rankNumberText}>{player.dynastyRank}</Text>
                     <RankMovement value={player.rankChange} />
                 </View>
@@ -290,6 +295,7 @@ export default function DynastyScreen() {
     const { width } = useWindowDimensions()
     const showStats = width >= WIDE_BREAKPOINT
     const narrowSearch = width < 440
+    const narrowLayout = width < 760
     const [tab, setTab] = useState<DynastyTab>('rankings')
     const rankings = useDynastyRankings()
     const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(current?.id, currentLeague?.id)) ?? undefined
@@ -322,7 +328,7 @@ export default function DynastyScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <View style={styles.contentWrap}>
+            <View style={[styles.contentWrap, narrowLayout && styles.contentWrapNarrow]}>
                 <View style={styles.header}>
                     <View style={styles.headerText}>
                         <Text style={styles.title} role="heading" aria-level={1}>Dynasty Hub</Text>
@@ -379,7 +385,7 @@ export default function DynastyScreen() {
                         ) : (
                             <FlashList
                                 data={rankings.players}
-                                extraData={showStats}
+                                extraData={[showStats, narrowLayout]}
                                 keyExtractor={(player) => player.rankingId}
                                 ItemSeparatorComponent={ItemSeparator}
                                 contentContainerStyle={rankings.players.length === 0 && !rankings.loading ? styles.emptyContainer : undefined}
@@ -388,6 +394,7 @@ export default function DynastyScreen() {
                                     <RankingRow
                                         player={item}
                                         showStats={showStats}
+                                        narrow={narrowLayout}
                                         onPress={() => item.playerId && router.push(`/player/${item.playerId}`)}
                                     />
                                 )}
@@ -442,6 +449,7 @@ const styles = StyleSheet.create({
         paddingTop: spacing.xl,
         gap: spacing.lg,
     },
+    contentWrapNarrow: { paddingHorizontal: spacing.md },
     flex1: { flex: 1 },
     header: {
         flexDirection: 'row',
@@ -518,6 +526,10 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
         paddingHorizontal: spacing.lg,
     },
+    // Narrow screens reclaim the wide-layout gutters so rows aren't squished.
+    rankRowNarrow: { paddingHorizontal: spacing.xs },
+    rankRowTopNarrow: { gap: spacing.md },
+    rankNumberNarrow: { width: 30 },
     // Top-aligned so the stats sit level with the player name and the blurb can
     // grow downward beneath them without re-centering the identity column.
     rankRowTop: {

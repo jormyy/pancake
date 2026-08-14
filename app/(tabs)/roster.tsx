@@ -37,6 +37,7 @@ import { autoSetLineup, getLineupContext } from '@/lib/lineup'
 type RosterListItem =
     | { _isHeader: true; _section: string }
     | { _isHeader: false; _isEmpty: true; _section: 'taxi' }
+    | { _isHeader: false; _isEmpty: true; _section: 'active'; _emptyIndex: number }
     | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: 'active' | 'ir' | 'taxi' })
     | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
@@ -335,6 +336,9 @@ export default function RosterScreen() {
         const result: RosterListItem[] = []
         result.push({ _isHeader: true, _section: 'active' })
         for (const p of active) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
+        for (let i = active.length; i < rosterSize; i++) {
+            result.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })
+        }
         if (ir.length > 0) {
             result.push({ _isHeader: true, _section: 'ir' })
             for (const p of ir) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'ir' as const })
@@ -352,7 +356,7 @@ export default function RosterScreen() {
             for (const c of claims) result.push({ ...c, _isHeader: false, _isEmpty: false, _section: 'claims' as const })
         }
         return result
-    }, [active, ir, taxi, picks, claims])
+    }, [active, ir, taxi, picks, claims, rosterSize])
 
     const claimsHeaderIndex = useMemo(
         () => listData.findIndex((item) => item._isHeader && item._section === 'claims'),
@@ -680,7 +684,7 @@ export default function RosterScreen() {
                     data={listData}
                     keyExtractor={(item) =>
                         item._isHeader ? `header-${item._section}`
-                        : item._isEmpty ? `empty-${item._section}`
+                        : item._isEmpty ? `empty-${item._section}-${'_emptyIndex' in item ? item._emptyIndex : 0}`
                         : ('pickId' in item ? item.pickId : item.id)
                     }
                     ItemSeparatorComponent={ItemSeparator}
@@ -704,6 +708,13 @@ export default function RosterScreen() {
                                 : item._section === 'claims' ? 'Waiver Claims'
                                 : 'IR'
                             return <SectionHeader label={label} />
+                        }
+                        if (item._section === 'active' && item._isEmpty) {
+                            return (
+                                <View style={styles.emptySlot}>
+                                    <Text style={styles.emptySlotText}>Empty roster slot</Text>
+                                </View>
+                            )
                         }
                         if (item._section === 'claims') {
                             return (
@@ -965,6 +976,21 @@ const styles = StyleSheet.create({
         color: colors.info,
         letterSpacing: 0.5,
         textTransform: 'uppercase' as const,
+    },
+    emptySlot: {
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: colors.border,
+        borderRadius: radii.md,
+        marginHorizontal: spacing.md,
+        marginVertical: spacing.xs,
+    },
+    emptySlotText: {
+        fontSize: fontSize.sm,
+        color: colors.textPlaceholder,
+        fontStyle: 'italic',
     },
     taxiEmpty: {
         paddingHorizontal: spacing.xl,

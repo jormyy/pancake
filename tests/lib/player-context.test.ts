@@ -19,8 +19,8 @@ describe('player context helpers', () => {
     it('formats experience labels without hiding rookies', () => {
         expect(playerYearsExperienceLabel(null)).toBeNull()
         expect(playerYearsExperienceLabel(0)).toBe('Rookie')
-        expect(playerYearsExperienceLabel(1)).toBe('1 YR')
-        expect(playerYearsExperienceLabel(8)).toBe('8 YR')
+        expect(playerYearsExperienceLabel(1)).toBe('Yr 2')
+        expect(playerYearsExperienceLabel(8)).toBe('Yr 9')
     })
 
     it('combines fantasy points, minutes, and experience in a compact stat line', () => {
@@ -28,7 +28,7 @@ describe('player context helpers', () => {
             avgFantasyPoints: 42.345,
             avgMinutesPlayed: 31,
             yearsExp: 3,
-        })).toBe('42.3 FPts · 31.0 MIN · 3 YR')
+        })).toBe('42.3 FPts · 31.0 MIN · Yr 4')
     })
 
     it('keeps partial and empty stats readable', () => {

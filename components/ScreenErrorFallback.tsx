@@ -62,6 +62,8 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     buttonText: {
         color: colors.textWhite,

@@ -4,7 +4,7 @@ import {
     StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { colors, spacing, layout } from '@/constants/tokens'
+import { colors, spacing, layout, fontSize, fontWeight } from '@/constants/tokens'
 import { ErrorBanner } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
@@ -173,11 +173,14 @@ export default function LeagueScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.contentWrap}>
-                {/* Visually hidden h1: the tab bar is the visible chrome, but web
-                    a11y still needs a page heading anchoring the outline. */}
-                <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
-                    League
-                </Text>
+                <View style={styles.header}>
+                    <Text style={styles.leagueName} role="heading" aria-level={1} accessibilityRole="header">
+                        {screen.currentLeague?.name ?? 'League'}
+                    </Text>
+                    {screen.current?.team_name ? (
+                        <Text style={styles.teamName}>{screen.current.team_name}</Text>
+                    ) : null}
+                </View>
                 <LeagueTabBar activeTab={screen.tab} onTabChange={screen.handleTabChange} compact />
                 <View
                     nativeID={activePanelId}
@@ -198,13 +201,14 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
     contentScroll: { flex: 1 },
-    hiddenHeading: {
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        overflow: 'hidden',
-        opacity: 0,
+    header: {
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.md,
+        paddingHorizontal: spacing.md,
+        gap: 2,
     },
+    leagueName: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    teamName: { fontSize: fontSize.md, color: colors.textSecondary },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

@@ -1,6 +1,7 @@
--- Canonical SQL source for private.current_add_week_number.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- After the season's final scheduled week, private.current_add_week_number
+-- previously froze at max(week_number), so weekly add limits never reset
+-- and members who hit the cap in the last week stayed blocked forever.
+-- The week number now keeps advancing every 7 days past the final week_end.
 
 CREATE OR REPLACE FUNCTION private.current_add_week_number(
   p_league_id uuid,
