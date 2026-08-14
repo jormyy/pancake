@@ -11,7 +11,7 @@ const readyPredicates = {
   'lineup-day-change': `body.includes('Lineup') && document.querySelector('[aria-label="Starters"]') && !body.includes('Loading lineup') && !body.includes('Refreshing lineup')`,
   'player-search-filter': `document.querySelector('input[placeholder="Search players..."]') && /\\d+(?: filtered)? players?/.test(body)`,
   'player-detail-open': `location.pathname.startsWith('/player/') && !body.includes('Player not found') && (body.includes('Averages') || body.includes('Game Log'))`,
-  'roster-review-manage': `document.querySelector('[aria-label="Set lineup"]') && !body.includes('Loading roster')`,
+  'roster-review-manage': `document.querySelector('[aria-label="Set lineup automatically"]') && !body.includes('Loading roster')`,
   'waiver-add-claim': `body.includes('Waiver Claim') && document.querySelector('[aria-label="Submit waiver claim"]') && !body.includes('Loading')`,
   'trade-review-act': `label === 'propose-trade'
     ? document.querySelector('[aria-label="Send trade proposal"]') && !body.includes('Loading trade assets')
@@ -336,11 +336,14 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   }
 
   if (workflowId === 'roster-review-manage') {
+    // Set Lineup now opens the in-place auto-set chooser instead of
+    // navigating to the lineup screen.
     const result = await clickMeasuredTarget(browser, session, {
-      selector: '[aria-label="Set lineup"]', expected: `location.pathname === '/lineup'`,
+      selector: '[aria-label="Set lineup automatically"]',
+      expected: `document.body.innerText.includes('Auto-Set Lineup')`,
       interaction: 'roster-open-lineup', target: 'Set lineup',
     })
-    await browser(session, ['back'])
+    await clickUnmeasured(browser, session, '[aria-label="Cancel auto-set"]')
     await waitForWorkflowReady(browser, session, workflowId, label)
     return result
   }

@@ -3958,6 +3958,7 @@ export type Database = {
         Args: { p_function_name: string; p_hour: number; p_minute?: number }
         Returns: undefined
       }
+      invoke_live_poll_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
       is_regular_season_game_id: {
         Args: { p_game_id: string }
