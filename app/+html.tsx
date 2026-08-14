@@ -6,11 +6,20 @@ import { webChrome } from '@/constants/tokens'
 // Apple install metadata, and registers the offline-shell service worker.
 // Native is unaffected (this file is web-only).
 
-const SW_REGISTER = `
+// Dev is excluded: Metro serves unhashed bundles, so the service worker's
+// stale-while-revalidate would replay outdated module graphs after every edit
+// ("Requiring unknown module"). Registration is a production-build concern only.
+const SW_REGISTER = process.env.NODE_ENV === 'production' ? `
 if ('serviceWorker' in navigator &&
     (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('/sw.js').catch(function () {});
+  });
+}
+` : `
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function (rs) {
+    rs.forEach(function (r) { r.unregister() });
   });
 }
 `

@@ -48,7 +48,7 @@ describe('player-search weekly availability refresh', () => {
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve(); await Promise.resolve() })
         expect(gamesLeft.get('LAL')).toBe(1)
 
-        await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
         expect(gamesLeft.has('LAL')).toBe(false)
 
         mocks.appStateListener?.('background')

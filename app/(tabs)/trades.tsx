@@ -102,7 +102,7 @@ export default function TradesScreen() {
         const result = await getPicksForMember(current.id, leagueId)
         writePersistentCache(picksCacheKey(current.id, leagueId), result)
         return result
-    }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined })
+    }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
 
     useTradeScreenRealtime({
         leagueId,
@@ -202,7 +202,7 @@ export default function TradesScreen() {
         {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'}. Tap to retry.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
         {activeTabLoading ? null
-            : tab === 'picks' && picksError ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>Error: {picksError.message}</Text></View>
+            : tab === 'picks' && picksError ? null
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
                         ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
@@ -226,7 +226,7 @@ function TradeHeader({ disabled, onPropose }: { disabled: boolean; onPropose: ()
 
 function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKey>[]; tab: TradeTabKey; setTab: (tab: TradeTabKey) => void }) {
     return <View style={styles.tabRow}><SegmentedControl options={options} value={tab} onChange={setTab}
-        accessibilityLabel="Trade sections" /></View>
+        scrollable accessibilityLabel="Trade sections" /></View>
 }
 
 const styles = StyleSheet.create({

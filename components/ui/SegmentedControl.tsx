@@ -3,7 +3,7 @@ import { Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type View
 import { Pressable } from 'react-native'
 import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
-import { scheduleWebFocusRecovery } from '@/components/ui/webFocus'
+import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
 
 export type SegmentOption<T extends string> = {
     label: string
@@ -30,20 +30,6 @@ type WebKeyboardEvent = {
 }
 type WebKeyDownProps = {
     onKeyDown?: (event: WebKeyboardEvent) => void
-}
-
-const INTERACTIVE_ROLES = new Set(['button', 'checkbox', 'combobox', 'link', 'menuitem', 'radio', 'switch', 'textbox'])
-
-function shouldRecoverFocus(target: HTMLElement) {
-    const active = document.activeElement
-    if (!active || active === target || active === document.body) return true
-    if (!(active instanceof HTMLElement)) return false
-
-    const role = active.getAttribute('role')
-    if (role === 'tab') return true
-    if (role && INTERACTIVE_ROLES.has(role)) return false
-    if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) return false
-    return !active.isContentEditable
 }
 
 function focusSegment(idBase: string | undefined, value: string, shouldFocus: () => boolean): (() => void) | null {
@@ -192,9 +178,7 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
         minHeight: 44,
         paddingHorizontal: spacing.xl,
-        borderRadius: radii.md,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
+        borderRadius: radii['3xl'],
         backgroundColor: colors.bgMuted,
         borderCurve: 'continuous',
     },

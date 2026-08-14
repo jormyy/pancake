@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
@@ -29,8 +29,9 @@ import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { PlayerRow } from '@/lib/players'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import {
     debounceRealtimeRefresh,
     reportRealtimeCleanup,
@@ -79,6 +80,21 @@ const STAT_LABELS: Record<string, string> = {
 
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
+
+type TransactionState = Awaited<ReturnType<typeof getMemberTransactionState>> | null
+type PlayerSupport = {
+    leagueId: string | null
+    ownedMap: Map<string, OwnedEntry>
+    waiverIds: Set<string>
+    transactionState: TransactionState
+}
+type PlayerSupportCache = {
+    ownedEntries: [string, OwnedEntry][]
+    waiverIds: string[]
+    transactionState: TransactionState
+}
+const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v1:'
+const supportCacheKey = (memberId: string, leagueId: string) => `${SUPPORT_CACHE_PREFIX}${leagueId}:${memberId}`
 
 function PlayerTableHeader({
     activeSort,
@@ -139,29 +155,40 @@ export default function PlayersScreen() {
     const [filtersOpen, setFiltersOpen] = useState(false)
     const filtersVisible = !collapsibleFilters || filtersOpen
 
-    const scrollY = useRef(0)
     const expandAnim = useRef(new Animated.Value(1)).current
+    const [scrolledPastHeader, setScrolledPastHeader] = useState(false)
     const handleScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
-        const y = event.nativeEvent.contentOffset.y
-        const wasMinimized = scrollY.current > 40
-        scrollY.current = y
-        const shouldMinimize = y > 40
-        if (shouldMinimize !== wasMinimized) {
-            Animated.spring(expandAnim, {
-                toValue: shouldMinimize ? 0 : 1,
-                useNativeDriver: false,
-                tension: 100,
-                friction: 14,
-            }).start()
+        setScrolledPastHeader(event.nativeEvent.contentOffset.y > 40)
+    }, [])
+    // Expanded whenever the user explicitly opened the filters — an open
+    // toggle must never point at a collapsed (scroll-minimized) body.
+    useEffect(() => {
+        Animated.spring(expandAnim, {
+            toValue: filtersOpen || !scrolledPastHeader ? 1 : 0,
+            useNativeDriver: false,
+            tension: 100,
+            friction: 14,
+        }).start()
+    }, [expandAnim, filtersOpen, scrolledPastHeader])
+
+    const cachedSupport = useMemo<PlayerSupport | undefined>(() => {
+        if (!current?.id || !leagueId) return undefined
+        const cached = readPersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId))
+        if (!cached) return undefined
+        return {
+            leagueId,
+            ownedMap: new Map(cached.ownedEntries),
+            waiverIds: new Set(cached.waiverIds),
+            transactionState: cached.transactionState,
         }
-    }, [expandAnim])
+    }, [current?.id, leagueId])
 
     const {
         data: playerSupport,
         loading: playerSupportFetchLoading,
         error: playerSupportError,
         refresh: refreshPlayerSupport,
-    } = useFocusAsyncData(async () => {
+    } = useFocusAsyncData<PlayerSupport>(async () => {
         if (!leagueId) {
             return {
                 leagueId: null,
@@ -174,8 +201,15 @@ export default function PlayersScreen() {
             getPlayerAvailabilitySnapshot(leagueId),
             current?.id ? getMemberTransactionState(current.id, leagueId) : Promise.resolve(null),
         ])
+        if (current?.id) {
+            writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
+                ownedEntries: Array.from(availability.ownedMap.entries()),
+                waiverIds: Array.from(availability.waiverIds),
+                transactionState,
+            })
+        }
         return { ...availability, transactionState }
-    }, [current?.id, leagueId])
+    }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
 
     useEffect(() => {
         if (!leagueId) return
@@ -225,10 +259,10 @@ export default function PlayersScreen() {
         refreshPlayerSupport,
         refreshPlayerSupport,
     )
-    const gamesLeftVersion = Array.from(search.availability.gamesLeft.entries())
+    const gamesLeftVersion = useMemo(() => Array.from(search.availability.gamesLeft.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
-        .join(',')
+        .join(','), [search.availability.gamesLeft])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -257,7 +291,7 @@ export default function PlayersScreen() {
             <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
                 Players
             </Text>
-            <View style={[styles.filterCard, { gap: 0 }]}>
+            <View style={[styles.filterCard, collapsibleFilters && localStyles.filterCardCompact, { gap: 0 }]}>
                 <View style={styles.filterCardTop}>
                     <TextInput
                         style={styles.searchInput}
@@ -268,10 +302,42 @@ export default function PlayersScreen() {
                         autoCorrect={false}
                         clearButtonMode="while-editing"
                     />
-                    <Text style={styles.resultCountText}>
-                        {search.results.loading && search.results.players.length === 0
-                            ? '— players'
-                            : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
+                    {collapsibleFilters ? (
+                        <Pressable
+                            style={localStyles.filterToggleChip}
+                            onPress={() => setFiltersOpen((v) => !v)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${filtersOpen ? 'Hide' : 'Show'} filters`}
+                            accessibilityState={{ expanded: filtersOpen }}
+                        >
+                            <Text style={localStyles.filterToggleChipText}>Filters</Text>
+                            {search.activeFilterCount > 0 ? (
+                                <View style={styles.filterCountDot}>
+                                    <Text style={styles.filterCountDotText}>{search.activeFilterCount}</Text>
+                                </View>
+                            ) : null}
+                            <Text style={styles.filterSelectCaret}>{filtersOpen ? '▴' : '▾'}</Text>
+                        </Pressable>
+                    ) : (
+                        <Text style={styles.resultCountText}>
+                            {search.results.loading && search.results.players.length === 0
+                                ? '— players'
+                                : `${search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} player${search.results.players.length === 1 ? '' : 's'}`}
+                        </Text>
+                    )}
+                </View>
+                <View style={localStyles.metaLine}>
+                    <Text style={localStyles.metaLineText} numberOfLines={1}>
+                        {collapsibleFilters
+                            ? `${search.results.loading && search.results.players.length === 0 ? '—' : search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} players · `
+                            : ''}
+                        Adds {transactionState ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'}` : '—/—'}
+                        {' · '}
+                        {transactionState
+                            ? transactionState.waiverMode === 'faab'
+                                ? `FAAB $${transactionState.faabBalance}`
+                                : 'Rolling waivers'
+                            : 'Waivers —'}
                     </Text>
                 </View>
                 <Animated.View style={{
@@ -279,33 +345,20 @@ export default function PlayersScreen() {
                     maxHeight: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 600] }),
                     opacity: expandAnim,
                 }}>
-                    <View style={{ gap: spacing.xl, paddingTop: spacing.xl }}>
-                        <View style={styles.filterCardHeader}>
-                            {collapsibleFilters ? (
-                                <Pressable
-                                    style={styles.filterToggle}
-                                    onPress={() => setFiltersOpen((v) => !v)}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`${filtersOpen ? 'Hide' : 'Show'} filters`}
-                                    accessibilityState={{ expanded: filtersOpen }}
-                                >
-                                    <Text style={styles.filterCardTitle}>Filters</Text>
-                                    {search.activeFilterCount > 0 ? (
-                                        <View style={styles.filterCountDot}>
-                                            <Text style={styles.filterCountDotText}>{search.activeFilterCount}</Text>
-                                        </View>
-                                    ) : null}
-                                    <Text style={styles.filterSelectCaret}>{filtersOpen ? '▴' : '▾'}</Text>
-                                </Pressable>
-                            ) : (
-                                <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
-                            )}
-                            {search.activeFilterCount > 0 ? (
-                                <Pressable style={styles.clearAllChip} onPress={search.clearAllFilters}>
-                                    <Text style={styles.clearAllChipText}>Clear all ({search.activeFilterCount})</Text>
-                                </Pressable>
-                            ) : null}
-                        </View>
+                    {!filtersVisible && search.activeFilterCount === 0 ? null : (
+                    <View style={{ gap: spacing.lg, paddingTop: spacing.lg }}>
+                        {!collapsibleFilters || search.activeFilterCount > 0 ? (
+                            <View style={styles.filterCardHeader}>
+                                {!collapsibleFilters ? (
+                                    <Text style={styles.filterCardTitle} role="heading" aria-level={2}>Filters</Text>
+                                ) : <View />}
+                                {search.activeFilterCount > 0 ? (
+                                    <Pressable style={styles.clearAllChip} onPress={search.clearAllFilters}>
+                                        <Text style={styles.clearAllChipText}>Clear all ({search.activeFilterCount})</Text>
+                                    </Pressable>
+                                ) : null}
+                            </View>
+                        ) : null}
                         {filtersVisible ? (
                         <View style={styles.filterGrid}>
                             <FilterSelect
@@ -363,21 +416,8 @@ export default function PlayersScreen() {
                             </Pressable>
                         </View>
                         ) : null}
-                        {leagueId ? (
-                            <View style={localStyles.transactionBar}>
-                                <Text style={localStyles.transactionBarText}>
-                                    Adds: {transactionState ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? 'Unlimited'}` : '—/—'} this week
-                                </Text>
-                                <Text style={localStyles.transactionBarText}>
-                                    {transactionState
-                                        ? transactionState.waiverMode === 'faab'
-                                        ? `FAAB: $${transactionState.faabBalance}`
-                                        : 'Waivers: rolling priority'
-                                        : 'Waivers: —'}
-                                </Text>
-                            </View>
-                        ) : null}
                     </View>
+                    )}
                 </Animated.View>
             </View>
 
@@ -454,20 +494,36 @@ export default function PlayersScreen() {
 }
 
 const localStyles = StyleSheet.create({
-    transactionBar: {
-        minHeight: 36,
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: spacing.md,
-        borderTopWidth: 1,
-        borderTopColor: colors.borderLight,
-        paddingTop: spacing.md,
+    filterCardCompact: {
+        marginTop: spacing.md,
+        marginHorizontal: spacing.sm,
+        marginBottom: spacing.md,
+        padding: spacing.lg,
     },
-    transactionBarText: {
+    filterToggleChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        minHeight: 44,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous',
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgMuted,
+    },
+    filterToggleChipText: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
+    },
+    metaLine: {
+        paddingTop: spacing.sm,
+    },
+    metaLineText: {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.semibold,
+        color: colors.textMuted,
     },
 })
 

@@ -50,7 +50,12 @@ async function loadSnapshot(date: string): Promise<void> {
             getLivePlayerStats(date).catch(() => previous.liveStats),
             getStartedTeams(date).catch(() => previous.startedTeams),
             getTeamMatchups(date).catch(() => previous.teamMatchups),
-            isToday ? getTodaysGames().catch(() => previous.todaysGames) : Promise.resolve(previous.todaysGames),
+            isToday
+                ? getTodaysGames().then((games) => {
+                    todaysGamesFetchedAt = Date.now()
+                    return games
+                }).catch(() => previous.todaysGames)
+                : Promise.resolve(previous.todaysGames),
         ])
 
         const snapshot = { todaysGames, liveStats, startedTeams, teamMatchups }
@@ -66,6 +71,17 @@ async function loadSnapshot(date: string): Promise<void> {
     return task
 }
 
+let pollTick = 0
+let todaysGamesFetchedAt = 0
+
+function anyGameInProgress(date: string): boolean {
+    // A persistently failing games endpoint keeps serving the last snapshot;
+    // don't let a frozen "InProgress" pin the aggressive poll + lineup
+    // reload fan-out forever.
+    if (Date.now() - todaysGamesFetchedAt > 15 * 60_000) return false
+    return snapshots.get(date)?.todaysGames.some((g) => g.status === 'InProgress') ?? false
+}
+
 function ensureTodayPoll() {
     if (todayPoll) return
     todayPoll = setInterval(async () => {
@@ -76,7 +92,17 @@ function ensureTodayPoll() {
             return
         }
 
+        // With no game in progress nothing is changing — back the poll off to
+        // one snapshot per minute and skip the silent-refresh fan-out (which
+        // reloads both visible lineups) entirely until play resumes.
+        pollTick += 1
+        const wasLive = anyGameInProgress(today)
+        if (!wasLive && pollTick % 4 !== 0) return
+
         await loadSnapshot(today)
+        // Fan out while games are live AND on the tick where the last game
+        // flips to Final, so closing box scores still reach the lineups.
+        if (!wasLive && !anyGameInProgress(today)) return
         for (const listener of silentRefreshListenersByDate.get(today) ?? []) listener()
     }, 15_000)
 }

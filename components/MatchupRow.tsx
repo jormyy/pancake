@@ -402,7 +402,7 @@ function MatchupRowImpl({
                     ? `Select ${slotType} slot, ${myPlayer.displayName}`
                     : `Select empty ${slotType} slot ${selIndex + 1}`}
                 accessibilityState={{ disabled: saving || isExtraOppRow, selected: isSel }}
-                hitSlop={7}
+                hitSlop={dense ? 10 : 7}
                 pressedScale={0.88}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>

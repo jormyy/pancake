@@ -36,7 +36,11 @@ export function useTradeScreenRealtime({
         const history = debounceRealtimeRefresh(() => {
             if (activeTabRef.current === 'history') void refreshHistory()
         })
-        const tradeBlock = debounceRealtimeRefresh(() => { void refreshTradeBlock() })
+        // The block feed is only visible on the block tabs; those tabs refetch on
+        // entry, so skip the (full block + roster) reload while elsewhere.
+        const tradeBlock = debounceRealtimeRefresh(() => {
+            if (activeTabRef.current === 'block' || activeTabRef.current === 'leagueBlock') void refreshTradeBlock()
+        })
         const draftPicks = debounceRealtimeRefresh(() => { void refreshDraftPicks() })
         const channel = subscribeToTableChanges(`trades-screen:${leagueId}:${memberId}`, {
             mode: 'per-watch',

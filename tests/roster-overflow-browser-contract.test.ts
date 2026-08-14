@@ -10,7 +10,7 @@ describe('roster overflow browser contract', () => {
         const trimBanner = read('components/roster/RosterTrimBanner.tsx')
 
         expect(rosterScreen).toContain('Trim Roster First')
-        expect(rosterScreen).toContain('disabled={rosterOverflow > 0}')
+        expect(rosterScreen).toContain('disabled={rosterOverflow > 0 || autoSetting}')
         expect(rosterScreen).toContain('<RosterTrimBanner')
         expect(trimBanner).toContain('Trim roster: {excess} over limit')
         expect(trimBanner).toContain('Drop ${player.players.display_name}')

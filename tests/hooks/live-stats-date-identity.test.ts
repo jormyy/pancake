@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/games', () => ({
-    getTodaysGames: vi.fn(async () => []),
+    // An in-progress game keeps the poll in live mode: silent-refresh listeners
+    // only fire while at least one game is being played.
+    getTodaysGames: vi.fn(async () => [{ status: 'InProgress', home_team: 'LAL', away_team: 'BOS' }]),
     getLivePlayerStats: mocks.getLivePlayerStats,
 }))
 vi.mock('@/lib/lineup', () => ({

@@ -68,8 +68,33 @@ export function useLeagueScreenState() {
                 refreshMockRooms.trigger()
             },
         })
-        const draftFilter = currentDraftKey ? `draft_id=in.(${currentDraftKey})` : null
-        const draftWatches: TableChangeWatch[] = draftFilter ? [
+        // League-wide watches live on a stable channel so mock-room churn (which
+        // changes the draft-id set below) doesn't tear down every subscription.
+        const channel = subscribeToTableChanges(`league-screen:${lid}`, {
+            mode: 'per-watch',
+            watches: leagueWatches,
+        })
+        return () => reportRealtimeCleanup(
+            'league screen',
+            disposeTableChangeSubscription(channel, [
+                refreshResults,
+                refreshHistory,
+                refreshSettings,
+                refreshDraftBoard,
+                refreshMockRooms,
+                refreshDraftState,
+            ]),
+        )
+    }, [currentLeague?.id, fetchActiveDraft, invalidateTab])
+
+    useEffect(() => {
+        const lid = currentLeague?.id
+        if (!lid || !currentDraftKey) return
+        const refreshDraftBoard = debounceRealtimeRefresh(() => { invalidateTab('draftBoard') })
+        const refreshMockRooms = debounceRealtimeRefresh(() => { invalidateTab('mockRooms') })
+        const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
+        const draftFilter = `draft_id=in.(${currentDraftKey})`
+        const draftWatches: TableChangeWatch[] = [
             { table: 'draft_room_members', filter: draftFilter, onChange: () => {
                 refreshDraftState.trigger()
                 refreshMockRooms.trigger()
@@ -78,17 +103,14 @@ export function useLeagueScreenState() {
                 refreshDraftBoard.trigger()
                 refreshDraftState.trigger()
             } },
-        ] : []
-        const channel = subscribeToTableChanges(`league-screen:${lid}:${currentDraftKey || 'none'}`, {
+        ]
+        const channel = subscribeToTableChanges(`league-screen-drafts:${lid}:${currentDraftKey}`, {
             mode: 'per-watch',
-            watches: [...leagueWatches, ...draftWatches],
+            watches: draftWatches,
         })
         return () => reportRealtimeCleanup(
-            'league screen',
+            'league screen drafts',
             disposeTableChangeSubscription(channel, [
-                refreshResults,
-                refreshHistory,
-                refreshSettings,
                 refreshDraftBoard,
                 refreshMockRooms,
                 refreshDraftState,

@@ -7,18 +7,20 @@ export function AutoSetModal({
     onToday,
     onWholeWeek,
     onRestOfSeason,
-    seasonOptimizerEnabled,
+    seasonOptimizerEnabled = false,
     onEnableSeasonOptimizer,
     onDisableSeasonOptimizer,
+    onEditManually,
 }: {
     visible: boolean
     onClose: () => void
     onToday: () => void
     onWholeWeek: () => void
     onRestOfSeason: () => void
-    seasonOptimizerEnabled: boolean
-    onEnableSeasonOptimizer: () => void
-    onDisableSeasonOptimizer: () => void
+    seasonOptimizerEnabled?: boolean
+    onEnableSeasonOptimizer?: () => void
+    onDisableSeasonOptimizer?: () => void
+    onEditManually?: () => void
 }) {
     return (
         <Modal
@@ -57,16 +59,28 @@ export function AutoSetModal({
                     >
                         <Text style={styles.buttonText}>Rest of Season</Text>
                     </Pressable>
-                    <Pressable
-                        style={[styles.seasonButton, seasonOptimizerEnabled && styles.secondaryButton]}
-                        onPress={seasonOptimizerEnabled ? onDisableSeasonOptimizer : onEnableSeasonOptimizer}
-                        accessibilityRole="button"
-                        accessibilityLabel={seasonOptimizerEnabled ? 'Disable season optimizer' : 'Enable season optimizer'}
-                    >
-                        <Text style={[styles.buttonText, seasonOptimizerEnabled && styles.secondaryButtonText]}>
-                            {seasonOptimizerEnabled ? 'Disable Season Optimizer' : 'Enable Season Optimizer'}
-                        </Text>
-                    </Pressable>
+                    {onEnableSeasonOptimizer && onDisableSeasonOptimizer ? (
+                        <Pressable
+                            style={[styles.seasonButton, seasonOptimizerEnabled && styles.secondaryButton]}
+                            onPress={seasonOptimizerEnabled ? onDisableSeasonOptimizer : onEnableSeasonOptimizer}
+                            accessibilityRole="button"
+                            accessibilityLabel={seasonOptimizerEnabled ? 'Disable season optimizer' : 'Enable season optimizer'}
+                        >
+                            <Text style={[styles.buttonText, seasonOptimizerEnabled && styles.secondaryButtonText]}>
+                                {seasonOptimizerEnabled ? 'Disable Season Optimizer' : 'Enable Season Optimizer'}
+                            </Text>
+                        </Pressable>
+                    ) : null}
+                    {onEditManually ? (
+                        <Pressable
+                            style={styles.cancel}
+                            onPress={onEditManually}
+                            accessibilityRole="button"
+                            accessibilityLabel="Edit lineup manually"
+                        >
+                            <Text style={styles.editManuallyText}>Edit manually instead</Text>
+                        </Pressable>
+                    ) : null}
                     <Pressable
                         style={styles.cancel}
                         onPress={onClose}
@@ -101,4 +115,5 @@ const styles = StyleSheet.create({
     secondaryButtonText: { color: colors.textSecondary },
     cancel: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     cancelText: { fontSize: fontSize.md + 1, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    editManuallyText: { fontSize: fontSize.md + 1, fontWeight: fontWeight.semibold, color: colors.primary },
 })

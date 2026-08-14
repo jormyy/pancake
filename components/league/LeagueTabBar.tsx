@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text } from 'react-native'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useWebViewport } from '@/hooks/use-web-viewport'
+import { nextRovingIndex } from '@/components/ui/rovingFocus'
+import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
 import { LEAGUE_TABS, type LeagueTab } from '@/lib/league/tabs'
 
 type LeagueTabBarProps = {
@@ -23,44 +25,18 @@ type WebKeyDownProps = {
     onKeyDown?: (event: WebKeyboardEvent) => void
 }
 
-const FOCUS_RECOVERY_DELAYS = [0, 50, 150, 350, 700, 1200, 2000, 3000] as const
-const INTERACTIVE_ROLES = new Set(['button', 'checkbox', 'combobox', 'link', 'menuitem', 'radio', 'switch', 'textbox'])
-
-function nextTabIndex(currentIndex: number, key: string, count: number): number | null {
-    if (key === 'ArrowRight' || key === 'ArrowDown') return (currentIndex + 1) % count
-    if (key === 'ArrowLeft' || key === 'ArrowUp') return (currentIndex - 1 + count) % count
-    if (key === 'Home') return 0
-    if (key === 'End') return count - 1
-    return null
-}
-
 function leagueTabBarAccessibilityLabel(activeTab: LeagueTab) {
     return `League sections, ${TAB_LABELS[activeTab]} selected`
 }
 
-function shouldRecoverFocus(target: HTMLElement) {
-    const active = document.activeElement
-    if (!active || active === target || active === document.body) return true
-    if (!(active instanceof HTMLElement)) return false
-
-    const role = active.getAttribute('role')
-    if (role === 'tab') return true
-    if (role && INTERACTIVE_ROLES.has(role)) return false
-    if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(active.tagName)) return false
-    return !active.isContentEditable
-}
-
-function focusLeagueTab(tab: LeagueTab, shouldFocus: () => boolean) {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return
+function focusLeagueTab(tab: LeagueTab, shouldFocus: () => boolean): (() => void) | null {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return null
     const focus = () => {
         if (!shouldFocus()) return
         const target = document.getElementById(`league-tab-${tab}`)
         if (target instanceof HTMLElement && shouldRecoverFocus(target)) target.focus()
     }
-    for (const delay of FOCUS_RECOVERY_DELAYS) {
-        if (delay === 0) requestAnimationFrame(focus)
-        else setTimeout(focus, delay)
-    }
+    return scheduleWebFocusRecovery(focus)
 }
 
 export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
@@ -69,11 +45,15 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     const compactTabs = compactLandscape || compactShortPortrait
     const pendingFocusTab = useRef<LeagueTab | null>(null)
     const focusRequestId = useRef(0)
+    const cancelFocusRecovery = useRef<(() => void) | null>(null)
 
     const scheduleTabFocus = useCallback((tab: LeagueTab) => {
         const requestId = ++focusRequestId.current
-        focusLeagueTab(tab, () => focusRequestId.current === requestId)
+        cancelFocusRecovery.current?.()
+        cancelFocusRecovery.current = focusLeagueTab(tab, () => focusRequestId.current === requestId)
     }, [])
+
+    useEffect(() => () => cancelFocusRecovery.current?.(), [])
 
     useEffect(() => {
         if (pendingFocusTab.current !== activeTab) return
@@ -88,7 +68,7 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     }
 
     function handleKeyDown(event: WebKeyboardEvent, index: number) {
-        const nextIndex = nextTabIndex(index, event.key, LEAGUE_TABS.length)
+        const nextIndex = nextRovingIndex(index, event.key, LEAGUE_TABS.length)
         if (nextIndex == null) return
 
         event.preventDefault?.()

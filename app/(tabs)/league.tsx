@@ -4,7 +4,7 @@ import {
     StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { colors, fontSize, fontWeight, spacing, layout } from '@/constants/tokens'
+import { colors, spacing, layout } from '@/constants/tokens'
 import { ErrorBanner } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
@@ -23,7 +23,6 @@ const LEAGUE_TAB_LABELS = Object.fromEntries(
 
 export default function LeagueScreen() {
     const screen = useLeagueScreenState()
-    const compactLeagueHeader = true
     const activePanelId = `league-panel-${screen.tab}`
     const activeTabId = `league-tab-${screen.tab}`
     const activeTabLabel = LEAGUE_TAB_LABELS[screen.tab]
@@ -36,10 +35,6 @@ export default function LeagueScreen() {
         }
         return <NoLeagueState />
     }
-
-    const currentLeagueName = screen.currentLeague?.name ?? 'League'
-    const currentTeamName = screen.current.team_name ?? 'Team'
-    const compactIdentityLabel = `${currentLeagueName}, ${currentTeamName}`
 
     function renderTabContent() {
         if (screen.tabErr && !screen.isTabLoading) {
@@ -178,19 +173,12 @@ export default function LeagueScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.contentWrap}>
-                <View style={[styles.header, compactLeagueHeader && styles.headerCompact]}>
-                    <View
-                        style={styles.compactLeagueCrumb}
-                        role="region"
-                        aria-label={compactIdentityLabel}
-                        accessibilityLabel={compactIdentityLabel}
-                    >
-                        <Text style={styles.compactLeagueName} numberOfLines={1}>{currentLeagueName}</Text>
-                        <View style={styles.compactLeagueDot} />
-                        <Text style={styles.compactTeamName} numberOfLines={1}>{currentTeamName}</Text>
-                    </View>
-                </View>
-                <LeagueTabBar activeTab={screen.tab} onTabChange={screen.handleTabChange} compact={compactLeagueHeader} />
+                {/* Visually hidden h1: the tab bar is the visible chrome, but web
+                    a11y still needs a page heading anchoring the outline. */}
+                <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
+                    League
+                </Text>
+                <LeagueTabBar activeTab={screen.tab} onTabChange={screen.handleTabChange} compact />
                 <View
                     nativeID={activePanelId}
                     style={styles.contentScroll}
@@ -210,40 +198,12 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
     contentScroll: { flex: 1 },
-    header: {
-        marginHorizontal: spacing.lg,
-        marginTop: spacing.md,
-        marginBottom: spacing.sm,
-    },
-    headerCompact: {
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-    },
-    compactLeagueCrumb: {
-        minHeight: 24,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-    },
-    compactLeagueName: {
-        flex: 1.2,
-        minWidth: 0,
-        color: colors.textPrimary,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.extrabold,
-    },
-    compactLeagueDot: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: colors.border,
-    },
-    compactTeamName: {
-        flex: 1,
-        minWidth: 0,
-        color: colors.textSecondary,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.medium,
+    hiddenHeading: {
+        position: 'absolute',
+        width: 1,
+        height: 1,
+        overflow: 'hidden',
+        opacity: 0,
     },
 })
 

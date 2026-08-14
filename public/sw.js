@@ -56,10 +56,15 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Only refresh the cached shell from a successful, same-origin,
-          // non-redirected response — never let a 404/502 (e.g. mid-deploy or an
-          // un-rewritten deep path) poison the offline shell.
-          if (response && response.ok && response.type === 'basic') {
+          // Only refresh the cached shell from a successful navigation to "/"
+          // itself. The web build is a per-route static export and the host
+          // rewrites unknown paths to +not-found.html with HTTP 200, so caching
+          // any other route's document here would poison the offline shell
+          // (worst case: offline launches boot into the 404 screen).
+          if (
+            response && response.ok && response.type === 'basic' &&
+            new URL(response.url || request.url).pathname === SHELL_URL
+          ) {
             const copy = response.clone()
             caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy))
           }

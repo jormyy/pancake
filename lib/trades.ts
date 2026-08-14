@@ -550,7 +550,7 @@ function enrichItemsWithStats<Item extends TradeItem>(
 }
 
 async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise<Trade[]> {
-    const playerIds = trades.flatMap((trade) => playerIdsFromItems(trade.routedItems))
+    const playerIds = [...new Set(trades.flatMap((trade) => playerIdsFromItems(trade.routedItems)))]
     if (playerIds.length === 0) return trades
 
     let avgMap: Map<string, number>

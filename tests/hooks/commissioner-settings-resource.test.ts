@@ -27,6 +27,8 @@ vi.mock('@/lib/league', () => ({
 }))
 vi.mock('@/lib/shared/api', () => ({ apiPost: mocks.apiPost }))
 vi.mock('@/lib/rookieDraft', () => ({ advanceSeason: vi.fn() }))
+vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
+vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/constants/tokens', () => ({ colors: { danger: '#f00', primaryDark: '#000' } }))
 vi.mock('@/lib/alert', () => ({
     confirmAction: vi.fn(),
