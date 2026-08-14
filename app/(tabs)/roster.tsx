@@ -28,9 +28,11 @@ import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } fro
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { Avatar } from '@/components/Avatar'
-import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { debounceRealtimeRefresh, reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
+import { AutoSetModal } from '@/components/AutoSetModal'
+import { autoSetLineup, getLineupContext } from '@/lib/lineup'
 
 type RosterListItem =
     | { _isHeader: true; _section: string }
@@ -237,6 +239,9 @@ export default function RosterScreen() {
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
+    const [autoSetVisibleRaw, setAutoSetVisible] = useState(false)
+    const [autoSettingRaw, setAutoSetting] = useState(false)
+    const autoSetRunningRef = useRef(false)
     const rosterRecoveryRunnerRef = useRef(createRosterRecoveryRunner())
     const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
@@ -249,6 +254,13 @@ export default function RosterScreen() {
     }
     const isCurrentAction = (generation: number, identity: string | null) =>
         actionGenerationRef.current === generation && activeOwnerRef.current === identity
+    // Effects run post-commit, so mask cross-league leakage for the one commit
+    // between a league switch and the reset effect below (mirrors the
+    // ownsActionState pattern in use-lineup-actions).
+    const [stateOwnerIdentity, setStateOwnerIdentity] = useState(ownerIdentity)
+    const ownsActionState = stateOwnerIdentity === ownerIdentity
+    const autoSetVisible = ownsActionState && autoSetVisibleRaw
+    const autoSetting = ownsActionState && autoSettingRaw
 
     useEffect(() => {
         rosterRecoveryRunnerRef.current = createRosterRecoveryRunner()
@@ -256,6 +268,10 @@ export default function RosterScreen() {
         setTaxiingId(null)
         setCancellingId(null)
         setDroppingId(null)
+        setAutoSetVisible(false)
+        setAutoSetting(false)
+        autoSetRunningRef.current = false
+        setStateOwnerIdentity(ownerIdentity)
     }, [ownerIdentity])
 
     const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
@@ -271,11 +287,14 @@ export default function RosterScreen() {
         const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority }
         writeRosterCache(current.id, leagueId, result)
         return result
-    }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined })
+    }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined, staleMs: 300_000 })
 
     useEffect(() => {
         if (!current?.id || !leagueId) return
 
+        // Debounced: waiver-processing batches touch several of these tables in
+        // one burst — one reload, not one per row event.
+        const refreshRoster = debounceRealtimeRefresh(() => { void refresh() })
         const channel = subscribeToTableChanges(
             `roster-screen:${leagueId}:${current.id}`,
             { mode: 'fallback', watches: [
@@ -284,10 +303,13 @@ export default function RosterScreen() {
                 { table: 'waiver_claims', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_priorities', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
-            ], onChange: () => { void refresh() } },
+            ], onChange: refreshRoster.trigger },
         )
 
-        return () => reportRealtimeCleanup('roster', unsubscribeFromTableChanges(channel))
+        return () => {
+            refreshRoster.cancel()
+            reportRealtimeCleanup('roster', unsubscribeFromTableChanges(channel))
+        }
     }, [current?.id, leagueId, refresh])
 
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
@@ -452,6 +474,44 @@ export default function RosterScreen() {
         })
     }
 
+    async function runAutoSet(mode: 'today' | 'week' | 'season') {
+        // Ref latch: state alone can't stop a same-frame double-tap (both taps
+        // read the pre-commit value).
+        if (!current || !leagueId || autoSetRunningRef.current) return
+        autoSetRunningRef.current = true
+        setAutoSetVisible(false)
+        setAutoSetting(true)
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        try {
+            const ctx = await getLineupContext(leagueId)
+            if (!ctx) {
+                showAlert('No active season', 'Lineups open once the season starts.')
+                return
+            }
+            const result = await autoSetLineup(
+                current.id, leagueId, ctx.seasonId, ctx.weekNumber, ctx.seasonYear,
+                mode === 'today' ? ctx.today : null, mode === 'season',
+            )
+            if (!isCurrentAction(generation, identity)) return
+            if (mode === 'season' && result?.failed) {
+                showAlert('Lineup partly optimized', `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`)
+            } else {
+                showAlert(
+                    'Lineup set',
+                    mode === 'today' ? 'Your best lineup is set for today.'
+                        : mode === 'week' ? 'Your best lineup is set for the whole week.'
+                            : 'Your best lineup is set for the rest of the season.',
+                )
+            }
+        } catch (e) {
+            if (isCurrentAction(generation, identity)) showAlert('Auto-set failed', getErrorMessage(e))
+        } finally {
+            autoSetRunningRef.current = false
+            if (isCurrentAction(generation, identity)) setAutoSetting(false)
+        }
+    }
+
     function handleDropPrompt(item: RosterPlayer) {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
@@ -570,15 +630,15 @@ export default function RosterScreen() {
                 </View>
                 {roster.length > 0 ? (
                     <Pressable
-                        style={[styles.lineupButton, rosterOverflow > 0 && styles.lineupButtonDisabled]}
-                        onPress={rosterOverflow > 0 ? undefined : () => push('/(modals)/lineup')}
-                        disabled={rosterOverflow > 0}
+                        style={[styles.lineupButton, (rosterOverflow > 0 || autoSetting) && styles.lineupButtonDisabled]}
+                        onPress={rosterOverflow > 0 || autoSetting ? undefined : () => setAutoSetVisible(true)}
+                        disabled={rosterOverflow > 0 || autoSetting}
                         accessibilityRole="button"
-                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Set lineup'}
-                        accessibilityState={{ disabled: rosterOverflow > 0 }}
+                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Set lineup automatically'}
+                        accessibilityState={{ disabled: rosterOverflow > 0 || autoSetting }}
                     >
-                        <Text style={[styles.lineupButtonText, rosterOverflow > 0 && styles.lineupButtonTextDisabled]}>
-                            {rosterOverflow > 0 ? 'Trim Roster First' : 'Set Lineup'}
+                        <Text style={[styles.lineupButtonText, (rosterOverflow > 0 || autoSetting) && styles.lineupButtonTextDisabled]}>
+                            {rosterOverflow > 0 ? 'Trim Roster First' : autoSetting ? 'Setting…' : 'Set Lineup'}
                         </Text>
                     </Pressable>
                 ) : null}
@@ -736,6 +796,15 @@ export default function RosterScreen() {
                     }}
                 />
             )}
+
+            <AutoSetModal
+                visible={autoSetVisible}
+                onClose={() => setAutoSetVisible(false)}
+                onToday={() => { void runAutoSet('today') }}
+                onWholeWeek={() => { void runAutoSet('week') }}
+                onRestOfSeason={() => { void runAutoSet('season') }}
+                onEditManually={() => { setAutoSetVisible(false); push('/(modals)/lineup') }}
+            />
         </SafeAreaView>
     )
 }

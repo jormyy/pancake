@@ -9,18 +9,38 @@ export { calculateWeekNumberFromDate }
  * Finds the seeded week containing today, the next future week, or the final
  * seeded week after the season ends.
  */
-export async function getCurrentWeekNumber(seasonYear: number): Promise<number | null> {
+// Seeded week ranges are static for a season, and the resolved answer only
+// changes when the ET day changes — memoize per (seasonYear, ET day) so every
+// screen load doesn't refetch the whole season_weeks list.
+const weekNumberCache = new Map<string, Promise<number | null>>()
+
+/** Drops memoized week lookups (tests / commissioner schedule edits). */
+export function invalidateWeekNumberCache() {
+    weekNumberCache.clear()
+}
+
+export function getCurrentWeekNumber(seasonYear: number): Promise<number | null> {
     // season_weeks.week_start / week_end are ET-aligned (backend uses toETDate);
     // use todayET so non-ET clients don't fall into the wrong fantasy week
     // during the 0–3h local-vs-ET skew.
     const today = todayET()
+    const cacheKey = `${seasonYear}:${today}`
+    const hit = weekNumberCache.get(cacheKey)
+    if (hit) return hit
 
-    const { data, error } = await supabase
-        .from('season_weeks')
-        .select('week_number, week_start, week_end')
-        .eq('season_year', seasonYear)
-        .order('week_number', { ascending: true })
-    if (error) throw error
+    const promise = (async () => {
+        const { data, error } = await supabase
+            .from('season_weeks')
+            .select('week_number, week_start, week_end')
+            .eq('season_year', seasonYear)
+            .order('week_number', { ascending: true })
+        if (error) throw error
 
-    return resolveSeasonWeekNumber((data ?? []) as SeasonWeekRange[], today, 'current-or-next')
+        return resolveSeasonWeekNumber((data ?? []) as SeasonWeekRange[], today, 'current-or-next')
+    })()
+    weekNumberCache.set(cacheKey, promise)
+    promise.catch(() => {
+        if (weekNumberCache.get(cacheKey) === promise) weekNumberCache.delete(cacheKey)
+    })
+    return promise
 }

@@ -160,7 +160,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
                 <View style={styles.flex1}>
                     <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">No league</Text>
-                    <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{labelForTone('Create or join from League')}</Text>
+                    {light ? null : (
+                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">Create or join from League</Text>
+                    )}
                 </View>
             </View>
         )
@@ -187,7 +189,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 </View>
                 <View style={styles.flex1}>
                     <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{labelForTone(currentLeagueName)}</Text>
-                    <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{labelForTone(currentTeamName)}</Text>
+                    {light ? null : (
+                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{currentTeamName}</Text>
+                    )}
                 </View>
                 <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color={chevronColor} />
             </Pressable>

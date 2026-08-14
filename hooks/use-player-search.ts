@@ -82,9 +82,11 @@ export function useWeeklyAvailability(enabled: boolean) {
             }
         }
         void load(true)
+        // Started-teams only flips at game tipoffs — a minute of staleness on
+        // the add-lock indicator is fine and quarters the background queries.
         const poll = setInterval(() => {
             if (appState === 'active') void load(false)
-        }, 15_000)
+        }, 60_000)
         const subscription = AppState.addEventListener('change', (nextState) => {
             const becameActive = appState !== 'active' && nextState === 'active'
             appState = nextState
@@ -231,14 +233,23 @@ export function usePlayerSearch(
         const firstPage = await fetchPage(params, 0)
         if (!params.rookiesOnly || firstPage.length < PLAYER_SEARCH_PAGE_SIZE) return firstPage
 
+        // Fetch remaining pages in parallel batches instead of one-by-one —
+        // the rookie pool spans a handful of pages and serial awaits made the
+        // filter feel sluggish.
         const players = [...firstPage]
-        let nextOffset = PLAYER_SEARCH_PAGE_SIZE
-        for (let page = 1; page < ROOKIE_SEARCH_MAX_PAGES; page += 1) {
-            const nextPage = await fetchPage(params, nextOffset)
-            if (nextPage.length === 0) break
-            players.push(...nextPage)
-            if (nextPage.length < PLAYER_SEARCH_PAGE_SIZE) break
-            nextOffset += PLAYER_SEARCH_PAGE_SIZE
+        const BATCH_SIZE = 4
+        let page = 1
+        while (page < ROOKIE_SEARCH_MAX_PAGES) {
+            const batchPages = Math.min(BATCH_SIZE, ROOKIE_SEARCH_MAX_PAGES - page)
+            const batch = await Promise.all(Array.from({ length: batchPages }, (_, i) =>
+                fetchPage(params, (page + i) * PLAYER_SEARCH_PAGE_SIZE)))
+            let done = false
+            for (const nextPage of batch) {
+                players.push(...nextPage)
+                if (nextPage.length < PLAYER_SEARCH_PAGE_SIZE) { done = true; break }
+            }
+            if (done) break
+            page += batchPages
         }
         return players
     }, [fetchPage])

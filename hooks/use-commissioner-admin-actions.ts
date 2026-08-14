@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { LeagueInfo } from '@/types/app'
 import { apiPost } from '@/lib/shared/api'
 import { advanceSeason } from '@/lib/rookieDraft'
+import { invalidateSeasonCache } from '@/lib/shared/season'
+import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { deleteLeague } from '@/lib/league'
 import { confirmAction, getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
 import {
@@ -120,6 +122,10 @@ export function useCommissionerAdminActions({
                     if (!mutation) return
                     try {
                         await advanceSeason(league.id)
+                        // The rollover changed which season is current — drop the
+                        // client-side season/week memos before re-reading.
+                        invalidateSeasonCache(league.id)
+                        invalidateWeekNumberCache()
                         if (!ownsMutation(mutation)) return
                         await refresh()
                         if (ownsMutation(mutation)) {

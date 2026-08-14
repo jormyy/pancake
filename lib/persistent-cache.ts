@@ -15,6 +15,8 @@ const PREFIX_LIMITS = [
     ['pancake:player-search:', 12],
     ['pancake:dynasty-rankings:', 8],
     ['pancake:player-screen:', 12],
+    ['pancake:player-support:', 4],
+    ['pancake:home-matchup:', 4],
 ] as const
 
 const memoryCache = new Map<string, CacheEnvelope<unknown>>()
@@ -34,6 +36,7 @@ function isFresh(savedAt: number, maxAgeMs: number): boolean {
 
 function removeStorageKey(storage: Storage | null, key: string): void {
     memoryCache.delete(key)
+    savedAtIndex.delete(key)
     if (!storage) return
     try {
         storage.removeItem(key)
@@ -51,11 +54,20 @@ function cacheKeys(storage: Storage): string[] {
     return keys
 }
 
+// savedAt per key, kept in memory so pruning doesn't have to JSON.parse every
+// stored envelope on each write (writes happen on hot interaction paths).
+const savedAtIndex = new Map<string, number>()
+
 function envelopeSavedAt(storage: Storage, key: string): number {
+    const indexed = savedAtIndex.get(key)
+    if (indexed !== undefined) return indexed
     try {
         const parsed = JSON.parse(storage.getItem(key) ?? '') as Partial<CacheEnvelope<unknown>>
-        return typeof parsed.savedAt === 'number' ? parsed.savedAt : 0
+        const savedAt = typeof parsed.savedAt === 'number' ? parsed.savedAt : 0
+        savedAtIndex.set(key, savedAt)
+        return savedAt
     } catch {
+        savedAtIndex.set(key, 0)
         return 0
     }
 }
@@ -117,8 +129,8 @@ export function writePersistentCache<T>(key: string, value: T): void {
     if (!storage) return
 
     try {
-        pruneStorage(storage)
         storage.setItem(key, JSON.stringify(envelope))
+        savedAtIndex.set(key, envelope.savedAt)
         pruneStorage(storage)
     } catch {
         // A quota failure can be recoverable after evicting the oldest entry.
@@ -128,6 +140,7 @@ export function writePersistentCache<T>(key: string, value: T): void {
             )[0]
             if (oldest) removeStorageKey(storage, oldest)
             storage.setItem(key, JSON.stringify(envelope))
+            savedAtIndex.set(key, envelope.savedAt)
         } catch {
             // Storage/private-mode failures should never block rendering.
         }
@@ -141,6 +154,7 @@ export function removePersistentCache(key: string): void {
 
 export function clearPersistentCaches(): void {
     memoryCache.clear()
+    savedAtIndex.clear()
     const storage = localStorageForCache()
     if (!storage) return
     try {

@@ -79,7 +79,8 @@ const styles = StyleSheet.create({
     content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.lg - spacing.xxs, gap: spacing.sm },
     contentCompact: { paddingVertical: spacing.xs - 1, gap: spacing.xs - 1 },
     cell: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous' as const, gap: spacing.xxs },
-    cellCompact: { width: 40, minHeight: 36, paddingVertical: spacing.xs - 1, gap: 0, borderRadius: radii.md + 1 },
+    // flexBasis + shrink (not a fixed width) so all 7 cells fit 320px screens.
+    cellCompact: { flexGrow: 0, flexShrink: 1, flexBasis: 40, minWidth: 34, minHeight: 36, paddingVertical: spacing.xs - 1, gap: 0, borderRadius: radii.md + 1 },
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },

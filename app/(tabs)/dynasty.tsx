@@ -16,7 +16,7 @@ import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
-import { Card, Input, SegmentedControl } from '@/components/ui'
+import { Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -293,7 +293,7 @@ export default function DynastyScreen() {
     const [tab, setTab] = useState<DynastyTab>('rankings')
     const rankings = useDynastyRankings()
     const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(current?.id, currentLeague?.id)) ?? undefined
-    const { data: newsData, loading: newsLoading } = useFocusAsyncData(
+    const { data: newsData, loading: newsLoading, error: newsError, refresh: refreshNews } = useFocusAsyncData(
         async () => {
             const [news, myNews] = await Promise.all([
                 getDynastyNews(30),
@@ -404,6 +404,9 @@ export default function DynastyScreen() {
                     <ScrollView
                         contentContainerStyle={styles.newsContent}
                     >
+                        {newsError && activeNews.length === 0 ? (
+                            <ErrorBanner message="Failed to load news. Tap to retry." onRetry={() => void refreshNews()} />
+                        ) : null}
                         {/* Blank until hydrated — the card appears fully formed
                             instead of swapping a loading line for news rows. */}
                         {!activeNewsHydrated ? null : (

@@ -217,6 +217,7 @@ export default function HomeScreen() {
                             headerAccessory={
                                 <MotionPressable
                                     style={styles.autoSetBtn}
+                                    hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
                                     onPress={handleAutoSet}
                                     disabled={autoSetting || saving}
                                     accessibilityRole="button"
@@ -316,9 +317,6 @@ export default function HomeScreen() {
                 onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
                 onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
                 onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
-                seasonOptimizerEnabled={false}
-                onEnableSeasonOptimizer={() => { }}
-                onDisableSeasonOptimizer={() => { }}
             />
         </SafeAreaView>
     )

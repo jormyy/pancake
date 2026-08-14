@@ -314,10 +314,13 @@ export const styles = StyleSheet.create({
         backgroundColor: colors.bgScreen,
         backgroundImage: webBackgrounds.appContent,
     } as WebOnlyViewStyle,
+    // The document opts into viewport-fit=cover, so the fixed bars must pad by
+    // the safe-area insets or standalone-PWA launches put the top bar under the
+    // notch and the bottom tabs under the home indicator.
     contentCompact: {
-        paddingTop: MOBILE_TOPBAR_HEIGHT,
-        paddingBottom: MOBILE_BOTTOMBAR_HEIGHT,
-    },
+        paddingTop: `calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px))`,
+        paddingBottom: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
+    } as unknown as WebOnlyViewStyle,
 
     mobileTopbar: {
         position: 'fixed',
@@ -325,7 +328,8 @@ export const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 50,
-        height: MOBILE_TOPBAR_HEIGHT,
+        height: `calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px))`,
+        paddingTop: 'env(safe-area-inset-top, 0px)',
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
@@ -355,11 +359,11 @@ export const styles = StyleSheet.create({
         right: 0,
         bottom: 0,
         zIndex: 50,
-        height: MOBILE_BOTTOMBAR_HEIGHT,
+        height: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
-        paddingBottom: spacing.xs,
+        paddingBottom: `calc(${spacing.xs}px + env(safe-area-inset-bottom, 0px))`,
         backgroundColor: webOverlays.mobileBottomNav,
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,

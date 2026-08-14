@@ -40,12 +40,6 @@ export const playerListStyles = StyleSheet.create({
         letterSpacing: 0.4,
         textTransform: 'uppercase' as const,
     },
-    filterToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        minHeight: 32,
-    },
     filterCountDot: {
         minWidth: 20,
         height: 20,

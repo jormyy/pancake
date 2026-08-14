@@ -186,7 +186,7 @@ export function useMatchupData(
             if (!capturedResourceKey || !ownsResource || !m || !leagueId) return
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
-            const date = selectedDate
+            const date = selectedDateRef.current
             const [mine, opp] = await Promise.all([
                 getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
                 getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
@@ -196,7 +196,7 @@ export function useMatchupData(
             setMyLineup(mine)
             setOppLineup(opp)
         },
-        [leagueId, ownsResource, resourceKey, selectedDate],
+        [leagueId, ownsResource, resourceKey],
     )
 
     const load = useCallback(async () => {
@@ -218,13 +218,17 @@ export function useMatchupData(
             if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
             if (m) {
                 const today = todayET()
-                const [days, weekMatchups] = await Promise.all([
+                // Optimistically fetch today's lineups alongside week metadata —
+                // during the season the clamped date IS today, so the lineup wave
+                // overlaps the metadata wave instead of queuing behind it.
+                const [days, weekMatchups, todayLineups] = await Promise.all([
                     getWeekDays(m.weekNumber, m.seasonYear),
                     getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
+                    fetchLineups(m, today, leagueId),
                 ])
                 if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
                 const selected = clampDateToWeek(today, days)
-                const lineups = await fetchLineups(m, selected, leagueId)
+                const lineups = selected === today ? todayLineups : await fetchLineups(m, selected, leagueId)
                 if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
                 setMatchup(m)
                 matchupRef.current = m
@@ -321,7 +325,9 @@ export function useMatchupData(
                         const row = payload.eventType === 'DELETE' ? payload.old : payload.new
                         if (!isWeeklyLineupRealtimeRow(row)) return
                         if (row.week_number !== matchup.weekNumber) return
-                        if (row.game_date !== selectedDate) return
+                        // Read the date from a ref so day-taps don't tear down and
+                        // rebuild the whole realtime channel (websocket rejoin).
+                        if (row.game_date !== selectedDateRef.current) return
                         if (!visibleMemberIds.has(row.member_id)) return
                         refreshVisibleLineups.trigger()
                     },
@@ -335,7 +341,7 @@ export function useMatchupData(
                 disposeTableChangeSubscription(channel, [refreshVisibleLineups]),
             )
         }
-    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, ownsResource, refreshSilently, resourceKey, selectedDate])
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, ownsResource, refreshSilently, resourceKey])
 
     const setVisibleSelectedDate = useCallback((date: string) => {
         if (ownsResource && activeResourceKeyRef.current === resourceKey) setSelectedDate(date)
