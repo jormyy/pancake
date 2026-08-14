@@ -268,6 +268,24 @@ export default function ProfileScreen() {
                     </>
                 )}
 
+                <Text style={styles.sectionLabel}>Leagues</Text>
+                <View style={styles.actionRow}>
+                    <Button
+                        title="Create League"
+                        variant="outline"
+                        icon="add"
+                        onPress={() => router.push('/(modals)/create-league')}
+                        style={styles.flexBtn}
+                    />
+                    <Button
+                        title="Join League"
+                        variant="outline"
+                        icon="vpn-key"
+                        onPress={() => router.push('/(modals)/join-league')}
+                        style={styles.flexBtn}
+                    />
+                </View>
+
                 {/* Web has no push transport, so these toggles could never deliver. */}
                 {Platform.OS !== 'web' ? (
                     <>
