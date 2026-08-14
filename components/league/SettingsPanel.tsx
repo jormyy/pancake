@@ -1,4 +1,5 @@
-import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { Platform, View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native'
 import type { WaiverPriorityRow } from '@/lib/waivers'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
@@ -126,6 +127,26 @@ export function SettingsPanel({
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
     const shareInviteAccessibilityLabel = inviteCode ? `Share invite code ${inviteCode}` : 'Share invite code'
+    const [copied, setCopied] = useState(false)
+    const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const canCopy = Platform.OS === 'web'
+        && typeof navigator !== 'undefined'
+        && !!navigator.clipboard
+        && !!inviteCode
+
+    useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+
+    async function handleCopyInviteCode() {
+        if (!inviteCode) return
+        try {
+            await navigator.clipboard.writeText(inviteCode)
+            setCopied(true)
+            if (copiedTimer.current) clearTimeout(copiedTimer.current)
+            copiedTimer.current = setTimeout(() => setCopied(false), 2000)
+        } catch {
+            // Clipboard permission denied — the Share action still works.
+        }
+    }
 
     if (compactLandscape) {
         return (
@@ -143,6 +164,18 @@ export function SettingsPanel({
                             Invite {inviteCode}
                         </Text>
                     </Pressable>
+                    {canCopy ? (
+                        <Pressable
+                            style={[panelStyles.secondaryDraftButton, styles.settingsCompactButton]}
+                            onPress={handleCopyInviteCode}
+                            role="button"
+                            aria-label="Copy invite code"
+                            accessibilityRole="button"
+                            accessibilityLabel="Copy invite code"
+                        >
+                            <Text style={panelStyles.secondaryDraftButtonText} numberOfLines={1}>{copied ? 'Copied!' : 'Copy'}</Text>
+                        </Pressable>
+                    ) : null}
                     <Pressable
                         style={[panelStyles.secondaryDraftButton, styles.settingsCompactButton]}
                         onPress={onOpenBracket}
@@ -183,6 +216,20 @@ export function SettingsPanel({
             >
                 <Text style={styles.inviteLabel}>Invite Code</Text>
                 <Text style={styles.inviteCode}>{inviteCode}</Text>
+                {canCopy ? (
+                    <Pressable
+                        // Nested inside the Share row — stop the press from
+                        // bubbling into the outer share handler on web.
+                        onPress={(e) => { e.stopPropagation(); void handleCopyInviteCode() }}
+                        role="button"
+                        aria-label="Copy invite code"
+                        accessibilityRole="button"
+                        accessibilityLabel="Copy invite code"
+                        hitSlop={8}
+                    >
+                        <Text style={styles.inviteCopy}>{copied ? 'Copied!' : 'Copy'}</Text>
+                    </Pressable>
+                ) : null}
                 <Text style={styles.inviteCopy}>Share</Text>
             </Pressable>
             <View style={styles.settingsActionRow}>

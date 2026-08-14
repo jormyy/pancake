@@ -15,7 +15,7 @@ export function playerEligiblePositions(player: PlayerContextInput): string[] {
 
 export function playerYearsExperienceLabel(yearsExp?: number | null): string | null {
     if (yearsExp == null) return null
-    return yearsExp <= 0 ? 'Rookie' : `${yearsExp} YR`
+    return yearsExp <= 0 ? 'Rookie' : `Yr ${yearsExp + 1}`
 }
 
 export function playerSeasonContextText(player: PlayerContextInput): string {

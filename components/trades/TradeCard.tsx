@@ -378,6 +378,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     actionBtnAccept: { backgroundColor: colors.primary },
     actionBtnReject: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: uiColors.borderNeutral },

@@ -5,17 +5,12 @@ import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { WaiverClaim } from '@/lib/waivers'
+import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { formatPoints, safeShortDate, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
-
-function yearsExperienceLabel(yearsExp?: number | null): string | null {
-    if (yearsExp == null) return null
-    if (yearsExp <= 0) return 'Rookie'
-    return `${yearsExp} YR`
-}
 
 export function RosterClaimItem({
     claim,
@@ -277,7 +272,7 @@ export function ReadOnlyRosterPlayerItem({
     const player = item.players
     const positions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
-    const yearsLabel = yearsExperienceLabel(player.years_exp)
+    const yearsLabel = playerYearsExperienceLabel(player.years_exp)
     const hasStats = avgFpts != null || avgMinutes != null
 
     return (

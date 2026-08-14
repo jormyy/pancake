@@ -87,6 +87,7 @@ async function syncPlayers(): Promise<{ updated: number; inserted: number; failu
       eligible_positions: normalizeEligiblePositions(p.fantasy_positions),
       status: p.status ?? null,
       injury_status: normalizeInjuryStatus(p.injury_status),
+      years_exp: typeof p.years_exp === 'number' ? p.years_exp : null,
       updated_at: new Date().toISOString(),
     }
 

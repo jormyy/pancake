@@ -43,6 +43,10 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     const { viewportWidth, viewportHeight, compactLandscape } = useWebViewport()
     const compactShortPortrait = viewportWidth < 380 && viewportHeight < 760
     const compactTabs = compactLandscape || compactShortPortrait
+    const scrollRef = useRef<ScrollView>(null)
+    const tabLayouts = useRef<Partial<Record<LeagueTab, { x: number; width: number }>>>({})
+    const scrollViewportWidth = useRef(0)
+    const scrollOffsetX = useRef(0)
     const pendingFocusTab = useRef<LeagueTab | null>(null)
     const focusRequestId = useRef(0)
     const cancelFocusRecovery = useRef<(() => void) | null>(null)
@@ -54,6 +58,26 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     }, [])
 
     useEffect(() => () => cancelFocusRecovery.current?.(), [])
+
+    // Keep the active pill in view. Without this the ScrollView's offset is
+    // uncontrolled, so any re-layout (param round-trip, viewport sync) snaps
+    // the bar back to the start even when a far-right tab is selected.
+    const scrollActiveTabIntoView = useCallback((tab: LeagueTab) => {
+        const layout = tabLayouts.current[tab]
+        const viewport = scrollViewportWidth.current
+        if (!layout || viewport <= 0) return
+        const offset = scrollOffsetX.current
+        const pad = spacing.xl
+        if (layout.x < offset + pad) {
+            scrollRef.current?.scrollTo({ x: Math.max(0, layout.x - pad), animated: false })
+        } else if (layout.x + layout.width > offset + viewport - pad) {
+            scrollRef.current?.scrollTo({ x: layout.x + layout.width - viewport + pad, animated: false })
+        }
+    }, [])
+
+    useEffect(() => {
+        scrollActiveTabIntoView(activeTab)
+    }, [activeTab, scrollActiveTabIntoView])
 
     useEffect(() => {
         if (pendingFocusTab.current !== activeTab) return
@@ -81,8 +105,15 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     // ambiguous short names ("Picks") on compact screens.
     return (
         <ScrollView
+            ref={scrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
+            onLayout={(e) => {
+                scrollViewportWidth.current = e.nativeEvent.layout.width
+                scrollActiveTabIntoView(activeTab)
+            }}
+            onScroll={(e) => { scrollOffsetX.current = e.nativeEvent.contentOffset.x }}
+            scrollEventThrottle={16}
             style={styles.tabScroll}
             contentContainerStyle={[styles.tabRow, compactTabs && styles.tabRowCompact]}
             role="tablist"
@@ -102,6 +133,13 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
                     <Pressable
                         key={tab.key}
                         nativeID={tabId}
+                        onLayout={(e) => {
+                            tabLayouts.current[tab.key] = {
+                                x: e.nativeEvent.layout.x,
+                                width: e.nativeEvent.layout.width,
+                            }
+                            if (active) scrollActiveTabIntoView(tab.key)
+                        }}
                         style={[styles.tabChip, compactTabs && styles.tabChipCompact, active && styles.tabChipActive]}
                         onPress={() => selectTab(tab.key)}
                         role="tab"
