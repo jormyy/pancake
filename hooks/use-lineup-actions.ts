@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert } from 'react-native'
 import {
     setPlayerSlotMoves,
     autoSetLineup,
@@ -10,7 +9,9 @@ import {
 } from '@/lib/lineup'
 import { activateRosterPlayerWithLineup, toggleIR, toggleTaxi } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
-import { getErrorMessage } from '@/lib/alert'
+// RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
+// through the in-app feedback system on every platform.
+import { confirmAction, getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir?: LineupPlayer[]; taxi?: LineupPlayer[] }
 type Sel = LineupSelection
@@ -73,7 +74,7 @@ export function useLineupActions({
 
     const handleTap = useCallback(async (newSel: Sel) => {
         if (selectedDate < todayET()) {
-            Alert.alert('Past lineup', 'Lineups for past days cannot be changed.')
+            showAlert('Past lineup', 'Lineups for past days cannot be changed.', 'info')
             setSelected(null)
             return
         }
@@ -94,7 +95,7 @@ export function useLineupActions({
         })
 
         if (plan.kind === 'invalid') {
-            Alert.alert(plan.title, plan.message)
+            showAlert(plan.title, plan.message, 'info')
             return
         }
 
@@ -142,7 +143,7 @@ export function useLineupActions({
             }
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) await reloadLineup(selectedDate)
         } catch (e) {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) Alert.alert('Error', getErrorMessage(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
         } finally {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
         }
@@ -166,7 +167,7 @@ export function useLineupActions({
                 startedTeams.has(player.nbaTeam),
         )
         if (lockedPlayer) {
-            Alert.alert('Lineup locked', `${lockedPlayer.displayName}'s game has already started. No lineup changes are allowed once a game begins.`)
+            showAlert('Lineup locked', `${lockedPlayer.displayName}'s game has already started. No lineup changes are allowed once a game begins.`, 'info')
             return
         }
         setActivationOverflowSaving(true)
@@ -189,7 +190,7 @@ export function useLineupActions({
             setActivationOverflowPending(null)
             await reloadLineup(selectedDate)
         } catch (e) {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) Alert.alert('Error', getErrorMessage(e))
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
         } finally {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) setActivationOverflowSaving(false)
         }
@@ -212,20 +213,21 @@ export function useLineupActions({
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             await reloadLineup(selectedDate)
             if (restOfSeason && result?.failed) {
-                Alert.alert(
+                confirmAction(
                     'Lineup partly optimized',
                     `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`,
-                    [
-                        { text: 'Close', style: 'cancel' },
-                        { text: 'Retry failed dates', onPress: () => { void doAutoSet(null, true) } },
-                    ],
+                    () => { void doAutoSet(null, true) },
+                    'Retry failed dates',
+                    false,
                 )
+            } else if (restOfSeason && result && result.dates === 0) {
+                showAlert('Season is over', 'There are no remaining dates this season to optimize.', 'info')
             } else if (restOfSeason) {
-                Alert.alert('Done', 'Lineup set for the rest of the season.')
+                showSuccess('Done', 'Lineup set for the rest of the season.')
             }
         } catch (e) {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
-                Alert.alert('Auto-set failed', getErrorMessage(e) ?? String(e))
+                showAlert('Auto-set failed', getErrorMessage(e) ?? String(e))
             }
         } finally {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) setAutoSetting(false)

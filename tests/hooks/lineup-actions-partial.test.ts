@@ -4,11 +4,12 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 
 const mocks = vi.hoisted(() => ({
-    alert: vi.fn(),
+    confirmAction: vi.fn(),
+    showAlert: vi.fn(),
+    showSuccess: vi.fn(),
     autoSetLineup: vi.fn(),
 }))
 
-vi.mock('react-native', () => ({ Alert: { alert: mocks.alert } }))
 vi.mock('@/lib/lineup', () => ({
     autoSetLineup: mocks.autoSetLineup,
     planLineupMove: vi.fn(),
@@ -20,7 +21,12 @@ vi.mock('@/lib/roster', () => ({
     toggleTaxi: vi.fn(),
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: vi.fn(() => '2026-07-09') }))
-vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => String(error) }))
+vi.mock('@/lib/alert', () => ({
+    getErrorMessage: (error: unknown) => String(error),
+    confirmAction: mocks.confirmAction,
+    showAlert: mocks.showAlert,
+    showSuccess: mocks.showSuccess,
+}))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -57,10 +63,12 @@ it('reports partial season optimization and exposes an explicit retry', async ()
 
     await act(async () => { await actions.doAutoSet(null, true) })
 
-    expect(mocks.alert).toHaveBeenCalledWith(
+    expect(mocks.confirmAction).toHaveBeenCalledWith(
         'Lineup partly optimized',
         'Optimized 7 of 10 dates; 2 failed.',
-        expect.arrayContaining([expect.objectContaining({ text: 'Retry failed dates', onPress: expect.any(Function) })]),
+        expect.any(Function),
+        'Retry failed dates',
+        false,
     )
     await act(async () => { renderer.unmount() })
 })
