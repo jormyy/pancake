@@ -123,11 +123,13 @@ export function PlayerSearchItem({
                         onError={() => setHeadshotError(true)}
                     />
                 ) : (
-                    <Avatar
-                        name={item.display_name}
-                        color={colors.bgMuted}
-                        size={denseProjectionRow ? 36 : 44}
-                    />
+                    <View style={styles.leadingCenter}>
+                        <Avatar
+                            name={item.display_name}
+                            color={colors.bgMuted}
+                            size={denseProjectionRow ? 36 : 44}
+                        />
+                    </View>
                 )}
 
                 <View style={styles.playerInfo}>
@@ -292,8 +294,9 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.md,
         gap: spacing.lg,
     },
-    // On narrow viewports top-align the avatar with the name (so it doesn't float
-    // mid-row beside the wrapped stat strip) and tighten the right padding.
+    // On narrow viewports top-align the row content and tighten the right
+    // padding; the leading headshot still centers itself (alignSelf below) so
+    // the icon column stays on one vertical midline row after row.
     playerCardNarrow: { alignItems: 'flex-start', paddingRight: spacing.lg },
     playerCardDense: { paddingVertical: spacing.md, gap: spacing.md },
     headshot: {
@@ -302,7 +305,11 @@ const styles = StyleSheet.create({
         borderRadius: 22,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
+        // Rows that top-align for wrapped stat strips still center the
+        // leading headshot so the icon column lines up row after row.
+        alignSelf: 'center',
     },
+    leadingCenter: { alignSelf: 'center' },
     headshotDense: { width: 36, height: 36, borderRadius: 18 },
     playerInfo: { flex: 1, minWidth: 0 },
     playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },

@@ -1,7 +1,7 @@
 import { View, StyleSheet } from 'react-native'
 import { colors } from '@/constants/tokens'
 
-/** Standard 1px list separator with left inset for avatar rows */
+/** Standard 1px list separator, unbroken edge-to-edge */
 export function ItemSeparator() {
     return (
         <View
@@ -14,5 +14,5 @@ export function ItemSeparator() {
 }
 
 const styles = StyleSheet.create({
-    separator: { height: 1, backgroundColor: colors.separator, marginLeft: 72 },
+    separator: { height: 1, backgroundColor: colors.separator },
 })
