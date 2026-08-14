@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
@@ -12,7 +12,7 @@ import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
-export function RosterClaimItem({
+export const RosterClaimItem = memo(function RosterClaimItem({
     claim,
     cancellingId,
     waiverPriority,
@@ -124,9 +124,9 @@ export function RosterClaimItem({
             ) : null}
         </MotionView>
     )
-}
+})
 
-export function RosterPickItem({
+export const RosterPickItem = memo(function RosterPickItem({
     pick,
     myTeamName,
 }: {
@@ -151,9 +151,9 @@ export function RosterPickItem({
             </View>
         </MotionView>
     )
-}
+})
 
-export function RosterPlayerItem({
+export const RosterPlayerItem = memo(function RosterPlayerItem({
     item,
     togglingId,
     taxiingId,
@@ -173,8 +173,8 @@ export function RosterPlayerItem({
     taxiSlotsAvailable: boolean
     avgFpts?: number
     avgMinutes?: number | null
-    onPress: () => void
-    onLongPress: () => void
+    onPress: (item: RosterPlayer) => void
+    onLongPress: (item: RosterPlayer) => void
     onToggleIR: (item: RosterPlayer) => void
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
@@ -186,8 +186,8 @@ export function RosterPlayerItem({
         <View style={styles.playerRow}>
             <MotionPressable
                 style={styles.playerRowMain}
-                onPress={onPress}
-                onLongPress={onLongPress}
+                onPress={() => onPress(item)}
+                onLongPress={() => onLongPress(item)}
                 delayLongPress={400}
                 pressedScale={0.985}
                 accessibilityRole="button"
@@ -256,9 +256,9 @@ export function RosterPlayerItem({
             </View>
         </View>
     )
-}
+})
 
-export function ReadOnlyRosterPlayerItem({
+export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
     item,
     avgFpts,
     avgMinutes,
@@ -316,9 +316,9 @@ export function ReadOnlyRosterPlayerItem({
             </View>
         </MotionPressable>
     )
-}
+})
 
-export function TaxiPlayerItem({
+export const TaxiPlayerItem = memo(function TaxiPlayerItem({
     item,
     taxiingId,
     avgFpts,
@@ -330,7 +330,7 @@ export function TaxiPlayerItem({
     taxiingId: string | null
     avgFpts?: number
     avgMinutes?: number | null
-    onPress: () => void
+    onPress: (item: RosterPlayer) => void
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const player = item.players
@@ -340,7 +340,7 @@ export function TaxiPlayerItem({
         <View style={styles.playerRow}>
             <MotionPressable
                 style={styles.playerRowMain}
-                onPress={onPress}
+                onPress={() => onPress(item)}
                 pressedScale={0.985}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${player.display_name}`}
@@ -380,7 +380,7 @@ export function TaxiPlayerItem({
             </MotionPressable>
         </View>
     )
-}
+})
 
 const styles = StyleSheet.create({
     playerRow: {

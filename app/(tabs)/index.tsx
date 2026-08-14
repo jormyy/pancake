@@ -92,13 +92,13 @@ export default function HomeScreen() {
     } = useMatchupData(current, user, league)
 
     const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshSilently)
-    const actionContext = matchup && league ? {
+    const actionContext = useMemo(() => matchup && league ? {
         memberId: matchup.myMemberId,
         leagueId: league.id,
         seasonId: matchup.seasonId,
         weekNumber: matchup.weekNumber,
         seasonYear: matchup.seasonYear,
-    } : null
+    } : null, [matchup, league])
     const reloadLineupForActions = useCallback(async (date: string) => {
         if (!matchup) return
         await loadMyLineup(matchup, date)
@@ -535,7 +535,7 @@ function MatchupLineupView({
                                 slotType={row.slotType}
                                 selKind={row.selKind}
                                 selIndex={row.selIndex}
-                                selected={selected}
+                                isSelected={selected?.kind === row.selKind && selected.index === row.selIndex}
                                 onTap={onTap}
                                 saving={saving}
                                 playingTeams={playingTeams}

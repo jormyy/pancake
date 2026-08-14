@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FlashList } from '@shopify/flash-list'
-import { useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import {
     Linking,
     Pressable,
@@ -172,7 +172,7 @@ function RankingsTableHeader() {
     )
 }
 
-function RankingRow({
+function RankingRowImpl({
     player,
     showStats,
     narrow,
@@ -181,7 +181,7 @@ function RankingRow({
     player: DynastyRankPlayer
     showStats: boolean
     narrow: boolean
-    onPress: () => void
+    onPress: (player: DynastyRankPlayer) => void
 }) {
     const positions = playerPositions(player)
     const canOpen = player.playerId != null
@@ -216,7 +216,7 @@ function RankingRow({
 
     return (
         <Pressable
-            onPress={onPress}
+            onPress={() => onPress(player)}
             disabled={!canOpen}
             style={rowStyle}
             accessibilityRole={canOpen ? 'button' : undefined}
@@ -251,6 +251,8 @@ function RankingRow({
         </Pressable>
     )
 }
+
+const RankingRow = memo(RankingRowImpl)
 
 function NewsRow({ item }: { item: DynastyNewsItem }) {
     const open = () => {
@@ -298,6 +300,17 @@ export default function DynastyScreen() {
     const narrowLayout = width < 760
     const [tab, setTab] = useState<DynastyTab>('rankings')
     const rankings = useDynastyRankings()
+    const handleOpenRankedPlayer = useCallback((player: DynastyRankPlayer) => {
+        if (player.playerId) router.push(`/player/${player.playerId}`)
+    }, [router])
+    const renderRankingRow = useCallback(({ item }: { item: DynastyRankPlayer }) => (
+        <RankingRow
+            player={item}
+            showStats={showStats}
+            narrow={narrowLayout}
+            onPress={handleOpenRankedPlayer}
+        />
+    ), [showStats, narrowLayout, handleOpenRankedPlayer])
     const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(current?.id, currentLeague?.id)) ?? undefined
     const { data: newsData, loading: newsLoading, error: newsError, refresh: refreshNews } = useFocusAsyncData(
         async () => {
@@ -390,14 +403,7 @@ export default function DynastyScreen() {
                                 ItemSeparatorComponent={ItemSeparator}
                                 contentContainerStyle={rankings.players.length === 0 && !rankings.loading ? styles.emptyContainer : undefined}
                                 ListHeaderComponent={showStats ? <RankingsTableHeader /> : null}
-                                renderItem={({ item }) => (
-                                    <RankingRow
-                                        player={item}
-                                        showStats={showStats}
-                                        narrow={narrowLayout}
-                                        onPress={() => item.playerId && router.push(`/player/${item.playerId}`)}
-                                    />
-                                )}
+                                renderItem={renderRankingRow}
                                 ListEmptyComponent={rankings.loading
                                     ? null
                                     : <EmptyState message="No ranked players found." fullScreen={false} />}

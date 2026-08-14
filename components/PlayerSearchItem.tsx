@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
@@ -13,7 +13,7 @@ import {
     numberOrDash,
 } from '@/lib/projections'
 
-export function PlayerSearchItem({
+function PlayerSearchItemImpl({
     item,
     currentMemberId,
     ownedMap,
@@ -38,7 +38,7 @@ export function PlayerSearchItem({
     statMode?: 'season' | 'projection'
     animate?: boolean
     onAdd: (player: PlayerRow) => void
-    onPress: () => void
+    onPress: (player: PlayerRow) => void
 }) {
     const owned = ownedMap.get(item.id)
     const isMe = owned?.memberId === currentMemberId
@@ -112,7 +112,7 @@ export function PlayerSearchItem({
 
             <Pressable
                 style={[styles.playerCard, !showStats && styles.playerCardNarrow, denseProjectionRow && styles.playerCardDense]}
-                onPress={onPress}
+                onPress={() => onPress(item)}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
             >
@@ -212,6 +212,8 @@ export function PlayerSearchItem({
         </View>
     )
 }
+
+export const PlayerSearchItem = memo(PlayerSearchItemImpl)
 
 function playerStats(item: PlayerRow, statMode: 'season' | 'projection') {
     if (statMode === 'projection') {

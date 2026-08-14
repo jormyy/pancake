@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
-import { clampDateToWeek, getWeekDays, getWeeklyLineup, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
+import { clampDateToWeek, getWeekDays, getWeeklyLineup, invalidateCachedRoster, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import {
@@ -188,8 +188,8 @@ export function useMatchupData(
             const currentLeagueId = leagueId
             const date = selectedDateRef.current
             const [mine, opp] = await Promise.all([
-                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
-                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
+                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
+                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
             ])
             if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
                 date !== selectedDateRef.current) return
@@ -329,6 +329,7 @@ export function useMatchupData(
                         // rebuild the whole realtime channel (websocket rejoin).
                         if (row.game_date !== selectedDateRef.current) return
                         if (!visibleMemberIds.has(row.member_id)) return
+                        if (leagueId) invalidateCachedRoster(row.member_id, leagueId, matchup.seasonId)
                         refreshVisibleLineups.trigger()
                     },
                 }],
@@ -341,7 +342,7 @@ export function useMatchupData(
                 disposeTableChangeSubscription(channel, [refreshVisibleLineups]),
             )
         }
-    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, ownsResource, refreshSilently, resourceKey])
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, ownsResource, refreshSilently, resourceKey, leagueId])
 
     const setVisibleSelectedDate = useCallback((date: string) => {
         if (ownsResource && activeResourceKeyRef.current === resourceKey) setSelectedDate(date)

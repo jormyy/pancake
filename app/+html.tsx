@@ -24,6 +24,12 @@ if ('serviceWorker' in navigator) {
 }
 `
 
+// Inlined at build time by Expo's static export; fall back to the production
+// project so the preconnect never renders an empty href.
+const SUPABASE_ORIGIN = process.env.EXPO_PUBLIC_SUPABASE_URL
+    ? new URL(process.env.EXPO_PUBLIC_SUPABASE_URL).origin
+    : 'https://ceeytbfmwsnzalxlkalc.supabase.co'
+
 export default function Root({ children }: PropsWithChildren) {
     return (
         <html lang="en">
@@ -35,6 +41,9 @@ export default function Root({ children }: PropsWithChildren) {
                     content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
                 />
                 <title>Pancake</title>
+                {/* Warm up the Supabase connection (DNS + TLS) before the first
+                    auth/data request fires from the JS bundle. */}
+                <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />
                 <meta
                     name="description"
                     content="Dynasty fantasy basketball — drafts, lineups, trades, waivers, and live scoring."

@@ -1376,6 +1376,7 @@ export type Database = {
           season_year: number
           sportsdata_game_id: string | null
           started_at: string | null
+          stats_synced_at: string | null
           status: string
           updated_at: string
           week_number: number
@@ -1397,6 +1398,7 @@ export type Database = {
           season_year: number
           sportsdata_game_id?: string | null
           started_at?: string | null
+          stats_synced_at?: string | null
           status: string
           updated_at?: string
           week_number: number
@@ -1418,6 +1420,7 @@ export type Database = {
           season_year?: number
           sportsdata_game_id?: string | null
           started_at?: string | null
+          stats_synced_at?: string | null
           status?: string
           updated_at?: string
           week_number?: number

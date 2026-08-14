@@ -6,6 +6,7 @@ export {
     getLineupContext,
     getWeekDays,
     getWeeklyLineup,
+    invalidateCachedRoster,
     setPlayerSlotMoves,
 } from './lineup/read'
 export { autoSetLineup } from './lineup/autoSet'
