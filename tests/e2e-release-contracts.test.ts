@@ -37,7 +37,9 @@ describe('release E2E contracts', () => {
     const vercel = JSON.parse(await readFile(path.join(process.cwd(), 'vercel.json'), 'utf8'))
     expect(vercel.installCommand).toBe('npm ci')
     expect(vercel.buildCommand).toBe('npm run build:web:release')
-    expect(vercel.git.deploymentEnabled.main).toBe(false)
+    // Production deploys from main were turned on deliberately (#45); this
+    // assertion still pins the flag so the change stays a decision, not a drift.
+    expect(vercel.git.deploymentEnabled.main).toBe(true)
   })
 
   it('derives the full deployed-to-HEAD migration range', async () => {

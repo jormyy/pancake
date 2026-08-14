@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Dependency audit (high+)
-        run: npm audit --audit-level=high
+        run: npm run security:audit
 
       - name: Repository quality gates
         run: npm run check:quality

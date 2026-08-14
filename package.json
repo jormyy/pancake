@@ -75,7 +75,8 @@
     "security:db-catalog": "node tests/e2e/db-security-catalog.mjs",
     "security:edge-auth": "node tests/e2e/edge-internal-auth.mjs",
     "security:edge-auth:linked": "node tests/e2e/edge-internal-auth.mjs --linked",
-    "security:local-secrets": "node tests/e2e/local-secret-scan.mjs"
+    "security:local-secrets": "node tests/e2e/local-secret-scan.mjs",
+    "security:audit": "node scripts/check-dependency-audit.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",
@@ -127,8 +128,8 @@
     "@xmldom/xmldom": "0.8.13",
     "fast-uri": "3.1.2",
     "esbuild": "0.28.1",
-    "js-yaml": "4.2.0",
-    "postcss": "8.5.15",
+    "js-yaml": "4.3.1",
+    "postcss": "8.5.26",
     "uuid": "11.1.1"
   },
   "private": true,
