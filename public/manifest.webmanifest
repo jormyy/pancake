@@ -3,6 +3,7 @@
   "short_name": "Pancake",
   "description": "Dynasty fantasy basketball — drafts, lineups, trades, waivers, and live scoring.",
   "lang": "en-US",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -4,18 +4,21 @@ import { supabase } from './supabase.ts'
 import { getWeekNumberForDate } from './scoring.ts'
 import { notifyMember } from './notifications.ts'
 import { isRegularSeasonGameId } from './nba.ts'
-import { syncStatsByDate } from './syncStats.ts'
+import { syncStatsForDates } from './syncStats.ts'
 import { toETDate } from './date.ts'
 import type { Json } from './database.ts'
 import { calcWeekMaxPossiblePointsByMember, calcWeekPointsByMember } from './scoreLineups.ts'
 import {
-    dateFromETDate,
     fetchAllPages,
     loadLeagueMemberIds,
     loadSeasonWeekBounds,
     weekNumberForGameDate,
     weekRange,
 } from './scoreShared.ts'
+
+// NBA stat corrections arrive 1–2 days after a game; past that a Final box score
+// is settled and does not need re-fetching. Kept generous over the observed lag.
+const STAT_CORRECTION_WINDOW_DAYS = 4
 
 type MatchupForScore = {
     id: string
@@ -768,22 +771,29 @@ async function syncStatsForCompletedWeeks(seasonYear: number, weeks: number[], r
         .range(from, to))
 
     const regularGames = games.filter((game) => isRegularSeasonGameId(game.nba_game_id))
+    const settledBefore = toETDate(
+        new Date(referenceDate.getTime() - STAT_CORRECTION_WINDOW_DAYS * 86_400_000),
+    )
     const dateKeys = [
         ...new Set(
             regularGames
                 .filter((game) => {
                     const weekNumber = weekNumberForGameDate(game.game_date, weekBounds)
                     if (weekNumber == null || !weekSet.has(weekNumber)) return false
-                    if (game.game_date < today) return true
+                    if (game.game_date < today) {
+                        // A Final game past the correction window will not change again,
+                        // so re-fetching its box score every tick is pure waste. Weeks
+                        // still rescore from stored stats — that path reads the database,
+                        // not the CDN, so narrowing this does not affect reach-back.
+                        return game.status !== 'Final' || game.game_date >= settledBefore
+                    }
                     return game.status !== 'Scheduled' && game.status !== 'InProgress'
                 })
                 .map((game) => game.game_date),
         ),
     ].sort()
 
-    for (const dateKey of dateKeys) {
-        await syncStatsByDate(dateFromETDate(dateKey))
-    }
+    await syncStatsForDates(dateKeys)
 }
 
 // Main sync: updates live scores for all current-week matchups across all leagues.

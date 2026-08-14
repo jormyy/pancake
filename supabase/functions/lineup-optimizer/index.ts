@@ -62,6 +62,8 @@ type GameRow = {
 type WeeklyLineupRow = {
   player_id: string
   slot_type: string
+  is_auto_set: boolean | null
+  week_number: number
 }
 type AssignmentScore = {
   filled: number
@@ -384,7 +386,7 @@ async function autoSetMemberDate(
       }),
       supabase
         .from('weekly_lineups')
-        .select('player_id, slot_type')
+        .select('player_id, slot_type, is_auto_set, week_number')
         .eq('member_id', setting.member_id)
         .eq('league_id', setting.league_id)
         .eq('league_season_id', setting.league_season_id)
@@ -470,6 +472,19 @@ async function autoSetMemberDate(
     })),
   ]
 
+  // This runs every 10 minutes per enabled member per upcoming date, and the
+  // computed starters are usually identical to what is already stored. Skipping
+  // the rewrite avoids the delete-and-reinsert the RPC performs; the caller still
+  // touches last_optimized_at, which tracks when we ran, not when we wrote.
+  if (assignmentsMatchStored(assignments, (existingEntries ?? []) as WeeklyLineupRow[])) {
+    console.log('[lineup-optimizer] lineup already optimal, skipping write', {
+      leagueId: setting.league_id,
+      memberId: setting.member_id,
+      date: dateContext.date,
+    })
+    return
+  }
+
   const { error } = await supabase.rpc('auto_set_lineup_service_atomic', {
     p_member_id: setting.member_id,
     p_league_id: setting.league_id,
@@ -494,6 +509,29 @@ async function autoSetMemberDate(
         projectionView: player?.projectionView ?? null,
       }
     }),
+  })
+}
+
+// Mirrors the starter test used when collecting locked entries above, so both
+// sides of the comparison agree on what counts as a starter.
+const isStarterSlot = (slotType: string) => slotType !== 'BE' && slotType !== 'IR'
+
+// Compares intended starters against stored ones. Both sides are keyed by player
+// because a player moving between starting slots is a real change.
+function assignmentsMatchStored(
+  assignments: { player_id: string; slot_type: string; is_auto_set: boolean; week_number: number }[],
+  stored: WeeklyLineupRow[],
+): boolean {
+  const storedStarters = stored.filter((entry) => isStarterSlot(entry.slot_type))
+  if (storedStarters.length !== assignments.length) return false
+
+  const storedByPlayer = new Map(storedStarters.map((entry) => [entry.player_id, entry]))
+  return assignments.every((assignment) => {
+    const entry = storedByPlayer.get(assignment.player_id)
+    return entry != null
+      && entry.slot_type === assignment.slot_type
+      && (entry.is_auto_set ?? false) === assignment.is_auto_set
+      && entry.week_number === assignment.week_number
   })
 }
 

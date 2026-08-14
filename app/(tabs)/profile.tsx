@@ -268,36 +268,41 @@ export default function ProfileScreen() {
                     </>
                 )}
 
-                <Text style={styles.sectionLabel}>Notifications</Text>
-                <View style={styles.card}>
-                    {([
-                        ['tradeEnabled', 'Trades'],
-                        ['waiverEnabled', 'Waivers'],
-                        ['draftEnabled', 'Drafts'],
-                        ['activityEnabled', 'League Activity'],
-                    ] as [keyof NotificationPreferences, string][]).map(([key, label], index, all) => {
-                        const enabled = preferences[key]
-                        return (
-                            <View key={key}>
-                                <Pressable
-                                    style={styles.row}
-                                    onPress={() => togglePreference(key)}
-                                    disabled={!profileLoaded}
-                                    role="switch"
-                                    aria-checked={enabled}
-                                    accessibilityRole="switch"
-                                    accessibilityState={{ checked: enabled, disabled: !profileLoaded }}
-                                >
-                                    <Text style={[styles.rowLabel, styles.switchLabel]}>{label}</Text>
-                                    <View style={[styles.toggle, enabled && styles.toggleOn]}>
-                                        <View style={[styles.toggleKnob, enabled && styles.toggleKnobOn]} />
+                {/* Web has no push transport, so these toggles could never deliver. */}
+                {Platform.OS !== 'web' ? (
+                    <>
+                        <Text style={styles.sectionLabel}>Notifications</Text>
+                        <View style={styles.card}>
+                            {([
+                                ['tradeEnabled', 'Trades'],
+                                ['waiverEnabled', 'Waivers'],
+                                ['draftEnabled', 'Drafts'],
+                                ['activityEnabled', 'League Activity'],
+                            ] as [keyof NotificationPreferences, string][]).map(([key, label], index, all) => {
+                                const enabled = preferences[key]
+                                return (
+                                    <View key={key}>
+                                        <Pressable
+                                            style={styles.row}
+                                            onPress={() => togglePreference(key)}
+                                            disabled={!profileLoaded}
+                                            role="switch"
+                                            aria-checked={enabled}
+                                            accessibilityRole="switch"
+                                            accessibilityState={{ checked: enabled, disabled: !profileLoaded }}
+                                        >
+                                            <Text style={[styles.rowLabel, styles.switchLabel]}>{label}</Text>
+                                            <View style={[styles.toggle, enabled && styles.toggleOn]}>
+                                                <View style={[styles.toggleKnob, enabled && styles.toggleKnobOn]} />
+                                            </View>
+                                        </Pressable>
+                                        {index < all.length - 1 ? <View style={styles.divider} /> : null}
                                     </View>
-                                </Pressable>
-                                {index < all.length - 1 ? <View style={styles.divider} /> : null}
-                            </View>
-                        )
-                    })}
-                </View>
+                                )
+                            })}
+                        </View>
+                    </>
+                ) : null}
 
                 {editing ? (
                     <View style={styles.actionRow}>

@@ -77,6 +77,11 @@ export function usePushNotifications() {
         }
 
         async function register() {
+            // Expo push has no web transport here (no VAPID key or SW path is
+            // configured), and Device.isDevice reports true in the browser — so
+            // without this the web build prompts for permission it can never use.
+            if (Platform.OS === 'web') return
+
             // Push notifications only work on physical devices
             if (!Device.isDevice) return
 

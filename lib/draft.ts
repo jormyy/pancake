@@ -437,16 +437,23 @@ function postgresInList(values: string[]): string {
     return `(${values.join(',')})`
 }
 
+const DYNASTY_AGE_ROW_CAP = 2000
+
 async function getLatestDynastyAges(playerIds: string[]): Promise<Map<string, number>> {
     const ids = [...new Set(playerIds.filter(Boolean))]
     if (ids.length === 0) return new Map()
 
+    // dynasty_rankings holds one row per player per weekly snapshot, so a season's
+    // worth of history for a full nomination list runs to thousands of rows when we
+    // only ever keep the newest per player. Newest-first ordering puts the latest
+    // snapshot inside this cap for any realistic nomination count.
     const { data, error } = await supabase
         .from('dynasty_rankings')
         .select('player_id, age, fetched_at')
         .in('player_id', ids)
         .not('age', 'is', null)
         .order('fetched_at', { ascending: false })
+        .limit(DYNASTY_AGE_ROW_CAP)
 
     if (error) throw error
 

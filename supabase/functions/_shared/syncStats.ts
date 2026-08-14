@@ -1,7 +1,13 @@
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
-import { loadCdnPlayerResolver, persistNbaIdUpdates, resolveCdnPlayer } from './playerResolver.ts'
+import {
+  loadCdnPlayerResolver,
+  persistNbaIdUpdates,
+  resolveCdnPlayer,
+  type CdnPlayerResolver,
+} from './playerResolver.ts'
+import { dateFromETDate } from './scoreShared.ts'
 import type { Database } from './database.ts'
 
 export type StatsSyncGame = Pick<
@@ -17,7 +23,10 @@ function toETDate(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
-export async function syncStatsByDate(date: Date): Promise<number> {
+export async function syncStatsByDate(
+  date: Date,
+  sharedResolver?: CdnPlayerResolver,
+): Promise<number> {
   const dateStr = toETDate(date)
   console.log(`[sync-stats] Fetching stats for ${dateStr}...`)
 
@@ -29,7 +38,7 @@ export async function syncStatsByDate(date: Date): Promise<number> {
   }
 
   let statCount = 0
-  const resolver = await loadCdnPlayerResolver()
+  const resolver = sharedResolver ?? (await loadCdnPlayerResolver())
   const syncFailures: string[] = []
 
   for (const game of games) {
@@ -41,10 +50,9 @@ export async function syncStatsByDate(date: Date): Promise<number> {
     }
   }
 
-  await persistNbaIdUpdates(resolver.nbaIdUpdates)
-  if (resolver.nbaIdUpdates.length > 0) {
-    console.log(`[sync-stats] Mapped ${resolver.nbaIdUpdates.length} new NBA person IDs.`)
-  }
+  // A shared resolver spans several dates and accumulates ids across all of them;
+  // its owner persists once at the end so we do not rewrite the same list per date.
+  if (!sharedResolver) await flushNbaIdUpdates(resolver)
 
   if (syncFailures.length > 0) {
     throw new Error(`[sync-stats] Failed to sync ${syncFailures.length} game(s) for ${dateStr}: ${syncFailures.join('; ')}`)
@@ -52,6 +60,32 @@ export async function syncStatsByDate(date: Date): Promise<number> {
 
   console.log(`[sync-stats] Upserted ${statCount} stat lines for ${dateStr}.`)
   return statCount
+}
+
+// Syncs several dates on one shared player resolver. Loading it per date costs a
+// full paginated players scan each time, which dominates a multi-date re-sync.
+export async function syncStatsForDates(dateKeys: string[]): Promise<number> {
+  if (dateKeys.length === 0) return 0
+
+  const resolver = await loadCdnPlayerResolver()
+  let statCount = 0
+  try {
+    for (const dateKey of dateKeys) {
+      statCount += await syncStatsByDate(dateFromETDate(dateKey), resolver)
+    }
+  } finally {
+    // A failing date must not cost us the id mappings resolved before it; the
+    // per-date path persisted before throwing, and this keeps that guarantee.
+    await flushNbaIdUpdates(resolver)
+  }
+  return statCount
+}
+
+async function flushNbaIdUpdates(resolver: CdnPlayerResolver): Promise<void> {
+  await persistNbaIdUpdates(resolver.nbaIdUpdates)
+  if (resolver.nbaIdUpdates.length > 0) {
+    console.log(`[sync-stats] Mapped ${resolver.nbaIdUpdates.length} new NBA person IDs.`)
+  }
 }
 
 export async function findNextStatsGame(dateStr: string, afterGameId?: string): Promise<StatsSyncGame | null> {
@@ -103,12 +137,16 @@ async function syncStatsGameWithResolver(
     }
   }
 
-  if (stats.length > 0) {
+  const changed = await unchangedStatRowsRemoved(game.id, stats)
+  if (changed.length > 0) {
     const { error } = await supabase
       .from('player_game_stats')
-      .upsert(stats, { onConflict: 'player_id,game_id' })
+      .upsert(changed, { onConflict: 'player_id,game_id' })
     if (error) throw error
+    console.log(`[sync-stats] Game ${game.nba_game_id}: ${changed.length}/${stats.length} stat line(s) changed.`)
   }
+  // Callers report this as stat lines synced for the game; keep that meaning
+  // rather than silently redefining the metric as "rows written".
   if (boxScore.gameStatus === 3 && game.status !== 'Final') {
     const { error } = await supabase
       .from('nba_games')
@@ -117,6 +155,83 @@ async function syncStatsGameWithResolver(
     if (error) throw error
   }
   return stats.length
+}
+
+// Columns that decide whether a box score actually moved. updated_at is excluded
+// on purpose: it is the signal loadEarliestStatCorrectionWeek uses to detect a
+// stat correction, so rewriting it on an unchanged re-sync would make every
+// re-sync look like a correction and drag the scoring reach-back back to week 1.
+const COMPARED_STAT_COLUMNS = [
+  'player_id',
+  'game_id',
+  'season_year',
+  'week_number',
+  'minutes_played',
+  'points',
+  'rebounds',
+  'offensive_rebounds',
+  'defensive_rebounds',
+  'assists',
+  'steals',
+  'blocks',
+  'turnovers',
+  'personal_fouls',
+  'field_goals_made',
+  'field_goals_attempted',
+  'three_pointers_made',
+  'three_pointers_attempted',
+  'free_throws_made',
+  'free_throws_attempted',
+  'plus_minus',
+  'double_double',
+  'triple_double',
+  'did_not_play',
+] as const
+
+async function unchangedStatRowsRemoved(
+  gameId: string,
+  rows: PlayerGameStatsInsert[],
+): Promise<PlayerGameStatsInsert[]> {
+  if (rows.length === 0) return rows
+
+  const { data, error } = await supabase
+    .from('player_game_stats')
+    .select(COMPARED_STAT_COLUMNS.join(','))
+    .eq('game_id', gameId)
+  if (error) throw error
+
+  return changedStatRows(rows, (data ?? []) as unknown as Record<string, unknown>[])
+}
+
+// Pure half of the diff, kept separate so it is testable without a database.
+export function changedStatRows(
+  rows: PlayerGameStatsInsert[],
+  storedRows: Record<string, unknown>[],
+): PlayerGameStatsInsert[] {
+  const stored = new Map<string, Record<string, unknown>>(
+    storedRows.map((row) => [String(row.player_id), row]),
+  )
+  return rows.filter((row) => !statRowMatchesStored(row, stored.get(String(row.player_id))))
+}
+
+function statRowMatchesStored(
+  row: PlayerGameStatsInsert,
+  stored: Record<string, unknown> | undefined,
+): boolean {
+  if (!stored) return false
+  return COMPARED_STAT_COLUMNS.every((column) =>
+    normalizeStatValue((row as Record<string, unknown>)[column]) === normalizeStatValue(stored[column]),
+  )
+}
+
+// Postgres returns numerics as strings ("12.50"); normalize both sides through
+// Number so formatting alone never counts as a change.
+function normalizeStatValue(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  const numeric = Number(value)
+  if (value !== '' && !Number.isNaN(numeric)) return String(numeric)
+  return String(value)
 }
 
 export function buildStatRow(
