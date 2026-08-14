@@ -25,6 +25,8 @@ type MatchupForScore = {
     week_number: number
     home_member_id: string
     away_member_id: string
+    home_points: number | null
+    away_points: number | null
 }
 
 
@@ -520,7 +522,7 @@ async function updateWeekPoints(
 
     const matchups = await fetchAllPages<MatchupForScore>((from, to) => supabase
         .from('matchups')
-        .select('id, league_id, league_season_id, week_number, home_member_id, away_member_id')
+        .select('id, league_id, league_season_id, week_number, home_member_id, away_member_id, home_points, away_points')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .eq('week_number', weekNumber)
@@ -544,16 +546,28 @@ async function updateWeekPoints(
         weekData.week_end,
     )
 
-    const updates = matchups.map((matchup) => ({
-        id: matchup.id,
-        league_id: matchup.league_id,
-        league_season_id: matchup.league_season_id,
-        week_number: matchup.week_number,
-        home_member_id: matchup.home_member_id,
-        away_member_id: matchup.away_member_id,
-        home_points: pointsByMember.get(matchup.home_member_id) ?? 0,
-        away_points: pointsByMember.get(matchup.away_member_id) ?? 0,
-    }))
+    // matchups has realtime enabled; an unchanged-score upsert still produces WAL
+    // and a broadcast to every subscribed client, so no-op rows are filtered out.
+    const updates = matchups.flatMap((matchup) => {
+        const homePoints = pointsByMember.get(matchup.home_member_id) ?? 0
+        const awayPoints = pointsByMember.get(matchup.away_member_id) ?? 0
+        if (
+            Number(matchup.home_points ?? NaN) === homePoints &&
+            Number(matchup.away_points ?? NaN) === awayPoints
+        ) return []
+        return [{
+            id: matchup.id,
+            league_id: matchup.league_id,
+            league_season_id: matchup.league_season_id,
+            week_number: matchup.week_number,
+            home_member_id: matchup.home_member_id,
+            away_member_id: matchup.away_member_id,
+            home_points: homePoints,
+            away_points: awayPoints,
+        }]
+    })
+
+    if (!updates.length) return
 
     const { error: updateErr } = await supabase
         .from('matchups')
@@ -717,12 +731,23 @@ async function loadEarliestStatCorrectionWeek(
     const lastWeekEnd = weekBounds[weekBounds.length - 1]?.week_end
     if (!firstWeekStart || !lastWeekEnd) return null
 
+    // A stat row can only flag a week stale when its updated_at exceeds that
+    // week's reference time, so rows at or before the earliest reference time
+    // across all weeks can never match. Filtering server-side keeps this from
+    // paging the whole season's stats on every tick; stat writes are diffed, so
+    // in steady state this returns near-zero rows.
+    const referenceFloor = Math.min(
+        ...snapshotTimeByWeek.values(),
+        ...playoffFinalizationTimeByWeek.values(),
+    )
+
     const statRows = await fetchAllPages<StatUpdateTimestamp>((from, to) => supabase
         .from('player_game_stats')
         .select('game_date, updated_at, nba_games!inner(nba_game_id)')
         .eq('season_year', seasonYear)
         .gte('game_date', firstWeekStart)
         .lte('game_date', lastWeekEnd)
+        .gt('updated_at', new Date(referenceFloor).toISOString())
         .order('game_date')
         .range(from, to))
 
@@ -817,15 +842,35 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     // 60s live-poll wall time scales with the slowest league, not the sum.
     // Errors propagate to the caller (Promise.all rejects on first failure) to match
     // the prior for-loop behavior where any throw aborted the sync.
-    await Promise.all(
+    const seasonPlans = await Promise.all(
         seasons.map(async (season) => {
-            const settings = scoringSettingsFromJson(season.leagues?.scoring_settings)
-
             const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
             if (!weekNumber) {
                 console.log(`[scores] No current week for season ${season.season_year}`)
-                return
+                return null
             }
+            const weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
+            return { season, weekNumber, weeksToSync }
+        }),
+    )
+    const plans = seasonPlans.filter((plan) => plan != null)
+
+    // Stat sync writes global player_game_stats, so running it per league would
+    // duplicate the same CDN box-score fetches and race identical upserts. Run
+    // it once per season year over the union of every league's weeks.
+    const weeksBySeasonYear = new Map<number, Set<number>>()
+    for (const plan of plans) {
+        const weeks = weeksBySeasonYear.get(plan.season.season_year) ?? new Set<number>()
+        for (const week of plan.weeksToSync) weeks.add(week)
+        weeksBySeasonYear.set(plan.season.season_year, weeks)
+    }
+    for (const [seasonYear, weeks] of weeksBySeasonYear) {
+        await syncStatsForCompletedWeeks(seasonYear, [...weeks].sort((a, b) => a - b), referenceDate)
+    }
+
+    await Promise.all(
+        plans.map(async ({ season, weekNumber, weeksToSync }) => {
+            const settings = scoringSettingsFromJson(season.leagues?.scoring_settings)
             // Score every week the season covers. Playoff rounds use the
             // week_number stored on each generated matchup, and the scoring pass
             // is matchup-type agnostic: it sums lineup×stats for whichever rows
@@ -835,8 +880,6 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
 
             console.log(`[scores] Syncing week ${weekNumber} for league ${season.league_id}`)
 
-            const weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
-            await syncStatsForCompletedWeeks(season.season_year, weeksToSync, referenceDate)
             for (const scoreWeek of weeksToSync) {
                 await updateWeekPoints(season.league_id, season.id, season.season_year, scoreWeek, settings)
             }

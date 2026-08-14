@@ -109,7 +109,7 @@ export function useDynastyRankings() {
             setHasMore(false)
             setLoading(true)
         }
-        void loadFirstPage(debouncedQuery, true)
+        void loadFirstPage(debouncedQuery)
     }, [debouncedQuery, loadFirstPage])
 
     useFocusEffect(

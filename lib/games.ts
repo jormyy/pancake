@@ -40,12 +40,11 @@ export async function getLivePlayerStats(date: string): Promise<Map<string, Live
         .from('player_game_stats')
         .select('player_id, points, rebounds, assists, steals, blocks, turnovers, three_pointers_made, field_goals_made, field_goals_attempted, free_throws_made, free_throws_attempted, personal_fouls, double_double, triple_double, minutes_played, did_not_play, nba_games!inner(nba_game_id)')
         .eq('game_date', date)
+        .like('nba_games.nba_game_id', '002%')
 
     if (error) throw error
     const map = new Map<string, LiveStatLine>()
     for (const row of data ?? []) {
-        const game = (row as { nba_games?: { nba_game_id?: string | null } | null }).nba_games
-        if (!isRegularSeasonGameId(game?.nba_game_id)) continue
         const r = row as Record<string, unknown>
         map.set(row.player_id, {
             points: row.points ?? 0,

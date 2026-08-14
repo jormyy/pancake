@@ -195,29 +195,73 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
     return result
 }
 
+// Silent live refreshes re-read lineups every few seconds, but slot templates
+// and rosters are near-static (settings edits; trades/waivers). Short-TTL
+// promise caches let that path skip the redundant queries; fresh reads still
+// repopulate the caches so cached refreshes stay recent.
+const TEMPLATE_CACHE_TTL_MS = 5 * 60_000
+const ROSTER_CACHE_TTL_MS = 60_000
+
+async function fetchSlotTemplates(leagueId: string) {
+    const { data, error } = await supabase
+        .from('lineup_slot_templates')
+        .select('slot_type, slot_count')
+        .eq('league_id', leagueId)
+    if (error) throw error
+    return data ?? []
+}
+
+async function fetchRosterPlayers(memberId: string, leagueId: string, seasonId: string) {
+    const { data, error } = await supabase
+        .from('roster_players')
+        .select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status, nba_id)')
+        .eq('member_id', memberId)
+        .eq('league_id', leagueId)
+        .eq('league_season_id', seasonId)
+    if (error) throw error
+    return data ?? []
+}
+
+const templateCache = new Map<string, { at: number; promise: ReturnType<typeof fetchSlotTemplates> }>()
+const rosterCache = new Map<string, { at: number; promise: ReturnType<typeof fetchRosterPlayers> }>()
+
+function ttlCached<T>(
+    cache: Map<string, { at: number; promise: Promise<T> }>,
+    key: string,
+    ttlMs: number,
+    allowCached: boolean,
+    fetcher: () => Promise<T>,
+): Promise<T> {
+    const now = Date.now()
+    const hit = cache.get(key)
+    if (allowCached && hit && now - hit.at < ttlMs) return hit.promise
+    const promise = fetcher()
+    cache.set(key, { at: now, promise })
+    promise.catch(() => {
+        if (cache.get(key)?.promise === promise) cache.delete(key)
+    })
+    return promise
+}
+
 export async function getWeeklyLineup(
     memberId: string,
     leagueId: string,
     seasonId: string,
     weekNumber: number,
     gameDate: string,
+    options: { allowCachedStatics?: boolean } = {},
 ): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
     // gameDate is a YYYY-MM-DD string aligned to nba_games.game_date (ET).
     // Compare against todayET so non-ET clients don't misclassify the current
     // slate as "past" (or vice versa) during the 0–3h skew.
     const isPastDate = gameDate < todayET()
+    const allowCached = options.allowCachedStatics ?? false
 
-    const [templatesResult, rosterResult, assignmentsResult] = await Promise.all([
-        supabase
-            .from('lineup_slot_templates')
-            .select('slot_type, slot_count')
-            .eq('league_id', leagueId),
-        supabase
-            .from('roster_players')
-            .select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status, nba_id)')
-            .eq('member_id', memberId)
-            .eq('league_id', leagueId)
-            .eq('league_season_id', seasonId),
+    const [templates, roster, assignmentsResult] = await Promise.all([
+        ttlCached(templateCache, leagueId, TEMPLATE_CACHE_TTL_MS, allowCached,
+            () => fetchSlotTemplates(leagueId)),
+        ttlCached(rosterCache, `${memberId}:${leagueId}:${seasonId}`, ROSTER_CACHE_TTL_MS, allowCached,
+            () => fetchRosterPlayers(memberId, leagueId, seasonId)),
         supabase
             .from('weekly_lineups')
             .select('player_id, slot_type')
@@ -226,12 +270,8 @@ export async function getWeeklyLineup(
             .eq('league_season_id', seasonId)
             .eq('game_date', gameDate),
     ])
-    if (templatesResult.error) throw templatesResult.error
-    if (rosterResult.error) throw rosterResult.error
     if (assignmentsResult.error) throw assignmentsResult.error
 
-    const templates = templatesResult.data ?? []
-    const roster = rosterResult.data ?? []
     const assignments = assignmentsResult.data ?? []
 
     const assignmentMap = new Map<string, string>(

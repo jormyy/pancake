@@ -9,7 +9,7 @@ import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
 import { FlashList, FlashListRef } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import * as Haptics from 'expo-haptics'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -253,8 +253,8 @@ export default function RosterScreen() {
         renderedOwnerRef.current = ownerIdentity
         actionGenerationRef.current += 1
     }
-    const isCurrentAction = (generation: number, identity: string | null) =>
-        actionGenerationRef.current === generation && activeOwnerRef.current === identity
+    const isCurrentAction = useCallback((generation: number, identity: string | null) =>
+        actionGenerationRef.current === generation && activeOwnerRef.current === identity, [])
     // Effects run post-commit, so mask cross-league leakage for the one commit
     // between a league switch and the reset effect below (mirrors the
     // ownsActionState pattern in use-lineup-actions).
@@ -368,7 +368,7 @@ export default function RosterScreen() {
         listRef.current?.scrollToIndex({ index: claimsHeaderIndex, animated: true })
     }
 
-    async function handleToggleIR(item: RosterPlayer) {
+    const handleToggleIR = useCallback(async (item: RosterPlayer) => {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity) return
@@ -421,9 +421,9 @@ export default function RosterScreen() {
                 }
             })
         })
-    }
+    }, [ownerIdentity, currentLeague, roster, load, isCurrentAction])
 
-    async function handleToggleTaxi(item: RosterPlayer) {
+    const handleToggleTaxi = useCallback(async (item: RosterPlayer) => {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity) return
@@ -476,7 +476,7 @@ export default function RosterScreen() {
                 }
             })
         })
-    }
+    }, [ownerIdentity, currentLeague, roster, load, isCurrentAction])
 
     async function runAutoSet(mode: 'today' | 'week' | 'season') {
         // Ref latch: state alone can't stop a same-frame double-tap (both taps
@@ -516,7 +516,7 @@ export default function RosterScreen() {
         }
     }
 
-    function handleDropPrompt(item: RosterPlayer) {
+    const handleDropPrompt = useCallback((item: RosterPlayer) => {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity) return
@@ -541,9 +541,9 @@ export default function RosterScreen() {
             },
             'Drop',
         )
-    }
+    }, [ownerIdentity, load, isCurrentAction])
 
-    async function handleCancelClaim(claimId: string) {
+    const handleCancelClaim = useCallback(async (claimId: string) => {
         if (!current) return
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
@@ -557,9 +557,9 @@ export default function RosterScreen() {
         } finally {
             if (isCurrentAction(generation, identity)) setCancellingId(null)
         }
-    }
+    }, [current, ownerIdentity, load, isCurrentAction])
 
-    async function handleEditClaimBid(claim: WaiverClaim, bidAmount: number) {
+    const handleEditClaimBid = useCallback(async (claim: WaiverClaim, bidAmount: number) => {
         if (!current) return
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
@@ -574,9 +574,9 @@ export default function RosterScreen() {
         } catch (e) {
             if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
-    }
+    }, [current, ownerIdentity, load, isCurrentAction])
 
-    async function handleReorderClaim(claimId: string, direction: 'up' | 'down') {
+    const handleReorderClaim = useCallback(async (claimId: string, direction: 'up' | 'down') => {
         if (!current) return
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
@@ -587,7 +587,133 @@ export default function RosterScreen() {
         } catch (e) {
             if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
-    }
+    }, [current, ownerIdentity, load, isCurrentAction])
+
+    const league = currentLeague
+    const taxiSlots = league?.taxi_slots ?? 3
+    const trimBusyId = droppingId ?? togglingId ?? taxiingId
+
+    const renderRosterItem = useCallback(({ item }: { item: RosterListItem }) => {
+        if (item._isHeader) {
+            if (item._section === 'active') {
+                return <SectionHeader label="Starters & Bench · slot order" />
+            }
+            if (item._section === 'taxi') {
+                return (
+                    <View style={styles.taxiHeader}>
+                        <Text style={styles.taxiHeaderText}>Taxi Squad</Text>
+                        <Text style={styles.taxiHeaderSub}>Exempt from roster limits · Cannot play in lineups</Text>
+                    </View>
+                )
+            }
+            const label =
+                item._section === 'picks' ? 'Draft Picks'
+                : item._section === 'claims' ? 'Waiver Claims'
+                : 'IR'
+            return <SectionHeader label={label} />
+        }
+        if (item._section === 'active' && item._isEmpty) {
+            return (
+                <View style={styles.emptySlot}>
+                    <Text style={styles.emptySlotText}>Empty roster slot</Text>
+                </View>
+            )
+        }
+        if (item._section === 'claims') {
+            return (
+                <RosterClaimItem
+                    claim={item as WaiverClaim}
+                    cancellingId={cancellingId}
+                    waiverPriority={waiverPriority}
+                    waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
+                    onCancel={handleCancelClaim}
+                    onEditBid={handleEditClaimBid}
+                    onReorder={handleReorderClaim}
+                />
+            )
+        }
+        if (item._section === 'picks') {
+            return (
+                <RosterPickItem
+                    pick={item as TradePickItem}
+                    myTeamName={current?.team_name ?? ''}
+                />
+            )
+        }
+        if (item._section === 'taxi' && item._isEmpty) {
+            return (
+                <View style={styles.taxiEmpty}>
+                    <Text style={styles.taxiEmptyText}>No players on taxi squad</Text>
+                </View>
+            )
+        }
+        if (item._section === 'taxi') {
+            if (showRosterTable) {
+                const taxiItem = item as RosterPlayer
+                return (
+                    <RosterTablePlayerItem
+                        item={taxiItem}
+                        section="taxi"
+                        avgFpts={avgMap.get(taxiItem.players.id)}
+                        stats={avgStatsMap.get(taxiItem.players.id)}
+                        isBusy={taxiingId === taxiItem.id}
+                        taxiSlotsAvailable={taxi.length < taxiSlots}
+                        onPress={() => push(`/player/${taxiItem.players.id}`)}
+                        onToggleIR={handleToggleIR}
+                        onToggleTaxi={handleToggleTaxi}
+                    />
+                )
+            }
+            return (
+                <TaxiPlayerItem
+                    item={item as RosterPlayer}
+                    taxiingId={taxiingId}
+                    avgFpts={avgMap.get((item as RosterPlayer).players.id)}
+                    avgMinutes={avgStatsMap.get((item as RosterPlayer).players.id)?.avg_minutes_played}
+                    onPress={() => push(`/player/${(item as RosterPlayer).players.id}`)}
+                    onToggleTaxi={handleToggleTaxi}
+                />
+            )
+        }
+        const rosterItem = item as RosterPlayer
+        if (showRosterTable) {
+            return (
+                <RosterTablePlayerItem
+                    item={rosterItem}
+                    section={rosterItem.is_on_ir ? 'ir' : 'active'}
+                    avgFpts={avgMap.get(rosterItem.players.id)}
+                    stats={avgStatsMap.get(rosterItem.players.id)}
+                    isBusy={togglingId === rosterItem.id || taxiingId === rosterItem.id || droppingId === rosterItem.id}
+                    taxiSlotsAvailable={taxi.length < taxiSlots}
+                    onPress={() => push(`/player/${rosterItem.players.id}`)}
+                    onLongPress={() => handleDropPrompt(rosterItem)}
+                    onToggleIR={handleToggleIR}
+                    onToggleTaxi={handleToggleTaxi}
+                />
+            )
+        }
+        return (
+            <RosterPlayerItem
+                item={rosterItem}
+                togglingId={togglingId}
+                taxiingId={taxiingId}
+                droppingId={droppingId}
+                taxiSlotsAvailable={taxi.length < taxiSlots}
+                avgFpts={avgMap.get(rosterItem.players.id)}
+                avgMinutes={avgStatsMap.get(rosterItem.players.id)?.avg_minutes_played}
+                onPress={() => push(`/player/${rosterItem.players.id}`)}
+                onLongPress={() => handleDropPrompt(rosterItem)}
+                onToggleIR={handleToggleIR}
+                onToggleTaxi={handleToggleTaxi}
+            />
+        )
+    }, [
+        showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots,
+        togglingId, taxiingId, droppingId, cancellingId, waiverPriority,
+        currentLeague?.waiver_mode, current?.team_name, push,
+        handleCancelClaim, handleEditClaimBid, handleReorderClaim,
+        handleToggleIR, handleToggleTaxi, handleDropPrompt,
+    ])
 
     if (!current) {
         // No loading placeholder — stay blank until the league context is
@@ -597,10 +723,6 @@ export default function RosterScreen() {
         }
         return <EmptyState message="Join or create a league first." />
     }
-
-    const league = currentLeague
-    const taxiSlots = league?.taxi_slots ?? 3
-    const trimBusyId = droppingId ?? togglingId ?? taxiingId
 
     return (
         <SafeAreaView style={styles.container}>
@@ -690,121 +812,7 @@ export default function RosterScreen() {
                     ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showRosterTable ? <RosterTableHeader /> : null}
                     getItemType={(item) => item._isHeader ? 'header' : item._section}
-                    renderItem={({ item }) => {
-                        if (item._isHeader) {
-                            if (item._section === 'active') {
-                                return <SectionHeader label="Starters & Bench · slot order" />
-                            }
-                            if (item._section === 'taxi') {
-                                return (
-                                    <View style={styles.taxiHeader}>
-                                        <Text style={styles.taxiHeaderText}>Taxi Squad</Text>
-                                        <Text style={styles.taxiHeaderSub}>Exempt from roster limits · Cannot play in lineups</Text>
-                                    </View>
-                                )
-                            }
-                            const label =
-                                item._section === 'picks' ? 'Draft Picks'
-                                : item._section === 'claims' ? 'Waiver Claims'
-                                : 'IR'
-                            return <SectionHeader label={label} />
-                        }
-                        if (item._section === 'active' && item._isEmpty) {
-                            return (
-                                <View style={styles.emptySlot}>
-                                    <Text style={styles.emptySlotText}>Empty roster slot</Text>
-                                </View>
-                            )
-                        }
-                        if (item._section === 'claims') {
-                            return (
-                                <RosterClaimItem
-                                    claim={item as WaiverClaim}
-                                    cancellingId={cancellingId}
-                                    waiverPriority={waiverPriority}
-                                    waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
-                                    onCancel={handleCancelClaim}
-                                    onEditBid={handleEditClaimBid}
-                                    onReorder={handleReorderClaim}
-                                />
-                            )
-                        }
-                        if (item._section === 'picks') {
-                            return (
-                                <RosterPickItem
-                                    pick={item as TradePickItem}
-                                    myTeamName={current?.team_name ?? ''}
-                                />
-                            )
-                        }
-                        if (item._section === 'taxi' && item._isEmpty) {
-                            return (
-                                <View style={styles.taxiEmpty}>
-                                    <Text style={styles.taxiEmptyText}>No players on taxi squad</Text>
-                                </View>
-                            )
-                        }
-                        if (item._section === 'taxi') {
-                            if (showRosterTable) {
-                                const taxiItem = item as RosterPlayer
-                                return (
-                                    <RosterTablePlayerItem
-                                        item={taxiItem}
-                                        section="taxi"
-                                        avgFpts={avgMap.get(taxiItem.players.id)}
-                                        stats={avgStatsMap.get(taxiItem.players.id)}
-                                        isBusy={taxiingId === taxiItem.id}
-                                        taxiSlotsAvailable={taxi.length < taxiSlots}
-                                        onPress={() => push(`/player/${taxiItem.players.id}`)}
-                                        onToggleIR={handleToggleIR}
-                                        onToggleTaxi={handleToggleTaxi}
-                                    />
-                                )
-                            }
-                            return (
-                                <TaxiPlayerItem
-                                    item={item as RosterPlayer}
-                                    taxiingId={taxiingId}
-                                    avgFpts={avgMap.get((item as RosterPlayer).players.id)}
-                                    avgMinutes={avgStatsMap.get((item as RosterPlayer).players.id)?.avg_minutes_played}
-                                    onPress={() => push(`/player/${(item as RosterPlayer).players.id}`)}
-                                    onToggleTaxi={handleToggleTaxi}
-                                />
-                            )
-                        }
-                        const rosterItem = item as RosterPlayer
-                        if (showRosterTable) {
-                            return (
-                                <RosterTablePlayerItem
-                                    item={rosterItem}
-                                    section={rosterItem.is_on_ir ? 'ir' : 'active'}
-                                    avgFpts={avgMap.get(rosterItem.players.id)}
-                                    stats={avgStatsMap.get(rosterItem.players.id)}
-                                    isBusy={togglingId === rosterItem.id || taxiingId === rosterItem.id || droppingId === rosterItem.id}
-                                    taxiSlotsAvailable={taxi.length < taxiSlots}
-                                    onPress={() => push(`/player/${rosterItem.players.id}`)}
-                                    onLongPress={() => handleDropPrompt(rosterItem)}
-                                    onToggleIR={handleToggleIR}
-                                    onToggleTaxi={handleToggleTaxi}
-                                />
-                            )
-                        }
-                        return (
-                            <RosterPlayerItem
-                                item={rosterItem}
-                                togglingId={togglingId}
-                                taxiingId={taxiingId}
-                                droppingId={droppingId}
-                                taxiSlotsAvailable={taxi.length < taxiSlots}
-                                avgFpts={avgMap.get(rosterItem.players.id)}
-                                avgMinutes={avgStatsMap.get(rosterItem.players.id)?.avg_minutes_played}
-                                onPress={() => push(`/player/${rosterItem.players.id}`)}
-                                onLongPress={() => handleDropPrompt(rosterItem)}
-                                onToggleIR={handleToggleIR}
-                                onToggleTaxi={handleToggleTaxi}
-                            />
-                        )
-                    }}
+                    renderItem={renderRosterItem}
                 />
             )}
 

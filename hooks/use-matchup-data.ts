@@ -188,8 +188,8 @@ export function useMatchupData(
             const currentLeagueId = leagueId
             const date = selectedDateRef.current
             const [mine, opp] = await Promise.all([
-                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
-                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
+                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
+                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
             ])
             if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
                 date !== selectedDateRef.current) return

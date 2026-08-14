@@ -227,7 +227,7 @@ type MatchupRowProps = {
     slotType: string
     selKind: 'starter' | 'bench' | 'ir' | 'taxi'
     selIndex: number
-    selected: Sel | null
+    isSelected: boolean
     onTap: (sel: Sel) => void
     saving: boolean
     playingTeams: Set<string>
@@ -247,7 +247,7 @@ function MatchupRowImpl({
     slotType,
     selKind,
     selIndex,
-    selected,
+    isSelected,
     onTap,
     saving,
     playingTeams,
@@ -261,7 +261,7 @@ function MatchupRowImpl({
     motionDelay = 0,
 }: MatchupRowProps) {
     const [expanded, setExpanded] = useState(false)
-    const isSel = selected?.kind === selKind && selected.index === selIndex
+    const isSel = isSelected
     const slotColor = slotType === 'IR'
         ? uiColors.accentDanger
         : slotType === 'TX'

@@ -263,6 +263,31 @@ export default function PlayersScreen() {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
         .join(','), [search.availability.gamesLeft])
+    const handleAddPlayer = useCallback((player: PlayerRow) => {
+        if (waiverIds.has(player.id)) {
+            push(`/(modals)/claim-player?playerId=${player.id}`)
+        } else {
+            void quickAdd.handleAdd(player)
+        }
+    }, [waiverIds, push, quickAdd])
+    const handleOpenPlayer = useCallback((player: PlayerRow) => {
+        push(`/player/${player.id}`)
+    }, [push])
+    const renderPlayerItem = useCallback(({ item }: { item: PlayerRow }) => (
+        <PlayerSearchItem
+            item={item}
+            currentMemberId={current?.id}
+            ownedMap={ownedMap}
+            waiverIds={waiverIds}
+            adding={quickAdd.adding}
+            gamesLeft={search.availability.gamesLeft}
+            showStats={showStatTable}
+            showCompactStats={false}
+            animate={false}
+            onAdd={handleAddPlayer}
+            onPress={handleOpenPlayer}
+        />
+    ), [current?.id, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -433,27 +458,7 @@ export default function PlayersScreen() {
                     ListHeaderComponent={showStatTable ? (
                         <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
                     ) : null}
-                    renderItem={({ item }: { item: PlayerRow }) => (
-                        <PlayerSearchItem
-                            item={item}
-                            currentMemberId={current?.id}
-                            ownedMap={ownedMap}
-                            waiverIds={waiverIds}
-                            adding={quickAdd.adding}
-                            gamesLeft={search.availability.gamesLeft}
-                            showStats={showStatTable}
-                            showCompactStats={false}
-                            animate={false}
-                            onAdd={(player) => {
-                                if (waiverIds.has(player.id)) {
-                                    push(`/(modals)/claim-player?playerId=${player.id}`)
-                                } else {
-                                    void quickAdd.handleAdd(player)
-                                }
-                            }}
-                            onPress={() => push(`/player/${item.id}`)}
-                        />
-                    )}
+                    renderItem={renderPlayerItem}
                     ListEmptyComponent={
                         listIsInitialLoading
                             ? null
