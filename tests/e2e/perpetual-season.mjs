@@ -517,6 +517,109 @@ async function assertRollover(ctx) {
   return true
 }
 
+// AC: stat-correction safety. A correction inside the 48h grace window
+// re-decides the matchup before the bracket advances; a correction after
+// advancement updates stat rows but never re-decides the closed matchup.
+async function runGraceCorrectionScenario(users) {
+  const ctx = await createLeague({ name: 'Grace', users, memberCount: 4, playoffStartWeek: 18, baseYear: 4250 })
+  const psw = ctx.playoffStartWeek
+  await seedSeasonWeeks(ctx.season.season_year, 0, psw + 2)
+  for (let week = 1; week < psw; week += 1) {
+    await seedWeekGameAndStats(ctx, week)
+    const { tick } = weekDates(0, week)
+    await callEdge('sync-scores', { date: tick, leagueId: ctx.league.id })
+    await boundaryTick(ctx, tick)
+  }
+  await seedWeekGameAndStats(ctx, psw)
+  const sfTick = weekDates(0, psw).tick
+  await callEdge('sync-scores', { date: sfTick, leagueId: ctx.league.id })
+
+  const readSemis = async () => {
+    const { data, error } = await supabase.from('matchups')
+      .select('id, home_member_id, away_member_id, winner_member_id, home_points, away_points')
+      .eq('league_season_id', ctx.season.id)
+      .eq('matchup_type', 'playoff_semifinal')
+      .order('id')
+    throwOn(error, 'Grace semifinal readback')
+    return data ?? []
+  }
+  const pinFinalizedAt = async () => {
+    const { error } = await supabase.from('matchups')
+      .update({ finalized_at: sfTick })
+      .eq('league_season_id', ctx.season.id)
+      .eq('matchup_type', 'playoff_semifinal')
+    throwOn(error, 'Grace finalized_at pin')
+  }
+  await pinFinalizedAt()
+
+  const insideGrace = new Date(Date.parse(sfTick) + 3_600_000).toISOString()
+  await callEdge('season-boundary', { date: insideGrace, leagueId: ctx.league.id })
+  if (await count('matchups', { league_season_id: ctx.season.id, matchup_type: 'playoff_final' }) !== 0) {
+    fail('Grace: final was created inside the 48h stat-correction grace window')
+    return
+  }
+  log('Grace: boundary correctly waited inside the 48h grace window')
+
+  const semis = await readSemis()
+  const target = semis[0]
+  const originalWinner = target.winner_member_id
+  const flippedWinner = originalWinner === target.home_member_id ? target.away_member_id : target.home_member_id
+  const flippedIndex = ctx.members.findIndex((member) => member.id === flippedWinner)
+  const correctStats = async (points) => {
+    const { error } = await supabase.from('player_game_stats')
+      .update({ points, updated_at: new Date().toISOString() })
+      .eq('player_id', ctx.players[flippedIndex].id)
+      .eq('season_year', ctx.season.season_year)
+      .eq('week_number', psw)
+    throwOn(error, 'Grace stat correction')
+  }
+  await correctStats(500)
+  await callEdge('sync-scores', { date: sfTick, leagueId: ctx.league.id })
+  const correctedSemis = await readSemis()
+  const corrected = correctedSemis.find((m) => m.id === target.id)
+  if (corrected?.winner_member_id !== flippedWinner) {
+    fail(`Grace: in-window correction did not re-decide the matchup (winner ${corrected?.winner_member_id}, expected ${flippedWinner})`)
+    return
+  }
+  log('Grace: in-window stat correction re-decided the semifinal before advancement')
+  await pinFinalizedAt()
+
+  const afterGrace = new Date(Date.parse(sfTick) + 49 * 3_600_000).toISOString()
+  await callEdge('season-boundary', { date: afterGrace, leagueId: ctx.league.id })
+  const { data: finals } = await supabase.from('matchups')
+    .select('home_member_id, away_member_id')
+    .eq('league_season_id', ctx.season.id)
+    .eq('matchup_type', 'playoff_final')
+  if ((finals ?? []).length !== 1) {
+    fail('Grace: final was not created after the grace window elapsed')
+    return
+  }
+  const finalists = [finals[0].home_member_id, finals[0].away_member_id]
+  if (!finalists.includes(flippedWinner)) {
+    fail('Grace: bracket advanced with the pre-correction winner')
+  }
+
+  // Post-advancement correction: stat rows update, closed matchup does not.
+  await correctStats(1)
+  await callEdge('sync-scores', { date: afterGrace, leagueId: ctx.league.id })
+  const lockedSemis = await readSemis()
+  const locked = lockedSemis.find((m) => m.id === target.id)
+  if (locked?.winner_member_id !== flippedWinner) {
+    fail(`Grace: post-advancement correction re-decided a closed playoff matchup (winner ${locked?.winner_member_id})`)
+  } else {
+    log('Grace: post-advancement correction left the closed semifinal immutable')
+  }
+  const { data: statRow } = await supabase.from('player_game_stats')
+    .select('points')
+    .eq('player_id', ctx.players[flippedIndex].id)
+    .eq('season_year', ctx.season.season_year)
+    .eq('week_number', psw)
+    .single()
+  if (Number(statRow?.points) !== 1) {
+    fail(`Grace: post-advancement correction did not persist to stat rows (points ${statRow?.points})`)
+  }
+}
+
 async function runDbIntegrityChecks(contexts) {
   for (const ctx of contexts) {
     const { data: seasons, error } = await supabase
@@ -608,6 +711,7 @@ const main = async () => {
     if (contexts.every((ctx) => ctx.dead)) break
   }
 
+  if (BOUNDARY_ENABLED) await runGraceCorrectionScenario(users)
   await runDbIntegrityChecks(contexts)
 
   await mkdir(ARTIFACT_DIR, { recursive: true })

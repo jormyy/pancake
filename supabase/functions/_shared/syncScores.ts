@@ -25,6 +25,8 @@ type MatchupForScore = {
     league_id: string
     league_season_id: string
     week_number: number
+    matchup_type: string
+    is_finalized: boolean | null
     home_member_id: string
     away_member_id: string
     home_points: number | null
@@ -152,6 +154,30 @@ function isPlayoffMatchupType(matchupType: string): boolean {
     return matchupType === 'playoff_quarterfinal' ||
         matchupType === 'playoff_semifinal' ||
         matchupType === 'playoff_final'
+}
+
+// Once the next playoff round exists, the prior round's result has been
+// consumed by bracket advancement and is immutable: a stat correction landing
+// after advancement updates player stat rows but never re-decides the closed
+// playoff matchup. Corrections inside the pre-advancement grace window still
+// reconcile normally.
+async function loadLockedPlayoffTypes(
+    leagueId: string,
+    leagueSeasonId: string,
+): Promise<Set<string>> {
+    const { data, error } = await supabase
+        .from('matchups')
+        .select('matchup_type')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', leagueSeasonId)
+        .in('matchup_type', ['playoff_semifinal', 'playoff_final'])
+    if (error) throw error
+
+    const present = new Set((data ?? []).map((row) => row.matchup_type))
+    const locked = new Set<string>()
+    if (present.has('playoff_semifinal')) locked.add('playoff_quarterfinal')
+    if (present.has('playoff_final')) locked.add('playoff_semifinal')
+    return locked
 }
 
 export function resolveMatchupWinnerForScore(
@@ -419,6 +445,12 @@ async function finalizeWeekIfComplete(
 
     if (!matchups.length) return
 
+    const lockedTypes = await loadLockedPlayoffTypes(leagueId, leagueSeasonId)
+    const decidableMatchups = matchups.filter((m) =>
+        !(m.is_finalized && lockedTypes.has(m.matchup_type))
+    )
+    if (!decidableMatchups.length) return
+
     const memberIds = [
         ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
@@ -441,7 +473,7 @@ async function finalizeWeekIfComplete(
     )
     if (standingsRows == null) return
 
-    const matchupResults: MatchupResult[] = matchups.map((m) => {
+    const matchupResults: MatchupResult[] = decidableMatchups.map((m) => {
         const homePoints = Number(m.home_points ?? 0)
         const awayPoints = Number(m.away_points ?? 0)
         const homeMaxPossiblePoints = maxPossiblePointsByMember.get(m.home_member_id) ?? 0
@@ -522,15 +554,21 @@ async function updateWeekPoints(
         return
     }
 
-    const matchups = await fetchAllPages<MatchupForScore>((from, to) => supabase
+    const allMatchups = await fetchAllPages<MatchupForScore>((from, to) => supabase
         .from('matchups')
-        .select('id, league_id, league_season_id, week_number, home_member_id, away_member_id, home_points, away_points')
+        .select('id, league_id, league_season_id, week_number, matchup_type, is_finalized, home_member_id, away_member_id, home_points, away_points')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .eq('week_number', weekNumber)
         .order('id')
         .range(from, to))
 
+    if (!allMatchups.length) return
+
+    const lockedTypes = await loadLockedPlayoffTypes(leagueId, seasonId)
+    const matchups = allMatchups.filter((m) =>
+        !(m.is_finalized && lockedTypes.has(m.matchup_type))
+    )
     if (!matchups.length) return
 
     console.log(`[scores] Updating points for week ${weekNumber} (${weekData.week_start}–${weekData.week_end}), ${matchups.length} matchup(s)`)
