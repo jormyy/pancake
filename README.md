@@ -21,6 +21,8 @@ commissioner disappears.
 
 - **Startup auction draft** with real-time bidding, commissioner-chosen nomination-order
   modes, nomination withdrawal, and free-form validated bids
+- **Mock draft rooms** (auction or rookie) with scheduling, realtime multi-user play,
+  creator/commissioner deletion, and daily auto-expiry of finished or stale rooms
 - **Snake rookie draft** for annual offseason drafts (pick-ownership ordered), with an
   automatic best-available backstop if it never runs by week 1
 - **Daily lineups** with manual and auto-set options and ET tip-off locks
@@ -118,9 +120,9 @@ no manual action.
 | Source | Provides | Degraded behavior |
 | --- | --- | --- |
 | NBA CDN | schedule, scoreboard, box scores | refuse bad payloads; offseason-stale schedule is a skip, not a failure |
-| ESPN public JSON | player master list, teams, positions, injuries | refuse truncated payloads (<28 teams / <350 players); ambiguous names skipped, never guessed |
+| ESPN public JSON | player master list, teams, positions, injuries, Dynasty Hub news | refuse truncated payloads (<28 teams / <350 players); ambiguous names skipped, never guessed; a failed news feed never blocks the player sync |
 | FantasyPros | projections | parse failure falls back to internal rolling averages |
-| HashtagBasketball | dynasty rankings | degraded scrape refused below 500 rows; stale rankings kept |
+| HashtagBasketball | dynasty rankings | card-layout parser with legacy-table fallback; degraded scrape refused below 300 rows; stale rankings kept |
 | stats.nba.com / NBA.com | draft order (June–July window) | failed day retried on later window days; incomplete boards never half-written |
 | Sleeper | dormant fallback player list | behind `PLAYER_SYNC_SOURCE=sleeper` only |
 

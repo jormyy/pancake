@@ -202,3 +202,17 @@ Deno.test('rejects rows missing the expected stat grid labels', () => {
   const rankings = parseDynastyRankingsHtml(html)
   expect(rankings.length === 0, `expected row with incomplete stat labels rejected, got ${rankings.length}`)
 })
+
+Deno.test('parses the 2026-08 card markup from a saved real-page fixture', async () => {
+  const html = await Deno.readTextFile(new URL('./fixtures/dynasty-cards.html', import.meta.url))
+  const rankings = parseDynastyRankingsHtml(html)
+  if (rankings.length !== 3) throw new Error(`expected 3 card rankings, got ${rankings.length}`)
+  const [first, second] = rankings
+  if (first.rank !== 1 || !first.name) throw new Error(`bad first card: ${JSON.stringify(first)}`)
+  if (!first.positions.length || !first.team) throw new Error('card badges did not split into positions/team')
+  if (first.age == null || first.points == null || first.games_played == null) {
+    throw new Error(`card stats incomplete: ${JSON.stringify(first)}`)
+  }
+  if (second.rank !== 2 || second.comment == null) throw new Error('card comment (Dynasty Outlook) missing')
+  if (selectedDynastyRankingType(html) !== 'POINT') throw new Error('selected ranking type not detected')
+})

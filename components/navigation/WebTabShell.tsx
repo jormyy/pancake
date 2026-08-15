@@ -197,6 +197,8 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                                     setCurrent(membership)
                                     setOpen(false)
                                 }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Switch to ${membership.leagues?.name ?? 'League'}`}
                                 style={({ hovered, pressed }: PressableState) => [
                                     styles.leagueMenuItem,
                                     active && styles.leagueMenuItemActive,

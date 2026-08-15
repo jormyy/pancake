@@ -157,6 +157,7 @@ export function useLeagueScreenState() {
         handleLoadMoreActivity: tabResources.loadMoreActivity,
         handleReseedRookiePicks: draft.handleReseedRookiePicks,
         handleStartDraft: draft.handleStartDraft,
+        handleDeleteMockRoom: mockRooms.handleDeleteMockRoom,
         handleStartMockRoom: mockRooms.handleStartMockRoom,
         handleStartRookieDraft: draft.handleStartRookieDraft,
         handleTabChange,

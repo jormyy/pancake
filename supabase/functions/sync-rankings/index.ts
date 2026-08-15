@@ -8,7 +8,9 @@ import * as cheerio from 'npm:cheerio@1.2.0'
 
 const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
 const POINTS_RANKING_TYPE = 'POINT'
-const MIN_RANKING_ROWS = 500
+// Hashtag's 2026-08 redesign lists 400 players (was 500+). The floor still
+// refuses truncated or reshaped scrapes while accepting the full list.
+const MIN_RANKING_ROWS = 300
 
 serveInternal('sync-rankings', async () => {
   const rows = await recordSyncRun('sync-rankings', async () => {

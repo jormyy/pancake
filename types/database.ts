@@ -3770,6 +3770,10 @@ export type Database = {
         Returns: string
       }
       delete_league_atomic: { Args: { p_league_id: string }; Returns: Json }
+      delete_mock_draft_room_atomic: {
+        Args: { p_draft_id: string; p_member_id: string; p_user_id: string }
+        Returns: undefined
+      }
       drop_and_add_free_agent_atomic: {
         Args: {
           p_league_id: string
@@ -3822,6 +3826,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      expire_mock_draft_rooms: { Args: never; Returns: number }
       expire_pending_trades_atomic: {
         Args: { p_limit?: number }
         Returns: {

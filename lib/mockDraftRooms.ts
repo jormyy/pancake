@@ -161,6 +161,10 @@ export async function leaveMockDraftRoom(draftId: string, memberId: string): Pro
     await apiPost(`/draft/${draftId}/leave-mock-room`, { memberId })
 }
 
+export async function deleteMockDraftRoom(draftId: string, memberId: string): Promise<void> {
+    await apiPost(`/draft/${draftId}/delete-mock-room`, { memberId })
+}
+
 export async function startMockDraftRoom(draftId: string, memberId: string): Promise<Draft> {
     const response = await apiPost<{ draft: Draft }>(`/draft/${draftId}/start-mock-room`, { memberId })
     return response.draft

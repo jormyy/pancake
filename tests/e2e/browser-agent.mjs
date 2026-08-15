@@ -101,6 +101,17 @@ export const createBrowser = ({
     args,
   })
   if (args[0] === 'close') releaseScenarioResource(resourceKey)
+  // Headed Chrome applies viewport emulation without firing a resize event,
+  // so React Native's dimension hooks never re-render. Dispatch one manually.
+  if (args[0] === 'set' && args[1] === 'viewport') {
+    await runAgentBrowser({
+      cwd,
+      timeout: defaultTimeout,
+      maxBuffer: effectiveMaxBuffer,
+      session,
+      args: ['eval', 'window.dispatchEvent(new Event("resize")); window.visualViewport && window.visualViewport.dispatchEvent(new Event("resize"))'],
+    }).catch(() => {})
+  }
   return output
 }
 

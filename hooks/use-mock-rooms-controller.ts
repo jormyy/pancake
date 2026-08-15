@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
     createMockDraftRoom,
+    deleteMockDraftRoom,
     joinMockDraftRoom,
     leaveMockDraftRoom,
     startMockDraftRoom,
@@ -151,6 +152,11 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
             await leaveMockDraftRoom(room.id, options.memberId)
             if (isCurrent()) await options.refreshRooms()
         }, 'Could not leave room'),
+        handleDeleteMockRoom: (room: MockDraftRoom) => runRoomAction(async (isCurrent) => {
+            if (!options.memberId) return
+            await deleteMockDraftRoom(room.id, options.memberId)
+            if (isCurrent()) await options.refreshRooms()
+        }, 'Could not delete room'),
         handleStartMockRoom: (room: MockDraftRoom) => runRoomAction(async (isCurrent) => {
             if (!options.memberId) return
             const draft = await startMockDraftRoom(room.id, options.memberId)
