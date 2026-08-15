@@ -661,10 +661,14 @@ async function assertRolloverCompleteness(ctx, previousSeason, currentSeason) {
   }
   const expectedWorstFirst = [...finalByMember.values()]
     .sort((a, b) => a.wins - b.wins || a.points_for - b.points_for)
+  if (expectedWorstFirst.length === 0) {
+    fail(`${ctx.name}: no final standings for the previous season; priority-inverse check cannot run`)
+    return
+  }
   const { data: priorities } = await supabase.from('waiver_priorities')
     .select('member_id, priority').eq('league_season_id', currentSeason.id)
   const priorityOne = (priorities ?? []).find((row) => row.priority === 1)
-  if (expectedWorstFirst.length > 0 && priorityOne?.member_id !== expectedWorstFirst[0]?.member_id) {
+  if (priorityOne?.member_id !== expectedWorstFirst[0]?.member_id) {
     fail(`${ctx.name}: waiver priority 1 is not the worst final-standings team`)
   }
 }
