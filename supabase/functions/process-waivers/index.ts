@@ -5,6 +5,10 @@ import { serveInternal } from '../_shared/serve.ts'
 import { runBounded, type AsyncJob } from '../_shared/runBounded.ts'
 
 const PROCESS_BATCH_LIMIT = 100
+// Drain every due claim in one daily run: keep pulling batches until a batch
+// comes back empty. The batch cap bounds one loop iteration, not the day's
+// total; MAX_BATCHES only backstops a pathological non-terminating loop.
+const MAX_BATCHES = 100
 const NOTIFICATION_CONCURRENCY = 10
 
 type WaiverProcessRow = Database['public']['Functions']['process_due_waiver_claims_atomic']['Returns'][number]
@@ -77,13 +81,18 @@ async function processWaiverClaims(): Promise<number> {
     day: '2-digit',
   }).format(new Date())
 
-  const { data, error } = await supabase.rpc('process_due_waiver_claims_atomic', {
-    p_process_date: today,
-    p_limit: PROCESS_BATCH_LIMIT,
-  })
-  if (error) throw error
+  const rows: WaiverProcessRow[] = []
+  for (let batch = 0; batch < MAX_BATCHES; batch += 1) {
+    const { data, error } = await supabase.rpc('process_due_waiver_claims_atomic', {
+      p_process_date: today,
+      p_limit: PROCESS_BATCH_LIMIT,
+    })
+    if (error) throw error
+    const batchRows: WaiverProcessRow[] = data ?? []
+    rows.push(...batchRows)
+    if (batchRows.length === 0) break
+  }
 
-  const rows: WaiverProcessRow[] = data ?? []
   const [, { error: expiredErr }] = await Promise.all([
     notifyClaimResults(rows),
     supabase.rpc('expire_waiver_wire_logs'),

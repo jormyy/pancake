@@ -19,9 +19,9 @@ AC-09 offseason-fully-open           | PASS    | runOffseasonOpenScenario: offse
 AC-10 commissioner-override-compat   | PASS    | Manual league: commissioner generates/advances/rolls first; automation tick only backfills matchups, seasons count stays exact
 AC-11 schedule-freshness-offseason   | PASS    | tests/lib/schedule-freshness.test.ts: offseason stale -> skip; in-season stale + label mismatch still throw; sync-schedule short-circuits on skip
 AC-12 oct-10-season-year-gap         | PASS    | supabase/functions/_shared/octoberGap.test.ts: Oct 10 mocked date, no new-season data -> syncScores and season-boundary complete with zero writes
-AC-13 syncscores-bounded-fanout      | PENDING |
-AC-14 waiver-drain-150               | PENDING |
-AC-15 retention-tested               | PENDING |
+AC-13 syncscores-bounded-fanout      | PASS    | syncScores runBounded fan-out (concurrency 8) with per-league isolation; supabase/functions/_shared/syncScoresFanout.test.ts: failing league A, league B completes; total wipeout still fails
+AC-14 waiver-drain-150               | PASS    | process-waivers drains batches until empty; harness waiver-drain scenario: 160 due claims across 4 leagues, 0 pending after one run
+AC-15 retention-tested               | PASS    | prune_unbounded_history() + weekly cron; tests/db/retention-pruning.sql: out-of-window pruned, product-read rows (final standings, current lineups, 3 seasons transactions, recent runs) kept
 AC-16 sleeper-migration-parity       | PENDING |
 AC-17 scrape-degraded-modes          | PENDING |
 AC-18 draft-order-automation         | PENDING |
@@ -31,6 +31,8 @@ AC-21 no-unresolved-findings         | PENDING |
 ```
 
 ## Checkpoint log
+
+- 2026-08-14 Wave 5: bounded league fan-out, waiver full drain, retention pruning with tested windows.
 
 - 2026-08-14 Wave 4: schedule freshness offseason-aware (skip May-Aug, fail Sep-Apr); Oct-gap covered by design (league_seasons-driven scoring) with regression test.
 

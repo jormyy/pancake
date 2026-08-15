@@ -260,6 +260,16 @@ async function createLeague({ name, users, memberCount, playoffStartWeek, baseYe
     throwOn(rosterError, `${name} roster insert`)
   }
 
+  const { error: priorityError } = await supabase.from('waiver_priorities').insert(
+    members.map((member, index) => ({
+      league_id: league.id,
+      league_season_id: season.id,
+      member_id: member.id,
+      priority: index + 1,
+    })),
+  )
+  throwOn(priorityError, `${name} waiver priorities seed`)
+
   // Five-year pick bank, as create_league seeds for real leagues; the rookie
   // draft backstop consumes these at each new season's week 1.
   const pickRows = []
@@ -901,6 +911,69 @@ async function runGraceCorrectionScenario(users) {
   }
 }
 
+// AC: 150+ due waiver claims across leagues all drain in ONE processor run.
+async function runWaiverDrainScenario(users) {
+  const leagues = []
+  for (let index = 0; index < 4; index += 1) {
+    leagues.push(await createLeague({
+      name: `Drain${index}`, users, memberCount: 2, playoffStartWeek: 20, baseYear: 4260 + index * 2,
+    }))
+  }
+  const pastDate = new Date(Date.now() - 86_400_000).toISOString()
+  let totalClaims = 0
+  for (const ctx of leagues) {
+    const playerRows = Array.from({ length: 40 }, (_, index) => ({
+      sportsdata_id: `perpetual-drain-${ctx.name}-${index}`.toLowerCase(),
+      first_name: 'Drain',
+      last_name: `${ctx.name} ${index}`,
+      position: 'C',
+      eligible_positions: ['C'],
+      status: 'Active',
+      nba_team: 'SIM',
+    }))
+    const { data: players, error: playersError } = await supabase.from('players')
+      .insert(playerRows).select('id')
+    throwOn(playersError, `${ctx.name} drain players`)
+    const { error: wireError } = await supabase.from('waiver_wire_log').insert(players.map((player) => ({
+      league_id: ctx.league.id,
+      league_season_id: ctx.season.id,
+      player_id: player.id,
+      clears_at: pastDate,
+    })))
+    throwOn(wireError, `${ctx.name} wire log`)
+    // A trigger stamps clears_at from league waiver rules on insert; simulate
+    // the waiver window having elapsed.
+    const { error: clearsError } = await supabase.from('waiver_wire_log')
+      .update({ clears_at: pastDate })
+      .eq('league_id', ctx.league.id)
+    throwOn(clearsError, `${ctx.name} wire log clears_at`)
+    const { error: claimError } = await supabase.from('waiver_claims').insert(players.map((player, index) => ({
+      league_id: ctx.league.id,
+      league_season_id: ctx.season.id,
+      member_id: ctx.members[1].id,
+      player_id: player.id,
+      priority_at_submission: 1,
+      process_date: pastDate.slice(0, 10),
+      bid_amount: 0,
+      claim_order: index + 1,
+    })))
+    throwOn(claimError, `${ctx.name} claims`)
+    totalClaims += players.length
+  }
+
+  await callEdge('process-waivers', {})
+
+  let pending = 0
+  for (const ctx of leagues) {
+    pending += await count('waiver_claims', { league_id: ctx.league.id, status: 'pending' })
+  }
+  if (pending > 0) {
+    fail(`waiver drain: ${pending} of ${totalClaims} due claims still pending after one processor run`)
+  } else {
+    log(`waiver drain: all ${totalClaims} due claims across ${leagues.length} leagues drained in one run`)
+  }
+}
+
 async function runDbIntegrityChecks(contexts) {
   for (const ctx of contexts) {
     const { data: seasons, error } = await supabase
@@ -997,6 +1070,7 @@ const main = async () => {
   }
 
   if (BOUNDARY_ENABLED) await runGraceCorrectionScenario(users)
+  if (BOUNDARY_ENABLED) await runWaiverDrainScenario(users)
   await runDbIntegrityChecks(contexts)
 
   await mkdir(ARTIFACT_DIR, { recursive: true })

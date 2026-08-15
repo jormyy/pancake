@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { runBounded } from '../lib/runBounded'
 import { getWeekNumberForDate } from '../lib/scoring'
 import { notifyMember } from '../lib/notifications'
 import { isRegularSeasonGameId } from '../lib/nba'
@@ -17,6 +18,15 @@ import {
 // NBA stat corrections arrive 1–2 days after a game; past that a Final box score
 // is settled and does not need re-fetching. Kept generous over the observed lag.
 const STAT_CORRECTION_WINDOW_DAYS = 4
+
+const LEAGUE_SYNC_CONCURRENCY = 8
+
+function errorText(error: unknown): string {
+    if (error instanceof AggregateError) {
+        return error.errors.map((inner) => errorText(inner)).join('; ')
+    }
+    return (error as { message?: string } | null)?.message ?? String(error)
+}
 
 type MatchupForScore = {
     id: string
@@ -876,22 +886,29 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     })
     if (!seasons.length) return
 
-    // Per-league work is independent across leagues. Run leagues in parallel so the
-    // 60s live-poll wall time scales with the slowest league, not the sum.
-    // Errors propagate to the caller (Promise.all rejects on first failure) to match
-    // the prior for-loop behavior where any throw aborted the sync.
-    const seasonPlans = await Promise.all(
-        seasons.map(async (season) => {
-            const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
-            if (!weekNumber) {
-                console.log(`[scores] No current week for season ${season.season_year}`)
-                return null
-            }
-            const weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
-            return { season, weekNumber, weeksToSync }
-        }),
-    )
-    const plans = seasonPlans.filter((plan) => plan != null)
+    // Per-league work is independent across leagues. Fan out with bounded
+    // concurrency so the 60s live-poll wall clock scales with the slowest
+    // leagues without an unbounded connection burst, and isolate per-league
+    // failures: one broken or slow league must not abort or starve the rest.
+    type SeasonPlan = {
+        season: (typeof seasons)[number]
+        weekNumber: number
+        weeksToSync: number[]
+    }
+    const plans: SeasonPlan[] = []
+    const planFailures: string[] = []
+    await runBounded(seasons.map((season) => async () => {
+        const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
+        if (!weekNumber) {
+            console.log(`[scores] No current week for season ${season.season_year}`)
+            return
+        }
+        const weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
+        plans.push({ season, weekNumber, weeksToSync })
+    }), LEAGUE_SYNC_CONCURRENCY).catch((error) => {
+        planFailures.push(errorText(error))
+        console.error(`[scores] planning failed for some league(s): ${errorText(error)}`)
+    })
 
     // Stat sync writes global player_game_stats, so running it per league would
     // duplicate the same CDN box-score fetches and race identical upserts. Run
@@ -906,8 +923,10 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
         await syncStatsForCompletedWeeks(seasonYear, [...weeks].sort((a, b) => a - b), referenceDate)
     }
 
-    await Promise.all(
-        plans.map(async ({ season, weekNumber, weeksToSync }) => {
+    const syncFailures: string[] = []
+    let syncedLeagues = 0
+    await runBounded(
+        plans.map(({ season, weekNumber, weeksToSync }) => async () => {
             const settings = scoringSettingsFromJson(season.leagues?.scoring_settings)
             // Score every week the season covers. Playoff rounds use the
             // week_number stored on each generated matchup, and the scoring pass
@@ -927,8 +946,22 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
             for (const finalizeWeek of weeksToSync) {
                 await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year, settings)
             }
+            syncedLeagues += 1
         }),
-    )
+        LEAGUE_SYNC_CONCURRENCY,
+    ).catch((error) => {
+        syncFailures.push(errorText(error))
+        console.error(`[scores] sync failed for some league(s): ${errorText(error)}`)
+    })
+
+    // Partial failures are logged and the healthy leagues complete; only a
+    // total wipeout (every league failed) surfaces as a failed sync run.
+    if (seasons.length > 0 && syncedLeagues === 0 && planFailures.length + syncFailures.length > 0) {
+        throw new AggregateError(
+            [...planFailures, ...syncFailures].map((message) => new Error(message)),
+            'score sync failed for every league',
+        )
+    }
 
     console.log('[scores] Sync complete.')
 }

@@ -153,6 +153,7 @@
     "public.projection_stat_fantasy_points(numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,numeric,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.propose_multi_team_trade_atomic(uuid,uuid,uuid,uuid[],jsonb,text,timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.propose_trade_atomic(uuid,uuid,uuid,uuid,uuid[],uuid[],uuid[],uuid[],text,timestamp with time zone,integer,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.prune_unbounded_history()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.record_notification_outbox_ticket_atomic(uuid,uuid,text,text,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.refresh_player_search_caches()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.register_push_token_atomic(uuid,text,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
