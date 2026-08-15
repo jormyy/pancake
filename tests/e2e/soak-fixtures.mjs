@@ -12,6 +12,11 @@ export const disposeDisposableLeague = async (supabase, leagueId, label) => {
   const { error: tradeError } = await supabase.from('trades')
     .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
     .eq('league_id', leagueId).eq('status', 'accepted')
+  // Rookie drafts back-reference draft_picks.rookie_draft_id; clear it so the
+  // drafts delete cannot trip the FK.
+  const { error: pickRefError } = await supabase.from('draft_picks')
+    .update({ rookie_draft_id: null }).eq('league_id', leagueId)
+  if (pickRefError) throw new Error(`${label}: pick ref cleanup failed: ${pickRefError.message}`)
   const { error: draftError } = await supabase.from('drafts').delete().eq('league_id', leagueId)
   const { error: deleteError } = await supabase.from('leagues').delete().eq('id', leagueId)
   const failures = [tradeError, draftError, deleteError].filter(Boolean).map((error) => new Error(error.message))

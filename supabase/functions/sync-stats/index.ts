@@ -205,10 +205,15 @@ serveInternal('sync-stats', async (req) => {
   if (body.dispatch === true) return Response.json({ ok: true, ...await runRangeJob() })
   if (typeof body.jobId === 'string') return Response.json({ ok: true, ...await runRangeJob(body.jobId) })
 
-  const dateStr = typeof body.date === 'string'
+  // Accept both a bare ET day (YYYY-MM-DD) and a full ISO timestamp (the
+  // e2e live-poll route forwards the latter).
+  const dateStr = (typeof body.date === 'string'
     ? body.date
-    : new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    : new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })).slice(0, 10)
   const date = new Date(dateStr + 'T12:00:00Z')
+  if (Number.isNaN(date.getTime())) {
+    return Response.json({ ok: false, error: `Invalid date: ${String(body.date)}` }, { status: 400 })
+  }
   const statLines = await recordSyncRun('sync-stats', async () => {
     const rows = await syncStatsByDate(date)
     return { result: rows, rowsAffected: rows }

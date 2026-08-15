@@ -75,6 +75,7 @@ import {
   assertSeasonResetScenario,
   assertWeeklyScoringFinalizationScenario,
 } from './soak-scoring-reset.mjs'
+import { assertOffseasonActivityScenario } from './soak-offseason-activity.mjs'
 import { BROWSER_SCENARIO_MANIFEST, browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
@@ -233,6 +234,9 @@ const main = async () => {
     args.seasonReset
       ? 'Season reset carryover/reseed scenario enabled through E2E_ENABLE_SEASON_RESET=1.'
       : 'Season reset carryover/reseed scenario disabled; set E2E_ENABLE_SEASON_RESET=1 to exercise the D.SEA.6 reset slice.',
+    args.offseasonActivity
+      ? 'Busy-offseason activity scenario enabled through E2E_ENABLE_OFFSEASON_ACTIVITY=1.'
+      : 'Busy-offseason activity scenario disabled; set E2E_ENABLE_OFFSEASON_ACTIVITY=1 to exercise the AC-23 add/drop/claim/trade/draft/settings rollover-survival slice.',
   ]
 
   try {
@@ -347,6 +351,7 @@ const main = async () => {
             assertDraftPushNotification,
             assertInjuryStatusFilterScenario,
             assertLeagueLifecycleScenario,
+            assertOffseasonActivityScenario,
             assertPlayoffBracketScenario,
             assertRookieDraftAutoPickScenario,
             assertSeasonResetScenario,
@@ -362,6 +367,7 @@ const main = async () => {
           draftPushCheck,
           injuryFilterCheck,
           leagueLifecycleCheck,
+          offseasonActivityCheck,
           playoffCheck,
           rookieDraftCheck,
           scoringCheck,
@@ -525,6 +531,7 @@ const main = async () => {
               ...browserPassNotes(browserScenarioResults),
               waiverProcessingCheck ? 'waiver priority processing passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
+              offseasonActivityCheck ? 'busy offseason activity survived rollover' : null,
               args.realtime ? 'realtime matchup and bid updates delivered' : null,
               args.push ? 'trade and waiver push notification intercepts passed' : null,
               draftPushCheck ? 'draft push notification intercept passed' : null,

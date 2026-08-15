@@ -26,7 +26,10 @@ export const backendJson = async (env, pathname, body = {}) => {
     },
     body: JSON.stringify(body),
   })
-  if (!response.ok) throw new Error(`${pathname} returned ${response.status}`)
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`${pathname} returned ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ''}`)
+  }
   return response.json()
 }
 
@@ -56,9 +59,12 @@ export const backendAuthedJson = async (env, pathname, token, body = {}) => {
 
 export const assertBackendUsesFakePush = async (env, fakePort) => {
   const status = await backendGetJson(env, '/e2e/status')
-  const expected = `http://127.0.0.1:${fakePort}/--/api/v2/push/send`
-  if (status.expoPushUrl !== expected) {
-    throw new Error(`D.X.1: backend EXPO_PUSH_URL is ${status.expoPushUrl ?? '<unset>'}; expected ${expected}`)
+  // The edge runtime reaches the host-side fake upstream as 127.0.0.1 on
+  // Linux CI and as host.docker.internal on macOS Docker.
+  const expected = ['127.0.0.1', 'host.docker.internal']
+    .map((host) => `http://${host}:${fakePort}/--/api/v2/push/send`)
+  if (!expected.includes(status.expoPushUrl)) {
+    throw new Error(`D.X.1: backend EXPO_PUSH_URL is ${status.expoPushUrl ?? '<unset>'}; expected one of ${expected.join(', ')}`)
   }
 }
 

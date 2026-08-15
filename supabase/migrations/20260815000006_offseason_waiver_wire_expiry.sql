@@ -1,6 +1,7 @@
--- Canonical SQL source for public.expire_waiver_wire_logs.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- With the offseason fully open (adds/drops/claims), waiver-wire holds must
+-- keep expiring while a league sits in 'offseason'. Previously an unclaimed
+-- offseason drop left an uncleared hold that blocked the automated season
+-- rollover forever (prevent_season_deactivation_with_pending_waivers).
 
 CREATE OR REPLACE FUNCTION public.expire_waiver_wire_logs()
 RETURNS integer

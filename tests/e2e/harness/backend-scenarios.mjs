@@ -33,6 +33,7 @@ const runnerById = {
       resourceOwner: context.resourceOwner,
     }),
   'season-reset': ({ runners, context }) => runners.assertSeasonResetScenario(context),
+  'offseason-activity': ({ runners, context }) => runners.assertOffseasonActivityScenario(context),
 }
 
 const BACKEND_SCENARIOS = BACKEND_SCENARIO_MANIFEST.map((scenario) => ({
