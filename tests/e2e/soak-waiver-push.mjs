@@ -276,7 +276,9 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
       league_season_id: currentSeason.id,
       draft_type: 'auction',
       status: 'in_progress',
-      budget_per_team: 5,
+      // Budget must cover the $1-per-remaining-active-slot reserve rule
+      // (place_auction_bid_atomic): empty 20-slot roster -> reserve 19.
+      budget_per_team: 30,
       started_at: now,
       current_nomination_order: 1,
     })
@@ -293,8 +295,8 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
     supabase.from('draft_budgets').insert(members.map((member) => ({
       draft_id: draft.id,
       member_id: member.id,
-      initial_budget: 5,
-      remaining: 5,
+      initial_budget: 30,
+      remaining: 30,
     }))),
   ])
   if (orderError) throw new Error(`D.SET.4 auction order insert: ${orderError.message}`)
@@ -330,7 +332,7 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
     overBudget: await expectAuctionRpcError({
       supabase,
       label: 'bid over budget',
-      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 6, p_user_id: bidderOneUserId },
+      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 31, p_user_id: bidderOneUserId },
       pattern: /Insufficient budget/i,
     }),
   }
