@@ -23,7 +23,7 @@ const COVERAGE_PATH = path.join(ROOT, 'tests/e2e-coverage.md')
  *   draftPush: boolean, fakePort: number, history: boolean, injuryFilter: boolean,
  *   leagueLifecycle: boolean, midlifeMigration: boolean, pickChain: boolean, playoffs: boolean,
  *   push: boolean, realtime: boolean, rookieDraft: boolean, scoring: boolean,
- *   seasonReset: boolean, settings: boolean, tiebreakers: boolean, tradeAccept: boolean,
+ *   offseasonActivity: boolean, seasonReset: boolean, settings: boolean, tiebreakers: boolean, tradeAccept: boolean,
  *   tradeVeto: boolean, waiverProcessing: boolean
  * }} CoverageArgs
  */
