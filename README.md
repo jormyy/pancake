@@ -9,7 +9,7 @@ A dynasty fantasy basketball app targeting the gap between ESPN (no dynasty supp
 - **Database**: PostgreSQL via Supabase
 - **Auth**: Supabase Auth
 - **Real-time**: Supabase Realtime
-- **Data Sources**: NBA CDN (schedules/scores) + Sleeper API (players/projections)
+- **Data Sources**: NBA CDN (schedules/scores) + ESPN public JSON (players/injuries; Sleeper kept as a dormant flagged fallback) + FantasyPros (projections)
 - **Hosting**: Supabase (DB/auth/API/cron)
 
 ## Getting Started

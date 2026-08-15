@@ -473,8 +473,21 @@ const createAndAcceptPickTrade = async (supabase, leagueId, seasonId, proposerId
       .single())
   if (tradeError) throw new Error(`trades insert: ${tradeError.message}`)
 
+  const { error: participantError } = await withSupabaseRetry('trade_participants insert', () => supabase.from('trade_participants').insert([
+      { trade_id: trade.id, member_id: proposerId, sort_order: 0, is_initiator: true, accepted_at: completedAt },
+      { trade_id: trade.id, member_id: recipientId, sort_order: 1, is_initiator: false, accepted_at: completedAt },
+    ]))
+  if (participantError) throw new Error(`trade_participants insert: ${participantError.message}`)
+
   const { error: itemError } = await withSupabaseRetry('trade_items insert', () => supabase.from('trade_items').insert([
-      { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPickId },
+      {
+        trade_id: trade.id,
+        side: 'proposer',
+        player_id: null,
+        pick_id: proposerPickId,
+        from_member_id: proposerId,
+        to_member_id: recipientId,
+      },
     ]))
   if (itemError) throw new Error(`trade_items insert: ${itemError.message}`)
 
