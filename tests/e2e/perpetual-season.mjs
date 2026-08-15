@@ -57,6 +57,16 @@ if (!['127.0.0.1', 'localhost'].includes(url.hostname) && process.env.PERPETUAL_
 if (!SERVICE_KEY) throw new Error('No local service key found; run `supabase start` first')
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
+const PUBLIC_KEY = process.env.PERPETUAL_SUPABASE_PUBLISHABLE_KEY ?? status.PUBLISHABLE_KEY ?? status.ANON_KEY
+
+// Some manager RPCs (adds, drops, claims) authorize via auth.uid(); the
+// offseason scenario calls them as real signed-in users, not service role.
+async function signedInClient(email) {
+  const client = createClient(SUPABASE_URL, PUBLIC_KEY, { auth: { persistSession: false } })
+  const { error } = await client.auth.signInWithPassword({ email, password: 'perpetual-season-pass-1' })
+  if (error) throw new Error(`sign-in failed for ${email}: ${error.message}`)
+  return client
+}
 
 const failures = []
 const transcript = []
@@ -149,6 +159,24 @@ async function ensureUsers(count) {
   return users
 }
 
+// Shared rookie pool for the auto-complete backstop: auto_pick selects the
+// lowest nba_draft_number not yet rostered in the league.
+async function seedRookiePool() {
+  const rows = Array.from({ length: 100 }, (_, index) => ({
+    sportsdata_id: `perpetual-rookie-${index + 1}`,
+    first_name: 'Rookie',
+    last_name: `Prospect ${index + 1}`,
+    position: 'SG',
+    eligible_positions: ['SG'],
+    status: 'Active',
+    nba_team: 'SIM',
+    years_exp: 0,
+    nba_draft_number: index + 1,
+  }))
+  const { error } = await supabase.from('players').insert(rows)
+  throwOn(error, 'rookie pool seed')
+}
+
 async function cleanupPreviousRuns() {
   const { data: leagues, error } = await supabase
     .from('leagues')
@@ -156,6 +184,9 @@ async function cleanupPreviousRuns() {
     .like('slug', 'pancake-perpetual-%')
   throwOn(error, 'cleanup league lookup')
   for (const league of leagues ?? []) {
+    const { error: pickRefError } = await supabase.from('draft_picks')
+      .update({ rookie_draft_id: null }).eq('league_id', league.id)
+    throwOn(pickRefError, 'cleanup draft pick refs')
     const { error: draftError } = await supabase.from('drafts').delete().eq('league_id', league.id)
     throwOn(draftError, 'cleanup drafts')
     const { error: deleteError } = await supabase.from('leagues').delete().eq('id', league.id)
@@ -229,6 +260,25 @@ async function createLeague({ name, users, memberCount, playoffStartWeek, baseYe
     throwOn(rosterError, `${name} roster insert`)
   }
 
+  // Five-year pick bank, as create_league seeds for real leagues; the rookie
+  // draft backstop consumes these at each new season's week 1.
+  const pickRows = []
+  for (const member of members) {
+    for (let year = baseYear + 1; year <= baseYear + 3; year += 1) {
+      for (let round = 1; round <= 3; round += 1) {
+        pickRows.push({
+          league_id: league.id,
+          season_year: year,
+          round,
+          original_owner_id: member.id,
+          current_owner_id: member.id,
+        })
+      }
+    }
+  }
+  const { error: pickError } = await supabase.from('draft_picks').insert(pickRows)
+  throwOn(pickError, `${name} draft_picks seed`)
+
   // Season-1 schedule stands in for the commissioner's one-time initial
   // schedule generation; every later season must come from the automation.
   const rounds = roundRobin(members.map((member) => member.id))
@@ -256,6 +306,7 @@ async function createLeague({ name, users, memberCount, playoffStartWeek, baseYe
   return {
     name,
     league,
+    users: users.slice(0, memberCount),
     members,
     players,
     playoffStartWeek,
@@ -344,7 +395,10 @@ async function matchupTypeCounts(ctx) {
 
 async function boundaryTick(ctx, tickDate) {
   if (!BOUNDARY_ENABLED) return
-  await callEdge('season-boundary', { date: tickDate, leagueId: ctx.league.id })
+  const result = await callEdge('season-boundary', { date: tickDate, leagueId: ctx.league.id })
+  for (const report of result?.leagues ?? []) {
+    if (report.error) fail(`${ctx.name}: boundary tick error: ${report.error}`)
+  }
 }
 
 // Commissioner override: performs the manual button actions (bracket
@@ -408,6 +462,9 @@ async function playSeason(ctx) {
     await callEdge('sync-scores', { date: tick, leagueId: ctx.league.id })
     if (ctx.manual) await manualCommissionerActs(ctx)
     await boundaryTick(ctx, tick)
+    if (week === 1 && ctx.seasonIndex > 0 && BOUNDARY_ENABLED) {
+      await assertRookieDraftBackstop(ctx)
+    }
 
     const byType = await matchupTypeCounts(ctx)
     if (week === 1) {
@@ -500,21 +557,245 @@ async function assertRollover(ctx) {
   }
 
   await assertBoundaryIdempotent(ctx, tickAfterFinal, 'post-rollover')
+  await assertRolloverCompleteness(ctx, previousSeason, currentSeason)
+  if (ctx.offseasonScenario) await runOffseasonOpenScenario(ctx, currentSeason)
 
-  // Carry rostered players into the new season context. Rollover carries
-  // roster_players over, so only the harness bookkeeping updates here.
+  // Rollover carries roster_players over; the harness only updates its own
+  // bookkeeping here. The league stays 'offseason' until the rookie-draft
+  // backstop completes at the new season's week 1.
   ctx.season = currentSeason
   ctx.seasonIndex += 1
-
-  // TODO(wave 3): replace with the rookie-draft week-1 auto-complete backstop;
-  // the backstop is what flips offseason -> active with no commissioner.
-  const { error: statusError } = await supabase
-    .from('leagues')
-    .update({ status: 'active' })
-    .eq('id', ctx.league.id)
-  throwOn(statusError, `${ctx.name} interim status flip`)
   log(`${ctx.name}: rolled over to season ${currentSeason.season_year} (${newMatchups} matchups generated)`)
   return true
+}
+
+// AC: rookie-draft backstop. A league whose rookie draft never ran reaches
+// new-season week 1 with the draft auto-completed best-available: every team
+// holds its picks' players on its roster, nothing dumped to waivers, and the
+// league is active again with no commissioner.
+async function assertRookieDraftBackstop(ctx) {
+  const { data: leagueRow } = await supabase.from('leagues').select('status').eq('id', ctx.league.id).single()
+  if (leagueRow?.status !== 'active') {
+    fail(`${ctx.name}: league status ${leagueRow?.status} after week-1 backstop; expected active`)
+    return
+  }
+  const { data: drafts } = await supabase.from('drafts')
+    .select('id, status, completed_at')
+    .eq('league_season_id', ctx.season.id)
+    .eq('draft_type', 'snake')
+    .eq('is_mock', false)
+  if ((drafts ?? []).length !== 1 || drafts[0].status !== 'completed') {
+    fail(`${ctx.name}: rookie draft not auto-completed at week 1 (${drafts?.[0]?.status ?? 'missing'})`)
+    return
+  }
+  const { data: picks } = await supabase.from('snake_draft_picks')
+    .select('member_id, player_id, picked_at')
+    .eq('draft_id', drafts[0].id)
+  const unfilled = (picks ?? []).filter((pick) => !pick.player_id || !pick.picked_at)
+  if (unfilled.length > 0) {
+    fail(`${ctx.name}: ${unfilled.length} rookie draft slots unfilled after backstop`)
+    return
+  }
+  for (const pick of picks ?? []) {
+    const rostered = await count('roster_players', {
+      league_season_id: ctx.season.id, member_id: pick.member_id, player_id: pick.player_id,
+    })
+    if (rostered !== 1) {
+      fail(`${ctx.name}: rookie pick ${pick.player_id} not on the picking team's roster`)
+      return
+    }
+  }
+  const { count: waived } = await supabase.from('waiver_wire_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('league_id', ctx.league.id)
+    .in('player_id', (picks ?? []).map((pick) => pick.player_id))
+  if ((waived ?? 0) > 0) {
+    fail(`${ctx.name}: ${waived} drafted rookies were dumped to waivers`)
+  }
+  log(`${ctx.name}: rookie draft auto-completed best-available at week 1 (${picks?.length} picks)`)
+}
+
+// AC: rollover completeness. Waiver priority reflects inverse final
+// standings, FAAB budgets equal the configured amount, add-limit counters are
+// fresh, and the rookie draft has a default scheduled date.
+async function assertRolloverCompleteness(ctx, previousSeason, currentSeason) {
+  const { data: seasonRow } = await supabase.from('league_seasons')
+    .select('rookie_draft_scheduled_at').eq('id', currentSeason.id).single()
+  if (!seasonRow?.rookie_draft_scheduled_at) {
+    fail(`${ctx.name}: rollover did not stamp a default rookie_draft_scheduled_at`)
+  }
+
+  const { data: faab } = await supabase.from('faab_balances')
+    .select('member_id, balance').eq('league_season_id', currentSeason.id)
+  if ((faab ?? []).length !== ctx.members.length) {
+    fail(`${ctx.name}: ${faab?.length ?? 0} FAAB balances in new season; expected ${ctx.members.length}`)
+  } else if ((faab ?? []).some((row) => Number(row.balance) !== Number(ctx.league.faab_starting_budget))) {
+    fail(`${ctx.name}: new-season FAAB balances not reset to configured ${ctx.league.faab_starting_budget}`)
+  }
+
+  const { count: addCounts } = await supabase.from('weekly_add_counts')
+    .select('id', { count: 'exact', head: true })
+    .eq('league_season_id', currentSeason.id)
+    .gt('add_count', 0)
+  if ((addCounts ?? 0) !== 0) {
+    fail(`${ctx.name}: new season starts with ${addCounts} nonzero weekly add counters`)
+  }
+
+  const { data: standings } = await supabase.from('standings')
+    .select('member_id, wins, points_for, week_number')
+    .eq('league_season_id', previousSeason.id)
+    .order('week_number', { ascending: false })
+  const finalByMember = new Map()
+  for (const row of standings ?? []) {
+    if (!finalByMember.has(row.member_id)) finalByMember.set(row.member_id, row)
+  }
+  const expectedWorstFirst = [...finalByMember.values()]
+    .sort((a, b) => a.wins - b.wins || a.points_for - b.points_for)
+  const { data: priorities } = await supabase.from('waiver_priorities')
+    .select('member_id, priority').eq('league_season_id', currentSeason.id)
+  const priorityOne = (priorities ?? []).find((row) => row.priority === 1)
+  if (expectedWorstFirst.length > 0 && priorityOne?.member_id !== expectedWorstFirst[0]?.member_id) {
+    fail(`${ctx.name}: waiver priority 1 is not the worst final-standings team`)
+  }
+}
+
+// AC: offseason fully open. Between the bracket final and new-season week 1
+// (league status 'offseason'), an add, a drop, a waiver claim, and a trade
+// all succeed, and the trade lands in rosters and the pick ledger.
+async function runOffseasonOpenScenario(ctx, currentSeason) {
+  const label = `${ctx.name} offseason`
+  const suffix = `${ctx.seasonIndex}-${currentSeason.season_year}`
+  const mkPlayer = async (tag) => {
+    const { data, error } = await supabase.from('players').insert({
+      sportsdata_id: `perpetual-offseason-${tag}-${suffix}`,
+      first_name: 'Offseason',
+      last_name: `${tag} ${suffix}`,
+      position: 'SF',
+      eligible_positions: ['SF'],
+      status: 'Active',
+      nba_team: 'SIM',
+    }).select('id').single()
+    throwOn(error, `${label} player ${tag}`)
+    return data
+  }
+  const [adder, claimer] = [ctx.members[2], ctx.members[3]]
+  // Trade the first two original starters between their CURRENT owners (a
+  // prior season's offseason trade may already have moved them).
+  const ownerOf = async (playerId) => {
+    const { data, error } = await supabase.from('roster_players')
+      .select('member_id').eq('league_season_id', currentSeason.id).eq('player_id', playerId).single()
+    throwOn(error, `${label} owner lookup`)
+    return ctx.members.find((member) => member.id === data.member_id)
+  }
+  const proposer = await ownerOf(ctx.players[0].id)
+  let recipient = await ownerOf(ctx.players[1].id)
+  if (recipient.id === proposer.id) recipient = ctx.members.find((member) => member.id !== proposer.id)
+
+  // Add, as the signed-in manager (RPC authorizes via auth.uid())
+  const addTarget = await mkPlayer('add')
+  const adderIndex = ctx.members.indexOf(adder)
+  const adderClient = await signedInClient(ctx.users[adderIndex].email)
+  const { error: addError } = await adderClient.rpc('add_free_agent_atomic', {
+    p_member_id: adder.id, p_league_id: ctx.league.id, p_player_id: addTarget.id,
+  })
+  if (addError) {
+    fail(`${label}: free-agent add failed: ${addError.message}`)
+    return
+  }
+
+  // Drop (puts the player on the waiver wire)
+  const { data: rosterRow } = await supabase.from('roster_players')
+    .select('id').eq('league_season_id', currentSeason.id)
+    .eq('member_id', adder.id).eq('player_id', addTarget.id).single()
+  const { error: dropError } = await adderClient.rpc('drop_player_atomic', {
+    p_roster_player_id: rosterRow?.id,
+  })
+  if (dropError) {
+    fail(`${label}: drop failed: ${dropError.message}`)
+    return
+  }
+  await adderClient.auth.signOut()
+
+  // Waiver claim on the dropped player by another member
+  const { error: claimError } = await supabase.rpc('create_waiver_claim_atomic', {
+    p_league_id: ctx.league.id, p_member_id: claimer.id, p_player_id: addTarget.id,
+  })
+  if (claimError) {
+    fail(`${label}: waiver claim failed: ${claimError.message}`)
+    return
+  }
+  // Simulate the waiver window elapsing: clears_at is stamped ~2 real days
+  // out; the harness clock is far past that.
+  const { error: clearsError } = await supabase.from('waiver_wire_log')
+    .update({ clears_at: new Date(Date.now() - 60_000).toISOString() })
+    .eq('league_id', ctx.league.id).eq('player_id', addTarget.id)
+  throwOn(clearsError, `${label} waiver clears_at`)
+  const { data: processed, error: processError } = await supabase.rpc('process_due_waiver_claims_atomic', {
+    p_process_date: '2199-01-01', p_limit: 100,
+  })
+  throwOn(processError, `${label} waiver processing`)
+  const claimedCount = await count('roster_players', {
+    league_season_id: currentSeason.id, member_id: claimer.id, player_id: addTarget.id,
+  })
+  if (claimedCount !== 1) {
+    const rows = (processed ?? []).map((row) => `${row.status}:${row.failure_reason ?? ''}`).join(', ')
+    fail(`${label}: processed waiver claim did not roster the player (results: ${rows || 'none'})`)
+  }
+
+  // Trade: proposer's original starter + a future pick for recipient's starter
+  const { data: proposerPick } = await supabase.from('draft_picks')
+    .select('id').eq('league_id', ctx.league.id)
+    .eq('current_owner_id', proposer.id).eq('is_used', false)
+    .order('season_year', { ascending: false }).limit(1).single()
+  const { data: trade, error: tradeError } = await supabase.from('trades').insert({
+    league_id: ctx.league.id,
+    league_season_id: currentSeason.id,
+    proposer_member_id: proposer.id,
+    recipient_member_id: recipient.id,
+    status: 'pending',
+    notes: 'perpetual offseason trade',
+  }).select('id').single()
+  throwOn(tradeError, `${label} trade insert`)
+  const { error: participantError } = await supabase.from('trade_participants').insert([
+    { trade_id: trade.id, member_id: proposer.id, sort_order: 0, is_initiator: true, accepted_at: new Date().toISOString() },
+    { trade_id: trade.id, member_id: recipient.id, sort_order: 1, is_initiator: false, accepted_at: null },
+  ])
+  throwOn(participantError, `${label} trade participants`)
+  const recipientOwnsSecondStarter = (await count('roster_players', {
+    league_season_id: currentSeason.id, member_id: recipient.id, player_id: ctx.players[1].id,
+  })) === 1
+  const { error: itemError } = await supabase.from('trade_items').insert([
+    { trade_id: trade.id, side: 'proposer', player_id: ctx.players[0].id, pick_id: null, from_member_id: proposer.id, to_member_id: recipient.id },
+    { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPick?.id, from_member_id: proposer.id, to_member_id: recipient.id },
+    ...(recipientOwnsSecondStarter
+      ? [{ trade_id: trade.id, side: 'recipient', player_id: ctx.players[1].id, pick_id: null, from_member_id: recipient.id, to_member_id: proposer.id }]
+      : []),
+  ])
+  throwOn(itemError, `${label} trade items`)
+  const { error: acceptError } = await supabase.rpc('accept_trade_atomic', {
+    p_trade_id: trade.id, p_accepting_member_id: recipient.id,
+  })
+  if (acceptError) {
+    fail(`${label}: trade accept failed: ${acceptError.message}`)
+    return
+  }
+  const { error: windowError } = await supabase.from('trades')
+    .update({ veto_window_expires_at: new Date(Date.now() - 60_000).toISOString() })
+    .eq('id', trade.id)
+  throwOn(windowError, `${label} veto window expiry`)
+  await callEdge('process-trades', {})
+  const { data: tradedRoster } = await supabase.from('roster_players')
+    .select('member_id').eq('league_season_id', currentSeason.id)
+    .eq('player_id', ctx.players[0].id).single()
+  if (tradedRoster?.member_id !== recipient.id) {
+    fail(`${label}: traded player did not move to the recipient's new-season roster`)
+  }
+  const { data: tradedPick } = await supabase.from('draft_picks')
+    .select('current_owner_id').eq('id', proposerPick?.id).single()
+  if (tradedPick?.current_owner_id !== recipient.id) {
+    fail(`${label}: traded pick did not change owners in the pick ledger`)
+  }
+  log(`${label}: add, drop, waiver claim, and trade all succeeded in the offseason window`)
 }
 
 // AC: stat-correction safety. A correction inside the 48h grace window
@@ -683,8 +964,12 @@ const main = async () => {
   await cleanupPreviousRuns()
   const users = await ensureUsers(10)
 
+  await seedRookiePool()
   const contexts = [
-    await createLeague({ name: 'Default', users, memberCount: 4, playoffStartWeek: 20, baseYear: 4210 }),
+    Object.assign(
+      await createLeague({ name: 'Default', users, memberCount: 4, playoffStartWeek: 20, baseYear: 4210 }),
+      { offseasonScenario: true },
+    ),
     await createLeague({ name: 'Custom', users, memberCount: 4, playoffStartWeek: 22, baseYear: 4220 }),
     await createLeague({ name: 'Sixseed', users, memberCount: 10, playoffStartWeek: 18, baseYear: 4230 }),
     Object.assign(

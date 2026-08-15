@@ -1010,6 +1010,7 @@ export type Database = {
           nba_trade_deadline: string | null
           regular_season_end: string | null
           regular_season_start: string | null
+          rookie_draft_scheduled_at: string | null
           season_year: number
         }
         Insert: {
@@ -1020,6 +1021,7 @@ export type Database = {
           nba_trade_deadline?: string | null
           regular_season_end?: string | null
           regular_season_start?: string | null
+          rookie_draft_scheduled_at?: string | null
           season_year: number
         }
         Update: {
@@ -1030,6 +1032,7 @@ export type Database = {
           nba_trade_deadline?: string | null
           regular_season_end?: string | null
           regular_season_start?: string | null
+          rookie_draft_scheduled_at?: string | null
           season_year?: number
         }
         Relationships: [
@@ -3961,8 +3964,10 @@ export type Database = {
         Args: { p_function_name: string; p_hour: number; p_minute?: number }
         Returns: undefined
       }
+      invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
+      invoke_season_boundary_if_due: { Args: never; Returns: undefined }
       is_regular_season_game_id: {
         Args: { p_game_id: string }
         Returns: boolean

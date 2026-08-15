@@ -60,7 +60,7 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF v_league.status NOT IN ('drafting'::league_status, 'active'::league_status, 'playoffs'::league_status) THEN
+  IF v_league.status NOT IN ('drafting'::league_status, 'active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
     RAISE EXCEPTION 'Roster moves are only allowed during a draft or active/playoff season.'
       USING ERRCODE = 'P0001';
   END IF;

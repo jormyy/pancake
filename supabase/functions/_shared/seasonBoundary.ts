@@ -55,6 +55,83 @@ async function ensureSeasonMatchups(
   return ['matchups-generated']
 }
 
+// Rookie-draft backstop: if the new NBA season's week 1 has begun and the
+// league's rookie draft still has not run, start it and complete every pick
+// best-available (auto_pick uses nba_draft_number order). Completing the last
+// pick activates the league, so the season-boundary loop resumes normally.
+// Rookies land on rosters, never silently on waivers.
+const MAX_BACKSTOP_PICKS = 200
+
+async function runRookieDraftBackstop(
+  leagueId: string,
+  leagueSeasonId: string,
+  referenceDate: Date,
+): Promise<string[]> {
+  const { data: season, error: seasonError } = await supabase
+    .from('league_seasons')
+    .select('season_year')
+    .eq('id', leagueSeasonId)
+    .single()
+  if (seasonError) throw seasonError
+
+  const { data: weekOne, error: weekError } = await supabase
+    .from('season_weeks')
+    .select('week_start')
+    .eq('season_year', season.season_year)
+    .eq('week_number', 1)
+    .maybeSingle()
+  if (weekError) throw weekError
+  if (!weekOne || referenceDate.toISOString().slice(0, 10) < weekOne.week_start) return []
+
+  const actions: string[] = []
+  const { data: drafts, error: draftError } = await supabase
+    .from('drafts')
+    .select('id, status')
+    .eq('league_id', leagueId)
+    .eq('league_season_id', leagueSeasonId)
+    .eq('draft_type', 'snake')
+    .eq('is_mock', false)
+    .neq('status', 'cancelled')
+  if (draftError) throw draftError
+
+  let draft = drafts?.[0] ?? null
+  if (!draft) {
+    const { data: started, error: startError } = await supabase.rpc('start_rookie_draft_atomic', {
+      p_league_id: leagueId,
+      p_rounds: 3,
+      p_is_mock: false,
+      p_pick_timer_seconds: 30,
+      p_timer_expiry_behavior: 'auto_pick',
+    })
+    if (startError) throw startError
+    draft = started as typeof draft
+    actions.push('rookie-draft-started')
+  }
+  if (!draft || draft.status !== 'in_progress') return actions
+
+  for (let picks = 0; picks < MAX_BACKSTOP_PICKS; picks += 1) {
+    const { data: nextPick, error: nextError } = await supabase
+      .from('snake_draft_picks')
+      .select('id, member_id')
+      .eq('draft_id', draft.id)
+      .is('player_id', null)
+      .is('skipped_at', null)
+      .order('overall_pick', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (nextError) throw nextError
+    if (!nextPick) break
+    const { error: pickError } = await supabase.rpc('auto_pick_snake_pick_atomic', {
+      p_draft_id: draft.id,
+      p_member_id: nextPick.member_id,
+      p_reason: 'season_boundary_backstop',
+    })
+    if (pickError) throw pickError
+  }
+  actions.push('rookie-draft-auto-completed')
+  return actions
+}
+
 async function setLeagueStatusPlayoffs(leagueId: string): Promise<void> {
   const { error } = await supabase
     .from('leagues')
@@ -167,7 +244,10 @@ export async function runSeasonBoundary(
           // A commissioner who advanced the season manually leaves the new
           // season without matchups (advanceSeason never generated them).
           // Backfill only when none exist; everything else is left untouched.
-          ? await ensureSeasonMatchups(season.league_id, season.id, playoffStartWeek)
+          ? [
+            ...await ensureSeasonMatchups(season.league_id, season.id, playoffStartWeek),
+            ...await runRookieDraftBackstop(season.league_id, season.id, referenceDate),
+          ]
           : await processLeagueBoundary(
             season.league_id,
             season.id,
@@ -177,7 +257,7 @@ export async function runSeasonBoundary(
           )
         reports.push({ leagueId: season.league_id, actions })
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
+        const message = (error as { message?: string } | null)?.message ?? JSON.stringify(error)
         console.error(`[season-boundary] league ${season.league_id} failed: ${message}`)
         reports.push({ leagueId: season.league_id, actions: [], error: message })
       }
