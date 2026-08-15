@@ -26,14 +26,20 @@ AC-16 sleeper-migration-parity       | PASS    | ESPN keyless source cut over (P
 AC-17 scrape-degraded-modes          | PASS    | per-source degraded tests: NBA CDN (_shared/nbaCdnDegraded.test.ts down/garbage/reshaped/recovered), ESPN replacement (_shared/playerSource.test.ts down/garbage/truncated/empty/recovered), FantasyPros (parser.test.ts broken-HTML -> 0 rows -> skipped run; per-source catch + internal fallback in index), HashtagBasketball (parser tests + MIN_RANKING_ROWS refusal client+DB p_min_rows), Sleeper dormant path exercised in release soak
 AC-18 draft-order-automation         | PASS    | sync-draft-order/degraded.test.ts: failed window day writes nothing + prior order intact; incomplete board refused; next window day syncs full board; June/July guard tested
 AC-19 db-integrity-post-sim          | PASS    | runDbIntegrityChecks: no orphan matchups/lineups/standings, single current season, unique years, <=1 final/season, games within season_weeks
-AC-20 full-suite-green               | PENDING | baseline 2026-08-14: npm test -> 588 passed (100 files)
-AC-21 no-unresolved-findings         | PENDING |
+AC-20 full-suite-green               | PASS    | npm test: 594 passed (post-review); deno edge suite: 95 passed; lint/typecheck/knip/db-parity/edge-shared/db-types all green 2026-08-15
+AC-21 no-unresolved-findings         | PASS    | michael-review (self-review, adversarial): 42 candidates, 29 refuted, 13 survived (1 blocker, 5 material, 7 minor) - all 13 fixed and re-verified; see checkpoint below
 AC-22 soak-20-seasons-green          | PASS    | npm run e2e:soak:release: 20/20 seasons PASS, coverage PASS (2026-08-15 run, ~4h), midlife migration APPLIED at season 5->6; findings fixed: sync-stats ISO date, offseason wire-log expiry, rotted auction/waiver-push/realtime scenarios, trade fixture routing, disposal FK + transient retry
 AC-23 soak-offseason-activity        | PASS    | soak-offseason-activity.mjs runs EVERY season (20/20 artifacts, zero failures): add, drop, processed claim, two-team player+pick trade, multi-team trade, settings change, full rookie draft - all survive rollover
 AC-24 soak-harness-trustworthy       | PASS    | docs/soak-harness-audit.md: 7 forced-red mutations all RED-PROVEN then restored green; no always-green scenarios; 3 always-red rotted scenarios + 1 flake found and fixed
 ```
 
 ## Checkpoint log
+
+- 2026-08-15 Finish: /deslop pass (lint-ignore markers), /michael-review with adversarial refuters: 42 candidates, 29 refuted, 13 survived, all fixed:
+  BLOCKER - cron idle gate excluded offseason leagues (backstop dead all summer; migration 007 + tests/db/season-boundary-gate.sql);
+  material - zero-matchup active seasons now backfill; offseason add-week freeze fixed (migration 008, executed-verified 1001); coarse ESPN G/F startable in core+DB+scoring maps; ambiguous-name dup forking refused and counted;
+  minor - injury name-uniqueness, honest backstop partial reporting, deterministic draft pick, vacuous Oct-gap test fixed, standings-empty loud failure, years_exp parity documented (rookie=0 identical).
+  Post-fix verification: vitest 594, deno 95, perpetual harness PASS, browser DOM render check PASS.
 
 - 2026-08-15 Wave 8: 20-season release soak green end-to-end locally with busy offseason every season; forced-red audit of the soak harness complete (docs/soak-harness-audit.md).
 
