@@ -28,12 +28,14 @@ AC-18 draft-order-automation         | PASS    | sync-draft-order/degraded.test.
 AC-19 db-integrity-post-sim          | PASS    | runDbIntegrityChecks: no orphan matchups/lineups/standings, single current season, unique years, <=1 final/season, games within season_weeks
 AC-20 full-suite-green               | PENDING | baseline 2026-08-14: npm test -> 588 passed (100 files)
 AC-21 no-unresolved-findings         | PENDING |
-AC-22 soak-20-seasons-green          | PENDING |
-AC-23 soak-offseason-activity        | PENDING | (busy offseason every season: adds/drops/claims/trades incl. multi-team+picks/rookie draft/settings; survive rollover)
-AC-24 soak-harness-trustworthy       | PENDING | (forced-red audit of each major soak assertion; report always-green scenarios)
+AC-22 soak-20-seasons-green          | PASS    | npm run e2e:soak:release: 20/20 seasons PASS, coverage PASS (2026-08-15 run, ~4h), midlife migration APPLIED at season 5->6; findings fixed: sync-stats ISO date, offseason wire-log expiry, rotted auction/waiver-push/realtime scenarios, trade fixture routing, disposal FK + transient retry
+AC-23 soak-offseason-activity        | PASS    | soak-offseason-activity.mjs runs EVERY season (20/20 artifacts, zero failures): add, drop, processed claim, two-team player+pick trade, multi-team trade, settings change, full rookie draft - all survive rollover
+AC-24 soak-harness-trustworthy       | PASS    | docs/soak-harness-audit.md: 7 forced-red mutations all RED-PROVEN then restored green; no always-green scenarios; 3 always-red rotted scenarios + 1 flake found and fixed
 ```
 
 ## Checkpoint log
+
+- 2026-08-15 Wave 8: 20-season release soak green end-to-end locally with busy offseason every season; forced-red audit of the soak harness complete (docs/soak-harness-audit.md).
 
 - 2026-08-14 Wave 7: scrape degraded-mode tests complete for all active sources + dormant fallback; draft-order automation window behavior tested.
 
