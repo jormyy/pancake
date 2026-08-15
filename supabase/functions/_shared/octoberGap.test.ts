@@ -17,7 +17,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
       id: '00000000-0000-4000-8000-000000000001',
       league_id: '00000000-0000-4000-8000-000000000002',
       season_year: 2027,
-      leagues: { scoring_settings: { points: 1 } },
+      leagues: { status: 'active', playoff_start_week: 20, scoring_settings: { points: 1 } },
     }]
   }
   return new Response(JSON.stringify(body), {
@@ -43,8 +43,9 @@ Deno.test('syncScores on Oct 10 with no new-season data completes without writes
 Deno.test('season-boundary on Oct 10 reports the league without acting or erroring', async () => {
   requests.length = 0
   const reports = await runSeasonBoundary(new Date('2026-10-10T16:00:00Z'))
-  // The mocked league has status undefined (not active/playoffs/offseason),
-  // so the boundary must skip it entirely rather than error.
+  if (reports.length !== 1) {
+    throw new Error(`Boundary skipped the active league: ${JSON.stringify(reports)}`)
+  }
   if (reports.some((report) => report.error)) {
     throw new Error(`Boundary errored during the Oct gap: ${JSON.stringify(reports)}`)
   }

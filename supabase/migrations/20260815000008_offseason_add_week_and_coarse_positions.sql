@@ -1,6 +1,12 @@
--- Canonical SQL source for private.current_add_week_number.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Two review findings:
+-- 1. current_add_week_number froze at a single shared bucket between rollover
+--    (June) and the new schedule landing (October), so weekly add limits never
+--    reset during the open offseason. Synthetic offseason weeks now continue
+--    from the most recent real schedule, offset by 1000 so they can never
+--    collide with the real October week numbers.
+-- 2. lineup_slot_allowed_positions accepts the coarse 'G'/'F' position labels
+--    the ESPN player source produces, so those players are startable at their
+--    own slot (kept in parity with core LINEUP_SLOT_ALLOWED_POSITIONS).
 
 CREATE OR REPLACE FUNCTION private.current_add_week_number(
   p_league_id uuid,
@@ -86,4 +92,26 @@ BEGIN
 
   RETURN COALESCE(v_week, 1);
 END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.lineup_slot_allowed_positions(
+  p_slot_type roster_slot_type
+)
+RETURNS text[]
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT CASE p_slot_type
+    WHEN 'PG'::roster_slot_type THEN ARRAY['PG']::text[]
+    WHEN 'SG'::roster_slot_type THEN ARRAY['SG']::text[]
+    WHEN 'SF'::roster_slot_type THEN ARRAY['SF']::text[]
+    WHEN 'PF'::roster_slot_type THEN ARRAY['PF']::text[]
+    WHEN 'C'::roster_slot_type THEN ARRAY['C']::text[]
+    WHEN 'G'::roster_slot_type THEN ARRAY['PG', 'SG', 'G']::text[]
+    WHEN 'F'::roster_slot_type THEN ARRAY['SF', 'PF', 'F']::text[]
+    WHEN 'UTIL'::roster_slot_type THEN ARRAY['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']::text[]
+    WHEN 'BE'::roster_slot_type THEN ARRAY['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F']::text[]
+    ELSE '{}'::text[]
+  END
 $$;

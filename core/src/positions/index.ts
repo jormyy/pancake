@@ -11,8 +11,8 @@ export const LINEUP_SLOT_ALLOWED_POSITIONS: Record<LineupSlotType, readonly stri
     SF: ['SF'],
     PF: ['PF'],
     C: ['C'],
-    G: ['PG', 'SG'],
-    F: ['SF', 'PF'],
+    G: ['PG', 'SG', 'G'],
+    F: ['SF', 'PF', 'F'],
     UTIL: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
     BE: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
 } as const

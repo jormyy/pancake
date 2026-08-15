@@ -26,6 +26,13 @@ NBA person IDs (headshots, box-score joins) continue to come from the NBA CDN
   outright (no writes), so a truncated or reshaped response can never blank
   existing players; the next good sync self-heals with no manual action.
 
+## years_exp semantics
+
+ESPN's `experience.years` counts the upcoming season for veterans (+1 vs
+Sleeper's completed-seasons count on ~70% of matched players at verification
+time) but agrees exactly at `0` for rookies — the only value the product
+gates on (taxi/rookie-draft eligibility). Veteran counts are display-only.
+
 ## CI note
 
 The release soak intentionally pins `PLAYER_SYNC_SOURCE=sleeper` with the fake
@@ -43,6 +50,7 @@ league can roster).
 | ran at (UTC) | sleeper rostered | espn rostered | matched (coverage) | team agree | position group agree | injured sleeper/espn, both & agreement | unmatched |
 |---|---|---|---|---|---|---|---|
 <!-- parity-runs -->
+| 2026-08-15T11:25:35.976Z | 559 | 546 | 537 (96.1%) | 99.3% | 79.1% | 78/77, both 77 agree 100% | 22 |
 | 2026-08-15T01:08:21.277Z | 559 | 546 | 537 (96.1%) | 99.3% | 79.1% | 78/77, both 77 agree 100% | 22 |
 | 2026-08-15T01:08:04.012Z | 559 | 546 | 537 (96.1%) | 99.3% | 79.1% | 78/77, both 77 agree 100% | 22 |
 | 2026-08-15T01:07:08.597Z | 559 | 546 | 537 (96.1%) | 99.3% | 79.1% | 78/77, both 77 agree 100% | 22 |

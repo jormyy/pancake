@@ -51,6 +51,7 @@ const main = async () => {
         name: athlete.fullName ?? `${athlete.firstName} ${athlete.lastName}`,
         team: ESPN_TEAM_CODES[team.abbreviation] ?? team.abbreviation,
         position: athlete.position?.abbreviation ?? null,
+        yearsExp: typeof athlete.experience?.years === 'number' ? athlete.experience.years : null,
       })
     }
   }
@@ -73,6 +74,8 @@ const main = async () => {
   let injuryAgree = 0
   let sleeperInjured = 0
   let espnInjured = 0
+  let yearsExpComparable = 0
+  let yearsExpAgree = 0
   const unmatched = []
   for (const player of sleeper) {
     const name = `${player.first_name} ${player.last_name}`
@@ -97,6 +100,10 @@ const main = async () => {
     }
     if (sleeperInjury) sleeperInjured += 1
     if (espnInjury) espnInjured += 1
+    if (typeof player.years_exp === 'number' && typeof espnPlayer.yearsExp === 'number') {
+      yearsExpComparable += 1
+      if (player.years_exp === espnPlayer.yearsExp) yearsExpAgree += 1
+    }
   }
 
   const pct = (num, den) => den === 0 ? null : Math.round((num / den) * 1000) / 10
@@ -112,6 +119,7 @@ const main = async () => {
     espnInjured,
     injuryComparable,
     injuryStatusAgreementPct: pct(injuryAgree, injuryComparable),
+    yearsExpAgreementPct: pct(yearsExpAgree, yearsExpComparable),
     unmatchedSleeperPlayers: unmatched.length,
   }
 

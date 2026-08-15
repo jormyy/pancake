@@ -116,27 +116,47 @@ function extractEspnInjuryStatuses(payload: EspnInjuriesPayload): Map<string, st
   return byName
 }
 
+// Coarse ESPN positions map to eligibility sets the lineup engine can start:
+// literal G/F are startable at their own slot plus UTIL, and the specific
+// guard/forward slots accept the coarse label via LINEUP_SLOT_ALLOWED_POSITIONS.
+function eligibleForPosition(position: string | null): string[] {
+  if (position === 'G') return ['G']
+  if (position === 'F') return ['F']
+  return position ? [position] : []
+}
+
 function buildEspnRecords(
   rosters: { teamCode: string | null; athletes: EspnAthlete[] }[],
   injuriesByName: Map<string, string>,
 ): SourcePlayerRecord[] {
+  const athleteName = (athlete: EspnAthlete) =>
+    normalizeName(athlete.fullName ?? `${athlete.firstName ?? ''} ${athlete.lastName ?? ''}`)
+  // The injuries feed has no athlete ids; a name shared by two rostered
+  // players cannot be attributed, so those names get no injury status.
+  const nameCounts = new Map<string, number>()
+  for (const roster of rosters) {
+    for (const athlete of roster.athletes) {
+      const name = athleteName(athlete)
+      nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1)
+    }
+  }
+
   const records: SourcePlayerRecord[] = []
   for (const roster of rosters) {
     for (const athlete of roster.athletes) {
       if (athlete.id == null || (!athlete.firstName && !athlete.lastName)) continue
       const espnId = String(athlete.id)
       const position = mapEspnPosition(athlete.position?.abbreviation)
+      const name = athleteName(athlete)
       records.push({
         espn_id: espnId,
         first_name: athlete.firstName ?? '',
         last_name: athlete.lastName ?? '',
         nba_team: roster.teamCode,
         position,
-        eligible_positions: position ? [position] : [],
+        eligible_positions: eligibleForPosition(position),
         status: athlete.status?.type === 'active' ? 'Active' : 'Inactive',
-        injury_status: injuriesByName.get(
-          normalizeName(athlete.fullName ?? `${athlete.firstName ?? ''} ${athlete.lastName ?? ''}`),
-        ) ?? null,
+        injury_status: nameCounts.get(name) === 1 ? injuriesByName.get(name) ?? null : null,
         years_exp: typeof athlete.experience?.years === 'number' ? athlete.experience.years : null,
       })
     }

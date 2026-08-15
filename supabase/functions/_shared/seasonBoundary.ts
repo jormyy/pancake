@@ -92,6 +92,7 @@ async function runRookieDraftBackstop(
     .eq('draft_type', 'snake')
     .eq('is_mock', false)
     .neq('status', 'cancelled')
+    .order('created_at', { ascending: true })
   if (draftError) throw draftError
 
   let draft = drafts?.[0] ?? null
@@ -128,7 +129,14 @@ async function runRookieDraftBackstop(
     })
     if (pickError) throw pickError
   }
-  actions.push('rookie-draft-auto-completed')
+  const { count: unfilled, error: unfilledError } = await supabase
+    .from('snake_draft_picks')
+    .select('id', { count: 'exact', head: true })
+    .eq('draft_id', draft.id)
+    .is('player_id', null)
+    .is('skipped_at', null)
+  if (unfilledError) throw unfilledError
+  actions.push((unfilled ?? 0) === 0 ? 'rookie-draft-auto-completed' : 'rookie-draft-backstop-partial')
   return actions
 }
 
@@ -157,6 +165,13 @@ async function processLeagueBoundary(
   if (matchupError) throw matchupError
 
   const matchups = (matchupRows ?? []) as BoundaryMatchup[]
+  if (matchups.length === 0) {
+    // A manually-advanced league can reach 'active' (rookie draft completed)
+    // before any tick saw it in 'offseason', leaving a season with no
+    // schedule at all. Backfill instead of silently never scoring.
+    await generateMatchups(leagueId, leagueSeasonId, playoffStartWeek - 1)
+    return ['matchups-generated']
+  }
   const regular = matchups.filter((m) =>
     m.matchup_type === 'regular_season' && m.week_number < playoffStartWeek
   )

@@ -14,17 +14,17 @@ const goodTeams = {
   }],
 }
 
-const goodRoster = {
+const goodRosterFor = (teamId: string) => ({
   athletes: Array.from({ length: 15 }, (_, index) => ({
-    id: `ath-${index}`,
-    firstName: 'Test',
+    id: `ath-${teamId}-${index}`,
+    firstName: `Team${teamId}`,
     lastName: `Player ${index}`,
-    fullName: `Test Player ${index}`,
+    fullName: `Team${teamId} Player ${index}`,
     position: { abbreviation: 'G' },
     status: { type: 'active' },
     experience: { years: 3 },
   })),
-}
+})
 
 const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (req) => {
   const url = new URL(req.url)
@@ -38,15 +38,16 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
     return Response.json(goodTeams)
   }
   if (url.pathname.includes('/roster')) {
-    return Response.json(mode === 'empty-rosters' ? { athletes: [] } : goodRoster)
+    const teamId = url.pathname.split('/teams/')[1]?.split('/')[0] ?? '0'
+    return Response.json(mode === 'empty-rosters' ? { athletes: [] } : goodRosterFor(teamId))
   }
   if (url.pathname.endsWith('/injuries')) {
     return Response.json({
       injuries: [{
         injuries: [
-          { status: 'Day-To-Day', athlete: { displayName: 'Test Player 1' } },
-          { status: 'Out', athlete: { displayName: 'Test Player 2' } },
-          { status: 'SomethingNew', athlete: { displayName: 'Test Player 3' } },
+          { status: 'Day-To-Day', athlete: { displayName: 'Team1 Player 1' } },
+          { status: 'Out', athlete: { displayName: 'Team1 Player 2' } },
+          { status: 'SomethingNew', athlete: { displayName: 'Team1 Player 3' } },
         ],
       }],
     })
@@ -82,6 +83,8 @@ Deno.test('a healthy source produces mapped records with name-joined injuries', 
   if (!dtd || !out) throw new Error('injury statuses were not joined by name')
   const unknown = records.find((record) => record.injury_status === 'SomethingNew')
   if (unknown) throw new Error('unknown injury status was not filtered')
+  const guard = records.find((record) => record.eligible_positions.join() !== 'G')
+  if (guard) throw new Error('coarse G position did not map to a G-eligible set')
 })
 
 Deno.test({

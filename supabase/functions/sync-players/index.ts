@@ -78,6 +78,7 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
 
   const toUpdate: any[] = []
   const toInsert: any[] = []
+  let ambiguousSkipped = 0
   for (const record of records) {
     const displayName = [record.first_name, record.last_name].filter(Boolean).join(' ')
     const exactNameId = byExactName.get(displayName.toLowerCase())
@@ -86,6 +87,14 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
       ? exactNameId
       : (normalizedNameId && normalizedNameId !== AMBIGUOUS ? normalizedNameId : null)
     const existingId = byEspnId.get(record.espn_id) ?? matchedNameId
+    if (!existingId && (exactNameId === AMBIGUOUS || normalizedNameId === AMBIGUOUS)) {
+      // Multiple existing rows share this name and none owns the espn_id yet.
+      // Refuse to guess: inserting would fork a duplicate of a real player,
+      // and updating could hit the wrong one. Resolves once espn_id is
+      // claimed manually or the ambiguity clears.
+      ambiguousSkipped += 1
+      continue
+    }
 
     const base = {
       espn_id: record.espn_id,
@@ -149,7 +158,7 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
     if (error) failures.push(`insert chunk ${i}: ${error.message}`)
   }
 
-  console.log(`[sync-players] ESPN: ${dedupedUpdate.length} updated, ${toInsert.length} inserted, ${failures.length} failed chunk(s).`)
+  console.log(`[sync-players] ESPN: ${dedupedUpdate.length} updated, ${toInsert.length} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} failed chunk(s).`)
   return { updated: dedupedUpdate.length, inserted: toInsert.length, failures }
 }
 
