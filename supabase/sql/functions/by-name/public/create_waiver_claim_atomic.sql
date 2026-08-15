@@ -92,7 +92,7 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status) THEN
+  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
     RAISE EXCEPTION 'Waiver claims require an active or playoff season.'
       USING ERRCODE = 'P0001';
   END IF;

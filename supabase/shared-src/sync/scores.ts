@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { runBounded } from '../lib/runBounded'
 import { getWeekNumberForDate } from '../lib/scoring'
 import { notifyMember } from '../lib/notifications'
 import { isRegularSeasonGameId } from '../lib/nba'
@@ -18,11 +19,22 @@ import {
 // is settled and does not need re-fetching. Kept generous over the observed lag.
 const STAT_CORRECTION_WINDOW_DAYS = 4
 
+const LEAGUE_SYNC_CONCURRENCY = 8
+
+function errorText(error: unknown): string {
+    if (error instanceof AggregateError) {
+        return error.errors.map((inner) => errorText(inner)).join('; ')
+    }
+    return (error as { message?: string } | null)?.message ?? String(error)
+}
+
 type MatchupForScore = {
     id: string
     league_id: string
     league_season_id: string
     week_number: number
+    matchup_type: string
+    is_finalized: boolean | null
     home_member_id: string
     away_member_id: string
     home_points: number | null
@@ -150,6 +162,30 @@ function isPlayoffMatchupType(matchupType: string): boolean {
     return matchupType === 'playoff_quarterfinal' ||
         matchupType === 'playoff_semifinal' ||
         matchupType === 'playoff_final'
+}
+
+// Once the next playoff round exists, the prior round's result has been
+// consumed by bracket advancement and is immutable: a stat correction landing
+// after advancement updates player stat rows but never re-decides the closed
+// playoff matchup. Corrections inside the pre-advancement grace window still
+// reconcile normally.
+async function loadLockedPlayoffTypes(
+    leagueId: string,
+    leagueSeasonId: string,
+): Promise<Set<string>> {
+    const { data, error } = await supabase
+        .from('matchups')
+        .select('matchup_type')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', leagueSeasonId)
+        .in('matchup_type', ['playoff_semifinal', 'playoff_final'])
+    if (error) throw error
+
+    const present = new Set((data ?? []).map((row) => row.matchup_type))
+    const locked = new Set<string>()
+    if (present.has('playoff_semifinal')) locked.add('playoff_quarterfinal')
+    if (present.has('playoff_final')) locked.add('playoff_semifinal')
+    return locked
 }
 
 export function resolveMatchupWinnerForScore(
@@ -417,6 +453,12 @@ async function finalizeWeekIfComplete(
 
     if (!matchups.length) return
 
+    const lockedTypes = await loadLockedPlayoffTypes(leagueId, leagueSeasonId)
+    const decidableMatchups = matchups.filter((m) =>
+        !(m.is_finalized && lockedTypes.has(m.matchup_type))
+    )
+    if (!decidableMatchups.length) return
+
     const memberIds = [
         ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
@@ -439,7 +481,7 @@ async function finalizeWeekIfComplete(
     )
     if (standingsRows == null) return
 
-    const matchupResults: MatchupResult[] = matchups.map((m) => {
+    const matchupResults: MatchupResult[] = decidableMatchups.map((m) => {
         const homePoints = Number(m.home_points ?? 0)
         const awayPoints = Number(m.away_points ?? 0)
         const homeMaxPossiblePoints = maxPossiblePointsByMember.get(m.home_member_id) ?? 0
@@ -520,15 +562,21 @@ async function updateWeekPoints(
         return
     }
 
-    const matchups = await fetchAllPages<MatchupForScore>((from, to) => supabase
+    const allMatchups = await fetchAllPages<MatchupForScore>((from, to) => supabase
         .from('matchups')
-        .select('id, league_id, league_season_id, week_number, home_member_id, away_member_id, home_points, away_points')
+        .select('id, league_id, league_season_id, week_number, matchup_type, is_finalized, home_member_id, away_member_id, home_points, away_points')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .eq('week_number', weekNumber)
         .order('id')
         .range(from, to))
 
+    if (!allMatchups.length) return
+
+    const lockedTypes = await loadLockedPlayoffTypes(leagueId, seasonId)
+    const matchups = allMatchups.filter((m) =>
+        !(m.is_finalized && lockedTypes.has(m.matchup_type))
+    )
     if (!matchups.length) return
 
     console.log(`[scores] Updating points for week ${weekNumber} (${weekData.week_start}–${weekData.week_end}), ${matchups.length} matchup(s)`)
@@ -838,22 +886,29 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     })
     if (!seasons.length) return
 
-    // Per-league work is independent across leagues. Run leagues in parallel so the
-    // 60s live-poll wall time scales with the slowest league, not the sum.
-    // Errors propagate to the caller (Promise.all rejects on first failure) to match
-    // the prior for-loop behavior where any throw aborted the sync.
-    const seasonPlans = await Promise.all(
-        seasons.map(async (season) => {
-            const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
-            if (!weekNumber) {
-                console.log(`[scores] No current week for season ${season.season_year}`)
-                return null
-            }
-            const weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
-            return { season, weekNumber, weeksToSync }
-        }),
-    )
-    const plans = seasonPlans.filter((plan) => plan != null)
+    // Per-league work is independent across leagues. Fan out with bounded
+    // concurrency so the 60s live-poll wall clock scales with the slowest
+    // leagues without an unbounded connection burst, and isolate per-league
+    // failures: one broken or slow league must not abort or starve the rest.
+    type SeasonPlan = {
+        season: (typeof seasons)[number]
+        weekNumber: number
+        weeksToSync: number[]
+    }
+    const plans: SeasonPlan[] = []
+    const planFailures: string[] = []
+    await runBounded(seasons.map((season) => async () => {
+        const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
+        if (!weekNumber) {
+            console.log(`[scores] No current week for season ${season.season_year}`)
+            return
+        }
+        const weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
+        plans.push({ season, weekNumber, weeksToSync })
+    }), LEAGUE_SYNC_CONCURRENCY).catch((error) => {
+        planFailures.push(errorText(error))
+        console.error(`[scores] planning failed for some league(s): ${errorText(error)}`)
+    })
 
     // Stat sync writes global player_game_stats, so running it per league would
     // duplicate the same CDN box-score fetches and race identical upserts. Run
@@ -868,8 +923,10 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
         await syncStatsForCompletedWeeks(seasonYear, [...weeks].sort((a, b) => a - b), referenceDate)
     }
 
-    await Promise.all(
-        plans.map(async ({ season, weekNumber, weeksToSync }) => {
+    const syncFailures: string[] = []
+    let syncedLeagues = 0
+    await runBounded(
+        plans.map(({ season, weekNumber, weeksToSync }) => async () => {
             const settings = scoringSettingsFromJson(season.leagues?.scoring_settings)
             // Score every week the season covers. Playoff rounds use the
             // week_number stored on each generated matchup, and the scoring pass
@@ -889,8 +946,22 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
             for (const finalizeWeek of weeksToSync) {
                 await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year, settings)
             }
+            syncedLeagues += 1
         }),
-    )
+        LEAGUE_SYNC_CONCURRENCY,
+    ).catch((error) => {
+        syncFailures.push(errorText(error))
+        console.error(`[scores] sync failed for some league(s): ${errorText(error)}`)
+    })
+
+    // Partial failures are logged and the healthy leagues complete; only a
+    // total wipeout (every league failed) surfaces as a failed sync run.
+    if (seasons.length > 0 && syncedLeagues === 0 && planFailures.length + syncFailures.length > 0) {
+        throw new AggregateError(
+            [...planFailures, ...syncFailures].map((message) => new Error(message)),
+            'score sync failed for every league',
+        )
+    }
 
     console.log('[scores] Sync complete.')
 }

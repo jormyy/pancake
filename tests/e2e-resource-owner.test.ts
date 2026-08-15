@@ -104,6 +104,6 @@ describe('scenario resource ownership', () => {
         }
 
         await disposeDisposableLeague(supabase, 'league-id', 'fixture')
-        expect(calls).toEqual(['trades:update', 'drafts:delete', 'leagues:delete'])
+        expect(calls).toEqual(['trades:update', 'draft_picks:update', 'drafts:delete', 'leagues:delete'])
     })
 })

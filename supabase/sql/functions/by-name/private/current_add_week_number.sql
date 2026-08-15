@@ -64,6 +64,26 @@ BEGIN
     RETURN v_week + 1 + ((v_today - v_last_end - 1) / 7);
   END IF;
 
+  -- New season with no season_weeks yet (rollover happens months before the
+  -- NBA publishes the schedule): keep the 7-day cadence anchored on the most
+  -- recent real schedule so offseason add limits still reset weekly instead
+  -- of freezing in one shared bucket. The 1000 offset keeps these synthetic
+  -- week numbers clear of the real ones that arrive in October.
+  IF v_week IS NULL THEN
+    SELECT max(weeks.week_end)
+      INTO v_last_end
+      FROM season_weeks AS weeks
+     WHERE weeks.season_year = (
+       SELECT max(prior.season_year)
+         FROM league_seasons AS prior
+        WHERE prior.league_id = p_league_id
+          AND prior.season_year < v_season_year
+     );
+    IF v_last_end IS NOT NULL AND v_today > v_last_end THEN
+      RETURN 1000 + ((v_today - v_last_end - 1) / 7);
+    END IF;
+  END IF;
+
   RETURN COALESCE(v_week, 1);
 END;
 $$;

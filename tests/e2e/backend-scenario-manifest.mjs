@@ -1,5 +1,5 @@
 /**
- * @typedef {'leagueLifecycle' | 'auction' | 'playoffs' | 'tiebreakers' | 'settings' | 'scoring' | 'waiverProcessing' | 'injuryFilter' | 'tradeAccept' | 'tradeVeto' | 'rookieDraft' | 'draftPush' | 'seasonReset'} BackendFlag
+ * @typedef {'leagueLifecycle' | 'auction' | 'playoffs' | 'tiebreakers' | 'settings' | 'scoring' | 'waiverProcessing' | 'injuryFilter' | 'tradeAccept' | 'tradeVeto' | 'rookieDraft' | 'draftPush' | 'seasonReset' | 'offseasonActivity'} BackendFlag
  */
 
 /**
@@ -29,6 +29,7 @@ export const BACKEND_SCENARIO_MANIFEST = [
   { id: 'rookie-draft', cliFlag: 'rookie-draft', envFlag: 'E2E_ENABLE_ROOKIE_DRAFT', flag: 'rookieDraft', resultKey: 'rookieDraftCheck', failuresKey: 'rookieDraftFailures', evidenceId: 'backend.rookie_draft', releaseTier: 'release' },
   { id: 'draft-push', cliFlag: 'draft-push', envFlag: 'E2E_ENABLE_DRAFT_PUSH', flag: 'draftPush', resultKey: 'draftPushCheck', failuresKey: 'draftPushFailures', evidenceId: 'push.draft', releaseTier: 'release' },
   { id: 'season-reset', cliFlag: 'season-reset', envFlag: 'E2E_ENABLE_SEASON_RESET', flag: 'seasonReset', resultKey: 'seasonResetCheck', failuresKey: 'seasonResetFailures', evidenceId: 'backend.season_reset', releaseTier: 'release' },
+  { id: 'offseason-activity', cliFlag: 'offseason-activity', envFlag: 'E2E_ENABLE_OFFSEASON_ACTIVITY', flag: 'offseasonActivity', resultKey: 'offseasonActivityCheck', failuresKey: 'offseasonActivityFailures', evidenceId: 'backend.offseason_activity', releaseTier: 'release' },
 ]
 
 /** @param {Map<string, string>} args @param {{ releaseEnabled?: boolean }} [options] @returns {Record<BackendFlag, boolean>} */

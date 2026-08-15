@@ -41,7 +41,13 @@ BEGIN
     RAISE EXCEPTION 'No active season found for this league';
   END IF;
 
-  v_new_year := v_current_season.season_year + 1;
+  -- Prior+1 alone breaks a league that skipped a season or was created
+  -- off-cycle: the derived year would never match season_weeks. The real
+  -- calendar wins whenever it is ahead.
+  v_new_year := GREATEST(
+    v_current_season.season_year + 1,
+    public.current_season_year_et(now())
+  );
   v_far_year := v_new_year + 5;
 
   IF EXISTS (
@@ -57,8 +63,8 @@ BEGIN
      SET is_current = false
    WHERE id = v_current_season.id;
 
-  INSERT INTO league_seasons (league_id, season_year, is_current)
-  VALUES (p_league_id, v_new_year, true)
+  INSERT INTO league_seasons (league_id, season_year, is_current, rookie_draft_scheduled_at)
+  VALUES (p_league_id, v_new_year, true, now() + interval '60 days')
   RETURNING id INTO v_new_season_id;
 
   INSERT INTO roster_players (

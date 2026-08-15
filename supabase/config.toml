@@ -388,6 +388,9 @@ verify_jwt = false
 [functions.process-waivers]
 verify_jwt = false
 
+[functions.season-boundary]
+verify_jwt = false
+
 [functions.sync-draft-order]
 verify_jwt = false
 

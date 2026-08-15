@@ -190,12 +190,16 @@ export const assertWaiverProcessingScenario = async ({ supabase, env, state, sea
   const expectedPriority = new Map([
     [priorityTwo.id, 2],
     [priorityFour.id, 4],
-    [priorityOne.id, 5],
-    [priorityThree.id, 6],
   ])
   for (const [memberId, expected] of expectedPriority) {
     const actual = priorityByMember.get(memberId)
     if (actual !== expected) failures.push(`${label}: waiver priority for ${memberId} is ${actual ?? '<missing>'}; expected ${expected}`)
+  }
+  // Both winners move to the back of the queue. Same-day winning claim groups
+  // process in player-id order (arbitrary UUIDs), so 5/6 can land either way.
+  const backOfQueue = [priorityByMember.get(priorityOne.id), priorityByMember.get(priorityThree.id)]
+  if ([...backOfQueue].sort((a, b) => a - b).join(',') !== '5,6') {
+    failures.push(`${label}: winners hold priorities ${backOfQueue.join('/')}; expected 5 and 6 in either order`)
   }
 
   const transactionSet = new Set(transactionRows.map((row) => `${row.member_id}:${row.player_id}:${row.transaction_type}`))
@@ -276,7 +280,9 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
       league_season_id: currentSeason.id,
       draft_type: 'auction',
       status: 'in_progress',
-      budget_per_team: 5,
+      // Budget must cover the $1-per-remaining-active-slot reserve rule
+      // (place_auction_bid_atomic): empty 20-slot roster -> reserve 19.
+      budget_per_team: 30,
       started_at: now,
       current_nomination_order: 1,
     })
@@ -293,8 +299,8 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
     supabase.from('draft_budgets').insert(members.map((member) => ({
       draft_id: draft.id,
       member_id: member.id,
-      initial_budget: 5,
-      remaining: 5,
+      initial_budget: 30,
+      remaining: 30,
     }))),
   ])
   if (orderError) throw new Error(`D.SET.4 auction order insert: ${orderError.message}`)
@@ -330,7 +336,7 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
     overBudget: await expectAuctionRpcError({
       supabase,
       label: 'bid over budget',
-      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 6, p_user_id: bidderOneUserId },
+      args: { ...baseArgs, p_member_id: bidderOne, p_amount: 31, p_user_id: bidderOneUserId },
       pattern: /Insufficient budget/i,
     }),
   }
@@ -452,7 +458,9 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
   const player = await findAvailablePlayer(supabase, fixture.league.id, fixture.leagueSeason.id)
 
   const now = new Date()
-  const clearsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
+  // The processor only picks up claims whose waiver hold has cleared
+  // (waiver_wire_log.clears_at <= now), so seed an already-cleared hold.
+  const clearsAt = new Date(now.getTime() - 60 * 1000).toISOString()
   const { data: waiverLog, error: logError } = await supabase
     .from('waiver_wire_log')
     .insert({
@@ -465,6 +473,13 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
     .select('id')
     .single()
   if (logError) throw new Error(`D.X.1 waiver log insert: ${logError.message}`)
+  // An insert trigger stamps clears_at from league waiver rules; backdate it
+  // after insert so the hold has already cleared.
+  const { error: clearsError } = await supabase
+    .from('waiver_wire_log')
+    .update({ clears_at: clearsAt })
+    .eq('id', waiverLog.id)
+  if (clearsError) throw new Error(`D.X.1 waiver log clears_at: ${clearsError.message}`)
 
   const { data: claim, error: claimError } = await supabase
     .from('waiver_claims')

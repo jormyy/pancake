@@ -54,7 +54,7 @@ BEGIN
          AND due_wwl.clears_at <= now()
         JOIN leagues AS claim_league
           ON claim_league.id = candidate.league_id
-         AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status)
+         AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status)
         JOIN league_seasons AS claim_season
           ON claim_season.id = candidate.league_season_id
          AND claim_season.is_current = true
@@ -108,7 +108,7 @@ BEGIN
      AND due_wwl.clears_at <= now()
     JOIN leagues AS claim_league
       ON claim_league.id = wc.league_id
-     AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status)
+     AND claim_league.status IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status)
     JOIN league_seasons AS claim_season
       ON claim_season.id = wc.league_season_id
      AND claim_season.is_current = true
@@ -178,7 +178,7 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status) THEN
+  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
     RAISE EXCEPTION 'Waivers require an active or playoff season.'
       USING ERRCODE = 'P0001';
   END IF;

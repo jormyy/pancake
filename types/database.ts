@@ -1010,6 +1010,7 @@ export type Database = {
           nba_trade_deadline: string | null
           regular_season_end: string | null
           regular_season_start: string | null
+          rookie_draft_scheduled_at: string | null
           season_year: number
         }
         Insert: {
@@ -1020,6 +1021,7 @@ export type Database = {
           nba_trade_deadline?: string | null
           regular_season_end?: string | null
           regular_season_start?: string | null
+          rookie_draft_scheduled_at?: string | null
           season_year: number
         }
         Update: {
@@ -1030,6 +1032,7 @@ export type Database = {
           nba_trade_deadline?: string | null
           regular_season_end?: string | null
           regular_season_start?: string | null
+          rookie_draft_scheduled_at?: string | null
           season_year?: number
         }
         Relationships: [
@@ -1816,6 +1819,7 @@ export type Database = {
           dynasty_rank_fetched_at: string | null
           dynasty_rank_source: string | null
           eligible_positions: string[]
+          espn_id: string | null
           first_name: string
           headshot_url: string | null
           id: string
@@ -1839,6 +1843,7 @@ export type Database = {
           dynasty_rank_fetched_at?: string | null
           dynasty_rank_source?: string | null
           eligible_positions?: string[]
+          espn_id?: string | null
           first_name: string
           headshot_url?: string | null
           id?: string
@@ -1862,6 +1867,7 @@ export type Database = {
           dynasty_rank_fetched_at?: string | null
           dynasty_rank_source?: string | null
           eligible_positions?: string[]
+          espn_id?: string | null
           first_name?: string
           headshot_url?: string | null
           id?: string
@@ -3961,8 +3967,10 @@ export type Database = {
         Args: { p_function_name: string; p_hour: number; p_minute?: number }
         Returns: undefined
       }
+      invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
+      invoke_season_boundary_if_due: { Args: never; Returns: undefined }
       is_regular_season_game_id: {
         Args: { p_game_id: string }
         Returns: boolean
@@ -4117,6 +4125,7 @@ export type Database = {
         }
         Returns: string
       }
+      prune_unbounded_history: { Args: never; Returns: Json }
       record_notification_outbox_ticket_atomic: {
         Args: {
           p_claim_token: string

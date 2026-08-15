@@ -117,6 +117,7 @@ async function syncScores() {
     '../lib/scoring': './scoring.ts',
     '../lib/notifications': './notifications.ts',
     '../lib/nba': './nba.ts',
+    '../lib/runBounded': './runBounded.ts',
     '../lib/utils/date': './date.ts',
     '../types/database': './database.ts',
     './stats': './syncStats.ts',

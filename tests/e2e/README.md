@@ -1,5 +1,26 @@
 # Multi-Season E2E Harness
 
+## Perpetual-season harness
+
+`npm run e2e:perpetual` runs the season-autonomy simulation against the LOCAL
+Supabase stack (`supabase start` + `supabase functions serve`). It creates its
+own users and leagues (default psw, non-default psw=22, a 10-team QF bracket,
+and a commissioner-override league), fast-forwards each through full seasons
+with a controlled clock, and asserts every boundary step happens with zero
+manual actions: weekly finalization, playoff bracket auto-generation and
+advancement (48h stat-correction grace), season rollover, new-season matchup
+generation, rollover completeness (waiver priority/FAAB/add-limit resets,
+rookie-draft schedule default), the week-1 rookie-draft auto-complete
+backstop, and the open-offseason add/drop/claim/trade paths. It also runs a
+stat-correction grace/immutability scenario and a 160-claim waiver-drain
+scenario. `--rollovers=N` controls consecutive rollovers (default 2);
+`--disable-boundary` proves the harness goes red without the automation.
+Artifacts land in `tests/artifacts/perpetual-season/report.json`.
+
+`npm run parity:players` documents Sleeper vs ESPN player-source parity runs
+in `docs/sleeper-migration.md` (see that file for the cutover design).
+
+
 This harness is the Phase C entrypoint for dynasty soak testing. It starts the fake NBA CDN/Sleeper server on port `4555`, points the app stack at that server through `NBA_CDN_BASE_URL` and `SLEEPER_BASE_URL`, snapshots dynasty-critical tables, and runs D.0 invariant checks at season boundaries.
 
 The runner loads `.env` automatically. Existing app variables are accepted as fallbacks:
@@ -107,6 +128,8 @@ Rookie draft checks are available with `E2E_ENABLE_ROOKIE_DRAFT=1` or `--rookie-
 Browser rookie draft auto-pick gameplay is available through `npm run e2e:browser-rookie-draft` or `E2E_ENABLE_BROWSER_ROOKIE_DRAFT=1 npm run e2e:soak`. It creates an isolated four-user offseason league, seeds previous-season standings plus linked current-year `draft_picks`, opens the real rookie draft room through `agent-browser` as the first pick owner, lets the 30-second visible timer expire, and verifies the browser-triggered auto-pick selected the lowest `nba_draft_number`, inserted the roster row, and marked the exact linked pick asset used. Artifacts are written to `tests/artifacts/season-<N>/browser-rookie-draft/`. This covers the D.SEA.5 browser timer/auto-pick slice; long-horizon traded-pick materialization remains covered by `E2E_ENABLE_PICK_CHAIN=1`.
 
 Browser playoff champion gameplay is available through `npm run e2e:browser-playoff` or `E2E_ENABLE_BROWSER_PLAYOFF=1 npm run e2e:soak`. It creates an isolated 10-user league, seeds deterministic regular-season results, generates the real top-six playoff bracket through `/playoffs/generate`, verifies `/playoffs/advance` blocks before prerequisite rounds finalize, finalizes quarterfinals/semifinals/championship rows, then opens the real bracket modal through `agent-browser` and verifies the champion banner. Artifacts are written to `tests/artifacts/season-<N>/browser-playoff/`. This covers the D.SEA.4 champion display and playoff advancement slice; full week-by-week playoff scoring remains covered by backend scoring/finalization slices.
+
+Busy-offseason activity checks are available with `E2E_ENABLE_OFFSEASON_ACTIVITY=1` or `--offseason-activity=true` (release tier). Each season the runner creates a disposable four-team league, resets it through the real `/e2e/advance-season`, then performs a signed-in free-agent add, a drop, a processed waiver claim, a completed two-team player+pick trade, a completed multi-team trade, a commissioner `update_league_settings_atomic` change, and a full rookie draft via the real e2e draft routes — all while the league is in the offseason window — then resets again and asserts every artifact survived the rollover (rosters, pick ledger, settings, drafted rookies). Artifacts are written to `tests/artifacts/season-<N>/offseason-activity.json`. This covers AC-23.
 
 Season reset checks are available with `E2E_ENABLE_SEASON_RESET=1` or `--season-reset=true`. The Supabase Edge API must be reachable with `E2E_ADMIN_SECRET`; the runner creates a disposable active league, seeds standings, waiver priorities, roster rows with IR/taxi flags, old-season lineups/matchups, and a rolling five-year pick bank, then calls the real `/e2e/advance-season` endpoint. It verifies exactly one current season, old-season demotion, roster carryover, `carry_over` acquisition stamps, waiver priority reseed by reverse standings, old-season history queryability, league offseason status, and the new rolling five-year pick horizon. Artifacts are written to `tests/artifacts/season-<N>/season-reset.json`. This covers the deterministic D.SEA.6 reset/carryover/reseed slice; crash-in-the-middle rollback still needs a fault-injection scenario.
 

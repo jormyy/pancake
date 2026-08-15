@@ -3,6 +3,7 @@ import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
+import { fetchEspnPlayerRecords } from '../_shared/playerSource.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
@@ -10,9 +11,15 @@ const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
 const CHUNK = 500
 
+// ESPN is the primary keyless source; Sleeper is a dormant fallback kept
+// behind this flag (its commercial API moved behind negotiated licensing).
+const PLAYER_SYNC_SOURCE = Deno.env.get('PLAYER_SYNC_SOURCE') ?? 'espn'
+
 serveInternal('sync-players', async () => {
   const result = await recordSyncRun('sync-players', async () => {
-    const players = await syncPlayers()
+    const players = PLAYER_SYNC_SOURCE === 'sleeper'
+      ? { ambiguousSkipped: 0, ...await syncPlayers() }
+      : await syncPlayersFromEspn()
     const nbaIds = await syncNBAIds()
     const failures = [...players.failures, ...nbaIds.failures]
     if (failures.length > 0) {
@@ -22,6 +29,7 @@ serveInternal('sync-players', async () => {
       result: {
         updated: players.updated,
         inserted: players.inserted,
+        ambiguousSkipped: players.ambiguousSkipped,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
       },
@@ -31,6 +39,131 @@ serveInternal('sync-players', async () => {
   return Response.json({ ok: true, ...result })
 })
 
+async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: number; ambiguousSkipped: number; failures: string[] }> {
+  console.log('[sync-players] Fetching from ESPN...')
+  const records = await fetchEspnPlayerRecords()
+
+  const existing: {
+    id: string
+    display_name: string | null
+    espn_id: string | null
+    position: string | null
+    eligible_positions: string[] | null
+  }[] = []
+  const PAGE = 1000
+  let from = 0
+  while (true) {
+    const { data, error: fetchErr } = await supabase
+      .from('players')
+      .select('id, display_name, espn_id, position, eligible_positions')
+      .range(from, from + PAGE - 1)
+    if (fetchErr) throw fetchErr
+    if (!data || data.length === 0) break
+    existing.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+
+  const byExactName = new Map<string, string>()
+  const byNormName = new Map<string, string>()
+  const byEspnId = new Map<string, string>()
+  const positionKnown = new Set<string>()
+  for (const p of existing) {
+    if (p.display_name) {
+      setUnique(byExactName, p.display_name.toLowerCase(), p.id)
+      setUnique(byNormName, normalizeName(p.display_name), p.id)
+    }
+    if (p.espn_id) byEspnId.set(p.espn_id, p.id)
+    if (p.position || (p.eligible_positions ?? []).length > 0) positionKnown.add(p.id)
+  }
+
+  const toUpdate: any[] = []
+  const toInsert: any[] = []
+  let ambiguousSkipped = 0
+  for (const record of records) {
+    const displayName = [record.first_name, record.last_name].filter(Boolean).join(' ')
+    const exactNameId = byExactName.get(displayName.toLowerCase())
+    const normalizedNameId = byNormName.get(normalizeName(displayName))
+    const matchedNameId = exactNameId && exactNameId !== AMBIGUOUS
+      ? exactNameId
+      : (normalizedNameId && normalizedNameId !== AMBIGUOUS ? normalizedNameId : null)
+    const existingId = byEspnId.get(record.espn_id) ?? matchedNameId
+    if (!existingId && (exactNameId === AMBIGUOUS || normalizedNameId === AMBIGUOUS)) {
+      // Multiple existing rows share this name and none owns the espn_id yet.
+      // Refuse to guess: inserting would fork a duplicate of a real player,
+      // and updating could hit the wrong one. Resolves once espn_id is
+      // claimed manually or the ambiguity clears.
+      ambiguousSkipped += 1
+      continue
+    }
+
+    const base = {
+      espn_id: record.espn_id,
+      first_name: record.first_name,
+      last_name: record.last_name,
+      nba_team: record.nba_team,
+      status: record.status,
+      injury_status: record.injury_status,
+      years_exp: record.years_exp,
+      updated_at: new Date().toISOString(),
+    }
+    if (existingId) {
+      // ESPN positions are coarse (G/F/C). Never overwrite a finer existing
+      // position/eligibility set; only fill players that have none.
+      const positionFields = positionKnown.has(existingId)
+        ? {}
+        : { position: record.position, eligible_positions: record.eligible_positions }
+      toUpdate.push({ id: existingId, ...base, ...positionFields })
+    } else {
+      toInsert.push({
+        ...base,
+        position: record.position,
+        eligible_positions: record.eligible_positions,
+      })
+    }
+  }
+
+  const seenIds = new Map<string, any>()
+  for (const p of toUpdate) seenIds.set(p.id as string, p)
+  const dedupedUpdate = Array.from(seenIds.values())
+
+  for (let i = 0; i < dedupedUpdate.length; i += CHUNK) {
+    // Strip espn_id from updates — a name-matched row could collide with a
+    // different row that already owns that espn_id.
+    const chunk = dedupedUpdate.slice(i, i + CHUNK).map(({ espn_id: _eid, ...rest }) => rest)
+    const { error } = await supabase
+      .from('players')
+      .upsert(chunk, { onConflict: 'id' })
+    if (error) throw error
+  }
+
+  // Claim espn_id for id-stripped updates separately so future syncs match by
+  // stable id instead of name.
+  for (const update of dedupedUpdate) {
+    const id = update.id as string
+    const espnId = update.espn_id as string
+    if (byEspnId.get(espnId) === id) continue
+    const { error } = await supabase
+      .from('players')
+      .update({ espn_id: espnId })
+      .eq('id', id)
+      .is('espn_id', null)
+    if (error) console.error(`[sync-players] espn_id claim failed for ${id}: ${error.message}`)
+  }
+
+  const failures: string[] = []
+  for (let i = 0; i < toInsert.length; i += CHUNK) {
+    const { error } = await supabase
+      .from('players')
+      .upsert(toInsert.slice(i, i + CHUNK), { onConflict: 'espn_id' })
+    if (error) failures.push(`insert chunk ${i}: ${error.message}`)
+  }
+
+  console.log(`[sync-players] ESPN: ${dedupedUpdate.length} updated, ${toInsert.length} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} failed chunk(s).`)
+  return { updated: dedupedUpdate.length, inserted: toInsert.length, ambiguousSkipped, failures }
+}
+
+// Dormant Sleeper fallback path (PLAYER_SYNC_SOURCE=sleeper).
 async function syncPlayers(): Promise<{ updated: number; inserted: number; failures: string[] }> {
   console.log('[sync-players] Fetching from Sleeper...')
   const res = await fetchWithRetry(SLEEPER_URL)

@@ -19,7 +19,7 @@ BEGIN
      AND season.id = wwl.league_season_id
      AND season.is_current = true
      AND league.id = wwl.league_id
-     AND league.status IN ('active'::league_status, 'playoffs'::league_status)
+     AND league.status IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status)
      AND wwl.clears_at < now()
      AND NOT EXISTS (
        SELECT 1
