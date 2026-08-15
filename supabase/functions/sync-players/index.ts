@@ -76,9 +76,7 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
     if (p.position || (p.eligible_positions ?? []).length > 0) positionKnown.add(p.id)
   }
 
-  // deno-lint-ignore no-explicit-any
   const toUpdate: any[] = []
-  // deno-lint-ignore no-explicit-any
   const toInsert: any[] = []
   for (const record of records) {
     const displayName = [record.first_name, record.last_name].filter(Boolean).join(' ')
@@ -115,7 +113,6 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
     }
   }
 
-  // deno-lint-ignore no-explicit-any
   const seenIds = new Map<string, any>()
   for (const p of toUpdate) seenIds.set(p.id as string, p)
   const dedupedUpdate = Array.from(seenIds.values())
