@@ -20,6 +20,10 @@ async function syncSchedule(): Promise<{ updated: number; inserted: number; week
   if (!raw.length) { console.log('[sync-schedule] No schedule data.'); return { updated: 0, inserted: 0, weeks: 0 } }
 
   const plan = buildScheduleSyncPlan(raw)
+  if (plan.offseasonStale) {
+    console.log('[sync-schedule] Offseason: CDN still serves last season; skipping until the new schedule is published.')
+    return { updated: 0, inserted: 0, weeks: 0 }
+  }
   if (!plan.regularSeason.length) { console.log('[sync-schedule] No regular season games.'); return { updated: 0, inserted: 0, weeks: 0 } }
   if (!plan.seasonStart) { console.log('[sync-schedule] No regular season start date.'); return { updated: 0, inserted: 0, weeks: 0 } }
   if (!plan.rows.length) { console.log('[sync-schedule] No schedule rows.'); return { updated: 0, inserted: 0, weeks: 0 } }

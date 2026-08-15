@@ -40,6 +40,7 @@ export type ScheduleSyncPlan = {
     seasonYear: number | null
     rows: ScheduleGameRow[]
     weeks: SeasonWeekRow[]
+    offseasonStale?: boolean
 }
 
 export function seasonYearForGameDate(gameDate: string): number {
@@ -81,11 +82,15 @@ export function seasonEndYearFromScheduleLabel(label: string | null | undefined)
     return sameCenturyEnd <= startYear ? sameCenturyEnd + 100 : sameCenturyEnd
 }
 
+// From the last regular-season game (mid-April) until the new schedule is
+// published (~Sept 1), the NBA CDN serves last season's schedule. That is the
+// normal offseason state, not a failure: report it as a skip so the daily
+// sync stays quiet instead of erroring every day from May to August.
 export function assertScheduleFresh(
     regularSeason: { gameDate: string; scheduleSeasonYear?: string | null }[],
     seasonYear: number,
     now = new Date(),
-): void {
+): 'fresh' | 'offseason-stale' {
     const sourceSeasonYear = seasonEndYearFromScheduleLabel(regularSeason[0]?.scheduleSeasonYear)
     if (sourceSeasonYear != null && sourceSeasonYear !== seasonYear) {
         throw new Error(`NBA schedule season label ${regularSeason[0]?.scheduleSeasonYear} does not match game dates for season ${seasonYear}`)
@@ -95,8 +100,11 @@ export function assertScheduleFresh(
     const latestGameDate = dates[dates.length - 1]
     const today = etDateKey(now)
     if (latestGameDate && latestGameDate < today) {
+        const month = Number(today.slice(5, 7))
+        if (month >= 4 && month <= 8) return 'offseason-stale'
         throw new Error(`NBA schedule payload is stale; latest regular-season game ${latestGameDate} is before ${today}`)
     }
+    return 'fresh'
 }
 
 export function buildSeasonWeekRows(
@@ -140,7 +148,9 @@ export function buildScheduleSyncPlan(raw: ScheduleSourceGame[], now = new Date(
     }
 
     const seasonYear = seasonYearForGameDate(seasonStart)
-    assertScheduleFresh(regularSeason, seasonYear, now)
+    if (assertScheduleFresh(regularSeason, seasonYear, now) === 'offseason-stale') {
+        return { regularSeason, seasonStart, seasonYear, rows: [], weeks: [], offseasonStale: true }
+    }
     const updatedAt = now.toISOString()
     const rows = regularSeason
         .filter((game) => game.homeTeam && game.awayTeam)

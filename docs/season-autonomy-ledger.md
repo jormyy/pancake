@@ -17,8 +17,8 @@ AC-07 rollover-completeness          | PASS    | assertRolloverCompleteness: inv
 AC-08 rookie-draft-backstop          | PASS    | assertRookieDraftBackstop: unrun draft auto-completed best-available at week 1; all picks rostered, none on waivers, league active
 AC-09 offseason-fully-open           | PASS    | runOffseasonOpenScenario: offseason add/drop/waiver claim+processing/trade succeed; trade lands in new-season rosters and pick ledger
 AC-10 commissioner-override-compat   | PASS    | Manual league: commissioner generates/advances/rolls first; automation tick only backfills matchups, seasons count stays exact
-AC-11 schedule-freshness-offseason   | PENDING |
-AC-12 oct-10-season-year-gap         | PENDING |
+AC-11 schedule-freshness-offseason   | PASS    | tests/lib/schedule-freshness.test.ts: offseason stale -> skip; in-season stale + label mismatch still throw; sync-schedule short-circuits on skip
+AC-12 oct-10-season-year-gap         | PASS    | supabase/functions/_shared/octoberGap.test.ts: Oct 10 mocked date, no new-season data -> syncScores and season-boundary complete with zero writes
 AC-13 syncscores-bounded-fanout      | PENDING |
 AC-14 waiver-drain-150               | PENDING |
 AC-15 retention-tested               | PENDING |
@@ -31,6 +31,8 @@ AC-21 no-unresolved-findings         | PENDING |
 ```
 
 ## Checkpoint log
+
+- 2026-08-14 Wave 4: schedule freshness offseason-aware (skip May-Aug, fail Sep-Apr); Oct-gap covered by design (league_seasons-driven scoring) with regression test.
 
 - 2026-08-14 Wave 3: 48h grace + playoff immutability, rollover completeness (year derivation fix, rookie_draft_scheduled_at default), rookie-draft week-1 backstop, offseason fully opened (adds/drops/waivers/trades incl. accepted-trade trigger + waiver candidate selection).
 

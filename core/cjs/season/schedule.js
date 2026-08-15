@@ -47,6 +47,10 @@ function seasonEndYearFromScheduleLabel(label) {
     const sameCenturyEnd = century + Number(endText);
     return sameCenturyEnd <= startYear ? sameCenturyEnd + 100 : sameCenturyEnd;
 }
+// From the last regular-season game (mid-April) until the new schedule is
+// published (~Sept 1), the NBA CDN serves last season's schedule. That is the
+// normal offseason state, not a failure: report it as a skip so the daily
+// sync stays quiet instead of erroring every day from May to August.
 function assertScheduleFresh(regularSeason, seasonYear, now = new Date()) {
     const sourceSeasonYear = seasonEndYearFromScheduleLabel(regularSeason[0]?.scheduleSeasonYear);
     if (sourceSeasonYear != null && sourceSeasonYear !== seasonYear) {
@@ -56,8 +60,12 @@ function assertScheduleFresh(regularSeason, seasonYear, now = new Date()) {
     const latestGameDate = dates[dates.length - 1];
     const today = etDateKey(now);
     if (latestGameDate && latestGameDate < today) {
+        const month = Number(today.slice(5, 7));
+        if (month >= 4 && month <= 8)
+            return 'offseason-stale';
         throw new Error(`NBA schedule payload is stale; latest regular-season game ${latestGameDate} is before ${today}`);
     }
+    return 'fresh';
 }
 function buildSeasonWeekRows(games, seasonYear) {
     const weekMap = {};
@@ -96,7 +104,9 @@ function buildScheduleSyncPlan(raw, now = new Date()) {
         return { regularSeason, seasonStart: null, seasonYear: null, rows: [], weeks: [] };
     }
     const seasonYear = seasonYearForGameDate(seasonStart);
-    assertScheduleFresh(regularSeason, seasonYear, now);
+    if (assertScheduleFresh(regularSeason, seasonYear, now) === 'offseason-stale') {
+        return { regularSeason, seasonStart, seasonYear, rows: [], weeks: [], offseasonStale: true };
+    }
     const updatedAt = now.toISOString();
     const rows = regularSeason
         .filter((game) => game.homeTeam && game.awayTeam)
