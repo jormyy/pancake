@@ -8,17 +8,31 @@ export const currentSeasonYear = (now = new Date()) => (
   now.getUTCMonth() >= 9 ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
 )
 
+// League disposal cascades large deletes; the local gateway occasionally
+// returns a transient upstream error under sustained load, so retry.
+const retryTransient = async (operation, attempts = 4) => {
+  let latest
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    latest = await operation()
+    const message = latest?.error?.message ?? ''
+    const transient = /upstream server|timeout|fetch failed|ECONNRE|502|503|504/i.test(message)
+    if (!latest?.error || !transient || attempt === attempts) return latest
+    await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+  }
+  return latest
+}
+
 export const disposeDisposableLeague = async (supabase, leagueId, label) => {
-  const { error: tradeError } = await supabase.from('trades')
+  const { error: tradeError } = await retryTransient(() => supabase.from('trades')
     .update({ status: 'vetoed', vetoed_at: new Date().toISOString() })
-    .eq('league_id', leagueId).eq('status', 'accepted')
+    .eq('league_id', leagueId).eq('status', 'accepted'))
   // Rookie drafts back-reference draft_picks.rookie_draft_id; clear it so the
   // drafts delete cannot trip the FK.
-  const { error: pickRefError } = await supabase.from('draft_picks')
-    .update({ rookie_draft_id: null }).eq('league_id', leagueId)
+  const { error: pickRefError } = await retryTransient(() => supabase.from('draft_picks')
+    .update({ rookie_draft_id: null }).eq('league_id', leagueId))
   if (pickRefError) throw new Error(`${label}: pick ref cleanup failed: ${pickRefError.message}`)
-  const { error: draftError } = await supabase.from('drafts').delete().eq('league_id', leagueId)
-  const { error: deleteError } = await supabase.from('leagues').delete().eq('id', leagueId)
+  const { error: draftError } = await retryTransient(() => supabase.from('drafts').delete().eq('league_id', leagueId))
+  const { error: deleteError } = await retryTransient(() => supabase.from('leagues').delete().eq('id', leagueId))
   const failures = [tradeError, draftError, deleteError].filter(Boolean).map((error) => new Error(error.message))
   if (failures.length > 0) throw new AggregateError(failures, `${label}: league disposal failed`)
 }
