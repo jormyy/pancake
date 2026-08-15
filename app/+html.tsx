@@ -13,7 +13,19 @@ const SW_REGISTER = process.env.NODE_ENV === 'production' ? `
 if ('serviceWorker' in navigator &&
     (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js').catch(function () {});
+    navigator.serviceWorker.register('/sw.js').then(function (registration) {
+      // Auto-update: re-check on every foreground so a backgrounded PWA picks
+      // up new deploys, and reload once when the new worker takes control.
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') registration.update().catch(function () {});
+      });
+      var reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+    }).catch(function () {});
   });
 }
 ` : `

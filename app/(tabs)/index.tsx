@@ -1,4 +1,5 @@
 import {
+    Platform,
     View,
     Text,
     Pressable,
@@ -181,15 +182,19 @@ export default function HomeScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <LeagueSwitcher
-                memberships={memberships}
-                currentId={current?.id}
-                onSelect={(membership) => {
-                    const fullMembership = memberships.find((m) => m.id === membership.id)
-                    if (fullMembership) setCurrent(fullMembership)
-                }}
-                compact={compact}
-            />
+            {Platform.OS !== 'web' && (
+                // The web shell's header has its own league switcher; this row
+                // would duplicate it. Native has no shell header, so it stays.
+                <LeagueSwitcher
+                    memberships={memberships}
+                    currentId={current?.id}
+                    onSelect={(membership) => {
+                        const fullMembership = memberships.find((m) => m.id === membership.id)
+                        if (fullMembership) setCurrent(fullMembership)
+                    }}
+                    compact={compact}
+                />
+            )}
 
             {error && <ErrorBanner onRetry={refresh} />}
 
