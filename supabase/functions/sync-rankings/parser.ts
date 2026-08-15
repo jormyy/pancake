@@ -52,6 +52,84 @@ export function isDraftPlaceholder(ranking: Pick<RankingRow, 'team' | 'name'>): 
 
 export function parseDynastyRankingsHtml(html: string): RankingRow[] {
   const $ = cheerio.load(html)
+  const cardRankings = parseDynastyCards($)
+  if (cardRankings.length > 0) return dedupeRankings(cardRankings)
+  return parseLegacyDynastyTable($)
+}
+
+// Hashtag's 2026-08 redesign: one .dyn-card per player instead of one table
+// row. Badges run [positions..., TEAM, AGEyo]; the nine per-game stats live in
+// .dyn-mini; GP comes from the current-season row of the embedded stat table;
+// the writeup lives in .dyn-outlook. Player source ids no longer exist.
+function parseDynastyCards($: cheerio.CheerioAPI): RankingRow[] {
+  const rankings: RankingRow[] = []
+
+  $('.dyn-card').each((_, card) => {
+    const rankCell = $(card).find('.dyn-rank').first()
+    const rank = parseInt(rankCell.clone().children().remove().end().text().trim())
+    if (isNaN(rank)) return
+
+    const name = cleanText($(card).find('.dyn-name').first().clone().children().remove().end().text())
+    if (!name) return
+
+    const badges = $(card).find('.dyn-meta .badge')
+      .map((_, badge) => cleanText($(badge).text()))
+      .get()
+      .filter(Boolean)
+    const age = parseNumber((badges.find((badge) => /yo$/i.test(badge)) ?? '').replace(/yo$/i, ''))
+    const nonAge = badges.filter((badge) => !/yo$/i.test(badge))
+    const team = nonAge.length > 0 ? nonAge[nonAge.length - 1] : null
+    const positions = nonAge.slice(0, -1)
+
+    const stats = emptyStats()
+    $(card).find('.dyn-mini .m').each((_, mini) => {
+      const label = cleanText($(mini).find('small').text()).toUpperCase()
+      const value = parseNumber($(mini).clone().children('small').remove().end().text())
+      if (value == null) return
+      if (label === 'FG%') stats.field_goal_pct = value
+      else if (label === 'FT%') stats.free_throw_pct = value
+      else if (label === '3PM') stats.three_pointers_made = value
+      else if (label === 'PTS') stats.points = value
+      else if (label === 'REB') stats.rebounds = value
+      else if (label === 'AST') stats.assists = value
+      else if (label === 'STL') stats.steals = value
+      else if (label === 'BLK') stats.blocks = value
+      else if (label === 'TO') stats.turnovers = value
+    })
+    const currentSeasonCells = $(card)
+      .find('table.table--statistics tr').eq(1)
+      .find('td')
+    const gamesPlayed = parseNumber($(currentSeasonCells[2]).text())
+    if (gamesPlayed != null) stats.games_played = Math.round(gamesPlayed)
+
+    rankings.push({
+      rank,
+      name,
+      team,
+      positions,
+      sourcePlayerId: null,
+      age,
+      rankChange: parseCardRankChange($, rankCell),
+      comment: cleanText($(card).find('.dyn-outlook').first().text()) || null,
+      ...stats,
+    })
+  })
+
+  return rankings
+}
+
+function parseCardRankChange($: cheerio.CheerioAPI, rankCell: ReturnType<cheerio.CheerioAPI>): number {
+  const trend = rankCell.find('.dyn-trend').first()
+  if (trend.length === 0) return 0
+  const change = parseInt(cleanText(trend.clone().children().remove().end().text()))
+  if (isNaN(change)) return 0
+  const iconClass = trend.find('i').attr('class') ?? ''
+  if (iconClass.includes('arrow-circle-down')) return -change
+  if (iconClass.includes('arrow-circle-up')) return change
+  return 0
+}
+
+function parseLegacyDynastyTable($: cheerio.CheerioAPI): RankingRow[] {
   const rankings: RankingRow[] = []
 
   $('table.table--statistics').first().find('> tbody > tr, > tr').each((_, row) => {

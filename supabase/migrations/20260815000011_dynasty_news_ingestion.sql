@@ -1,3 +1,11 @@
+-- Dynasty Hub news was an empty shell: the read path existed but nothing ever
+-- wrote dynasty_news. sync-players now ingests ESPN's keyless NBA news feed
+-- (athletes mapped through players.espn_id). This migration adds the upsert
+-- key and a 60-day retention window.
+
+ALTER TABLE public.dynasty_news
+  ADD CONSTRAINT dynasty_news_url_key UNIQUE (url);
+
 CREATE OR REPLACE FUNCTION public.prune_unbounded_history()
 RETURNS jsonb
 LANGUAGE plpgsql

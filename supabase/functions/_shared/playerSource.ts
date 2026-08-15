@@ -199,3 +199,48 @@ export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
   }
   return records
 }
+
+export type SourceNewsItem = {
+  title: string
+  summary: string
+  source: string
+  url: string
+  published_at: string
+  espn_athlete_id: string | null
+}
+
+// ESPN's keyless NBA news feed. Articles tagged with an athlete map onto
+// players.espn_id; untagged league-wide stories keep player_id null.
+export async function fetchEspnNews(limit = 50): Promise<SourceNewsItem[]> {
+  const res = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/news?limit=${limit}`)
+  if (!res.ok) {
+    await res.body?.cancel()
+    throw new Error(`ESPN news ${res.status}`)
+  }
+  const payload = await res.json() as {
+    articles?: {
+      headline?: string
+      description?: string
+      published?: string
+      links?: { web?: { href?: string } }
+      categories?: { type?: string; athleteId?: number | string }[]
+    }[]
+  }
+  const items: SourceNewsItem[] = []
+  for (const article of payload.articles ?? []) {
+    const url = article.links?.web?.href
+    if (!article.headline || !article.published || !url) continue
+    const athlete = (article.categories ?? []).find((category) =>
+      category.type === 'athlete' && category.athleteId != null
+    )
+    items.push({
+      title: article.headline,
+      summary: article.description ?? article.headline,
+      source: 'espn',
+      url,
+      published_at: article.published,
+      espn_athlete_id: athlete?.athleteId != null ? String(athlete.athleteId) : null,
+    })
+  }
+  return items
+}

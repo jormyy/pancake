@@ -19,8 +19,13 @@ if ('serviceWorker' in navigator &&
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible') registration.update().catch(function () {});
       });
+      // Reload only when a NEW worker replaces an existing controller (a real
+      // deploy). The first install also fires controllerchange via
+      // clients.claim() and must not reload the fresh page.
+      var hadController = Boolean(navigator.serviceWorker.controller);
       var reloaded = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!hadController) { hadController = true; return; }
         if (reloaded) return;
         reloaded = true;
         window.location.reload();

@@ -3,7 +3,7 @@ import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
-import { fetchEspnPlayerRecords } from '../_shared/playerSource.ts'
+import { fetchEspnNews, fetchEspnPlayerRecords } from '../_shared/playerSource.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
@@ -21,6 +21,7 @@ serveInternal('sync-players', async () => {
       ? { ambiguousSkipped: 0, ...await syncPlayers() }
       : await syncPlayersFromEspn()
     const nbaIds = await syncNBAIds()
+    const news = await syncDynastyNews()
     const failures = [...players.failures, ...nbaIds.failures]
     if (failures.length > 0) {
       throw new Error(`sync-players had ${failures.length} failure(s): ${failures.join('; ')}`)
@@ -32,8 +33,10 @@ serveInternal('sync-players', async () => {
         ambiguousSkipped: players.ambiguousSkipped,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
+        newsUpserted: news.upserted,
+        newsFailures: news.failures,
       },
-      rowsAffected: players.updated + players.inserted + nbaIds.mapped + nbaIds.merged,
+      rowsAffected: players.updated + players.inserted + nbaIds.mapped + nbaIds.merged + news.upserted,
     }
   })
   return Response.json({ ok: true, ...result })
@@ -404,4 +407,47 @@ const VALID_POSITIONS = new Set(['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'])
 function normalizeEligiblePositions(positions: string[] | null | undefined): string[] {
   if (!positions) return []
   return positions.filter((p) => VALID_POSITIONS.has(p))
+}
+
+// Dynasty Hub news: ESPN articles keyed by url; athlete-tagged stories link to
+// the matching player through espn_id. A failed feed leaves existing news
+// untouched and reports the failure without blocking the player sync result.
+async function syncDynastyNews(): Promise<{ upserted: number; failures: string[] }> {
+  try {
+    const items = await fetchEspnNews()
+    if (items.length === 0) return { upserted: 0, failures: [] }
+
+    const athleteIds = [...new Set(items.flatMap((item) => item.espn_athlete_id ? [item.espn_athlete_id] : []))]
+    const playerByEspnId = new Map<string, string>()
+    if (athleteIds.length > 0) {
+      const { data, error } = await supabase
+        .from('players')
+        .select('id, espn_id')
+        .in('espn_id', athleteIds)
+      if (error) throw error
+      for (const player of data ?? []) {
+        if (player.espn_id) playerByEspnId.set(player.espn_id, player.id)
+      }
+    }
+
+    const rows = items.map((item) => ({
+      title: item.title,
+      summary: item.summary,
+      source: item.source,
+      url: item.url,
+      published_at: item.published_at,
+      player_id: item.espn_athlete_id ? playerByEspnId.get(item.espn_athlete_id) ?? null : null,
+    }))
+    const { error } = await supabase
+      .from('dynasty_news')
+      .upsert(rows, { onConflict: 'url' })
+    if (error) throw error
+
+    console.log(`[sync-players] dynasty news: ${rows.length} upserted.`)
+    return { upserted: rows.length, failures: [] }
+  } catch (error) {
+    const message = (error as { message?: string } | null)?.message ?? String(error)
+    console.error(`[sync-players] dynasty news failed: ${message}`)
+    return { upserted: 0, failures: [`news: ${message}`] }
+  }
 }
