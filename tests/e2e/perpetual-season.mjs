@@ -347,6 +347,40 @@ async function boundaryTick(ctx, tickDate) {
   await callEdge('season-boundary', { date: tickDate, leagueId: ctx.league.id })
 }
 
+// Commissioner override: performs the manual button actions (bracket
+// generation / advancement) the moment they become available, always ahead of
+// the automation tick, mirroring a commissioner who never waits.
+async function manualCommissionerActs(ctx) {
+  const byType = await matchupTypeCounts(ctx)
+  const bracketExists = byType.playoff_quarterfinal.length > 0 ||
+    byType.playoff_semifinal.length > 0 || byType.playoff_final.length > 0
+  const regularDone = byType.regular_season.length > 0 &&
+    byType.regular_season.every((m) => m.is_finalized)
+  if (!bracketExists && regularDone) {
+    const { error } = await supabase.rpc('generate_playoff_bracket_atomic', { p_league_id: ctx.league.id })
+    throwOn(error, `${ctx.name} manual bracket generate`)
+    const { error: statusError } = await supabase.from('leagues')
+      .update({ status: 'playoffs' }).eq('id', ctx.league.id)
+    throwOn(statusError, `${ctx.name} manual status playoffs`)
+    return
+  }
+  if (bracketExists && byType.playoff_final.length === 0) {
+    const round = byType.playoff_semifinal.length > 0 ? byType.playoff_semifinal : byType.playoff_quarterfinal
+    if (round.length > 0 && round.every((m) => m.is_finalized && m.winner_member_id != null)) {
+      const { error } = await supabase.rpc('advance_playoff_bracket_atomic', { p_league_id: ctx.league.id })
+      throwOn(error, `${ctx.name} manual bracket advance`)
+    }
+    return
+  }
+  const finals = byType.playoff_final
+  if (finals.length > 0 && finals.every((m) => m.is_finalized && m.winner_member_id != null)) {
+    // Commissioner advances the season first; the automation tick after must
+    // only backfill missing matchups, never create a second season.
+    const { error } = await supabase.rpc('advance_season_atomic', { p_league_id: ctx.league.id })
+    throwOn(error, `${ctx.name} manual season advance`)
+  }
+}
+
 async function assertBoundaryIdempotent(ctx, tickDate, label) {
   if (!BOUNDARY_ENABLED) return
   const before = {
@@ -372,9 +406,22 @@ async function playSeason(ctx) {
     await seedWeekGameAndStats(ctx, week)
     const { tick } = weekDates(ctx.seasonIndex, week)
     await callEdge('sync-scores', { date: tick, leagueId: ctx.league.id })
+    if (ctx.manual) await manualCommissionerActs(ctx)
     await boundaryTick(ctx, tick)
 
     const byType = await matchupTypeCounts(ctx)
+    if (week === 1) {
+      const { data: weekOne, error: weekOneError } = await supabase
+        .from('matchups')
+        .select('home_points, away_points')
+        .eq('league_season_id', ctx.season.id)
+        .eq('week_number', 1)
+      throwOn(weekOneError, `${ctx.name} week-1 readback`)
+      if (!(weekOne ?? []).some((m) => Number(m.home_points) > 0 || Number(m.away_points) > 0)) {
+        fail(`${ctx.name} season ${ctx.season.season_year}: week 1 did not score (no matchup points)`)
+        return false
+      }
+    }
     if (week === psw - 1) {
       const unfinalized = byType.regular_season.filter((m) => !m.is_finalized)
       if (unfinalized.length > 0) {
@@ -447,6 +494,10 @@ async function assertRollover(ctx) {
   if (waiverRows !== ctx.members.length) {
     fail(`${ctx.name}: new season waiver_priorities ${waiverRows}; expected ${ctx.members.length}`)
   }
+  const totalSeasons = await count('league_seasons', { league_id: ctx.league.id })
+  if (totalSeasons !== ctx.seasonIndex + 2) {
+    fail(`${ctx.name}: ${totalSeasons} total seasons after rollover; expected ${ctx.seasonIndex + 2} (duplicate rollover?)`)
+  }
 
   await assertBoundaryIdempotent(ctx, tickAfterFinal, 'post-rollover')
 
@@ -491,6 +542,30 @@ async function runDbIntegrityChecks(contexts) {
         m.league_season_id === season.id && m.matchup_type === 'playoff_final')
       if (finals.length > 1) fail(`${ctx.name}: season ${season.season_year} has ${finals.length} playoff finals`)
     }
+
+    for (const table of ['weekly_lineups', 'standings']) {
+      const { data: rows, error: rowsError } = await supabase
+        .from(table)
+        .select('league_season_id')
+        .eq('league_id', ctx.league.id)
+      throwOn(rowsError, `integrity ${table}`)
+      const orphanRows = (rows ?? []).filter((row) => !seasonIds.has(row.league_season_id))
+      if (orphanRows.length > 0) fail(`${ctx.name}: ${orphanRows.length} orphan ${table} rows`)
+    }
+
+    // Every simulated nba_game must fall inside a season_weeks window for its
+    // season year (schedule/week consistency).
+    for (const season of seasons ?? []) {
+      const { data: weeks } = await supabase.from('season_weeks')
+        .select('week_number, week_start, week_end').eq('season_year', season.season_year)
+      const { data: games } = await supabase.from('nba_games')
+        .select('game_date').eq('season_year', season.season_year)
+      const uncovered = (games ?? []).filter((game) =>
+        !(weeks ?? []).some((week) => game.game_date >= week.week_start && game.game_date <= week.week_end))
+      if (uncovered.length > 0) {
+        fail(`${ctx.name}: season ${season.season_year} has ${uncovered.length} nba_games outside season_weeks`)
+      }
+    }
   }
 }
 
@@ -509,6 +584,10 @@ const main = async () => {
     await createLeague({ name: 'Default', users, memberCount: 4, playoffStartWeek: 20, baseYear: 4210 }),
     await createLeague({ name: 'Custom', users, memberCount: 4, playoffStartWeek: 22, baseYear: 4220 }),
     await createLeague({ name: 'Sixseed', users, memberCount: 10, playoffStartWeek: 18, baseYear: 4230 }),
+    Object.assign(
+      await createLeague({ name: 'Manual', users, memberCount: 4, playoffStartWeek: 20, baseYear: 4240 }),
+      { manual: true },
+    ),
   ]
 
   for (let seasonNumber = 0; seasonNumber <= ROLLOVERS; seasonNumber += 1) {

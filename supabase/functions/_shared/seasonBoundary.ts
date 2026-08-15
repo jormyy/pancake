@@ -40,6 +40,21 @@ function allFinalized(matchups: BoundaryMatchup[]): boolean {
   return matchups.length > 0 && matchups.every((m) => m.is_finalized)
 }
 
+async function ensureSeasonMatchups(
+  leagueId: string,
+  leagueSeasonId: string,
+  playoffStartWeek: number,
+): Promise<string[]> {
+  const { count, error } = await supabase
+    .from('matchups')
+    .select('id', { count: 'exact', head: true })
+    .eq('league_season_id', leagueSeasonId)
+  if (error) throw error
+  if ((count ?? 0) > 0) return []
+  await generateMatchups(leagueId, leagueSeasonId, playoffStartWeek - 1)
+  return ['matchups-generated']
+}
+
 async function setLeagueStatusPlayoffs(leagueId: string): Promise<void> {
   const { error } = await supabase
     .from('leagues')
@@ -144,17 +159,22 @@ export async function runSeasonBoundary(
   const jobs = (seasons ?? []).flatMap((season) => {
     const league = season.leagues as { status?: string | null; playoff_start_week?: number | null } | null
     const status = league?.status ?? 'setup'
-    if (status !== 'active' && status !== 'playoffs') return []
+    if (status !== 'active' && status !== 'playoffs' && status !== 'offseason') return []
     const playoffStartWeek = league?.playoff_start_week ?? DEFAULT_PLAYOFF_START_WEEK
     return [async () => {
       try {
-        const actions = await processLeagueBoundary(
-          season.league_id,
-          season.id,
-          status,
-          playoffStartWeek,
-          referenceDate,
-        )
+        const actions = status === 'offseason'
+          // A commissioner who advanced the season manually leaves the new
+          // season without matchups (advanceSeason never generated them).
+          // Backfill only when none exist; everything else is left untouched.
+          ? await ensureSeasonMatchups(season.league_id, season.id, playoffStartWeek)
+          : await processLeagueBoundary(
+            season.league_id,
+            season.id,
+            status,
+            playoffStartWeek,
+            referenceDate,
+          )
         reports.push({ leagueId: season.league_id, actions })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
