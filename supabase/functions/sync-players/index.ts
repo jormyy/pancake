@@ -18,7 +18,7 @@ const PLAYER_SYNC_SOURCE = Deno.env.get('PLAYER_SYNC_SOURCE') ?? 'espn'
 serveInternal('sync-players', async () => {
   const result = await recordSyncRun('sync-players', async () => {
     const players = PLAYER_SYNC_SOURCE === 'sleeper'
-      ? await syncPlayers()
+      ? { ambiguousSkipped: 0, ...await syncPlayers() }
       : await syncPlayersFromEspn()
     const nbaIds = await syncNBAIds()
     const failures = [...players.failures, ...nbaIds.failures]
@@ -29,6 +29,7 @@ serveInternal('sync-players', async () => {
       result: {
         updated: players.updated,
         inserted: players.inserted,
+        ambiguousSkipped: players.ambiguousSkipped,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
       },
@@ -38,7 +39,7 @@ serveInternal('sync-players', async () => {
   return Response.json({ ok: true, ...result })
 })
 
-async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: number; failures: string[] }> {
+async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: number; ambiguousSkipped: number; failures: string[] }> {
   console.log('[sync-players] Fetching from ESPN...')
   const records = await fetchEspnPlayerRecords()
 
@@ -159,7 +160,7 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
   }
 
   console.log(`[sync-players] ESPN: ${dedupedUpdate.length} updated, ${toInsert.length} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} failed chunk(s).`)
-  return { updated: dedupedUpdate.length, inserted: toInsert.length, failures }
+  return { updated: dedupedUpdate.length, inserted: toInsert.length, ambiguousSkipped, failures }
 }
 
 // Dormant Sleeper fallback path (PLAYER_SYNC_SOURCE=sleeper).
