@@ -94,15 +94,23 @@ export const signInBrowser = async (session, env, user, password) => {
 
 /** @param {string} session @param {string[]} required @param {string} label */
 export const assertPageText = async (session, required, label) => {
-  const parsed = parseEvalJson(await browser(session, ['eval', `(() => {
+  // Poll instead of asserting a single snapshot: responsive re-layout after a
+  // viewport switch can take longer than the scenario's fixed waits.
+  let parsed
+  const deadline = Date.now() + 10_000
+  do {
+    parsed = parseEvalJson(await browser(session, ['eval', `(() => {
     const text = document.body?.innerText || '';
     const required = ${JSON.stringify(required)};
     return JSON.stringify({
       ok: required.every((value) => text.includes(value)),
       missing: required.filter((value) => !text.includes(value)),
-      sample: text.slice(0, 1200)
+      sample: text.slice(0, 1200) + ' [iw=' + window.innerWidth + ' url=' + location.pathname + ' nodes=' + document.querySelectorAll('*').length + ']'
     });
   })()`]))
+    if (parsed && typeof parsed === 'object' && Reflect.get(parsed, 'ok') === true) break
+    await browser(session, ['wait', '500'])
+  } while (Date.now() < deadline)
   if (!parsed || typeof parsed !== 'object' || Reflect.get(parsed, 'ok') !== true) {
     const missing = parsed && typeof parsed === 'object' && Array.isArray(Reflect.get(parsed, 'missing'))
       ? Reflect.get(parsed, 'missing').join(', ')
