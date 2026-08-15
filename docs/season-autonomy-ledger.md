@@ -23,8 +23,8 @@ AC-13 syncscores-bounded-fanout      | PASS    | syncScores runBounded fan-out (
 AC-14 waiver-drain-150               | PASS    | process-waivers drains batches until empty; harness waiver-drain scenario: 160 due claims across 4 leagues, 0 pending after one run
 AC-15 retention-tested               | PASS    | prune_unbounded_history() + weekly cron; tests/db/retention-pruning.sql: out-of-window pruned, product-read rows (final standings, current lineups, 3 seasons transactions, recent runs) kept
 AC-16 sleeper-migration-parity       | PASS    | ESPN keyless source cut over (PLAYER_SYNC_SOURCE default espn, sleeper dormant); 3 consecutive parity syncs in docs/sleeper-migration.md (coverage 96.1% of rostered, team 99.3%, injury agreement 100%); espn_id additive, sleeper IDs resolve (fallback run updated 544 existing rows)
-AC-17 scrape-degraded-modes          | PENDING |
-AC-18 draft-order-automation         | PENDING |
+AC-17 scrape-degraded-modes          | PASS    | per-source degraded tests: NBA CDN (_shared/nbaCdnDegraded.test.ts down/garbage/reshaped/recovered), ESPN replacement (_shared/playerSource.test.ts down/garbage/truncated/empty/recovered), FantasyPros (parser.test.ts broken-HTML -> 0 rows -> skipped run; per-source catch + internal fallback in index), HashtagBasketball (parser tests + MIN_RANKING_ROWS refusal client+DB p_min_rows), Sleeper dormant path exercised in release soak
+AC-18 draft-order-automation         | PASS    | sync-draft-order/degraded.test.ts: failed window day writes nothing + prior order intact; incomplete board refused; next window day syncs full board; June/July guard tested
 AC-19 db-integrity-post-sim          | PASS    | runDbIntegrityChecks: no orphan matchups/lineups/standings, single current season, unique years, <=1 final/season, games within season_weeks
 AC-20 full-suite-green               | PENDING | baseline 2026-08-14: npm test -> 588 passed (100 files)
 AC-21 no-unresolved-findings         | PENDING |
@@ -34,6 +34,8 @@ AC-24 soak-harness-trustworthy       | PENDING | (forced-red audit of each major
 ```
 
 ## Checkpoint log
+
+- 2026-08-14 Wave 7: scrape degraded-mode tests complete for all active sources + dormant fallback; draft-order automation window behavior tested.
 
 - 2026-08-14 Michael added Wave 8 (AC-22..AC-24): npm run e2e:soak:release must run green before the finish step, with findings fixed and recorded here.
 
