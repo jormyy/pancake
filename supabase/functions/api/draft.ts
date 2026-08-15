@@ -237,6 +237,15 @@ async function leaveMockDraftRoom(draftId: string, memberId: string, userId: str
   if (error) throwDb(error)
 }
 
+async function deleteMockDraftRoom(draftId: string, memberId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_mock_draft_room_atomic', {
+    p_draft_id: draftId,
+    p_member_id: memberId,
+    p_user_id: userId,
+  })
+  if (error) throwDb(error)
+}
+
 async function startMockDraftRoom(draftId: string, memberId: string, userId: string): Promise<unknown> {
   const { data, error } = await supabase.rpc('start_mock_draft_room_atomic', {
     p_draft_id: draftId,
@@ -630,6 +639,13 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     const memberId = uuidField(body, 'memberId')
     await verifyOwnMember(userId, memberId)
     return json({ ok: true, draft: await startMockDraftRoom(draftId, memberId, userId) })
+  }
+
+  if (action.action === 'delete-mock-room') {
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    await deleteMockDraftRoom(draftId, memberId, userId)
+    return json({ ok: true })
   }
 
   if (action.action === 'nominate') {

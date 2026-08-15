@@ -67,14 +67,13 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
   const byExactName = new Map<string, string>()
   const byNormName = new Map<string, string>()
   const byEspnId = new Map<string, string>()
-  const positionKnown = new Set<string>()
+  const existingById = new Map(existing.map((p) => [p.id, p]))
   for (const p of existing) {
     if (p.display_name) {
       setUnique(byExactName, p.display_name.toLowerCase(), p.id)
       setUnique(byNormName, normalizeName(p.display_name), p.id)
     }
     if (p.espn_id) byEspnId.set(p.espn_id, p.id)
-    if (p.position || (p.eligible_positions ?? []).length > 0) positionKnown.add(p.id)
   }
 
   const toUpdate: any[] = []
@@ -109,11 +108,16 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
     }
     if (existingId) {
       // ESPN positions are coarse (G/F/C). Never overwrite a finer existing
-      // position/eligibility set; only fill players that have none.
-      const positionFields = positionKnown.has(existingId)
-        ? {}
-        : { position: record.position, eligible_positions: record.eligible_positions }
-      toUpdate.push({ id: existingId, ...base, ...positionFields })
+      // position/eligibility set; only fill players that have none. Every row
+      // carries both keys — PostgREST nulls missing keys in mixed batches.
+      const existingRow = existingById.get(existingId)
+      const positionKnown = Boolean(existingRow?.position) || (existingRow?.eligible_positions ?? []).length > 0
+      toUpdate.push({
+        id: existingId,
+        ...base,
+        position: positionKnown ? existingRow?.position ?? null : record.position,
+        eligible_positions: positionKnown ? existingRow?.eligible_positions ?? [] : record.eligible_positions,
+      })
     } else {
       toInsert.push({
         ...base,

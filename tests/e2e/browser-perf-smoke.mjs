@@ -253,6 +253,9 @@ const signIn = async (session, env, state, user, { captureInitialDelivery = fals
 }
 
 const selectPerfLeague = async (session, leagueName) => {
+  // The league switcher lives in the web shell header as a dropdown.
+  await clickButtonByName(browser, session, 'Switch league')
+  await browser(session, ['wait', '400'])
   await clickButtonByName(browser, session, `Switch to ${leagueName}`)
   await browser(session, ['wait', '1000'])
 }

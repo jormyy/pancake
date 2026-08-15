@@ -1,6 +1,10 @@
--- Canonical SQL source for public.invoke_edge_function.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- invoke_edge_function required the app.supabase_url GUC, which managed
+-- Supabase does not allow setting (ALTER DATABASE/ROLE SET app.* -> 42501).
+-- The GUC was never configured in production, so every cron->edge invocation
+-- (trade completion, nomination expiry, all data syncs, waiver processing)
+-- failed from 2026-06-28 until 2026-08-15. The base URL now falls back to the
+-- Vault secret pancake_supabase_url, mirroring the existing token fallback.
+-- The secret itself is environment-specific and seeded out-of-band.
 
 CREATE OR REPLACE FUNCTION public.invoke_edge_function(
   function_name text,

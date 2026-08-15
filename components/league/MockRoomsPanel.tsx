@@ -181,6 +181,7 @@ function RoomCard({
     onJoin,
     onLeave,
     onStart,
+    onDelete,
 }: {
     room: MockDraftRoom
     draftLoading: boolean
@@ -189,16 +190,36 @@ function RoomCard({
     onJoin: (room: MockDraftRoom) => void
     onLeave: (room: MockDraftRoom) => void
     onStart: (room: MockDraftRoom) => void
+    onDelete: (room: MockDraftRoom) => void
 }) {
+    // Live rooms cannot be deleted mid-session; abandoned ones expire daily.
+    const deletable = room.isCreator && room.roomStatus !== 'live'
     const action = (
-        <RoomAction
-            room={room}
-            draftLoading={draftLoading}
-            onOpen={onOpen}
-            onJoin={onJoin}
-            onLeave={onLeave}
-            onStart={onStart}
-        />
+        <View style={styles.roomActionRow}>
+            <RoomAction
+                room={room}
+                draftLoading={draftLoading}
+                onOpen={onOpen}
+                onJoin={onJoin}
+                onLeave={onLeave}
+                onStart={onStart}
+            />
+            {deletable ? (
+                <Pressable
+                    style={panelStyles.secondaryDraftButton}
+                    onPress={() => onDelete(room)}
+                    disabled={draftLoading}
+                    role="button"
+                    aria-label={`Delete ${room.roomName}`}
+                    aria-disabled={draftLoading}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${room.roomName}`}
+                    accessibilityState={{ disabled: draftLoading }}
+                >
+                    <Text style={panelStyles.secondaryDraftButtonText}>Delete</Text>
+                </Pressable>
+            ) : null}
+        </View>
     )
 
     return (
@@ -280,6 +301,7 @@ export function MockRoomsPanel({
     onJoinRoom,
     onLeaveRoom,
     onStartRoom,
+    onDeleteRoom,
 }: DraftControlProps & {
     roomName: string
     onRoomNameChange: (value: string) => void
@@ -295,6 +317,7 @@ export function MockRoomsPanel({
     onJoinRoom: (room: MockDraftRoom) => void
     onLeaveRoom: (room: MockDraftRoom) => void
     onStartRoom: (room: MockDraftRoom) => void
+    onDeleteRoom: (room: MockDraftRoom) => void
 }) {
     const { viewportHeight } = useWebViewport()
     const compactComposer = viewportHeight < 500
@@ -349,6 +372,7 @@ export function MockRoomsPanel({
                             onJoin={onJoinRoom}
                             onLeave={onLeaveRoom}
                             onStart={onStartRoom}
+                            onDelete={onDeleteRoom}
                         />
                     ))}
                 </View>
@@ -529,6 +553,12 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
     },
     roomStatusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    roomActionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        flexWrap: 'wrap',
+    },
     roomCompactActionWrap: {
         width: 148,
         flexShrink: 0,

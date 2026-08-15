@@ -113,6 +113,7 @@ export default function LeagueScreen() {
                     onJoinRoom={screen.handleJoinMockRoom}
                     onLeaveRoom={screen.handleLeaveMockRoom}
                     onStartRoom={screen.handleStartMockRoom}
+                    onDeleteRoom={screen.handleDeleteMockRoom}
                 />
             )
         }
