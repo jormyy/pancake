@@ -94,7 +94,8 @@ nothing to do). Canonical definitions live in `supabase/migrations/`.
 | `nba-process-trades` | `process-trades` | every 5 min | — |
 | `nba-close-expired-nominations` | `close-expired-nominations` | every minute | — |
 | `season-boundary` | `season-boundary` | daily 9:00 ET | only when a league is active/playoffs/offseason |
-| `retention-prune` | `prune_unbounded_history()` (SQL) | Sundays 10:00 UTC | deletes only rows the product never reads |
+| `retention-prune` | `prune_unbounded_history()` (SQL) | Sundays 10:00 UTC | deletes only rows the product never reads (incl. news older than 60 days) |
+| `mock-room-expiry` | `expire_mock_draft_rooms()` (SQL) | daily 09:30 UTC | deletes mock rooms 24h after completion, missed schedule, or abandonment |
 
 The `season-boundary` internal function owns the automated season lifecycle:
 bracket generation and advancement (48h stat-correction grace), season rollover,
