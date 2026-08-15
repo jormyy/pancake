@@ -1819,6 +1819,7 @@ export type Database = {
           dynasty_rank_fetched_at: string | null
           dynasty_rank_source: string | null
           eligible_positions: string[]
+          espn_id: string | null
           first_name: string
           headshot_url: string | null
           id: string
@@ -1842,6 +1843,7 @@ export type Database = {
           dynasty_rank_fetched_at?: string | null
           dynasty_rank_source?: string | null
           eligible_positions?: string[]
+          espn_id?: string | null
           first_name: string
           headshot_url?: string | null
           id?: string
@@ -1865,6 +1867,7 @@ export type Database = {
           dynasty_rank_fetched_at?: string | null
           dynasty_rank_source?: string | null
           eligible_positions?: string[]
+          espn_id?: string | null
           first_name?: string
           headshot_url?: string | null
           id?: string
@@ -4122,6 +4125,7 @@ export type Database = {
         }
         Returns: string
       }
+      prune_unbounded_history: { Args: never; Returns: Json }
       record_notification_outbox_ticket_atomic: {
         Args: {
           p_claim_token: string

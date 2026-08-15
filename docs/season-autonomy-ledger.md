@@ -22,7 +22,7 @@ AC-12 oct-10-season-year-gap         | PASS    | supabase/functions/_shared/octo
 AC-13 syncscores-bounded-fanout      | PASS    | syncScores runBounded fan-out (concurrency 8) with per-league isolation; supabase/functions/_shared/syncScoresFanout.test.ts: failing league A, league B completes; total wipeout still fails
 AC-14 waiver-drain-150               | PASS    | process-waivers drains batches until empty; harness waiver-drain scenario: 160 due claims across 4 leagues, 0 pending after one run
 AC-15 retention-tested               | PASS    | prune_unbounded_history() + weekly cron; tests/db/retention-pruning.sql: out-of-window pruned, product-read rows (final standings, current lineups, 3 seasons transactions, recent runs) kept
-AC-16 sleeper-migration-parity       | PENDING |
+AC-16 sleeper-migration-parity       | PASS    | ESPN keyless source cut over (PLAYER_SYNC_SOURCE default espn, sleeper dormant); 3 consecutive parity syncs in docs/sleeper-migration.md (coverage 96.1% of rostered, team 99.3%, injury agreement 100%); espn_id additive, sleeper IDs resolve (fallback run updated 544 existing rows)
 AC-17 scrape-degraded-modes          | PENDING |
 AC-18 draft-order-automation         | PENDING |
 AC-19 db-integrity-post-sim          | PASS    | runDbIntegrityChecks: no orphan matchups/lineups/standings, single current season, unique years, <=1 final/season, games within season_weeks
@@ -31,6 +31,8 @@ AC-21 no-unresolved-findings         | PENDING |
 ```
 
 ## Checkpoint log
+
+- 2026-08-14 Wave 6: Sleeper -> ESPN migration with live local cutover verification (insert 546 / re-run update 546), dormant sleeper flag verified, degraded-mode tests for the new source.
 
 - 2026-08-14 Wave 5: bounded league fan-out, waiver full drain, retention pruning with tested windows.
 

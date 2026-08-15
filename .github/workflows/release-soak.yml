@@ -130,6 +130,7 @@ jobs:
           E2E_ADMIN_SECRET=local-release-soak-secret
           NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
           SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
+          PLAYER_SYNC_SOURCE=sleeper
           EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send
           EOF
           candidate_edge="$(PANCAKE_RELEASE_SHA="$E2E_RELEASE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
