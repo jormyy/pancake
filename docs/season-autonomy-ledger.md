@@ -28,9 +28,14 @@ AC-18 draft-order-automation         | PENDING |
 AC-19 db-integrity-post-sim          | PASS    | runDbIntegrityChecks: no orphan matchups/lineups/standings, single current season, unique years, <=1 final/season, games within season_weeks
 AC-20 full-suite-green               | PENDING | baseline 2026-08-14: npm test -> 588 passed (100 files)
 AC-21 no-unresolved-findings         | PENDING |
+AC-22 soak-20-seasons-green          | PENDING |
+AC-23 soak-offseason-activity        | PENDING | (busy offseason every season: adds/drops/claims/trades incl. multi-team+picks/rookie draft/settings; survive rollover)
+AC-24 soak-harness-trustworthy       | PENDING | (forced-red audit of each major soak assertion; report always-green scenarios)
 ```
 
 ## Checkpoint log
+
+- 2026-08-14 Michael added Wave 8 (AC-22..AC-24): npm run e2e:soak:release must run green before the finish step, with findings fixed and recorded here.
 
 - 2026-08-14 Wave 6: Sleeper -> ESPN migration with live local cutover verification (insert 546 / re-run update 546), dormant sleeper flag verified, degraded-mode tests for the new source.
 
