@@ -113,7 +113,8 @@ const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
       league_season_id: currentSeason.id,
       draft_type: 'auction',
       status: 'in_progress',
-      budget_per_team: 10,
+      // Budget must cover the $1-per-remaining-active-slot reserve rule.
+      budget_per_team: 30,
       started_at: now,
       current_nomination_order: 1,
     })
@@ -130,8 +131,8 @@ const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
     supabase.from('draft_budgets').insert(members.map((member) => ({
       draft_id: draft.id,
       member_id: member.id,
-      initial_budget: 10,
-      remaining: 10,
+      initial_budget: 30,
+      remaining: 30,
     }))),
   ])
   if (orderError) throw new Error(`D.X.2 realtime auction order insert: ${orderError.message}`)

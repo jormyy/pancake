@@ -61,10 +61,13 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
     }
     if (failures.length > 0) throw new AggregateError(failures, 'injury fixture restore failed')
   })
-  const expectedSleeperBaseUrl = `http://127.0.0.1:${fakePort}/v1`
+  // The edge runtime reaches the host-side fake upstream as 127.0.0.1 on
+  // Linux CI and as host.docker.internal on macOS Docker.
+  const expectedSleeperBaseUrls = ['127.0.0.1', 'host.docker.internal']
+    .map((host) => `http://${host}:${fakePort}/v1`)
   const backendStatus = await backendGetJson(env, '/e2e/status')
-  if (backendStatus.sleeperBaseUrl !== expectedSleeperBaseUrl) {
-    throw new Error(`${label}: backend SLEEPER_BASE_URL=${backendStatus.sleeperBaseUrl ?? '<missing>'}; expected ${expectedSleeperBaseUrl}`)
+  if (!expectedSleeperBaseUrls.includes(backendStatus.sleeperBaseUrl)) {
+    throw new Error(`${label}: backend SLEEPER_BASE_URL=${backendStatus.sleeperBaseUrl ?? '<missing>'}; expected one of ${expectedSleeperBaseUrls.join(', ')}`)
   }
 
   const scrambledFixture = await ensureSleeperFixturePlayer(supabase, {
@@ -116,7 +119,7 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
 
   const artifact = {
     season,
-    fakeSleeperBaseUrl: expectedSleeperBaseUrl,
+    fakeSleeperBaseUrl: backendStatus.sleeperBaseUrl,
     syncResult,
     before: {
       scrambledFixture,
@@ -220,11 +223,16 @@ export const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, st
     .single()
   if (tradeError) throw new Error(`${label}: trade insert failed: ${tradeError.message}`)
 
+  const { error: tradeParticipantError } = await supabase.from('trade_participants').insert([
+    { trade_id: trade.id, member_id: proposer.id, sort_order: 0, is_initiator: true, accepted_at: new Date().toISOString() },
+    { trade_id: trade.id, member_id: recipient.id, sort_order: 1, is_initiator: false, accepted_at: null },
+  ])
+  if (tradeParticipantError) throw new Error(`${label}: trade participant insert failed: ${tradeParticipantError.message}`)
   const tradeItems = [
-    { trade_id: trade.id, side: 'proposer', player_id: proposerPlayer.id, pick_id: null },
-    { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPick.id },
-    { trade_id: trade.id, side: 'recipient', player_id: recipientPlayer.id, pick_id: null },
-    { trade_id: trade.id, side: 'recipient', player_id: null, pick_id: recipientPick.id },
+    { trade_id: trade.id, side: 'proposer', player_id: proposerPlayer.id, pick_id: null, from_member_id: proposer.id, to_member_id: recipient.id },
+    { trade_id: trade.id, side: 'proposer', player_id: null, pick_id: proposerPick.id, from_member_id: proposer.id, to_member_id: recipient.id },
+    { trade_id: trade.id, side: 'recipient', player_id: recipientPlayer.id, pick_id: null, from_member_id: recipient.id, to_member_id: proposer.id },
+    { trade_id: trade.id, side: 'recipient', player_id: null, pick_id: recipientPick.id, from_member_id: recipient.id, to_member_id: proposer.id },
   ]
   const { error: itemError } = await supabase.from('trade_items').insert(tradeItems)
   if (itemError) throw new Error(`${label}: trade item insert failed: ${itemError.message}`)

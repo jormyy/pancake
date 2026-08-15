@@ -13,7 +13,7 @@ export const installRuntimeOverrides = async (browser, session, env, options = {
   if (options.openBeforeSet !== false) {
     await browser(session, ['open', overrideUrl.toString()])
   }
-  await browser(session, [
+  const setOverrides = () => browser(session, [
     'eval',
     `(() => {
       window.localStorage.setItem('PANCAKE_API_URL', ${JSON.stringify(env.apiBaseUrl)});
@@ -22,6 +22,16 @@ export const installRuntimeOverrides = async (browser, session, env, options = {
       return JSON.stringify({ ok: true });
     })()`,
   ])
+  try {
+    await setOverrides()
+  } catch (error) {
+    // Under heavy parallel sessions the document can still be mid-navigation
+    // (about:blank), where localStorage access throws SecurityError. Re-open
+    // the app origin once and retry.
+    if (!/SecurityError|Access is denied/i.test(String(error))) throw error
+    await browser(session, ['open', overrideUrl.toString()])
+    await setOverrides()
+  }
   if (options.reloadAfterSet !== false) {
     await browser(session, ['open', env.frontendUrl])
   }
