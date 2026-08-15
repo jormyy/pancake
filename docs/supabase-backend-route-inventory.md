@@ -1,12 +1,10 @@
 # Supabase Backend Route Inventory
 
-Date: 2026-07-02
+Updated: 2026-08-15
 
-Pancake runtime backend traffic now targets:
+All runtime backend traffic targets the single Edge boundary:
 
 `https://<project-ref>.supabase.co/functions/v1/api`
-
-The former standalone backend implementation has been removed from the repo.
 
 ## Public API Routes
 
@@ -79,21 +77,27 @@ The former standalone backend implementation has been removed from the repo.
 
 ## Scheduled Work
 
-| Job | Supabase owner | Schedule | Replacement |
+All jobs follow the pg_cron + `invoke_edge_function` pattern with ET wall-clock
+guards and idle gating (a gate function skips the Edge invocation when there is
+nothing to do). Canonical definitions live in `supabase/migrations/`.
+
+| Job | Invokes | Cadence | Gate |
 | --- | --- | --- | --- |
-| NBA schedule sync | Supabase Cron + `sync-schedule` | existing cron | former standalone cron |
-| Player sync | Supabase Cron + `sync-players` | existing cron | former standalone cron |
-| Stats/scores/rankings/projections | Supabase Cron + Edge Functions | existing cron | former standalone cron/admin routes |
-| Live poll | Supabase Cron + `live-poll` | game-window cron | former always-on poller |
-| Waiver processing | Supabase Cron/admin + `process-waivers` calling `process_due_waiver_claims_atomic` | existing cron/manual API | former backend processor |
-| Accepted trade completion | Supabase Cron + `process-trades` calling `process_due_accepted_trades_atomic` | every 5 minutes | former interval loop |
-| Auction nomination expiry | Supabase Cron + `close-expired-nominations` calling `close_expired_auction_nominations_atomic` | every minute | former interval loop |
+| `nba-sync-schedule` | `sync-schedule` | daily 6:05 ET | offseason-stale payloads skip |
+| `nba-sync-players` | `sync-players` | daily 6:00 ET | — |
+| `nba-sync-projections` | `sync-projections` | daily 8:00 ET | zero-row parses skip |
+| `nba-sync-rankings` | `sync-rankings` | Mondays 7:00 ET | <500 rows refused |
+| `nba-sync-draft-order-june` / `-july` | `sync-draft-order` | daily inside Jun 20–Jul 15 | failed days retried by later window days |
+| `nba-live-poll` | `sync-scores` | per-minute in the game window | only when a non-Final game exists |
+| `nba-lineup-optimizer` | `lineup-optimizer` | every 10 min | only when games exist in the next 7 days |
+| `nba-process-waivers` | `process-waivers` | daily 3:00 ET | drains every due claim in one run |
+| `nba-process-trades` | `process-trades` | every 5 min | — |
+| `nba-close-expired-nominations` | `close-expired-nominations` | every minute | — |
+| `season-boundary` | `season-boundary` | daily 9:00 ET | only when a league is active/playoffs/offseason |
+| `retention-prune` | `prune_unbounded_history()` (SQL) | Sundays 10:00 UTC | deletes only rows the product never reads |
 
-## Deleted Surfaces
-
-| Surface | Status |
-| --- | --- |
-| Former deploy config | removed with the retired backend directory |
-| Former standalone startup | removed with the retired backend directory |
-| Legacy Supabase JWT keys | disabled in hosted Supabase project; app and E2E use `sb_publishable_`/`sb_secret_` keys |
-| Direct frontend legacy API URL | removed; `lib/shared/api.ts` falls back to `/functions/v1/api` |
+The `season-boundary` internal function owns the automated season lifecycle:
+bracket generation and advancement (48h stat-correction grace), season rollover,
+new-season matchup generation, and the week-1 rookie-draft auto-complete
+backstop. Commissioner endpoints remain as manual overrides; the automation is a
+no-op wherever the commissioner already acted.

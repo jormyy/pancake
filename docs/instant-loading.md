@@ -1,8 +1,7 @@
 # Instant Loading Plan
 
-This is the checked-in operating plan for `~/Downloads/instant-loading-goal.txt`.
-The source of truth for thresholds and workflow rank is
-`tests/e2e/performance-budgets.json`.
+The performance operating plan. The source of truth for thresholds and workflow
+rank is `tests/e2e/performance-budgets.json`.
 
 ## Top Workflows
 
