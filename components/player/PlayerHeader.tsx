@@ -36,6 +36,7 @@ type Props = {
     onAdd: () => void
     onDrop: () => void
     onClaim: () => void
+    onSetLineup: () => void
 }
 
 export function PlayerHeader({
@@ -47,6 +48,7 @@ export function PlayerHeader({
     onAdd,
     onDrop,
     onClaim,
+    onSetLineup,
 }: Props) {
     const [headshotError, setHeadshotError] = useState(false)
     const eligiblePositions = getEligiblePositions(player)
@@ -126,13 +128,28 @@ export function PlayerHeader({
                             <Text style={styles.claimButtonText}>Claim</Text>
                         </Pressable>
                     ) : rosterStatus.status === 'mine' ? (
-                        <Pressable
-                            style={styles.dropButton}
-                            onPress={onDrop}
-                            disabled={actionLoading}
-                        >
-                            <Text style={styles.dropButtonText}>Drop</Text>
-                        </Pressable>
+                        <View style={styles.myActions}>
+                            <Pressable
+                                style={styles.lineupButton}
+                                onPress={onSetLineup}
+                                disabled={actionLoading}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Move ${player.display_name} in lineup`}
+                                accessibilityState={{ disabled: actionLoading }}
+                            >
+                                <Text style={styles.lineupButtonText}>Lineup</Text>
+                            </Pressable>
+                            <Pressable
+                                style={styles.dropButton}
+                                onPress={onDrop}
+                                disabled={actionLoading}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Drop ${player.display_name}`}
+                                accessibilityState={{ disabled: actionLoading }}
+                            >
+                                <Text style={styles.dropButtonText}>Drop</Text>
+                            </Pressable>
+                        </View>
                     ) : (
                         <View style={styles.takenBadge}>
                             <Text style={styles.takenText}>
@@ -158,6 +175,18 @@ const styles = StyleSheet.create({
     badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
 
     actionWrap: { flexShrink: 0 },
+    myActions: { gap: spacing.sm, alignItems: 'stretch' },
+
+    lineupButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        minWidth: 72,
+        alignItems: 'center',
+    },
+    lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
 
     addButton: {
         backgroundColor: colors.primary,

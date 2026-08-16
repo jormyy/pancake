@@ -7,6 +7,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "web:local": "node scripts/run-local-web.mjs",
+    "seed:local": "node scripts/seed-local-demo.mjs",
     "build:web:release": "expo export --platform web --clear && node scripts/stamp-release-provenance.mjs",
     "lint": "expo lint",
     "lint:all": "eslint app components constants contexts hooks lib types core/src core/tests scripts tests --max-warnings=0",

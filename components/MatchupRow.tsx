@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { LineupPlayer } from '@/lib/lineup'
+import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
@@ -239,6 +239,7 @@ type MatchupRowProps = {
     compact?: boolean
     dense?: boolean
     motionDelay?: number
+    targetState?: LineupMoveTargetState
 }
 
 function MatchupRowImpl({
@@ -259,6 +260,7 @@ function MatchupRowImpl({
     compact = false,
     dense = false,
     motionDelay = 0,
+    targetState = null,
 }: MatchupRowProps) {
     const [expanded, setExpanded] = useState(false)
     const isSel = isSelected
@@ -393,15 +395,18 @@ function MatchupRowImpl({
                     dense && styles.slotChipCenterDense,
                     { backgroundColor: alpha(slotColor, 0.13) },
                     isSel && styles.slotChipSelected,
+                    targetState === 'valid' && styles.slotChipTarget,
+                    targetState === 'invalid' && styles.slotChipUnavailable,
                     saving && { opacity: 0.4 },
                 ]}
                 onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
-                disabled={saving || isExtraOppRow}
+                disabled={saving || isExtraOppRow || targetState === 'invalid'}
                 accessibilityRole="button"
                 accessibilityLabel={myPlayer
                     ? `Select ${slotType} slot, ${myPlayer.displayName}`
                     : `Select empty ${slotType} slot ${selIndex + 1}`}
-                accessibilityState={{ disabled: saving || isExtraOppRow, selected: isSel }}
+                accessibilityHint={targetState === 'valid' ? `Move the selected player to ${slotType}` : undefined}
+                accessibilityState={{ disabled: saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
                 hitSlop={dense ? 10 : 7}
                 pressedScale={0.88}
             >
@@ -578,6 +583,8 @@ const styles = StyleSheet.create({
         height: 24,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
+    slotChipTarget: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successLight },
+    slotChipUnavailable: { opacity: 0.25 },
     slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
     expandedPanel: {
         flexDirection: 'row',

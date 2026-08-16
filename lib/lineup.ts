@@ -10,5 +10,5 @@ export {
     setPlayerSlotMoves,
 } from './lineup/read'
 export { autoSetLineup } from './lineup/autoSet'
-export { planLineupMove } from './lineup/movePlan'
-export type { LineupSelection } from './lineup/movePlan'
+export { getLineupMoveTargetState, planLineupMove } from './lineup/movePlan'
+export type { LineupMoveTargetState, LineupSelection } from './lineup/movePlan'
