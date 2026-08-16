@@ -19,7 +19,7 @@ const firstNames = [
 ]
 const lastNames = ['Archer', 'Banks', 'Cole', 'Daniels']
 const teams = ['ATL', 'BOS', 'BKN', 'CHI', 'DAL', 'DEN', 'GSW', 'LAL']
-const positionCycle = ['PG', 'SG', 'SF', 'PF', 'C', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'PG', 'SG', 'SF', 'C']
+const positionCycle = ['PG', 'SG', 'SF', 'PF', 'C', 'PG', 'SF', 'SG', 'PF', 'C', 'G', 'F', 'PG', 'SG', 'SF', 'C']
 const starterSlots = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'UTIL', 'UTIL']
 
 function commandJson(command, args) {
