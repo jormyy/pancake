@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { planLineupMove, type LineupMoveData } from '@/lib/lineup/movePlan'
+import { getLineupMoveTargetState, planLineupMove, type LineupMoveData } from '@/lib/lineup/movePlan'
 import type { LineupPlayer } from '@/lib/lineup/read'
 
 function player(
@@ -159,5 +159,52 @@ describe('planLineupMove', () => {
             to: { kind: 'taxi', index: 0 },
         })
         expect(availableTaxi).toEqual({ kind: 'toggle-taxi', rosterPlayerId: 'rp-bench' })
+    })
+})
+
+describe('getLineupMoveTargetState', () => {
+    const moveLineup = lineup({
+        starters: [
+            { slotType: 'PG', player: player('guard', ['PG']) },
+            { slotType: 'C', player: player('center', ['C']) },
+            { slotType: 'UTIL', player: null },
+        ],
+        bench: [player('bench-guard', ['PG'])],
+    })
+    const base = {
+        lineup: moveLineup,
+        league: { roster_size: 10, taxi_slots: 1 },
+        startedTeams: new Set<string>(),
+    }
+
+    it('marks only legal destinations as valid', () => {
+        expect(getLineupMoveTargetState({
+            ...base,
+            from: { kind: 'bench', index: 0 },
+            to: { kind: 'starter', index: 0 },
+        })).toBe('valid')
+        expect(getLineupMoveTargetState({
+            ...base,
+            from: { kind: 'bench', index: 0 },
+            to: { kind: 'starter', index: 1 },
+        })).toBe('invalid')
+        expect(getLineupMoveTargetState({
+            ...base,
+            from: { kind: 'bench', index: 0 },
+            to: { kind: 'starter', index: 2 },
+        })).toBe('valid')
+    })
+
+    it('does not offer no-op moves', () => {
+        expect(getLineupMoveTargetState({
+            ...base,
+            from: { kind: 'bench', index: 0 },
+            to: { kind: 'bench', index: 0 },
+        })).toBeNull()
+        expect(getLineupMoveTargetState({
+            ...base,
+            from: { kind: 'bench', index: 0 },
+            to: { kind: 'bench', index: 1 },
+        })).toBe('invalid')
     })
 })

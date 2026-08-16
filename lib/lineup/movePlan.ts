@@ -32,6 +32,8 @@ type LineupMovePlan =
     | { kind: 'toggle-taxi'; rosterPlayerId: string }
     | { kind: 'slot-moves'; moves: LineupSlotMove[] }
 
+export type LineupMoveTargetState = 'valid' | 'invalid' | null
+
 function selectedPlayer(lineup: LineupMoveData, selection: LineupSelection): LineupPlayer | null {
     if (selection.kind === 'starter') return lineup.starters[selection.index]?.player ?? null
     if (selection.kind === 'bench') return lineup.bench[selection.index] ?? null
@@ -179,4 +181,24 @@ export function planLineupMove({
             ...(bPlayer ? [{ playerId: bPlayer.playerId, slotType: aSlot }] : []),
         ],
     }
+}
+
+export function getLineupMoveTargetState({
+    lineup,
+    league,
+    startedTeams,
+    from,
+    to,
+}: {
+    lineup: LineupMoveData
+    league: { roster_size?: number; taxi_slots?: number }
+    startedTeams: ReadonlySet<string>
+    from: LineupSelection | null
+    to: LineupSelection
+}): LineupMoveTargetState {
+    if (!from || (from.kind === to.kind && from.index === to.index)) return null
+    if (selectedSlot(lineup, from) === selectedSlot(lineup, to)) return 'invalid'
+    return planLineupMove({ lineup, league, startedTeams, from, to }).kind === 'invalid'
+        ? 'invalid'
+        : 'valid'
 }

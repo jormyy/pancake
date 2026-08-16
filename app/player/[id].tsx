@@ -339,6 +339,7 @@ export default function PlayerDetailScreen() {
                         onAdd={handleAdd}
                         onDrop={handleDrop}
                         onClaim={handleClaim}
+                        onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
                     />
 
                     {contentReady ? (

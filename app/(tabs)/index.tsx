@@ -15,7 +15,7 @@ import { ErrorBanner } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
-import { LineupSlot, LineupPlayer } from '@/lib/lineup'
+import { getLineupMoveTargetState, LineupSlot, LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { LiveStatLine } from '@/lib/games'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
@@ -159,6 +159,18 @@ export default function HomeScreen() {
                 : myLineup.taxi[selected.index]
     }, [myLineup, selected])
 
+    const getTargetState = useCallback((to: Sel): LineupMoveTargetState =>
+        myLineup && league
+            ? getLineupMoveTargetState({
+                  lineup: myLineup,
+                  league,
+                  startedTeams,
+                  from: selected,
+                  to,
+              })
+            : null,
+    [league, myLineup, selected, startedTeams])
+
     const scoringSettings = useMemo(
         () =>
             league?.scoring_settings &&
@@ -207,6 +219,7 @@ export default function HomeScreen() {
                             myLineup={myLineup}
                             oppLineup={oppLineup}
                             selected={selected}
+                            getTargetState={getTargetState}
                             onTap={handleTap}
                             saving={saving}
                             playingTeams={todayPlayingTeams}
@@ -397,6 +410,7 @@ function MatchupLineupView({
     myLineup,
     oppLineup,
     selected,
+    getTargetState,
     onTap,
     saving,
     playingTeams,
@@ -414,6 +428,7 @@ function MatchupLineupView({
     myLineup: LineupData
     oppLineup: LineupData
     selected: Sel | null
+    getTargetState: (selection: Sel) => LineupMoveTargetState
     onTap: (sel: Sel) => void
     saving: boolean
     playingTeams: Set<string>
@@ -552,6 +567,7 @@ function MatchupLineupView({
                                 compact={compact}
                                 dense={dense}
                                 motionDelay={i * 18}
+                                targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
                             />
                         ))}
                     </View>

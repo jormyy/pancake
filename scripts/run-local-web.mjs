@@ -12,7 +12,7 @@ if (!url || !['127.0.0.1', 'localhost'].includes(new URL(url).hostname)) {
   throw new Error('Local Supabase is not running. Run `supabase start` first.')
 }
 
-const result = spawnSync('npx', ['expo', 'start', '--web', '--clear'], {
+const result = spawnSync('npx', ['expo', 'start', '--web'], {
   stdio: 'inherit',
   env: {
     ...process.env,
