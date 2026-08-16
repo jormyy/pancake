@@ -1,6 +1,4 @@
--- Canonical SQL source for public.search_players.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Add average minutes to the canonical Players-tab sort modes.
 
 CREATE OR REPLACE FUNCTION public.search_players(
   p_query text DEFAULT '',

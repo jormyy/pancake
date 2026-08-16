@@ -33,6 +33,15 @@ describe('sortPlayerRows', () => {
     it('orders by a different stat (rebounds) independently of points', () => {
         expect(sortPlayerRows(players, 'reb', 'desc').map((p) => p.id)).toEqual(['none', 'mid', 'high', 'low'])
     })
+
+    it('orders by average minutes played', () => {
+        const minutesPlayers = players.map((row, index) => ({
+            ...row,
+            avg_minutes_played: [12, 34, 8, 27][index],
+        }))
+
+        expect(sortPlayerRows(minutesPlayers, 'min', 'desc').map((p) => p.id)).toEqual(['high', 'mid', 'low', 'none'])
+    })
 })
 
 describe('sort column maps', () => {
@@ -40,11 +49,13 @@ describe('sort column maps', () => {
         expect(PLAYER_SORT_MV_COLUMN.reb).toBe('avg_rebounds')
         expect(PLAYER_SORT_MV_COLUMN.gp).toBe('games_played')
         expect(PLAYER_SORT_MV_COLUMN.tpm).toBe('avg_three_pointers_made')
+        expect(PLAYER_SORT_MV_COLUMN.min).toBe('avg_minutes_played')
     })
 
     it('maps each desktop table header label to a sort mode', () => {
         expect(STAT_COLUMN_SORT['3PM']).toBe('tpm')
         expect(STAT_COLUMN_SORT.FP).toBe('fpts')
+        expect(STAT_COLUMN_SORT.MIN).toBe('min')
         expect(STAT_COLUMN_SORT.GP).toBe('gp')
     })
 })

@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process'
 import { createClient } from '@supabase/supabase-js'
+import { currentSeasonYear } from '@pancake/core'
 
 const DEMO_SLUG = 'pancake-local-demo'
 const DEMO_PASSWORD = 'PancakeDemo1!'
-const DEMO_SEASON_YEAR = 9090
+const DEMO_SEASON_YEAR = currentSeasonYear()
 const DEMO_WEEK = 1
 
 const managers = [
@@ -264,7 +265,7 @@ async function seedBasketball(admin, fixture, week) {
       const gameKey = `${date}-${index / 2 + 1}`
       games.push({
         sportsdata_game_id: `local-demo-${gameKey}`,
-        nba_game_id: `local-demo-${gameKey}`,
+        nba_game_id: `002local-demo-${gameKey}`,
         season_year: DEMO_SEASON_YEAR,
         game_date: date,
         week_number: DEMO_WEEK,
@@ -310,6 +311,7 @@ async function seedBasketball(admin, fixture, week) {
   if (stats.length > 0) assertNoError('seed demo box scores', await admin.from('player_game_stats').upsert(stats, {
     onConflict: 'player_id,game_id',
   }))
+  assertNoError('refresh demo player averages', await admin.rpc('refresh_player_search_caches'))
 
   assertNoError('seed demo projections', await admin.from('player_projections').upsert(players.map((player, index) => ({
     player_id: player.id,

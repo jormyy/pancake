@@ -3,11 +3,12 @@ import type { PlayerRow } from '@/lib/players'
 // ESPN-style stat sorting: the Players list sorts the ENTIRE filtered pool
 // server-side by the chosen stat column, then paginates. These are the columns
 // a manager can sort by (every visible stat column on the desktop table).
-export type PlayerSearchSortMode = 'fpts' | 'pts' | 'reb' | 'ast' | 'stl' | 'blk' | 'tpm' | 'to' | 'gp'
+export type PlayerSearchSortMode = 'fpts' | 'min' | 'pts' | 'reb' | 'ast' | 'stl' | 'blk' | 'tpm' | 'to' | 'gp'
 export type PlayerSearchSortDir = 'asc' | 'desc'
 
 export const PLAYER_SEARCH_SORT_OPTIONS: { key: PlayerSearchSortMode; label: string }[] = [
     { key: 'fpts', label: 'Fantasy Pts' },
+    { key: 'min', label: 'Minutes' },
     { key: 'pts', label: 'Points' },
     { key: 'reb', label: 'Rebounds' },
     { key: 'ast', label: 'Assists' },
@@ -23,6 +24,7 @@ export const PLAYER_SEARCH_SORT_OPTIONS: { key: PlayerSearchSortMode; label: str
 // uses v_player_avg_fantasy_points.avg_fantasy_points (handled in searchPlayers).
 export const PLAYER_SORT_MV_COLUMN: Record<PlayerSearchSortMode, string> = {
     fpts: 'avg_points',
+    min: 'avg_minutes_played',
     pts: 'avg_points',
     reb: 'avg_rebounds',
     ast: 'avg_assists',
@@ -36,6 +38,7 @@ export const PLAYER_SORT_MV_COLUMN: Record<PlayerSearchSortMode, string> = {
 // Desktop stat-table column label -> sort mode, so the headers are click-to-sort.
 export const STAT_COLUMN_SORT: Record<string, PlayerSearchSortMode> = {
     FP: 'fpts',
+    MIN: 'min',
     PTS: 'pts',
     REB: 'reb',
     AST: 'ast',
@@ -49,6 +52,7 @@ export const STAT_COLUMN_SORT: Record<string, PlayerSearchSortMode> = {
 function statValue(player: PlayerRow, mode: PlayerSearchSortMode): number {
     switch (mode) {
         case 'fpts': return player.avg_fantasy_points ?? player.avg_points ?? 0
+        case 'min': return player.avg_minutes_played ?? 0
         case 'pts': return player.avg_points ?? 0
         case 'reb': return player.avg_rebounds ?? 0
         case 'ast': return player.avg_assists ?? 0
