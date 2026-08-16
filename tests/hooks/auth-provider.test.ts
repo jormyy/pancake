@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     getSession: vi.fn(),
     authCallback: null as null | ((event: string, session: unknown) => void),
     unsubscribe: vi.fn(),
+    readStoredSessionSync: vi.fn<() => unknown>(() => null),
     removeAppState: vi.fn(),
     clearPersistentCaches: vi.fn(),
 }))
@@ -17,6 +18,7 @@ vi.mock('react-native', () => ({
     },
 }))
 vi.mock('@/lib/supabase', () => ({
+    readStoredSessionSync: mocks.readStoredSessionSync,
     supabase: {
         auth: {
             getSession: mocks.getSession,
@@ -94,6 +96,29 @@ describe('AuthProvider bootstrap ownership', () => {
         })
 
         expect(snapshots.at(-1)).toEqual({ userId: null, loading: false })
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('seeds the stored session synchronously and keeps it when bootstrap rejects', async () => {
+        mocks.readStoredSessionSync.mockReturnValue({ user: { id: 'user-seeded' }, access_token: 'stale' })
+        const bootstrap = deferred<{ data: { session: unknown }; error: null }>()
+        mocks.getSession.mockReturnValue(bootstrap.promise)
+        vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(AuthProvider, null, React.createElement(Probe)))
+        })
+
+        // First paint already has the persisted user — no loading gate.
+        expect(snapshots[0]).toEqual({ userId: 'user-seeded', loading: false })
+
+        // A transient bootstrap failure (offline boot) must not log the user out.
+        await act(async () => {
+            bootstrap.reject(new Error('network down'))
+            await bootstrap.promise.catch(() => undefined)
+        })
+        expect(snapshots.at(-1)).toEqual({ userId: 'user-seeded', loading: false })
+        mocks.readStoredSessionSync.mockReturnValue(null)
         await act(async () => { renderer.unmount() })
     })
 

@@ -1,6 +1,8 @@
 /* Pancake PWA service worker.
- * - Offline app shell: navigations are network-first and fall back to the
- *   cached "/" SPA shell when offline.
+ * - Instant app shell: navigations serve the cached "/" SPA shell immediately
+ *   (no network round-trip on the critical path) and revalidate it in the
+ *   background. New deploys still take over via the version-stamped worker
+ *   update + controllerchange reload in +html.tsx.
  * - Fast repeat loads: same-origin static assets (hashed _expo / assets /
  *   fonts / images) use stale-while-revalidate.
  * - Cross-origin requests (Supabase, realtime, external APIs) are never
@@ -51,26 +53,34 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return // never touch API / realtime
 
-  // App shell for navigations: network-first, fall back to cached shell offline.
+  // App shell for navigations: cached shell first for an instant paint, with a
+  // background revalidation. Falling back to network when the cache is cold.
   if (request.mode === 'navigate') {
+    const refreshShell = () =>
+      fetch(request).then((response) => {
+        // Only refresh the cached shell from a successful navigation to "/"
+        // itself. The web build is a per-route static export and the host
+        // rewrites unknown paths to +not-found.html with HTTP 200, so caching
+        // any other route's document here would poison the offline shell
+        // (worst case: offline launches boot into the 404 screen).
+        if (
+          response && response.ok && response.type === 'basic' &&
+          new URL(response.url || request.url).pathname === SHELL_URL
+        ) {
+          const copy = response.clone()
+          caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy))
+        }
+        return response
+      })
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Only refresh the cached shell from a successful navigation to "/"
-          // itself. The web build is a per-route static export and the host
-          // rewrites unknown paths to +not-found.html with HTTP 200, so caching
-          // any other route's document here would poison the offline shell
-          // (worst case: offline launches boot into the 404 screen).
-          if (
-            response && response.ok && response.type === 'basic' &&
-            new URL(response.url || request.url).pathname === SHELL_URL
-          ) {
-            const copy = response.clone()
-            caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy))
-          }
-          return response
-        })
-        .catch(() => caches.match(SHELL_URL).then((r) => r || caches.match(request))),
+      caches.match(SHELL_URL).then((cached) => {
+        if (cached) {
+          // Serve instantly; keep the cached copy fresh off the critical path.
+          event.waitUntil(refreshShell().catch(() => undefined))
+          return cached
+        }
+        return refreshShell().catch(() => caches.match(request))
+      }),
     )
     return
   }

@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type Session } from '@supabase/supabase-js'
 import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
 import { Database } from '@/types/database'
@@ -40,6 +40,28 @@ function runtimeSupabaseOverride(key: string): string | null {
     } catch {
         return null
     }
+}
+
+// Synchronously read the session supabase-js persisted to localStorage so the
+// first render already knows who is signed in. Without this, every screen
+// waits for the async getSession() round-trip on each refresh, which defeats
+// the persistent per-user caches (their keys need user.id). The token may be
+// expired — that's fine: it's only used to seed UI state; supabase-js still
+// validates/refreshes it through the normal async path.
+export function readStoredSessionSync(): Session | null {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return null
+    try {
+        const storage = window.localStorage
+        for (let index = 0; index < storage.length; index += 1) {
+            const key = storage.key(index)
+            if (!key || !key.startsWith('sb-') || !key.endsWith('-auth-token')) continue
+            const parsed = JSON.parse(storage.getItem(key) ?? '') as Session
+            if (parsed && typeof parsed === 'object' && parsed.access_token && parsed.user?.id) return parsed
+        }
+    } catch {
+        // Private mode / corrupt entry — fall back to the async path.
+    }
+    return null
 }
 
 export const supabase = createClient<Database>(

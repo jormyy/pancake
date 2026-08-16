@@ -1,7 +1,7 @@
-import { createContext, createElement, ReactNode, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState, AppStateStatus } from 'react-native'
 import { Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { readStoredSessionSync, supabase } from '@/lib/supabase'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 type AuthContextValue = {
@@ -13,13 +13,17 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [session, setSession] = useState<Session | null>(null)
-    const [loading, setLoading] = useState(true)
+    // Seed from the persisted session (web localStorage) so the first render
+    // already has user.id — persistent caches key on it, and without this every
+    // refresh blanks the app until the async getSession() resolves.
+    const [session, setSession] = useState<Session | null>(() => readStoredSessionSync())
+    const [loading, setLoading] = useState(session === null)
+    const seededUserId = useRef(session?.user.id ?? null)
 
     useEffect(() => {
         let active = true
         let authEventSequence = 0
-        let cacheOwnerId: string | null = null
+        let cacheOwnerId: string | null = seededUserId.current
 
         const commitSession = (nextSession: Session | null, forceCacheClear = false) => {
             if (!active) return
@@ -48,7 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .catch((error) => {
                 if (!active || authEventSequence !== bootstrapSequence) return
                 console.error('Could not restore the authenticated session.', error)
-                commitSession(null)
+                // A transient failure (offline boot, slow network) must not log
+                // the user out of the seeded session — keep it and let the next
+                // successful refresh or an explicit SIGNED_OUT settle the truth.
+                if (seededUserId.current === null) commitSession(null)
+                else setLoading(false)
             })
 
         // Restart auto-refresh when the app returns from background so the
