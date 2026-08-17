@@ -32,6 +32,7 @@ import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
+import { useAuth } from '@/hooks/use-auth'
 import {
     buildTradeScreenModel,
     tradeListItemType,
@@ -43,19 +44,22 @@ import {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
-const picksCacheKey = (memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${leagueId}:${memberId}`
+const picksCacheKey = (userId: string, memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${userId}:${leagueId}:${memberId}`
 const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
 
 export default function TradesScreen() {
     const { push } = useRouter()
+    const { user } = useAuth()
     const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner } = useLeagueContext()
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
     const cachedPicks = useMemo(
-        () => myMemberId && leagueId ? readPersistentCache<TradePickItem[]>(picksCacheKey(myMemberId, leagueId)) : null,
-        [leagueId, myMemberId],
+        () => user?.id && myMemberId && leagueId
+            ? readPersistentCache<TradePickItem[]>(picksCacheKey(user.id, myMemberId, leagueId))
+            : null,
+        [leagueId, myMemberId, user?.id],
     )
     const [tab, setTab] = useState<TradeTabKey>('picks')
     const [analyzerTrade, setAnalyzerTrade] = useState<Trade | null>(null)
@@ -107,9 +111,9 @@ export default function TradesScreen() {
     const { data: picks, loading: picksLoading, error: picksError, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
         const result = await getPicksForMember(current.id, leagueId)
-        writePersistentCache(picksCacheKey(current.id, leagueId), result)
+        if (user?.id) writePersistentCache(picksCacheKey(user.id, current.id, leagueId), result)
         return result
-    }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
+    }, [current?.id, leagueId, user?.id], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
 
     useTradeScreenRealtime({
         leagueId,

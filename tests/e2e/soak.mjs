@@ -78,6 +78,7 @@ import {
 import { assertOffseasonActivityScenario } from './soak-offseason-activity.mjs'
 import { BROWSER_SCENARIO_MANIFEST, browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
+import { assertDynastyDecisionTools } from './soak-dynasty-decision-tools.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -413,6 +414,17 @@ const main = async () => {
           await backendJson(env, '/e2e/close-expired-nominations')
         }
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
+        const dynastyDecisionCheck = await assertDynastyDecisionTools({
+          supabase,
+          env,
+          state,
+          leagueId: targetLeagueId,
+          season,
+        })
+        await writeFile(
+          path.join(ARTIFACT_ROOT, `season-${season}`, 'dynasty-decision-tools.json'),
+          `${JSON.stringify(dynastyDecisionCheck.evidence, null, 2)}\n`,
+        )
         const matchupFailures = env.backendTicksEnabled
           ? await assertMatchupGenerationIdempotent(supabase, env, targetLeagueId)
           : []
@@ -485,6 +497,7 @@ const main = async () => {
         const failures = [
           ...failuresAtStart,
           ...failuresAtEnd,
+          ...dynastyDecisionCheck.failures,
           ...matchupFailures,
           ...failuresAfterReset,
           ...snapshotFailures,
@@ -508,6 +521,7 @@ const main = async () => {
             status: 'PASS',
             evidenceIds: [
               'invariants.boundary',
+              'dynasty.decision_tools',
               fakeUpstreamObserved ? 'environment.fake_upstream' : null,
               env.backendTicksEnabled ? 'cross.cors' : null,
               ...browserEvidenceIds(browserScenarioResults),
@@ -528,6 +542,7 @@ const main = async () => {
             ].filter((value) => typeof value === 'string'),
             notes: [
               seasonNotes,
+              'dynasty engine, scoring, pick, trade, and identity checks passed',
               ...browserPassNotes(browserScenarioResults),
               waiverProcessingCheck ? 'waiver priority processing passed' : null,
               leagueLifecycleCheck ? 'league lifecycle passed' : null,

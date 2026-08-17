@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/supabase', () => ({ supabase: { rpc: vi.fn() } }))
 import {
     dynastyAnalyzerSnapshotCacheKey,
+    dynastyAnalyzerRouteSignature,
     dynastyDecisionCacheKey,
     playerAssetFromDecisionInput,
     scoringSettingsFromJson,
@@ -26,11 +27,18 @@ describe('dynasty decision data contract', () => {
         expect(key).toContain('young%20star')
     })
 
-    it('isolates Analyzer snapshots by user, member, and league', () => {
-        const key = dynastyAnalyzerSnapshotCacheKey('user-a', 'member-a', 'league-a')
-        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey('user-b', 'member-a', 'league-a'))
-        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey('user-a', 'member-b', 'league-a'))
-        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey('user-a', 'member-a', 'league-b'))
+    it('isolates Analyzer snapshots by identity, strategy, and route', () => {
+        const args = ['user-a', 'member-a', 'league-a', 'overall', 'member-a>member-b:player:p1'] as const
+        const key = dynastyAnalyzerSnapshotCacheKey(...args)
+        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey('user-b', args[1], args[2], args[3], args[4]))
+        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey(args[0], 'member-b', args[2], args[3], args[4]))
+        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey(args[0], args[1], 'league-b', args[3], args[4]))
+        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey('user-a', 'member-a', 'league-a', 'rebuild', args[4]))
+        expect(key).not.toBe(dynastyAnalyzerSnapshotCacheKey('user-a', 'member-a', 'league-a', 'overall', 'other-route'))
+        expect(dynastyAnalyzerRouteSignature([
+            { kind: 'pick', fromMemberId: 'b', toMemberId: 'a', pickId: 'pick' },
+            { kind: 'player', fromMemberId: 'a', toMemberId: 'b', playerId: 'player' },
+        ])).toBe('a>b:player:player|b>a:pick:pick')
     })
 
     it('drops non-numeric scoring values', () => {

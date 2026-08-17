@@ -3,8 +3,6 @@ import { getActiveSeasonId } from '@/lib/shared/season'
 import type { Database } from '@/types/database'
 import type { DynastyAssetResult, DynastyStrategy, DynastyValueRange } from '@pancake/core'
 
-export const DYNASTY_RANKINGS_PAGE_SIZE = 50
-
 export type DynastyRankPlayer = {
     rankingId: string
     playerId: string | null
@@ -52,16 +50,6 @@ export type DynastyRankPlayer = {
     assumptions?: string[]
 }
 
-/** Source rows like "2026 Draft (Pick 1)" are ranked placeholders, not players. */
-function isDraftPickRow(name: string, team: string | null): boolean {
-    return team?.toUpperCase() === 'DRA' || /^\d{4}\s+draft\s+\(/i.test(name)
-}
-
-export type DynastyRankingsPage = {
-    players: DynastyRankPlayer[]
-    hasMore: boolean
-}
-
 export type DynastyNewsItem = {
     id: string
     title: string
@@ -72,115 +60,6 @@ export type DynastyNewsItem = {
     playerName: string | null
     playerTeam: string | null
     playerNbaId: string | null
-}
-
-type RankingPlayerJoin = {
-    id: string
-    display_name: string | null
-    nba_team: string | null
-    position: string | null
-    eligible_positions: string[] | null
-    injury_status: string | null
-    years_exp: number | null
-    headshot_url: string | null
-    nba_id: string | null
-}
-type DynastyRankingRow = Pick<
-    Database['public']['Tables']['dynasty_rankings']['Row'],
-    | 'id'
-    | 'source'
-    | 'scoring_format'
-    | 'source_url'
-    | 'source_metadata'
-    | 'source_rank'
-    | 'source_player_name'
-    | 'source_team'
-    | 'source_positions'
-    | 'age'
-    | 'rank_change'
-    | 'games_played'
-    | 'field_goal_pct'
-    | 'free_throw_pct'
-    | 'three_pointers_made'
-    | 'points'
-    | 'rebounds'
-    | 'assists'
-    | 'steals'
-    | 'blocks'
-    | 'turnovers'
-    | 'comment'
-    | 'fetched_at'
-> & { player: RankingPlayerJoin | null }
-
-export async function getDynastyRankingsPage({
-    query = '',
-    limit = DYNASTY_RANKINGS_PAGE_SIZE,
-    offset = 0,
-}: {
-    query?: string
-    limit?: number
-    offset?: number
-} = {}): Promise<DynastyRankingsPage> {
-    const trimmedQuery = query.trim()
-    let request = supabase
-        .from('dynasty_rankings')
-        .select(
-            'id, source, scoring_format, source_url, source_metadata, source_rank, source_player_name, source_team, source_positions, age, rank_change, games_played, field_goal_pct, free_throw_pct, three_pointers_made, points, rebounds, assists, steals, blocks, turnovers, comment, fetched_at, player:players!dynasty_rankings_player_id_fkey(id, display_name, nba_team, position, eligible_positions, injury_status, years_exp, headshot_url, nba_id)',
-        )
-        .eq('source', 'hashtagbasketball.com')
-        .order('source_rank', { ascending: true })
-        .range(offset, offset + limit)
-
-    if (trimmedQuery) {
-        request = request.ilike('source_player_name', `%${trimmedQuery}%`)
-    }
-
-    const { data, error } = await request.returns<DynastyRankingRow[]>()
-
-    if (error) throw error
-
-    const rows = data ?? []
-    return {
-        hasMore: rows.length > limit,
-        players: rows.slice(0, limit).map((row) => {
-            const player = row.player
-            return {
-                rankingId: row.id,
-                playerId: player?.id ?? null,
-                displayName: player?.display_name ?? row.source_player_name,
-                sourceName: row.source_player_name,
-                sourceTeam: row.source_team,
-                sourcePositions: row.source_positions ?? [],
-                nbaTeam: player?.nba_team ?? null,
-                position: player?.position ?? null,
-                eligiblePositions: player?.eligible_positions ?? [],
-                injuryStatus: player?.injury_status ?? null,
-                yearsExp: player?.years_exp ?? null,
-                headshotUrl: player?.headshot_url ?? null,
-                nbaId: player?.nba_id ?? null,
-                dynastyRank: row.source_rank,
-                rankChange: row.rank_change,
-                age: row.age,
-                gamesPlayed: row.games_played,
-                fieldGoalPct: row.field_goal_pct,
-                freeThrowPct: row.free_throw_pct,
-                threePointersMade: row.three_pointers_made,
-                points: row.points,
-                rebounds: row.rebounds,
-                assists: row.assists,
-                steals: row.steals,
-                blocks: row.blocks,
-                turnovers: row.turnovers,
-                comment: row.comment,
-                rankSource: row.source,
-                scoringFormat: row.scoring_format,
-                sourceUrl: row.source_url,
-                sourceMetadata: row.source_metadata,
-                rankFetchedAt: row.fetched_at,
-                isDraftPick: isDraftPickRow(row.source_player_name, row.source_team),
-            }
-        }),
-    }
 }
 
 export async function getDynastyNews(limit = 20): Promise<DynastyNewsItem[]> {

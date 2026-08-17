@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useNetworkState } from 'expo-network'
 import { Platform } from 'react-native'
 
 function browserOnline(): boolean {
@@ -6,18 +6,7 @@ function browserOnline(): boolean {
 }
 
 export function useOnlineStatus(): boolean {
-    const [online, setOnline] = useState(browserOnline)
-
-    useEffect(() => {
-        if (Platform.OS !== 'web' || typeof window === 'undefined') return
-        const update = () => setOnline(browserOnline())
-        window.addEventListener('online', update)
-        window.addEventListener('offline', update)
-        return () => {
-            window.removeEventListener('online', update)
-            window.removeEventListener('offline', update)
-        }
-    }, [])
-
-    return online
+    const state = useNetworkState()
+    if (state.isConnected === false || state.isInternetReachable === false) return false
+    return browserOnline()
 }

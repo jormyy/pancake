@@ -12,7 +12,11 @@ import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
-import { dynastyAnalyzerSnapshotCacheKey } from '@/lib/dynasty-decisions'
+import {
+    dynastyAnalyzerLatestRouteCacheKey,
+    dynastyAnalyzerRouteSignature,
+    dynastyAnalyzerSnapshotCacheKey,
+} from '@/lib/dynasty-decisions'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { saveTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
 import type { Trade } from '@/lib/trades'
@@ -47,10 +51,6 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const [expirationDays, setExpirationDays] = useState('3')
     const [confirming, setConfirming] = useState(false)
     const prefillRef = useRef('')
-    const snapshotKey = user?.id && myMemberId && leagueId
-        ? dynastyAnalyzerSnapshotCacheKey(user.id, myMemberId, leagueId)
-        : null
-    const cachedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
     const composer = useMultiTeamTradeComposer({
         enabled: Boolean(myMemberId && leagueId),
         myMemberId,
@@ -60,7 +60,22 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         faabEnabled: currentLeague?.waiver_mode === 'faab',
     })
     const participantName = composer.participantName
+    const resetComposer = composer.reset
+    const participantIds = composer.participantIds
+    const setParticipantIds = composer.setParticipantIds
+    const prefillFromTrade = composer.prefillFromTrade
     const items = composer.buildMultiTeamItems()
+    const networkAvailable = online && !networkUnavailable
+    const routeSignature = dynastyAnalyzerRouteSignature(items)
+    const latestRouteKey = user?.id && myMemberId && leagueId
+        ? dynastyAnalyzerLatestRouteCacheKey(user.id, myMemberId, leagueId, strategy)
+        : null
+    const lastRouteSignature = latestRouteKey ? readPersistentCache<string>(latestRouteKey) : null
+    const cacheRouteSignature = routeSignature || (!networkAvailable ? lastRouteSignature : null)
+    const snapshotKey = user?.id && myMemberId && leagueId && cacheRouteSignature
+        ? dynastyAnalyzerSnapshotCacheKey(user.id, myMemberId, leagueId, strategy, cacheRouteSignature)
+        : null
+    const cachedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
     const { analysis, loading, error } = useDynastyTradeAnalysis({
         enabled: composer.assetsReady,
         leagueId,
@@ -76,7 +91,11 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     useEffect(() => {
         let active = true
         if (!leagueId) return
+        setMembers([])
         setNetworkUnavailable(false)
+        setConfirming(false)
+        prefillRef.current = ''
+        resetComposer()
         void getLeagueMembers(leagueId).then((rows) => {
             if (active) {
                 setMembers(rows.filter((member) => member.id !== myMemberId))
@@ -86,17 +105,24 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             if (active) setNetworkUnavailable(true)
         })
         return () => { active = false }
-    }, [leagueId, myMemberId])
+    }, [leagueId, myMemberId, resetComposer, user?.id])
+
+    useEffect(() => {
+        if (networkUnavailable || members.length === 0) return
+        const allowed = new Set([myMemberId, ...members.map((member) => member.id)])
+        const validParticipants = participantIds.filter((memberId) => allowed.has(memberId))
+        if (validParticipants.length !== participantIds.length) setParticipantIds(validParticipants)
+    }, [members, myMemberId, networkUnavailable, participantIds, setParticipantIds])
 
     useEffect(() => {
         if (!prefillTrade || prefillRef.current === prefillTrade.id) return
         prefillRef.current = prefillTrade.id
         setMultiTeamMode(prefillTrade.isMultiTeam)
-        composer.prefillFromTrade(prefillTrade, myMemberId)
-    }, [composer, myMemberId, prefillTrade])
+        prefillFromTrade(prefillTrade, myMemberId)
+    }, [myMemberId, prefillFromTrade, prefillTrade])
 
     useEffect(() => {
-        if (!snapshotKey || !analysis || analysis.assets.length === 0) return
+        if (!snapshotKey || !latestRouteKey || !routeSignature || !analysis || analysis.assets.length === 0) return
         writePersistentCache(snapshotKey, {
             analysis,
             participantNames: Object.fromEntries(analysis.teams.map((team) => [team.memberId, participantName(team.memberId)])),
@@ -104,7 +130,8 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             leagueId,
             memberId: myMemberId,
         })
-    }, [analysis, leagueId, myMemberId, participantName, snapshotKey])
+        writePersistentCache(latestRouteKey, routeSignature)
+    }, [analysis, latestRouteKey, leagueId, myMemberId, participantName, routeSignature, snapshotKey])
 
     const setMode = useCallback((nextMulti: boolean) => {
         setMultiTeamMode(nextMulti)
@@ -119,7 +146,6 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const routeIsComplete = items.length > 0 &&
         participantCountReady &&
         composer.participantIds.every((memberId) => twoTeamInvolved.has(memberId))
-    const networkAvailable = online && !networkUnavailable
     const canMakeOffer = networkAvailable && !isTradingClosed(currentLeague) && composer.assetsReady && routeIsComplete
     const offerHelp = !networkAvailable ? 'Connect to make an offer.'
         : isTradingClosed(currentLeague) ? 'Trades are locked for this league.'
@@ -138,7 +164,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         setConfirming(false)
         push({ pathname: '/(modals)/propose-trade', params: { analyzerDraftId: draftId } })
     }, [canMakeOffer, composer.participantIds, items, leagueId, myMemberId, push, strategy])
-    const shownAnalysis = analysis ?? cachedSnapshot?.analysis ?? null
+    const shownAnalysis = analysis ?? (!networkAvailable ? cachedSnapshot?.analysis ?? null : null)
     const analysisParticipantName = useCallback((memberId: string) => {
         const liveName = participantName(memberId)
         return liveName === 'Unnamed' ? cachedSnapshot?.participantNames?.[memberId] ?? liveName : liveName
@@ -208,7 +234,10 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                     <Text style={styles.copy}>The offer editor will keep these teams and assets. You can review them before sending.</Text>
                     <View style={styles.modalActions}>
                         <Pressable style={styles.cancel} onPress={() => setConfirming(false)} accessibilityRole="button"><Text>Cancel</Text></Pressable>
-                        <Pressable style={styles.makeOffer} onPress={makeOffer} accessibilityRole="button" id="analyzer-confirm-offer"><Text style={styles.makeOfferText}>Continue</Text></Pressable>
+                        <Pressable style={[styles.makeOffer, !canMakeOffer && styles.disabled]} onPress={makeOffer}
+                            disabled={!canMakeOffer} accessibilityRole="button" accessibilityState={{ disabled: !canMakeOffer }}
+                            accessibilityLabel={canMakeOffer ? 'Continue to offer editor' : 'Continue unavailable offline'}
+                            id="analyzer-confirm-offer"><Text style={styles.makeOfferText}>Continue</Text></Pressable>
                     </View>
                 </View></View>
             </Modal>

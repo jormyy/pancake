@@ -5,7 +5,7 @@ import {
     type DynastyTradeAnalysis,
     type DynastyTradeRoute,
 } from '@pancake/core'
-import { currentSeasonYear } from '@/lib/shared/season'
+import { getCurrentSeason } from '@/lib/shared/season'
 import {
     dynastyEngineContext,
     getDynastyDecisionInputs,
@@ -34,9 +34,13 @@ export function useDynastyTradeAnalysis(input: Input): {
     error: string | null
 } {
     const [rows, setRows] = useState<DynastyDecisionInput[]>([])
+    const [seasonYear, setSeasonYear] = useState<number | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const sequence = useRef(0)
+    const scopeKey = `${input.enabled}:${input.leagueId}:${input.memberId}`
+    const activeScopeRef = useRef(scopeKey)
+    activeScopeRef.current = scopeKey
     const playerIds = useMemo(() => [...new Set(input.items.flatMap((item) =>
         item.kind === 'player' ? [item.playerId] : [],
     ))].sort(), [input.items])
@@ -44,36 +48,46 @@ export function useDynastyTradeAnalysis(input: Input): {
 
     useEffect(() => {
         const requestId = ++sequence.current
-        if (!input.enabled || !input.leagueId || !input.memberId || playerIds.length === 0) {
+        const scopedPlayerIds = playerKey ? playerKey.split(',') : []
+        if (!input.enabled || !input.leagueId || !input.memberId) {
             setRows([])
+            setSeasonYear(null)
             setLoading(false)
             setError(null)
             return
         }
         setLoading(true)
         setError(null)
-        void getDynastyDecisionInputs({
-            leagueId: input.leagueId,
-            memberId: input.memberId,
-            seasonYear: currentSeasonYear(),
-            playerIds,
-            limit: playerIds.length,
-        }).then((nextRows) => {
-            if (sequence.current !== requestId) return
-            setRows(nextRows)
-        }).catch((cause) => {
-            if (sequence.current !== requestId) return
-            setError(cause instanceof Error ? cause.message : 'Could not load trade values.')
-        }).finally(() => {
-            if (sequence.current === requestId) setLoading(false)
-        })
+        void (async () => {
+            try {
+                const season = await getCurrentSeason(input.leagueId)
+                if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
+                if (!season) throw new Error('This league has no active season.')
+                const nextRows = scopedPlayerIds.length > 0 ? await getDynastyDecisionInputs({
+                    leagueId: input.leagueId,
+                    memberId: input.memberId,
+                    seasonYear: season.seasonYear,
+                    playerIds: scopedPlayerIds,
+                    limit: scopedPlayerIds.length,
+                }) : []
+                if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
+                setSeasonYear(season.seasonYear)
+                setRows(nextRows)
+            } catch (cause) {
+                if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
+                setSeasonYear(null)
+                setError(cause instanceof Error ? cause.message : 'Could not load trade values.')
+            } finally {
+                if (activeScopeRef.current === scopeKey && sequence.current === requestId) setLoading(false)
+            }
+        })()
         return () => {
             if (sequence.current === requestId) sequence.current += 1
         }
-    }, [input.enabled, input.leagueId, input.memberId, playerKey])
+    }, [input.enabled, input.leagueId, input.memberId, playerKey, scopeKey])
 
     const analysis = useMemo(() => {
-        if (!input.enabled || input.items.length === 0) return null
+        if (!input.enabled || input.items.length === 0 || seasonYear == null) return null
         const rowByPlayer = new Map(rows.map((row) => [row.player_id, row]))
         const picks = new Map(input.participants.flatMap((participant) =>
             participant.picks.map((pick) => [pick.pickId, pick] as const),
@@ -133,12 +147,12 @@ export function useDynastyTradeAnalysis(input: Input): {
             }]
         })
         return analyzeDynastyTrade(
-            dynastyEngineContext(input.leagueId, currentSeasonYear(), input.scoringSettings),
+            dynastyEngineContext(input.leagueId, seasonYear, input.scoringSettings),
             input.strategy,
             routes,
         )
     }, [input.enabled, input.faabBudget, input.items, input.leagueId, input.participants,
-        input.scoringSettings, input.strategy, input.teams, rows])
+        input.scoringSettings, input.strategy, input.teams, rows, seasonYear])
 
     return { analysis, loading, error }
 }

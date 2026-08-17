@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import {
     dynastyDecisionCacheKey,
+    dynastyDecisionLatestCacheKey,
     dynastyEngineContext,
     getDynastyDecisionInputs,
     playerAssetFromDecisionInput,
@@ -202,13 +203,13 @@ export function useDynastyRankings({
 }: UseDynastyRankingsArgs) {
     const [query, setQuery] = useState('')
     const [view, setView] = useState<DynastyRankingView>('overall')
+    const scopeIdentity = `${userId}:${memberId}:${leagueId}`
     const [initialCache] = useState(() => {
         if (!userId || !memberId || !leagueId) return null
-        return readPersistentCache<DynastyRankingsCache>(dynastyDecisionCacheKey({
+        return readPersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
             userId,
             memberId,
             leagueId,
-            seasonYear: currentSeasonYear(),
             strategy: 'overall',
             query: '',
         }))
@@ -217,6 +218,7 @@ export function useDynastyRankings({
     const [loading, setLoading] = useState(!initialCache)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<Error | null>(null)
+    const [ownerScope, setOwnerScope] = useState(scopeIdentity)
     const debouncedQuery = useDebouncedValue(query, 250)
     const requestSeqRef = useRef(0)
     const lastLoadedAtRef = useRef(initialCache?.savedAt ?? 0)
@@ -239,42 +241,52 @@ export function useDynastyRankings({
     const scopeReady = Boolean(userId && memberId && leagueId)
     const load = useCallback(async (force = false) => {
         if (!scopeReady) {
+            setOwnerScope(scopeIdentity)
             playersRef.current = []
             setPlayers([])
             setLoading(false)
             return
         }
         const requestId = ++requestSeqRef.current
-        const fallbackSeasonYear = currentSeasonYear()
-        const season = await getCurrentSeason(leagueId)
-        if (requestSeqRef.current !== requestId) return
-        const seasonYear = season?.seasonYear ?? fallbackSeasonYear
-        const cacheQuery = view === 'rookies-picks'
-            ? `rookies-picks:${debouncedQuery}`
-            : debouncedQuery
-        const cacheKey = dynastyDecisionCacheKey({
-            userId, memberId, leagueId, seasonYear, strategy: viewStrategy(view), query: cacheQuery,
-        })
-        const previousKey = activeKeyRef.current
-        activeKeyRef.current = cacheKey
-        const cached = readPersistentCache<DynastyRankingsCache>(cacheKey)
-        if (cached && (!force || playersRef.current.length === 0)) {
-            playersRef.current = cached.players
-            setPlayers(cached.players)
-            lastLoadedAtRef.current = cached.savedAt
-            setLoading(false)
-        } else if (previousKey !== cacheKey) {
+        if (ownerScope !== scopeIdentity) {
+            setOwnerScope(scopeIdentity)
+            activeKeyRef.current = ''
             playersRef.current = []
             setPlayers([])
             lastLoadedAtRef.current = 0
+            setLoading(true)
+            setRefreshing(false)
         }
-        const hasRows = playersRef.current.length > 0
-        if (!force && cached && Date.now() - cached.savedAt < STALE_MS) return
-
         setError(null)
-        setLoading(!hasRows)
-        setRefreshing(hasRows)
         try {
+            const fallbackSeasonYear = currentSeasonYear()
+            const season = await getCurrentSeason(leagueId)
+            if (requestSeqRef.current !== requestId) return
+            const seasonYear = season?.seasonYear ?? fallbackSeasonYear
+            const cacheQuery = view === 'rookies-picks'
+                ? `rookies-picks:${debouncedQuery}`
+                : debouncedQuery
+            const cacheScope = {
+                userId, memberId, leagueId, seasonYear, strategy: viewStrategy(view), query: cacheQuery,
+            }
+            const cacheKey = dynastyDecisionCacheKey(cacheScope)
+            const previousKey = activeKeyRef.current
+            activeKeyRef.current = cacheKey
+            const cached = readPersistentCache<DynastyRankingsCache>(cacheKey)
+            if (cached && (!force || playersRef.current.length === 0)) {
+                playersRef.current = cached.players
+                setPlayers(cached.players)
+                lastLoadedAtRef.current = cached.savedAt
+                setLoading(false)
+            } else if (previousKey !== cacheKey) {
+                playersRef.current = []
+                setPlayers([])
+                lastLoadedAtRef.current = 0
+            }
+            const hasRows = playersRef.current.length > 0
+            if (!force && cached && Date.now() - cached.savedAt < STALE_MS) return
+            setLoading(!hasRows)
+            setRefreshing(hasRows)
             const inputs = await getDynastyDecisionInputs({
                 leagueId,
                 memberId,
@@ -291,6 +303,9 @@ export function useDynastyRankings({
             lastLoadedAtRef.current = savedAt
             setPlayers(nextPlayers)
             writePersistentCache<DynastyRankingsCache>(cacheKey, { players: nextPlayers, savedAt, seasonYear })
+            writePersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
+                userId, memberId, leagueId, strategy: viewStrategy(view), query: cacheQuery,
+            }), { players: nextPlayers, savedAt, seasonYear })
         } catch (cause) {
             if (requestSeqRef.current !== requestId) return
             const nextError = cause instanceof Error ? cause : new Error(String(cause))
@@ -302,7 +317,7 @@ export function useDynastyRankings({
                 setRefreshing(false)
             }
         }
-    }, [debouncedQuery, leagueId, memberId, scopeReady, scoringSettings, teamCount, userId, view])
+    }, [debouncedQuery, leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSettings, teamCount, userId, view])
 
     useEffect(() => {
         void load()
@@ -315,14 +330,15 @@ export function useDynastyRankings({
         if (Date.now() - lastLoadedAtRef.current >= STALE_MS) void load()
     }, [load]))
 
+    const ownsScope = ownerScope === scopeIdentity
     return useMemo(() => ({
         query,
         setQuery,
         view,
         setView,
-        players,
-        loading,
-        refreshing,
+        players: ownsScope ? players : [],
+        loading: ownsScope ? loading : true,
+        refreshing: ownsScope ? refreshing : false,
         loadingMore: false,
         hasMore: false,
         error,
@@ -330,5 +346,5 @@ export function useDynastyRankings({
         loadMore: () => {},
         retryLoadMore: () => {},
         refresh: () => load(true),
-    }), [error, load, loading, players, query, refreshing, view])
+    }), [error, load, loading, ownsScope, players, query, refreshing, view])
 }

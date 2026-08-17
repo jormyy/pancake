@@ -5,6 +5,7 @@ import type {
     DynastyPlayerAsset,
     DynastyStrategy,
 } from '@pancake/core'
+import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 export type DynastyDecisionInput = Database['public']['Functions']['get_dynasty_decision_inputs']['Returns'][number]
 
@@ -17,8 +18,10 @@ export type DynastyDecisionCacheScope = {
     query: string
 }
 
-export const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-decisions:v2:'
-export const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v1:'
+const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-decisions:v2:'
+const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-decisions-latest:v1:'
+const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v2:'
+const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v1:'
 
 const normalizedQuery = (query: string) => encodeURIComponent(query.trim().toLocaleLowerCase())
 
@@ -26,12 +29,38 @@ export function dynastyDecisionCacheKey(scope: DynastyDecisionCacheScope): strin
     return `${DYNASTY_DECISION_CACHE_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${scope.strategy}:${normalizedQuery(scope.query)}`
 }
 
+export function dynastyDecisionLatestCacheKey(
+    scope: Omit<DynastyDecisionCacheScope, 'seasonYear'>,
+): string {
+    return `${DYNASTY_DECISION_LATEST_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.strategy}:${normalizedQuery(scope.query)}`
+}
+
+export function dynastyAnalyzerRouteSignature(items: MultiTeamTradeItemPayload[]): string {
+    return items.map((item) => {
+        const asset = item.kind === 'player' ? item.playerId
+            : item.kind === 'pick' ? item.pickId
+                : String(item.faabAmount)
+        return `${item.fromMemberId}>${item.toMemberId}:${item.kind}:${asset}`
+    }).sort().join('|')
+}
+
 export function dynastyAnalyzerSnapshotCacheKey(
     userId: string,
     memberId: string,
     leagueId: string,
+    strategy: DynastyStrategy,
+    routeSignature: string,
 ): string {
-    return `${DYNASTY_ANALYZER_CACHE_PREFIX}${userId}:${memberId}:${leagueId}`
+    return `${DYNASTY_ANALYZER_CACHE_PREFIX}${userId}:${memberId}:${leagueId}:${strategy}:${encodeURIComponent(routeSignature)}`
+}
+
+export function dynastyAnalyzerLatestRouteCacheKey(
+    userId: string,
+    memberId: string,
+    leagueId: string,
+    strategy: DynastyStrategy,
+): string {
+    return `${DYNASTY_ANALYZER_LATEST_PREFIX}${userId}:${memberId}:${leagueId}:${strategy}`
 }
 
 export function scoringSettingsFromJson(value: Json | null | undefined): Record<string, number> {

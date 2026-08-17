@@ -23,6 +23,10 @@ describe('trade analyzer product contract', () => {
         expect(analyzer).toContain('Offer creation is disabled')
         expect(analyzer).toContain('Make Offer')
         expect(analyzer).toContain('analyzer-confirm-offer')
+        expect(analyzer).toContain('disabled={!canMakeOffer}')
+        expect(analyzer).toContain('!networkAvailable ? cachedSnapshot?.analysis')
+        expect(analyzer).toContain('strategy, cacheRouteSignature')
+        expect(screen).toContain('picksCacheKey(user.id, current.id, leagueId)')
     })
 
     it('shows current and long-term results without verdict labels', () => {

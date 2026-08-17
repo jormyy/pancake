@@ -1,17 +1,17 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-16T21:42:00-07:00",
+  "updatedAt": "2026-08-16T22:12:00-07:00",
   "progress": {
-    "completed": 1,
+    "completed": 2,
     "total": 2,
-    "line": "1/2"
+    "line": "2/2"
   },
   "features": {
     "dynastyRankings": {
       "status": "passed",
       "verifiedCommit": "1df8f0d",
       "evidence": [
-        "PASS: 104 test files, 607 tests",
+        "PASS: 109 test files, 618 tests",
         "PASS: typecheck, core typecheck, and lint",
         "PASS: desktop 1440x1000 and mobile 390x844 browser checks",
         "PASS: four 2027 unknown-slot pick ranges",
@@ -19,9 +19,16 @@
       ]
     },
     "tradeAnalyzer": {
-      "status": "pending",
-      "verifiedCommit": null,
-      "evidence": []
+      "status": "passed",
+      "verifiedCommit": "95fb97b",
+      "evidence": [
+        "PASS: two-team and three-team Analyzer experiments",
+        "PASS: sent and received offer prefills",
+        "PASS: session handoff into the offer editor",
+        "PASS: proposal review and explicit confirmation",
+        "PASS: cached offline result with offer creation disabled",
+        "PASS: lazy Analyzer route chunk 14.2 kB raw"
+      ]
     }
   },
   "releaseGates": {
@@ -82,6 +89,11 @@
       "wave": 2,
       "commit": "1df8f0d",
       "result": "PASS: league-scored ranking views and cache behavior"
+    },
+    {
+      "wave": 3,
+      "commit": "95fb97b",
+      "result": "PASS: shared Analyzer, offer prefills, handoff, and confirmation"
     }
   ],
   "forcedRedChecks": [
@@ -89,6 +101,18 @@
       "area": "package penalty",
       "mutation": "return zero package penalty",
       "command": "npx vitest run tests/dynastyDecisionEngine.test.ts -t prevents weak asset count",
+      "result": "FAIL as expected; restored run passed"
+    },
+    {
+      "area": "Analyzer session handoff",
+      "mutation": "drop routed FAAB during offer-editor prefill",
+      "command": "npx vitest run tests/lib/trade-analyzer-session.test.ts",
+      "result": "FAIL as expected; restored run passed"
+    },
+    {
+      "area": "season scoring soak assertion",
+      "mutation": "remove the scoring-setting change from the season probe",
+      "command": "node tests/e2e/soak.mjs --seasons=1",
       "result": "FAIL as expected; restored run passed"
     }
   ],
@@ -111,9 +135,24 @@
     "/tmp/pancake-dynasty-wave2-evidence/mobile-rookies-picks.png",
     "/tmp/pancake-dynasty-wave2-evidence/mobile-offline-cached.png",
     "/tmp/pancake-dynasty-wave2-evidence/desktop-reconnect-clean.png",
-    "/tmp/pancake-dynasty-wave2-evidence/desktop-reconnect-clean.txt"
+    "/tmp/pancake-dynasty-wave2-evidence/desktop-reconnect-clean.txt",
+    "/tmp/pancake-dynasty-wave3-evidence/desktop-analysis.png",
+    "/tmp/pancake-dynasty-wave3-evidence/desktop-offer-review.png",
+    "/tmp/pancake-dynasty-wave3-evidence/desktop-sent-offer-prefill.png",
+    "/tmp/pancake-dynasty-wave3-evidence/desktop-received-offer-prefill.png",
+    "/tmp/pancake-dynasty-wave3-evidence/desktop-multi-team.png",
+    "/tmp/pancake-dynasty-wave3-evidence/mobile-multi-team-rebuild.png",
+    "/tmp/pancake-dynasty-wave3-evidence/mobile-offline-analyzer-cached.png"
   ],
-  "fixedFindings": [],
+  "fixedFindings": [
+    "HIGH: Native connectivity now uses expo-network and disables both offer confirmation controls after connection loss.",
+    "HIGH: Trade analysis now resolves the active league season before its scoped player read.",
+    "HIGH: Rankings hide prior-scope rows before season lookup and handle lookup failure inside the request guard.",
+    "MEDIUM: Analyzer snapshots now include user, member, league, strategy, and route identity and display only offline.",
+    "MEDIUM: Analyzer clears prior-league members and composer state, then rejects invalid participants.",
+    "MEDIUM: Trade-pick caches now include user identity.",
+    "TEST-DISCOVERED: Trade analysis now blocks a prior league from starting its player read after a scope change."
+  ],
   "notReproducibleFindings": [],
   "blockers": []
 }

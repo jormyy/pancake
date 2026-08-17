@@ -22,6 +22,7 @@
     "dist/**",
     "supabase/shared-src/**",
     "supabase/functions/_shared/date.ts",
+    "supabase/functions/_shared/dynastyDecisionEngine.ts",
     "supabase/functions/_shared/gameId.ts",
     "supabase/functions/_shared/livePoll.ts",
     "supabase/functions/_shared/schedule.ts",
