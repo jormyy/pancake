@@ -5,9 +5,12 @@ import {
     dynastyDecisionCacheKey,
     dynastyDecisionLatestCacheKey,
     dynastyEngineContext,
+    dynastyScoringSignature,
     getDynastyDecisionInputs,
+    getUnmatchedRookieRankings,
     playerAssetFromDecisionInput,
     type DynastyDecisionInput,
+    type UnmatchedRookieRanking,
 } from '@/lib/dynasty-decisions'
 import { getCurrentSeason, currentSeasonYear } from '@/lib/shared/season'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -166,8 +169,76 @@ function futurePickRows(
     return rows
 }
 
+function unmatchedRookieRows(
+    rankings: UnmatchedRookieRanking[],
+    leagueId: string,
+    seasonYear: number,
+    scoringSettings: Json | null | undefined,
+): DynastyRankPlayer[] {
+    const context = dynastyEngineContext(leagueId, seasonYear, scoringSettings)
+    return rankings.map((ranking) => {
+        const result = valueDynastyAsset(context, {
+            kind: 'player',
+            id: ranking.id,
+            label: ranking.source_player_name,
+            age: ranking.age,
+            dynastyRank: ranking.source_rank,
+            rankMovement: null,
+            healthStatus: null,
+            isRookie: true,
+            sources: [{ name: 'hashtagbasketball.com/rookie', fetchedAt: ranking.fetched_at }],
+        })
+        return {
+            rankingId: ranking.id,
+            playerId: null,
+            displayName: ranking.source_player_name,
+            sourceName: ranking.source_player_name,
+            sourceTeam: ranking.source_team,
+            sourcePositions: ranking.source_positions,
+            nbaTeam: ranking.source_team,
+            position: ranking.source_positions[0] ?? null,
+            eligiblePositions: ranking.source_positions,
+            injuryStatus: null,
+            yearsExp: 0,
+            headshotUrl: null,
+            nbaId: null,
+            dynastyRank: ranking.source_rank,
+            rankChange: 0,
+            age: ranking.age,
+            gamesPlayed: null,
+            fieldGoalPct: null,
+            freeThrowPct: null,
+            threePointersMade: null,
+            points: null,
+            rebounds: null,
+            assists: null,
+            steals: null,
+            blocks: null,
+            turnovers: null,
+            comment: null,
+            rankSource: 'hashtagbasketball.com/rookie',
+            scoringFormat: 'custom',
+            sourceUrl: null,
+            sourceMetadata: null,
+            rankFetchedAt: ranking.fetched_at,
+            isDraftPick: false,
+            isRookie: true,
+            sourceRanks: { overall: null, contend: null, rebuild: null, rookie: ranking.source_rank },
+            strategyValues: result.values,
+            selectedValue: result.values.overall,
+            shortTermPoints: result.components.shortTermPoints,
+            longTermValue: result.components.longTermValue,
+            confidence: result.confidence,
+            decisionSources: result.sources,
+            missingInputs: result.missingInputs,
+            assumptions: result.assumptions,
+        }
+    })
+}
+
 function rankedRows(
     inputRows: DynastyDecisionInput[],
+    unmatchedRookies: UnmatchedRookieRanking[],
     view: DynastyRankingView,
     leagueId: string,
     seasonYear: number,
@@ -184,6 +255,7 @@ function rankedRows(
     const candidates = view === 'rookies-picks'
         ? [
             ...playerRows.filter((row) => row.sourceRanks?.rookie != null || row.isRookie),
+            ...unmatchedRookieRows(unmatchedRookies, leagueId, seasonYear, scoringSettings),
             ...futurePickRows(leagueId, seasonYear, scoringSettings, teamCount),
         ]
         : playerRows
@@ -191,6 +263,10 @@ function rankedRows(
     return candidates
         .filter((row) => !normalized || row.displayName.toLocaleLowerCase().includes(normalized))
         .sort((left, right) => {
+            if (view !== 'rookies-picks') {
+                const valueDelta = (right.strategyValues?.[strategy] ?? 0) - (left.strategyValues?.[strategy] ?? 0)
+                if (valueDelta !== 0) return valueDelta
+            }
             const leftRank = view === 'rookies-picks'
                 ? left.sourceRanks?.rookie
                 : left.sourceRanks?.[strategy] ?? left.sourceRanks?.overall
@@ -222,6 +298,7 @@ export function useDynastyRankings({
     const [query, setQuery] = useState('')
     const [view, setView] = useState<DynastyRankingView>('overall')
     const scopeIdentity = `${userId}:${memberId}:${leagueId}`
+    const scoringSignature = dynastyScoringSignature(scoringSettings)
     const [initialCache] = useState(() => {
         if (!userId || !memberId || !leagueId) return null
         return readPersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
@@ -230,6 +307,7 @@ export function useDynastyRankings({
             leagueId,
             strategy: 'overall',
             query: '',
+            scoringSignature,
         }))
     })
     const [players, setPlayers] = useState<DynastyRankPlayer[]>(initialCache?.players ?? [])
@@ -248,6 +326,7 @@ export function useDynastyRankings({
             seasonYear: initialCache.seasonYear,
             strategy: 'overall',
             query: '',
+            scoringSignature,
         })
         : '')
     const playersRef = useRef<DynastyRankPlayer[]>(initialCache?.players ?? [])
@@ -286,6 +365,7 @@ export function useDynastyRankings({
                 : debouncedQuery
             const cacheScope = {
                 userId, memberId, leagueId, seasonYear, strategy: viewStrategy(view), query: cacheQuery,
+                scoringSignature,
             }
             const cacheKey = dynastyDecisionCacheKey(cacheScope)
             const previousKey = activeKeyRef.current
@@ -305,16 +385,19 @@ export function useDynastyRankings({
             if (!force && cached && Date.now() - cached.savedAt < STALE_MS) return
             setLoading(!hasRows)
             setRefreshing(hasRows)
-            const inputs = await getDynastyDecisionInputs({
-                leagueId,
-                memberId,
-                seasonYear,
-                query: view === 'rookies-picks' ? '' : debouncedQuery,
-                limit: MAX_RANKINGS,
-            })
+            const [inputs, unmatchedRookies] = await Promise.all([
+                getDynastyDecisionInputs({
+                    leagueId,
+                    memberId,
+                    seasonYear,
+                    query: view === 'rookies-picks' ? '' : debouncedQuery,
+                    limit: MAX_RANKINGS,
+                }),
+                view === 'rookies-picks' ? getUnmatchedRookieRankings() : Promise.resolve([]),
+            ])
             if (requestSeqRef.current !== requestId || activeKeyRef.current !== cacheKey) return
             const nextPlayers = rankedRows(
-                inputs, view, leagueId, seasonYear, scoringSettings, teamCount, debouncedQuery,
+                inputs, unmatchedRookies, view, leagueId, seasonYear, scoringSettings, teamCount, debouncedQuery,
             )
             const savedAt = Date.now()
             playersRef.current = nextPlayers
@@ -323,6 +406,7 @@ export function useDynastyRankings({
             writePersistentCache<DynastyRankingsCache>(cacheKey, { players: nextPlayers, savedAt, seasonYear })
             writePersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
                 userId, memberId, leagueId, strategy: viewStrategy(view), query: cacheQuery,
+                scoringSignature,
             }), { players: nextPlayers, savedAt, seasonYear })
         } catch (cause) {
             if (requestSeqRef.current !== requestId) return
@@ -335,7 +419,7 @@ export function useDynastyRankings({
                 setRefreshing(false)
             }
         }
-    }, [debouncedQuery, leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSettings, teamCount, userId, view])
+    }, [debouncedQuery, leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSettings, scoringSignature, teamCount, userId, view])
 
     useEffect(() => {
         void load()

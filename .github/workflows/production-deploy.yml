@@ -323,6 +323,30 @@ jobs:
       evidence_label: promoted-production
     secrets: inherit
 
+  sync-points-rankings:
+    name: Import points dynasty rankings
+    needs: verify-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      PANCAKE_EDGE_INTERNAL_TOKEN: ${{ secrets.PANCAKE_EDGE_INTERNAL_TOKEN }}
+    steps:
+      - name: Sync and verify points rankings
+        shell: bash
+        run: |
+          response="$(curl --fail-with-body --silent --show-error \
+            --retry 2 --retry-all-errors --max-time 180 \
+            --request POST "${SUPABASE_URL%/}/functions/v1/sync-rankings" \
+            --header "x-internal-function-token: $PANCAKE_EDGE_INTERNAL_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data '{"view":"POINT"}')"
+          node -e '
+            const result = JSON.parse(process.argv[1])
+            if (result.ok !== true || result.view !== "POINT" || result.rows < 300) process.exit(1)
+          ' "$response"
+
   rollback-after-promotion:
     name: Restore baseline release after failed promotion
     if: ${{ always() && needs.build-candidate.result == 'success' && (needs.promote.result == 'failure' || needs.promote.result == 'cancelled' || (needs.promote.result == 'success' && needs.verify-production.result != 'success')) }}

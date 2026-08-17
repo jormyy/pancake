@@ -409,7 +409,7 @@ export default function DynastyScreen() {
                                 value={rankings.view}
                                 onChange={rankings.setView}
                                 options={[
-                                    { label: 'Overall', value: 'overall' },
+                                    { label: 'League Points', value: 'overall' },
                                     { label: 'Contend', value: 'contend' },
                                     { label: 'Rebuild', value: 'rebuild' },
                                     { label: 'Rookies & Picks', value: 'rookies-picks' },

@@ -23,8 +23,8 @@ async function syncRankingView(view: RankingViewDefinition): Promise<number> {
   console.log(`[sync-rankings] Scraping published ${view.type} rankings...`)
   const [baseHtml, players] = await Promise.all([fetchRankingsHtml(), fetchPlayersForRanking()])
   const fetchedAt = new Date().toISOString()
-  const html = view.type === 'OVERALL' ? baseHtml : await fetchRankingViewHtml(baseHtml, view.type)
-  const rankings = view.type === 'OVERALL'
+  const html = await fetchRankingViewHtml(baseHtml, view.type)
+  const rankings = view.type === 'POINT'
     ? parseDynastyRankingsHtml(html)
     : parseDynastyRankingOrderHtml(html)
   if (rankings.length < view.minimumRows) {
@@ -110,12 +110,12 @@ async function replaceRankingView(
     p_fetched_at: fetchedAt,
     p_rows: rows,
     p_min_rows: view.minimumRows,
-    p_scoring_format: 'overall',
+    p_scoring_format: view.type === 'POINT' ? 'points' : 'overall',
     p_source_url: RANKINGS_URL,
     p_source_metadata: {
       requestedRankingType: view.type,
       selectedRankingType: view.type,
-      requestMethod: view.type === 'OVERALL' ? 'GET' : 'POST',
+      requestMethod: 'POST',
       forecastSeasons: 5,
       matchedPlayers: matched,
     },

@@ -74,6 +74,18 @@ describe('dynasty decision engine', () => {
         expect(pointsLeague.values.overall).not.toBe(assistsLeague.values.overall)
     })
 
+    it('uses the published market rank for each strategy', () => {
+        const baseline = valueDynastyAsset(context, player('player-1', 250, 30))
+        const result = valueDynastyAsset(context, {
+            ...player('player-1', 250, 30),
+            marketRanks: { overall: 1, contend: 400, rebuild: 500 },
+        })
+
+        expect(result.values.overall).toBeGreaterThan(baseline.values.overall)
+        expect(result.values.contend).toBeLessThan(baseline.values.contend)
+        expect(result.values.rebuild).toBeLessThan(baseline.values.rebuild)
+    })
+
     it('keeps Overall stable when the selected strategy changes', () => {
         const result = valueDynastyAsset(context, player('young-star', 8, 25, 21))
         const analyses = ['overall', 'contend', 'rebuild'] as const
