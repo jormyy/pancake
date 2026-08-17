@@ -1,4 +1,9 @@
-import { isDraftPlaceholder, parseDynastyRankingsHtml, selectedDynastyRankingType } from './parser.ts'
+import {
+  isDraftPlaceholder,
+  parseDynastyRankingOrderHtml,
+  parseDynastyRankingsHtml,
+  selectedDynastyRankingType,
+} from './parser.ts'
 
 function expect(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -215,4 +220,12 @@ Deno.test('parses the 2026-08 card markup from a saved real-page fixture', async
   }
   if (second.rank !== 2 || second.comment == null) throw new Error('card comment (Dynasty Outlook) missing')
   if (selectedDynastyRankingType(html) !== 'POINT') throw new Error('selected ranking type not detected')
+})
+
+Deno.test('parses card order without expanding statistics', async () => {
+  const html = await Deno.readTextFile(new URL('./fixtures/dynasty-cards.html', import.meta.url))
+  const rankings = parseDynastyRankingOrderHtml(html)
+  expect(rankings.length === 3, `expected 3 ordered cards, got ${rankings.length}`)
+  expect(rankings[0].rank === 1 && Boolean(rankings[0].name), 'first ordered card is invalid')
+  expect(rankings[0].points == null && rankings[0].comment == null, 'order parser expanded optional details')
 })

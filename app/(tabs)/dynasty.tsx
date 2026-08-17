@@ -378,7 +378,7 @@ export default function DynastyScreen() {
                     <View style={styles.headerText}>
                         <Text style={styles.title} role="heading" aria-level={1}>Dynasty Hub</Text>
                         <Text style={styles.subtitle}>
-                            Values for the active league&apos;s custom points rules
+                            Published ranks with values for this league&apos;s points rules
                         </Text>
                     </View>
                     <View style={styles.syncPill}>

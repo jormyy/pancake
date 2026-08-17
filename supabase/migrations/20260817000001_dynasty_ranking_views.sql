@@ -1,3 +1,7 @@
+-- Keep each published Hashtag strategy as a separate ranking view.
+
+DROP FUNCTION IF EXISTS public.get_dynasty_decision_inputs(uuid, uuid, int, uuid[], text, int, int);
+
 -- Canonical SQL source for public.get_dynasty_decision_inputs.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
@@ -184,3 +188,11 @@ LEFT JOIN projections AS projection
   ON projection.player_id = player.id
 ORDER BY player.dynasty_rank ASC NULLS LAST, player.display_name ASC, player.id ASC;
 $$;
+
+
+REVOKE ALL ON FUNCTION public.get_dynasty_decision_inputs(uuid, uuid, int, uuid[], text, int, int) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_dynasty_decision_inputs(uuid, uuid, int, uuid[], text, int, int) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_dynasty_decision_inputs(uuid, uuid, int, uuid[], text, int, int) TO authenticated, service_role;
+
+COMMENT ON FUNCTION public.get_dynasty_decision_inputs(uuid, uuid, int, uuid[], text, int, int) IS
+  'Returns league-scoped dynasty decision inputs with published strategy ranks for one authenticated league member.';

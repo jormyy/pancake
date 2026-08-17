@@ -38,6 +38,12 @@ export type DynastyRankPlayer = {
     rankFetchedAt: string
     isDraftPick: boolean
     isRookie?: boolean
+    sourceRanks?: {
+        overall: number | null
+        contend: number | null
+        rebuild: number | null
+        rookie: number | null
+    }
     strategyValues?: Record<DynastyStrategy, number>
     selectedValue?: number
     valueRange?: DynastyValueRange | null

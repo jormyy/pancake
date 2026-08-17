@@ -18,8 +18,8 @@ export type DynastyDecisionCacheScope = {
     query: string
 }
 
-const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-decisions:v2:'
-const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-decisions-latest:v1:'
+const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-decisions:v3:'
+const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-decisions-latest:v2:'
 const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v2:'
 const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v1:'
 

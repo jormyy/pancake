@@ -57,6 +57,39 @@ export function parseDynastyRankingsHtml(html: string): RankingRow[] {
   return parseLegacyDynastyTable($)
 }
 
+export function parseDynastyRankingOrderHtml(html: string): RankingRow[] {
+  const $ = cheerio.load(html)
+  if ($('.dyn-card').length === 0) return parseLegacyDynastyTable($)
+  const rankings: RankingRow[] = []
+
+  $('.dyn-card').each((_, card) => {
+    const rank = parseInt($(card).find('.dyn-rank').first().text().trim())
+    const name = cleanText($(card).find('.dyn-name').first().contents()
+      .filter((_, node) => node.type === 'text').text())
+    if (isNaN(rank) || !name) return
+
+    const badges = $(card).find('.dyn-meta .badge')
+      .map((_, badge) => cleanText($(badge).text()))
+      .get()
+      .filter(Boolean)
+    const age = parseNumber((badges.find((badge) => /yo$/i.test(badge)) ?? '').replace(/yo$/i, ''))
+    const nonAge = badges.filter((badge) => !/yo$/i.test(badge))
+    rankings.push({
+      rank,
+      name,
+      team: nonAge.length > 0 ? nonAge[nonAge.length - 1] : null,
+      positions: nonAge.slice(0, -1),
+      sourcePlayerId: null,
+      age,
+      rankChange: 0,
+      comment: null,
+      ...emptyStats(),
+    })
+  })
+
+  return dedupeRankings(rankings)
+}
+
 // Hashtag's 2026-08 redesign: one .dyn-card per player instead of one table
 // row. Badges run [positions..., TEAM, AGEyo]; the nine per-game stats live in
 // .dyn-mini; GP comes from the current-season row of the embedded stat table;

@@ -55,6 +55,7 @@ export function buildDynastyRankingPayload(
   rankings: RankingRow[],
   players: PlayerForRanking[],
   fetchedAt: string,
+  source = RANKINGS_SOURCE,
 ): RankingPayload {
   const playerMaps = buildPlayerMaps(players)
   let matched = 0
@@ -66,7 +67,7 @@ export function buildDynastyRankingPayload(
     // them, so they store unmatched (player_id null) with the source's empty stats.
     const player = findPlayerForRanking(ranking, playerMaps)
     rows.push({
-      source: RANKINGS_SOURCE,
+      source,
       source_rank: ranking.rank,
       source_player_id: ranking.sourcePlayerId,
       source_player_name: ranking.name,

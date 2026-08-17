@@ -126,6 +126,7 @@
     "public.get_pending_trade_count(uuid,uuid)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_trade_page_refs(uuid,uuid,integer,text)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.handle_new_auth_user()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.invoke_dynasty_ranking_views_at_et_time(integer,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.invoke_edge_function_at_et_time(text,integer,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.invoke_edge_function(text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.invoke_lineup_optimizer_if_due()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
