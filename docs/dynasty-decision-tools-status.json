@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-16T21:17:00-07:00",
+  "updatedAt": "2026-08-16T21:28:00-07:00",
   "progress": {
     "completed": 0,
     "total": 2,
@@ -61,9 +61,27 @@
       "desktop": "pending browser baseline"
     }
   },
-  "waveCommits": [],
-  "forcedRedChecks": [],
-  "timings": {},
+  "waveCommits": [
+    {
+      "wave": 0,
+      "commit": "28d028a",
+      "result": "PASS: contracts and baseline record"
+    }
+  ],
+  "forcedRedChecks": [
+    {
+      "area": "package penalty",
+      "mutation": "return zero package penalty",
+      "command": "npx vitest run tests/dynastyDecisionEngine.test.ts -t prevents weak asset count",
+      "result": "FAIL as expected; restored run passed"
+    }
+  ],
+  "timings": {
+    "databaseHotQuery": {
+      "budgetMs": 100,
+      "result": "PASS in tests/db/dynasty-decision-inputs.sql"
+    }
+  },
   "browserEvidence": [],
   "fixedFindings": [],
   "notReproducibleFindings": [],

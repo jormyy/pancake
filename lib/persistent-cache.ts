@@ -14,6 +14,8 @@ const MAX_CACHE_ENTRIES = 64
 const PREFIX_LIMITS = [
     ['pancake:player-search:', 12],
     ['pancake:dynasty-rankings:', 8],
+    ['pancake:dynasty-decisions:', 16],
+    ['pancake:dynasty-analyzer-snapshot:', 4],
     ['pancake:player-screen:', 12],
     ['pancake:player-support:', 4],
     ['pancake:home-matchup:', 4],
@@ -150,6 +152,21 @@ export function writePersistentCache<T>(key: string, value: T): void {
 export function removePersistentCache(key: string): void {
     const storage = localStorageForCache()
     removeStorageKey(storage, key)
+}
+
+export function removePersistentCachePrefix(prefix: string): void {
+    const storage = localStorageForCache()
+    for (const key of [...memoryCache.keys()]) {
+        if (key.startsWith(prefix)) removeStorageKey(storage, key)
+    }
+    if (!storage) return
+    try {
+        for (const key of cacheKeys(storage)) {
+            if (key.startsWith(prefix)) removeStorageKey(storage, key)
+        }
+    } catch {
+        // Best effort only.
+    }
 }
 
 export function clearPersistentCaches(): void {
