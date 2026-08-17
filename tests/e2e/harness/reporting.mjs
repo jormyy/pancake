@@ -88,6 +88,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
   /** @param {boolean} enabled @param {string} evidenceId */
   const evidenceStatus = (enabled, evidenceId) => evidenceStatusForRows(rows, runFailed, enabled, evidenceId)
   const invariantStatus = evidenceStatus(rows.length > 0, 'invariants.boundary')
+  const dynastyDecisionStatus = evidenceStatus(rows.length > 0, 'dynasty.decision_tools')
   const runtimeStatus = evidenceStatus(producedTenSeasons, 'runtime.drift')
   const memoryStatus = evidenceStatus(producedTenSeasons, 'memory.drift')
   const resetStatus = args.seasonReset
@@ -266,6 +267,14 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       requirement: 'D.0 invariant boundary checks',
       status: invariantStatus,
       evidence: rows.length > 0 ? 'Season rows in tests/e2e-report.md include D.0 boundary checks or failure.' : 'No season rows produced.',
+    },
+    {
+      id: 'dynasty.decision_tools', requiredForRelease: true,
+      requirement: 'Dynasty engine, scoring, picks, trades, and identity isolation',
+      status: dynastyDecisionStatus,
+      evidence: rows.length > 0
+        ? 'Each season writes tests/artifacts/season-<N>/dynasty-decision-tools.json.'
+        : 'No dynasty decision-tool season evidence was produced.',
     },
     {
       id: 'season.matchups', requiredForRelease: true,

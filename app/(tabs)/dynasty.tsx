@@ -18,12 +18,14 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
 import { Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
-import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
+import { useDynastyRankings, type DynastyRankingView } from '@/hooks/use-dynasty-rankings'
+import { useAuth } from '@/hooks/use-auth'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { getDynastyNews, getMyDynastyNews, type DynastyNewsItem, type DynastyRankPlayer } from '@/lib/dynasty'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
+import { getLeagueMembers } from '@/lib/league'
 import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -47,8 +49,8 @@ type DynastyNewsCache = { news: DynastyNewsItem[]; myNews: DynastyNewsItem[] }
 type StatColumn = { key: StatKey; label: string; format?: 'integer' | 'pct' }
 const DYNASTY_NEWS_CACHE_PREFIX = 'pancake:dynasty-news:v1:'
 
-const dynastyNewsCacheKey = (memberId?: string, leagueId?: string) =>
-    `${DYNASTY_NEWS_CACHE_PREFIX}${leagueId ?? 'none'}:${memberId ?? 'anon'}`
+const dynastyNewsCacheKey = (userId?: string, memberId?: string, leagueId?: string) =>
+    `${DYNASTY_NEWS_CACHE_PREFIX}${userId ?? 'anon'}:${leagueId ?? 'none'}:${memberId ?? 'none'}`
 // Full table shown on wide screens; column labels live in the table header row.
 const STAT_COLUMNS: StatColumn[] = [
     { key: 'points', label: 'PTS' },
@@ -90,7 +92,9 @@ function playerAvatarUri(player: DynastyRankPlayer): string | null {
 
 function formatDate(value: string | null): string {
     if (!value) return 'Not synced'
-    return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const timestamp = Date.parse(value)
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Not synced'
+    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function formatStat(value: number | null, format?: 'integer' | 'pct'): string {
@@ -98,13 +102,6 @@ function formatStat(value: number | null, format?: 'integer' | 'pct'): string {
     if (format === 'integer') return String(Math.round(value))
     if (format === 'pct') return Number(value).toFixed(3)
     return formatPoints(value)
-}
-
-function formatScoringFormat(value: string | null | undefined): string {
-    if (value === 'points') return 'points-league'
-    if (value === 'category') return 'category'
-    if (value === 'custom') return 'custom'
-    return 'overall'
 }
 
 function sourceMeta(player: DynastyRankPlayer): string[] {
@@ -191,6 +188,17 @@ function RankingRowImpl({
     // hashtagbasketball stacks the write-up directly beneath that player's stats
     // (same column); we mirror that — stats on top, comment on the line below.
     const commentNode = player.comment ? <Text style={styles.comment}>{player.comment}</Text> : null
+    const valueRange = player.valueRange
+    const valueText = valueRange
+        ? `${valueRange.low}-${valueRange.high}`
+        : String(player.selectedValue ?? '—')
+    const confidenceText = player.confidence == null ? 'Unknown' : `${Math.round(player.confidence * 100)}%`
+    const sourceText = player.decisionSources?.map((source) => source.name).join(', ') || player.rankSource
+    const sourceFreshness = player.decisionSources
+        ?.map((source) => source.fetchedAt)
+        .filter((value): value is string => Boolean(value))
+        .sort()
+        .at(-1) ?? player.rankFetchedAt
 
     // Draft-pick placeholders carry no player, stats, or headshot — they're
     // ranked slots (e.g. an incoming 2026 first-rounder), so render a slim row.
@@ -207,7 +215,12 @@ function RankingRowImpl({
                     </View>
                     <View style={styles.rankMain}>
                         <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
-                        <Text style={styles.draftLabel}>Future draft pick</Text>
+                        <Text style={styles.draftLabel}>Future draft pick · Value {valueText}</Text>
+                        <Text style={styles.decisionMeta}>Confidence {confidenceText} · {sourceText}</Text>
+                        <Text style={styles.decisionMeta}>Updated {formatDate(sourceFreshness)}</Text>
+                        {player.missingInputs?.length ? (
+                            <Text style={styles.missingText}>Range reflects missing {player.missingInputs.join(', ')}.</Text>
+                        ) : null}
                     </View>
                 </View>
             </View>
@@ -237,6 +250,14 @@ function RankingRowImpl({
                         {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                         {player.injuryStatus ? <Text style={styles.injuryText}>{player.injuryStatus}</Text> : null}
                     </View>
+                    <Text style={styles.valueText}>Value {valueText} · Confidence {confidenceText}</Text>
+                    <Text style={styles.decisionMeta}>
+                        Production {formatPoints(player.shortTermPoints ?? 0)} · Projection {formatPoints(player.projectionPoints ?? 0)} · Long term {player.longTermValue ?? 0}
+                    </Text>
+                    <Text style={styles.decisionMeta}>Source {sourceText} · Updated {formatDate(sourceFreshness)}</Text>
+                    {player.missingInputs?.length ? (
+                        <Text style={styles.missingText}>Missing {player.missingInputs.join(', ')}</Text>
+                    ) : null}
                     {!showStats ? <CompactStats player={player} /> : null}
                     {!showStats ? commentNode : null}
                 </View>
@@ -293,13 +314,25 @@ function NewsRow({ item }: { item: DynastyNewsItem }) {
 
 export default function DynastyScreen() {
     const router = useRouter()
+    const { user } = useAuth()
     const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
     const showStats = width >= WIDE_BREAKPOINT
     const narrowSearch = width < 440
     const narrowLayout = width < 760
     const [tab, setTab] = useState<DynastyTab>('rankings')
-    const rankings = useDynastyRankings()
+    const { data: decisionMembers } = useFocusAsyncData(
+        () => currentLeague ? getLeagueMembers(currentLeague.id) : Promise.resolve([]),
+        [currentLeague?.id],
+        { staleMs: 5 * 60_000 },
+    )
+    const rankings = useDynastyRankings({
+        userId: user?.id ?? '',
+        memberId: current?.id ?? '',
+        leagueId: currentLeague?.id ?? '',
+        scoringSettings: currentLeague?.scoring_settings,
+        teamCount: Math.max(4, decisionMembers?.length ?? 12),
+    })
     const handleOpenRankedPlayer = useCallback((player: DynastyRankPlayer) => {
         if (player.playerId) router.push(`/player/${player.playerId}`)
     }, [router])
@@ -311,7 +344,7 @@ export default function DynastyScreen() {
             onPress={handleOpenRankedPlayer}
         />
     ), [showStats, narrowLayout, handleOpenRankedPlayer])
-    const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(current?.id, currentLeague?.id)) ?? undefined
+    const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id)) ?? undefined
     const { data: newsData, loading: newsLoading, error: newsError, refresh: refreshNews } = useFocusAsyncData(
         async () => {
             const [news, myNews] = await Promise.all([
@@ -319,10 +352,10 @@ export default function DynastyScreen() {
                 current && currentLeague ? getMyDynastyNews(current.id, currentLeague.id, 30) : Promise.resolve(EMPTY_NEWS),
             ])
             const result = { news, myNews }
-            writePersistentCache(dynastyNewsCacheKey(current?.id, currentLeague?.id), result)
+            writePersistentCache(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id), result)
             return result
         },
-        [current?.id, currentLeague?.id],
+        [current?.id, currentLeague?.id, user?.id],
         { staleMs: 5 * 60_000, initialData: cachedNews },
     )
     const news = newsData?.news ?? EMPTY_NEWS
@@ -330,8 +363,7 @@ export default function DynastyScreen() {
     const activeNews = tab === 'my-news' ? myNews : news
     const activeNewsHydrated = !newsLoading || activeNews.length > 0
     const emptyNewsMessage = tab === 'my-news' ? 'No news for your players.' : 'No dynasty news yet.'
-    const latestSync = rankings.players.find((player) => player.rankFetchedAt)?.rankFetchedAt ?? null
-    const scoringFormat = rankings.players.find((player) => player.scoringFormat)?.scoringFormat ?? null
+    const latestSync = rankings.players.find((player) => Date.parse(player.rankFetchedAt) > 0)?.rankFetchedAt ?? null
     const rankingFooter = rankings.loadingMore ? null : rankings.loadMoreError ? (
         <Pressable style={styles.footerRetry} onPress={() => void rankings.retryLoadMore()} accessibilityRole="button" accessibilityLabel="Retry rankings">
             <MaterialIcons name="refresh" size={16} color={colors.primaryDark} />
@@ -346,12 +378,12 @@ export default function DynastyScreen() {
                     <View style={styles.headerText}>
                         <Text style={styles.title} role="heading" aria-level={1}>Dynasty Hub</Text>
                         <Text style={styles.subtitle}>
-                            Hashtag {formatScoringFormat(scoringFormat)} rankings and player movement
+                            Values for the active league&apos;s custom points rules
                         </Text>
                     </View>
                     <View style={styles.syncPill}>
                         <MaterialIcons name="sync" size={14} color={colors.primaryDark} />
-                        <Text style={styles.syncText}>{formatDate(latestSync)}</Text>
+                        <Text style={styles.syncText}>{rankings.refreshing ? 'Refreshing' : formatDate(latestSync)}</Text>
                     </View>
                 </View>
 
@@ -364,6 +396,7 @@ export default function DynastyScreen() {
                             { label: 'News', value: 'news', badge: news.length },
                             { label: 'My News', value: 'my-news', badge: myNews.length },
                         ]}
+                        accessibilityLabel="Dynasty sections"
                         scrollable
                     />
                 </View>
@@ -371,6 +404,21 @@ export default function DynastyScreen() {
                 <View style={styles.body}>
                 {tab === 'rankings' ? (
                     <>
+                        <View style={styles.rankingViewBar}>
+                            <SegmentedControl<DynastyRankingView>
+                                value={rankings.view}
+                                onChange={rankings.setView}
+                                options={[
+                                    { label: 'Overall', value: 'overall' },
+                                    { label: 'Contend', value: 'contend' },
+                                    { label: 'Rebuild', value: 'rebuild' },
+                                    { label: 'Rookies & Picks', value: 'rookies-picks' },
+                                ]}
+                                accessibilityLabel="Dynasty ranking views"
+                                idBase="dynasty-ranking-view"
+                                scrollable
+                            />
+                        </View>
                         <View style={styles.searchRow}>
                             <Input
                                 value={rankings.query}
@@ -378,6 +426,7 @@ export default function DynastyScreen() {
                                 placeholder={narrowSearch ? 'Search rankings' : 'Search dynasty rankings'}
                                 leftIcon="search"
                                 autoCorrect={false}
+                                accessibilityLabel="Search dynasty rankings"
                             />
                             <Text style={styles.resultCountText}>
                                 {rankings.loading && rankings.players.length === 0
@@ -493,6 +542,7 @@ const styles = StyleSheet.create({
     // gap separates the search row from the list below it (rankings tab); the
     // news tab has a single child so the gap is inert there.
     body: { flex: 1, gap: spacing.lg },
+    rankingViewBar: { width: '100%' },
     searchRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -577,6 +627,9 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
     },
+    valueText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
+    decisionMeta: { fontSize: fontSize.xs, lineHeight: 17, color: colors.textMuted },
+    missingText: { fontSize: fontSize.xs, lineHeight: 17, color: colors.warningDark },
     // Sits directly under the stats (wide) or the inline strip (compact); no
     // line clamp so it wraps to as many lines as it needs.
     comment: {

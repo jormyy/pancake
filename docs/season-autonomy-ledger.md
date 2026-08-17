@@ -35,6 +35,8 @@ AC-24 soak-harness-trustworthy       | PASS    | docs/soak-harness-audit.md: 7 f
 
 ## Checkpoint log
 
+- 2026-08-17 Dynasty decision tools release proof: production migrations `20260816000002` and `20260816000003` applied; `npm run e2e:soak:release` passed 20/20 seasons in 4h 6m 20s; the new decision-tool checks passed every season; the mid-life migration applied between seasons 5 and 6; realtime WebSocket and expired-session harness failures were fixed before the complete rerun; the 22-step production-export browser walkthrough passed at 1440x1000 and 390x844 with zero final page errors.
+
 - 2026-08-15 Production incident found and fixed while investigating Dynasty Hub staleness: every cron->edge invocation had failed since 2026-06-28 ("Supabase Edge base URL is not configured" - the 20260628000007 fail-closed invoker required an app.supabase_url GUC that managed Supabase forbids setting). Fixed with a Vault URL fallback (migration 009) + prod secret; catch-up synced the 2026-27 schedule (1200 games/25 weeks), completed a trade stuck since June, and revived all pipelines. Rankings had additionally rotted (Hashtag card redesign) - parser rewritten with real-fixture test; floor 500->300 (site now lists 400). dynasty_news had never had a writer - ESPN news ingestion added to sync-players with 60-day retention. Mock rooms gained delete (RPC+route+UI) and daily auto-expiry (migration 010/011).
 
 - 2026-08-15 Finish: /deslop pass (lint-ignore markers), /michael-review with adversarial refuters: 42 candidates, 29 refuted, 13 survived, all fixed:

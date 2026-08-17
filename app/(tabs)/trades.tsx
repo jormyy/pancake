@@ -2,12 +2,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
 import {
     getPicksForMember,
+    type Trade,
     type TradePickItem,
 } from '@/lib/trades'
 import { colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
@@ -31,6 +32,7 @@ import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
+import { useAuth } from '@/hooks/use-auth'
 import {
     buildTradeScreenModel,
     tradeListItemType,
@@ -42,20 +44,29 @@ import {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
-const picksCacheKey = (memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${leagueId}:${memberId}`
+const picksCacheKey = (userId: string, memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${userId}:${leagueId}:${memberId}`
+const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
 
 export default function TradesScreen() {
     const { push } = useRouter()
+    const { user } = useAuth()
     const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner } = useLeagueContext()
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
     const cachedPicks = useMemo(
-        () => myMemberId && leagueId ? readPersistentCache<TradePickItem[]>(picksCacheKey(myMemberId, leagueId)) : null,
-        [leagueId, myMemberId],
+        () => user?.id && myMemberId && leagueId
+            ? readPersistentCache<TradePickItem[]>(picksCacheKey(user.id, myMemberId, leagueId))
+            : null,
+        [leagueId, myMemberId, user?.id],
     )
     const [tab, setTab] = useState<TradeTabKey>('picks')
+    const [analyzerTrade, setAnalyzerTrade] = useState<Trade | null>(null)
+    const openAnalyzer = useCallback((trade: Trade) => {
+        setAnalyzerTrade(trade)
+        setTab('analyzer')
+    }, [])
     const {
         trades,
         loading,
@@ -100,9 +111,9 @@ export default function TradesScreen() {
     const { data: picks, loading: picksLoading, error: picksError, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
         const result = await getPicksForMember(current.id, leagueId)
-        writePersistentCache(picksCacheKey(current.id, leagueId), result)
+        if (user?.id) writePersistentCache(picksCacheKey(user.id, current.id, leagueId), result)
         return result
-    }, [current?.id, leagueId], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
+    }, [current?.id, leagueId, user?.id], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
 
     useTradeScreenRealtime({
         leagueId,
@@ -157,14 +168,16 @@ export default function TradesScreen() {
                     tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
                     isCommissioner={isCommissioner} acting={tradeActions.busyTradeId !== null}
                     onAccept={tradeActions.accept} onReject={tradeActions.reject}
-                    onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw} />
+                    onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw}
+                    onAnalyze={openAnalyzer} />
         }
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, currentLeague?.trade_veto_mode, handleListPick, handleListPlayer,
         handleRemoveBlockItem, isCommissioner, listedPickIds, listedPlayerIds, myMemberId,
-        myTeamName, tab, tradeActions.accept, tradeActions.busyTradeId, tradeActions.reject,
+        myTeamName, openAnalyzer, tab, tradeActions.accept, tradeActions.busyTradeId, tradeActions.reject,
         tradeActions.veto, tradeActions.withdraw])
 
     const activeTabLoading = tab === 'picks' ? picksLoading && picksList.length === 0
+        : tab === 'analyzer' ? false
         : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
             : tab === 'leagueBlock' ? blockLoading && blockItems.length === 0
                 : tab === 'history' ? historyLoading && historyTrades.length === 0
@@ -172,6 +185,7 @@ export default function TradesScreen() {
     const tabOptions: SegmentOption<TradeTabKey>[] = [
         { label: 'Picks', value: 'picks' },
         { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
+        { label: 'Analyzer', value: 'analyzer' },
         { label: 'My Block', value: 'block', accessibilityLabel: 'Your trade block' },
         { label: 'League', value: 'leagueBlock', accessibilityLabel: 'League trade block' },
         { label: 'History', value: 'history' },
@@ -201,7 +215,11 @@ export default function TradesScreen() {
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
         {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'}. Tap to retry.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
-        {activeTabLoading ? null
+        {tab === 'analyzer' ? (
+            <Suspense fallback={<View style={styles.emptyState}><Text style={styles.emptyStateText}>Loading Analyzer…</Text></View>}>
+                <TradeAnalyzer prefillTrade={analyzerTrade} />
+            </Suspense>
+        ) : activeTabLoading ? null
             : tab === 'picks' && picksError ? null
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}

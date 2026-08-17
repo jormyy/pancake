@@ -59,6 +59,7 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         participantName: vi.fn(),
         participantViews: mocks.participantIds.map((memberId) => ({ memberId })),
         prefillFromTrade: mocks.prefillFromTrade,
+        prefillFromItems: vi.fn(),
         reset: vi.fn(),
         retry: vi.fn(),
         rosterError: null,
@@ -75,6 +76,10 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         toggleParticipantPlayer: vi.fn(),
     }),
 }))
+vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({
+    useDynastyTradeAnalysis: () => ({ analysis: null, loading: false, error: null }),
+}))
+vi.mock('@/lib/trade-analyzer-session', () => ({ takeTradeAnalyzerDraft: () => null }))
 vi.mock('@/lib/trade-composer', () => ({
     buildTwoTeamTradeComposerPayload: (items: MockTradeItem[]) => ({
         hasOffer: true,
@@ -129,6 +134,7 @@ vi.mock('@/lib/league', () => ({
     isTradingClosed: () => false,
 }))
 vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: 'MultiTeamTradeBuilder' }))
+vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'TradeAnalysisSummary' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
 vi.mock('@/components/ui', () => ({ ErrorBanner: () => null }))
 
@@ -177,7 +183,7 @@ describe('propose trade async ownership', () => {
         await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
 
         const review = renderer.root.findByProps({ testID: 'trade-submit' })
-        expect(review.props.accessibilityLabel).toBe('Review multi-team trade')
+        expect(review.props.accessibilityLabel).toBe('Review trade proposal')
         await act(async () => { review.props.onPress() })
         expect(renderer.root.findByProps({ presentationStyle: 'fullScreen' }).props.visible).toBe(true)
         expect(mocks.submitMultiTeamTradeComposer).not.toHaveBeenCalled()
@@ -303,7 +309,8 @@ describe('propose trade async ownership', () => {
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
         const submit = renderer.root.findByProps({ testID: 'trade-submit' })
         let pending!: Promise<void>
-        await act(async () => { pending = submit.props.onPress(); await Promise.resolve() })
+        await act(async () => { submit.props.onPress(); await Promise.resolve() })
+        await act(async () => { pending = renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress(); await Promise.resolve() })
         await act(async () => { renderer.unmount() })
         await act(async () => { submission.resolve(); await pending })
 
@@ -318,7 +325,8 @@ describe('propose trade async ownership', () => {
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
         const submit = renderer.root.findByProps({ testID: 'trade-submit' })
         let pending!: Promise<void>
-        await act(async () => { pending = submit.props.onPress(); await Promise.resolve() })
+        await act(async () => { submit.props.onPress(); await Promise.resolve() })
+        await act(async () => { pending = renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress(); await Promise.resolve() })
         mocks.context = {
             current: { id: 'member-c', team_name: 'Team C' },
             currentLeague: {

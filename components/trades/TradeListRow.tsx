@@ -11,7 +11,7 @@ import { colors, fontSize, fontWeight, INJURY_COLORS, radii, spacing, uiColors }
 import { playerHeadshotUrl, yearShort } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
-import type { TradeBlockItem, TradePickItem } from '@/lib/trades'
+import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
 import type { TradeListItem } from '@/lib/trades-screen-model'
 import type { TradeVetoMode } from '@/lib/league'
 
@@ -201,6 +201,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onReject,
     onVeto,
     onWithdraw,
+    onAnalyze,
 }: {
     item: ItemOf<'trade'>
     myMemberId: string
@@ -212,12 +213,19 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     onReject: (tradeId: string) => void
     onVeto: (tradeId: string) => void
     onWithdraw: (tradeId: string) => void
+    onAnalyze: (trade: Trade) => void
 }) {
-    return <TradeCard trade={item.trade} myMemberId={myMemberId}
-        tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner}
-        acting={acting} onAccept={() => onAccept(item.trade)}
-        onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
-        onWithdraw={() => onWithdraw(item.trade.id)} />
+    return <View>
+        <TradeCard trade={item.trade} myMemberId={myMemberId}
+            tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner}
+            acting={acting} onAccept={() => onAccept(item.trade)}
+            onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
+            onWithdraw={() => onWithdraw(item.trade.id)} />
+        <Pressable style={styles.analyzeAction} onPress={() => onAnalyze(item.trade)}
+            accessibilityRole="button" accessibilityLabel={`Analyze trade from ${item.trade.proposerTeamName}`}>
+            <Text style={styles.analyzeActionText}>Analyze</Text>
+        </Pressable>
+    </View>
 })
 
 const styles = StyleSheet.create({
@@ -241,4 +249,6 @@ const styles = StyleSheet.create({
     blockAction: { minWidth: 72, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primary, paddingHorizontal: spacing.md },
     blockActionDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted },
     blockActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    analyzeAction: { minHeight: 44, alignSelf: 'flex-end', justifyContent: 'center', marginHorizontal: spacing.xl, marginBottom: spacing.sm, paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.primary, borderRadius: radii.md },
+    analyzeActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

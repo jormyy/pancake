@@ -3872,6 +3872,50 @@ export type Database = {
         Args: { p_league_id: string }
         Returns: Json
       }
+      get_dynasty_decision_inputs: {
+        Args: {
+          p_league_id: string
+          p_limit?: number
+          p_member_id: string
+          p_offset?: number
+          p_player_ids?: string[]
+          p_query?: string
+          p_season_year?: number
+        }
+        Returns: {
+          age: number
+          avg_assists: number
+          avg_blocks: number
+          avg_fantasy_points: number
+          avg_field_goals_attempted: number
+          avg_field_goals_made: number
+          avg_free_throws_attempted: number
+          avg_free_throws_made: number
+          avg_points: number
+          avg_rebounds: number
+          avg_steals: number
+          avg_three_pointers_made: number
+          avg_turnovers: number
+          display_name: string
+          dynasty_rank: number
+          dynasty_ranking_id: string
+          eligible_positions: string[]
+          games_played: number
+          headshot_url: string
+          injury_status: string
+          nba_id: string
+          nba_team: string
+          player_id: string
+          position: string
+          projection_fantasy_points: number
+          projection_fetched_at: string
+          projection_source: string
+          rank_change: number
+          ranking_fetched_at: string
+          ranking_source: string
+          years_exp: number
+        }[]
+      }
       get_league_activity_feed: {
         Args: { p_league_id: string; p_limit?: number; p_offset?: number }
         Returns: {

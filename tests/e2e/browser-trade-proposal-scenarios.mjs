@@ -79,8 +79,9 @@ export async function runBrowserTradeScenario({
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-selected.png')], { timeout: 60_000 })
     const submitClick = await clickTestId(session, 'trade-submit', 'trade proposal submit')
+    const confirmClick = await clickTestId(session, 'trade-confirm-submit', 'trade proposal confirm')
     const tradeProposal = await waitForTradeProposal(fixture)
-    debug = { ...debug, recipientTabClick, proposerTabClick, requestClick, offerClick, submitClick, tradeProposal }
+    debug = { ...debug, recipientTabClick, proposerTabClick, requestClick, offerClick, submitClick, confirmClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
       throw new Error(`trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
     }
@@ -100,6 +101,7 @@ export async function runBrowserTradeScenario({
     await clickTestId(session, `trade-sender-${fixture.proposer.id}`, 'two-team edit proposer sender tab')
     const editAssetClick = await clickTestId(session, `trade-${fixture.proposer.id}-pick-${fixture.proposerFuturePick.id}`, 'two-team edit add proposer future pick')
     const editSubmitClick = await clickTestId(session, 'trade-submit', 'two-team edit submit')
+    const editConfirmClick = await clickTestId(session, 'trade-confirm-submit', 'two-team edit confirm')
     const editReplacement = await waitForTradeReplacement(fixture, tradeProposal.trade.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'edited',
@@ -125,6 +127,7 @@ export async function runBrowserTradeScenario({
     ], 'two-team counter composer prefilled')
     const counterAssetClick = await clickTestId(counterSession, `trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`, 'two-team counter add recipient future pick')
     const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'two-team counter submit')
+    const counterConfirmClick = await clickTestId(counterSession, 'trade-confirm-submit', 'two-team counter confirm')
     const counterReplacement = await waitForTradeReplacement(fixture, editReplacement.replacement.id, {
       initialTradeId: tradeProposal.trade.id,
       sourceStatus: 'countered',
@@ -138,7 +141,7 @@ export async function runBrowserTradeScenario({
     if (counterReplacement.failures.length > 0) {
       throw new Error(`two-team counter replacement failed: ${counterReplacement.failures.join('; ')}`)
     }
-    debug = { ...debug, editClick, editAssetClick, editSubmitClick, editReplacement, counterClick, counterAssetClick, counterSubmitClick, counterReplacement }
+    debug = { ...debug, editClick, editAssetClick, editSubmitClick, editConfirmClick, editReplacement, counterClick, counterAssetClick, counterSubmitClick, counterConfirmClick, counterReplacement }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -252,7 +255,7 @@ export async function runBrowserTradePostDeadlineScenario({
     const offerClick = await clickTestId(session, `trade-${fixture.proposer.id}-player-${fixture.proposerPlayer.id}`, 'post-deadline proposer player selection')
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'post-deadline-selected.png')], { timeout: 60_000 })
-    const submitState = await readButtonState(session, 'Send trade proposal', 'post-deadline trade proposal submit')
+    const submitState = await readButtonState(session, 'Review trade proposal', 'post-deadline trade proposal submit')
 
     const alerts = await readBrowserAlerts(session)
     const rejected = await verifyPostDeadlineTradeRejected(fixture)

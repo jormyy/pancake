@@ -28,6 +28,9 @@ import {
   signInForAccessToken,
 } from './soak-backend-support.mjs'
 import { validateAppliedMigrationDelta } from './release-soak-migration-plan.mjs'
+import { WebSocket } from 'ws'
+
+const WebSocketTransport = /** @type {any} */ (WebSocket)
 
 const withTimeout = (promise, timeoutMs, message) => {
   let timeout
@@ -247,7 +250,7 @@ export const assertRealtimeDelivery = async ({ supabase, env, state, leagueId, s
   const setups = Array.from({ length: REALTIME_CLIENTS }, (_, index) => {
     const client = createClient(env.supabaseUrl, env.anonKey, {
       auth: { persistSession: false },
-      realtime: { transport: WebSocket, timeout: REALTIME_SUBSCRIBE_TIMEOUT_MS },
+      realtime: { transport: WebSocketTransport, timeout: REALTIME_SUBSCRIBE_TIMEOUT_MS },
     })
     client.realtime.setAuth(realtimeAccessToken)
 
