@@ -69,10 +69,10 @@ export async function assertDynastyDecisionTools({ supabase, env, state, leagueI
     p_limit: 5,
     p_offset: 0,
   }
-  const own = await firstClient.rpc('get_dynasty_decision_inputs', rpcArgs)
+  const own = await firstClient.rpc('get_dynasty_forecast_inputs', rpcArgs)
   if (own.error || !own.data?.length) failures.push(`authorized dynasty batch failed: ${own.error?.message ?? 'no rows'}`)
   if ((own.data?.length ?? 0) > 5) failures.push(`authorized dynasty batch exceeded limit: ${own.data.length}`)
-  const wrongMember = await secondClient.rpc('get_dynasty_decision_inputs', rpcArgs)
+  const wrongMember = await secondClient.rpc('get_dynasty_forecast_inputs', rpcArgs)
   if (wrongMember.error || (wrongMember.data?.length ?? 0) !== 0) {
     failures.push(`cross-user dynasty read did not fail closed: ${wrongMember.error?.message ?? `${wrongMember.data.length} rows`}`)
   }

@@ -119,7 +119,6 @@
     "public.finalize_score_week_atomic(uuid,uuid,integer,jsonb,jsonb,timestamp with time zone,timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.generate_invite_code()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.generate_playoff_bracket_atomic(uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
-    "public.get_dynasty_decision_inputs(uuid,uuid,integer,uuid[],text,integer,integer)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_dynasty_forecast_inputs(uuid,uuid,integer,uuid[],text,integer,integer)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_league_activity_feed(uuid,integer,integer)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_league_projection_rows(uuid,integer,date,text,uuid[],integer,integer)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},

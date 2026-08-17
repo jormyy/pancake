@@ -213,7 +213,7 @@
     "HIGH: Native connectivity now uses expo-network and disables both offer confirmation controls after connection loss.",
     "HIGH: Trade analysis now resolves the active league season before its scoped player read.",
     "HIGH: Rankings hide prior-scope rows before season lookup and handle lookup failure inside the request guard.",
-    "MEDIUM: Analyzer snapshots now include user, member, league, strategy, and route identity and display only offline.",
+    "MEDIUM: Analyzer snapshots include user, member, league, active season, scoring, team count, FAAB budget, and route identity.",
     "MEDIUM: Analyzer clears prior-league members and composer state, then rejects invalid participants.",
     "MEDIUM: Trade-pick caches now include user identity.",
     "TEST-DISCOVERED: Trade analysis now blocks a prior league from starting its player read after a scope change.",

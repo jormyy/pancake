@@ -1,5 +1,12 @@
--- Canonical SQL source for public.invoke_dynasty_ranking_views_at_et_time.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- Remove the hidden compatibility layer after the forecast-view release is live.
+
+DROP FUNCTION IF EXISTS public.get_dynasty_decision_inputs(uuid, uuid, int, uuid[], text, int, int);
+
+DELETE FROM public.dynasty_rankings
+ WHERE source IN (
+   'hashtagbasketball.com/contend',
+   'hashtagbasketball.com/rebuild'
+ );
 
 CREATE OR REPLACE FUNCTION public.invoke_dynasty_ranking_views_at_et_time(
   p_hour int,
@@ -22,3 +29,5 @@ BEGIN
   END IF;
 END;
 $$;
+
+ANALYZE public.dynasty_rankings;

@@ -1,10 +1,10 @@
 import { RANKINGS_SOURCE } from './match.ts'
 
-type RankingViewType = 'POINT_5' | 'POINT_3' | 'ROOKIE' | 'POINT' | 'CONTEND' | 'REBUILD'
+type RankingViewType = 'POINT_5' | 'POINT_3' | 'ROOKIE'
 
 export type RankingViewDefinition = {
   type: RankingViewType
-  hashtagType: 'POINT' | 'ROOKIE' | 'CONTEND' | 'REBUILD'
+  hashtagType: 'POINT' | 'ROOKIE'
   forecastSeasons: 3 | 5
   source: string
   minimumRows: number
@@ -17,11 +17,5 @@ export const RANKING_VIEWS_IN_WRITE_ORDER: RankingViewDefinition[] = [
   { type: 'POINT_5', hashtagType: 'POINT', forecastSeasons: 5, source: RANKINGS_SOURCE, minimumRows: 300 },
 ]
 
-const LEGACY_RANKING_VIEWS: RankingViewDefinition[] = [
-  { type: 'POINT', hashtagType: 'POINT', forecastSeasons: 5, source: RANKINGS_SOURCE, minimumRows: 300 },
-  { type: 'CONTEND', hashtagType: 'CONTEND', forecastSeasons: 5, source: `${RANKINGS_SOURCE}/contend`, minimumRows: 300 },
-  { type: 'REBUILD', hashtagType: 'REBUILD', forecastSeasons: 5, source: `${RANKINGS_SOURCE}/rebuild`, minimumRows: 300 },
-]
-
 export const rankingViewForRequest = (type: string): RankingViewDefinition | undefined =>
-  [...RANKING_VIEWS_IN_WRITE_ORDER, ...LEGACY_RANKING_VIEWS].find((view) => view.type === type)
+  RANKING_VIEWS_IN_WRITE_ORDER.find((view) => view.type === type)
