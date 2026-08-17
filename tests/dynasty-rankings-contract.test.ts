@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 const root = path.resolve(import.meta.dirname, '..')
 const screen = readFileSync(path.join(root, 'app/(tabs)/dynasty.tsx'), 'utf8')
 const hook = readFileSync(path.join(root, 'hooks/use-dynasty-rankings.ts'), 'utf8')
+const syncApi = readFileSync(path.join(root, 'supabase/functions/api/sync.ts'), 'utf8')
+const productionDeploy = readFileSync(path.join(root, '.github/workflows/production-deploy.yml'), 'utf8')
 
 describe('Dynasty Rankings product contract', () => {
     it('keeps the required outer tab order', () => {
@@ -18,13 +20,14 @@ describe('Dynasty Rankings product contract', () => {
     })
 
     it('shows the four required ranking views in order', () => {
-        const overall = screen.indexOf("{ label: 'Overall', value: 'overall' }")
+        const points = screen.indexOf("{ label: 'League Points', value: 'overall' }")
         const contend = screen.indexOf("{ label: 'Contend', value: 'contend' }")
         const rebuild = screen.indexOf("{ label: 'Rebuild', value: 'rebuild' }")
         const rookies = screen.indexOf("{ label: 'Rookies & Picks', value: 'rookies-picks' }")
 
-        expect(overall).toBeGreaterThan(-1)
-        expect(contend).toBeGreaterThan(overall)
+        expect(points).toBeGreaterThan(-1)
+        expect(screen).not.toContain("{ label: 'Overall', value: 'overall' }")
+        expect(contend).toBeGreaterThan(points)
         expect(rebuild).toBeGreaterThan(contend)
         expect(rookies).toBeGreaterThan(rebuild)
     })
@@ -39,6 +42,19 @@ describe('Dynasty Rankings product contract', () => {
 
     it('remounts the recycled ranking list when the view changes', () => {
         expect(screen).toContain('key={rankings.view}')
+    })
+
+    it('uses Points as the default manual ranking sync', () => {
+        expect(syncApi).toContain("['CONTEND', 'REBUILD', 'ROOKIE', 'POINT']")
+        expect(syncApi).toContain("?? 'POINT'")
+        expect(syncApi).not.toContain("?? 'OVERALL'")
+    })
+
+    it('imports Points after the new frontend and Edge release pass', () => {
+        expect(productionDeploy).toContain('sync-points-rankings:')
+        expect(productionDeploy).toContain('needs: verify-production')
+        expect(productionDeploy).toContain('--data \'{"view":"POINT"}\'')
+        expect(productionDeploy).toContain('result.rows < 300')
     })
 
     it('hydrates the scoped cache and rejects older responses', () => {

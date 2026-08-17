@@ -8,6 +8,10 @@ import type {
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 export type DynastyDecisionInput = Database['public']['Functions']['get_dynasty_decision_inputs']['Returns'][number]
+export type UnmatchedRookieRanking = Pick<
+    Database['public']['Tables']['dynasty_rankings']['Row'],
+    'id' | 'source_rank' | 'source_player_name' | 'source_team' | 'source_positions' | 'age' | 'fetched_at'
+>
 
 export type DynastyDecisionCacheScope = {
     userId: string
@@ -16,23 +20,24 @@ export type DynastyDecisionCacheScope = {
     seasonYear: number
     strategy: DynastyStrategy
     query: string
+    scoringSignature: string
 }
 
-const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-decisions:v3:'
-const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-decisions-latest:v2:'
-const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v2:'
-const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v1:'
+const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-decisions:v4:'
+const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-decisions-latest:v3:'
+const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v3:'
+const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v2:'
 
 const normalizedQuery = (query: string) => encodeURIComponent(query.trim().toLocaleLowerCase())
 
 export function dynastyDecisionCacheKey(scope: DynastyDecisionCacheScope): string {
-    return `${DYNASTY_DECISION_CACHE_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${scope.strategy}:${normalizedQuery(scope.query)}`
+    return `${DYNASTY_DECISION_CACHE_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${scope.strategy}:${encodeURIComponent(scope.scoringSignature)}:${normalizedQuery(scope.query)}`
 }
 
 export function dynastyDecisionLatestCacheKey(
     scope: Omit<DynastyDecisionCacheScope, 'seasonYear'>,
 ): string {
-    return `${DYNASTY_DECISION_LATEST_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.strategy}:${normalizedQuery(scope.query)}`
+    return `${DYNASTY_DECISION_LATEST_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.strategy}:${encodeURIComponent(scope.scoringSignature)}:${normalizedQuery(scope.query)}`
 }
 
 export function dynastyAnalyzerRouteSignature(items: MultiTeamTradeItemPayload[]): string {
@@ -70,6 +75,12 @@ export function scoringSettingsFromJson(value: Json | null | undefined): Record<
     ))
 }
 
+export function dynastyScoringSignature(value: Json | null | undefined): string {
+    return JSON.stringify(Object.entries(scoringSettingsFromJson(value)).sort(([left], [right]) =>
+        left.localeCompare(right),
+    ))
+}
+
 export function dynastyEngineContext(
     leagueId: string,
     seasonYear: number,
@@ -96,6 +107,11 @@ export function playerAssetFromDecisionInput(row: DynastyDecisionInput): Dynasty
         label: row.display_name,
         age: row.age,
         dynastyRank: row.dynasty_rank,
+        marketRanks: {
+            overall: row.dynasty_rank,
+            contend: row.contend_rank ?? row.dynasty_rank,
+            rebuild: row.rebuild_rank ?? row.dynasty_rank,
+        },
         rankMovement: row.rank_change,
         healthStatus: row.injury_status,
         productionFantasyPoints: row.avg_fantasy_points,
@@ -103,6 +119,18 @@ export function playerAssetFromDecisionInput(row: DynastyDecisionInput): Dynasty
         isRookie: row.years_exp === 0,
         sources,
     }
+}
+
+export async function getUnmatchedRookieRankings(): Promise<UnmatchedRookieRanking[]> {
+    const { data, error } = await supabase
+        .from('dynasty_rankings')
+        .select('id, source_rank, source_player_name, source_team, source_positions, age, fetched_at')
+        .eq('source', 'hashtagbasketball.com/rookie')
+        .is('player_id', null)
+        .order('source_rank', { ascending: true })
+        .limit(100)
+    if (error) throw error
+    return data ?? []
 }
 
 export async function getDynastyDecisionInputs({

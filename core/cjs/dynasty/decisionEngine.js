@@ -71,16 +71,17 @@ function valuePlayer(context, asset) {
     const projectionPoints = fantasyPoints(asset.projectionStats, asset.projectionFantasyPoints, context.scoringSettings);
     const production = finite(productionPoints) ? clamp(productionPoints / 65, 0, 1.15) : 0.45;
     const projection = finite(projectionPoints) ? clamp(projectionPoints / 65, 0, 1.15) : production;
-    const market = normalizedRank(asset.dynastyRank);
+    const market = normalizedRank(asset.marketRanks?.overall ?? asset.dynastyRank);
     const age = normalizedAge(asset.age);
     const health = healthMultiplier(asset.healthStatus);
     const movement = movementMultiplier(asset.rankMovement);
     const replacementValue = clamp(context.replacementValue ?? 180, 0, 500);
     const values = Object.fromEntries(exports.DYNASTY_STRATEGIES.map((strategy) => {
         const weights = exports.DYNASTY_STRATEGY_WEIGHTS[strategy];
+        const strategyMarket = normalizedRank(asset.marketRanks?.[strategy] ?? asset.dynastyRank);
         const raw = 1000 * (production * weights.production +
             projection * weights.projection +
-            market * weights.market +
+            strategyMarket * weights.market +
             age * weights.age);
         return [strategy, round(clamp(raw * health * movement, 0, 1000))];
     }));

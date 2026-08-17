@@ -5,6 +5,7 @@ import {
     dynastyAnalyzerSnapshotCacheKey,
     dynastyAnalyzerRouteSignature,
     dynastyDecisionCacheKey,
+    dynastyScoringSignature,
     playerAssetFromDecisionInput,
     scoringSettingsFromJson,
     type DynastyDecisionInput,
@@ -14,7 +15,7 @@ describe('dynasty decision data contract', () => {
     it('isolates rankings by user, member, league, season, strategy, and query', () => {
         const base = {
             userId: 'user-a', memberId: 'member-a', leagueId: 'league-a', seasonYear: 2026,
-            strategy: 'overall' as const, query: ' Young Star ',
+            strategy: 'overall' as const, query: ' Young Star ', scoringSignature: '[["points",1]]',
         }
         const key = dynastyDecisionCacheKey(base)
 
@@ -24,6 +25,7 @@ describe('dynasty decision data contract', () => {
         expect(key).not.toBe(dynastyDecisionCacheKey({ ...base, seasonYear: 2027 }))
         expect(key).not.toBe(dynastyDecisionCacheKey({ ...base, strategy: 'rebuild' }))
         expect(key).not.toBe(dynastyDecisionCacheKey({ ...base, query: 'Veteran' }))
+        expect(key).not.toBe(dynastyDecisionCacheKey({ ...base, scoringSignature: '[["points",2]]' }))
         expect(key).toContain('young%20star')
     })
 
@@ -48,9 +50,17 @@ describe('dynasty decision data contract', () => {
         })
     })
 
+    it('creates a stable scoring signature', () => {
+        expect(dynastyScoringSignature({ points: 1, assists: 1.5 })).toBe(
+            dynastyScoringSignature({ assists: 1.5, points: 1 }),
+        )
+        expect(dynastyScoringSignature({ points: 1 })).not.toBe(dynastyScoringSignature({ points: 2 }))
+    })
+
     it('maps one batched row into the shared engine input', () => {
         const row = {
             player_id: 'player-1', display_name: 'Player One', age: 22, dynasty_rank: 8,
+            contend_rank: 12, rebuild_rank: 4,
             rank_change: 2, injury_status: null, avg_fantasy_points: 41,
             projection_fantasy_points: 44, years_exp: 0, ranking_source: 'rankings',
             ranking_fetched_at: '2026-08-16T00:00:00Z', projection_source: 'projections',
@@ -60,6 +70,7 @@ describe('dynasty decision data contract', () => {
         expect(playerAssetFromDecisionInput(row)).toMatchObject({
             kind: 'player', id: 'player-1', label: 'Player One', age: 22, dynastyRank: 8,
             rankMovement: 2, productionFantasyPoints: 41, projectionFantasyPoints: 44, isRookie: true,
+            marketRanks: { overall: 8, contend: 12, rebuild: 4 },
         })
     })
 })

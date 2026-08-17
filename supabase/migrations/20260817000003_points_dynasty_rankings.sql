@@ -1,5 +1,6 @@
--- Canonical SQL source for public.invoke_dynasty_ranking_views_at_et_time.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- Make Hashtag's points-league rankings the canonical dynasty source.
+
+-- Canonical SQL source: supabase/sql/functions/by-name/public/invoke_dynasty_ranking_views_at_et_time.sql
 
 CREATE OR REPLACE FUNCTION public.invoke_dynasty_ranking_views_at_et_time(
   p_hour int,
@@ -23,3 +24,8 @@ BEGIN
   END IF;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) FROM anon;
+REVOKE ALL ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) TO service_role;

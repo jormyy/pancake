@@ -17,7 +17,7 @@ import { generateAllMatchups } from './matchups.ts'
 import { todayET } from '../_shared/date.ts'
 import { statsSyncRange } from '../_shared/statsSyncJob.ts'
 
-const DYNASTY_RANKING_VIEWS = ['CONTEND', 'REBUILD', 'ROOKIE', 'OVERALL'] as const
+const DYNASTY_RANKING_VIEWS = ['CONTEND', 'REBUILD', 'ROOKIE', 'POINT'] as const
 
 async function requireAdminUser(req: Request): Promise<void> {
   const userId = await requireUser(req)
@@ -55,7 +55,7 @@ async function syncBackfill(body: Record<string, unknown>): Promise<unknown> {
 }
 
 async function syncRankings(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const requested = optionalStringField(body, 'view')?.toUpperCase() ?? 'OVERALL'
+  const requested = optionalStringField(body, 'view')?.toUpperCase() ?? 'POINT'
   if (!DYNASTY_RANKING_VIEWS.some((view) => view === requested)) {
     throw new Error(`Unknown ranking view: ${requested}`)
   }
