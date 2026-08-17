@@ -37,6 +37,10 @@ describe('Dynasty Rankings product contract', () => {
         expect(screen).toContain('Missing {player.missingInputs.join')
     })
 
+    it('remounts the recycled ranking list when the view changes', () => {
+        expect(screen).toContain('key={rankings.view}')
+    })
+
     it('hydrates the scoped cache and rejects older responses', () => {
         expect(hook).toContain('readPersistentCache<DynastyRankingsCache>')
         expect(hook).toContain('requestSeqRef.current !== requestId')

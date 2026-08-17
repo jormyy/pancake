@@ -446,6 +446,7 @@ export default function DynastyScreen() {
                             </View>
                         ) : (
                             <FlashList
+                                key={rankings.view}
                                 data={rankings.players}
                                 extraData={[showStats, narrowLayout]}
                                 keyExtractor={(player) => player.rankingId}
