@@ -8,6 +8,7 @@ import {
     createMultiTeamTradeState,
     multiTeamTradeReducer,
     multiTeamTradeStateFromTrade,
+    multiTeamTradeStateFromItems,
     resolvedDestination,
 } from '@/lib/multi-team-trade-state'
 import { isTradeableRosterPlayer } from '@/lib/trade-assets'
@@ -123,6 +124,10 @@ export function useMultiTeamTradeComposer({
 
     const prefillFromTrade = useCallback((trade: Trade, actorMemberId = myMemberId) => {
         dispatch({ type: 'prefill', state: multiTeamTradeStateFromTrade(trade, actorMemberId) })
+    }, [myMemberId])
+
+    const prefillFromItems = useCallback((participantIds: string[], items: ReturnType<typeof buildMultiTeamTradeItems>) => {
+        dispatch({ type: 'prefill', state: multiTeamTradeStateFromItems(myMemberId, participantIds, items) })
     }, [myMemberId])
 
     const setParticipantDestination = useCallback((memberId: string, toMemberId: string) => {
@@ -275,6 +280,7 @@ export function useMultiTeamTradeComposer({
         assetsReady,
         reset,
         prefillFromTrade,
+        prefillFromItems,
         retry,
         toggleParticipant,
         setParticipantIds,

@@ -1,7 +1,7 @@
 import type { RosterPlayer } from '@/lib/roster'
 import type { TradePickItem } from '@/lib/trades'
 
-export type TradeTabKey = 'picks' | 'offers' | 'history' | 'block' | 'leagueBlock'
+export type TradeTabKey = 'picks' | 'offers' | 'analyzer' | 'history' | 'block' | 'leagueBlock'
 
 export type TradeComposerMember = {
     id: string

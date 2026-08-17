@@ -14,7 +14,7 @@ const readyPredicates = {
   'roster-review-manage': `document.querySelector('[aria-label="Set lineup automatically"]') && !body.includes('Loading roster')`,
   'waiver-add-claim': `body.includes('Waiver Claim') && document.querySelector('[aria-label="Submit waiver claim"]') && !body.includes('Loading')`,
   'trade-review-act': `label === 'propose-trade'
-    ? document.querySelector('[aria-label="Send trade proposal"]') && !body.includes('Loading trade assets')
+    ? document.querySelector('[aria-label="Review trade proposal"]') && !body.includes('Loading trade assets')
     : document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Trades' && document.querySelector('[role="tablist"]') && !body.includes('Loading trades')`,
   'auction-draft-room': `body.includes('Auction Draft') && (document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]') || document.querySelector('[aria-label="Pause draft"]') || (label === 'draft-room-initial' && document.querySelector('[aria-label="Resume draft"]')))`,
   'rookie-draft-room': `document.querySelector('[aria-label="Show prospects"]') && document.querySelector('[aria-label="Show pick board"]') && !body.includes('Loading prospects')`,

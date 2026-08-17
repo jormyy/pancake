@@ -261,8 +261,9 @@ export async function runBrowserTradeFuturePickScenario({
     await browser(session, ['wait', '500'])
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-selected.png')], { timeout: 60_000 })
     const submitClick = await clickTestId(session, 'trade-submit', 'future-pick trade proposal submit')
+    const confirmClick = await clickTestId(session, 'trade-confirm-submit', 'future-pick trade proposal confirm')
     const tradeProposal = await waitForFuturePickTradeProposal(futureFixture)
-    debug = { ...debug, recipientTabClick, proposerTabClick, requestPickClick, offerPickClick, submitClick, tradeProposal }
+    debug = { ...debug, recipientTabClick, proposerTabClick, requestPickClick, offerPickClick, submitClick, confirmClick, tradeProposal }
     if (tradeProposal.failures.length > 0) {
       throw new Error(`future-pick trade proposal did not persist: ${tradeProposal.failures.join('; ')}`)
     }

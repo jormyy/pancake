@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
+import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS, type DynastyStrategy } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
+import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
+import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
 import { getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
@@ -34,6 +36,7 @@ import {
     proposeMultiTeamTrade,
     proposeTrade,
 } from '@/lib/trades'
+import { takeTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
 
 export default function ProposeTradeScreen() {
     const { current, currentLeague } = useLeagueContext()
@@ -43,6 +46,7 @@ export default function ProposeTradeScreen() {
         counterTradeId?: string
         requestPlayerId?: string
         requestPickId?: string
+        analyzerDraftId?: string
     }>()
     const { back } = useRouter()
     const myMemberId = current?.id ?? ''
@@ -56,12 +60,14 @@ export default function ProposeTradeScreen() {
     const [membersError, setMembersError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
+    const [analysisStrategy, setAnalysisStrategy] = useState<DynastyStrategy>('overall')
     const ownerIdentity = myMemberId && leagueId ? `${leagueId}:${myMemberId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
     const mountedRef = useRef(false)
     const submissionRef = useRef<{ ownerIdentity: string; token: symbol } | null>(null)
     const routePrefillKeyRef = useRef<string | null>(null)
+    const analyzerDraftKeyRef = useRef<string | null>(null)
     const membersRequestRef = useRef(0)
     const { mode, editTradeId, counterTradeId, sourceTradeId } = getTradeComposerMode(params)
     const canUseMultiTeamMode = mode === 'propose'
@@ -79,6 +85,7 @@ export default function ProposeTradeScreen() {
         participantIds,
         participantViews,
         prefillFromTrade,
+        prefillFromItems,
         reset,
         selectParticipantAsset,
         setParticipantIds,
@@ -132,6 +139,19 @@ export default function ProposeTradeScreen() {
         if (multiTeamMode || !selectedRecipientId || !myMemberId) return
         setParticipantIds([myMemberId, selectedRecipientId])
     }, [multiTeamMode, myMemberId, selectedRecipientId, setParticipantIds])
+
+    useEffect(() => {
+        if (!params.analyzerDraftId || analyzerDraftKeyRef.current === params.analyzerDraftId) return
+        analyzerDraftKeyRef.current = params.analyzerDraftId
+        const draft = takeTradeAnalyzerDraft(params.analyzerDraftId)
+        if (!draft || draft.leagueId !== leagueId || draft.actorMemberId !== myMemberId) return
+        setAnalysisStrategy(draft.strategy)
+        setMultiTeamMode(draft.participantMemberIds.length > 2)
+        setSelectedRecipientId(draft.participantMemberIds.length === 2
+            ? draft.participantMemberIds.find((id) => id !== myMemberId) ?? null
+            : null)
+        prefillFromItems(draft.participantMemberIds, draft.items)
+    }, [leagueId, myMemberId, params.analyzerDraftId, prefillFromItems])
 
     useEffect(() => {
         if (!sourceTradeId || !myMemberId) return
@@ -195,6 +215,17 @@ export default function ProposeTradeScreen() {
     }, [multiTeamMode, toggleParticipant])
 
     const items = composer.buildMultiTeamItems()
+    const tradeAnalysis = useDynastyTradeAnalysis({
+        enabled: composer.assetsReady,
+        leagueId,
+        memberId: myMemberId,
+        scoringSettings: currentLeague?.scoring_settings,
+        teams: Math.max(4, members.length + 1),
+        faabBudget: currentLeague?.faab_starting_budget ?? 100,
+        strategy: analysisStrategy,
+        participants: composer.participantViews,
+        items,
+    })
     const notesError = validateTradeNotes(notes).error
     const expirationError = validateTradeExpirationDays(expirationDays).error
     const twoTeamDraft = selectedRecipientId
@@ -332,16 +363,16 @@ export default function ProposeTradeScreen() {
                     </Pressable>
                     <Text style={styles.headerTitle} numberOfLines={1}>{tradeComposerTitle(mode)}</Text>
                     <Pressable
-                        onPress={multiTeamMode ? () => setReviewing(true) : handleSubmit}
+                        onPress={() => setReviewing(true)}
                         style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
                         disabled={!canSubmit}
                         accessibilityRole="button"
-                        accessibilityLabel={multiTeamMode ? 'Review multi-team trade' : 'Send trade proposal'}
+                        accessibilityLabel="Review trade proposal"
                         testID="trade-submit"
                         id="trade-submit"
                     >
                         <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>
-                            {multiTeamMode ? 'Review' : 'Send'}
+                            Review
                         </Text>
                     </Pressable>
                 </View>
@@ -427,6 +458,8 @@ export default function ProposeTradeScreen() {
                         framed
                     />
                 ) : null}
+                <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+                    loading={tradeAnalysis.loading} />
                 <View style={styles.bottomSpace} />
             </ScrollView>
             {reviewing ? (
@@ -453,7 +486,7 @@ export default function ProposeTradeScreen() {
                                     style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
                                     disabled={!canSubmit}
                                     accessibilityRole="button"
-                                    accessibilityLabel="Confirm and send multi-team trade"
+                                    accessibilityLabel="Confirm and send trade"
                                     testID="trade-confirm-submit"
                                     id="trade-confirm-submit"
                                 >
@@ -462,6 +495,8 @@ export default function ProposeTradeScreen() {
                             </View>
                         </View>
                         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                            <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+                                loading={tradeAnalysis.loading} />
                             <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
                         </ScrollView>
                     </SafeAreaView>

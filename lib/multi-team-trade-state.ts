@@ -78,6 +78,38 @@ export function createMultiTeamTradeState(actorMemberId: string): MultiTeamTrade
     }
 }
 
+export function multiTeamTradeStateFromItems(
+    actorMemberId: string,
+    participantIds: string[],
+    items: MultiTeamTradeItemPayload[],
+): MultiTeamTradeState {
+    const ordered = [actorMemberId, ...participantIds.filter((id) => id !== actorMemberId)].filter(Boolean)
+    let state = reconcileParticipants(createMultiTeamTradeState(actorMemberId), ordered)
+    for (const item of items) {
+        if (!state.participants[item.fromMemberId] || !ordered.includes(item.toMemberId)) continue
+        if (item.kind === 'faab') {
+            state = multiTeamTradeReducer(state, {
+                type: 'set-faab',
+                memberId: item.fromMemberId,
+                toMemberId: item.toMemberId,
+                value: String(item.faabAmount),
+            })
+            continue
+        }
+        const asset = item.kind === 'player' ? 'player' : 'pick'
+        const assetId = item.kind === 'player' ? item.playerId : item.pickId
+        state = multiTeamTradeReducer(state, { type: 'select-asset', asset, memberId: item.fromMemberId, assetId })
+        state = multiTeamTradeReducer(state, {
+            type: 'set-asset-destination',
+            asset,
+            memberId: item.fromMemberId,
+            assetId,
+            toMemberId: item.toMemberId,
+        })
+    }
+    return state
+}
+
 function defaultDestinationFor(memberId: string, participantIds: string[]): string {
     if (participantIds.length < 2) return ''
     const currentIndex = participantIds.indexOf(memberId)

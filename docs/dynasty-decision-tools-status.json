@@ -1,16 +1,22 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-16T21:28:00-07:00",
+  "updatedAt": "2026-08-16T21:42:00-07:00",
   "progress": {
-    "completed": 0,
+    "completed": 1,
     "total": 2,
-    "line": "0/2"
+    "line": "1/2"
   },
   "features": {
     "dynastyRankings": {
-      "status": "active",
-      "verifiedCommit": null,
-      "evidence": []
+      "status": "passed",
+      "verifiedCommit": "1df8f0d",
+      "evidence": [
+        "PASS: 104 test files, 607 tests",
+        "PASS: typecheck, core typecheck, and lint",
+        "PASS: desktop 1440x1000 and mobile 390x844 browser checks",
+        "PASS: four 2027 unknown-slot pick ranges",
+        "PASS: cached offline rankings and clean online session"
+      ]
     },
     "tradeAnalyzer": {
       "status": "pending",
@@ -54,11 +60,11 @@
       }
     ],
     "conditions": {
-      "cold": "pending browser baseline",
-      "warm": "pending browser baseline",
-      "offline": "pending browser baseline",
-      "mobile": "pending browser baseline",
-      "desktop": "pending browser baseline"
+      "cold": "PASS: production export loaded with 600 league-scored rows",
+      "warm": "PASS: tab feedback measured at 2.2 to 4.5 ms",
+      "offline": "PASS: cached Overall view remained readable",
+      "mobile": "PASS: 390x844 ranking and pick-range checks",
+      "desktop": "PASS: 1440x1000 ranking and pick-range checks"
     }
   },
   "waveCommits": [
@@ -66,6 +72,16 @@
       "wave": 0,
       "commit": "28d028a",
       "result": "PASS: contracts and baseline record"
+    },
+    {
+      "wave": 1,
+      "commit": "129506c",
+      "result": "PASS: shared engine, scoped data RPC, parity, and database checks"
+    },
+    {
+      "wave": 2,
+      "commit": "1df8f0d",
+      "result": "PASS: league-scored ranking views and cache behavior"
     }
   ],
   "forcedRedChecks": [
@@ -80,9 +96,23 @@
     "databaseHotQuery": {
       "budgetMs": 100,
       "result": "PASS in tests/db/dynasty-decision-inputs.sql"
+    },
+    "rankingTabFeedback": {
+      "budgetMs": 100,
+      "result": "PASS: 2.2 to 4.5 ms"
+    },
+    "rankingWarmNavigation": {
+      "budgetMs": 300,
+      "result": "PASS: navigation duration 15.3 ms; FCP 56 ms"
     }
   },
-  "browserEvidence": [],
+  "browserEvidence": [
+    "/tmp/pancake-dynasty-wave2-evidence/desktop-pick-ranges.png",
+    "/tmp/pancake-dynasty-wave2-evidence/mobile-rookies-picks.png",
+    "/tmp/pancake-dynasty-wave2-evidence/mobile-offline-cached.png",
+    "/tmp/pancake-dynasty-wave2-evidence/desktop-reconnect-clean.png",
+    "/tmp/pancake-dynasty-wave2-evidence/desktop-reconnect-clean.txt"
+  ],
   "fixedFindings": [],
   "notReproducibleFindings": [],
   "blockers": []
