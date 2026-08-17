@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-16T21:17:00-07:00",
+  "progress": {
+    "completed": 0,
+    "total": 2,
+    "line": "0/2"
+  },
+  "features": {
+    "dynastyRankings": {
+      "status": "active",
+      "verifiedCommit": null,
+      "evidence": []
+    },
+    "tradeAnalyzer": {
+      "status": "pending",
+      "verifiedCommit": null,
+      "evidence": []
+    }
+  },
+  "releaseGates": {
+    "soak20Seasons": {
+      "status": "pending",
+      "result": null,
+      "durationMs": null,
+      "evidence": []
+    },
+    "agentBrowserWalkthrough": {
+      "status": "pending",
+      "session": null,
+      "productionUrl": null,
+      "evidence": []
+    }
+  },
+  "baseline": {
+    "commit": "d868e9f56a9d05ed4808ebbc804f9f697526ba41",
+    "commands": [
+      {
+        "command": "npm test",
+        "result": "PASS: 101 files, 598 tests",
+        "durationMs": 1680
+      },
+      {
+        "command": "npm run typecheck && npm run typecheck:e2e && npm run lint:all",
+        "result": "PASS"
+      },
+      {
+        "command": "npm run perf:budget",
+        "result": "PASS"
+      },
+      {
+        "command": "supabase status",
+        "result": "PASS: local stack running"
+      }
+    ],
+    "conditions": {
+      "cold": "pending browser baseline",
+      "warm": "pending browser baseline",
+      "offline": "pending browser baseline",
+      "mobile": "pending browser baseline",
+      "desktop": "pending browser baseline"
+    }
+  },
+  "waveCommits": [],
+  "forcedRedChecks": [],
+  "timings": {},
+  "browserEvidence": [],
+  "fixedFindings": [],
+  "notReproducibleFindings": [],
+  "blockers": []
+}
