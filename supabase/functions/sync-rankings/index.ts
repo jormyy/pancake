@@ -3,8 +3,13 @@ import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { buildDynastyRankingPayload, type PlayerForRanking } from './match.ts'
-import { parseDynastyRankingOrderHtml, parseDynastyRankingsHtml, selectedDynastyRankingType } from './parser.ts'
-import { RANKING_VIEWS_IN_WRITE_ORDER, type RankingViewDefinition } from './views.ts'
+import {
+  parseDynastyRankingOrderHtml,
+  parseDynastyRankingsHtml,
+  selectedDynastyForecastSeasons,
+  selectedDynastyRankingType,
+} from './parser.ts'
+import { RANKING_VIEWS_IN_WRITE_ORDER, rankingViewForRequest, type RankingViewDefinition } from './views.ts'
 import * as cheerio from 'npm:cheerio@1.2.0'
 
 const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
@@ -23,8 +28,8 @@ async function syncRankingView(view: RankingViewDefinition): Promise<number> {
   console.log(`[sync-rankings] Scraping published ${view.type} rankings...`)
   const [baseHtml, players] = await Promise.all([fetchRankingsHtml(), fetchPlayersForRanking()])
   const fetchedAt = new Date().toISOString()
-  const html = await fetchRankingViewHtml(baseHtml, view.type)
-  const rankings = view.type === 'POINT'
+  const html = await fetchRankingViewHtml(baseHtml, view)
+  const rankings = view.hashtagType === 'POINT'
     ? parseDynastyRankingsHtml(html)
     : parseDynastyRankingOrderHtml(html)
   if (rankings.length < view.minimumRows) {
@@ -44,7 +49,7 @@ async function requestedRankingView(req: Request): Promise<RankingViewDefinition
   if (!body || body.view == null) return null
   if (typeof body.view !== 'string') throw new Error('Ranking view must be a string')
   const requested = body.view.trim().toUpperCase()
-  const view = RANKING_VIEWS_IN_WRITE_ORDER.find((candidate) => candidate.type === requested)
+  const view = rankingViewForRequest(requested)
   if (!view) throw new Error(`Unknown ranking view: ${body.view}`)
   return view
 }
@@ -76,9 +81,10 @@ async function fetchRankingsHtml(): Promise<string> {
   return res.text()
 }
 
-async function fetchRankingViewHtml(html: string, rankingType: RankingViewDefinition['type']): Promise<string> {
+async function fetchRankingViewHtml(html: string, view: RankingViewDefinition): Promise<string> {
   const form = buildAspNetRankingForm(html)
-  form.set('ctl00$ContentPlaceHolder1$DDTYPE', rankingType)
+  form.set('ctl00$ContentPlaceHolder1$DDTYPE', view.hashtagType)
+  form.set('ctl00$ContentPlaceHolder1$DDFORECAST', String(view.forecastSeasons))
 
   const res = await fetchWithRetry(RANKINGS_URL, {
     method: 'POST',
@@ -90,11 +96,14 @@ async function fetchRankingViewHtml(html: string, rankingType: RankingViewDefini
     },
     body: form,
   })
-  if (!res.ok) throw new Error(`${rankingType} rankings fetch ${res.status}`)
+  if (!res.ok) throw new Error(`${view.type} rankings fetch ${res.status}`)
   const responseHtml = await res.text()
   const selectedType = selectedDynastyRankingType(responseHtml)
-  if (selectedType !== rankingType) {
-    throw new Error(`Requested ${rankingType} rankings but Hashtag selected ${selectedType ?? 'unknown'}`)
+  const selectedForecast = selectedDynastyForecastSeasons(responseHtml)
+  if (selectedType !== view.hashtagType || selectedForecast !== view.forecastSeasons) {
+    throw new Error(
+      `Requested ${view.hashtagType}/${view.forecastSeasons} but Hashtag selected ${selectedType ?? 'unknown'}/${selectedForecast ?? 'unknown'}`,
+    )
   }
   return responseHtml
 }
@@ -110,13 +119,13 @@ async function replaceRankingView(
     p_fetched_at: fetchedAt,
     p_rows: rows,
     p_min_rows: view.minimumRows,
-    p_scoring_format: view.type === 'POINT' ? 'points' : 'overall',
+    p_scoring_format: view.hashtagType === 'POINT' ? 'points' : 'overall',
     p_source_url: RANKINGS_URL,
     p_source_metadata: {
       requestedRankingType: view.type,
-      selectedRankingType: view.type,
+      selectedRankingType: view.hashtagType,
       requestMethod: 'POST',
-      forecastSeasons: 5,
+      forecastSeasons: view.forecastSeasons,
       matchedPlayers: matched,
     },
   })

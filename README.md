@@ -141,8 +141,10 @@ regular-season filtering.
 Player discovery uses the `search_players` Postgres RPC as the canonical read path,
 backed by the `analytics.mv_player_avg_fantasy_points` materialized view (refreshed
 daily, with a fresh-league seeding trigger so new leagues are populated immediately).
-The Dynasty Hub reads `dynasty_rankings`, replaced atomically by the service-role-only
-`replace_dynasty_rankings` RPC. Retention (`prune_unbounded_history`, weekly cron)
+The Dynasty Hub loads 5-year Points, 3-year Points, and Rookie ranks in one authorized
+batch. It preserves the published Hashtag order and filters each tab in memory. The
+service-role-only `replace_dynasty_rankings` RPC replaces each source atomically.
+Retention (`prune_unbounded_history`, weekly cron)
 prunes only rows the product never reads: ops telemetry past its window, lineups older
 than two seasons, old-season non-final standings snapshots, and transactions older than
 three seasons.

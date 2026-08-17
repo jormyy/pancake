@@ -67,9 +67,10 @@ All runtime backend traffic targets the single Edge boundary:
 | Surface | Owner | Auth | Purpose |
 | --- | --- | --- | --- |
 | `search_players` RPC | Postgres migration `20260629000001_player_search_dynasty_news.sql` | authenticated | Canonical player-pool search with indexed name/stat sorting, availability scopes, health/team/playing-day filters, rookies, and no-stat player inclusion |
-| `dynasty_rankings` table | Hashtag Basketball via `sync-rankings` | authenticated read, service-role write | Points, Contend, Rebuild, and Rookie source rows with rank, optional player match, stats, comments, and sync time |
-| `replace_dynasty_rankings` RPC | Postgres migration `20260630000002_replace_dynasty_rankings_rpc.sql` | service-role only | Atomic replacement path for Hashtag dynasty rankings; validates rank payloads, deletes stale source rows, and refreshes `players.dynasty_rank` |
-| `players.dynasty_rank` | Hashtag Basketball Points via `replace_dynasty_rankings` | authenticated read | Denormalized points-league dynasty rank for player detail context and legacy surfaces |
+| `dynasty_rankings` table | Hashtag Basketball via `sync-rankings` | authenticated read, service-role write | 5-year Points, 3-year Points, and Rookie source rows with rank, optional player match, stats, comments, and sync time |
+| `replace_dynasty_rankings` RPC | Postgres migration `20260817000004_dynasty_forecast_views.sql` | service-role only | Atomically replaces one Hashtag view and refreshes `players.dynasty_rank` only from canonical 5-year Points |
+| `get_dynasty_forecast_inputs` RPC | Postgres migration `20260817000004_dynasty_forecast_views.sql` | authenticated league member | Loads all three ranks, production, and projections in one bounded batch |
+| `players.dynasty_rank` | Hashtag Basketball 5-year Points via `replace_dynasty_rankings` | authenticated read | Denormalized 5-year Points rank for player and draft context |
 | `dynasty_news` table | service-role sync/admin paths | authenticated read, service-role write | Curated Dynasty Hub player-movement news |
 | `get_member_transaction_state` RPC | Postgres migration `20260701000003_dynasty_transactions_schema.sql` | authenticated league member | Weekly add count, add limit, waiver mode, FAAB balance, and roster-size state for transaction UI |
 | `get_league_activity_feed` RPC | Postgres migration `20260701000003_dynasty_transactions_schema.sql` | authenticated league member | Normalized paginated feed combining release transaction and league activity rows |

@@ -18,8 +18,10 @@ BEGIN
      AND EXTRACT(MINUTE FROM v_now)::int = p_minute THEN
     PERFORM public.invoke_edge_function('sync-rankings', '{"view":"CONTEND"}'::jsonb);
     PERFORM public.invoke_edge_function('sync-rankings', '{"view":"REBUILD"}'::jsonb);
-    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"ROOKIE"}'::jsonb);
     PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT"}'::jsonb);
+    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT_3"}'::jsonb);
+    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"ROOKIE"}'::jsonb);
+    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT_5"}'::jsonb);
   END IF;
 END;
 $$;

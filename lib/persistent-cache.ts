@@ -18,6 +18,7 @@ const PREFIX_LIMITS = [
     ['pancake:dynasty-decisions-latest:', 8],
     ['pancake:dynasty-analyzer-snapshot:', 4],
     ['pancake:dynasty-analyzer-latest:', 4],
+    ['pancake:dynasty-analyzer-scope:', 4],
     ['pancake:player-screen:', 12],
     ['pancake:player-support:', 4],
     ['pancake:home-matchup:', 4],

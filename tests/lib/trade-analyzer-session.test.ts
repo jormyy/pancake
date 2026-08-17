@@ -20,7 +20,6 @@ describe('trade analyzer handoff', () => {
             actorMemberId: 'me',
             participantMemberIds: ['me', 'them'],
             items,
-            strategy: 'rebuild' as const,
         }
         const id = saveTradeAnalyzerDraft(draft)
         expect(takeTradeAnalyzerDraft(id)).toEqual(draft)

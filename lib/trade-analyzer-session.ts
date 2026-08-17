@@ -1,4 +1,3 @@
-import type { DynastyStrategy } from '@pancake/core'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 export type TradeAnalyzerDraft = {
@@ -6,7 +5,6 @@ export type TradeAnalyzerDraft = {
     actorMemberId: string
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
-    strategy: DynastyStrategy
 }
 
 const drafts = new Map<string, TradeAnalyzerDraft>()

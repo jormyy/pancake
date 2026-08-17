@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS, type DynastyStrategy } from '@pancake/core'
+import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
@@ -60,7 +60,6 @@ export default function ProposeTradeScreen() {
     const [membersError, setMembersError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
-    const [analysisStrategy, setAnalysisStrategy] = useState<DynastyStrategy>('overall')
     const ownerIdentity = myMemberId && leagueId ? `${leagueId}:${myMemberId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
@@ -145,7 +144,6 @@ export default function ProposeTradeScreen() {
         analyzerDraftKeyRef.current = params.analyzerDraftId
         const draft = takeTradeAnalyzerDraft(params.analyzerDraftId)
         if (!draft || draft.leagueId !== leagueId || draft.actorMemberId !== myMemberId) return
-        setAnalysisStrategy(draft.strategy)
         setMultiTeamMode(draft.participantMemberIds.length > 2)
         setSelectedRecipientId(draft.participantMemberIds.length === 2
             ? draft.participantMemberIds.find((id) => id !== myMemberId) ?? null
@@ -222,7 +220,6 @@ export default function ProposeTradeScreen() {
         scoringSettings: currentLeague?.scoring_settings,
         teams: Math.max(4, members.length + 1),
         faabBudget: currentLeague?.faab_starting_budget ?? 100,
-        strategy: analysisStrategy,
         participants: composer.participantViews,
         items,
     })

@@ -39,9 +39,8 @@ export type DynastyRankPlayer = {
     isDraftPick: boolean
     isRookie?: boolean
     sourceRanks?: {
-        overall: number | null
-        contend: number | null
-        rebuild: number | null
+        fiveYear: number | null
+        threeYear: number | null
         rookie: number | null
     }
     strategyValues?: Record<DynastyStrategy, number>

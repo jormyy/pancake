@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     analyzeDynastyTrade,
-    type DynastyStrategy,
     type DynastyTradeAnalysis,
     type DynastyTradeRoute,
 } from '@pancake/core'
@@ -23,13 +22,13 @@ type Input = {
     scoringSettings: Json | null | undefined
     teams: number
     faabBudget: number
-    strategy: DynastyStrategy
     participants: TradeParticipantView[]
     items: MultiTeamTradeItemPayload[]
 }
 
 export function useDynastyTradeAnalysis(input: Input): {
     analysis: DynastyTradeAnalysis | null
+    seasonYear: number | null
     loading: boolean
     error: string | null
 } {
@@ -148,11 +147,11 @@ export function useDynastyTradeAnalysis(input: Input): {
         })
         return analyzeDynastyTrade(
             dynastyEngineContext(input.leagueId, seasonYear, input.scoringSettings),
-            input.strategy,
+            'overall',
             routes,
         )
     }, [input.enabled, input.faabBudget, input.items, input.leagueId, input.participants,
-        input.scoringSettings, input.strategy, input.teams, rows, seasonYear])
+        input.scoringSettings, input.teams, rows, seasonYear])
 
-    return { analysis, loading, error }
+    return { analysis, seasonYear, loading, error }
 }

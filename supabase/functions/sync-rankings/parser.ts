@@ -204,6 +204,12 @@ export function selectedDynastyRankingType(html: string): string | null {
   return $('#ContentPlaceHolder1_DDTYPE option[selected]').attr('value') ?? null
 }
 
+export function selectedDynastyForecastSeasons(html: string): number | null {
+  const $ = cheerio.load(html)
+  const value = Number($('#ContentPlaceHolder1_DDFORECAST option[selected]').attr('value'))
+  return value === 3 || value === 5 ? value : null
+}
+
 function hasExpectedStatLabels($: cheerio.CheerioAPI, cell: CheerioSelection): boolean {
   const labels = cell.find('.dyn-statgrid td .lbl')
     .map((_, label) => cleanText($(label).text()).toUpperCase())

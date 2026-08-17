@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import type { DynastyStrategy, DynastyTradeAnalysis } from '@pancake/core'
+import type { DynastyTradeAnalysis } from '@pancake/core'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -14,8 +13,11 @@ import { useOnlineStatus } from '@/hooks/use-online-status'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import {
     dynastyAnalyzerLatestRouteCacheKey,
+    dynastyAnalyzerLatestScopeCacheKey,
     dynastyAnalyzerRouteSignature,
     dynastyAnalyzerSnapshotCacheKey,
+    dynastyScoringSignature,
+    type DynastyAnalyzerCacheScope,
 } from '@/lib/dynasty-decisions'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { saveTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
@@ -30,12 +32,6 @@ type Snapshot = {
     memberId: string
 }
 
-const STRATEGIES: SegmentOption<DynastyStrategy>[] = [
-    { label: 'Overall', value: 'overall' },
-    { label: 'Contend', value: 'contend' },
-    { label: 'Rebuild', value: 'rebuild' },
-]
-
 export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade | null }) {
     const { push } = useRouter()
     const { user } = useAuth()
@@ -45,7 +41,6 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const online = useOnlineStatus()
     const [members, setMembers] = useState<TradeComposerMember[]>([])
     const [networkUnavailable, setNetworkUnavailable] = useState(false)
-    const [strategy, setStrategy] = useState<DynastyStrategy>('overall')
     const [multiTeamMode, setMultiTeamMode] = useState(false)
     const [notes, setNotes] = useState('')
     const [expirationDays, setExpirationDays] = useState('3')
@@ -66,27 +61,47 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const prefillFromTrade = composer.prefillFromTrade
     const items = composer.buildMultiTeamItems()
     const networkAvailable = online && !networkUnavailable
-    const routeSignature = dynastyAnalyzerRouteSignature(items)
-    const latestRouteKey = user?.id && myMemberId && leagueId
-        ? dynastyAnalyzerLatestRouteCacheKey(user.id, myMemberId, leagueId, strategy)
-        : null
-    const lastRouteSignature = latestRouteKey ? readPersistentCache<string>(latestRouteKey) : null
-    const cacheRouteSignature = routeSignature || (!networkAvailable ? lastRouteSignature : null)
-    const snapshotKey = user?.id && myMemberId && leagueId && cacheRouteSignature
-        ? dynastyAnalyzerSnapshotCacheKey(user.id, myMemberId, leagueId, strategy, cacheRouteSignature)
-        : null
-    const cachedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
-    const { analysis, loading, error } = useDynastyTradeAnalysis({
+    const teamCount = Math.max(4, members.length + 1)
+    const faabBudget = currentLeague?.faab_starting_budget ?? 100
+    const { analysis, seasonYear, loading, error } = useDynastyTradeAnalysis({
         enabled: composer.assetsReady,
         leagueId,
         memberId: myMemberId,
         scoringSettings: currentLeague?.scoring_settings,
-        teams: Math.max(4, members.length + 1),
-        faabBudget: currentLeague?.faab_starting_budget ?? 100,
-        strategy,
+        teams: teamCount,
+        faabBudget,
         participants: composer.participantViews,
         items,
     })
+    const cacheIdentity = user?.id && myMemberId && leagueId ? {
+        userId: user.id,
+        memberId: myMemberId,
+        leagueId,
+    } : null
+    const latestScopeKey = cacheIdentity ? dynastyAnalyzerLatestScopeCacheKey(cacheIdentity) : null
+    const lastCompleteScope = latestScopeKey
+        ? readPersistentCache<DynastyAnalyzerCacheScope>(latestScopeKey)
+        : null
+    const liveCacheScope = useMemo<DynastyAnalyzerCacheScope | null>(() =>
+        user?.id && myMemberId && leagueId && seasonYear != null ? {
+            userId: user.id,
+            memberId: myMemberId,
+            leagueId,
+            seasonYear,
+            scoringSignature: dynastyScoringSignature(currentLeague?.scoring_settings),
+            teams: teamCount,
+            faabBudget,
+        } : null,
+    [currentLeague?.scoring_settings, faabBudget, leagueId, myMemberId, seasonYear, teamCount, user?.id])
+    const analyzerCacheScope = liveCacheScope ?? lastCompleteScope
+    const routeSignature = dynastyAnalyzerRouteSignature(items)
+    const latestRouteKey = analyzerCacheScope ? dynastyAnalyzerLatestRouteCacheKey(analyzerCacheScope) : null
+    const lastRouteSignature = latestRouteKey ? readPersistentCache<string>(latestRouteKey) : null
+    const cacheRouteSignature = routeSignature || (!networkAvailable ? lastRouteSignature : null)
+    const snapshotKey = analyzerCacheScope && cacheRouteSignature
+        ? dynastyAnalyzerSnapshotCacheKey(analyzerCacheScope, cacheRouteSignature)
+        : null
+    const cachedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
 
     useEffect(() => {
         let active = true
@@ -122,7 +137,8 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     }, [myMemberId, prefillFromTrade, prefillTrade])
 
     useEffect(() => {
-        if (!snapshotKey || !latestRouteKey || !routeSignature || !analysis || analysis.assets.length === 0) return
+        if (!liveCacheScope || !latestScopeKey || !snapshotKey || !latestRouteKey || !routeSignature ||
+            !analysis || analysis.assets.length === 0) return
         writePersistentCache(snapshotKey, {
             analysis,
             participantNames: Object.fromEntries(analysis.teams.map((team) => [team.memberId, participantName(team.memberId)])),
@@ -131,7 +147,9 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             memberId: myMemberId,
         })
         writePersistentCache(latestRouteKey, routeSignature)
-    }, [analysis, latestRouteKey, leagueId, myMemberId, participantName, routeSignature, snapshotKey])
+        writePersistentCache(latestScopeKey, liveCacheScope)
+    }, [analysis, latestRouteKey, latestScopeKey, leagueId, liveCacheScope, myMemberId, participantName,
+        routeSignature, snapshotKey])
 
     const setMode = useCallback((nextMulti: boolean) => {
         setMultiTeamMode(nextMulti)
@@ -159,11 +177,10 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             actorMemberId: myMemberId,
             participantMemberIds: composer.participantIds,
             items,
-            strategy,
         })
         setConfirming(false)
         push({ pathname: '/(modals)/propose-trade', params: { analyzerDraftId: draftId } })
-    }, [canMakeOffer, composer.participantIds, items, leagueId, myMemberId, push, strategy])
+    }, [canMakeOffer, composer.participantIds, items, leagueId, myMemberId, push])
     const shownAnalysis = analysis ?? (!networkAvailable ? cachedSnapshot?.analysis ?? null : null)
     const analysisParticipantName = useCallback((memberId: string) => {
         const liveName = participantName(memberId)
@@ -198,10 +215,9 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <View style={styles.intro}>
                 <Text style={styles.title}>Trade Analyzer</Text>
-                <Text style={styles.copy}>Run private experiments with the same values used by Dynasty Rankings.</Text>
+                <Text style={styles.copy}>Run private experiments with the 5-year dynasty outlook.</Text>
                 {!networkAvailable ? <Text style={styles.offline}>Offline: the last safe result stays visible. Offer creation is disabled.</Text> : null}
             </View>
-            <SegmentedControl options={STRATEGIES} value={strategy} onChange={setStrategy} accessibilityLabel="Trade strategy" />
             <View style={styles.modeRow}>
                 <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
                 <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />

@@ -409,9 +409,8 @@ export default function DynastyScreen() {
                                 value={rankings.view}
                                 onChange={rankings.setView}
                                 options={[
-                                    { label: 'League Points', value: 'overall' },
-                                    { label: 'Contend', value: 'contend' },
-                                    { label: 'Rebuild', value: 'rebuild' },
+                                    { label: '5-Year Points', value: 'five-year' },
+                                    { label: '3-Year Points', value: 'three-year' },
                                     { label: 'Rookies & Picks', value: 'rookies-picks' },
                                 ]}
                                 accessibilityLabel="Dynasty ranking views"

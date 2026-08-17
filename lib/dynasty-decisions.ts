@@ -3,11 +3,10 @@ import type { Database, Json } from '@/types/database'
 import type {
     DynastyEngineContext,
     DynastyPlayerAsset,
-    DynastyStrategy,
 } from '@pancake/core'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
-export type DynastyDecisionInput = Database['public']['Functions']['get_dynasty_decision_inputs']['Returns'][number]
+export type DynastyDecisionInput = Database['public']['Functions']['get_dynasty_forecast_inputs']['Returns'][number]
 export type UnmatchedRookieRanking = Pick<
     Database['public']['Tables']['dynasty_rankings']['Row'],
     'id' | 'source_rank' | 'source_player_name' | 'source_team' | 'source_positions' | 'age' | 'fetched_at'
@@ -18,26 +17,38 @@ export type DynastyDecisionCacheScope = {
     memberId: string
     leagueId: string
     seasonYear: number
-    strategy: DynastyStrategy
-    query: string
     scoringSignature: string
 }
 
-const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-decisions:v4:'
-const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-decisions-latest:v3:'
-const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v3:'
-const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v2:'
+export type DynastyAnalyzerCacheScope = {
+    userId: string
+    memberId: string
+    leagueId: string
+    seasonYear: number
+    scoringSignature: string
+    teams: number
+    faabBudget: number
+}
 
-const normalizedQuery = (query: string) => encodeURIComponent(query.trim().toLocaleLowerCase())
+export type DynastyAnalyzerCacheIdentity = Pick<
+    DynastyAnalyzerCacheScope,
+    'userId' | 'memberId' | 'leagueId'
+>
+
+const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-forecast-snapshot:v1:'
+const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-forecast-latest:v1:'
+const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v4:'
+const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v3:'
+const DYNASTY_ANALYZER_SCOPE_PREFIX = 'pancake:dynasty-analyzer-scope:v1:'
 
 export function dynastyDecisionCacheKey(scope: DynastyDecisionCacheScope): string {
-    return `${DYNASTY_DECISION_CACHE_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${scope.strategy}:${encodeURIComponent(scope.scoringSignature)}:${normalizedQuery(scope.query)}`
+    return `${DYNASTY_DECISION_CACHE_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${encodeURIComponent(scope.scoringSignature)}`
 }
 
 export function dynastyDecisionLatestCacheKey(
     scope: Omit<DynastyDecisionCacheScope, 'seasonYear'>,
 ): string {
-    return `${DYNASTY_DECISION_LATEST_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.strategy}:${encodeURIComponent(scope.scoringSignature)}:${normalizedQuery(scope.query)}`
+    return `${DYNASTY_DECISION_LATEST_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${encodeURIComponent(scope.scoringSignature)}`
 }
 
 export function dynastyAnalyzerRouteSignature(items: MultiTeamTradeItemPayload[]): string {
@@ -50,22 +61,22 @@ export function dynastyAnalyzerRouteSignature(items: MultiTeamTradeItemPayload[]
 }
 
 export function dynastyAnalyzerSnapshotCacheKey(
-    userId: string,
-    memberId: string,
-    leagueId: string,
-    strategy: DynastyStrategy,
+    scope: DynastyAnalyzerCacheScope,
     routeSignature: string,
 ): string {
-    return `${DYNASTY_ANALYZER_CACHE_PREFIX}${userId}:${memberId}:${leagueId}:${strategy}:${encodeURIComponent(routeSignature)}`
+    return `${DYNASTY_ANALYZER_CACHE_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${encodeURIComponent(scope.scoringSignature)}:${scope.teams}:${scope.faabBudget}:${encodeURIComponent(routeSignature)}`
 }
 
 export function dynastyAnalyzerLatestRouteCacheKey(
-    userId: string,
-    memberId: string,
-    leagueId: string,
-    strategy: DynastyStrategy,
+    scope: DynastyAnalyzerCacheScope,
 ): string {
-    return `${DYNASTY_ANALYZER_LATEST_PREFIX}${userId}:${memberId}:${leagueId}:${strategy}`
+    return `${DYNASTY_ANALYZER_LATEST_PREFIX}${scope.userId}:${scope.memberId}:${scope.leagueId}:${scope.seasonYear}:${encodeURIComponent(scope.scoringSignature)}:${scope.teams}:${scope.faabBudget}`
+}
+
+export function dynastyAnalyzerLatestScopeCacheKey(
+    identity: DynastyAnalyzerCacheIdentity,
+): string {
+    return `${DYNASTY_ANALYZER_SCOPE_PREFIX}${identity.userId}:${identity.memberId}:${identity.leagueId}`
 }
 
 export function scoringSettingsFromJson(value: Json | null | undefined): Record<string, number> {
@@ -106,12 +117,7 @@ export function playerAssetFromDecisionInput(row: DynastyDecisionInput): Dynasty
         id: row.player_id,
         label: row.display_name,
         age: row.age,
-        dynastyRank: row.dynasty_rank,
-        marketRanks: {
-            overall: row.dynasty_rank,
-            contend: row.contend_rank ?? row.dynasty_rank,
-            rebuild: row.rebuild_rank ?? row.dynasty_rank,
-        },
+        dynastyRank: row.five_year_rank,
         rankMovement: row.rank_change,
         healthStatus: row.injury_status,
         productionFantasyPoints: row.avg_fantasy_points,
@@ -150,7 +156,7 @@ export async function getDynastyDecisionInputs({
     limit?: number
     offset?: number
 }): Promise<DynastyDecisionInput[]> {
-    const { data, error } = await supabase.rpc('get_dynasty_decision_inputs', {
+    const { data, error } = await supabase.rpc('get_dynasty_forecast_inputs', {
         p_league_id: leagueId,
         p_member_id: memberId,
         p_season_year: seasonYear,
