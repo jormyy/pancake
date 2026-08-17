@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
 import type { Database } from '@/types/database'
+import type { DynastyAssetResult, DynastyStrategy, DynastyValueRange } from '@pancake/core'
 
 export const DYNASTY_RANKINGS_PAGE_SIZE = 50
 
@@ -38,6 +39,17 @@ export type DynastyRankPlayer = {
     sourceMetadata: Database['public']['Tables']['dynasty_rankings']['Row']['source_metadata']
     rankFetchedAt: string
     isDraftPick: boolean
+    isRookie?: boolean
+    strategyValues?: Record<DynastyStrategy, number>
+    selectedValue?: number
+    valueRange?: DynastyValueRange | null
+    shortTermPoints?: number
+    projectionPoints?: number
+    longTermValue?: number
+    confidence?: number
+    decisionSources?: DynastyAssetResult['sources']
+    missingInputs?: string[]
+    assumptions?: string[]
 }
 
 /** Source rows like "2026 Draft (Pick 1)" are ranked placeholders, not players. */

@@ -1,86 +1,299 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
-import {
-    DYNASTY_RANKINGS_PAGE_SIZE,
-    getDynastyRankingsPage,
-    type DynastyRankPlayer,
-} from '@/lib/dynasty'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import {
+    dynastyDecisionCacheKey,
+    dynastyEngineContext,
+    getDynastyDecisionInputs,
+    playerAssetFromDecisionInput,
+    type DynastyDecisionInput,
+} from '@/lib/dynasty-decisions'
+import { getCurrentSeason, currentSeasonYear } from '@/lib/shared/season'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import type { DynastyRankPlayer } from '@/lib/dynasty'
+import type { Json } from '@/types/database'
+import {
+    valueDynastyAsset,
+    type DynastyAssetResult,
+    type DynastyStrategy,
+} from '@pancake/core'
 
 const STALE_MS = 5 * 60_000
-const DYNASTY_CACHE_PREFIX = 'pancake:dynasty-rankings:v1:'
+const MAX_RANKINGS = 600
+const FUTURE_PICK_YEARS = 3
+const FUTURE_PICK_ROUNDS = 4
+
+export type DynastyRankingView = DynastyStrategy | 'rookies-picks'
 
 type DynastyRankingsCache = {
     players: DynastyRankPlayer[]
-    hasMore: boolean
-    offset: number
     savedAt: number
+    seasonYear: number
 }
 
-const dynastyCacheKey = (query: string) => `${DYNASTY_CACHE_PREFIX}${query.trim().toLocaleLowerCase()}`
+type UseDynastyRankingsArgs = {
+    userId: string
+    memberId: string
+    leagueId: string
+    scoringSettings: Json | null | undefined
+    teamCount: number
+}
 
-export function useDynastyRankings() {
+const viewStrategy = (view: DynastyRankingView): DynastyStrategy =>
+    view === 'contend' || view === 'rebuild' ? view : 'overall'
+
+function playerRow(row: DynastyDecisionInput, result: DynastyAssetResult): DynastyRankPlayer {
+    return {
+        rankingId: row.dynasty_ranking_id ?? `player:${row.player_id}`,
+        playerId: row.player_id,
+        displayName: row.display_name,
+        sourceName: row.display_name,
+        sourceTeam: row.nba_team,
+        sourcePositions: row.position ? [row.position] : [],
+        nbaTeam: row.nba_team,
+        position: row.position,
+        eligiblePositions: row.eligible_positions ?? [],
+        injuryStatus: row.injury_status,
+        yearsExp: row.years_exp,
+        headshotUrl: row.headshot_url,
+        nbaId: row.nba_id,
+        dynastyRank: row.dynasty_rank ?? MAX_RANKINGS,
+        rankChange: row.rank_change ?? 0,
+        age: row.age,
+        gamesPlayed: row.games_played,
+        fieldGoalPct: null,
+        freeThrowPct: null,
+        threePointersMade: row.avg_three_pointers_made,
+        points: row.avg_points,
+        rebounds: row.avg_rebounds,
+        assists: row.avg_assists,
+        steals: row.avg_steals,
+        blocks: row.avg_blocks,
+        turnovers: row.avg_turnovers,
+        comment: null,
+        rankSource: row.ranking_source ?? 'Pancake dynasty-points engine',
+        scoringFormat: 'custom',
+        sourceUrl: null,
+        sourceMetadata: null,
+        rankFetchedAt: row.ranking_fetched_at ?? row.projection_fetched_at ?? new Date(0).toISOString(),
+        isDraftPick: false,
+        isRookie: row.years_exp === 0,
+        strategyValues: result.values,
+        shortTermPoints: result.components.shortTermPoints,
+        projectionPoints: row.projection_fantasy_points,
+        longTermValue: result.components.longTermValue,
+        confidence: result.confidence,
+        decisionSources: result.sources,
+        missingInputs: result.missingInputs,
+        assumptions: result.assumptions,
+    }
+}
+
+function futurePickRows(
+    leagueId: string,
+    seasonYear: number,
+    scoringSettings: Json | null | undefined,
+    teamCount: number,
+): DynastyRankPlayer[] {
+    const context = dynastyEngineContext(leagueId, seasonYear, scoringSettings)
+    const rows: DynastyRankPlayer[] = []
+    for (let distance = 1; distance <= FUTURE_PICK_YEARS; distance += 1) {
+        for (let round = 1; round <= FUTURE_PICK_ROUNDS; round += 1) {
+            const year = seasonYear + distance
+            const result = valueDynastyAsset(context, {
+                kind: 'pick',
+                id: `pick-band:${year}:${round}`,
+                label: `${year} Round ${round}`,
+                seasonYear: year,
+                round,
+                slot: null,
+                teams: Math.max(teamCount, 4),
+                sources: [{ name: 'Pancake deterministic pick curve', fetchedAt: null }],
+            })
+            rows.push({
+                rankingId: result.assetId,
+                playerId: null,
+                displayName: result.label,
+                sourceName: result.label,
+                sourceTeam: 'DRA',
+                sourcePositions: [],
+                nbaTeam: null,
+                position: null,
+                eligiblePositions: [],
+                injuryStatus: null,
+                yearsExp: null,
+                headshotUrl: null,
+                nbaId: null,
+                dynastyRank: MAX_RANKINGS,
+                rankChange: 0,
+                age: null,
+                gamesPlayed: null,
+                fieldGoalPct: null,
+                freeThrowPct: null,
+                threePointersMade: null,
+                points: null,
+                rebounds: null,
+                assists: null,
+                steals: null,
+                blocks: null,
+                turnovers: null,
+                comment: null,
+                rankSource: 'Pancake deterministic pick curve',
+                scoringFormat: 'custom',
+                sourceUrl: null,
+                sourceMetadata: null,
+                rankFetchedAt: new Date(0).toISOString(),
+                isDraftPick: true,
+                strategyValues: result.values,
+                valueRange: result.ranges.overall ?? null,
+                shortTermPoints: 0,
+                projectionPoints: 0,
+                longTermValue: result.components.longTermValue,
+                confidence: result.confidence,
+                decisionSources: result.sources,
+                missingInputs: result.missingInputs,
+                assumptions: result.assumptions,
+            })
+        }
+    }
+    return rows
+}
+
+function rankedRows(
+    inputRows: DynastyDecisionInput[],
+    view: DynastyRankingView,
+    leagueId: string,
+    seasonYear: number,
+    scoringSettings: Json | null | undefined,
+    teamCount: number,
+    query: string,
+): DynastyRankPlayer[] {
+    const context = dynastyEngineContext(leagueId, seasonYear, scoringSettings)
+    const strategy = viewStrategy(view)
+    const playerRows = inputRows.map((row) => {
+        const result = valueDynastyAsset(context, playerAssetFromDecisionInput(row))
+        return playerRow(row, result)
+    })
+    const candidates = view === 'rookies-picks'
+        ? [...playerRows.filter((row) => row.isRookie), ...futurePickRows(leagueId, seasonYear, scoringSettings, teamCount)]
+        : playerRows
+    const normalized = query.trim().toLocaleLowerCase()
+    return candidates
+        .filter((row) => !normalized || row.displayName.toLocaleLowerCase().includes(normalized))
+        .sort((left, right) =>
+            (right.strategyValues?.[strategy] ?? 0) - (left.strategyValues?.[strategy] ?? 0) ||
+            left.displayName.localeCompare(right.displayName) ||
+            left.rankingId.localeCompare(right.rankingId),
+        )
+        .map((row, index) => ({
+            ...row,
+            dynastyRank: index + 1,
+            selectedValue: row.strategyValues?.[strategy] ?? 0,
+            valueRange: row.isDraftPick ? row.valueRange : null,
+        }))
+}
+
+export function useDynastyRankings({
+    userId,
+    memberId,
+    leagueId,
+    scoringSettings,
+    teamCount,
+}: UseDynastyRankingsArgs) {
     const [query, setQuery] = useState('')
-    const [initialCache] = useState(() => readPersistentCache<DynastyRankingsCache>(dynastyCacheKey('')))
+    const [view, setView] = useState<DynastyRankingView>('overall')
+    const [initialCache] = useState(() => {
+        if (!userId || !memberId || !leagueId) return null
+        return readPersistentCache<DynastyRankingsCache>(dynastyDecisionCacheKey({
+            userId,
+            memberId,
+            leagueId,
+            seasonYear: currentSeasonYear(),
+            strategy: 'overall',
+            query: '',
+        }))
+    })
     const [players, setPlayers] = useState<DynastyRankPlayer[]>(initialCache?.players ?? [])
     const [loading, setLoading] = useState(!initialCache)
     const [refreshing, setRefreshing] = useState(false)
-    const [loadingMore, setLoadingMore] = useState(false)
-    const [hasMore, setHasMore] = useState(initialCache?.hasMore ?? false)
     const [error, setError] = useState<Error | null>(null)
-    const [loadMoreError, setLoadMoreError] = useState<Error | null>(null)
     const debouncedQuery = useDebouncedValue(query, 250)
     const requestSeqRef = useRef(0)
-    const loadMoreSeqRef = useRef(0)
-    const offsetRef = useRef(initialCache?.offset ?? 0)
-    const queryRef = useRef('')
     const lastLoadedAtRef = useRef(initialCache?.savedAt ?? 0)
+    const activeKeyRef = useRef(initialCache && userId && memberId && leagueId
+        ? dynastyDecisionCacheKey({
+            userId,
+            memberId,
+            leagueId,
+            seasonYear: initialCache.seasonYear,
+            strategy: 'overall',
+            query: '',
+        })
+        : '')
     const playersRef = useRef<DynastyRankPlayer[]>(initialCache?.players ?? [])
-    const firstPageInFlightRef = useRef<string | null>(null)
 
     useEffect(() => {
         playersRef.current = players
     }, [players])
 
-    const invalidateLoadMore = useCallback(() => {
-        ++loadMoreSeqRef.current
-        setLoadingMore(false)
-    }, [])
-
-    const loadFirstPage = useCallback(async (loadQuery: string, force = false) => {
-        const hasRows = playersRef.current.length > 0
-        const fresh = Date.now() - lastLoadedAtRef.current < STALE_MS
-        if (!force && hasRows && fresh && loadQuery === queryRef.current) return
-        if (!force && firstPageInFlightRef.current === loadQuery) return
-
+    const scopeReady = Boolean(userId && memberId && leagueId)
+    const load = useCallback(async (force = false) => {
+        if (!scopeReady) {
+            playersRef.current = []
+            setPlayers([])
+            setLoading(false)
+            return
+        }
         const requestId = ++requestSeqRef.current
-        invalidateLoadMore()
-        firstPageInFlightRef.current = loadQuery
-        queryRef.current = loadQuery
-        offsetRef.current = 0
-        setError(null)
-        setLoadMoreError(null)
-        setHasMore(false)
-        setLoading(hasRows ? false : true)
-        setRefreshing(hasRows)
+        const fallbackSeasonYear = currentSeasonYear()
+        const season = await getCurrentSeason(leagueId)
+        if (requestSeqRef.current !== requestId) return
+        const seasonYear = season?.seasonYear ?? fallbackSeasonYear
+        const cacheQuery = view === 'rookies-picks'
+            ? `rookies-picks:${debouncedQuery}`
+            : debouncedQuery
+        const cacheKey = dynastyDecisionCacheKey({
+            userId, memberId, leagueId, seasonYear, strategy: viewStrategy(view), query: cacheQuery,
+        })
+        const previousKey = activeKeyRef.current
+        activeKeyRef.current = cacheKey
+        const cached = readPersistentCache<DynastyRankingsCache>(cacheKey)
+        if (cached && (!force || playersRef.current.length === 0)) {
+            playersRef.current = cached.players
+            setPlayers(cached.players)
+            lastLoadedAtRef.current = cached.savedAt
+            setLoading(false)
+        } else if (previousKey !== cacheKey) {
+            playersRef.current = []
+            setPlayers([])
+            lastLoadedAtRef.current = 0
+        }
+        const hasRows = playersRef.current.length > 0
+        if (!force && cached && Date.now() - cached.savedAt < STALE_MS) return
 
+        setError(null)
+        setLoading(!hasRows)
+        setRefreshing(hasRows)
         try {
-            const page = await getDynastyRankingsPage({ query: loadQuery, offset: 0 })
-            if (requestSeqRef.current !== requestId || queryRef.current !== loadQuery) return
-            playersRef.current = page.players
-            setPlayers(page.players)
-            setHasMore(page.hasMore)
-            lastLoadedAtRef.current = Date.now()
-            writePersistentCache<DynastyRankingsCache>(dynastyCacheKey(loadQuery), {
-                players: page.players,
-                hasMore: page.hasMore,
-                offset: 0,
-                savedAt: lastLoadedAtRef.current,
+            const inputs = await getDynastyDecisionInputs({
+                leagueId,
+                memberId,
+                seasonYear,
+                query: view === 'rookies-picks' ? '' : debouncedQuery,
+                limit: MAX_RANKINGS,
             })
-        } catch (e) {
+            if (requestSeqRef.current !== requestId || activeKeyRef.current !== cacheKey) return
+            const nextPlayers = rankedRows(
+                inputs, view, leagueId, seasonYear, scoringSettings, teamCount, debouncedQuery,
+            )
+            const savedAt = Date.now()
+            playersRef.current = nextPlayers
+            lastLoadedAtRef.current = savedAt
+            setPlayers(nextPlayers)
+            writePersistentCache<DynastyRankingsCache>(cacheKey, { players: nextPlayers, savedAt, seasonYear })
+        } catch (cause) {
             if (requestSeqRef.current !== requestId) return
-            const nextError = e instanceof Error ? e : new Error(String(e))
+            const nextError = cause instanceof Error ? cause : new Error(String(cause))
             setError(nextError)
             console.error(nextError)
         } finally {
@@ -88,87 +301,34 @@ export function useDynastyRankings() {
                 setLoading(false)
                 setRefreshing(false)
             }
-            if (firstPageInFlightRef.current === loadQuery) firstPageInFlightRef.current = null
         }
-    }, [invalidateLoadMore])
+    }, [debouncedQuery, leagueId, memberId, scopeReady, scoringSettings, teamCount, userId, view])
 
     useEffect(() => {
-        const cached = readPersistentCache<DynastyRankingsCache>(dynastyCacheKey(debouncedQuery))
-        if (cached) {
-            playersRef.current = cached.players
-            offsetRef.current = cached.offset
-            lastLoadedAtRef.current = cached.savedAt
-            setPlayers(cached.players)
-            setHasMore(cached.hasMore)
-            setLoading(false)
-        } else {
-            playersRef.current = []
-            offsetRef.current = 0
-            lastLoadedAtRef.current = 0
-            setPlayers([])
-            setHasMore(false)
-            setLoading(true)
+        void load()
+        return () => {
+            requestSeqRef.current += 1
         }
-        void loadFirstPage(debouncedQuery)
-    }, [debouncedQuery, loadFirstPage])
+    }, [load])
 
-    useFocusEffect(
-        useCallback(() => {
-            void loadFirstPage(queryRef.current)
-        }, [loadFirstPage]),
-    )
+    useFocusEffect(useCallback(() => {
+        if (Date.now() - lastLoadedAtRef.current >= STALE_MS) void load()
+    }, [load]))
 
-    const loadMore = useCallback(async (options: { force?: boolean } = {}) => {
-        if (loading || loadingMore || !hasMore) return
-        if (loadMoreError && !options.force) return
-
-        const loadQuery = queryRef.current
-        const nextOffset = offsetRef.current + DYNASTY_RANKINGS_PAGE_SIZE
-        const requestId = ++loadMoreSeqRef.current
-        setLoadingMore(true)
-        setLoadMoreError(null)
-
-        try {
-            const page = await getDynastyRankingsPage({ query: loadQuery, offset: nextOffset })
-            if (loadMoreSeqRef.current !== requestId || queryRef.current !== loadQuery) return
-            offsetRef.current = nextOffset
-            setPlayers((prev) => {
-                const merged = [...prev, ...page.players]
-                playersRef.current = merged
-                writePersistentCache<DynastyRankingsCache>(dynastyCacheKey(loadQuery), {
-                    players: merged,
-                    hasMore: page.hasMore,
-                    offset: nextOffset,
-                    savedAt: Date.now(),
-                })
-                return merged
-            })
-            setHasMore(page.hasMore)
-        } catch (e) {
-            if (loadMoreSeqRef.current !== requestId) return
-            const nextError = e instanceof Error ? e : new Error(String(e))
-            setLoadMoreError(nextError)
-            console.error(nextError)
-        } finally {
-            if (loadMoreSeqRef.current === requestId) setLoadingMore(false)
-        }
-    }, [hasMore, loadMoreError, loading, loadingMore])
-
-    const refresh = useCallback(() => loadFirstPage(queryRef.current, true), [loadFirstPage])
-    const retryLoadMore = useCallback(() => loadMore({ force: true }), [loadMore])
-
-    return {
+    return useMemo(() => ({
         query,
         setQuery,
+        view,
+        setView,
         players,
         loading,
         refreshing,
-        loadingMore,
-        hasMore,
+        loadingMore: false,
+        hasMore: false,
         error,
-        loadMoreError,
-        loadMore,
-        retryLoadMore,
-        refresh,
-    }
+        loadMoreError: null,
+        loadMore: () => {},
+        retryLoadMore: () => {},
+        refresh: () => load(true),
+    }), [error, load, loading, players, query, refreshing, view])
 }
