@@ -60,6 +60,7 @@ one elite asset.
 
 - One RPC batches player, 5-year, 3-year, Rookie, production, and projection data.
 - Sync stores 5-year Points, 3-year Points, and Rookie views under separate source keys.
+- Sync reads the source form without a document tree to stay within worker memory limits.
 - The database has no Contend, Rebuild, or old decision-input ranking path.
 - Unmatched Rookie rows remain visible as source prospects without player links.
 - Ranking cache keys include user, member, league, season, and scoring settings.

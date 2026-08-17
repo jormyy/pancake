@@ -3,14 +3,9 @@ import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { buildDynastyRankingPayload, type PlayerForRanking } from './match.ts'
-import {
-  parseDynastyRankingOrderHtml,
-  parseDynastyRankingsHtml,
-  selectedDynastyForecastSeasons,
-  selectedDynastyRankingType,
-} from './parser.ts'
+import { buildAspNetRankingForm } from './form.ts'
+import { parseDynastyRankingOrderHtml, parseDynastyRankingsHtml } from './parser.ts'
 import { RANKING_VIEWS_IN_WRITE_ORDER, rankingViewForRequest, type RankingViewDefinition } from './views.ts'
-import * as cheerio from 'npm:cheerio@1.2.0'
 
 const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
 
@@ -26,15 +21,12 @@ serveInternal('sync-rankings', async (req) => {
 
 async function syncRankingView(view: RankingViewDefinition): Promise<number> {
   console.log(`[sync-rankings] Scraping published ${view.type} rankings...`)
-  const [baseHtml, players] = await Promise.all([fetchRankingsHtml(), fetchPlayersForRanking()])
   const fetchedAt = new Date().toISOString()
-  const html = await fetchRankingViewHtml(baseHtml, view)
-  const rankings = view.hashtagType === 'POINT'
-    ? parseDynastyRankingsHtml(html)
-    : parseDynastyRankingOrderHtml(html)
+  const rankings = await fetchRankingView(view)
   if (rankings.length < view.minimumRows) {
     throw new Error(`Parsed ${rankings.length} ${view.type} rows, below minimum ${view.minimumRows}`)
   }
+  const players = await fetchPlayersForRanking()
   const payload = buildDynastyRankingPayload(rankings, players, fetchedAt, view.source)
   const result = await replaceRankingView(view, payload.rows, payload.matched, fetchedAt)
   console.log(
@@ -73,16 +65,16 @@ async function fetchPlayersForRanking(): Promise<PlayerForRanking[]> {
   return players
 }
 
-async function fetchRankingsHtml(): Promise<string> {
+async function fetchRankingForm(): Promise<URLSearchParams> {
   const res = await fetchWithRetry(RANKINGS_URL, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PancakeApp/1.0)' },
   })
   if (!res.ok) throw new Error(`Rankings fetch ${res.status}`)
-  return res.text()
+  return buildAspNetRankingForm(await res.text())
 }
 
-async function fetchRankingViewHtml(html: string, view: RankingViewDefinition): Promise<string> {
-  const form = buildAspNetRankingForm(html)
+async function fetchRankingView(view: RankingViewDefinition) {
+  const form = await fetchRankingForm()
   form.set('ctl00$ContentPlaceHolder1$DDTYPE', view.hashtagType)
   form.set('ctl00$ContentPlaceHolder1$DDFORECAST', String(view.forecastSeasons))
 
@@ -98,14 +90,17 @@ async function fetchRankingViewHtml(html: string, view: RankingViewDefinition): 
   })
   if (!res.ok) throw new Error(`${view.type} rankings fetch ${res.status}`)
   const responseHtml = await res.text()
-  const selectedType = selectedDynastyRankingType(responseHtml)
-  const selectedForecast = selectedDynastyForecastSeasons(responseHtml)
+  const responseForm = buildAspNetRankingForm(responseHtml)
+  const selectedType = responseForm.get('ctl00$ContentPlaceHolder1$DDTYPE')
+  const selectedForecast = Number(responseForm.get('ctl00$ContentPlaceHolder1$DDFORECAST'))
   if (selectedType !== view.hashtagType || selectedForecast !== view.forecastSeasons) {
     throw new Error(
       `Requested ${view.hashtagType}/${view.forecastSeasons} but Hashtag selected ${selectedType ?? 'unknown'}/${selectedForecast ?? 'unknown'}`,
     )
   }
-  return responseHtml
+  return view.hashtagType === 'POINT'
+    ? parseDynastyRankingsHtml(responseHtml)
+    : parseDynastyRankingOrderHtml(responseHtml)
 }
 
 async function replaceRankingView(
@@ -131,19 +126,4 @@ async function replaceRankingView(
   })
   if (error) throw error
   return data
-}
-
-function buildAspNetRankingForm(html: string): URLSearchParams {
-  const $ = cheerio.load(html)
-  const form = new URLSearchParams()
-  $('input[name]').each((_, input) => {
-    const name = $(input).attr('name')
-    if (name) form.set(name, $(input).attr('value') ?? '')
-  })
-  $('select[name]').each((_, select) => {
-    const name = $(select).attr('name')
-    const value = $(select).find('option[selected]').attr('value') ?? $(select).find('option').first().attr('value') ?? ''
-    if (name) form.set(name, value)
-  })
-  return form
 }
