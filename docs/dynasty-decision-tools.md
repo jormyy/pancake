@@ -60,6 +60,7 @@ one elite asset.
 
 - One RPC batches player, 5-year, 3-year, Rookie, production, and projection data.
 - Sync stores 5-year Points, 3-year Points, and Rookie views under separate source keys.
+- The database has no Contend, Rebuild, or old decision-input ranking path.
 - Unmatched Rookie rows remain visible as source prospects without player links.
 - Ranking cache keys include user, member, league, season, and scoring settings.
 - Analyzer cache keys also include team count and FAAB budget.
@@ -72,11 +73,6 @@ one elite asset.
 - League and identity changes select new cache namespaces.
 - Dynasty views and the last safe Analyzer snapshot stay readable offline.
 - Offer submission stays disabled offline.
-
-## Safe rollout
-
-Hidden legacy rows and request aliases stay for one release. This keeps database-first deployment and rollback safe.
-The next cleanup migration removes them after all live clients use forecast views.
 
 ## Release proof
 

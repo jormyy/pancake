@@ -1,5 +1,28 @@
 BEGIN;
 
+DO $$
+DECLARE
+  v_cron_definition text;
+BEGIN
+  IF to_regprocedure('public.get_dynasty_decision_inputs(uuid,uuid,integer,uuid[],text,integer,integer)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Legacy dynasty RPC still exists';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM public.dynasty_rankings
+     WHERE source IN ('hashtagbasketball.com/contend', 'hashtagbasketball.com/rebuild')
+  ) THEN
+    RAISE EXCEPTION 'Legacy dynasty ranking rows still exist';
+  END IF;
+  SELECT pg_get_functiondef('public.invoke_dynasty_ranking_views_at_et_time(integer,integer)'::regprocedure)
+    INTO v_cron_definition;
+  IF v_cron_definition LIKE '%"CONTEND"%'
+     OR v_cron_definition LIKE '%"REBUILD"%'
+     OR v_cron_definition LIKE '%"POINT"%' THEN
+    RAISE EXCEPTION 'Legacy dynasty ranking cron calls still exist';
+  END IF;
+END $$;
+
 INSERT INTO auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -76,14 +99,6 @@ VALUES
   (
     'hashtagbasketball.com/rookie', 9003, 'dynasty-decision-input-player', 'Decision Player', 'SEA',
     ARRAY['PG'], '00000000-0000-0000-0000-0000000d1300', 22.5, 0, 'overall'
-  ),
-  (
-    'hashtagbasketball.com/contend', 9004, 'dynasty-decision-input-player', 'Decision Player', 'SEA',
-    ARRAY['PG'], '00000000-0000-0000-0000-0000000d1300', 22.5, 0, 'overall'
-  ),
-  (
-    'hashtagbasketball.com/rebuild', 9005, 'dynasty-decision-input-player', 'Decision Player', 'SEA',
-    ARRAY['PG'], '00000000-0000-0000-0000-0000000d1300', 22.5, 0, 'overall'
   );
 
 DO $$
@@ -138,7 +153,6 @@ DECLARE
   v_five_year_rank int;
   v_three_year_rank int;
   v_rookie_rank int;
-  v_legacy_count int;
 BEGIN
   v_started := clock_timestamp();
   SELECT count(*)
@@ -156,20 +170,6 @@ BEGIN
 
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'Expected one authorized dynasty input row, got %', v_count;
-  END IF;
-  SELECT count(*)
-    INTO v_legacy_count
-    FROM public.get_dynasty_decision_inputs(
-      '00000000-0000-0000-0000-0000000d1100',
-      '00000000-0000-0000-0000-0000000d1200',
-      2026,
-      ARRAY['00000000-0000-0000-0000-0000000d1300'::uuid],
-      'Decision',
-      20,
-      0
-    );
-  IF v_legacy_count <> 1 THEN
-    RAISE EXCEPTION 'Baseline dynasty RPC failed after the expansion migration';
   END IF;
   SELECT five_year_rank, three_year_rank, rookie_rank
     INTO v_five_year_rank, v_three_year_rank, v_rookie_rank
