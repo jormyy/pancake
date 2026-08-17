@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
-vi.mock('@/hooks/use-debounced-value', () => ({ useDebouncedValue: (value: string) => value }))
 vi.mock('@/lib/shared/season', () => ({
     getCurrentSeason: mocks.getCurrentSeason,
     currentSeasonYear: () => 2026,
@@ -45,13 +44,13 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 const decisionRow = (leagueId: string, overrides: Record<string, unknown> = {}) => ({
     player_id: `player-${leagueId}`, display_name: `Player ${leagueId}`, age: 24,
-    dynasty_rank: 8, rank_change: 1, injury_status: null, avg_fantasy_points: 42,
+    five_year_rank: 8, rank_change: 1, injury_status: null, avg_fantasy_points: 42,
     projection_fantasy_points: 44, years_exp: 3, ranking_source: 'rankings',
     ranking_fetched_at: null, projection_source: 'projections', projection_fetched_at: null,
     nba_team: 'LAL', position: 'G', eligible_positions: ['G'], games_played: 50,
     avg_three_pointers_made: 2, avg_points: 20, avg_rebounds: 5, avg_assists: 5,
     avg_steals: 1, avg_blocks: 1, avg_turnovers: 2, headshot_url: null, nba_id: null,
-    contend_rank: null, rebuild_rank: null, rookie_rank: null,
+    three_year_rank: null, rookie_rank: null,
     ...overrides,
 })
 
@@ -62,15 +61,15 @@ beforeEach(() => {
 })
 
 describe('dynasty rankings identity', () => {
-    it('sorts strategy views by league value when published order disagrees', async () => {
+    it('keeps both published forecast orders and changes tabs without another request', async () => {
         mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2026 })
         mocks.getDynastyDecisionInputs.mockResolvedValue([
             decisionRow('source-first', {
-                display_name: 'Source First', dynasty_rank: 1, contend_rank: 1, rebuild_rank: 1,
+                display_name: 'Five Year First', five_year_rank: 1, three_year_rank: 2,
                 age: 25, avg_fantasy_points: 5, projection_fantasy_points: 5,
             }),
             decisionRow('league-first', {
-                display_name: 'League First', dynasty_rank: 400, contend_rank: 400, rebuild_rank: 400,
+                display_name: 'Three Year First', five_year_rank: 2, three_year_rank: 1,
                 age: 25, avg_fantasy_points: 65, projection_fantasy_points: 65,
             }),
         ])
@@ -85,11 +84,10 @@ describe('dynasty rankings identity', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await flush() })
 
-        expect(latest.players.slice(0, 2).map((player) => player.displayName)).toEqual(['League First', 'Source First'])
-        await act(async () => { latest.setView('contend'); await flush() })
-        expect(latest.players.slice(0, 2).map((player) => player.displayName)).toEqual(['League First', 'Source First'])
-        await act(async () => { latest.setView('rebuild'); await flush() })
-        expect(latest.players.slice(0, 2).map((player) => player.displayName)).toEqual(['League First', 'Source First'])
+        expect(latest.players.slice(0, 2).map((player) => player.displayName)).toEqual(['Five Year First', 'Three Year First'])
+        await act(async () => { latest.setView('three-year'); await flush() })
+        expect(latest.players.slice(0, 2).map((player) => player.displayName)).toEqual(['Three Year First', 'Five Year First'])
+        expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledTimes(1)
         await act(async () => { renderer.unmount() })
     })
 

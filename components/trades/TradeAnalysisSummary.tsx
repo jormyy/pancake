@@ -25,7 +25,7 @@ export function TradeAnalysisSummary({
     return (
         <View style={styles.root} accessibilityLabel="Dynasty trade analysis">
             <View style={styles.headingRow}>
-                <Text style={styles.title}>{analysis.strategy[0].toUpperCase() + analysis.strategy.slice(1)} outlook</Text>
+                <Text style={styles.title}>5-year outlook</Text>
                 <Text style={styles.confidence}>{Math.round(analysis.confidence * 100)}% confidence{cached ? ' · cached' : ''}</Text>
             </View>
             <Text style={styles.explainer}>Values use this league&apos;s points rules. Roster-slot and replacement effects apply automatically.</Text>

@@ -2,6 +2,7 @@ import {
   isDraftPlaceholder,
   parseDynastyRankingOrderHtml,
   parseDynastyRankingsHtml,
+  selectedDynastyForecastSeasons,
   selectedDynastyRankingType,
 } from './parser.ts'
 
@@ -170,6 +171,15 @@ Deno.test('detects the selected Hashtag dynasty ranking type', () => {
       <option selected="selected" value="POINT">Points Leagues</option>
     </select>`
   expect(selectedDynastyRankingType(html) === 'POINT', 'expected POINT ranking type')
+})
+
+Deno.test('detects the selected Hashtag forecast period', () => {
+  const html = `
+    <select id="ContentPlaceHolder1_DDFORECAST">
+      <option value="5">Next 5 seasons</option>
+      <option selected="selected" value="3">Next 3 seasons</option>
+    </select>`
+  expect(selectedDynastyForecastSeasons(html) === 3, 'expected 3-year forecast')
 })
 
 Deno.test('rejects rows missing the stats/comment column', () => {

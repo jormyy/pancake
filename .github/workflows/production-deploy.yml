@@ -333,19 +333,22 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       PANCAKE_EDGE_INTERNAL_TOKEN: ${{ secrets.PANCAKE_EDGE_INTERNAL_TOKEN }}
     steps:
-      - name: Sync and verify points rankings
+      - name: Sync and verify dynasty rankings
         shell: bash
         run: |
-          response="$(curl --fail-with-body --silent --show-error \
-            --retry 2 --retry-all-errors --max-time 180 \
-            --request POST "${SUPABASE_URL%/}/functions/v1/sync-rankings" \
-            --header "x-internal-function-token: $PANCAKE_EDGE_INTERNAL_TOKEN" \
-            --header 'Content-Type: application/json' \
-            --data '{"view":"POINT"}')"
-          node -e '
-            const result = JSON.parse(process.argv[1])
-            if (result.ok !== true || result.view !== "POINT" || result.rows < 300) process.exit(1)
-          ' "$response"
+          for view in POINT_3 ROOKIE POINT_5; do
+            response="$(curl --fail-with-body --silent --show-error \
+              --retry 2 --retry-all-errors --max-time 180 \
+              --request POST "${SUPABASE_URL%/}/functions/v1/sync-rankings" \
+              --header "x-internal-function-token: $PANCAKE_EDGE_INTERNAL_TOKEN" \
+              --header 'Content-Type: application/json' \
+              --data "{\"view\":\"$view\"}")"
+            node -e '
+              const [result, view] = [JSON.parse(process.argv[1]), process.argv[2]]
+              const minimum = view === "ROOKIE" ? 30 : 300
+              if (result.ok !== true || result.view !== view || result.rows < minimum) process.exit(1)
+            ' "$response" "$view"
+          done
 
   rollback-after-promotion:
     name: Restore baseline release after failed promotion

@@ -4,12 +4,12 @@ This document defines the shared value engine for Dynasty Rankings and Trade Ana
 
 ## Product rules
 
-- A manager selects League Points, Contend, or Rebuild.
-- The engine uses the active league scoring settings.
-- Hashtag Points, Contend, and Rebuild ranks provide the market input for each strategy.
-- League scoring sets each strategy's displayed value and order.
+- Rankings show 5-Year Points, 3-Year Points, and Rookies & Picks.
+- Rankings open on 5-Year Points.
+- Each Points tab preserves its published Hashtag order.
+- League scoring adds value context. It does not reorder published ranks.
 - The engine keeps short-term points separate from long-term dynasty value.
-- Rankings and Analyzer use the same league value result.
+- Trade Analyzer always uses the 5-year outlook.
 - Analyzer experiments stay in session memory.
 - Make Offer needs an explicit action and confirmation.
 - The app does not call a trade won, lost, fair, unfair, approved, or rejected.
@@ -21,7 +21,7 @@ FAAB, or analyzer-only roster slots.
 
 Every asset result includes these fields:
 
-- League Points, Contend, and Rebuild values.
+- One displayed 5-year value.
 - Short-term points and long-term value.
 - Production, projection, age, health, movement, replacement, package, and slot components.
 - Source names and fetch times.
@@ -31,16 +31,16 @@ Every asset result includes these fields:
 Trade analysis applies the same asset results to routed assets. It reports each team impact.
 It also reports package, replacement-player, and roster-slot effects.
 
-## Initial calibration
+## Internal calibration
 
 All values use a 0 to 1000 display scale. The engine rounds only the final display values.
 
-| Component | League Points | Contend | Rebuild | Reason |
-| --- | ---: | ---: | ---: | --- |
-| Current production | 35% | 50% | 20% | Contenders need points now. |
-| Projection | 25% | 30% | 20% | Projections cover near-term role changes. |
-| Source dynasty rank | 25% | 15% | 30% | Market rank adds a stable long-term prior. |
-| Age curve | 15% | 5% | 30% | Rebuilders keep more future value. |
+| Component | Weight | Reason |
+| --- | ---: | --- |
+| Current production | 35% | Current play helps estimate value. |
+| Projection | 25% | Projections cover near-term role changes. |
+| Source dynasty rank | 25% | Market rank adds a stable long-term prior. |
+| Age curve | 15% | Age helps estimate future value. |
 
 Health can reduce a player result by at most 12%. Rank movement can change it by at most 4%.
 Missing inputs lower confidence. They do not produce random values.
@@ -58,10 +58,13 @@ one elite asset.
 
 ## Data and cache rules
 
-- Reads batch player, published strategy ranks, projection, roster, pick, and league data.
-- Sync stores Points, Contend, Rebuild, and Rookie views under separate source keys.
+- One RPC batches player, 5-year, 3-year, Rookie, production, and projection data.
+- Sync stores 5-year Points, 3-year Points, and Rookie views under separate source keys.
 - Unmatched Rookie rows remain visible as source prospects without player links.
-- Private cache keys include user, member, league, strategy, and query.
+- Ranking cache keys include user, member, league, season, and scoring settings.
+- Analyzer cache keys also include team count and FAAB budget.
+- Offline lookup uses the last complete Analyzer scope for that user, member, and league.
+- Tab changes and searches use the loaded snapshot. They make no ranking request.
 - Cache shape changes increment the key version.
 - Cached content renders before a background refresh.
 - Request sequence checks reject older responses.
@@ -69,6 +72,11 @@ one elite asset.
 - League and identity changes select new cache namespaces.
 - Dynasty views and the last safe Analyzer snapshot stay readable offline.
 - Offer submission stays disabled offline.
+
+## Safe rollout
+
+Hidden legacy rows and request aliases stay for one release. This keeps database-first deployment and rollback safe.
+The next cleanup migration removes them after all live clients use forecast views.
 
 ## Release proof
 

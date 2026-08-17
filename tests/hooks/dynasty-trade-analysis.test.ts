@@ -26,7 +26,7 @@ const deferred = <Value,>() => {
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 const row = {
-    player_id: 'player-1', display_name: 'Player One', age: 24, dynasty_rank: 8,
+    player_id: 'player-1', display_name: 'Player One', age: 24, five_year_rank: 8,
     rank_change: 1, injury_status: null, avg_fantasy_points: 42,
     projection_fantasy_points: 44, years_exp: 3, ranking_source: 'rankings',
     ranking_fetched_at: null, projection_source: 'projections', projection_fetched_at: null,
@@ -39,7 +39,6 @@ const baseInput = {
     scoringSettings: { points: 1 },
     teams: 12,
     faabBudget: 100,
-    strategy: 'overall' as const,
     participants: [
         { memberId: 'member-a', roster: [{ players: { id: 'player-1', display_name: 'Player One' } }], picks: [] },
         { memberId: 'member-b', roster: [], picks: [] },
@@ -67,6 +66,7 @@ describe('dynasty trade analysis season identity', () => {
             leagueId: 'league-a', memberId: 'member-a', seasonYear: 2042,
         }))
         expect(latest.analysis?.assets.map((asset) => asset.assetId)).toEqual(['player-1'])
+        expect(latest.seasonYear).toBe(2042)
         await act(async () => { renderer.unmount() })
     })
 
