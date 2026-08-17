@@ -64,7 +64,8 @@
         "npm:react-test-renderer@^19.1.0",
         "npm:react@19.1.0",
         "npm:typescript@~5.9.2",
-        "npm:vitest@^4.1.9"
+        "npm:vitest@^4.1.9",
+        "npm:ws@^8.21.3"
       ],
       "overrides": {
         "@xmldom/xmldom": "0.8.13",

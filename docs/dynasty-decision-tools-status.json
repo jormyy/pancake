@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-08-16T22:12:00-07:00",
+  "updatedAt": "2026-08-17T04:10:00-07:00",
   "progress": {
     "completed": 2,
     "total": 2,
@@ -27,22 +27,34 @@
         "PASS: session handoff into the offer editor",
         "PASS: proposal review and explicit confirmation",
         "PASS: cached offline result with offer creation disabled",
-        "PASS: lazy Analyzer route chunk 14.2 kB raw"
+        "PASS: lazy Analyzer route chunk 18.2 kB raw in the final export"
       ]
     }
   },
   "releaseGates": {
     "soak20Seasons": {
-      "status": "pending",
-      "result": null,
-      "durationMs": null,
-      "evidence": []
+      "status": "passed",
+      "result": "PASS: 20/20 seasons",
+      "durationMs": 14779790,
+      "evidence": [
+        "npm run e2e:soak:release",
+        "tests/e2e-report.md: PASS from 2026-08-17T06:47:53.981Z through 2026-08-17T10:54:13.602Z",
+        "mid-life migration 20260816000003 APPLIED between seasons 5 and 6",
+        "all season dynasty engine, scoring, pick, trade, identity, runtime, and memory checks passed"
+      ]
     },
     "agentBrowserWalkthrough": {
-      "status": "pending",
-      "session": null,
-      "productionUrl": null,
-      "evidence": []
+      "status": "passed",
+      "session": "dynasty-final-20260817",
+      "productionUrl": "http://127.0.0.1:8081",
+      "evidence": [
+        "PASS: all 22 required flows",
+        "PASS: desktop 1440x1000 and mobile 390x844",
+        "PASS: final clean app run has zero uncaught page errors",
+        "PASS: final console contains only expected Expo Notifications web warnings",
+        "/tmp/pancake-dynasty-final-evidence/walkthrough-report.md",
+        "/tmp/pancake-dynasty-final-evidence/97-walkthrough-trace.zip"
+      ]
     }
   },
   "baseline": {
@@ -94,6 +106,26 @@
       "wave": 3,
       "commit": "95fb97b",
       "result": "PASS: shared Analyzer, offer prefills, handoff, and confirmation"
+    },
+    {
+      "wave": 4,
+      "commit": "9eb3e98",
+      "result": "PASS: identity, scope, offline, stale-request, and connectivity hardening"
+    },
+    {
+      "wave": 5,
+      "commit": "4e4da0f",
+      "result": "PASS: release migration boundary"
+    },
+    {
+      "wave": 5,
+      "commit": "5add898",
+      "result": "PASS: realtime WebSocket transport in the release harness"
+    },
+    {
+      "wave": 5,
+      "commit": "32c7c6e",
+      "result": "PASS: refreshed per-season decision-tool authentication"
     }
   ],
   "forcedRedChecks": [
@@ -127,7 +159,31 @@
     },
     "rankingWarmNavigation": {
       "budgetMs": 300,
-      "result": "PASS: navigation duration 15.3 ms; FCP 56 ms"
+      "result": "PASS: final warm navigation duration 17.9 ms"
+    },
+    "databaseLatency": {
+      "budgetMs": 100,
+      "result": "PASS: npm run e2e:data-latency"
+    },
+    "fullWorkflow": {
+      "budgetMs": 1000,
+      "result": "PASS: 448 ms and 684 ms"
+    },
+    "browserFeedback": {
+      "budgetMs": 100,
+      "result": "PASS: 2 ms and 3.2 ms"
+    },
+    "browserLongTask": {
+      "budgetMs": 50,
+      "result": "PASS: 0 ms maximum"
+    },
+    "initialWebJavaScript": {
+      "budgetKb": 700,
+      "result": "PASS: 561.4 KB encoded"
+    },
+    "routeWebJavaScript": {
+      "budgetKb": 220,
+      "result": "PASS: Dynasty 30.4 KB raw; Analyzer 18.2 KB raw"
     }
   },
   "browserEvidence": [
@@ -142,7 +198,16 @@
     "/tmp/pancake-dynasty-wave3-evidence/desktop-received-offer-prefill.png",
     "/tmp/pancake-dynasty-wave3-evidence/desktop-multi-team.png",
     "/tmp/pancake-dynasty-wave3-evidence/mobile-multi-team-rebuild.png",
-    "/tmp/pancake-dynasty-wave3-evidence/mobile-offline-analyzer-cached.png"
+    "/tmp/pancake-dynasty-wave3-evidence/mobile-offline-analyzer-cached.png",
+    "/tmp/pancake-dynasty-final-evidence/walkthrough-report.md",
+    "/tmp/pancake-dynasty-final-evidence/03-dynasty-overall-desktop.png",
+    "/tmp/pancake-dynasty-final-evidence/30-multi-team3-pick-added.png",
+    "/tmp/pancake-dynasty-final-evidence/34-offer-review.png",
+    "/tmp/pancake-dynasty-final-evidence/47-analyzer-offline-cache.png",
+    "/tmp/pancake-dynasty-final-evidence/59-received-offer-analyzer-prefill.png",
+    "/tmp/pancake-dynasty-final-evidence/82-mobile-analyzer-complete.png",
+    "/tmp/pancake-dynasty-final-evidence/83-mobile-dynasty.png",
+    "/tmp/pancake-dynasty-final-evidence/97-walkthrough-trace.zip"
   ],
   "fixedFindings": [
     "HIGH: Native connectivity now uses expo-network and disables both offer confirmation controls after connection loss.",
@@ -151,7 +216,9 @@
     "MEDIUM: Analyzer snapshots now include user, member, league, strategy, and route identity and display only offline.",
     "MEDIUM: Analyzer clears prior-league members and composer state, then rejects invalid participants.",
     "MEDIUM: Trade-pick caches now include user identity.",
-    "TEST-DISCOVERED: Trade analysis now blocks a prior league from starting its player read after a scope change."
+    "TEST-DISCOVERED: Trade analysis now blocks a prior league from starting its player read after a scope change.",
+    "SOAK: The realtime harness now installs an explicit WebSocket transport in Node.",
+    "SOAK: Each dynasty season probe now refreshes its Supabase session before scoped reads."
   ],
   "notReproducibleFindings": [],
   "blockers": []
