@@ -1,3 +1,5 @@
+-- Split ranking refreshes across Edge requests and keep denormalized player ranks on Overall.
+
 -- Canonical SQL source for public.replace_dynasty_rankings.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
@@ -275,3 +277,51 @@ BEGIN
   );
 END;
 $$;
+
+
+-- Canonical SQL source for public.invoke_dynasty_ranking_views_at_et_time.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+
+CREATE OR REPLACE FUNCTION public.invoke_dynasty_ranking_views_at_et_time(
+  p_hour int,
+  p_minute int DEFAULT 0
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now timestamp;
+BEGIN
+  v_now := timezone('America/New_York', now());
+  IF EXTRACT(HOUR FROM v_now)::int = p_hour
+     AND EXTRACT(MINUTE FROM v_now)::int = p_minute THEN
+    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"CONTEND"}'::jsonb);
+    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"REBUILD"}'::jsonb);
+    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"ROOKIE"}'::jsonb);
+    PERFORM public.invoke_edge_function('sync-rankings', '{"view":"OVERALL"}'::jsonb);
+  END IF;
+END;
+$$;
+
+
+REVOKE ALL ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) FROM anon;
+REVOKE ALL ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.invoke_dynasty_ranking_views_at_et_time(int, int) TO service_role;
+
+DO $cron$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.unschedule('nba-sync-rankings') WHERE EXISTS (
+      SELECT 1 FROM cron.job WHERE jobname = 'nba-sync-rankings'
+    );
+    PERFORM cron.schedule(
+      'nba-sync-rankings',
+      '0 11,12 * * 1',
+      $$SELECT public.invoke_dynasty_ranking_views_at_et_time(7, 0)$$
+    );
+  END IF;
+END
+$cron$;

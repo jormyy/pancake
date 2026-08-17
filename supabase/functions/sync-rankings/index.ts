@@ -2,48 +2,51 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
-import { buildDynastyRankingPayload, RANKINGS_SOURCE, type PlayerForRanking } from './match.ts'
-import { parseDynastyRankingsHtml, selectedDynastyRankingType, type RankingRow } from './parser.ts'
+import { buildDynastyRankingPayload, type PlayerForRanking } from './match.ts'
+import { parseDynastyRankingOrderHtml, parseDynastyRankingsHtml, selectedDynastyRankingType } from './parser.ts'
+import { RANKING_VIEWS_IN_WRITE_ORDER, type RankingViewDefinition } from './views.ts'
 import * as cheerio from 'npm:cheerio@1.2.0'
 
 const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
-const POINTS_RANKING_TYPE = 'POINT'
-// Hashtag's 2026-08 redesign lists 400 players (was 500+). The floor still
-// refuses truncated or reshaped scrapes while accepting the full list.
-const MIN_RANKING_ROWS = 300
 
-serveInternal('sync-rankings', async () => {
+serveInternal('sync-rankings', async (req) => {
+  const requestedView = await requestedRankingView(req) ?? RANKING_VIEWS_IN_WRITE_ORDER.at(-1)!
+
   const rows = await recordSyncRun('sync-rankings', async () => {
-    const rows = await syncDynastyRankings()
+    const rows = await syncRankingView(requestedView)
     return { result: rows, rowsAffected: rows }
   })
-  return Response.json({ ok: true, rows })
+  return Response.json({ ok: true, rows, view: requestedView.type })
 })
 
-async function syncDynastyRankings(): Promise<number> {
-  console.log('[sync-rankings] Scraping dynasty rankings...')
-  const [scraped, players] = await Promise.all([scrapeDynastyRankings(), fetchPlayersForRanking()])
+async function syncRankingView(view: RankingViewDefinition): Promise<number> {
+  console.log(`[sync-rankings] Scraping published ${view.type} rankings...`)
+  const [baseHtml, players] = await Promise.all([fetchRankingsHtml(), fetchPlayersForRanking()])
   const fetchedAt = new Date().toISOString()
-  console.log(`[sync-rankings] Scraped ${scraped.rankings.length} ${scraped.scoringFormat} rows.`)
-
-  const { rows: rankingRows, matched } = buildDynastyRankingPayload(scraped.rankings, players, fetchedAt)
-  if (rankingRows.length < MIN_RANKING_ROWS) {
-    throw new Error(`Parsed ${rankingRows.length} ranking rows, below minimum ${MIN_RANKING_ROWS}`)
+  const html = view.type === 'OVERALL' ? baseHtml : await fetchRankingViewHtml(baseHtml, view.type)
+  const rankings = view.type === 'OVERALL'
+    ? parseDynastyRankingsHtml(html)
+    : parseDynastyRankingOrderHtml(html)
+  if (rankings.length < view.minimumRows) {
+    throw new Error(`Parsed ${rankings.length} ${view.type} rows, below minimum ${view.minimumRows}`)
   }
+  const payload = buildDynastyRankingPayload(rankings, players, fetchedAt, view.source)
+  const result = await replaceRankingView(view, payload.rows, payload.matched, fetchedAt)
+  console.log(
+    `[sync-rankings] Stored ${payload.rows.length} ${view.type} rows; matched ${payload.matched}/${payload.rows.length} players.`,
+    result,
+  )
+  return payload.rows.length
+}
 
-  const { data: result, error } = await supabase.rpc('replace_dynasty_rankings', {
-    p_source: RANKINGS_SOURCE,
-    p_fetched_at: fetchedAt,
-    p_rows: rankingRows,
-    p_min_rows: MIN_RANKING_ROWS,
-    p_scoring_format: scraped.scoringFormat,
-    p_source_url: RANKINGS_URL,
-    p_source_metadata: scraped.metadata,
-  })
-  if (error) throw error
-
-  console.log(`[sync-rankings] Stored ${rankingRows.length} ranking rows; matched ${matched}/${rankingRows.length} players.`, result)
-  return rankingRows.length
+async function requestedRankingView(req: Request): Promise<RankingViewDefinition | null> {
+  const body = await req.clone().json().catch(() => null) as { view?: unknown } | null
+  if (!body || body.view == null) return null
+  if (typeof body.view !== 'string') throw new Error('Ranking view must be a string')
+  const requested = body.view.trim().toUpperCase()
+  const view = RANKING_VIEWS_IN_WRITE_ORDER.find((candidate) => candidate.type === requested)
+  if (!view) throw new Error(`Unknown ranking view: ${body.view}`)
+  return view
 }
 
 async function fetchPlayersForRanking(): Promise<PlayerForRanking[]> {
@@ -65,43 +68,6 @@ async function fetchPlayersForRanking(): Promise<PlayerForRanking[]> {
   return players
 }
 
-type ScrapedRankings = {
-  rankings: RankingRow[]
-  scoringFormat: 'points' | 'overall'
-  metadata: Record<string, string | number | boolean | null>
-}
-
-async function scrapeDynastyRankings(): Promise<ScrapedRankings> {
-  const pointsHtml = await fetchPointsRankingsHtml()
-  const selectedType = selectedDynastyRankingType(pointsHtml)
-  if (selectedType === POINTS_RANKING_TYPE) {
-    return {
-      rankings: parseDynastyRankingsHtml(pointsHtml),
-      scoringFormat: 'points',
-      metadata: {
-        requestedRankingType: POINTS_RANKING_TYPE,
-        selectedRankingType: selectedType,
-        requestMethod: 'POST',
-        forecastSeasons: 5,
-      },
-    }
-  }
-
-  console.warn(`[sync-rankings] Points rankings unavailable; selected type was ${selectedType ?? 'unknown'}. Falling back to overall rankings.`)
-  const fallbackHtml = await fetchRankingsHtml()
-  return {
-    rankings: parseDynastyRankingsHtml(fallbackHtml),
-    scoringFormat: 'overall',
-    metadata: {
-      requestedRankingType: POINTS_RANKING_TYPE,
-      selectedRankingType: selectedType,
-      requestMethod: 'GET',
-      forecastSeasons: 5,
-      fallbackReason: 'Hashtag did not return the requested points-league ranking type.',
-    },
-  }
-}
-
 async function fetchRankingsHtml(): Promise<string> {
   const res = await fetchWithRetry(RANKINGS_URL, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PancakeApp/1.0)' },
@@ -110,10 +76,9 @@ async function fetchRankingsHtml(): Promise<string> {
   return res.text()
 }
 
-async function fetchPointsRankingsHtml(): Promise<string> {
-  const html = await fetchRankingsHtml()
+async function fetchRankingViewHtml(html: string, rankingType: RankingViewDefinition['type']): Promise<string> {
   const form = buildAspNetRankingForm(html)
-  form.set('ctl00$ContentPlaceHolder1$DDTYPE', POINTS_RANKING_TYPE)
+  form.set('ctl00$ContentPlaceHolder1$DDTYPE', rankingType)
 
   const res = await fetchWithRetry(RANKINGS_URL, {
     method: 'POST',
@@ -125,8 +90,38 @@ async function fetchPointsRankingsHtml(): Promise<string> {
     },
     body: form,
   })
-  if (!res.ok) throw new Error(`Points rankings fetch ${res.status}`)
-  return res.text()
+  if (!res.ok) throw new Error(`${rankingType} rankings fetch ${res.status}`)
+  const responseHtml = await res.text()
+  const selectedType = selectedDynastyRankingType(responseHtml)
+  if (selectedType !== rankingType) {
+    throw new Error(`Requested ${rankingType} rankings but Hashtag selected ${selectedType ?? 'unknown'}`)
+  }
+  return responseHtml
+}
+
+async function replaceRankingView(
+  view: RankingViewDefinition,
+  rows: ReturnType<typeof buildDynastyRankingPayload>['rows'],
+  matched: number,
+  fetchedAt: string,
+) {
+  const { data, error } = await supabase.rpc('replace_dynasty_rankings', {
+    p_source: view.source,
+    p_fetched_at: fetchedAt,
+    p_rows: rows,
+    p_min_rows: view.minimumRows,
+    p_scoring_format: 'overall',
+    p_source_url: RANKINGS_URL,
+    p_source_metadata: {
+      requestedRankingType: view.type,
+      selectedRankingType: view.type,
+      requestMethod: view.type === 'OVERALL' ? 'GET' : 'POST',
+      forecastSeasons: 5,
+      matchedPlayers: matched,
+    },
+  })
+  if (error) throw error
+  return data
 }
 
 function buildAspNetRankingForm(html: string): URLSearchParams {

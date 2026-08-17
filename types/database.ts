@@ -3896,6 +3896,7 @@ export type Database = {
           avg_steals: number
           avg_three_pointers_made: number
           avg_turnovers: number
+          contend_rank: number
           display_name: string
           dynasty_rank: number
           dynasty_ranking_id: string
@@ -3913,6 +3914,8 @@ export type Database = {
           rank_change: number
           ranking_fetched_at: string
           ranking_source: string
+          rebuild_rank: number
+          rookie_rank: number
           years_exp: number
         }[]
       }
@@ -4007,6 +4010,10 @@ export type Database = {
           cursor_token: string
           trade_id: string
         }[]
+      }
+      invoke_dynasty_ranking_views_at_et_time: {
+        Args: { p_hour: number; p_minute?: number }
+        Returns: undefined
       }
       invoke_edge_function: {
         Args: { body?: Json; function_name: string }

@@ -55,6 +55,55 @@ VALUES (
   1, 0.5, 2, 'points'
 );
 
+INSERT INTO public.dynasty_rankings (
+  source, source_rank, source_player_id, source_player_name, source_team,
+  source_positions, player_id, age, rank_change, scoring_format
+)
+VALUES
+  (
+    'hashtagbasketball.com/contend', 9001, 'dynasty-decision-input-player', 'Decision Player', 'SEA',
+    ARRAY['PG'], '00000000-0000-0000-0000-0000000d1300', 22.5, 0, 'overall'
+  ),
+  (
+    'hashtagbasketball.com/rebuild', 9002, 'dynasty-decision-input-player', 'Decision Player', 'SEA',
+    ARRAY['PG'], '00000000-0000-0000-0000-0000000d1300', 22.5, 0, 'overall'
+  ),
+  (
+    'hashtagbasketball.com/rookie', 9003, 'dynasty-decision-input-player', 'Decision Player', 'SEA',
+    ARRAY['PG'], '00000000-0000-0000-0000-0000000d1300', 22.5, 0, 'overall'
+  );
+
+DO $$
+DECLARE
+  v_player_rank int;
+BEGIN
+  PERFORM public.replace_dynasty_rankings(
+    'hashtagbasketball.com/contend',
+    now(),
+    jsonb_build_array(jsonb_build_object(
+      'source_rank', 9001,
+      'source_player_name', 'Decision Player',
+      'source_player_id', 'dynasty-decision-input-player',
+      'source_team', 'SEA',
+      'source_positions', jsonb_build_array('PG'),
+      'player_id', '00000000-0000-0000-0000-0000000d1300',
+      'age', 22.5,
+      'rank_change', 0
+    )),
+    1,
+    'overall',
+    'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings',
+    '{"selectedRankingType":"CONTEND"}'::jsonb
+  );
+
+  SELECT dynasty_rank INTO v_player_rank
+    FROM public.players
+   WHERE id = '00000000-0000-0000-0000-0000000d1300';
+  IF v_player_rank IS NOT NULL THEN
+    RAISE EXCEPTION 'Strategy view replaced canonical player rank with %', v_player_rank;
+  END IF;
+END $$;
+
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000d1001', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 SET LOCAL ROLE authenticated;
@@ -64,6 +113,10 @@ DECLARE
   v_count int;
   v_started timestamptz;
   v_elapsed interval;
+  v_dynasty_rank int;
+  v_contend_rank int;
+  v_rebuild_rank int;
+  v_rookie_rank int;
 BEGIN
   v_started := clock_timestamp();
   SELECT count(*)
@@ -81,6 +134,21 @@ BEGIN
 
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'Expected one authorized dynasty input row, got %', v_count;
+  END IF;
+  SELECT dynasty_rank, contend_rank, rebuild_rank, rookie_rank
+    INTO v_dynasty_rank, v_contend_rank, v_rebuild_rank, v_rookie_rank
+    FROM public.get_dynasty_decision_inputs(
+      '00000000-0000-0000-0000-0000000d1100',
+      '00000000-0000-0000-0000-0000000d1200',
+      2026,
+      ARRAY['00000000-0000-0000-0000-0000000d1300'::uuid],
+      'Decision',
+      20,
+      0
+    );
+  IF (v_dynasty_rank, v_contend_rank, v_rebuild_rank, v_rookie_rank) IS DISTINCT FROM (9999, 9001, 9002, 9003) THEN
+    RAISE EXCEPTION 'Unexpected strategy ranks: %, %, %, %',
+      v_dynasty_rank, v_contend_rank, v_rebuild_rank, v_rookie_rank;
   END IF;
   IF v_elapsed >= interval '100 milliseconds' THEN
     RAISE EXCEPTION 'Dynasty input hot query exceeded 100 ms: %', v_elapsed;

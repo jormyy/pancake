@@ -79,6 +79,12 @@ function playerRow(row: DynastyDecisionInput, result: DynastyAssetResult): Dynas
         rankFetchedAt: row.ranking_fetched_at ?? row.projection_fetched_at ?? new Date(0).toISOString(),
         isDraftPick: false,
         isRookie: row.years_exp === 0,
+        sourceRanks: {
+            overall: row.dynasty_rank,
+            contend: row.contend_rank,
+            rebuild: row.rebuild_rank,
+            rookie: row.rookie_rank,
+        },
         strategyValues: result.values,
         shortTermPoints: result.components.shortTermPoints,
         projectionPoints: row.projection_fantasy_points,
@@ -176,16 +182,28 @@ function rankedRows(
         return playerRow(row, result)
     })
     const candidates = view === 'rookies-picks'
-        ? [...playerRows.filter((row) => row.isRookie), ...futurePickRows(leagueId, seasonYear, scoringSettings, teamCount)]
+        ? [
+            ...playerRows.filter((row) => row.sourceRanks?.rookie != null || row.isRookie),
+            ...futurePickRows(leagueId, seasonYear, scoringSettings, teamCount),
+        ]
         : playerRows
     const normalized = query.trim().toLocaleLowerCase()
     return candidates
         .filter((row) => !normalized || row.displayName.toLocaleLowerCase().includes(normalized))
-        .sort((left, right) =>
-            (right.strategyValues?.[strategy] ?? 0) - (left.strategyValues?.[strategy] ?? 0) ||
-            left.displayName.localeCompare(right.displayName) ||
-            left.rankingId.localeCompare(right.rankingId),
-        )
+        .sort((left, right) => {
+            const leftRank = view === 'rookies-picks'
+                ? left.sourceRanks?.rookie
+                : left.sourceRanks?.[strategy] ?? left.sourceRanks?.overall
+            const rightRank = view === 'rookies-picks'
+                ? right.sourceRanks?.rookie
+                : right.sourceRanks?.[strategy] ?? right.sourceRanks?.overall
+            if (leftRank != null && rightRank != null && leftRank !== rightRank) return leftRank - rightRank
+            if (leftRank != null) return -1
+            if (rightRank != null) return 1
+            return (right.strategyValues?.[strategy] ?? 0) - (left.strategyValues?.[strategy] ?? 0) ||
+                left.displayName.localeCompare(right.displayName) ||
+                left.rankingId.localeCompare(right.rankingId)
+        })
         .map((row, index) => ({
             ...row,
             dynastyRank: index + 1,

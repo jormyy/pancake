@@ -4,10 +4,11 @@ This document defines the shared value engine for Dynasty Rankings and Trade Ana
 
 ## Product rules
 
-- A manager selects Overall, Contend, or Rebuild. The app does not infer strategy.
+- A manager selects Overall, Contend, or Rebuild. Hashtag Basketball sets each published order.
 - The engine uses the active league scoring settings.
+- League scoring changes the displayed value. It does not replace the published order.
 - The engine keeps short-term points separate from long-term dynasty value.
-- Rankings and Analyzer use the same engine result.
+- Rankings and Analyzer use the same league value result.
 - Analyzer experiments stay in session memory.
 - Make Offer needs an explicit action and confirmation.
 - The app does not call a trade won, lost, fair, unfair, approved, or rejected.
@@ -56,7 +57,8 @@ one elite asset.
 
 ## Data and cache rules
 
-- Reads batch player, ranking, projection, roster, pick, and league data.
+- Reads batch player, published strategy ranks, projection, roster, pick, and league data.
+- Sync stores Overall, Contend, Rebuild, and Rookie views under separate source keys.
 - Private cache keys include user, member, league, strategy, and query.
 - Cache shape changes increment the key version.
 - Cached content renders before a background refresh.
