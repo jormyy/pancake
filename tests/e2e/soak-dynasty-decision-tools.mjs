@@ -3,7 +3,6 @@ import { signInSupabaseClient } from './soak-fixtures.mjs'
 
 const require = createRequire(import.meta.url)
 const { analyzeDynastyTrade, valueDynastyAssets } = require('../../core/cjs/dynasty/decisionEngine.js')
-const clients = new Map()
 const priorSeasonYear = new Map()
 
 const stats = {
@@ -31,10 +30,7 @@ const player = (id, label, rank, points = stats) => ({
 })
 
 const signedClient = async (env, user, password, season) => {
-  if (clients.has(user.id)) return clients.get(user.id)
-  const client = await signInSupabaseClient(env, user.email, password, `dynasty soak season ${season}`)
-  clients.set(user.id, client)
-  return client
+  return signInSupabaseClient(env, user.email, password, `dynasty soak season ${season}`)
 }
 
 export async function assertDynastyDecisionTools({ supabase, env, state, leagueId, season }) {
