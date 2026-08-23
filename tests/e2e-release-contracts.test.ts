@@ -1059,6 +1059,30 @@ describe('release E2E contracts', () => {
     expect(() => assertFullSweepRoutes(REQUIRED_FULL_SWEEP_LABELS.slice(1))).toThrow('auth-sign-in')
   })
 
+  it('accepts a route-open timeout only after the requested page has settled', async () => {
+    const smokeModule = await import('./e2e/browser-smoke.mjs')
+    const openSurfaceRoute = Reflect.get(smokeModule, 'openSurfaceRoute')
+    expect(openSurfaceRoute).toBeTypeOf('function')
+
+    const calls: string[][] = []
+    await openSurfaceRoute({
+      browserCall: async (_session: string, args: string[]) => {
+        calls.push(args)
+        if (args[0] === 'open') throw new Error('operation timed out')
+        return ''
+      },
+      isSettled: async () => true,
+      session: 'route-recovery',
+      frontendUrl: 'http://127.0.0.1:8081',
+      label: 'league',
+      route: '/league',
+      phase: 'online',
+    })
+
+    expect(calls.filter(([command]) => command === 'open')).toHaveLength(1)
+    expect(calls).toContainEqual(['wait', '500'])
+  })
+
   it('writes canonical failure evidence even when setup returns no artifact directory', async () => {
     const registryArtifactRoot = await mkdtemp(path.join(os.tmpdir(), 'pancake-registry-'))
     tempDirs.push(registryArtifactRoot)

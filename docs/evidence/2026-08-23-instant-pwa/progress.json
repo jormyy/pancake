@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T21:50:39Z",
+  "updatedAt": "2026-08-23T22:22:41Z",
   "deadline": "2026-08-23T13:30:00-07:00",
   "resumedAt": "2026-08-23T21:17:00Z",
   "deadlineRemovedByUser": true,
-  "branchHead": "62b787bb95cc9be31623536869868cc267aff800",
+  "branchHead": "449cc08384960d1a1ec980a88743ca64032e7305",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
     "ports": [54321, 54322, 54323, 54324, 8081, 19006]
   },
   "finalRuntimeState": {
-    "observedAt": "2026-08-23T21:50:39Z",
+    "observedAt": "2026-08-23T22:22:41Z",
     "deadlineReached": true,
     "deadlineApplicable": false,
     "initialServiceStateRestored": false,
@@ -336,16 +336,17 @@
     {
       "id": "expanded-twenty-season-soak",
       "status": "incomplete",
-      "observedAt": "2026-08-23T21:38:52Z",
+      "observedAt": "2026-08-23T22:15:55Z",
       "checks": {
         "requestedSeasons": 20,
         "completedSeasons": 0,
-        "partialSeason": 1,
+        "partialSeason": 2,
         "fakeUpstreamSafety": { "status": "pass" },
         "dockerUpstreamRouting": { "status": "pass" },
         "partialSourceDynastyRealtimeEvidence": { "status": "saved" },
         "browserVisualCapture": { "status": "pass", "result": "auth and performance captures completed through the verified print fallback" },
         "browserPerformanceMeasurement": { "status": "recovered", "knownBad": "draft long task measured 60 milliseconds against a 50 millisecond budget", "result": "capture now completes before measurement starts" },
+        "browserRouteOpen": { "status": "recovered", "knownBad": "season 2 timed out while opening League", "result": "all 23 online, offline, and reconnect routes passed after settle-aware recovery" },
         "surfaceCoverage": { "status": "unproved" }
       },
       "evidence": ["soak/expanded-soak-attempt.json", "../../../tests/e2e-report.json"]
@@ -388,6 +389,19 @@
         "regressions": { "status": "pass", "files": 112, "tests": 640, "qualityGate": "pass" }
       },
       "evidence": ["soak/browser-perf-capture-window.json"]
+    },
+    {
+      "id": "browser-route-open-recovery",
+      "status": "complete",
+      "observedAt": "2026-08-23T22:22:41Z",
+      "checks": {
+        "knownBad": { "status": "pass", "result": "season 2 timed out before League was recorded" },
+        "settleAwareRecovery": { "status": "pass", "result": "a timed-out command is accepted only after the requested page settles" },
+        "routeProof": { "status": "pass", "online": 23, "offline": 23, "reconnect": 23 },
+        "visualProof": { "status": "pass", "route": "/league", "dimensions": "1280x578", "visuallyInspected": true },
+        "regressions": { "status": "pass", "files": 112, "tests": 641, "qualityGate": "pass" }
+      },
+      "evidence": ["soak/route-open-recovery.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -457,5 +471,5 @@
       "missingEvidence": ["repeat the pruning audit after the final behavior change"]
     }
   ],
-  "nextAction": "Rebuild and seed the guarded local release environment, then rerun all 20 seasons and enforce every matrix evidence id."
+  "nextAction": "Rebuild and seed the settle-aware local release environment, then rerun all 20 seasons and enforce every matrix evidence id."
 }

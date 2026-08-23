@@ -78,18 +78,26 @@ const surfaceRouteSettled = async (session, label, route, phase) => {
   return state.path === expectedSurfacePath(label, route)
 }
 
-const openSurfaceRoute = async (session, frontendUrl, label, route, phase) => {
+export const openSurfaceRoute = async ({
+  browserCall = browser,
+  isSettled = surfaceRouteSettled,
+  session,
+  frontendUrl,
+  label,
+  route,
+  phase,
+}) => {
   const url = joinUrl(frontendUrl, route)
   try {
-    await browser(session, ['open', url], { timeout: 20_000 })
+    await browserCall(session, ['open', url], { timeout: 20_000 })
     return
   } catch (error) {
-    await browser(session, ['wait', '500']).catch(() => {})
-    if (await surfaceRouteSettled(session, label, route, phase)) return
-    await browser(session, ['open', url], { timeout: 30_000 }).catch(async (retryError) => {
-      if (!await surfaceRouteSettled(session, label, route, phase)) throw retryError
+    await browserCall(session, ['wait', '500']).catch(() => {})
+    if (await isSettled(session, label, route, phase)) return
+    await browserCall(session, ['open', url], { timeout: 30_000 }).catch(async (retryError) => {
+      if (!await isSettled(session, label, route, phase)) throw retryError
     })
-    if (!await surfaceRouteSettled(session, label, route, phase)) throw error
+    if (!await isSettled(session, label, route, phase)) throw error
   }
 }
 
@@ -692,7 +700,7 @@ export async function runBrowserSmoke({
         ['auth-sign-up', '/sign-up'],
       ]
       for (const [label, route] of authRoutes) {
-        await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+        await openSurfaceRoute({ session, frontendUrl: env.frontendUrl, label, route, phase: 'online' })
         await browser(session, ['wait', '1500'])
         routeCatalog.push([label, route])
         if (pwaProofRequired) {
@@ -703,7 +711,9 @@ export async function runBrowserSmoke({
       }
     }
 
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/sign-in')])
+    await openSurfaceRoute({
+      session, frontendUrl: env.frontendUrl, label: 'auth-sign-in', route: '/sign-in', phase: 'online',
+    })
     await browser(session, ['wait', '1500'])
     await fillTextbox(session, 'Email', user.email)
     await fillTextbox(session, 'Password', state.password)
@@ -727,11 +737,11 @@ export async function runBrowserSmoke({
     }
 
     for (const [label, route] of routes) {
-      await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+      await openSurfaceRoute({ session, frontendUrl: env.frontendUrl, label, route, phase: 'online' })
       const workflowId = routeWorkflowIds.get(label)
       if (workflowId) {
         const routeTiming = await measureNavigationTiming(browser, session, { workflowId, label, sharedScriptUrls })
-        await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+        await openSurfaceRoute({ session, frontendUrl: env.frontendUrl, label, route, phase: 'online' })
         const cachedTiming = await measureNavigationTiming(browser, session, { workflowId, label, sharedScriptUrls })
         const feedback = await measureWorkflowFeedback(browser, session, { workflowId, label })
         if (cachedTiming && feedback?.observed && feedback.feedbackMs != null) {
@@ -786,7 +796,7 @@ export async function runBrowserSmoke({
       try {
         await cdpNetwork.setOffline(true)
         for (const [label, route] of routeCatalog) {
-          await openSurfaceRoute(session, env.frontendUrl, label, route, 'offline')
+          await openSurfaceRoute({ session, frontendUrl: env.frontendUrl, label, route, phase: 'offline' })
           await browser(session, ['wait', '500'])
           routeEvidence.offline.push(await observeRoute(session, { label, route, phase: 'offline' }))
         }
@@ -802,7 +812,7 @@ export async function runBrowserSmoke({
       await browser(session, ['errors', '--clear'])
 
       for (const [label, route] of routeCatalog) {
-        await openSurfaceRoute(session, env.frontendUrl, label, route, 'reconnect')
+        await openSurfaceRoute({ session, frontendUrl: env.frontendUrl, label, route, phase: 'reconnect' })
         await browser(session, ['wait', '750'])
         routeEvidence.reconnect.push(await observeRoute(session, { label, route, phase: 'reconnect' }))
       }
