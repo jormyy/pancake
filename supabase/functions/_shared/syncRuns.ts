@@ -46,7 +46,7 @@ type SyncRunsDatabase = {
 const syncRuns = createClient<SyncRunsDatabase>(
   Deno.env.get('SUPABASE_URL')!,
   requiredSecretKey(),
-  { auth: { persistSession: false } },
+  { auth: { autoRefreshToken: false, persistSession: false } },
 )
 
 // Best-effort sync_runs bookkeeping keeps cron health queryable without putting
