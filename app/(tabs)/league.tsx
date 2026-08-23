@@ -154,6 +154,7 @@ export default function LeagueScreen() {
                     onShareInviteCode={screen.shareInviteCode}
                     onOpenBracket={screen.openBracket}
                     onOpenCommissionerSettings={screen.openCommissionerSettings}
+                    onOpenProfile={screen.openProfile}
                 />
             )
         }

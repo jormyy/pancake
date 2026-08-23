@@ -17,10 +17,10 @@ type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/leagu
 
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'Matchup', href: '/', icon: 'home' },
-    { label: 'Players', href: '/players', icon: 'groups' },
-    { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
     { label: 'Roster', href: '/roster', icon: 'assignment' },
+    { label: 'Players', href: '/players', icon: 'groups' },
     { label: 'Trades', href: '/trades', icon: 'swap-horiz' },
+    { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
 ]
 
 const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
