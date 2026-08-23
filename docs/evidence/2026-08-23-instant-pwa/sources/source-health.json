@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-23T17:45:07.613Z",
+  "generatedAt": "2026-08-23T18:26:47.007Z",
   "scope": "local database and public read-only sources",
   "recoveryTestsConfirmed": true,
   "pass": true,
@@ -9,7 +9,7 @@
       "id": "nba-cdn",
       "freshness": {
         "status": "pass",
-        "evidence": "sync-schedule latest=success, age=0.1h, rows=1225. source:nba-cdn-scoreboard latest=success, age=0.1h, rows=0. sync-stats latest=success, age=0.1h, rows=0. sync-players latest=success, age=0.1h, rows=599."
+        "evidence": "sync-schedule latest=success, age=0.8h, rows=1225. source:nba-cdn-scoreboard latest=success, age=0.8h, rows=0. sync-stats latest=success, age=0.8h, rows=0. sync-players latest=success, age=0.8h, rows=599."
       },
       "completeness": {
         "status": "pass",
@@ -28,11 +28,11 @@
       "id": "espn-public-json",
       "freshness": {
         "status": "pass",
-        "evidence": "sync-players latest=success, age=0.1h, rows=599."
+        "evidence": "sync-players latest=success, age=0.8h, rows=599."
       },
       "completeness": {
         "status": "pass",
-        "evidence": "espn_ids=614, news=94, latest_news_age=30.6h."
+        "evidence": "espn_ids=614, news=94, latest_news_age=31.3h."
       },
       "failures": {
         "status": "pass",
@@ -66,7 +66,7 @@
       "id": "hashtag-basketball",
       "freshness": {
         "status": "pass",
-        "evidence": "sync-rankings latest=success, age=0.1h, rows=400."
+        "evidence": "sync-rankings latest=success, age=0.8h, rows=400."
       },
       "completeness": {
         "status": "pass",
@@ -85,11 +85,11 @@
       "id": "nba-draft-order",
       "freshness": {
         "status": "pass",
-        "evidence": "sync-draft-order latest=success, age=0.1h, rows=192."
+        "evidence": "sync-draft-order latest=success, age=0.8h, rows=192."
       },
       "completeness": {
         "status": "pass",
-        "evidence": "60 rookies have a verified draft number."
+        "evidence": "61 rookies have a verified draft number."
       },
       "failures": {
         "status": "pass",

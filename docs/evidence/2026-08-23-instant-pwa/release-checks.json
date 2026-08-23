@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T18:38:59Z",
+  "scope": "Local and development data with public read-only sources",
+  "verifiedCodeHead": "4a4f4f965a3d7cfa3be33d18ffdbb2ad4edb3a68",
+  "checks": {
+    "unitTests": {
+      "status": "pass",
+      "applicationFiles": 110,
+      "applicationTests": 625,
+      "coreFiles": 13,
+      "coreTests": 112
+    },
+    "quality": {
+      "status": "pass",
+      "includes": [
+        "lint",
+        "type checks",
+        "dead code",
+        "generated code",
+        "database source catalog"
+      ]
+    },
+    "edgeFunctions": {
+      "status": "pass",
+      "entrypoints": 16,
+      "tests": 100
+    },
+    "database": {
+      "status": "pass",
+      "testCommands": 17
+    },
+    "releaseBuild": {
+      "status": "pass",
+      "commitSha": "4a4f4f965a3d7cfa3be33d18ffdbb2ad4edb3a68",
+      "bundleDigest": "d38b633b1d4d75ea02de23f539d6c471d4787808996097dafd0a3412ff541aa0",
+      "commonJavaScriptBytes": 1708442,
+      "entryJavaScriptBytes": 971542
+    },
+    "releaseHydration": {
+      "status": "pass",
+      "finalPath": "/sign-up"
+    },
+    "dataLatency": {
+      "status": "pass",
+      "homeWorkflowMedianMilliseconds": 19.2,
+      "playerSearchMedianMilliseconds": 19.5,
+      "playerSearchMaximumMilliseconds": 45.8,
+      "requestBudgetMilliseconds": 100
+    },
+    "browserPerformance": {
+      "status": "pass",
+      "auctionMutations": 24,
+      "homeMutations": 24,
+      "auctionMaximumLagMilliseconds": 9,
+      "homeMaximumLagMilliseconds": 6,
+      "longTasks": 0,
+      "auctionColdLoadMilliseconds": 413,
+      "homeColdLoadMilliseconds": 700,
+      "auctionFeedbackMilliseconds": 2.3,
+      "homeFeedbackMilliseconds": 8
+    },
+    "performanceBudgets": {
+      "status": "pass",
+      "browserReportRequired": true,
+      "dataReportRequired": true
+    },
+    "sourceHealth": {
+      "status": "pass",
+      "configuredSources": 6,
+      "activeSources": 5,
+      "disabledFallbacks": 1
+    },
+    "dataHealth": {
+      "status": "pass",
+      "coreTables": 32,
+      "coreRpcs": 36,
+      "currentSeasonGames": 28,
+      "finalGames": 24,
+      "finalGamesWithoutStats": 0,
+      "players": 1269,
+      "projections": 64,
+      "openSyncJobs": 0,
+      "cleanupProbeResidue": 0
+    },
+    "selectedSoak": {
+      "status": "pass",
+      "seasons": 1,
+      "realtimeClients": 10,
+      "durationSeconds": 4.775,
+      "verified": [
+        "boundary invariants",
+        "dynasty decisions",
+        "scoring",
+        "picks",
+        "trades",
+        "identity isolation",
+        "matchup events",
+        "auction events"
+      ]
+    },
+    "testPruning": {
+      "status": "pass",
+      "testsBefore": 625,
+      "testsAfter": 625,
+      "testsRemoved": 0,
+      "coverage": "unavailable"
+    }
+  },
+  "limits": [
+    "The selected soak covered one season, not the 20-season release suite.",
+    "The final performance run skipped duplicate screenshots after the local capture command timed out.",
+    "Existing viewport and state screenshots remain valid because no material design changed.",
+    "No production project or hosted data was queried under the local-only goal scope.",
+    "The repository has no coverage command or provider."
+  ]
+}

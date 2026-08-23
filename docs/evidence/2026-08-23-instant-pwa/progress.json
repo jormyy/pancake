@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T18:16:48Z",
+  "updatedAt": "2026-08-23T18:38:59Z",
   "deadline": "2026-08-23T13:30:00-07:00",
-  "branchHead": "9700d418ffce9c4180579c1538d19f8b0ed3ca18",
+  "branchHead": "4a4f4f965a3d7cfa3be33d18ffdbb2ad4edb3a68",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
@@ -256,6 +256,36 @@
         "manualLineupSwapTaps": 2
       },
       "evidence": ["research-and-flow-map.md"]
+    },
+    {
+      "id": "test-pruning",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:20:43Z",
+      "checks": {
+        "before": { "files": 110, "tests": 625, "wallSeconds": 1.69 },
+        "after": { "files": 110, "tests": 625, "wallSeconds": 1.73 },
+        "removed": 0,
+        "coverage": "unavailable",
+        "mutationAudit": "pass"
+      },
+      "evidence": ["test-pruning.md"]
+    },
+    {
+      "id": "release-checks",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:38:59Z",
+      "checks": {
+        "applicationTests": { "status": "pass", "files": 110, "tests": 625 },
+        "coreTests": { "status": "pass", "files": 13, "tests": 112 },
+        "edgeTests": { "status": "pass", "tests": 100 },
+        "databaseTests": { "status": "pass", "commands": 17 },
+        "releaseBuild": { "status": "pass" },
+        "releaseHydration": { "status": "pass" },
+        "performanceBudgets": { "status": "pass" },
+        "dataHealth": { "status": "pass", "finalGamesWithoutStats": 0 },
+        "selectedSoak": { "status": "pass", "seasons": 1, "realtimeClients": 10 }
+      },
+      "evidence": ["release-checks.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -291,8 +321,8 @@
     },
     {
       "id": "release-checks",
-      "status": "pending",
-      "missingEvidence": ["final targeted tests", "production checks", "data health", "selected soak"]
+      "status": "complete",
+      "missingEvidence": []
     },
     {
       "id": "documentation",
@@ -305,5 +335,5 @@
       "missingEvidence": []
     }
   ],
-  "nextAction": "Prune redundant tests, then run the selected soak and final release gates."
+  "nextAction": "Run the 20-season release soak before deployment."
 }
