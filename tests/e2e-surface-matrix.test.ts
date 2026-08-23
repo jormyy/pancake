@@ -101,6 +101,7 @@ describe('expanded surface matrix', () => {
         label,
         phase,
         onLine: phase !== 'offline',
+        networkProbeReached: phase !== 'offline',
         serviceWorkerReady: true,
         serviceWorkerControlled: true,
         bodyTextLength: 40,
@@ -134,12 +135,16 @@ describe('expanded surface matrix', () => {
       workerWaitingAfterUpdate: false,
       controllerChanged: true,
       pageNavigationType: 'reload',
+      pageReloaded: true,
       restoredOriginalWorker: true,
     }
 
     expect(workerUpdateFailures(proof)).toEqual([])
     expect(workerUpdateFailures({ ...proof, controllerChanged: false })).toContain(
       'controller did not change',
+    )
+    expect(workerUpdateFailures({ ...proof, pageReloaded: false })).toContain(
+      'controller change did not load a new page document',
     )
   })
 

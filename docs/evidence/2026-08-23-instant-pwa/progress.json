@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T19:24:48Z",
+  "updatedAt": "2026-08-23T20:15:30Z",
   "deadline": "2026-08-23T13:30:00-07:00",
   "branchHead": "146f5edebde46be497ee2859a9c454f6bc739534",
   "initialServices": {
@@ -303,6 +303,21 @@
         "configuredSourceRecovery": { "status": "pass", "sources": 6, "tests": 36 }
       },
       "evidence": ["surface-matrix.json", "../../../tests/artifacts/source-failure-recovery.json"]
+    },
+    {
+      "id": "expanded-route-proof",
+      "status": "complete",
+      "observedAt": "2026-08-23T20:15:30Z",
+      "checks": {
+        "routes": { "status": "pass", "mapped": 23, "online": 23, "offline": 23, "reconnect": 23 },
+        "measuredNetworkState": { "status": "pass", "onlineReached": 23, "offlineReached": 0, "reconnectReached": 23 },
+        "cacheBoundary": { "status": "pass", "apiOrRealtimeEntries": 0 },
+        "layout": { "status": "pass", "maximumHorizontalOverflowPixels": 0 },
+        "workerUpdate": { "status": "pass", "oldCachesDeleted": true, "controllerChanged": true, "pageReloaded": true, "originalWorkerRestored": true },
+        "knownBadAutoUpdate": { "status": "pass", "observedResult": "The first update gate changed the controller but detected no new page document." },
+        "diagnostics": { "status": "pass", "onlineErrors": 0, "postReconnectErrors": 0, "offlineFailuresSavedSeparately": true }
+      },
+      "evidence": ["pwa/expanded-route-proof.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -358,8 +373,8 @@
     },
     {
       "id": "expanded-route-proof",
-      "status": "pending",
-      "missingEvidence": ["23-route online, offline, reconnect, and worker-update run"]
+      "status": "complete",
+      "missingEvidence": []
     },
     {
       "id": "expanded-twenty-season-soak",
@@ -372,5 +387,5 @@
       "missingEvidence": ["new final pruning pass after expanded behavior work"]
     }
   ],
-  "nextAction": "Build the current release and run the 23-route online, offline, reconnect, and worker-update proof."
+  "nextAction": "Commit the verified route proof, rebuild that commit, and run the full 20-season release soak."
 }

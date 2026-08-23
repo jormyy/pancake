@@ -2,12 +2,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
 import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 import { resolveReleaseProvenance } from './release-provenance.mjs'
+import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -61,7 +63,102 @@ const parseEvalJson = (output) => {
 const browserJson = async (session, source) =>
   parseEvalJson(await browser(session, ['eval', source]))
 
+const expectedSurfacePath = (label, route) =>
+  label === 'draft-launcher' ? '/draft-room' : new URL(route, 'http://pancake.local').pathname
+
+const surfaceRouteSettled = async (session, label, route, phase) => {
+  const state = await browserJson(session, `JSON.stringify({
+    path: location.pathname,
+    bodyTextLength: (document.body?.innerText || '').trim().length,
+    controlled: Boolean(navigator.serviceWorker?.controller),
+  })`).catch(() => null)
+  if (!state || state.bodyTextLength < 20 || !state.controlled) return false
+  if (phase === 'offline') return true
+  if ((label === 'auth-sign-in' || label === 'auth-sign-up') && state.path === '/') return true
+  return state.path === expectedSurfacePath(label, route)
+}
+
+const openSurfaceRoute = async (session, frontendUrl, label, route, phase) => {
+  const url = joinUrl(frontendUrl, route)
+  try {
+    await browser(session, ['open', url], { timeout: 20_000 })
+    return
+  } catch (error) {
+    await browser(session, ['wait', '500']).catch(() => {})
+    if (await surfaceRouteSettled(session, label, route, phase)) return
+    await browser(session, ['open', url], { timeout: 30_000 }).catch(async (retryError) => {
+      if (!await surfaceRouteSettled(session, label, route, phase)) throw retryError
+    })
+    if (!await surfaceRouteSettled(session, label, route, phase)) throw error
+  }
+}
+
+const connectCdpNetwork = async (session) => {
+  const output = await browser(session, ['get', 'cdp-url'])
+  const endpoint = output.match(/ws:\/\/\S+/)?.[0]
+  if (!endpoint) throw new Error('Browser did not provide a CDP endpoint')
+  const socket = new WebSocket(endpoint)
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('CDP connection timed out')), 10_000)
+    socket.addEventListener('open', () => {
+      clearTimeout(timeout)
+      resolve(undefined)
+    }, { once: true })
+    socket.addEventListener('error', () => {
+      clearTimeout(timeout)
+      reject(new Error('CDP connection failed'))
+    }, { once: true })
+  })
+
+  let nextId = 1
+  const pending = new Map()
+  socket.addEventListener('message', (event) => {
+    const message = JSON.parse(String(event.data))
+    const request = pending.get(message.id)
+    if (!request) return
+    pending.delete(message.id)
+    if (message.error) request.reject(new Error(message.error.message))
+    else request.resolve(message.result ?? {})
+  })
+  const send = (method, params = {}, sessionId = undefined) => new Promise((resolve, reject) => {
+    const id = nextId
+    nextId += 1
+    pending.set(id, { resolve, reject })
+    socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }))
+  })
+  const { targetInfos } = await send('Target.getTargets')
+  const targets = targetInfos.filter(({ type }) => type === 'page' || type === 'service_worker')
+  if (targets.length === 0) throw new Error('CDP found no page or service-worker targets')
+  const attachedSessions = []
+  for (const target of targets) {
+    const attached = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true })
+    await send('Network.enable', {}, attached.sessionId)
+    attachedSessions.push(attached.sessionId)
+  }
+
+  return {
+    setOffline: async (offline) => {
+      await Promise.all(attachedSessions.map((sessionId) => send('Network.emulateNetworkConditions', {
+        offline,
+        latency: 0,
+        downloadThroughput: offline ? 0 : -1,
+        uploadThroughput: offline ? 0 : -1,
+        connectionType: offline ? 'none' : 'wifi',
+      }, sessionId)))
+    },
+    close: () => socket.close(),
+  }
+}
+
 const observeRoute = async (session, { label, route, phase }) => browserJson(session, `(async () => {
+  let networkProbeReached = false;
+  let networkProbeStatus = null;
+  try {
+    const probe = await fetch('/release-provenance.json?pancake-network-probe=' + crypto.randomUUID(), { cache: 'no-store' });
+    networkProbeReached = true;
+    networkProbeStatus = probe.status;
+    await probe.arrayBuffer();
+  } catch {}
   const ready = navigator.serviceWorker
     ? await Promise.race([
         navigator.serviceWorker.ready.then(() => true),
@@ -88,6 +185,8 @@ const observeRoute = async (session, { label, route, phase }) => browserJson(ses
     finalPath: location.pathname + location.search,
     readyState: document.readyState,
     onLine: navigator.onLine,
+    networkProbeReached,
+    networkProbeStatus,
     serviceWorkerReady: ready,
     serviceWorkerControlled: Boolean(navigator.serviceWorker?.controller),
     bodyTextLength: body.length,
@@ -125,8 +224,8 @@ export const routeEvidenceFailures = ({ online, offline, reconnect }, requiredLa
       if (observation.bodyTextLength < 20) failures.push(`${phase}.${observation.label} has no useful visible content`)
       if (observation.horizontalOverflowPx > 1) failures.push(`${phase}.${observation.label} overflows by ${observation.horizontalOverflowPx}px`)
       if (observation.apiCacheEntries.length > 0) failures.push(`${phase}.${observation.label} cached API or realtime URLs`)
-      if (phase === 'offline' ? observation.onLine !== false : observation.onLine !== true) {
-        failures.push(`${phase}.${observation.label} has the wrong network state`)
+      if (phase === 'offline' ? observation.networkProbeReached !== false : observation.networkProbeReached !== true) {
+        failures.push(`${phase}.${observation.label} has the wrong measured network state`)
       }
       if (!Array.isArray(observation.cacheNames) || !observation.cacheNames.some((name) => name.endsWith('-shell'))) {
         failures.push(`${phase}.${observation.label} has no versioned shell cache`)
@@ -144,7 +243,7 @@ export const workerUpdateFailures = (proof) => [
   proof?.newShellCache === `${proof?.testVersion}-shell` ? null : 'new shell cache is missing',
   proof?.workerWaitingAfterUpdate === false ? null : 'updated worker remains waiting',
   proof?.controllerChanged === true ? null : 'controller did not change',
-  proof?.pageNavigationType === 'reload' ? null : 'controller change did not reload the page',
+  proof?.pageReloaded === true ? null : 'controller change did not load a new page document',
   proof?.restoredOriginalWorker === true ? null : 'original release worker was not restored',
 ].filter(Boolean)
 
@@ -157,6 +256,7 @@ const verifyWorkerUpdate = async (session) => {
   const originalVersion = versionMatch[1]
   const testVersion = `pancake-e2e-update-${Date.now()}`
   const originalCaches = await browserJson(session, 'caches.keys().then((value) => JSON.stringify(value))')
+  const originalTimeOrigin = await browserJson(session, 'JSON.stringify(performance.timeOrigin)')
   let restoredOriginalWorker = false
   let proof
   try {
@@ -185,10 +285,17 @@ const verifyWorkerUpdate = async (session) => {
           controlled: Boolean(navigator.serviceWorker.controller),
           controllerChanged: sessionStorage.getItem('pancake-e2e-controller-change') === 'observed',
           navigationType: performance.getEntriesByType('navigation')[0]?.type ?? null,
+          timeOrigin: performance.timeOrigin,
           waiting: Boolean(registration.waiting),
         });
       })()`).catch(() => null)
-      if (observed?.cacheNames.includes(`${testVersion}-shell`) && observed.controllerChanged) break
+      const oldCachesDeleted = observed && originalCaches.every((name) => !observed.cacheNames.includes(name))
+      if (
+        observed?.cacheNames.includes(`${testVersion}-shell`) &&
+        observed.controllerChanged &&
+        observed.timeOrigin !== originalTimeOrigin &&
+        oldCachesDeleted
+      ) break
     }
     if (!observed) throw new Error('PWA update proof returned no browser observation')
     proof = {
@@ -201,6 +308,9 @@ const verifyWorkerUpdate = async (session) => {
       workerWaitingAfterUpdate: observed.waiting,
       controllerChanged: observed.controllerChanged,
       pageNavigationType: observed.navigationType,
+      originalTimeOrigin,
+      updatedTimeOrigin: observed.timeOrigin,
+      pageReloaded: observed.timeOrigin !== originalTimeOrigin,
       restoredOriginalWorker: false,
     }
   } finally {
@@ -221,8 +331,25 @@ const verifyWorkerUpdate = async (session) => {
   }
   proof.restoredOriginalWorker = restoredOriginalWorker
   const failures = workerUpdateFailures(proof)
-  if (failures.length > 0) throw new Error(`PWA update proof failed: ${failures.join('; ')}`)
+  if (failures.length > 0) {
+    throw new Error(`PWA update proof failed: ${failures.join('; ')}; observation=${JSON.stringify(proof)}`)
+  }
   return proof
+}
+
+export const runWorkerUpdateProof = async ({
+  frontendUrl = 'http://127.0.0.1:8081',
+  sessionName = `pancake-worker-update-${process.pid}`,
+} = {}) => {
+  return runWithScenarioResourceOwner('worker update proof', async () => {
+    try {
+      await browser(sessionName, ['open', frontendUrl])
+      await browser(sessionName, ['wait', '2500'])
+      return await verifyWorkerUpdate(sessionName)
+    } finally {
+      await browser(sessionName, ['close']).catch(() => {})
+    }
+  })
 }
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -640,19 +767,42 @@ export async function runBrowserSmoke({
     if (fullSweep) assertFullSweepRoutes(visited)
 
     if (pwaProofRequired) {
+      const onlineConsoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+      const onlineErrorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+      await writeFile(path.join(artifactDir, 'online-console.txt'), `${onlineConsoleOutput}\n`)
+      await writeFile(path.join(artifactDir, 'online-errors.txt'), `${onlineErrorOutput}\n`)
+      const onlineDiagnosticFailures = browserDiagnosticFailures({
+        consoleOutput: onlineConsoleOutput,
+        errorOutput: onlineErrorOutput,
+      })
+      if (onlineDiagnosticFailures.length > 0) {
+        throw new Error(`Online browser diagnostics failed: ${onlineDiagnosticFailures.join('; ')}`)
+      }
+      await browser(session, ['console', '--clear'])
+      await browser(session, ['errors', '--clear'])
+
       assertFullSweepRoutes(routeCatalog.map(([label]) => label))
+      const cdpNetwork = await connectCdpNetwork(session)
       try {
-        await browser(session, ['set', 'offline', 'on'])
+        await cdpNetwork.setOffline(true)
         for (const [label, route] of routeCatalog) {
-          await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+          await openSurfaceRoute(session, env.frontendUrl, label, route, 'offline')
           await browser(session, ['wait', '500'])
           routeEvidence.offline.push(await observeRoute(session, { label, route, phase: 'offline' }))
         }
       } finally {
-        await browser(session, ['set', 'offline', 'off']).catch(() => {})
+        await cdpNetwork.setOffline(false).catch(() => {})
+        cdpNetwork.close()
       }
+      const offlineConsoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
+      const offlineErrorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
+      await writeFile(path.join(artifactDir, 'offline-console.txt'), `${offlineConsoleOutput}\n`)
+      await writeFile(path.join(artifactDir, 'offline-errors.txt'), `${offlineErrorOutput}\n`)
+      await browser(session, ['console', '--clear'])
+      await browser(session, ['errors', '--clear'])
+
       for (const [label, route] of routeCatalog) {
-        await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+        await openSurfaceRoute(session, env.frontendUrl, label, route, 'reconnect')
         await browser(session, ['wait', '750'])
         routeEvidence.reconnect.push(await observeRoute(session, { label, route, phase: 'reconnect' }))
       }
