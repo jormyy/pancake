@@ -22,6 +22,12 @@ import {
 } from '@/lib/lineup'
 import { getLineupOptimizerEnabled, setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
 import { playerHeadshotUrl } from '@/lib/format'
+import {
+    debounceRealtimeRefresh,
+    disposeTableChangeSubscription,
+    reportRealtimeCleanup,
+    subscribeToTableChanges,
+} from '@/lib/realtime'
 import { todayET } from '@/lib/shared/dates'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -305,6 +311,38 @@ export default function LineupScreen() {
         setLineupError(null)
         await loadLineup(visibleCtx, currentLeague, date)
     }, [visibleCtx, currentLeague, loadLineup])
+
+    useEffect(() => {
+        if (!visibleCtx || !current?.id || !currentLeague) return
+        const memberId = current.id
+        const league = currentLeague
+        const lineupCtx = visibleCtx
+        const refreshLineup = debounceRealtimeRefresh(() => {
+            void loadLineup(lineupCtx, league, selectedDate)
+        }, 200)
+        const channel = subscribeToTableChanges(
+            `lineup-screen:${lineupCtx.seasonId}:${memberId}`,
+            {
+                mode: 'per-watch',
+                watches: [{
+                    table: 'weekly_lineups',
+                    filter: `league_season_id=eq.${lineupCtx.seasonId}`,
+                    onChange: (payload) => {
+                        const row = payload.eventType === 'DELETE' ? payload.old : payload.new
+                        if (row.member_id !== memberId || row.game_date !== selectedDate) return
+                        refreshLineup.trigger()
+                    },
+                }],
+            },
+        )
+
+        return () => {
+            reportRealtimeCleanup(
+                'lineup',
+                disposeTableChangeSubscription(channel, [refreshLineup]),
+            )
+        }
+    }, [current?.id, currentLeague, loadLineup, selectedDate, visibleCtx])
     const {
         selected,
         setSelected,

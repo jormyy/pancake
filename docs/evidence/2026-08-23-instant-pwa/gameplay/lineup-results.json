@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T17:30:00Z",
+  "target": "local release build with realistic disposable league data",
+  "knownBadProof": {
+    "crossTab": {
+      "status": "failed-before-fix",
+      "timeoutMilliseconds": 15000,
+      "observedState": "The peer screen still showed the player on the bench."
+    }
+  },
+  "manualLineup": {
+    "status": "pass",
+    "storedSlot": "PG",
+    "isAutoSet": false,
+    "crossTabConvergenceMilliseconds": 207,
+    "reloadPersistenceMilliseconds": 184
+  },
+  "automaticLineup": {
+    "status": "pass",
+    "today": {
+      "storedSlot": "PG",
+      "isAutoSet": true
+    },
+    "restOfSeason": {
+      "dates": 2,
+      "storedRows": 2,
+      "allRowsAutoSet": true,
+      "successNoticeMilliseconds": 1081
+    }
+  },
+  "lineupLocks": {
+    "status": "pass",
+    "visibleRowsUnchanged": true,
+    "singleMoveRejected": true,
+    "batchMoveRejected": true,
+    "automaticMoveRejected": true,
+    "overfilledSlotRejected": true,
+    "ineligibleSlotRejected": true
+  },
+  "failures": []
+}

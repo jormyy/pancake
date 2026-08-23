@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T16:58:14Z",
+  "updatedAt": "2026-08-23T17:30:00Z",
   "deadline": "2026-08-23T13:30:00-07:00",
-  "branchHead": "048e5be9febc42ab55069cf2fe96715c7989948c",
+  "branchHead": "ee494d8a0169fa71f1612858d2c61df0f6c09ae7",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
@@ -95,13 +95,52 @@
         "baseline/1440x900-home.png",
         "baseline/1728x1117-home.png"
       ]
+    },
+    {
+      "id": "lineup-gameplay",
+      "status": "complete",
+      "observedAt": "2026-08-23T17:30:00Z",
+      "checks": {
+        "knownBadCrossTab": {
+          "status": "pass",
+          "observedResult": "The peer screen kept the old bench state for 15 seconds before the fix."
+        },
+        "manualLineup": {
+          "status": "pass",
+          "crossTabConvergenceMilliseconds": 207,
+          "reloadPersistenceMilliseconds": 184
+        },
+        "automaticToday": {
+          "status": "pass",
+          "storedRows": 1
+        },
+        "automaticRestOfSeason": {
+          "status": "pass",
+          "futureDates": 2,
+          "storedRows": 2,
+          "successNoticeMilliseconds": 1081
+        },
+        "locksAndLegality": {
+          "status": "pass",
+          "rejectedPaths": ["single move", "batch move", "automatic move", "overfilled slot", "ineligible slot"]
+        },
+        "regressions": {
+          "status": "pass",
+          "unitFiles": 108,
+          "unitTests": 616,
+          "qualityGate": "pass",
+          "lineupDatabaseIdempotence": "pass",
+          "releaseBrowserScenarios": 3
+        }
+      },
+      "evidence": ["gameplay/lineup-results.json"]
     }
   ],
   "acceptanceCriteria": [
     {
       "id": "priority-flows",
       "status": "pending",
-      "missingEvidence": ["season-wide settings", "all sources", "matchups", "manual lineup", "automatic lineup", "locks", "persistence", "cross-tab"]
+      "missingEvidence": ["all sources", "matchups"]
     },
     {
       "id": "source-health",
@@ -111,7 +150,7 @@
     {
       "id": "pwa-cache",
       "status": "pending",
-      "missingEvidence": ["offline shell", "API freshness", "realtime freshness", "tab convergence", "reconnect convergence", "update policy"]
+      "missingEvidence": ["offline shell", "API freshness", "realtime freshness", "reconnect convergence", "update policy"]
     },
     {
       "id": "performance",
@@ -144,5 +183,5 @@
       "missingEvidence": ["verified wave commits"]
     }
   ],
-  "nextAction": "Verify gameplay behavior and source recovery before performance changes."
+  "nextAction": "Verify matchup behavior and every source failure and recovery path."
 }
