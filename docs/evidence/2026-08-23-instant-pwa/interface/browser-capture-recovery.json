@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T21:26:13Z",
+  "status": "pass",
+  "knownBad": {
+    "attempts": 2,
+    "pageOpenPassed": 2,
+    "domAccessPassed": 2,
+    "screenshotSignal": "SIGTERM",
+    "screenshotTimeoutMilliseconds": 10000,
+    "sessionCleanupAlsoTimedOut": true
+  },
+  "rootCause": {
+    "agentBrowserWrapper": "not the cause",
+    "chromePageCaptureScreenshot": "timed out after 5000 milliseconds",
+    "chromeScreencastFrame": "timed out after 5000 milliseconds",
+    "chromePrintToPdf": "passed",
+    "platform": "darwin"
+  },
+  "fix": {
+    "mode": "CDP print capture",
+    "screenMediaEmulation": true,
+    "viewportSizedPage": true,
+    "converter": "pdftoppm",
+    "activeTargetSelection": "attached page before Chrome background pages"
+  },
+  "verification": {
+    "pngBytes": 16090,
+    "pngSignatureValid": true,
+    "visualContent": "Pancake capture passes - CDP print fallback",
+    "wrongChromeNewTabTargetRejected": true,
+    "testFiles": 112,
+    "tests": 638,
+    "qualityGate": "pass",
+    "browserSessionsRemaining": 0
+  }
+}

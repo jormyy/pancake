@@ -3,7 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { runBrowserScenarioLifecycle } from './e2e/browser-scenario-lifecycle.mjs'
-import { captureBrowserScreenshot } from './e2e/browser-agent.mjs'
+import {
+    captureBrowserScreenshot,
+    resolveScreenshotMode,
+    selectCdpPageTarget,
+} from './e2e/browser-agent.mjs'
 
 const tempDirs: string[] = []
 
@@ -100,5 +104,18 @@ describe('browser scenario lifecycle', () => {
         const browser = vi.fn(async () => { throw new Error('screenshot transport failed') })
         await expect(captureBrowserScreenshot(browser, 'session', artifactDir, 'required.png'))
             .rejects.toThrow('screenshot transport failed')
+    })
+
+    it('uses print capture on macOS where Chrome screenshots deadlock', () => {
+        expect(resolveScreenshotMode({ platform: 'darwin' })).toBe('print')
+        expect(resolveScreenshotMode({ platform: 'linux' })).toBe('agent')
+        expect(resolveScreenshotMode({ configured: 'agent', platform: 'darwin' })).toBe('agent')
+    })
+
+    it('prints the attached app page instead of Chrome new-tab UI', () => {
+        expect(selectCdpPageTarget([
+            { targetId: 'new-tab', type: 'page', title: 'New Tab', url: 'chrome://newtab/', attached: false },
+            { targetId: 'app', type: 'page', title: 'Pancake', url: 'http://127.0.0.1:8081/', attached: true },
+        ])).toMatchObject({ targetId: 'app' })
     })
 })

@@ -1,7 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T20:30:06Z",
+  "updatedAt": "2026-08-23T21:26:13Z",
   "deadline": "2026-08-23T13:30:00-07:00",
+  "resumedAt": "2026-08-23T21:17:00Z",
+  "deadlineRemovedByUser": true,
   "branchHead": "6ba2ee151a4477116491f4399777a781993da693",
   "initialServices": {
     "supabase": "stopped",
@@ -358,6 +360,18 @@
         "finalSuite": { "status": "pass" }
       },
       "evidence": ["expanded-test-pruning.md"]
+    },
+    {
+      "id": "browser-capture-recovery",
+      "status": "complete",
+      "observedAt": "2026-08-23T21:26:13Z",
+      "checks": {
+        "knownBad": { "status": "pass", "attempts": 2, "result": "screenshot and cleanup received SIGTERM after 10000 milliseconds" },
+        "rootCause": { "status": "pass", "pageCaptureScreenshot": "timeout", "screencastFrame": "timeout", "printToPdf": "pass" },
+        "fixedCapture": { "status": "pass", "pngBytes": 16090, "visuallyInspected": true, "attachedTargetSelected": true },
+        "regressions": { "status": "pass", "files": 112, "tests": 638, "qualityGate": "pass" }
+      },
+      "evidence": ["interface/browser-capture-recovery.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -427,5 +441,5 @@
       "missingEvidence": []
     }
   ],
-  "nextAction": "Add a measured CDP screenshot fallback, then rerun all 20 seasons and enforce every matrix evidence id."
+  "nextAction": "Build and seed the release environment, then rerun all 20 seasons and enforce every matrix evidence id."
 }
