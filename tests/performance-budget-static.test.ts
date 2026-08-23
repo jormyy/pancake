@@ -86,6 +86,14 @@ describe('instant-loading performance budget contract', () => {
         expect(searchItem).not.toContain('item.avg_fantasy_points ?? item.avg_points')
     })
 
+    it('plans player search from the current league and filters', () => {
+        const canonicalSearch = readFunctionSource('search_players')
+
+        expect(canonicalSearch).toContain('LANGUAGE plpgsql')
+        expect(canonicalSearch).toContain('SET plan_cache_mode = force_custom_plan')
+        expect(canonicalSearch).toContain('RETURN QUERY')
+    })
+
     it('wires performance budgets into the normal release surface', () => {
         const packageJson = JSON.parse(read('package.json'))
         const readme = read('README.md')

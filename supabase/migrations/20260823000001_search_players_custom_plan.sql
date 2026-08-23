@@ -1,7 +1,5 @@
--- Canonical SQL source for public.search_players.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
-
+-- Plan each search with its current league and filters.
+-- A shared generic plan made the first player page miss its latency budget.
 CREATE OR REPLACE FUNCTION public.search_players(
   p_query text DEFAULT '',
   p_position text DEFAULT 'ALL',
