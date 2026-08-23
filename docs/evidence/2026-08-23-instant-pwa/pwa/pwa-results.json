@@ -24,7 +24,9 @@
     "newShellCache": "pancake-e2e-update-20260823-shell",
     "newAssetCache": "pancake-e2e-update-20260823-assets",
     "workerWaitingAfterUpdate": false,
-    "pageNavigationType": "reload"
+    "pageNavigationType": "reload",
+    "buildSpecificVersion": true,
+    "currentReleaseVersion": "pancake-9700d418ffce-c3859cb0109b"
   },
   "browsers": {
     "chromium": {

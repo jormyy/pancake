@@ -14,11 +14,8 @@ const repositoryCommit = (root) => execFileSync('git', ['rev-parse', 'HEAD'], {
 
 const SERVICE_WORKER_VERSION = /const VERSION = '[^']*'/
 
-// The service worker keys its caches on VERSION and deletes every cache that does
-// not start with it. Left as a hand-edited literal it never changes, so old
-// hashed assets accumulate across deploys forever. Stamp it from the release
-// commit, and fail closed if the declaration is ever renamed away.
-const stampServiceWorkerVersion = async (root, commitSha) => {
+// Normalize before hashing. This makes repeated stamps deterministic.
+const setServiceWorkerVersion = async (root, version) => {
   const workerPath = path.join(root, 'dist', 'sw.js')
   let source
   try {
@@ -31,7 +28,7 @@ const stampServiceWorkerVersion = async (root, commitSha) => {
   }
   await writeFile(
     workerPath,
-    source.replace(SERVICE_WORKER_VERSION, `const VERSION = 'pancake-${commitSha.slice(0, 12)}'`),
+    source.replace(SERVICE_WORKER_VERSION, `const VERSION = '${version}'`),
   )
 }
 
@@ -41,8 +38,12 @@ export const stampReleaseProvenance = async ({
     process.env.E2E_RELEASE_SHA || process.env.GITHUB_SHA || repositoryCommit(root),
 } = {}) => {
   if (!fullSha(commitSha)) throw new Error('Release marker requires a full commit SHA')
-  // Must run before the digest so the shipped worker is what gets hashed.
-  await stampServiceWorkerVersion(root, commitSha)
+  await setServiceWorkerVersion(root, 'pancake-build')
+  const cacheDigest = await digestReleaseBundle(root)
+  await setServiceWorkerVersion(
+    root,
+    `pancake-${commitSha.slice(0, 12)}-${cacheDigest.slice(0, 12)}`,
+  )
   const marker = {
     commitSha: commitSha.toLowerCase(),
     bundleDigest: await digestReleaseBundle(root),

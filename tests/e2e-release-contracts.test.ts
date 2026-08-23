@@ -213,11 +213,12 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('needs: release-soak')
   })
 
-  it('stamps a self-consistent release marker without changing the bundle digest', async () => {
+  it('stamps a self-consistent marker and build-specific cache version', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-release-bundle-'))
     tempDirs.push(root)
     await mkdir(path.join(root, 'dist'), { recursive: true })
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
+    await writeFile(path.join(root, 'dist', 'sw.js'), "const VERSION = 'pancake-dev'\n")
     await Promise.all([
       writeFile(path.join(root, 'app.json'), '{}\n'),
       writeFile(path.join(root, 'package.json'), '{}\n'),
@@ -234,9 +235,18 @@ describe('release E2E contracts', () => {
     expect(await digestReleaseBundle(root)).toBe(marker.bundleDigest)
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
 
+    const firstWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
+    expect(firstWorker).toMatch(/pancake-aaaaaaaaaaaa-[a-f0-9]{12}/)
+    await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("rebuilt release")\n')
+    await writeFile(path.join(root, 'dist', 'sw.js'), "const VERSION = 'pancake-dev'\n")
+    const rebuiltMarker = await stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })
+    const rebuiltWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
+    expect(rebuiltWorker).not.toBe(firstWorker)
+    expect(await digestReleaseBundle(root)).toBe(rebuiltMarker.bundleDigest)
+
     await writeFile(path.join(root, 'vercel.json'), '{"rewrites":[]}\n')
     const routingDigest = await digestReleaseBundle(root)
-    expect(routingDigest).not.toBe(marker.bundleDigest)
+    expect(routingDigest).not.toBe(rebuiltMarker.bundleDigest)
     await writeFile(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n')
     expect(await digestReleaseBundle(root)).not.toBe(routingDigest)
   })

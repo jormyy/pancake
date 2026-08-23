@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "observedAt": "2026-08-23T18:14:29.601Z",
+  "states": {
+    "loading": {
+      "body": "P\nNo league\n\n\nMatch\n\nPlayers\n\nDyn\n\nRoster\n\nTrades\n\nLeague",
+      "overflow": false
+    },
+    "empty": {
+      "body": "E\nPancake E2E\n\n\n\nNo matchup this week yet\nMatchups post before each week starts. Until then, scout the player pool and get your roster ready.\nBrowse Players\n\nMatch\n\nPlayers\n\nDyn\n\nRoster\n\nTrades\n\nLeague",
+      "overflow": false
+    },
+    "error": {
+      "body": "E\nPancake E2E\n\n\nFailed to load. Tap to retry.\n\nNo matchup this week yet\nMatchups post before each week starts. Until then, scout the player pool and get your roster ready.\nBrowse Players\n\nMatch\n\nPlayers\n\nDyn\n\nRoster\n\nTrades\n\nLeague",
+      "overflow": false
+    },
+    "offline": {
+      "body": "E\nPancake E2E\n\n\nFailed to load. Tap to retry.\nWEEK 1\nIn Progress\nE2E Team 1\nPancak 0-0\n0.0\nvs\nE2E Team 2\nPancak 0-0\n0.0\n0.0\nTied\n0.0\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nNo starter\n—\n—\nPG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nSG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nSF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nPF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nC\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nUTIL\nNo starter\n—\n—\n—\n—\nNo starte"
+    },
+    "reconnect": {
+      "body": "E\nPancake E2E\n\n\nWEEK 1\nIn Progress\nE2E Team 1\nPancak 0-0\n0.0\nvs\nE2E Team 2\nPancak 0-0\n0.0\n0.0\nTied\n0.0\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nNo starter\n—\n—\nPG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nSG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nSF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nPF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nC\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nUTIL\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nUTIL\nNo starter\n—\n—\n—\n—\n"
+    }
+  },
+  "screenshots": [
+    "loading-home.png",
+    "empty-home.png",
+    "error-home.png",
+    "offline-stale-home.png",
+    "reconnected-home.png"
+  ]
+}

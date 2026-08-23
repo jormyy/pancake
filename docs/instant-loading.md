@@ -41,22 +41,19 @@ rank is `tests/e2e/performance-budgets.json`.
 
 ## Latest Measurements
 
-Validated on 2026-07-02 against the seeded E2E league and local Expo web server.
+Validated on 2026-08-23 against a seeded release build and local Supabase.
 
 | Signal | Baseline | Current | Budget |
 | --- | ---: | ---: | ---: |
-| `search_players` first page RPC | 430.5ms median for 60 rows | 207.7ms median for 20 rows | 300ms |
-| Player search input feedback | not previously gated | 26.1ms | 100ms |
-| Auction bid press feedback | not previously gated | 0.6ms | 100ms |
-| Full route sweep | not previously gated for all top routes | 289-323ms across measured top routes | 1000ms |
-| Focused Home load under live update pressure | not previously gated | 329ms | 1000ms |
-| Focused auction draft room load | not previously gated | 395ms | 1000ms |
-| Browser long tasks under auction/home pressure | not previously gated | 0 long tasks | 50ms task target |
+| Home cold data-ready | 2337ms | 715ms | 1000ms |
+| `search_players` first page RPC | 123.8ms median | 19.6ms median | 100ms |
+| Home day feedback | not gated | 9.3ms | 100ms |
+| Home warm request | not gated | 6ms | 300ms |
+| Home live-update long tasks | not gated | 0 | under 50ms each |
 
-Current authenticated data workflow median totals are 195.7-331ms across all
-10 ranked workflows. The first slow player-search measurement was taken before
-the final page-size fix in this instant-loading pass; the current request keeps
-infinite scroll for the full pool while reducing the critical first payload.
+All ten authenticated data workflows pass. Their median totals range from 9.6ms to 23ms.
+
+Player search now uses a request-specific database plan. It keeps paging and projection behavior unchanged.
 
 ## Current Implementation Notes
 
