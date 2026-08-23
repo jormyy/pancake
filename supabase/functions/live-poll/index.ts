@@ -19,6 +19,7 @@ import { syncStatsForDates } from '../_shared/syncStats.ts'
 import { syncScores } from '../_shared/syncScores.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { errorMessage } from '../_shared/responses.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
 import {
   LIVE_POLL_LEASE_TTL_SECONDS,
   LIVE_POLL_LOCK_KEY,
@@ -43,7 +44,10 @@ serveInternal('live-poll', async () => {
       .eq('status', 'InProgress')
     if (activeGamesError) throw activeGamesError
 
-    const cdnGames = await fetchTodaysGames().catch((e) => {
+    const cdnGames = await recordSyncRun('source:nba-cdn-scoreboard', async () => {
+      const games = await fetchTodaysGames()
+      return { result: games, rowsAffected: games.length }
+    }).catch((e) => {
       console.warn('[live-poll] CDN scoreboard unavailable:', errorMessage(e))
       return []
     })

@@ -28,6 +28,13 @@ const goodRosterFor = (teamId: string) => ({
 
 const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (req) => {
   const url = new URL(req.url)
+  if (
+    !req.headers.get('user-agent')?.includes('PancakePlayerSync') ||
+    req.headers.get('accept') !== 'application/json' ||
+    req.headers.get('referer') !== 'https://www.espn.com/'
+  ) {
+    return new Response('request headers rejected', { status: 403 })
+  }
   if (mode === 'down') return new Response('service unavailable', { status: 503 })
   if (mode === 'garbage') return new Response('<html>not json</html>', { headers: { 'content-type': 'text/html' } })
 

@@ -11,6 +11,7 @@ records live under [`audits/`](./audits/).
 | [sleeper-migration.md](./sleeper-migration.md) | Sleeper→ESPN player-source migration: cutover design, degraded-source contract, `years_exp` semantics, and the side-by-side parity run table (raw runs in [`sleeper-migration-parity/`](./sleeper-migration-parity/)). |
 | [soak-harness-audit.md](./soak-harness-audit.md) | Forced-red audit of the release-soak harness: each major assertion family broken on purpose to prove its green is trustworthy. |
 | [instant-loading.md](./instant-loading.md) | Performance operating plan: top-10 workflows, latency budgets, and the regression gates that enforce them. |
+| [source-monitoring.md](./source-monitoring.md) | Source freshness, completeness, failure records, recovery steps, and known limits. |
 | [supabase-backend-route-inventory.md](./supabase-backend-route-inventory.md) | Inventory of every Edge API route and internal function with its auth model. |
 | [audits/](./audits/) | Dated review ledgers and readiness snapshots (feedback-review hardening, multi-team trade parity, season readiness). |
 

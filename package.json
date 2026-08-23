@@ -79,6 +79,7 @@
     "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs",
     "prod:check": "node tests/e2e/production-readiness.mjs",
     "prod:data-health": "node tests/e2e/prod-data-source-health.mjs",
+    "e2e:source-health": "node tests/e2e/configured-source-health.mjs",
     "security:db-catalog": "node tests/e2e/db-security-catalog.mjs",
     "security:edge-auth": "node tests/e2e/edge-internal-auth.mjs",
     "security:edge-auth:linked": "node tests/e2e/edge-internal-auth.mjs --linked",

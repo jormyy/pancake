@@ -22,7 +22,7 @@ serveInternal('sync-players', async () => {
       : await syncPlayersFromEspn()
     const nbaIds = await syncNBAIds()
     const news = await syncDynastyNews()
-    const failures = [...players.failures, ...nbaIds.failures]
+    const failures = [...players.failures, ...nbaIds.failures, ...news.failures]
     if (failures.length > 0) {
       throw new Error(`sync-players had ${failures.length} failure(s): ${failures.join('; ')}`)
     }
@@ -411,7 +411,8 @@ function normalizeEligiblePositions(positions: string[] | null | undefined): str
 
 // Dynasty Hub news: ESPN articles keyed by url; athlete-tagged stories link to
 // the matching player through espn_id. A failed feed leaves existing news
-// untouched and reports the failure without blocking the player sync result.
+// untouched and reports the whole player sync as failed so cron health stays
+// truthful. The next scheduled run retries the feed without manual action.
 async function syncDynastyNews(): Promise<{ upserted: number; failures: string[] }> {
   try {
     const items = await fetchEspnNews()

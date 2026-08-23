@@ -4,7 +4,7 @@ Sleeper announced (Aug 2026) that commercial API use moves behind negotiated
 licensing, so Pancake no longer depends on it. The player master list (names,
 teams, positions, injury status) now comes from ESPN's keyless public JSON:
 
-- Teams + rosters: `site.api.espn.com/apis/site/v2/sports/basketball/nba/teams`
+- Teams + rosters: `site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams`
   and `/teams/{id}/roster`
 - Injuries: `.../nba/injuries` (statuses mapped: `Day-To-Day` → `DTD`; `Out`,
   `Questionable`, `Doubtful` pass through)
@@ -25,6 +25,8 @@ NBA person IDs (headshots, box-score joins) continue to come from the NBA CDN
 - Degraded-source contract: payloads under 28 teams or 350 players are refused
   outright (no writes), so a truncated or reshaped response can never blank
   existing players; the next good sync self-heals with no manual action.
+- ESPN requests use browser-compatible headers. Akamai rejected the Edge
+  runtime on the old `site.api.espn.com` host with HTTP 403 on 2026-08-23.
 
 ## years_exp semantics
 
