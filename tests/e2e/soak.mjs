@@ -79,6 +79,8 @@ import { assertOffseasonActivityScenario } from './soak-offseason-activity.mjs'
 import { BROWSER_SCENARIO_MANIFEST, browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { assertDynastyDecisionTools } from './soak-dynasty-decision-tools.mjs'
+import { assertSourceFailureRecovery } from './source-failure-recovery.mjs'
+import { assertSurfaceMatrix, surfaceSoakCoverageFailures } from './surface-matrix.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -245,6 +247,12 @@ const main = async () => {
       env.supabaseUrl,
       env.serviceRoleKey,
       { auth: { persistSession: false } },
+    )
+    const surfaceMatrix = await assertSurfaceMatrix()
+    const sourceRecovery = await assertSourceFailureRecovery()
+    notes.push(
+      `Surface matrix passed for ${surfaceMatrix.surfaces.length} routes, ${surfaceMatrix.backgrounds.length} background paths, and ${surfaceMatrix.functions.length} mapped functions.`,
+      `Configured-source failure and recovery proof passed for ${sourceRecovery.sources.length} source contracts.`,
     )
     const schemaFailures = await runSchemaPreflight(supabase)
     if (schemaFailures.length > 0) {
@@ -520,6 +528,8 @@ const main = async () => {
             season,
             status: 'PASS',
             evidenceIds: [
+              'surface.matrix',
+              'source.failure_recovery',
               'invariants.boundary',
               'dynasty.decision_tools',
               fakeUpstreamObserved ? 'environment.fake_upstream' : null,
@@ -580,6 +590,19 @@ const main = async () => {
 
     if (rows.length > 0) {
       notes.push(`Perf metrics written to ${path.relative(ROOT, PERF_METRICS_PATH)}.`)
+    }
+
+    if (args.releaseGate) {
+      const surfaceCoverageFailures = surfaceSoakCoverageFailures(surfaceMatrix, rows)
+      if (surfaceCoverageFailures.length > 0) {
+        rows.push({
+          season: 0,
+          status: 'FAIL',
+          notes: `Surface soak coverage failed: ${surfaceCoverageFailures.join('; ')}`,
+        })
+      } else {
+        notes.push('Every mapped function, failure path, and recovery path has passing soak evidence.')
+      }
     }
 
     const status = rows.some((row) => row.status === 'FAIL')

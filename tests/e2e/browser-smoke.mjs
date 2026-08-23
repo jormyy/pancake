@@ -13,6 +13,7 @@ const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
 const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-report.md')
+const RELEASE_WORKER_PATH = path.join(ROOT, 'dist/sw.js')
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
 
@@ -38,16 +39,190 @@ const routeWorkflowIds = new Map([
 
 export const REQUIRED_FULL_SWEEP_LABELS = [
   'auth-sign-in', 'auth-sign-up',
-  'home', 'players', 'roster', 'trades', 'league', 'dynasty',
+  'home', 'players', 'roster', 'trades', 'league', 'dynasty', 'profile',
   'create-league', 'join-league', 'commissioner-settings', 'lineup', 'bracket',
   'claim-player', 'player-detail', 'propose-trade', 'team-roster',
-  'draft-room', 'rookie-draft-room',
+  'draft-room', 'rookie-draft-room', 'draft-launcher', 'change-password', 'not-found',
 ]
 
 export const assertFullSweepRoutes = (visited) => {
   const visitedSet = new Set(visited)
   const missing = REQUIRED_FULL_SWEEP_LABELS.filter((label) => !visitedSet.has(label))
   if (missing.length > 0) throw new Error(`Full sweep omitted required routes: ${missing.join(', ')}`)
+}
+
+const parseEvalJson = (output) => {
+  const line = output.split('\n').filter(Boolean).at(-1)
+  if (!line) throw new Error('Browser surface evaluation returned no output')
+  const value = JSON.parse(line)
+  return typeof value === 'string' ? JSON.parse(value) : value
+}
+
+const browserJson = async (session, source) =>
+  parseEvalJson(await browser(session, ['eval', source]))
+
+const observeRoute = async (session, { label, route, phase }) => browserJson(session, `(async () => {
+  const ready = navigator.serviceWorker
+    ? await Promise.race([
+        navigator.serviceWorker.ready.then(() => true),
+        new Promise((resolve) => setTimeout(() => resolve(false), 10000)),
+      ])
+    : false;
+  const cacheNames = 'caches' in window ? await caches.keys() : [];
+  const cacheEntries = (await Promise.all(cacheNames.map(async (name) => {
+    const cache = await caches.open(name);
+    return (await cache.keys()).map((request) => request.url);
+  }))).flat();
+  const body = (document.body?.innerText || '').trim();
+  const nav = performance.getEntriesByType('navigation')[0];
+  const apiCacheEntries = cacheEntries.filter((entry) => {
+    const url = new URL(entry);
+    return url.origin !== location.origin || /\\/(?:auth|functions|realtime|rest|storage)\\/v1(?:\\/|$)/.test(url.pathname);
+  });
+  return JSON.stringify({
+    label: ${JSON.stringify(label)},
+    requestedRoute: ${JSON.stringify(route)},
+    phase: ${JSON.stringify(phase)},
+    observedAt: new Date().toISOString(),
+    finalUrl: location.href,
+    finalPath: location.pathname + location.search,
+    readyState: document.readyState,
+    onLine: navigator.onLine,
+    serviceWorkerReady: ready,
+    serviceWorkerControlled: Boolean(navigator.serviceWorker?.controller),
+    bodyTextLength: body.length,
+    bodySample: body.slice(0, 240),
+    horizontalOverflowPx: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
+    cacheNames,
+    cacheEntries,
+    apiCacheEntries,
+    localAppCacheKeys: Object.keys(localStorage).filter((key) => /pancake|cache|matchup|roster|league|player|trade|draft/i.test(key)).sort(),
+    navigation: nav ? {
+      type: nav.type,
+      responseEndMs: Math.round(nav.responseEnd || 0),
+      domContentLoadedMs: Math.round(nav.domContentLoadedEventEnd || 0),
+      loadMs: Math.round(nav.loadEventEnd || 0),
+      transferSize: Math.round(nav.transferSize || 0),
+    } : null,
+  });
+})()`)
+
+export const routeEvidenceFailures = ({ online, offline, reconnect }, requiredLabels = REQUIRED_FULL_SWEEP_LABELS) => {
+  const failures = []
+  for (const [phase, observations] of Object.entries({ online, offline, reconnect })) {
+    const labels = observations.map(({ label }) => label)
+    for (const label of requiredLabels) {
+      if (!labels.includes(label)) failures.push(`${phase} is missing ${label}`)
+    }
+    for (const label of new Set(labels)) {
+      if (labels.filter((candidate) => candidate === label).length > 1) failures.push(`${phase} repeats ${label}`)
+    }
+    for (const observation of observations) {
+      if (observation.phase !== phase) failures.push(`${phase}.${observation.label} has phase ${observation.phase}`)
+      if (observation.serviceWorkerReady !== true || observation.serviceWorkerControlled !== true) {
+        failures.push(`${phase}.${observation.label} is not controlled by a ready service worker`)
+      }
+      if (observation.bodyTextLength < 20) failures.push(`${phase}.${observation.label} has no useful visible content`)
+      if (observation.horizontalOverflowPx > 1) failures.push(`${phase}.${observation.label} overflows by ${observation.horizontalOverflowPx}px`)
+      if (observation.apiCacheEntries.length > 0) failures.push(`${phase}.${observation.label} cached API or realtime URLs`)
+      if (phase === 'offline' ? observation.onLine !== false : observation.onLine !== true) {
+        failures.push(`${phase}.${observation.label} has the wrong network state`)
+      }
+      if (!Array.isArray(observation.cacheNames) || !observation.cacheNames.some((name) => name.endsWith('-shell'))) {
+        failures.push(`${phase}.${observation.label} has no versioned shell cache`)
+      }
+      if (phase !== 'offline' && (!observation.navigation || !Number.isFinite(observation.navigation.responseEndMs))) {
+        failures.push(`${phase}.${observation.label} has no navigation timing`)
+      }
+    }
+  }
+  return failures
+}
+
+export const workerUpdateFailures = (proof) => [
+  proof?.oldCachesDeleted === true ? null : 'old worker caches remain',
+  proof?.newShellCache === `${proof?.testVersion}-shell` ? null : 'new shell cache is missing',
+  proof?.workerWaitingAfterUpdate === false ? null : 'updated worker remains waiting',
+  proof?.controllerChanged === true ? null : 'controller did not change',
+  proof?.pageNavigationType === 'reload' ? null : 'controller change did not reload the page',
+  proof?.restoredOriginalWorker === true ? null : 'original release worker was not restored',
+].filter(Boolean)
+
+const verifyWorkerUpdate = async (session) => {
+  const originalSource = await readFile(RELEASE_WORKER_PATH, 'utf8')
+  const versionMatch = originalSource.match(/const VERSION = '([^']+)'/)
+  if (!versionMatch || versionMatch[1] === 'pancake-dev') {
+    throw new Error('PWA update proof requires a release-stamped service worker')
+  }
+  const originalVersion = versionMatch[1]
+  const testVersion = `pancake-e2e-update-${Date.now()}`
+  const originalCaches = await browserJson(session, 'caches.keys().then((value) => JSON.stringify(value))')
+  let restoredOriginalWorker = false
+  let proof
+  try {
+    await writeFile(
+      RELEASE_WORKER_PATH,
+      originalSource.replace(versionMatch[0], `const VERSION = '${testVersion}'`),
+    )
+    await browserJson(session, `(async () => {
+      sessionStorage.setItem('pancake-e2e-controller-change', 'pending');
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        sessionStorage.setItem('pancake-e2e-controller-change', 'observed');
+      }, { once: true });
+      const registration = await navigator.serviceWorker.ready;
+      await registration.update();
+      return JSON.stringify({ updateRequested: true });
+    })()`).catch(() => ({ updateRequested: true }))
+
+    let observed = null
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await browser(session, ['wait', '500'])
+      observed = await browserJson(session, `(async () => {
+        const registration = await navigator.serviceWorker.ready;
+        const cacheNames = await caches.keys();
+        return JSON.stringify({
+          cacheNames,
+          controlled: Boolean(navigator.serviceWorker.controller),
+          controllerChanged: sessionStorage.getItem('pancake-e2e-controller-change') === 'observed',
+          navigationType: performance.getEntriesByType('navigation')[0]?.type ?? null,
+          waiting: Boolean(registration.waiting),
+        });
+      })()`).catch(() => null)
+      if (observed?.cacheNames.includes(`${testVersion}-shell`) && observed.controllerChanged) break
+    }
+    if (!observed) throw new Error('PWA update proof returned no browser observation')
+    proof = {
+      originalVersion,
+      testVersion,
+      originalCaches,
+      cacheNamesAfterUpdate: observed.cacheNames,
+      oldCachesDeleted: originalCaches.every((name) => !observed.cacheNames.includes(name)),
+      newShellCache: observed.cacheNames.find((name) => name === `${testVersion}-shell`) ?? null,
+      workerWaitingAfterUpdate: observed.waiting,
+      controllerChanged: observed.controllerChanged,
+      pageNavigationType: observed.navigationType,
+      restoredOriginalWorker: false,
+    }
+  } finally {
+    await writeFile(RELEASE_WORKER_PATH, originalSource)
+    await browserJson(session, `(async () => {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.update();
+      return JSON.stringify({ updateRequested: true });
+    })()`).catch(() => ({ updateRequested: true }))
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await browser(session, ['wait', '500'])
+      const restoredCaches = await browserJson(session, 'caches.keys().then((value) => JSON.stringify(value))').catch(() => [])
+      if (restoredCaches.includes(`${originalVersion}-shell`) && !restoredCaches.some((name) => name.startsWith(testVersion))) {
+        restoredOriginalWorker = true
+        break
+      }
+    }
+  }
+  proof.restoredOriginalWorker = restoredOriginalWorker
+  const failures = workerUpdateFailures(proof)
+  if (failures.length > 0) throw new Error(`PWA update proof failed: ${failures.join('; ')}`)
+  return proof
 }
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -312,8 +487,11 @@ const fetchSweepContext = async (env, state, user) => {
     ['create-league', '/create-league'],
     ['join-league', '/join-league'],
     ['commissioner-settings', '/commissioner-settings'],
+    ['change-password', '/change-password'],
     ['lineup', '/lineup'],
     ['bracket', '/bracket'],
+    ['draft-launcher', '/(tabs)/draft-room'],
+    ['not-found', '/surface-contract-not-found'],
   ]
   if (playerId) {
     routes.push(['claim-player', encodeQuery('/claim-player', { playerId })])
@@ -365,6 +543,10 @@ export async function runBrowserSmoke({
 
   const visited = []
   const workflowMeasurements = []
+  const routeEvidence = { online: [], offline: [], reconnect: [] }
+  const routeCatalog = []
+  const pwaProofRequired = fullSweep && process.env.E2E_RELEASE_GATE === '1'
+  let workerUpdate = null
   const notes = [
     `Frontend: ${describeEndpoint(env.frontendUrl)}`,
     `Session: ${session}`,
@@ -385,6 +567,10 @@ export async function runBrowserSmoke({
       for (const [label, route] of authRoutes) {
         await browser(session, ['open', joinUrl(env.frontendUrl, route)])
         await browser(session, ['wait', '1500'])
+        routeCatalog.push([label, route])
+        if (pwaProofRequired) {
+          routeEvidence.online.push(await observeRoute(session, { label, route, phase: 'online' }))
+        }
         await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
         visited.push(label)
       }
@@ -408,6 +594,7 @@ export async function runBrowserSmoke({
 
     if (fullSweep) {
       const sweep = await fetchSweepContext(env, state, user)
+      routes.push(['profile', '/profile'])
       routes.push(...sweep.routes)
       notes.push(...sweep.notes)
     }
@@ -444,9 +631,41 @@ export async function runBrowserSmoke({
         await browser(session, ['wait', '1500'])
       }
       await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
+      routeCatalog.push([label, route])
+      if (pwaProofRequired) {
+        routeEvidence.online.push(await observeRoute(session, { label, route, phase: 'online' }))
+      }
       visited.push(label)
     }
     if (fullSweep) assertFullSweepRoutes(visited)
+
+    if (pwaProofRequired) {
+      assertFullSweepRoutes(routeCatalog.map(([label]) => label))
+      try {
+        await browser(session, ['set', 'offline', 'on'])
+        for (const [label, route] of routeCatalog) {
+          await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+          await browser(session, ['wait', '500'])
+          routeEvidence.offline.push(await observeRoute(session, { label, route, phase: 'offline' }))
+        }
+      } finally {
+        await browser(session, ['set', 'offline', 'off']).catch(() => {})
+      }
+      for (const [label, route] of routeCatalog) {
+        await browser(session, ['open', joinUrl(env.frontendUrl, route)])
+        await browser(session, ['wait', '750'])
+        routeEvidence.reconnect.push(await observeRoute(session, { label, route, phase: 'reconnect' }))
+      }
+      const routeFailures = routeEvidenceFailures(routeEvidence)
+      if (routeFailures.length > 0) {
+        throw new Error(`Route cache/PWA proof failed: ${routeFailures.join('; ')}`)
+      }
+      if (season === 0 || season === 1) workerUpdate = await verifyWorkerUpdate(session)
+      await writeFile(
+        path.join(artifactDir, 'surface-route-evidence.json'),
+        `${JSON.stringify({ schemaVersion: 1, routeEvidence, workerUpdate }, null, 2)}\n`,
+      )
+    }
 
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
@@ -465,6 +684,14 @@ export async function runBrowserSmoke({
       user: user.email,
       visited,
       workflowMeasurements,
+      evidenceIds: pwaProofRequired ? [
+        'browser.surface_online',
+        'browser.surface_offline',
+        'browser.surface_reconnect',
+        ...(workerUpdate ? ['pwa.cache_update'] : []),
+      ] : [],
+      routeEvidence,
+      workerUpdate,
       initialJavaScriptDelivery,
       provenance,
       artifactDir,
@@ -481,6 +708,8 @@ export async function runBrowserSmoke({
       session,
       user: user.email,
       visited,
+      routeEvidence,
+      workerUpdate,
       artifactDir,
       provenance,
       error: error instanceof Error ? error.message : String(error),

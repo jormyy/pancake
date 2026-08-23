@@ -90,7 +90,18 @@ const isPassingResult = (result) => result != null && typeof result === 'object'
 
 /** @param {Record<string, unknown>} results */
 export const browserEvidenceIds = (results) => BROWSER_SCENARIO_MANIFEST
-  .flatMap((scenario) => isPassingResult(results[scenario.resultKey]) ? [scenario.evidenceId] : [])
+  .flatMap((scenario) => {
+    const result = results[scenario.resultKey]
+    if (!isPassingResult(result)) return []
+    const nestedEvidenceIds = result != null && typeof result === 'object'
+      ? Reflect.get(result, 'evidenceIds')
+      : []
+    const resultEvidenceIds = Array.isArray(nestedEvidenceIds)
+      ? nestedEvidenceIds.filter((id) => typeof id === 'string')
+      : []
+    return [scenario.evidenceId, ...resultEvidenceIds]
+  })
+  .filter((id, index, ids) => ids.indexOf(id) === index)
 
 /** @param {Record<string, unknown>} results */
 export const browserPassNotes = (results) => BROWSER_SCENARIO_MANIFEST

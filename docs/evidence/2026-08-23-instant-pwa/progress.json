@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T18:47:06Z",
+  "updatedAt": "2026-08-23T19:24:48Z",
   "deadline": "2026-08-23T13:30:00-07:00",
   "branchHead": "146f5edebde46be497ee2859a9c454f6bc739534",
   "initialServices": {
@@ -286,6 +286,23 @@
         "selectedSoak": { "status": "pass", "seasons": 1, "realtimeClients": 10 }
       },
       "evidence": ["release-checks.json"]
+    },
+    {
+      "id": "expanded-surface-contract",
+      "status": "complete",
+      "observedAt": "2026-08-23T19:24:48Z",
+      "checks": {
+        "repositoryRoutes": { "status": "pass", "mapped": 23, "gaps": 0 },
+        "backgroundPaths": { "status": "pass", "mapped": 5 },
+        "dataClasses": { "status": "pass", "mapped": 19 },
+        "functions": { "status": "pass", "mapped": 21 },
+        "knownBadMutations": {
+          "status": "pass",
+          "rejected": ["missing route", "missing dimension", "unknown proof", "duplicate data id", "duplicate function id", "missing soak evidence"]
+        },
+        "configuredSourceRecovery": { "status": "pass", "sources": 6, "tests": 36 }
+      },
+      "evidence": ["surface-matrix.json", "../../../tests/artifacts/source-failure-recovery.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -333,7 +350,27 @@
       "id": "wave-commits",
       "status": "complete",
       "missingEvidence": []
+    },
+    {
+      "id": "expanded-surface-matrix",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "expanded-route-proof",
+      "status": "pending",
+      "missingEvidence": ["23-route online, offline, reconnect, and worker-update run"]
+    },
+    {
+      "id": "expanded-twenty-season-soak",
+      "status": "pending",
+      "missingEvidence": ["20 passing season rows with every mapped path covered"]
+    },
+    {
+      "id": "expanded-test-pruning",
+      "status": "pending",
+      "missingEvidence": ["new final pruning pass after expanded behavior work"]
     }
   ],
-  "nextAction": "Run the 20-season release soak before deployment."
+  "nextAction": "Build the current release and run the 23-route online, offline, reconnect, and worker-update proof."
 }
