@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-23T16:58:14Z",
+  "deadline": "2026-08-23T13:30:00-07:00",
+  "branchHead": "048e5be9febc42ab55069cf2fe96715c7989948c",
+  "initialServices": {
+    "supabase": "stopped",
+    "frontend": "stopped",
+    "ports": [54321, 54322, 54323, 54324, 8081, 19006]
+  },
+  "units": [
+    {
+      "id": "baseline",
+      "status": "complete",
+      "observedAt": "2026-08-23T16:58:14Z",
+      "fixture": {
+        "leagueCount": 1,
+        "managerCount": 4,
+        "playerCount": 64,
+        "rosterRowCount": 64,
+        "lineupRowCount": 280,
+        "gameCount": 28,
+        "statRowCount": 192
+      },
+      "checks": {
+        "unitTests": {
+          "status": "pass",
+          "files": 108,
+          "tests": 616,
+          "vitestDurationSeconds": 1.43,
+          "wallSeconds": 1.92
+        },
+        "quality": {
+          "status": "pass",
+          "wallSeconds": 15.91
+        },
+        "releaseBuild": {
+          "status": "pass",
+          "wallSeconds": 13.77,
+          "commonJavaScriptBytes": 1710000,
+          "entryJavaScriptBytes": 972000
+        },
+        "releaseHydration": {
+          "status": "pass",
+          "finalPath": "/sign-up"
+        },
+        "homeColdDataReady": {
+          "status": "fail",
+          "milliseconds": 2337,
+          "budgetMilliseconds": 1000
+        },
+        "dataLatency": {
+          "status": "fail",
+          "failedStep": "search_players first page RPC",
+          "medianMilliseconds": 123.8,
+          "maxMilliseconds": 137,
+          "budgetMilliseconds": 100
+        },
+        "knownBadGateProof": {
+          "status": "pass",
+          "gate": "npm run e2e:data-latency",
+          "observedResult": "failed on the search_players request budget"
+        }
+      },
+      "viewports": [
+        "390x844",
+        "430x932",
+        "768x1024",
+        "1024x768",
+        "1280x800",
+        "1440x900",
+        "1728x1117"
+      ],
+      "visualFindings": {
+        "horizontalOverflow": false,
+        "consoleErrors": 0,
+        "failedResponses": 0,
+        "criticalDefects": 0,
+        "highDefects": 0
+      },
+      "environmentFindings": [
+        "A stale Metro cache showed an unknown-module overlay during the first development load.",
+        "A clean release export loaded without that overlay.",
+        "The installed Chromium screenshot command hung, so CDP print output supplied visual evidence."
+      ],
+      "evidence": [
+        "baseline/390x844-sign-in-release.png",
+        "baseline/390x844-home.json",
+        "baseline/viewports.json",
+        "baseline/390x844-home.png",
+        "baseline/430x932-home.png",
+        "baseline/768x1024-home.png",
+        "baseline/1024x768-home.png",
+        "baseline/1280x800-home.png",
+        "baseline/1440x900-home.png",
+        "baseline/1728x1117-home.png"
+      ]
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "priority-flows",
+      "status": "pending",
+      "missingEvidence": ["season-wide settings", "all sources", "matchups", "manual lineup", "automatic lineup", "locks", "persistence", "cross-tab"]
+    },
+    {
+      "id": "source-health",
+      "status": "pending",
+      "missingEvidence": ["freshness", "completeness", "failures", "recovery for every configured source"]
+    },
+    {
+      "id": "pwa-cache",
+      "status": "pending",
+      "missingEvidence": ["offline shell", "API freshness", "realtime freshness", "tab convergence", "reconnect convergence", "update policy"]
+    },
+    {
+      "id": "performance",
+      "status": "failing",
+      "missingEvidence": ["verified improvement or documented budget compliance"]
+    },
+    {
+      "id": "interface",
+      "status": "pending",
+      "missingEvidence": ["WebKit", "offline", "reconnect", "stale cache", "cross-tab", "loading", "empty", "error", "long content", "accessibility"]
+    },
+    {
+      "id": "task-taps",
+      "status": "pending",
+      "missingEvidence": ["dated research", "flow map", "safe tap counts"]
+    },
+    {
+      "id": "release-checks",
+      "status": "pending",
+      "missingEvidence": ["final targeted tests", "production checks", "data health", "selected soak"]
+    },
+    {
+      "id": "documentation",
+      "status": "pending",
+      "missingEvidence": ["architecture", "cache policy", "source monitoring", "recovery", "known limits"]
+    },
+    {
+      "id": "wave-commits",
+      "status": "pending",
+      "missingEvidence": ["verified wave commits"]
+    }
+  ],
+  "nextAction": "Verify gameplay behavior and source recovery before performance changes."
+}
