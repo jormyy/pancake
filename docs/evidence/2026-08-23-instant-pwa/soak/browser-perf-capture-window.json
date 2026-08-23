@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T21:50:39Z",
+  "status": "pass",
+  "knownBad": {
+    "source": "20-season release soak, season 1",
+    "draftLongTaskMilliseconds": 60,
+    "budgetMilliseconds": 50,
+    "captureRanInsideMeasurementWindow": true
+  },
+  "causalIsolation": {
+    "visualCapturesSkipped": true,
+    "status": "pass",
+    "draftLongTaskMilliseconds": 0,
+    "homeLongTaskMilliseconds": 0
+  },
+  "fix": {
+    "visualCaptureCompletesBeforeHeartbeatStarts": true,
+    "budgetChanged": false
+  },
+  "guardedLocalProof": {
+    "visualCapturesEnabled": true,
+    "status": "pass",
+    "draft": {
+      "heartbeatSamples": 32,
+      "maximumLagMilliseconds": 9,
+      "maximumLongTaskMilliseconds": 0
+    },
+    "home": {
+      "heartbeatSamples": 31,
+      "maximumLagMilliseconds": 10,
+      "maximumLongTaskMilliseconds": 0
+    },
+    "captureDimensions": "391x845",
+    "visuallyInspected": true,
+    "browserSessionsRemaining": 0
+  },
+  "targetSafety": {
+    "knownBad": "A local Supabase URL paired with the hosted API URL from .env.",
+    "observedResult": "The hosted API rejected the local token with HTTP 401 before route execution.",
+    "fixedResult": "E2E now rejects Supabase and API URLs on different deployment targets before a network call."
+  },
+  "regressions": {
+    "testFiles": 112,
+    "tests": 640,
+    "qualityGate": "pass",
+    "surfaceMatrix": {
+      "routes": 23,
+      "backgroundPaths": 5,
+      "dataClasses": 19,
+      "functions": 21
+    }
+  }
+}

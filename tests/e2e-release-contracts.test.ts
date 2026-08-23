@@ -12,6 +12,7 @@ import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
 import { DATA_LATENCY_STEP_KEYS } from './e2e/data-latency-contract.mjs'
 import { runDataLatencyWorkflow } from './e2e/data-latency-bench.mjs'
+import { requireEnv } from './e2e/env.mjs'
 import { validateBrowserMutationLoad, validateBrowserPerfReport, validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 import { digestReleaseBundle, selectRepositoryCommit } from './e2e/release-provenance.mjs'
@@ -29,6 +30,21 @@ afterEach(async () => {
 })
 
 describe('release E2E contracts', () => {
+  it('rejects mixed local and hosted E2E data targets', () => {
+    expect(() => requireEnv({
+      supabaseUrl: 'http://127.0.0.1:54321',
+      apiBaseUrl: 'https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api',
+    }, ['supabaseUrl', 'apiBaseUrl'])).toThrow('different deployment targets')
+
+    expect(requireEnv({
+      supabaseUrl: 'http://localhost:54321',
+      apiBaseUrl: 'http://127.0.0.1:54321/functions/v1/api',
+    }, ['supabaseUrl', 'apiBaseUrl'])).toMatchObject({
+      supabaseUrl: 'http://localhost:54321',
+      apiBaseUrl: 'http://127.0.0.1:54321/functions/v1/api',
+    })
+  })
+
   it('clears Metro transforms before stamping a release bundle', async () => {
     const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'))
     expect(packageJson.scripts['build:web:release']).toBe(
@@ -706,6 +722,17 @@ describe('release E2E contracts', () => {
     expect(producer).toContain("validateBrowserMutationLoad('home', homeLoad)")
     expect(producer).not.toContain("text.includes('$' + expected.amount)")
     expect(livePanel).toContain('testID="auction-live-state" accessibilityLabel={liveStateLabel}')
+  })
+
+  it('starts draft load measurement after visual evidence capture', async () => {
+    const producer = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
+    const draftStart = producer.indexOf("const draftFeedback = await measureWorkflowFeedback")
+    const draftEnd = producer.indexOf('const draftLoad = await runLoadMutations', draftStart)
+    const setup = producer.slice(draftStart, draftEnd)
+
+    expect(setup).toContain("['screenshot', path.join(artifactDir, 'draft-before-load.png')]")
+    expect(setup).toContain('await installHeartbeat(session)')
+    expect(setup.indexOf("'draft-before-load.png'")).toBeLessThan(setup.indexOf('await installHeartbeat(session)'))
   })
 
   it('rejects skeletal complete data-latency PASS evidence', async () => {

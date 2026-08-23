@@ -1,22 +1,24 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T21:26:13Z",
+  "updatedAt": "2026-08-23T21:50:39Z",
   "deadline": "2026-08-23T13:30:00-07:00",
   "resumedAt": "2026-08-23T21:17:00Z",
   "deadlineRemovedByUser": true,
-  "branchHead": "6ba2ee151a4477116491f4399777a781993da693",
+  "branchHead": "62b787bb95cc9be31623536869868cc267aff800",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
     "ports": [54321, 54322, 54323, 54324, 8081, 19006]
   },
   "finalRuntimeState": {
-    "observedAt": "2026-08-23T20:30:06Z",
+    "observedAt": "2026-08-23T21:50:39Z",
     "deadlineReached": true,
-    "initialServiceStateRestored": true,
-    "closedPorts": [54321, 54322, 54323, 54324, 8081, 19006],
+    "deadlineApplicable": false,
+    "initialServiceStateRestored": false,
+    "activeLocalVerification": true,
+    "closedPorts": [],
     "protectedUnrelatedPort8082StillOpen": true,
-    "worktreeClean": true,
+    "worktreeClean": false,
     "goalComplete": false,
     "remainingRequirement": "20 passing season rows with every mapped happy, failure, and recovery path covered"
   },
@@ -334,7 +336,7 @@
     {
       "id": "expanded-twenty-season-soak",
       "status": "incomplete",
-      "observedAt": "2026-08-23T20:22:54Z",
+      "observedAt": "2026-08-23T21:38:52Z",
       "checks": {
         "requestedSeasons": 20,
         "completedSeasons": 0,
@@ -342,15 +344,16 @@
         "fakeUpstreamSafety": { "status": "pass" },
         "dockerUpstreamRouting": { "status": "pass" },
         "partialSourceDynastyRealtimeEvidence": { "status": "saved" },
-        "browserVisualCapture": { "status": "fail", "result": "auth-sign-in screenshot received SIGTERM after configured timeouts" },
+        "browserVisualCapture": { "status": "pass", "result": "auth and performance captures completed through the verified print fallback" },
+        "browserPerformanceMeasurement": { "status": "recovered", "knownBad": "draft long task measured 60 milliseconds against a 50 millisecond budget", "result": "capture now completes before measurement starts" },
         "surfaceCoverage": { "status": "unproved" }
       },
       "evidence": ["soak/expanded-soak-attempt.json", "../../../tests/e2e-report.json"]
     },
     {
       "id": "expanded-test-pruning",
-      "status": "complete",
-      "observedAt": "2026-08-23T20:24:00Z",
+      "status": "requires-repeat",
+      "observedAt": "2026-08-23T21:50:39Z",
       "checks": {
         "before": { "files": 112, "tests": 636, "wallSeconds": 2.14 },
         "after": { "files": 112, "tests": 636, "wallSeconds": 2.10 },
@@ -372,6 +375,19 @@
         "regressions": { "status": "pass", "files": 112, "tests": 638, "qualityGate": "pass" }
       },
       "evidence": ["interface/browser-capture-recovery.json"]
+    },
+    {
+      "id": "browser-performance-capture-window",
+      "status": "complete",
+      "observedAt": "2026-08-23T21:50:39Z",
+      "checks": {
+        "knownBad": { "status": "pass", "result": "season 1 measured a 60 millisecond draft long task against a 50 millisecond budget" },
+        "causalIsolation": { "status": "pass", "result": "capture-free measurement recorded no long tasks" },
+        "fixedCaptureMeasurement": { "status": "pass", "draftMaximumLagMilliseconds": 9, "homeMaximumLagMilliseconds": 10, "maximumLongTaskMilliseconds": 0, "budgetMilliseconds": 50 },
+        "mixedTargetGuard": { "status": "pass", "result": "mixed local and hosted E2E targets fail before network access" },
+        "regressions": { "status": "pass", "files": 112, "tests": 640, "qualityGate": "pass" }
+      },
+      "evidence": ["soak/browser-perf-capture-window.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -437,9 +453,9 @@
     },
     {
       "id": "expanded-test-pruning",
-      "status": "complete",
-      "missingEvidence": []
+      "status": "pending",
+      "missingEvidence": ["repeat the pruning audit after the final behavior change"]
     }
   ],
-  "nextAction": "Build and seed the release environment, then rerun all 20 seasons and enforce every matrix evidence id."
+  "nextAction": "Rebuild and seed the guarded local release environment, then rerun all 20 seasons and enforce every matrix evidence id."
 }

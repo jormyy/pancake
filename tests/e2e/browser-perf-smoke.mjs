@@ -574,8 +574,8 @@ export async function runBrowserPerfSmoke({
     })
     const draftFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
       .catch((error) => ({ error: error.message }))
-    await installHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-before-load.png')], { timeout: 60_000 })
+    await installHeartbeat(session)
 
     const draftLoad = await runLoadMutations({ supabase, auction, matchup })
     await browser(session, ['wait', '2500'])

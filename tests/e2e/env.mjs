@@ -166,6 +166,29 @@ export const resolvedEnv = () => ({
   backendTicksEnabled: envValue('E2E_ENABLE_EDGE_TICKS', 'E2E_ENABLE_BACKEND_TICKS') === '1',
 })
 
+const endpointTarget = (value) => {
+  try {
+    const url = new URL(value)
+    const loopbackHosts = new Set(['127.0.0.1', '[::1]', '::1', 'host.docker.internal', 'localhost'])
+    const hostname = loopbackHosts.has(url.hostname.toLowerCase()) ? 'loopback' : url.hostname.toLowerCase()
+    const port = url.port || (url.protocol === 'https:' ? '443' : url.protocol === 'http:' ? '80' : '')
+    return `${url.protocol}//${hostname}:${port}`
+  } catch {
+    return null
+  }
+}
+
+const e2eDeploymentTargetsMatch = (supabaseUrl, apiBaseUrl) => {
+  const supabaseTarget = endpointTarget(supabaseUrl)
+  const apiTarget = endpointTarget(apiBaseUrl)
+  return supabaseTarget != null && supabaseTarget === apiTarget
+}
+
+const requireMatchingE2ETargets = (supabaseUrl, apiBaseUrl) => {
+  if (e2eDeploymentTargetsMatch(supabaseUrl, apiBaseUrl)) return
+  throw new Error('Refusing to run E2E with Supabase and API URLs on different deployment targets.')
+}
+
 export const resolvedTradeEnv = () => {
   const env = resolvedEnv()
   const { supabaseUrl, serviceRoleKey, anonKey, apiBaseUrl } = env
@@ -175,6 +198,7 @@ export const resolvedTradeEnv = () => {
   if (isProductionSupabaseUrl(supabaseUrl) && process.env.E2E_ALLOW_PROD_WRITES !== '1') {
     throw new Error('Refusing to run trade E2E writes against production.')
   }
+  requireMatchingE2ETargets(supabaseUrl, apiBaseUrl)
   return { ...env, supabaseUrl, serviceRoleKey, anonKey, apiBaseUrl }
 }
 
@@ -211,6 +235,9 @@ export function requireEnv(env, keys) {
   const missing = keys.filter((key) => !env[key])
   if (missing.length > 0) {
     throw new Error(`Missing required E2E environment: ${missing.join(', ')}`)
+  }
+  if (keys.map(String).includes('supabaseUrl') && keys.map(String).includes('apiBaseUrl')) {
+    requireMatchingE2ETargets(String(env.supabaseUrl), String(env.apiBaseUrl))
   }
   if (
     keys.map(String).includes('serviceRoleKey') &&
