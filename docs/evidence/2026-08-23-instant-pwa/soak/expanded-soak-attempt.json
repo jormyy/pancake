@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-08-23T20:18:58.191Z",
+  "finishedAt": "2026-08-23T20:22:54.244Z",
+  "status": "incomplete",
+  "requestedSeasons": 20,
+  "completedSeasons": 0,
+  "partialSeason": 1,
+  "partialEvidence": [
+    "tests/artifacts/season-1/dynasty-decision-tools.json",
+    "tests/artifacts/season-1/fake-upstream.json",
+    "tests/artifacts/season-1/realtime-latency.json"
+  ],
+  "verifiedSetupCorrections": [
+    "The Edge server uses the required fake push endpoint.",
+    "Docker reaches the fake NBA, Sleeper, and push services through host.docker.internal."
+  ],
+  "blockingFailure": {
+    "scenario": "browser smoke",
+    "route": "auth-sign-in",
+    "operation": "agent-browser screenshot",
+    "result": "SIGTERM after the configured screenshot timeouts",
+    "artifact": "tests/e2e-report.json"
+  },
+  "surfaceCoverageProved": false,
+  "twentySeasonClaimAllowed": false
+}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T20:15:30Z",
+  "updatedAt": "2026-08-23T20:24:00Z",
   "deadline": "2026-08-23T13:30:00-07:00",
   "branchHead": "146f5edebde46be497ee2859a9c454f6bc739534",
   "initialServices": {
@@ -318,6 +318,36 @@
         "diagnostics": { "status": "pass", "onlineErrors": 0, "postReconnectErrors": 0, "offlineFailuresSavedSeparately": true }
       },
       "evidence": ["pwa/expanded-route-proof.json"]
+    },
+    {
+      "id": "expanded-twenty-season-soak",
+      "status": "incomplete",
+      "observedAt": "2026-08-23T20:22:54Z",
+      "checks": {
+        "requestedSeasons": 20,
+        "completedSeasons": 0,
+        "partialSeason": 1,
+        "fakeUpstreamSafety": { "status": "pass" },
+        "dockerUpstreamRouting": { "status": "pass" },
+        "partialSourceDynastyRealtimeEvidence": { "status": "saved" },
+        "browserVisualCapture": { "status": "fail", "result": "auth-sign-in screenshot received SIGTERM after configured timeouts" },
+        "surfaceCoverage": { "status": "unproved" }
+      },
+      "evidence": ["soak/expanded-soak-attempt.json", "../../../tests/e2e-report.json"]
+    },
+    {
+      "id": "expanded-test-pruning",
+      "status": "complete",
+      "observedAt": "2026-08-23T20:24:00Z",
+      "checks": {
+        "before": { "files": 112, "tests": 636, "wallSeconds": 2.14 },
+        "after": { "files": 112, "tests": 636, "wallSeconds": 2.10 },
+        "removed": 0,
+        "coverage": "unavailable",
+        "mutationAudit": { "status": "pass", "mutations": 2 },
+        "finalSuite": { "status": "pass" }
+      },
+      "evidence": ["expanded-test-pruning.md"]
     }
   ],
   "acceptanceCriteria": [
@@ -383,9 +413,9 @@
     },
     {
       "id": "expanded-test-pruning",
-      "status": "pending",
-      "missingEvidence": ["new final pruning pass after expanded behavior work"]
+      "status": "complete",
+      "missingEvidence": []
     }
   ],
-  "nextAction": "Commit the verified route proof, rebuild that commit, and run the full 20-season release soak."
+  "nextAction": "Add a measured CDP screenshot fallback, then rerun all 20 seasons and enforce every matrix evidence id."
 }
