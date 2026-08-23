@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T17:45:00Z",
+  "updatedAt": "2026-08-23T18:11:18Z",
   "deadline": "2026-08-23T13:30:00-07:00",
-  "branchHead": "ee494d8a0169fa71f1612858d2c61df0f6c09ae7",
+  "branchHead": "5a7edc154412f37517f1b2256275d6181f2bfd84",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
@@ -168,13 +168,71 @@
         }
       },
       "evidence": ["sources/source-health.json", "sources/source-health.md"]
+    },
+    {
+      "id": "matchup-gameplay",
+      "status": "complete",
+      "observedAt": "2026-08-23T17:48:15Z",
+      "checks": {
+        "storedNavigation": {
+          "status": "pass",
+          "homePoints": 24,
+          "awayPoints": 25,
+          "dataReadyMilliseconds": 715
+        },
+        "realtimeLoad": {
+          "status": "pass",
+          "mutations": 24,
+          "heartbeatSamples": 31,
+          "maximumLagMilliseconds": 10,
+          "longTasks": 0
+        }
+      },
+      "evidence": ["matchups/matchup-results.json"]
+    },
+    {
+      "id": "performance",
+      "status": "complete",
+      "observedAt": "2026-08-23T17:55:09Z",
+      "checks": {
+        "homeColdDataReady": {
+          "status": "pass",
+          "milliseconds": 715,
+          "budgetMilliseconds": 1000
+        },
+        "playerSearch": {
+          "status": "pass",
+          "medianMilliseconds": 19.6,
+          "maxMilliseconds": 32.3,
+          "budgetMilliseconds": 100
+        },
+        "playerSearchDirect": {
+          "beforeMilliseconds": 69.7,
+          "afterWarmMilliseconds": 9.3
+        }
+      },
+      "evidence": ["../../../tests/e2e-data-latency-report.md"]
+    },
+    {
+      "id": "pwa-cache",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:11:18Z",
+      "checks": {
+        "offlineShell": { "status": "pass" },
+        "apiAndRealtimeFreshness": { "status": "pass", "serviceWorkerCachesApi": false },
+        "reconnect": { "status": "pass", "convergenceMilliseconds": 25 },
+        "crossTab": { "status": "pass", "convergenceMilliseconds": 207 },
+        "updatePolicy": { "status": "pass", "oldCachesDeleted": true, "pageReloaded": true },
+        "webkit": { "status": "pass", "version": "26.5", "viewports": 4 }
+      },
+      "evidence": ["pwa/pwa-results.json", "webkit/webkit-results.json"]
     }
   ],
   "acceptanceCriteria": [
     {
       "id": "priority-flows",
-      "status": "pending",
-      "missingEvidence": ["all sources", "matchups"]
+      "status": "complete",
+      "missingEvidence": []
     },
     {
       "id": "source-health",
@@ -183,13 +241,13 @@
     },
     {
       "id": "pwa-cache",
-      "status": "pending",
-      "missingEvidence": ["offline shell", "API freshness", "realtime freshness", "reconnect convergence", "update policy"]
+      "status": "complete",
+      "missingEvidence": []
     },
     {
       "id": "performance",
-      "status": "failing",
-      "missingEvidence": ["verified improvement or documented budget compliance"]
+      "status": "complete",
+      "missingEvidence": []
     },
     {
       "id": "interface",
@@ -217,5 +275,5 @@
       "missingEvidence": ["verified wave commits"]
     }
   ],
-  "nextAction": "Verify matchup behavior, then improve player search and PWA data-ready time."
+  "nextAction": "Record research and task taps, then finish release checks and documentation."
 }

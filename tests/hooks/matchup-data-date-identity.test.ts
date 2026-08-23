@@ -4,12 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import type { Matchup } from '@/lib/scoring'
 
-const { getLeagueWeekMatchups, getMyMatchup, getWeekDays, getWeeklyLineup, readPersistentCache } = vi.hoisted(() => ({
+const {
+    getLeagueWeekMatchups, getMyMatchup, getWeekDays, getWeeklyLineup, readPersistentCache,
+    invalidateSeasonCache, invalidateWeekNumberCache, online,
+} = vi.hoisted(() => ({
     getLeagueWeekMatchups: vi.fn(),
     getMyMatchup: vi.fn(),
     getWeekDays: vi.fn(),
     getWeeklyLineup: vi.fn(),
     readPersistentCache: vi.fn(),
+    invalidateSeasonCache: vi.fn(),
+    invalidateWeekNumberCache: vi.fn(),
+    online: { value: true },
 }))
 
 vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
@@ -20,7 +26,10 @@ vi.mock('@/lib/lineup', () => ({
     getWeeklyLineup,
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-07-09' }))
+vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache }))
+vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache, writePersistentCache: vi.fn() }))
+vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => online.value }))
 vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
     disposeTableChangeSubscription: vi.fn(),
@@ -54,6 +63,7 @@ beforeEach(() => {
     readPersistentCache.mockReturnValue(undefined)
     getLeagueWeekMatchups.mockResolvedValue([])
     getWeekDays.mockResolvedValue([{ date: '2026-07-09' }])
+    online.value = true
 })
 
 describe('useMatchupData date ownership', () => {
@@ -76,6 +86,37 @@ describe('useMatchupData date ownership', () => {
         expect(latest.matchup?.id).toBe('matchup')
         expect(latest.myLineup?.bench[0]?.playerId).toBe('cached-mine')
         expect(latest.error).toBe('Failed to load matchup')
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('reloads cached matchup data after the network reconnects', async () => {
+        readPersistentCache.mockReturnValue({
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: lineup('cached-mine'), oppLineup: lineup('cached-opp'),
+        })
+        getMyMatchup.mockResolvedValue({ ...matchup, myPoints: 77.7, opponentPoints: 66.6 })
+        getWeeklyLineup.mockResolvedValue(lineup('fresh'))
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = ({ tick }: { tick: number }) => {
+            latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' })
+            return React.createElement('probe', { tick })
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { tick: 0 })) })
+
+        online.value = false
+        await act(async () => { renderer.update(React.createElement(Probe, { tick: 1 })) })
+        online.value = true
+        await act(async () => {
+            renderer.update(React.createElement(Probe, { tick: 2 }))
+            await Promise.resolve()
+        })
+
+        expect(getMyMatchup).toHaveBeenCalledTimes(1)
+        expect(invalidateSeasonCache).toHaveBeenCalledWith('league')
+        expect(invalidateWeekNumberCache).toHaveBeenCalledTimes(1)
+        expect(latest.matchup?.myPoints).toBe(77.7)
+        expect(latest.matchup?.opponentPoints).toBe(66.6)
         await act(async () => { renderer.unmount() })
     })
 
