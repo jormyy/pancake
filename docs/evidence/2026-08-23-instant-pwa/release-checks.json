@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-08-23T18:38:59Z",
+  "observedAt": "2026-08-23T18:47:06Z",
   "scope": "Local and development data with public read-only sources",
-  "verifiedCodeHead": "4a4f4f965a3d7cfa3be33d18ffdbb2ad4edb3a68",
+  "verifiedCodeHead": "146f5edebde46be497ee2859a9c454f6bc739534",
   "checks": {
     "unitTests": {
       "status": "pass",
@@ -24,7 +24,9 @@
     "edgeFunctions": {
       "status": "pass",
       "entrypoints": 16,
-      "tests": 100
+      "tests": 100,
+      "leakTrace": "pass",
+      "serverAuthRefresh": false
     },
     "database": {
       "status": "pass",
@@ -32,8 +34,8 @@
     },
     "releaseBuild": {
       "status": "pass",
-      "commitSha": "4a4f4f965a3d7cfa3be33d18ffdbb2ad4edb3a68",
-      "bundleDigest": "d38b633b1d4d75ea02de23f539d6c471d4787808996097dafd0a3412ff541aa0",
+      "commitSha": "146f5edebde46be497ee2859a9c454f6bc739534",
+      "bundleDigest": "544f4bda445f724ad4ba6c23eed1ce74ff348dbdfe96f40b5d87fb6279bb9f69",
       "commonJavaScriptBytes": 1708442,
       "entryJavaScriptBytes": 971542
     },

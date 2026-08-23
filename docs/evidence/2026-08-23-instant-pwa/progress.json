@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T18:38:59Z",
+  "updatedAt": "2026-08-23T18:47:06Z",
   "deadline": "2026-08-23T13:30:00-07:00",
-  "branchHead": "4a4f4f965a3d7cfa3be33d18ffdbb2ad4edb3a68",
+  "branchHead": "146f5edebde46be497ee2859a9c454f6bc739534",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
@@ -273,11 +273,11 @@
     {
       "id": "release-checks",
       "status": "complete",
-      "observedAt": "2026-08-23T18:38:59Z",
+      "observedAt": "2026-08-23T18:47:06Z",
       "checks": {
         "applicationTests": { "status": "pass", "files": 110, "tests": 625 },
         "coreTests": { "status": "pass", "files": 13, "tests": 112 },
-        "edgeTests": { "status": "pass", "tests": 100 },
+        "edgeTests": { "status": "pass", "tests": 100, "leakTrace": "pass" },
         "databaseTests": { "status": "pass", "commands": 17 },
         "releaseBuild": { "status": "pass" },
         "releaseHydration": { "status": "pass" },
