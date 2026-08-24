@@ -3,7 +3,10 @@ import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
 import { clampDateToWeek, getWeekDays, getWeeklyLineup, invalidateCachedRoster, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
+import { invalidateSeasonCache } from '@/lib/shared/season'
+import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { useOnlineStatus } from '@/hooks/use-online-status'
 import {
     debounceRealtimeRefresh,
     disposeTableChangeSubscription,
@@ -74,6 +77,8 @@ export function useMatchupData(
     user: { id: string } | null,
     league: { id: string } | null,
 ) {
+    const online = useOnlineStatus()
+    const wasOnlineRef = useRef(online)
     const leagueId = league?.id
     const resourceKey = current && user && leagueId
         ? `${user.id}:${leagueId}:${current.id}`
@@ -274,6 +279,16 @@ export function useMatchupData(
     }, [current, user, leagueId, fetchLineups, resourceKey, setSelectedDate])
 
     useFocusEffect(useCallback(() => { load() }, [load]))
+
+    useEffect(() => {
+        const wasOnline = wasOnlineRef.current
+        wasOnlineRef.current = online
+        if (!wasOnline && online && leagueId) {
+            invalidateSeasonCache(leagueId)
+            invalidateWeekNumberCache()
+            void load()
+        }
+    }, [leagueId, load, online])
 
     useEffect(() => {
         if (!ownsResource || !matchup?.id) return

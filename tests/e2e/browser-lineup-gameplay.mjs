@@ -24,9 +24,8 @@ const offsetDateString = (offsetDays) => {
   const d = new Date(Date.UTC(year, month - 1, day + offsetDays, 12, 0, 0))
   return d.toISOString().slice(0, 10)
 }
-const currentWeekWindow = () => {
-  const today = todayDateString()
-  const [year, month, day] = today.split('-').map(Number)
+const weekWindowForDate = (date) => {
+  const [year, month, day] = date.split('-').map(Number)
   const start = new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
   const dow = start.getUTCDay()
   start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
@@ -139,24 +138,32 @@ const findPgPlayersWithNbaTeams = async (admin, leagueId, leagueSeasonId, count)
   return selected
 }
 
-const ensureCurrentWeek = async (admin, seasonYear) => {
-  const today = todayDateString()
+const ensureWeekForDate = async (admin, seasonYear, date) => {
   const { data: existing, error: existingError } = await admin
     .from('season_weeks')
     .select('week_number, week_start, week_end')
     .eq('season_year', seasonYear)
-    .lte('week_start', today)
-    .gte('week_end', today)
+    .lte('week_start', date)
+    .gte('week_end', date)
     .maybeSingle()
   if (existingError) throw new Error(`season week lookup: ${existingError.message}`)
   if (existing) return existing
+
+  const { data: latest, error: latestError } = await admin
+    .from('season_weeks')
+    .select('week_number')
+    .eq('season_year', seasonYear)
+    .order('week_number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (latestError) throw new Error(`latest season week lookup: ${latestError.message}`)
 
   const { data, error } = await admin
     .from('season_weeks')
     .upsert({
       season_year: seasonYear,
-      week_number: 1,
-      ...currentWeekWindow(),
+      week_number: (latest?.week_number ?? 0) + 1,
+      ...weekWindowForDate(date),
     }, { onConflict: 'season_year,week_number' })
     .select('week_number, week_start, week_end')
     .single()
@@ -164,7 +171,9 @@ const ensureCurrentWeek = async (admin, seasonYear) => {
   return data
 }
 
-const setupLineupFixture = async (env, season) => {
+const ensureCurrentWeek = (admin, seasonYear) => ensureWeekForDate(admin, seasonYear, todayDateString())
+
+const setupLineupFixture = async (env, season, { remainingSeasonDateCount = 0 } = {}) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-lineup-${runId}!`
   const user = {
@@ -244,6 +253,37 @@ const setupLineupFixture = async (env, season) => {
     const { error } = await admin.from('season_weeks').delete().eq('season_year', syntheticSeason.season_year)
     if (error) throw new Error(error.message)
   })
+
+  const remainingSeasonDates = []
+  const remainingSeasonGameIds = []
+  for (let offset = 1; offset <= remainingSeasonDateCount; offset += 1) {
+    const gameDate = offsetDateString(offset)
+    const dateWeek = await ensureWeekForDate(admin, syntheticSeason.season_year, gameDate)
+    const gameId = `e2e-lineup-season-${runId}-${offset}`
+    const homeTeam = player.nba_team ?? 'BOS'
+    const awayTeam = homeTeam === 'LAL' ? 'BOS' : 'LAL'
+    const { error: gameError } = await admin.from('nba_games').insert({
+      sportsdata_game_id: gameId,
+      nba_game_id: gameId,
+      season_year: syntheticSeason.season_year,
+      game_date: gameDate,
+      week_number: dateWeek.week_number,
+      home_team: homeTeam,
+      away_team: awayTeam,
+      status: 'Scheduled',
+      game_status_text: 'E2E Future Game',
+      game_time: `${gameDate}T23:30:00.000Z`,
+    })
+    if (gameError) throw new Error(`remaining-season game seed: ${gameError.message}`)
+    remainingSeasonDates.push(gameDate)
+    remainingSeasonGameIds.push(gameId)
+  }
+  if (remainingSeasonGameIds.length > 0) {
+    resources.registerCleanup(`lineup season games ${syntheticSeason.season_year}`, async () => {
+      const { error } = await admin.from('nba_games').delete().in('sportsdata_game_id', remainingSeasonGameIds)
+      if (error) throw new Error(error.message)
+    })
+  }
   return {
     admin,
     runId,
@@ -255,6 +295,7 @@ const setupLineupFixture = async (env, season) => {
     week,
     player,
     rosterRow,
+    remainingSeasonDates,
     dispose: resources.dispose,
   }
 }
@@ -337,12 +378,22 @@ const setupLockedLineupFixture = async (env, season) => {
   }
 }
 
+const resetBrowserAlertCapture = (session) => browser(session, [
+  'eval',
+  `(() => {
+    window.__pancakeAlerts = [];
+    window.alert = (message) => window.__pancakeAlerts.push(String(message));
+    return JSON.stringify({ ok: true });
+  })()`,
+])
+
 const signInBrowser = async (session, env, user, password) => {
   await installRuntimeOverrides(browser, session, env, { alerts: true })
   await browser(session, ['wait', '1500'])
   await fillSignInCredentials(browser, session, user.email, password)
   await clickButtonByName(browser, session, 'Sign In')
   await browser(session, ['wait', '4000'])
+  await resetBrowserAlertCapture(session)
 }
 
 const assertPageText = async (session, required, label) => {
@@ -366,6 +417,52 @@ const assertPageText = async (session, required, label) => {
     await browser(session, ['wait', '500'])
   }
   throw new Error(`${label} missing page text: ${parsed?.missing?.join(', ') ?? required.join(', ')}. Sample: ${parsed?.sample ?? ''}`)
+}
+
+const waitForAccessibleButton = async (session, name, label, timeoutMs = 15_000) => {
+  let parsed = null
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const output = await browser(session, [
+      'eval',
+      `(() => {
+        const target = [...document.querySelectorAll('[role="button"], button')]
+          .find((element) => element.getAttribute('aria-label') === ${JSON.stringify(name)});
+        return JSON.stringify({
+          ok: Boolean(target),
+          label: target?.getAttribute('aria-label') ?? null,
+          body: (document.body?.innerText || '').slice(0, 1000)
+        });
+      })()`,
+    ])
+    parsed = parseEvalJson(output)
+    if (parsed.ok) return { ...parsed, elapsedMs: Date.now() - startedAt }
+    await browser(session, ['wait', '250'])
+  }
+  throw new Error(`${label}: button not found: ${name}. Body: ${parsed?.body ?? ''}`)
+}
+
+const waitForAlertText = async (session, expected, label, timeoutMs = 90_000) => {
+  let parsed = null
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const output = await browser(session, [
+      'eval',
+      `(() => {
+        const alerts = Array.isArray(window.__pancakeAlerts) ? window.__pancakeAlerts : [];
+        return JSON.stringify({
+          ok: alerts.some((message) => message.includes(${JSON.stringify(expected)})),
+          alerts
+        });
+      })()`,
+    ])
+    parsed = parseEvalJson(output)
+    if (parsed.ok) return { ...parsed, elapsedMs: Date.now() - startedAt }
+    const failureAlert = parsed.alerts.find((message) => message.includes('Auto-set failed'))
+    if (failureAlert) throw new Error(`${label}: ${failureAlert}`)
+    await browser(session, ['wait', '500'])
+  }
+  throw new Error(`${label}: alert not found: ${expected}. Alerts: ${JSON.stringify(parsed?.alerts ?? [])}`)
 }
 
 const dispatchDomClick = async (session, name, label) => {
@@ -436,6 +533,47 @@ const waitForLineup = async (fixture, options = {}, timeoutMs = 90_000) => {
   return last
 }
 
+const verifyRemainingSeasonLineups = async (fixture) => {
+  const { data: rows, error } = await fixture.admin
+    .from('weekly_lineups')
+    .select('id, player_id, slot_type, week_number, game_date, is_auto_set')
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.currentSeason.id)
+    .eq('member_id', fixture.member.id)
+    .eq('player_id', fixture.player.id)
+    .in('game_date', fixture.remainingSeasonDates)
+    .order('game_date', { ascending: true })
+  if (error) throw new Error(`remaining-season lineup verify: ${error.message}`)
+
+  const failures = []
+  const rowsByDate = new Map((rows ?? []).map((row) => [row.game_date, row]))
+  for (const date of fixture.remainingSeasonDates) {
+    const row = rowsByDate.get(date)
+    if (!row) {
+      failures.push(`missing remaining-season lineup for ${date}`)
+      continue
+    }
+    if (!['PG', 'G', 'UTIL'].includes(row.slot_type)) {
+      failures.push(`${date} slot_type=${row.slot_type}; expected a PG-eligible starter slot`)
+    }
+    if (row.is_auto_set !== true) failures.push(`${date} is_auto_set=${row.is_auto_set}; expected true`)
+  }
+  if ((rows ?? []).length !== fixture.remainingSeasonDates.length) {
+    failures.push(`remaining-season rows=${(rows ?? []).length}; expected ${fixture.remainingSeasonDates.length}`)
+  }
+  return { rows: rows ?? [], failures }
+}
+
+const waitForRemainingSeasonLineups = async (fixture, timeoutMs = 90_000) => {
+  const startedAt = Date.now()
+  let last = await verifyRemainingSeasonLineups(fixture)
+  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    last = await verifyRemainingSeasonLineups(fixture)
+  }
+  return last
+}
+
 const verifyLockedLineup = async (fixture) => {
   const [{ data: lockedRows, error: lockedError }, { data: benchRows, error: benchError }] = await Promise.all([
     fixture.admin
@@ -499,6 +637,7 @@ const verifyForgedLineupLegalityRpc = async (env, fixture) => {
   const client = await signInClient(env, fixture.user.email, fixture.password)
   const gameDate = offsetDateString(1)
   try {
+    const week = await ensureWeekForDate(fixture.admin, fixture.currentSeason.season_year, gameDate)
     const legal = await client.rpc('set_player_slot_atomic', {
       p_member_id: fixture.member.id,
       p_league_id: fixture.league.id,
@@ -506,7 +645,7 @@ const verifyForgedLineupLegalityRpc = async (env, fixture) => {
       p_player_id: fixture.lockedPlayer.id,
       p_game_date: gameDate,
       p_slot_type: 'PG',
-      p_week_number: fixture.week.week_number,
+      p_week_number: week.week_number,
     })
     const overfill = await client.rpc('set_player_slot_atomic', {
       p_member_id: fixture.member.id,
@@ -515,7 +654,7 @@ const verifyForgedLineupLegalityRpc = async (env, fixture) => {
       p_player_id: fixture.benchPlayer.id,
       p_game_date: gameDate,
       p_slot_type: 'PG',
-      p_week_number: fixture.week.week_number,
+      p_week_number: week.week_number,
     })
     const ineligible = await client.rpc('set_player_slot_atomic', {
       p_member_id: fixture.member.id,
@@ -524,7 +663,7 @@ const verifyForgedLineupLegalityRpc = async (env, fixture) => {
       p_player_id: fixture.lockedPlayer.id,
       p_game_date: gameDate,
       p_slot_type: 'C',
-      p_week_number: fixture.week.week_number,
+      p_week_number: week.week_number,
     })
     const { data: rows, error: rowsError } = await fixture.admin
       .from('weekly_lineups')
@@ -636,6 +775,7 @@ export async function runBrowserLineupScenario({
   const fixture = await setupLineupFixture(env, season)
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-lineup-${fixture.runId}-${process.pid}`)
+  const peerSession = safeName(`${session}-peer`)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-lineup')
   const notes = [
     `Frontend: ${describeEndpoint(env.frontendUrl)}`,
@@ -666,15 +806,36 @@ export async function runBrowserLineupScenario({
       await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
       await browser(session, ['wait', '3000'])
       await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name], 'lineup before move')
+      await signInBrowser(peerSession, env, fixture.user, fixture.password)
+      await browser(peerSession, ['set', 'viewport', '390', '844'])
+      await browser(peerSession, ['open', joinUrl(env.frontendUrl, '/lineup')])
+      await browser(peerSession, ['wait', '3000'])
+      const peerBefore = await waitForAccessibleButton(
+        peerSession,
+        `Bench ${fixture.player.display_name}`,
+        'peer lineup before move',
+      )
       record({ beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-before-move.png') })
       const benchClick = await clickButton(session, `Bench ${fixture.player.display_name}`, 'bench player row', { preferDom: true })
       await browser(session, ['wait', '500'])
       const slotClick = await clickButton(session, 'Empty PG slot', 'empty PG slot row', { preferDom: true })
       const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: false })
-      record({ benchClick, slotClick, lineupCheck })
+      const peerAfter = await waitForAccessibleButton(
+        peerSession,
+        `PG ${fixture.player.display_name}`,
+        'peer lineup after realtime move',
+      )
+      await browser(session, ['reload'])
+      await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name], 'lineup after refresh')
+      const refreshCheck = await waitForAccessibleButton(
+        session,
+        `PG ${fixture.player.display_name}`,
+        'lineup persistence after refresh',
+      )
+      record({ benchClick, slotClick, lineupCheck, peerBefore, peerAfter, refreshCheck })
       await browser(session, ['wait', '1000'])
       record({ afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-after-move.png') })
-      return { fields: { lineupCheck }, failures: lineupCheck.failures }
+      return { fields: { lineupCheck, peerBefore, peerAfter, refreshCheck }, failures: lineupCheck.failures }
     },
     verifyFailure: async () => ({ lineupCheck: await verifyLineup(fixture, { expectedAutoSet: false }) }),
   })
@@ -753,7 +914,7 @@ export async function runBrowserLineupAutoSetScenario({
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
-  const fixture = await setupLineupFixture(env, season)
+  const fixture = await setupLineupFixture(env, season, { remainingSeasonDateCount: 2 })
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-lineup-auto-${fixture.runId}-${process.pid}`)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-lineup-auto-set')
@@ -785,18 +946,34 @@ export async function runBrowserLineupAutoSetScenario({
     await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
     await browser(session, ['wait', '3000'])
+    await resetBrowserAlertCapture(session)
     await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-Set'], 'lineup before auto-set')
     record({ beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-before.png') })
     const openClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button')
     await assertPageText(session, ['Auto-Set Lineup', 'Today', 'Whole Week', 'Rest of Season'], 'auto-set modal')
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
-    record({ openClick, todayClick, lineupCheck })
+    const openSeasonClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
+    await assertPageText(session, ['Auto-Set Lineup', 'Rest of Season'], 'remaining-season auto-set modal')
+    const seasonClick = await clickButton(session, 'Auto-set rest of season', 'auto-set remaining season button')
+    const seasonAlert = await waitForAlertText(
+      session,
+      'Lineup set for the rest of the season.',
+      'remaining-season success notice',
+    )
+    const seasonCheck = await waitForRemainingSeasonLineups(fixture)
+    record({ openClick, todayClick, lineupCheck, openSeasonClick, seasonClick, seasonCheck, seasonAlert })
     await browser(session, ['wait', '1000'])
     record({ afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-after.png') })
-    return { fields: { mode: 'auto-set', lineupCheck }, failures: lineupCheck.failures }
+    return {
+      fields: { mode: 'auto-set', lineupCheck, seasonCheck, seasonAlert },
+      failures: [...lineupCheck.failures, ...seasonCheck.failures],
+    }
     },
-    verifyFailure: async () => ({ lineupCheck: await verifyLineup(fixture, { expectedAutoSet: true }) }),
+    verifyFailure: async () => ({
+      lineupCheck: await verifyLineup(fixture, { expectedAutoSet: true }),
+      seasonCheck: await verifyRemainingSeasonLineups(fixture),
+    }),
   })
 }
 

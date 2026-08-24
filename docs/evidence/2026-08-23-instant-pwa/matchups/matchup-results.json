@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T17:48:15Z",
+  "status": "PASS",
+  "storedNavigation": {
+    "homePoints": 24,
+    "awayPoints": 25,
+    "visibleAfterNavigation": true,
+    "wallMilliseconds": 696,
+    "dataReadyMilliseconds": 715
+  },
+  "realtimeLoad": {
+    "mutations": 24,
+    "finalHomePoints": 24,
+    "finalAwayPoints": 25,
+    "visibleUpdateObserved": true,
+    "heartbeatSamples": 31,
+    "maximumLagMilliseconds": 10,
+    "longTasks": 0
+  },
+  "failures": []
+}

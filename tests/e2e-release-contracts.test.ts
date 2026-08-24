@@ -12,6 +12,7 @@ import { browserCiContext } from './e2e/browser-ci-scenario.mjs'
 import { BROWSER_SCENARIO_MANIFEST, fastBrowserScenarioMatrix } from './e2e/browser-scenario-manifest.mjs'
 import { DATA_LATENCY_STEP_KEYS } from './e2e/data-latency-contract.mjs'
 import { runDataLatencyWorkflow } from './e2e/data-latency-bench.mjs'
+import { requireEnv } from './e2e/env.mjs'
 import { validateBrowserMutationLoad, validateBrowserPerfReport, validateDataLatencyReport, validateManifest, validateRetainedSeasonReports, validateWorkflowReportKeys } from './e2e/performance-budgets.mjs'
 import { readAppliedSchemaVersion } from './e2e/schema-provenance.mjs'
 import { digestReleaseBundle, selectRepositoryCommit } from './e2e/release-provenance.mjs'
@@ -29,6 +30,21 @@ afterEach(async () => {
 })
 
 describe('release E2E contracts', () => {
+  it('rejects mixed local and hosted E2E data targets', () => {
+    expect(() => requireEnv({
+      supabaseUrl: 'http://127.0.0.1:54321',
+      apiBaseUrl: 'https://ceeytbfmwsnzalxlkalc.supabase.co/functions/v1/api',
+    }, ['supabaseUrl', 'apiBaseUrl'])).toThrow('different deployment targets')
+
+    expect(requireEnv({
+      supabaseUrl: 'http://localhost:54321',
+      apiBaseUrl: 'http://127.0.0.1:54321/functions/v1/api',
+    }, ['supabaseUrl', 'apiBaseUrl'])).toMatchObject({
+      supabaseUrl: 'http://localhost:54321',
+      apiBaseUrl: 'http://127.0.0.1:54321/functions/v1/api',
+    })
+  })
+
   it('clears Metro transforms before stamping a release bundle', async () => {
     const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'))
     expect(packageJson.scripts['build:web:release']).toBe(
@@ -213,11 +229,12 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('needs: release-soak')
   })
 
-  it('stamps a self-consistent release marker without changing the bundle digest', async () => {
+  it('stamps a self-consistent marker and build-specific cache version', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-release-bundle-'))
     tempDirs.push(root)
     await mkdir(path.join(root, 'dist'), { recursive: true })
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
+    await writeFile(path.join(root, 'dist', 'sw.js'), "const VERSION = 'pancake-dev'\n")
     await Promise.all([
       writeFile(path.join(root, 'app.json'), '{}\n'),
       writeFile(path.join(root, 'package.json'), '{}\n'),
@@ -234,9 +251,18 @@ describe('release E2E contracts', () => {
     expect(await digestReleaseBundle(root)).toBe(marker.bundleDigest)
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
 
+    const firstWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
+    expect(firstWorker).toMatch(/pancake-aaaaaaaaaaaa-[a-f0-9]{12}/)
+    await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("rebuilt release")\n')
+    await writeFile(path.join(root, 'dist', 'sw.js'), "const VERSION = 'pancake-dev'\n")
+    const rebuiltMarker = await stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })
+    const rebuiltWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
+    expect(rebuiltWorker).not.toBe(firstWorker)
+    expect(await digestReleaseBundle(root)).toBe(rebuiltMarker.bundleDigest)
+
     await writeFile(path.join(root, 'vercel.json'), '{"rewrites":[]}\n')
     const routingDigest = await digestReleaseBundle(root)
-    expect(routingDigest).not.toBe(marker.bundleDigest)
+    expect(routingDigest).not.toBe(rebuiltMarker.bundleDigest)
     await writeFile(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n')
     expect(await digestReleaseBundle(root)).not.toBe(routingDigest)
   })
@@ -698,6 +724,17 @@ describe('release E2E contracts', () => {
     expect(livePanel).toContain('testID="auction-live-state" accessibilityLabel={liveStateLabel}')
   })
 
+  it('starts draft load measurement after visual evidence capture', async () => {
+    const producer = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
+    const draftStart = producer.indexOf("const draftFeedback = await measureWorkflowFeedback")
+    const draftEnd = producer.indexOf('const draftLoad = await runLoadMutations', draftStart)
+    const setup = producer.slice(draftStart, draftEnd)
+
+    expect(setup).toContain("['screenshot', path.join(artifactDir, 'draft-before-load.png')]")
+    expect(setup).toContain('await installHeartbeat(session)')
+    expect(setup.indexOf("'draft-before-load.png'")).toBeLessThan(setup.indexOf('await installHeartbeat(session)'))
+  })
+
   it('rejects skeletal complete data-latency PASS evidence', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
     const skeletal = {
@@ -1020,6 +1057,30 @@ describe('release E2E contracts', () => {
   it('rejects any missing route from a full browser sweep', () => {
     expect(() => assertFullSweepRoutes(REQUIRED_FULL_SWEEP_LABELS)).not.toThrow()
     expect(() => assertFullSweepRoutes(REQUIRED_FULL_SWEEP_LABELS.slice(1))).toThrow('auth-sign-in')
+  })
+
+  it('accepts a route-open timeout only after the requested page has settled', async () => {
+    const smokeModule = await import('./e2e/browser-smoke.mjs')
+    const openSurfaceRoute = Reflect.get(smokeModule, 'openSurfaceRoute')
+    expect(openSurfaceRoute).toBeTypeOf('function')
+
+    const calls: string[][] = []
+    await openSurfaceRoute({
+      browserCall: async (_session: string, args: string[]) => {
+        calls.push(args)
+        if (args[0] === 'open') throw new Error('operation timed out')
+        return ''
+      },
+      isSettled: async () => true,
+      session: 'route-recovery',
+      frontendUrl: 'http://127.0.0.1:8081',
+      label: 'league',
+      route: '/league',
+      phase: 'online',
+    })
+
+    expect(calls.filter(([command]) => command === 'open')).toHaveLength(1)
+    expect(calls).toContainEqual(['wait', '500'])
   })
 
   it('writes canonical failure evidence even when setup returns no artifact directory', async () => {

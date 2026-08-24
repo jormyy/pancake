@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T18:11:18Z",
+  "status": "PASS",
+  "knownBad": {
+    "status": "PASS",
+    "proof": "The reconnect behavior test made zero matchup reads before the fix."
+  },
+  "offline": {
+    "controlledByServiceWorker": true,
+    "authenticatedShellVisible": true,
+    "visibleContent": "Week, matchup, scores, and lineup",
+    "shellCache": "pancake-5a7edc154412-shell",
+    "assetCache": "pancake-5a7edc154412-assets"
+  },
+  "freshness": {
+    "apiResponsesCachedByServiceWorker": false,
+    "realtimeTransportCachedByServiceWorker": false,
+    "crossTabLineupConvergenceMilliseconds": 207,
+    "reconnectMatchupConvergenceMilliseconds": 25
+  },
+  "update": {
+    "oldCachesDeleted": true,
+    "newShellCache": "pancake-e2e-update-20260823-shell",
+    "newAssetCache": "pancake-e2e-update-20260823-assets",
+    "workerWaitingAfterUpdate": false,
+    "pageNavigationType": "reload",
+    "buildSpecificVersion": true,
+    "currentReleaseVersion": "pancake-9700d418ffce-c3859cb0109b"
+  },
+  "browsers": {
+    "chromium": {
+      "offlineShell": "PASS",
+      "reconnect": "PASS",
+      "update": "PASS"
+    },
+    "webkit": {
+      "version": "26.5",
+      "status": "PASS",
+      "viewports": ["390x844", "1024x768", "1440x900", "1728x1117"],
+      "horizontalOverflow": false,
+      "consoleErrors": 0,
+      "failedRequests": 0,
+      "apiProbeStatus": 200,
+      "evidence": "../webkit/webkit-results.json"
+    }
+  }
+}

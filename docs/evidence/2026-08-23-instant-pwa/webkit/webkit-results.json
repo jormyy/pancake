@@ -1,0 +1,79 @@
+{
+  "status": "PASS",
+  "engine": "WebKit 26.5",
+  "observedAt": "2026-08-23T17:59:59.352Z",
+  "results": [
+    {
+      "name": "390x844",
+      "overflow": false,
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844,
+      "body": "E\nPancake E2E\n\n\nWEEK 1\nIn Progress\nE2E Team 1\nPancak 0-0\n0.0\nvs\nE2E Team 2\nPancak 0-0\n0.0\n0.0\nTied\n0.0\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nNo starter\n—\n—\nPG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nSG\nNo starter\n—\n—\n—\n—\n",
+      "lang": "en",
+      "title": "Matchup · Pancake",
+      "apiProbe": {
+        "ok": true,
+        "status": 200,
+        "rows": 1
+      },
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "name": "1024x768",
+      "overflow": false,
+      "width": 1024,
+      "height": 768,
+      "scrollWidth": 1024,
+      "scrollHeight": 768,
+      "body": "Pancake\nMANAGER CONSOLE\nE\nPancake E2E 20260823165632\nE2E Team 1\n\n\nMatchup\n\nPlayers\n\nDynasty\n\nRoster\n\nTrades\n\nLeague\nSEASON TOOLS\n\nDraft Room\n\nPlayoffs\n\nCommissioner\nET\nE2E Team 1\nProfile & settings\n\nWEEK 1\nIn Progress\nE2E Team 1\n",
+      "lang": "en",
+      "title": "Matchup · Pancake",
+      "apiProbe": {
+        "ok": true,
+        "status": 200,
+        "rows": 1
+      },
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "name": "1440x900",
+      "overflow": false,
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1440,
+      "scrollHeight": 900,
+      "body": "Pancake\nMANAGER CONSOLE\nE\nPancake E2E 20260823165632\nE2E Team 1\n\n\nMatchup\n\nPlayers\n\nDynasty\n\nRoster\n\nTrades\n\nLeague\nSEASON TOOLS\n\nDraft Room\n\nPlayoffs\n\nCommissioner\nET\nE2E Team 1\nProfile & settings\n\nWEEK 1\nIn Progress\nE2E Team 1\n",
+      "lang": "en",
+      "title": "Matchup · Pancake",
+      "apiProbe": {
+        "ok": true,
+        "status": 200,
+        "rows": 1
+      },
+      "consoleErrors": [],
+      "failedRequests": []
+    },
+    {
+      "name": "1728x1117",
+      "overflow": false,
+      "width": 1728,
+      "height": 1117,
+      "scrollWidth": 1728,
+      "scrollHeight": 1117,
+      "body": "Pancake\nMANAGER CONSOLE\nE\nPancake E2E 20260823165632\nE2E Team 1\n\n\nMatchup\n\nPlayers\n\nDynasty\n\nRoster\n\nTrades\n\nLeague\nSEASON TOOLS\n\nDraft Room\n\nPlayoffs\n\nCommissioner\nET\nE2E Team 1\nProfile & settings\n\nWEEK 1\nIn Progress\nE2E Team 1\n",
+      "lang": "en",
+      "title": "Matchup · Pancake",
+      "apiProbe": {
+        "ok": true,
+        "status": 200,
+        "rows": 1
+      },
+      "consoleErrors": [],
+      "failedRequests": []
+    }
+  ]
+}

@@ -1,0 +1,436 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-24T08:16:41.907Z",
+  "proofStatus": "passed-expanded-soak",
+  "inventoryRule": "Every app TSX route except layouts and +html must have one surface row.",
+  "surfaces": [
+    {
+      "id": "auth-sign-in",
+      "routeLabel": "auth-sign-in",
+      "source": "app/(auth)/sign-in.tsx",
+      "path": "/sign-in",
+      "functionIds": ["auth-account"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.auth"] },
+        "freshness": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "realtime": { "mode": "not-applicable", "reason": "The form has no live shared data." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "auth-sign-up",
+      "routeLabel": "auth-sign-up",
+      "source": "app/(auth)/sign-up.tsx",
+      "path": "/sign-up",
+      "functionIds": ["auth-account"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_online"] },
+        "freshness": { "mode": "not-applicable", "reason": "The empty form has no server read." },
+        "realtime": { "mode": "not-applicable", "reason": "The form has no live shared data." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "playoff-bracket",
+      "routeLabel": "bracket",
+      "source": "app/(modals)/bracket.tsx",
+      "path": "/bracket",
+      "functionIds": ["playoff-workflow", "league-dashboard"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "playoff-bracket"], "proofIds": ["browser.surface_online", "browser.playoffs"] },
+        "freshness": { "mode": "required", "dataClassIds": ["playoff-bracket"], "proofIds": ["browser.playoffs"] },
+        "realtime": { "mode": "not-applicable", "reason": "Bracket rounds refresh on open and after actions." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["playoff-bracket"], "proofIds": ["browser.playoffs"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "change-password",
+      "routeLabel": "change-password",
+      "source": "app/(modals)/change-password.tsx",
+      "path": "/change-password",
+      "functionIds": ["auth-account"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.auth"] },
+        "freshness": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "realtime": { "mode": "not-applicable", "reason": "Password writes have no shared live view." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "claim-player",
+      "routeLabel": "claim-player",
+      "source": "app/(modals)/claim-player.tsx",
+      "path": "/claim-player?playerId=:id",
+      "functionIds": ["waiver-roster", "player-discovery"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "player-detail", "roster", "waivers"], "proofIds": ["browser.surface_online", "browser.waiver"] },
+        "freshness": { "mode": "required", "dataClassIds": ["roster", "waivers"], "proofIds": ["browser.waiver", "backend.waiver_processing"] },
+        "realtime": { "mode": "not-applicable", "reason": "The modal rechecks roster and waiver state before submit." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["waivers"], "proofIds": ["browser.waiver", "backend.waiver_processing"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "commissioner-settings",
+      "routeLabel": "commissioner-settings",
+      "source": "app/(modals)/commissioner-settings.tsx",
+      "path": "/commissioner-settings",
+      "functionIds": ["commissioner-controls"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "league-memberships"], "proofIds": ["browser.surface_online", "backend.settings"] },
+        "freshness": { "mode": "required", "dataClassIds": ["league-memberships", "league-tabs"], "proofIds": ["backend.settings"] },
+        "realtime": { "mode": "not-applicable", "reason": "Settings use authorized reads and atomic writes." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["league-tabs"], "proofIds": ["backend.settings", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "create-league",
+      "routeLabel": "create-league",
+      "source": "app/(modals)/create-league.tsx",
+      "path": "/create-league",
+      "functionIds": ["league-lifecycle"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.league_lifecycle"] },
+        "freshness": { "mode": "required", "dataClassIds": ["league-memberships"], "proofIds": ["browser.league_lifecycle", "backend.league_lifecycle"] },
+        "realtime": { "mode": "not-applicable", "reason": "Creation is one atomic RPC." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["league-memberships"], "proofIds": ["browser.league_lifecycle"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "auction-room",
+      "routeLabel": "draft-room",
+      "source": "app/(modals)/draft-room.tsx",
+      "path": "/draft-room?draftId=:id",
+      "functionIds": ["auction-draft", "realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "auction-room"], "proofIds": ["browser.surface_online", "browser.auction"] },
+        "freshness": { "mode": "required", "dataClassIds": ["auction-room"], "proofIds": ["browser.auction", "backend.auction"] },
+        "realtime": { "mode": "required", "dataClassIds": ["auction-room"], "proofIds": ["realtime.delivery", "browser.performance"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["auction-room"], "proofIds": ["realtime.delivery", "browser.performance"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "join-league",
+      "routeLabel": "join-league",
+      "source": "app/(modals)/join-league.tsx",
+      "path": "/join-league",
+      "functionIds": ["league-lifecycle"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.league_lifecycle"] },
+        "freshness": { "mode": "required", "dataClassIds": ["league-memberships"], "proofIds": ["browser.league_lifecycle", "backend.league_lifecycle"] },
+        "realtime": { "mode": "not-applicable", "reason": "Joining is one atomic RPC." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["league-memberships"], "proofIds": ["browser.league_lifecycle"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "lineup-editor",
+      "routeLabel": "lineup",
+      "source": "app/(modals)/lineup.tsx",
+      "path": "/lineup",
+      "functionIds": ["manual-lineup", "automatic-lineup", "realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "matchup-lineup", "live-stats"], "proofIds": ["browser.surface_online", "browser.lineup"] },
+        "freshness": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["browser.lineup", "browser.lineup_locked"] },
+        "realtime": { "mode": "required", "dataClassIds": ["matchup-lineup"], "proofIds": ["browser.lineup", "realtime.delivery"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["browser.lineup", "browser.lineup_auto_set"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "matchup-lineup"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "propose-trade",
+      "routeLabel": "propose-trade",
+      "source": "app/(modals)/propose-trade.tsx",
+      "path": "/propose-trade",
+      "functionIds": ["trade-workflows"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "roster", "draft-picks", "trades"], "proofIds": ["browser.surface_online", "browser.trade_proposal"] },
+        "freshness": { "mode": "required", "dataClassIds": ["roster", "draft-picks", "trades"], "proofIds": ["browser.trade_proposal", "backend.trade_accept"] },
+        "realtime": { "mode": "not-applicable", "reason": "The composer validates current assets at submit." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["trades"], "proofIds": ["browser.trade_proposal", "browser.trade_accept"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "rookie-draft-room",
+      "routeLabel": "rookie-draft-room",
+      "source": "app/(modals)/rookie-draft-room.tsx",
+      "path": "/rookie-draft-room?draftId=:id",
+      "functionIds": ["rookie-draft", "realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "rookie-room"], "proofIds": ["browser.surface_online", "browser.rookie_draft"] },
+        "freshness": { "mode": "required", "dataClassIds": ["rookie-room"], "proofIds": ["browser.rookie_draft", "backend.rookie_draft"] },
+        "realtime": { "mode": "required", "dataClassIds": ["rookie-room"], "proofIds": ["browser.rookie_draft"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["rookie-room"], "proofIds": ["browser.rookie_draft", "backend.rookie_draft"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "team-roster",
+      "routeLabel": "team-roster",
+      "source": "app/(modals)/team-roster.tsx",
+      "path": "/team-roster?memberId=:id",
+      "functionIds": ["player-discovery", "trade-workflows", "league-dashboard"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "roster"], "proofIds": ["browser.surface_online", "browser.smoke"] },
+        "freshness": { "mode": "required", "dataClassIds": ["roster"], "proofIds": ["browser.smoke", "browser.surface_reconnect"] },
+        "realtime": { "mode": "not-applicable", "reason": "The read-only modal refreshes on open." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["roster"], "proofIds": ["browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "draft-launcher",
+      "routeLabel": "draft-launcher",
+      "source": "app/(tabs)/draft-room.tsx",
+      "path": "/(tabs)/draft-room",
+      "functionIds": ["draft-launch"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "active-draft"], "proofIds": ["browser.surface_online", "browser.smoke"] },
+        "freshness": { "mode": "required", "dataClassIds": ["active-draft"], "proofIds": ["browser.smoke", "browser.auction"] },
+        "realtime": { "mode": "not-applicable", "reason": "The launcher checks the current draft before routing." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["active-draft"], "proofIds": ["browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "dynasty-hub",
+      "routeLabel": "dynasty",
+      "source": "app/(tabs)/dynasty.tsx",
+      "path": "/dynasty",
+      "functionIds": ["dynasty-decisions", "player-discovery"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "dynasty-data"], "proofIds": ["browser.surface_online", "browser.smoke"] },
+        "freshness": { "mode": "required", "dataClassIds": ["dynasty-data"], "proofIds": ["dynasty.decision_tools", "browser.surface_reconnect"] },
+        "realtime": { "mode": "not-applicable", "reason": "Rankings and news update on focus and source sync." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["dynasty-data"], "proofIds": ["source.failure_recovery", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "dynasty-data"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "matchup-home",
+      "routeLabel": "home",
+      "source": "app/(tabs)/index.tsx",
+      "path": "/",
+      "functionIds": ["matchup-live", "manual-lineup", "automatic-lineup", "realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "matchup-lineup", "live-stats"], "proofIds": ["browser.surface_online", "browser.performance"] },
+        "freshness": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["browser.performance", "browser.surface_reconnect"] },
+        "realtime": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["realtime.delivery", "browser.performance"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["realtime.delivery", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "matchup-lineup"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "league-dashboard",
+      "routeLabel": "league",
+      "source": "app/(tabs)/league.tsx",
+      "path": "/league",
+      "functionIds": ["league-dashboard", "commissioner-controls", "auction-draft", "rookie-draft", "playoff-workflow", "realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "league-tabs", "active-draft"], "proofIds": ["browser.surface_online", "browser.smoke"] },
+        "freshness": { "mode": "required", "dataClassIds": ["league-tabs", "active-draft"], "proofIds": ["browser.smoke", "backend.settings"] },
+        "realtime": { "mode": "required", "dataClassIds": ["league-tabs", "active-draft"], "proofIds": ["realtime.delivery", "browser.surface_reconnect"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["league-tabs", "active-draft"], "proofIds": ["realtime.delivery", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "league-tabs"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "players",
+      "routeLabel": "players",
+      "source": "app/(tabs)/players.tsx",
+      "path": "/players",
+      "functionIds": ["player-discovery", "waiver-roster"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "player-search", "roster", "waivers"], "proofIds": ["browser.surface_online", "browser.smoke"] },
+        "freshness": { "mode": "required", "dataClassIds": ["player-search", "roster", "waivers"], "proofIds": ["browser.smoke", "browser.waiver"] },
+        "realtime": { "mode": "not-applicable", "reason": "Search refreshes on focus, filters, and roster actions." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["player-search", "roster", "waivers"], "proofIds": ["browser.waiver", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "player-search"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "profile",
+      "routeLabel": "profile",
+      "source": "app/(tabs)/profile.tsx",
+      "path": "/profile",
+      "functionIds": ["auth-account", "profile-settings", "league-lifecycle"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session", "profile-data", "league-memberships"], "proofIds": ["browser.surface_online", "browser.auth"] },
+        "freshness": { "mode": "required", "dataClassIds": ["profile-data", "league-memberships"], "proofIds": ["browser.auth"] },
+        "realtime": { "mode": "not-applicable", "reason": "Profile and preference writes refresh local state after success." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["profile-data", "league-memberships"], "proofIds": ["browser.auth", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "roster",
+      "routeLabel": "roster",
+      "source": "app/(tabs)/roster.tsx",
+      "path": "/roster",
+      "functionIds": ["waiver-roster", "automatic-lineup", "realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "roster", "waivers", "draft-picks"], "proofIds": ["browser.surface_online", "browser.smoke"] },
+        "freshness": { "mode": "required", "dataClassIds": ["roster", "waivers", "draft-picks"], "proofIds": ["browser.waiver_drop", "backend.waiver_processing"] },
+        "realtime": { "mode": "required", "dataClassIds": ["roster", "waivers"], "proofIds": ["browser.lineup", "browser.trade_accept"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["roster", "waivers"], "proofIds": ["browser.lineup_auto_set", "browser.trade_accept"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "roster"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "trades",
+      "routeLabel": "trades",
+      "source": "app/(tabs)/trades.tsx",
+      "path": "/trades",
+      "functionIds": ["trade-workflows", "realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "trades", "draft-picks", "roster"], "proofIds": ["browser.surface_online", "browser.trade_proposal"] },
+        "freshness": { "mode": "required", "dataClassIds": ["trades", "draft-picks", "roster"], "proofIds": ["browser.trade_accept", "backend.trade_accept"] },
+        "realtime": { "mode": "required", "dataClassIds": ["trades"], "proofIds": ["browser.trade_accept", "browser.trade_terminal"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["trades"], "proofIds": ["browser.trade_accept", "browser.trade_terminal"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "trades"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "not-found",
+      "routeLabel": "not-found",
+      "source": "app/+not-found.tsx",
+      "path": "/surface-contract-not-found",
+      "functionIds": ["not-found-recovery"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_online"] },
+        "freshness": { "mode": "not-applicable", "reason": "The route contains no server data." },
+        "realtime": { "mode": "not-applicable", "reason": "The route contains no shared data." },
+        "autoUpdate": { "mode": "not-applicable", "reason": "The route contains no changing data." },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "player-detail",
+      "routeLabel": "player-detail",
+      "source": "app/player/[id].tsx",
+      "path": "/player/:id",
+      "functionIds": ["player-discovery", "waiver-roster"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "player-detail", "roster", "waivers"], "proofIds": ["browser.surface_online", "browser.smoke"] },
+        "freshness": { "mode": "required", "dataClassIds": ["player-detail", "roster", "waivers"], "proofIds": ["browser.smoke", "browser.waiver"] },
+        "realtime": { "mode": "not-applicable", "reason": "The detail view refreshes after each roster action." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["player-detail", "roster", "waivers"], "proofIds": ["browser.waiver", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "player-detail"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    }
+  ],
+  "backgrounds": [
+    {
+      "id": "background-service-worker",
+      "sources": ["public/sw.js", "app/+html.tsx"],
+      "functionIds": ["pwa-shell-recovery"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_online", "pwa.cache_update"] },
+        "freshness": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["pwa.cache_update"] },
+        "realtime": { "mode": "not-applicable", "reason": "The worker never intercepts realtime traffic." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["pwa.cache_update"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "background-auth-session",
+      "sources": ["hooks/use-auth.ts", "lib/supabase.ts"],
+      "functionIds": ["auth-account"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "freshness": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "realtime": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
+      "id": "background-source-sync",
+      "sources": ["supabase/functions/sync-schedule/index.ts", "supabase/functions/sync-players/index.ts", "supabase/functions/sync-projections/index.ts", "supabase/functions/sync-rankings/index.ts", "supabase/functions/sync-draft-order/index.ts", "supabase/functions/sync-scores/index.ts", "supabase/functions/sync-stats/index.ts", "supabase/functions/live-poll/index.ts"],
+      "functionIds": ["source-sync-recovery"],
+      "contracts": {
+        "cache": { "mode": "not-applicable", "reason": "Sources write validated server truth, not browser cache." },
+        "freshness": { "mode": "required", "dataClassIds": ["source-health"], "proofIds": ["environment.fake_upstream", "source.failure_recovery"] },
+        "realtime": { "mode": "not-applicable", "reason": "Database changes fan out through screen subscriptions." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["source-health"], "proofIds": ["environment.fake_upstream", "source.failure_recovery"] },
+        "pwa": { "mode": "not-applicable", "reason": "Server sync jobs do not run in the PWA." }
+      }
+    },
+    {
+      "id": "background-season-jobs",
+      "sources": ["supabase/functions/season-boundary/index.ts", "supabase/functions/process-waivers/index.ts", "supabase/functions/process-trades/index.ts", "supabase/functions/lineup-optimizer/index.ts", "supabase/functions/close-expired-nominations/index.ts"],
+      "functionIds": ["season-automation"],
+      "contracts": {
+        "cache": { "mode": "not-applicable", "reason": "Jobs use database state and fenced work claims." },
+        "freshness": { "mode": "required", "dataClassIds": ["source-health"], "proofIds": ["invariants.boundary", "backend.season_reset"] },
+        "realtime": { "mode": "not-applicable", "reason": "Job results publish as database changes." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["source-health"], "proofIds": ["backend.season_reset", "backend.offseason_activity"] },
+        "pwa": { "mode": "not-applicable", "reason": "Server jobs do not run in the PWA." }
+      }
+    },
+    {
+      "id": "background-realtime-reconnect",
+      "sources": ["lib/realtime.ts", "hooks/use-online-status.ts", "hooks/use-matchup-data.ts", "hooks/use-trade-screen-realtime.ts"],
+      "functionIds": ["realtime-convergence"],
+      "contracts": {
+        "cache": { "mode": "not-applicable", "reason": "Realtime payloads never enter the service-worker cache." },
+        "freshness": { "mode": "required", "dataClassIds": ["matchup-lineup", "trades", "league-tabs"], "proofIds": ["browser.surface_reconnect", "realtime.delivery"] },
+        "realtime": { "mode": "required", "dataClassIds": ["matchup-lineup", "trades", "league-tabs", "auction-room", "rookie-room"], "proofIds": ["realtime.delivery", "browser.lineup"] },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["matchup-lineup", "trades", "league-tabs", "auction-room", "rookie-room"], "proofIds": ["realtime.delivery", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "browser.surface_reconnect"] }
+      }
+    }
+  ],
+  "dataClasses": [
+    { "id": "app-shell", "owner": "public/sw.js and app/+html.tsx", "cacheKey": "release-stamped pancake-<digest>-shell and assets", "warmSource": "Cache Storage shell and hashed assets", "coldSource": "release static server", "ttl": "until the next release cache version", "invalidation": "service-worker activation deletes older Pancake caches", "realtimeEvent": "none; API and websocket requests bypass the worker", "reconnect": "documents refresh from network and fall back to the cached root shell", "crossTab": "the active worker controls all same-origin tabs", "autoUpdate": "skipWaiting, clients.claim, and one controllerchange reload", "sizeBound": "one shell plus requested hashed assets; old versions are deleted", "failureFallback": "cached root shell with route-owned stale or error state", "writePolicy": "never queue gameplay writes offline" },
+    { "id": "auth-session", "owner": "AuthProvider and Supabase Auth", "cacheKey": "one Supabase session per browser origin or native secure store", "warmSource": "persisted session", "coldSource": "Supabase Auth", "ttl": "token expiry and server refresh policy", "invalidation": "sign-out, invalid refresh, or account change", "realtimeEvent": "Supabase auth state event", "reconnect": "foreground session check keeps a valid offline session visible", "crossTab": "Supabase auth storage events converge tabs", "autoUpdate": "auth state replaces the provider session", "sizeBound": "one session envelope", "failureFallback": "do not erase a valid session on a transient offline read", "writePolicy": "credentials and account writes require the server" },
+    { "id": "league-memberships", "owner": "LeagueProvider", "cacheKey": "authenticated user in provider memory", "warmSource": "mounted provider state", "coldSource": "league membership query", "ttl": "session lifetime with explicit refresh", "invalidation": "create, join, team-name update, league switch, or sign-out", "realtimeEvent": "none", "reconnect": "next focus or explicit refresh reads server truth", "crossTab": "full reload or session refresh", "autoUpdate": "provider refresh replaces memberships atomically", "sizeBound": "all memberships for one user", "failureFallback": "keep the prior owner-scoped list or show a retry state", "writePolicy": "league changes use authorized RPCs" },
+    { "id": "matchup-lineup", "owner": "useMatchupData and lineup data layer", "cacheKey": "pancake:home-matchup:v1:<league>:<member>", "warmSource": "same-day owner-scoped persistent snapshot", "coldSource": "matchups, dates, and weekly lineup queries", "ttl": "same ET day", "invalidation": "focus, lineup mutation, matchup event, owner change, or reconnect", "realtimeEvent": "matchups and weekly_lineups table changes", "reconnect": "online transition clears season/week memoization and reloads", "crossTab": "table changes refresh each subscribed tab", "autoUpdate": "debounced realtime refresh and live-stat callback", "sizeBound": "one current matchup and one week for four member scopes", "failureFallback": "show the last safe snapshot with a stale error", "writePolicy": "lineup writes require server lock validation" },
+    { "id": "live-stats", "owner": "useLiveStats", "cacheKey": "screen memory by ET date", "warmSource": "current hook state", "coldSource": "games and player_game_stats", "ttl": "current polling or event cycle", "invalidation": "date change, live update, focus, or matchup refresh", "realtimeEvent": "matchup and stat changes trigger refresh", "reconnect": "parent matchup refresh reloads live state", "crossTab": "database events reach each active subscription", "autoUpdate": "poll and event callbacks replace current rows", "sizeBound": "one day of games and stats", "failureFallback": "keep prior scores and show the screen error", "writePolicy": "read only" },
+    { "id": "player-search", "owner": "usePlayerSearch", "cacheKey": "pancake:player-search:v1:<normalized-query>", "warmSource": "12 bounded persistent pages and 12 memory pages", "coldSource": "search_players RPC", "ttl": "30 seconds in memory and 24 hours persistent maximum", "invalidation": "query, filter, owner, roster action, focus, or retry", "realtimeEvent": "none", "reconnect": "foreground and filter requests read current server results", "crossTab": "roster truth is rechecked before a write", "autoUpdate": "started-team state polls each minute while active", "sizeBound": "12 pages per cache family and 64 total persistent entries", "failureFallback": "keep the last page and expose retry", "writePolicy": "search is read only; adds use roster RPCs" },
+    { "id": "player-detail", "owner": "usePlayerScreenData", "cacheKey": "pancake:player-screen:v1:<league>:<player>", "warmSource": "owner-scoped player and season snapshot", "coldSource": "player, seasons, game log, stats, and fantasy points", "ttl": "24 hours maximum with mount refresh", "invalidation": "player, league, season, or roster action", "realtimeEvent": "none", "reconnect": "route reopen or retry refreshes server truth", "crossTab": "roster status is rechecked before each action", "autoUpdate": "screen refresh replaces each owned season slice", "sizeBound": "12 player snapshots and bounded game pages", "failureFallback": "keep visible cached player data and show the failed section", "writePolicy": "add and drop actions require the server" },
+    { "id": "roster", "owner": "Roster screen and roster data layer", "cacheKey": "pancake:roster-screen:v1:<league>:<member>", "warmSource": "owner-scoped persistent roster snapshot", "coldSource": "roster, stats, picks, claims, and priority queries", "ttl": "five-minute focus freshness; 24-hour storage maximum", "invalidation": "focus, add, drop, IR, taxi, trade, waiver, lineup, or owner change", "realtimeEvent": "roster, waiver, trade, and lineup table changes", "reconnect": "focus or event refreshes all roster sections", "crossTab": "subscriptions converge active tabs", "autoUpdate": "debounced events and post-mutation refresh", "sizeBound": "one roster bundle per member with global 64-entry cap", "failureFallback": "retain the last owner-safe roster and show an error", "writePolicy": "all roster mutations require atomic server checks" },
+    { "id": "waivers", "owner": "waiver data layer and roster/player screens", "cacheKey": "inside member roster and player-support snapshots", "warmSource": "last owner-scoped claims and transaction state", "coldSource": "waiver claims, priority, and member transaction state", "ttl": "five-minute focus freshness or immediate mutation refresh", "invalidation": "claim, edit, reorder, cancel, process, roster change, or focus", "realtimeEvent": "waiver claim and roster changes", "reconnect": "screen refresh reloads current claims", "crossTab": "database events converge active screens", "autoUpdate": "processor and UI actions refresh claim state", "sizeBound": "current member claims and one priority list", "failureFallback": "show pending cached claims but disable unsafe offline writes", "writePolicy": "claim and priority writes require the server" },
+    { "id": "trades", "owner": "trade feed, history, block, actions, and realtime hooks", "cacheKey": "pancake:trades:v2 and pancake:trade-block:v1 by league/member", "warmSource": "bounded owner-scoped trade and block snapshots", "coldSource": "trade feed, history, block, roster, and action RPCs", "ttl": "24-hour storage maximum with mount and event refresh", "invalidation": "proposal, edit, counter, accept, reject, withdraw, veto, block, focus, or event", "realtimeEvent": "trade, trade-party, asset, and transaction changes", "reconnect": "screen focus and realtime resubscribe refresh feeds", "crossTab": "each active trade screen receives database changes", "autoUpdate": "debounced event refresh and post-action reload", "sizeBound": "40-row pages and one block snapshot per member", "failureFallback": "keep cached open offers and show action errors", "writePolicy": "trade mutations require identity and asset checks" },
+    { "id": "draft-picks", "owner": "roster, trades, league draft board, and rookie draft", "cacheKey": "member or league scoped roster/trade/league snapshots", "warmSource": "cached member and league pick lists", "coldSource": "draft pick RPCs and draft state", "ttl": "five-minute focus freshness or event refresh", "invalidation": "trade settlement, draft reseed, pick use, season reset, or focus", "realtimeEvent": "draft pick and snake pick changes", "reconnect": "draft and league screens reload current ownership", "crossTab": "draft subscriptions converge active rooms", "autoUpdate": "trade and draft events refresh ownership", "sizeBound": "rolling five-year league pick bank", "failureFallback": "show last ownership but reject stale writes", "writePolicy": "pick movement occurs only through trade or draft RPCs" },
+    { "id": "dynasty-data", "owner": "Dynasty hooks and decision engine", "cacheKey": "pancake:dynasty-* snapshots by user/member/league/scoring", "warmSource": "bounded rankings, news, forecast, and analyzer snapshots", "coldSource": "ranking/news queries and decision RPCs", "ttl": "five-minute focus freshness for news; 24-hour storage maximum", "invalidation": "owner, league, scoring, source sync, focus, or analyzer input", "realtimeEvent": "none", "reconnect": "focus and retry refresh source-backed data", "crossTab": "server reads remain authoritative for each analysis", "autoUpdate": "source sync and focus refresh replace snapshots", "sizeBound": "per-prefix limits from four to sixteen and 64 total entries", "failureFallback": "keep the last safe ranking or analysis and label the error", "writePolicy": "read only" },
+    { "id": "league-tabs", "owner": "useLeagueTabResources and useLeagueScreenState", "cacheKey": "pancake:league-tab:v1:<tab>:<league-or-member>", "warmSource": "prefetched persistent tab snapshots", "coldSource": "standings, activity, waiver order, picks, and mock-room queries", "ttl": "24-hour storage maximum with focus and event refresh", "invalidation": "tab action, realtime table change, league switch, pagination, or focus", "realtimeEvent": "member, transaction, waiver, draft, room, and pick changes", "reconnect": "focus and resubscribe refresh active resources", "crossTab": "each active league screen receives scoped events", "autoUpdate": "inactive tabs mark stale and active tabs refresh", "sizeBound": "one first page per league tab plus bounded activity pages", "failureFallback": "retain cached tab content and show a tab retry", "writePolicy": "league actions use authorized RPCs" },
+    { "id": "active-draft", "owner": "useLeagueDraftController and draft launcher", "cacheKey": "pancake:active-draft:v1:<league>", "warmSource": "cached current draft or explicit no-draft value", "coldSource": "joinable draft query", "ttl": "24-hour maximum with every-focus refresh", "invalidation": "draft start, completion, room event, league change, or focus", "realtimeEvent": "draft and draft-room changes invalidate league state", "reconnect": "focus and event refresh current draft", "crossTab": "database events reach each league screen", "autoUpdate": "queued refresh follows concurrent draft events", "sizeBound": "one draft status per league", "failureFallback": "keep the last draft status and show retry", "writePolicy": "start and reseed actions require commissioner RPCs" },
+    { "id": "auction-room", "owner": "useAuctionDraftRoomController", "cacheKey": "no persistent API cache; current draft state in screen memory", "warmSource": "mounted room state", "coldSource": "draft-state API", "ttl": "until a realtime event or poll revision", "invalidation": "bid, nomination, close, withdrawal, event, draft change, or poll revision", "realtimeEvent": "nomination, bid, draft, order, and budget changes", "reconnect": "five-second revision polling while realtime is down", "crossTab": "all subscribed rooms receive the same auction changes", "autoUpdate": "debounced realtime reload plus 60-second healthy poll", "sizeBound": "one draft room, bounded history, and current search results", "failureFallback": "retain definite room state and reject bids without a live channel", "writePolicy": "bids and nominations require server validation" },
+    { "id": "rookie-room", "owner": "useRookieDraftRoomController", "cacheKey": "no persistent API cache; current draft state in screen memory", "warmSource": "mounted room and prospects", "coldSource": "rookie draft state and prospect APIs", "ttl": "until a realtime event, 15-second revision poll, or foreground", "invalidation": "pick, timer expiry, roster correction, event, draft change, or query", "realtimeEvent": "draft and snake-pick changes", "reconnect": "revision poll and foreground check recover missed events", "crossTab": "subscribed rooms converge on the same pick state", "autoUpdate": "event reload, timer processing, and revision polling", "sizeBound": "one draft board and one bounded prospect result", "failureFallback": "retain last draft state and show a pick error", "writePolicy": "picks require ownership, timer, roster, and server checks" },
+    { "id": "playoff-bracket", "owner": "bracket route and playoff API", "cacheKey": "screen memory for the selected league", "warmSource": "mounted bracket", "coldSource": "playoff bracket query", "ttl": "route lifetime", "invalidation": "route open, round advance, finalization, or league change", "realtimeEvent": "none", "reconnect": "retry or reopen reads current bracket", "crossTab": "server state is authoritative on each read", "autoUpdate": "post-action refresh replaces bracket", "sizeBound": "one league bracket", "failureFallback": "show a retry error without inventing a bracket", "writePolicy": "round actions require commissioner or season automation" },
+    { "id": "profile-data", "owner": "useProfileResource", "cacheKey": "screen memory scoped by authenticated user", "warmSource": "mounted profile and preferences", "coldSource": "profile and notification preference reads", "ttl": "route lifetime with explicit retry", "invalidation": "user change, profile save, preference save, avatar save, or sign-out", "realtimeEvent": "none", "reconnect": "retry reloads both resources", "crossTab": "auth change clears the owner scope", "autoUpdate": "successful writes replace local profile state", "sizeBound": "one profile and one preference record", "failureFallback": "keep only owner-matched values and show specific errors", "writePolicy": "profile and preference writes require the server" },
+    { "id": "source-health", "owner": "Edge sync jobs and sync_run/source health tables", "cacheKey": "database health rows per source and run", "warmSource": "last good validated rows plus last run status", "coldSource": "configured public upstream", "ttl": "source-specific schedule and freshness budget", "invalidation": "every scheduled or manual sync attempt", "realtimeEvent": "downstream screens refresh database changes", "reconnect": "later good runs replace failed status and stale data", "crossTab": "all clients read the same validated database truth", "autoUpdate": "cron and live poll rerun configured sources", "sizeBound": "bounded telemetry retention and atomic source replacement", "failureFallback": "refuse malformed or incomplete payloads and keep last good truth", "writePolicy": "only validated server jobs write source data" }
+  ],
+  "functions": [
+    { "id": "auth-account", "targetIds": ["auth-sign-in", "auth-sign-up", "change-password", "profile", "background-auth-session"], "happyPathEvidenceIds": ["browser.auth"], "failurePaths": [{ "id": "protected-route-and-invalid-session", "evidenceIds": ["browser.auth"] }], "recoveryPaths": [{ "id": "sign-in-persist-sign-out", "evidenceIds": ["browser.auth"] }] },
+    { "id": "profile-settings", "targetIds": ["profile"], "happyPathEvidenceIds": ["browser.auth", "browser.surface_online"], "failurePaths": [{ "id": "profile-read-fails-closed", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "retry-restores-profile", "evidenceIds": ["browser.surface_reconnect"] }] },
+    { "id": "league-lifecycle", "targetIds": ["create-league", "join-league", "profile"], "happyPathEvidenceIds": ["browser.league_lifecycle", "backend.league_lifecycle"], "failurePaths": [{ "id": "identity-or-invite-rejected", "evidenceIds": ["backend.league_lifecycle"] }], "recoveryPaths": [{ "id": "create-and-join-refresh-memberships", "evidenceIds": ["browser.league_lifecycle"] }] },
+    { "id": "matchup-live", "targetIds": ["matchup-home"], "happyPathEvidenceIds": ["browser.performance", "realtime.delivery"], "failurePaths": [{ "id": "offline-keeps-stale-matchup", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "reconnect-refreshes-matchup", "evidenceIds": ["browser.surface_reconnect"] }] },
+    { "id": "manual-lineup", "targetIds": ["matchup-home", "lineup-editor"], "happyPathEvidenceIds": ["browser.lineup"], "failurePaths": [{ "id": "locked-or-illegal-move-rejected", "evidenceIds": ["browser.lineup_locked"] }], "recoveryPaths": [{ "id": "valid-move-persists-and-converges", "evidenceIds": ["browser.lineup"] }] },
+    { "id": "automatic-lineup", "targetIds": ["matchup-home", "lineup-editor", "roster"], "happyPathEvidenceIds": ["browser.lineup_auto_set"], "failurePaths": [{ "id": "locked-player-remains-unchanged", "evidenceIds": ["browser.lineup_locked"] }], "recoveryPaths": [{ "id": "today-and-season-recompute", "evidenceIds": ["browser.lineup_auto_set"] }] },
+    { "id": "player-discovery", "targetIds": ["players", "player-detail", "claim-player", "team-roster", "dynasty-hub"], "happyPathEvidenceIds": ["browser.smoke", "browser.surface_online"], "failurePaths": [{ "id": "offline-or-query-failure-keeps-safe-view", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "warm-reopen-and-reconnect-refresh", "evidenceIds": ["browser.surface_reconnect"] }] },
+    { "id": "waiver-roster", "targetIds": ["claim-player", "players", "player-detail", "roster"], "happyPathEvidenceIds": ["browser.waiver", "browser.waiver_drop", "backend.waiver_processing"], "failurePaths": [{ "id": "ir-or-full-roster-claim-rejected", "evidenceIds": ["browser.waiver_ir_block", "backend.waiver_processing"] }], "recoveryPaths": [{ "id": "drop-claim-process-and-refresh", "evidenceIds": ["browser.waiver_drop", "backend.waiver_processing"] }] },
+    { "id": "trade-workflows", "targetIds": ["propose-trade", "team-roster", "trades"], "happyPathEvidenceIds": ["browser.trade_proposal", "browser.trade_accept", "browser.trade_multi_team", "backend.trade_accept"], "failurePaths": [{ "id": "deadline-overflow-permission-or-veto-rejected", "evidenceIds": ["browser.trade_post_deadline", "browser.trade_overflow_accept", "backend.trade_veto"] }], "recoveryPaths": [{ "id": "edit-counter-terminal-and-future-pick-settle", "evidenceIds": ["browser.trade_terminal", "browser.trade_future_pick_accept", "browser.trade_multi_team"] }] },
+    { "id": "league-dashboard", "targetIds": ["league-dashboard", "playoff-bracket", "team-roster"], "happyPathEvidenceIds": ["browser.smoke", "backend.tiebreakers"], "failurePaths": [{ "id": "tab-read-failure-keeps-retry", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "tab-reconnect-and-realtime-refresh", "evidenceIds": ["browser.surface_reconnect", "realtime.delivery"] }] },
+    { "id": "commissioner-controls", "targetIds": ["commissioner-settings", "league-dashboard"], "happyPathEvidenceIds": ["backend.settings"], "failurePaths": [{ "id": "manager-write-rejected", "evidenceIds": ["backend.settings"] }], "recoveryPaths": [{ "id": "authorized-settings-propagate", "evidenceIds": ["backend.settings"] }] },
+    { "id": "auction-draft", "targetIds": ["auction-room", "league-dashboard"], "happyPathEvidenceIds": ["browser.auction", "backend.auction", "realtime.delivery"], "failurePaths": [{ "id": "invalid-or-stale-bid-rejected", "evidenceIds": ["backend.auction"] }], "recoveryPaths": [{ "id": "realtime-or-poll-restores-room", "evidenceIds": ["realtime.delivery", "browser.performance"] }] },
+    { "id": "rookie-draft", "targetIds": ["rookie-draft-room", "league-dashboard"], "happyPathEvidenceIds": ["browser.rookie_draft", "backend.rookie_draft"], "failurePaths": [{ "id": "wrong-owner-or-rostered-player-rejected", "evidenceIds": ["backend.rookie_draft"] }], "recoveryPaths": [{ "id": "timer-auto-pick-and-roster-correction", "evidenceIds": ["browser.rookie_draft", "backend.rookie_draft"] }] },
+    { "id": "playoff-workflow", "targetIds": ["playoff-bracket", "league-dashboard"], "happyPathEvidenceIds": ["browser.playoffs", "backend.playoffs"], "failurePaths": [{ "id": "premature-advance-blocked", "evidenceIds": ["browser.playoffs", "backend.playoffs"] }], "recoveryPaths": [{ "id": "round-finalizes-and-champion-renders", "evidenceIds": ["browser.playoffs"] }] },
+    { "id": "dynasty-decisions", "targetIds": ["dynasty-hub"], "happyPathEvidenceIds": ["dynasty.decision_tools", "browser.smoke"], "failurePaths": [{ "id": "source-or-network-failure-keeps-last-snapshot", "evidenceIds": ["source.failure_recovery", "browser.surface_offline"] }], "recoveryPaths": [{ "id": "source-sync-and-focus-replace-snapshot", "evidenceIds": ["source.failure_recovery", "browser.surface_reconnect"] }] },
+    { "id": "draft-launch", "targetIds": ["draft-launcher"], "happyPathEvidenceIds": ["browser.smoke", "browser.auction", "browser.rookie_draft"], "failurePaths": [{ "id": "missing-draft-routes-to-league", "evidenceIds": ["browser.surface_online"] }], "recoveryPaths": [{ "id": "current-draft-opens-correct-room", "evidenceIds": ["browser.auction", "browser.rookie_draft"] }] },
+    { "id": "not-found-recovery", "targetIds": ["not-found"], "happyPathEvidenceIds": ["browser.surface_online"], "failurePaths": [{ "id": "unknown-route-renders-not-found", "evidenceIds": ["browser.surface_online"] }], "recoveryPaths": [{ "id": "home-action-returns-to-app", "evidenceIds": ["browser.surface_reconnect"] }] },
+    { "id": "pwa-shell-recovery", "targetIds": ["background-service-worker"], "happyPathEvidenceIds": ["browser.surface_offline", "pwa.cache_update"], "failurePaths": [{ "id": "network-loss-does-not-cache-api-truth", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "reconnect-and-worker-update-converge", "evidenceIds": ["browser.surface_reconnect", "pwa.cache_update"] }] },
+    { "id": "source-sync-recovery", "targetIds": ["background-source-sync"], "happyPathEvidenceIds": ["environment.fake_upstream", "source.failure_recovery"], "failurePaths": [{ "id": "bad-empty-truncated-or-http-failure-refused", "evidenceIds": ["source.failure_recovery"] }], "recoveryPaths": [{ "id": "next-valid-source-run-self-heals", "evidenceIds": ["source.failure_recovery", "environment.fake_upstream"] }] },
+    { "id": "season-automation", "targetIds": ["background-season-jobs"], "happyPathEvidenceIds": ["backend.season_reset", "backend.offseason_activity", "invariants.boundary"], "failurePaths": [{ "id": "locked-stale-or-invalid-job-cannot-corrupt-state", "evidenceIds": ["invariants.boundary", "backend.season_reset"] }], "recoveryPaths": [{ "id": "idempotent-rerun-continues-season", "evidenceIds": ["backend.season_reset", "backend.offseason_activity"] }] },
+    { "id": "realtime-convergence", "targetIds": ["matchup-home", "lineup-editor", "auction-room", "rookie-draft-room", "league-dashboard", "roster", "trades", "background-realtime-reconnect"], "happyPathEvidenceIds": ["realtime.delivery", "browser.lineup"], "failurePaths": [{ "id": "socket-or-network-gap-does-not-authorize-stale-write", "evidenceIds": ["browser.surface_offline", "browser.lineup_locked"] }], "recoveryPaths": [{ "id": "cross-tab-reconnect-or-poll-converges", "evidenceIds": ["browser.surface_reconnect", "realtime.delivery", "browser.lineup"] }] }
+  ]
+}

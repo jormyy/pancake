@@ -22,12 +22,16 @@ const MUTATION_COUNT = Number(process.env.E2E_BROWSER_PERF_MUTATIONS ?? 24)
 const MAX_HEARTBEAT_LAG_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LAG_MS ?? 600)
 const MAX_SCRIPT_MS = Number(process.env.E2E_BROWSER_PERF_MAX_SCRIPT_MS ?? 30000)
 const MAX_FEEDBACK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_FEEDBACK_MS ?? 100)
+const FEEDBACK_REPEATS = Number(process.env.E2E_BROWSER_PERF_FEEDBACK_REPEATS ?? 1)
 const MAX_LONG_TASK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LONG_TASK_MS ?? PERFORMANCE_BUDGETS.longTaskMs)
 const BROWSER_COMMAND_TIMEOUT_MS = Number(process.env.E2E_BROWSER_PERF_COMMAND_TIMEOUT_MS ?? 90_000)
 const MIN_HEARTBEAT_SAMPLES = PERFORMANCE_BUDGETS.minHeartbeatSamples
 
 if (!Number.isInteger(MIN_HEARTBEAT_SAMPLES) || MIN_HEARTBEAT_SAMPLES < 1) {
   throw new Error('globalBudgets.minHeartbeatSamples must be a positive integer')
+}
+if (!Number.isInteger(FEEDBACK_REPEATS) || FEEDBACK_REPEATS < 1) {
+  throw new Error('E2E_BROWSER_PERF_FEEDBACK_REPEATS must be a positive integer')
 }
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
@@ -289,7 +293,9 @@ const installHeartbeat = async (session) => {
         startedAt: performance.now(),
         last: performance.now(),
         longTasks: [],
-        longTaskSupported: false
+        longTaskSupported: false,
+        longAnimationFrames: [],
+        longAnimationFrameSupported: false
       };
       if (window.__pancakePerfTimer) clearInterval(window.__pancakePerfTimer);
       window.__pancakePerfTimer = setInterval(() => {
@@ -303,11 +309,52 @@ const installHeartbeat = async (session) => {
         try {
           window.__pancakePerfObserver = new PerformanceObserver((list) => {
             for (const entry of list.getEntries()) {
-              window.__pancakePerf.longTasks.push({ name: entry.name, duration: entry.duration });
+              window.__pancakePerf.longTasks.push({
+                name: entry.name,
+                startTime: entry.startTime,
+                duration: entry.duration,
+                attribution: Array.from(entry.attribution || []).map((item) => ({
+                  name: item.name,
+                  entryType: item.entryType,
+                  containerType: item.containerType,
+                  containerName: item.containerName,
+                  containerId: item.containerId,
+                  containerSrc: item.containerSrc
+                }))
+              });
             }
           });
           window.__pancakePerfObserver.observe({ entryTypes: ['longtask'] });
           window.__pancakePerf.longTaskSupported = true;
+        } catch {}
+      }
+      if ('PerformanceObserver' in window && !window.__pancakeLoafObserver &&
+          PerformanceObserver.supportedEntryTypes?.includes('long-animation-frame')) {
+        try {
+          window.__pancakeLoafObserver = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              window.__pancakePerf.longAnimationFrames.push({
+                startTime: entry.startTime,
+                duration: entry.duration,
+                blockingDuration: entry.blockingDuration,
+                renderStart: entry.renderStart,
+                styleAndLayoutStart: entry.styleAndLayoutStart,
+                scripts: Array.from(entry.scripts || []).map((script) => ({
+                  sourceURL: script.sourceURL,
+                  sourceFunctionName: script.sourceFunctionName,
+                  invoker: script.invoker,
+                  invokerType: script.invokerType,
+                  startTime: script.startTime,
+                  duration: script.duration,
+                  executionStart: script.executionStart,
+                  forcedStyleAndLayoutDuration: script.forcedStyleAndLayoutDuration,
+                  pauseDuration: script.pauseDuration
+                }))
+              });
+            }
+          });
+          window.__pancakeLoafObserver.observe({ type: 'long-animation-frame', buffered: true });
+          window.__pancakePerf.longAnimationFrameSupported = true;
         } catch {}
       }
       return JSON.stringify({ ok: true });
@@ -327,6 +374,9 @@ const collectHeartbeat = async (session) => {
         longTaskCount: (perf.longTasks || []).length,
         maxLongTaskMs: Math.round(Math.max(0, ...(perf.longTasks || []).map((entry) => entry.duration || 0))),
         longTaskSupported: perf.longTaskSupported === true,
+        longTasks: perf.longTasks || [],
+        longAnimationFrameSupported: perf.longAnimationFrameSupported === true,
+        longAnimationFrames: perf.longAnimationFrames || [],
         bodyTextSample: (document.body?.innerText || '').slice(0, 500)
       });
     })()`,
@@ -574,8 +624,8 @@ export async function runBrowserPerfSmoke({
     })
     const draftFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'auction-draft-room', label: 'draft-room' })
       .catch((error) => ({ error: error.message }))
-    await installHeartbeat(session)
     await browser(session, ['screenshot', path.join(artifactDir, 'draft-before-load.png')], { timeout: 60_000 })
+    await installHeartbeat(session)
 
     const draftLoad = await runLoadMutations({ supabase, auction, matchup })
     await browser(session, ['wait', '2500'])
@@ -591,7 +641,14 @@ export async function runBrowserPerfSmoke({
     const homeLoadTiming = await measureNavigationTiming(browser, session, {
       workflowId: 'home-live-lineup', label: 'home', sharedScriptUrls,
     })
-    const homeFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
+    const homeFeedbackSamples = []
+    for (let repeat = 0; repeat < FEEDBACK_REPEATS; repeat += 1) {
+      homeFeedbackSamples.push(await measureWorkflowFeedback(browser, session, { workflowId: 'home-live-lineup', label: 'home' }))
+      if (repeat + 1 < FEEDBACK_REPEATS) await browser(session, ['wait', '50'])
+    }
+    const homeFeedback = homeFeedbackSamples.reduce((worst, sample) => (
+      sample.feedbackMs > worst.feedbackMs ? sample : worst
+    ))
     await installHeartbeat(session)
     const homeLoad = await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])
@@ -638,6 +695,8 @@ export async function runBrowserPerfSmoke({
       matchupId: matchup?.id ?? null,
       load: { draft: draftLoad, home: homeLoad, durationMs: Math.max(draftLoad.durationMs, homeLoad.durationMs) },
       draftFeedback,
+      homeFeedback,
+      homeFeedbackSamples,
       draftPerf,
       homePerf,
       initialJavaScriptDelivery,

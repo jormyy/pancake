@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T22:22:41Z",
+  "status": "pass",
+  "knownBad": {
+    "source": "20-season release soak, season 2",
+    "route": "/league",
+    "visitedBeforeFailure": [
+      "auth-sign-in",
+      "auth-sign-up",
+      "home",
+      "players",
+      "roster",
+      "trades"
+    ],
+    "result": "The browser open operation timed out before the online sweep could record League."
+  },
+  "rootCause": {
+    "onlineSweepUsedRecoveryHelper": false,
+    "offlineSweepUsedRecoveryHelper": true,
+    "reconnectSweepUsedRecoveryHelper": true,
+    "risk": "A loaded route could be rejected when the browser command timed out after page settlement."
+  },
+  "fix": {
+    "onlineAuthRoutesUseRecoveryHelper": true,
+    "onlineApplicationRoutesUseRecoveryHelper": true,
+    "timeoutAcceptedOnlyAfterRequestedRouteSettles": true,
+    "unsettledRouteStillFails": true
+  },
+  "verification": {
+    "simulatedTimedOutOpenRecovered": true,
+    "liveSeason": 2,
+    "liveStatus": "pass",
+    "onlineRoutes": 23,
+    "offlineRoutes": 23,
+    "reconnectRoutes": 23,
+    "leagueCaptureDimensions": "1280x578",
+    "leagueCaptureVisuallyInspected": true,
+    "browserSessionsRemaining": 0,
+    "testFiles": 112,
+    "tests": 641,
+    "qualityGate": "pass"
+  }
+}

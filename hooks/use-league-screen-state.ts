@@ -169,6 +169,7 @@ export function useLeagueScreenState() {
         nominationMode: draft.nominationMode,
         openBracket: () => push('/(modals)/bracket'),
         openCommissionerSettings: () => push('/(modals)/commissioner-settings'),
+        openProfile: () => push('/profile'),
         openDraftRoom: draft.openDraftRoom,
         openTeamRoster: (memberId: string, teamName: string) =>
             push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } }),

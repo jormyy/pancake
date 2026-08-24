@@ -26,5 +26,5 @@ export function requiredSecretKey(): string {
 export const supabase = createClient<Database>(
   Deno.env.get('SUPABASE_URL')!,
   requiredSecretKey(),
-  { auth: { persistSession: false } },
+  { auth: { autoRefreshToken: false, persistSession: false } },
 )

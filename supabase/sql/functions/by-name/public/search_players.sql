@@ -57,10 +57,14 @@ RETURNS TABLE (
   projection_turnovers numeric,
   projection_status text
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SET search_path = public, extensions
+SET plan_cache_mode = force_custom_plan
 AS $$
+#variable_conflict use_column
+BEGIN
+RETURN QUERY
 WITH args AS (
   SELECT
     NULLIF(trim(COALESCE(p_query, '')), '') AS query_text,
@@ -228,4 +232,5 @@ FROM paged_base pb
 LEFT JOIN projection AS proj
   ON proj.player_id = pb.id
 ORDER BY pb.page_rank;
+END;
 $$;

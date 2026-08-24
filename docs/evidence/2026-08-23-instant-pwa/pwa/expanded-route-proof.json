@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-23T20:15:30Z",
+  "status": "pass",
+  "source": "tests/e2e-browser-report.md",
+  "routes": {
+    "mapped": 23,
+    "onlinePassed": 23,
+    "offlinePassed": 23,
+    "reconnectPassed": 23,
+    "onlineNetworkProbeReached": 23,
+    "offlineNetworkProbeReached": 0,
+    "reconnectNetworkProbeReached": 23,
+    "maximumHorizontalOverflowPixels": 0,
+    "maximumOnlineLoadMilliseconds": 78,
+    "maximumReconnectLoadMilliseconds": 22
+  },
+  "cache": {
+    "versionedShellPresentOnEveryObservation": true,
+    "apiOrRealtimeCacheEntries": 0
+  },
+  "update": {
+    "originalVersion": "pancake-cc36d2688794-6273747d3223",
+    "oldCachesDeleted": true,
+    "newShellCacheCreated": true,
+    "workerWaitingAfterUpdate": false,
+    "controllerChanged": true,
+    "pageNavigationType": "reload",
+    "pageReloaded": true,
+    "originalWorkerRestored": true
+  },
+  "diagnostics": {
+    "onlineErrors": 0,
+    "postReconnectErrors": 0,
+    "offlineFetchFailuresSavedSeparately": true
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "capturedAt": "2026-08-23T16:57:43.391Z",
+  "engine": "Chromium 147 release build",
+  "results": [
+    {
+      "width": 390,
+      "height": 844,
+      "readyMs": 2617,
+      "url": "http://127.0.0.1:8081/",
+      "text": "M\nPancake Local\n\n\nWEEK 1\nIn Progress\nMaple City\nDemo 0-0\n462.3\nvs\nSunday Buckets\nRival 0-0\n438.7\n462.3\nYou +23.6\n438.7\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nArcher\nAA\nATL v BOS\n—\nPG\nAB\nBanks\nATL v BOS\n—\n—\n—\nArcher\nAA\nBOS @ ATL\n—\nSG\nAB\nBanks\nBOS @ ATL\n—\n—\n—\nArcher\nCA\nBKN v CHI\n—\nSF\nCB\nBanks\nBKN v CHI\n—\n—\n—\nArcher\nCA\nCHI @ BKN\n—\nPF\nCB\nBanks\nCHI @ BKN\n—\n—\n—\nArcher\nDA\nDAL v DE",
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "scrollHeight": 844,
+      "clientHeight": 844,
+      "horizontalOverflow": false
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "readyMs": 893,
+      "url": "http://127.0.0.1:8081/",
+      "text": "M\nPancake Local\n\n\nWEEK 1\nIn Progress\nMaple City\nDemo 0-0\n462.3\nvs\nSunday Buckets\nRival 0-0\n438.7\n462.3\nYou +23.6\n438.7\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nArcher\nAA\nATL v BOS\n—\nPG\nAB\nBanks\nATL v BOS\n—\n—\n—\nArcher\nAA\nBOS @ ATL\n—\nSG\nAB\nBanks\nBOS @ ATL\n—\n—\n—\nArcher\nCA\nBKN v CHI\n—\nSF\nCB\nBanks\nBKN v CHI\n—\n—\n—\nArcher\nCA\nCHI @ BKN\n—\nPF\nCB\nBanks\nCHI @ BKN\n—\n—\n—\nArcher\nDA\nDAL v DE",
+      "scrollWidth": 430,
+      "clientWidth": 430,
+      "scrollHeight": 932,
+      "clientHeight": 932,
+      "horizontalOverflow": false
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "readyMs": 926,
+      "url": "http://127.0.0.1:8081/",
+      "text": "M\nPancake Local\n\n\nWEEK 1\nIn Progress\nMaple City\nDemo Manager\n462.3\n0–0\nvs\nSunday Buckets\nRival Manager\n438.7\n0–0\n462.3\nMaple City +23.6\n438.7\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nA. Archer\nAA\nPG\nG\nATL vs BOS\n—\n—\nPG\nAB\nA. Banks\nPG\nG\nATL vs BOS\n—\n—\n—\n—\nA. Archer\nAA\nSG\nG\nBOS @ ATL\n—\n—\nSG\nAB\nA. Banks\nSG\nG\nBOS @ ATL\n—\n—\n—\n—\nC. Archer\nCA\nSF\nF\nBKN vs CHI\n—\n—\nSF\nCB\nC. Banks\nSF\nF\n",
+      "scrollWidth": 768,
+      "clientWidth": 768,
+      "scrollHeight": 1024,
+      "clientHeight": 1024,
+      "horizontalOverflow": false
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "readyMs": 935,
+      "url": "http://127.0.0.1:8081/",
+      "text": "Pancake\nMANAGER CONSOLE\nM\nPancake Local Demo\nMaple City\n\n\nMatchup\n\nPlayers\n\nDynasty\n\nRoster\n\nTrades\n\nLeague\nSEASON TOOLS\n\nDraft Room\n\nPlayoffs\n\nCommissioner\nMC\nMaple City\nProfile & settings\n\nWEEK 1\nIn Progress\nMaple City\nDemo 0-0\n462.3\nvs\nSunday Buckets\nRival 0-0\n438.7\n462.3\nYou +23.6\n438.7\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nArcher\nAA\nATL v BOS\n—\nPG\nAB\nBanks\nAT",
+      "scrollWidth": 1024,
+      "clientWidth": 1024,
+      "scrollHeight": 768,
+      "clientHeight": 768,
+      "horizontalOverflow": false
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "readyMs": 923,
+      "url": "http://127.0.0.1:8081/",
+      "text": "Pancake\nMANAGER CONSOLE\nM\nPancake Local Demo\nMaple City\n\n\nMatchup\n\nPlayers\n\nDynasty\n\nRoster\n\nTrades\n\nLeague\nSEASON TOOLS\n\nDraft Room\n\nPlayoffs\n\nCommissioner\nMC\nMaple City\nProfile & settings\n\nWEEK 1\nIn Progress\nMaple City\nDemo 0-0\n462.3\nvs\nSunday Buckets\nRival 0-0\n438.7\n462.3\nYou +23.6\n438.7\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nArcher\nAA\nATL v BOS\n—\nPG\nAB\nBanks\nAT",
+      "scrollWidth": 1280,
+      "clientWidth": 1280,
+      "scrollHeight": 800,
+      "clientHeight": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "readyMs": 948,
+      "url": "http://127.0.0.1:8081/",
+      "text": "Pancake\nMANAGER CONSOLE\nM\nPancake Local Demo\nMaple City\n\n\nMatchup\n\nPlayers\n\nDynasty\n\nRoster\n\nTrades\n\nLeague\nSEASON TOOLS\n\nDraft Room\n\nPlayoffs\n\nCommissioner\nMC\nMaple City\nProfile & settings\n\nWEEK 1\nIn Progress\nMaple City\nDemo Manager\n462.3\n0–0\nvs\nSunday Buckets\nRival Manager\n438.7\n0–0\n462.3\nMaple City +23.6\n438.7\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nA. Archer\nAA\n",
+      "scrollWidth": 1440,
+      "clientWidth": 1440,
+      "scrollHeight": 900,
+      "clientHeight": 900,
+      "horizontalOverflow": false
+    },
+    {
+      "width": 1728,
+      "height": 1117,
+      "readyMs": 960,
+      "url": "http://127.0.0.1:8081/",
+      "text": "Pancake\nMANAGER CONSOLE\nM\nPancake Local Demo\nMaple City\n\n\nMatchup\n\nPlayers\n\nDynasty\n\nRoster\n\nTrades\n\nLeague\nSEASON TOOLS\n\nDraft Room\n\nPlayoffs\n\nCommissioner\nMC\nMaple City\nProfile & settings\n\nWEEK 1\nIn Progress\nMaple City\nDemo Manager\n462.3\n0–0\nvs\nSunday Buckets\nRival Manager\n438.7\n0–0\n462.3\nMaple City +23.6\n438.7\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nA. Archer\nAA\n",
+      "scrollWidth": 1728,
+      "clientWidth": 1728,
+      "scrollHeight": 1117,
+      "clientHeight": 1117,
+      "horizontalOverflow": false
+    }
+  ],
+  "exceptions": [],
+  "consoleErrors": [],
+  "failedResponses": []
+}

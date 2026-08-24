@@ -119,8 +119,8 @@ no manual action.
 
 | Source | Provides | Degraded behavior |
 | --- | --- | --- |
-| NBA CDN | schedule, scoreboard, box scores | refuse bad payloads; offseason-stale schedule is a skip, not a failure |
-| ESPN public JSON | player master list, teams, positions, injuries, Dynasty Hub news | refuse truncated payloads (<28 teams / <350 players); ambiguous names skipped, never guessed; a failed news feed never blocks the player sync |
+| NBA CDN | schedule, scoreboard, box scores, player index | refuse bad payloads; record scoreboard failures before stored-game fallback |
+| ESPN public JSON | player master list, teams, positions, injuries, Dynasty Hub news | refuse truncated payloads; ambiguous names are never guessed; any component failure marks the sync failed |
 | FantasyPros | projections | parse failure falls back to internal rolling averages |
 | HashtagBasketball | dynasty rankings | card-layout parser with legacy-table fallback; degraded scrape refused below 300 rows; stale rankings kept |
 | stats.nba.com / NBA.com | draft order (June–July window) | failed day retried on later window days; incomplete boards never half-written |
@@ -128,6 +128,8 @@ no manual action.
 
 The Sleeper→ESPN migration design and side-by-side parity evidence are in
 [docs/sleeper-migration.md](./docs/sleeper-migration.md).
+The current health fields and recovery steps are in
+[docs/source-monitoring.md](./docs/source-monitoring.md).
 
 ## Data integrity
 

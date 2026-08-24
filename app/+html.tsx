@@ -19,17 +19,35 @@ if ('serviceWorker' in navigator &&
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible') registration.update().catch(function () {});
       });
-      // Reload only when a NEW worker replaces an existing controller (a real
-      // deploy). The first install also fires controllerchange via
-      // clients.claim() and must not reload the fresh page.
-      var hadController = Boolean(navigator.serviceWorker.controller);
+      // Ask the worker for its release version. A changed version reloads once.
+      // A first install stores its version without reloading the fresh page.
+      var workerVersionKey = 'pancake-sw-worker-version';
       var reloaded = false;
+      var observeWorkerVersion = function (worker) {
+        if (!worker) return;
+        var channel = new MessageChannel();
+        var settled = false;
+        var finish = function (version) {
+          if (settled) return;
+          settled = true;
+          channel.port1.close();
+          if (!version) return;
+          var previous = sessionStorage.getItem(workerVersionKey);
+          sessionStorage.setItem(workerVersionKey, version);
+          if (!previous || previous === version || reloaded) return;
+          reloaded = true;
+          window.location.reload();
+        };
+        channel.port1.onmessage = function (event) {
+          finish(event.data && event.data.version);
+        };
+        worker.postMessage({ type: 'PANCAKE_WORKER_VERSION' }, [channel.port2]);
+        setTimeout(function () { finish(null); }, 2000);
+      };
       navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (!hadController) { hadController = true; return; }
-        if (reloaded) return;
-        reloaded = true;
-        window.location.reload();
+        observeWorkerVersion(navigator.serviceWorker.controller);
       });
+      observeWorkerVersion(navigator.serviceWorker.controller || registration.active);
     }).catch(function () {});
   });
 }

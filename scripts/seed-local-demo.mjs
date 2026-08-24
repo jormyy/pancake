@@ -111,6 +111,22 @@ async function removePreviousDemo(admin) {
   for (const user of data.users.filter((candidate) => candidate.email && emails.has(candidate.email))) {
     assertNoError(`delete prior demo user ${user.email}`, await admin.auth.admin.deleteUser(user.id))
   }
+
+  const demoGames = assertNoError('find prior demo games', await admin
+    .from('nba_games')
+    .select('id')
+    .like('sportsdata_game_id', 'local-demo-%'))
+  const demoGameIds = demoGames.map((game) => game.id)
+  if (demoGameIds.length > 0) {
+    assertNoError('delete prior demo box scores', await admin
+      .from('player_game_stats')
+      .delete()
+      .in('game_id', demoGameIds))
+    assertNoError('delete prior demo games', await admin
+      .from('nba_games')
+      .delete()
+      .in('id', demoGameIds))
+  }
 }
 
 async function createManagers(admin, env) {
@@ -286,7 +302,6 @@ async function seedBasketball(admin, fixture, week) {
   const finishedGames = insertedGames.filter((game) => game.game_date < week.today)
   const stats = players.flatMap((player, playerIndex) => finishedGames
     .filter((game) => game.home_team === player.nba_team || game.away_team === player.nba_team)
-    .slice(-3)
     .map((game, gameIndex) => ({
       player_id: player.id,
       game_id: game.id,
@@ -311,6 +326,17 @@ async function seedBasketball(admin, fixture, week) {
   if (stats.length > 0) assertNoError('seed demo box scores', await admin.from('player_game_stats').upsert(stats, {
     onConflict: 'player_id,game_id',
   }))
+  const storedStats = finishedGames.length === 0
+    ? []
+    : assertNoError('verify demo box scores', await admin
+      .from('player_game_stats')
+      .select('game_id')
+      .in('game_id', finishedGames.map((game) => game.id)))
+  const gamesWithStats = new Set(storedStats.map((row) => row.game_id))
+  const missingGames = finishedGames.filter((game) => !gamesWithStats.has(game.id))
+  if (missingGames.length > 0) {
+    throw new Error(`seed demo box scores: ${missingGames.length} final game(s) have no stats`)
+  }
   assertNoError('refresh demo player averages', await admin.rpc('refresh_player_search_caches'))
 
   assertNoError('seed demo projections', await admin.from('player_projections').upsert(players.map((player, index) => ({

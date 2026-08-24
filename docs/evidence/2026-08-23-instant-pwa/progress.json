@@ -1,0 +1,518 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-24T08:34:36Z",
+  "resumedAt": "2026-08-23T21:17:00Z",
+  "deadlineRemovedByUser": true,
+  "branchHead": "e1492f8542fe70a9a6d8937509cb68a55385f832",
+  "initialServices": {
+    "supabase": "stopped",
+    "frontend": "stopped",
+    "ports": [54321, 54322, 54323, 54324, 8081, 19006]
+  },
+  "finalRuntimeState": {
+    "observedAt": "2026-08-24T08:34:36Z",
+    "runtimeCondition": "No deadline or time limit. Continue until every acceptance item passes.",
+    "initialServiceStateRestored": true,
+    "activeLocalVerification": false,
+    "closedPorts": [54321, 54322, 54323, 54324, 8081, 19006],
+    "protectedUnrelatedPort8082StillOpen": true,
+    "worktreeClean": true,
+    "goalComplete": true,
+    "remainingRequirement": null
+  },
+  "units": [
+    {
+      "id": "baseline",
+      "status": "complete",
+      "observedAt": "2026-08-23T16:58:14Z",
+      "fixture": {
+        "leagueCount": 1,
+        "managerCount": 4,
+        "playerCount": 64,
+        "rosterRowCount": 64,
+        "lineupRowCount": 280,
+        "gameCount": 28,
+        "statRowCount": 192
+      },
+      "checks": {
+        "unitTests": {
+          "status": "pass",
+          "files": 108,
+          "tests": 616,
+          "vitestDurationSeconds": 1.43,
+          "wallSeconds": 1.92
+        },
+        "quality": {
+          "status": "pass",
+          "wallSeconds": 15.91
+        },
+        "releaseBuild": {
+          "status": "pass",
+          "wallSeconds": 13.77,
+          "commonJavaScriptBytes": 1710000,
+          "entryJavaScriptBytes": 972000
+        },
+        "releaseHydration": {
+          "status": "pass",
+          "finalPath": "/sign-up"
+        },
+        "homeColdDataReady": {
+          "status": "fail",
+          "milliseconds": 2337,
+          "budgetMilliseconds": 1000
+        },
+        "dataLatency": {
+          "status": "fail",
+          "failedStep": "search_players first page RPC",
+          "medianMilliseconds": 123.8,
+          "maxMilliseconds": 137,
+          "budgetMilliseconds": 100
+        },
+        "knownBadGateProof": {
+          "status": "pass",
+          "gate": "npm run e2e:data-latency",
+          "observedResult": "failed on the search_players request budget"
+        }
+      },
+      "viewports": [
+        "390x844",
+        "430x932",
+        "768x1024",
+        "1024x768",
+        "1280x800",
+        "1440x900",
+        "1728x1117"
+      ],
+      "visualFindings": {
+        "horizontalOverflow": false,
+        "consoleErrors": 0,
+        "failedResponses": 0,
+        "criticalDefects": 0,
+        "highDefects": 0
+      },
+      "environmentFindings": [
+        "A stale Metro cache showed an unknown-module overlay during the first development load.",
+        "A clean release export loaded without that overlay.",
+        "The installed Chromium screenshot command hung, so CDP print output supplied visual evidence."
+      ],
+      "evidence": [
+        "baseline/390x844-sign-in-release.png",
+        "baseline/390x844-home.json",
+        "baseline/viewports.json",
+        "baseline/390x844-home.png",
+        "baseline/430x932-home.png",
+        "baseline/768x1024-home.png",
+        "baseline/1024x768-home.png",
+        "baseline/1280x800-home.png",
+        "baseline/1440x900-home.png",
+        "baseline/1728x1117-home.png"
+      ]
+    },
+    {
+      "id": "lineup-gameplay",
+      "status": "complete",
+      "observedAt": "2026-08-23T17:30:00Z",
+      "checks": {
+        "knownBadCrossTab": {
+          "status": "pass",
+          "observedResult": "The peer screen kept the old bench state for 15 seconds before the fix."
+        },
+        "manualLineup": {
+          "status": "pass",
+          "crossTabConvergenceMilliseconds": 207,
+          "reloadPersistenceMilliseconds": 184
+        },
+        "automaticToday": {
+          "status": "pass",
+          "storedRows": 1
+        },
+        "automaticRestOfSeason": {
+          "status": "pass",
+          "futureDates": 2,
+          "storedRows": 2,
+          "successNoticeMilliseconds": 1081
+        },
+        "locksAndLegality": {
+          "status": "pass",
+          "rejectedPaths": ["single move", "batch move", "automatic move", "overfilled slot", "ineligible slot"]
+        },
+        "regressions": {
+          "status": "pass",
+          "unitFiles": 108,
+          "unitTests": 616,
+          "qualityGate": "pass",
+          "lineupDatabaseIdempotence": "pass",
+          "releaseBrowserScenarios": 3
+        }
+      },
+      "evidence": ["gameplay/lineup-results.json"]
+    },
+    {
+      "id": "source-health",
+      "status": "complete",
+      "observedAt": "2026-08-23T17:45:00Z",
+      "checks": {
+        "knownBadObservabilityGate": {
+          "status": "pass",
+          "observedResult": "The new gate failed all three silent source paths before the fix."
+        },
+        "liveSourceAttempts": {
+          "status": "pass",
+          "nbaScheduleRows": 1200,
+          "nbaScheduleWeeks": 25,
+          "espnPlayerIds": 614,
+          "espnNewsRows": 94,
+          "hashtagRows": 400,
+          "draftPicks": 60,
+          "fantasyPros": "three explicit offseason skips with internal fallback"
+        },
+        "degradedAndRecoveryTests": {
+          "status": "pass",
+          "tests": 30
+        },
+        "silentFailures": {
+          "status": "pass",
+          "fixed": ["ESPN news", "NBA scoreboard", "NBA draft order"]
+        },
+        "espnRecovery": {
+          "status": "pass",
+          "observedResult": "A stored HTTP 403 failure was followed by a successful 599-row sync."
+        }
+      },
+      "evidence": ["sources/source-health.json", "sources/source-health.md"]
+    },
+    {
+      "id": "matchup-gameplay",
+      "status": "complete",
+      "observedAt": "2026-08-23T17:48:15Z",
+      "checks": {
+        "storedNavigation": {
+          "status": "pass",
+          "homePoints": 24,
+          "awayPoints": 25,
+          "dataReadyMilliseconds": 715
+        },
+        "realtimeLoad": {
+          "status": "pass",
+          "mutations": 24,
+          "heartbeatSamples": 31,
+          "maximumLagMilliseconds": 10,
+          "longTasks": 0
+        }
+      },
+      "evidence": ["matchups/matchup-results.json"]
+    },
+    {
+      "id": "performance",
+      "status": "complete",
+      "observedAt": "2026-08-23T17:55:09Z",
+      "checks": {
+        "homeColdDataReady": {
+          "status": "pass",
+          "milliseconds": 715,
+          "budgetMilliseconds": 1000
+        },
+        "playerSearch": {
+          "status": "pass",
+          "medianMilliseconds": 19.6,
+          "maxMilliseconds": 32.3,
+          "budgetMilliseconds": 100
+        },
+        "playerSearchDirect": {
+          "beforeMilliseconds": 69.7,
+          "afterWarmMilliseconds": 9.3
+        }
+      },
+      "evidence": ["../../../tests/e2e-data-latency-report.md"]
+    },
+    {
+      "id": "pwa-cache",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:11:18Z",
+      "checks": {
+        "offlineShell": { "status": "pass" },
+        "apiAndRealtimeFreshness": { "status": "pass", "serviceWorkerCachesApi": false },
+        "reconnect": { "status": "pass", "convergenceMilliseconds": 25 },
+        "crossTab": { "status": "pass", "convergenceMilliseconds": 207 },
+        "updatePolicy": { "status": "pass", "oldCachesDeleted": true, "pageReloaded": true },
+        "webkit": { "status": "pass", "version": "26.5", "viewports": 4 }
+      },
+      "evidence": ["pwa/pwa-results.json", "webkit/webkit-results.json"]
+    },
+    {
+      "id": "interface",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:14:30Z",
+      "checks": {
+        "chromiumViewports": { "status": "pass", "count": 7 },
+        "webkitViewports": { "status": "pass", "count": 4 },
+        "loadingEmptyError": { "status": "pass" },
+        "offlineReconnectStaleCache": { "status": "pass" },
+        "crossTab": { "status": "pass" },
+        "longContent": { "status": "pass" },
+        "accessibility": { "status": "pass" },
+        "criticalDefects": 0,
+        "highDefects": 0
+      },
+      "evidence": ["baseline/viewports.json", "interface/interface-states.json", "webkit/webkit-results.json"]
+    },
+    {
+      "id": "research-and-task-taps",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:16:48Z",
+      "checks": {
+        "officialResearch": { "status": "pass", "sources": 7 },
+        "adoptRejectDecisions": { "status": "pass" },
+        "flowMap": { "status": "pass", "priorityTasks": 10 },
+        "seasonAutoSetTaps": 2,
+        "manualLineupSwapTaps": 2
+      },
+      "evidence": ["research-and-flow-map.md"]
+    },
+    {
+      "id": "test-pruning",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:20:43Z",
+      "checks": {
+        "before": { "files": 110, "tests": 625, "wallSeconds": 1.69 },
+        "after": { "files": 110, "tests": 625, "wallSeconds": 1.73 },
+        "removed": 0,
+        "coverage": "unavailable",
+        "mutationAudit": "pass"
+      },
+      "evidence": ["test-pruning.md"]
+    },
+    {
+      "id": "release-checks",
+      "status": "complete",
+      "observedAt": "2026-08-23T18:47:06Z",
+      "checks": {
+        "applicationTests": { "status": "pass", "files": 110, "tests": 625 },
+        "coreTests": { "status": "pass", "files": 13, "tests": 112 },
+        "edgeTests": { "status": "pass", "tests": 100, "leakTrace": "pass" },
+        "databaseTests": { "status": "pass", "commands": 17 },
+        "releaseBuild": { "status": "pass" },
+        "releaseHydration": { "status": "pass" },
+        "performanceBudgets": { "status": "pass" },
+        "dataHealth": { "status": "pass", "finalGamesWithoutStats": 0 },
+        "selectedSoak": { "status": "pass", "seasons": 1, "realtimeClients": 10 }
+      },
+      "evidence": ["release-checks.json"]
+    },
+    {
+      "id": "expanded-surface-contract",
+      "status": "complete",
+      "observedAt": "2026-08-23T19:24:48Z",
+      "checks": {
+        "repositoryRoutes": { "status": "pass", "mapped": 23, "gaps": 0 },
+        "backgroundPaths": { "status": "pass", "mapped": 5 },
+        "dataClasses": { "status": "pass", "mapped": 19 },
+        "functions": { "status": "pass", "mapped": 21 },
+        "knownBadMutations": {
+          "status": "pass",
+          "rejected": ["missing route", "missing dimension", "unknown proof", "duplicate data id", "duplicate function id", "missing soak evidence"]
+        },
+        "configuredSourceRecovery": { "status": "pass", "sources": 6, "tests": 36 }
+      },
+      "evidence": ["surface-matrix.json", "../../../tests/artifacts/source-failure-recovery.json"]
+    },
+    {
+      "id": "expanded-route-proof",
+      "status": "complete",
+      "observedAt": "2026-08-23T20:15:30Z",
+      "checks": {
+        "routes": { "status": "pass", "mapped": 23, "online": 23, "offline": 23, "reconnect": 23 },
+        "measuredNetworkState": { "status": "pass", "onlineReached": 23, "offlineReached": 0, "reconnectReached": 23 },
+        "cacheBoundary": { "status": "pass", "apiOrRealtimeEntries": 0 },
+        "layout": { "status": "pass", "maximumHorizontalOverflowPixels": 0 },
+        "workerUpdate": { "status": "pass", "oldCachesDeleted": true, "controllerChanged": true, "pageReloaded": true, "originalWorkerRestored": true },
+        "knownBadAutoUpdate": { "status": "pass", "observedResult": "The first update gate changed the controller but detected no new page document." },
+        "diagnostics": { "status": "pass", "onlineErrors": 0, "postReconnectErrors": 0, "offlineFailuresSavedSeparately": true }
+      },
+      "evidence": ["pwa/expanded-route-proof.json"]
+    },
+    {
+      "id": "expanded-twenty-season-soak",
+      "status": "complete",
+      "observedAt": "2026-08-24T08:16:41.907Z",
+      "checks": {
+        "requestedSeasons": 20,
+        "completedSeasons": 20,
+        "passingSeasonRows": 20,
+        "failingSeasonRows": 0,
+        "wallDurationSeconds": 21918.339,
+        "fakeUpstreamSafety": { "status": "pass" },
+        "dockerUpstreamRouting": { "status": "pass" },
+        "sourceDynastyRealtimeEvidence": { "status": "pass" },
+        "browserVisualCapture": { "status": "pass", "result": "auth and performance captures completed through the verified print fallback" },
+        "browserPerformanceMeasurement": { "status": "recovered", "knownBad": "draft long task measured 60 milliseconds against a 50 millisecond budget", "result": "capture now completes before measurement starts" },
+        "browserRouteOpen": { "status": "recovered", "knownBad": "season 2 timed out while opening League", "result": "all 23 online, offline, and reconnect routes passed after settle-aware recovery" },
+        "surfaceCoverage": { "status": "pass", "routes": 23, "backgroundPaths": 5, "dataClasses": 19, "functions": 21, "gaps": 0 },
+        "browserPerformance": { "status": "pass", "draftFeedbackMaximumMilliseconds": 24.3, "homeFeedbackMaximumMilliseconds": 17.6, "maximumHeartbeatLagMilliseconds": 47, "longTasks": 0 },
+        "runtimeDrift": { "status": "pass" },
+        "harnessMemoryDrift": { "status": "pass" }
+      },
+      "evidence": ["soak/expanded-soak-attempt.json", "soak/full-20-season-soak.json", "../../../tests/e2e-report.json"]
+    },
+    {
+      "id": "expanded-test-pruning",
+      "status": "complete",
+      "observedAt": "2026-08-24T08:34:36Z",
+      "checks": {
+        "before": { "files": 113, "tests": 642, "vitestSeconds": 1.75, "wallSeconds": 2.1 },
+        "after": { "files": 113, "tests": 642, "vitestSeconds": 1.57, "wallSeconds": 1.9 },
+        "removed": 0,
+        "coverage": "unavailable because the repository has no coverage command or installed Vitest coverage provider",
+        "suiteAudit": {
+          "status": "pass",
+          "assertionlessFiles": 0,
+          "skippedOrPendingTests": 0,
+          "exclusiveTests": 0,
+          "snapshots": 0
+        },
+        "mutationAudit": {
+          "status": "pass",
+          "mutations": 7,
+          "allTargetTestsFailed": true,
+          "allMutationsRestored": true
+        },
+        "finalSuite": { "status": "pass" }
+      },
+      "evidence": ["expanded-test-pruning.md"]
+    },
+    {
+      "id": "browser-capture-recovery",
+      "status": "complete",
+      "observedAt": "2026-08-23T21:26:13Z",
+      "checks": {
+        "knownBad": { "status": "pass", "attempts": 2, "result": "screenshot and cleanup received SIGTERM after 10000 milliseconds" },
+        "rootCause": { "status": "pass", "pageCaptureScreenshot": "timeout", "screencastFrame": "timeout", "printToPdf": "pass" },
+        "fixedCapture": { "status": "pass", "pngBytes": 16090, "visuallyInspected": true, "attachedTargetSelected": true },
+        "regressions": { "status": "pass", "files": 112, "tests": 638, "qualityGate": "pass" }
+      },
+      "evidence": ["interface/browser-capture-recovery.json"]
+    },
+    {
+      "id": "browser-performance-capture-window",
+      "status": "complete",
+      "observedAt": "2026-08-23T21:50:39Z",
+      "checks": {
+        "knownBad": { "status": "pass", "result": "season 1 measured a 60 millisecond draft long task against a 50 millisecond budget" },
+        "causalIsolation": { "status": "pass", "result": "capture-free measurement recorded no long tasks" },
+        "fixedCaptureMeasurement": { "status": "pass", "draftMaximumLagMilliseconds": 9, "homeMaximumLagMilliseconds": 10, "maximumLongTaskMilliseconds": 0, "budgetMilliseconds": 50 },
+        "mixedTargetGuard": { "status": "pass", "result": "mixed local and hosted E2E targets fail before network access" },
+        "regressions": { "status": "pass", "files": 112, "tests": 640, "qualityGate": "pass" }
+      },
+      "evidence": ["soak/browser-perf-capture-window.json"]
+    },
+    {
+      "id": "browser-route-open-recovery",
+      "status": "complete",
+      "observedAt": "2026-08-23T22:22:41Z",
+      "checks": {
+        "knownBad": { "status": "pass", "result": "season 2 timed out before League was recorded" },
+        "settleAwareRecovery": { "status": "pass", "result": "a timed-out command is accepted only after the requested page settles" },
+        "routeProof": { "status": "pass", "online": 23, "offline": 23, "reconnect": 23 },
+        "visualProof": { "status": "pass", "route": "/league", "dimensions": "1280x578", "visuallyInspected": true },
+        "regressions": { "status": "pass", "files": 112, "tests": 641, "qualityGate": "pass" }
+      },
+      "evidence": ["soak/route-open-recovery.json"]
+    },
+    {
+      "id": "draft-realtime-work-reduction",
+      "status": "complete",
+      "observedAt": "2026-08-24T00:56:59Z",
+      "checks": {
+        "knownBad": { "status": "pass", "maximumLongTaskMilliseconds": 166, "budgetMilliseconds": 50 },
+        "causalContract": { "status": "pass", "watchesBefore": 4, "watchesAfter": 3 },
+        "postFixRepeats": { "status": "pass", "runs": 6, "mutations": 144, "maximumLagMilliseconds": 10, "longTasks": 0 },
+        "regressions": { "status": "pass", "files": 113, "tests": 642, "qualityGate": "pass" },
+        "fullSoak": { "status": "pass", "seasons": 20, "maximumLongTaskMilliseconds": 0 }
+      },
+      "evidence": ["soak/draft-realtime-work-reduction.json"]
+    },
+    {
+      "id": "home-feedback-attribution-and-cleanup",
+      "status": "complete",
+      "observedAt": "2026-08-24T02:08:28Z",
+      "checks": {
+        "knownBadFeedback": { "status": "pass", "milliseconds": 251.8, "budgetMilliseconds": 100 },
+        "attributedNormalRepeats": { "status": "pass", "runs": 9, "maximumMilliseconds": 37.2 },
+        "attributedStress": { "status": "pass", "samples": 100, "p95Milliseconds": 22.5, "maximumMilliseconds": 46.9 },
+        "knownBadCleanup": { "status": "pass", "result": "auction completion left a nomination audit reference that blocked draft deletion" },
+        "cleanupRecovery": { "status": "pass", "exactFixtureRemoved": true },
+        "regressions": { "status": "pass", "files": 113, "tests": 642, "qualityGate": "pass" },
+        "fullSoak": { "status": "pass", "seasons": 20, "maximumFeedbackMilliseconds": 24.3 }
+      },
+      "evidence": ["soak/home-feedback-cleanup-recovery.json"]
+    }
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "priority-flows",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "source-health",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "pwa-cache",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "performance",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "interface",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "task-taps",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "release-checks",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "documentation",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "wave-commits",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "expanded-surface-matrix",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "expanded-route-proof",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "expanded-twenty-season-soak",
+      "status": "complete",
+      "missingEvidence": []
+    },
+    {
+      "id": "expanded-test-pruning",
+      "status": "complete",
+      "missingEvidence": []
+    }
+  ],
+  "nextAction": "Review the local commits and choose whether to push them."
+}

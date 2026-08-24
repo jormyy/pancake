@@ -6,7 +6,13 @@ import { runBounded } from './runBounded.ts'
 import { normalizeName } from './nameMatch.ts'
 
 const ESPN_SITE_BASE_URL = Deno.env.get('ESPN_SITE_BASE_URL') ??
-  'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
+  'https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba'
+const ESPN_HEADERS = {
+  Accept: 'application/json',
+  'User-Agent': 'Mozilla/5.0 (compatible; PancakePlayerSync/1.0; +https://pancake.app)',
+  Referer: 'https://www.espn.com/',
+  Origin: 'https://www.espn.com',
+}
 
 // Minimum plausible payload sizes. A truncated or reshaped response is
 // refused outright so a degraded scrape can never blank existing players;
@@ -165,7 +171,7 @@ function buildEspnRecords(
 }
 
 export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
-  const teamsRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams`)
+  const teamsRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams`, { headers: ESPN_HEADERS })
   if (!teamsRes.ok) {
     await teamsRes.body?.cancel()
     throw new Error(`ESPN teams ${teamsRes.status}`)
@@ -177,7 +183,7 @@ export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
 
   const rosters: { teamCode: string | null; athletes: EspnAthlete[] }[] = []
   await runBounded(teams.map((team) => async () => {
-    const res = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams/${team.id}/roster`)
+    const res = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams/${team.id}/roster`, { headers: ESPN_HEADERS })
     if (!res.ok) {
       await res.body?.cancel()
       throw new Error(`ESPN roster ${team.abbreviation} ${res.status}`)
@@ -186,7 +192,7 @@ export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
     rosters.push({ teamCode: mapEspnTeam(team.abbreviation), athletes: payload.athletes ?? [] })
   }), 6)
 
-  const injuriesRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/injuries`)
+  const injuriesRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/injuries`, { headers: ESPN_HEADERS })
   if (!injuriesRes.ok) {
     await injuriesRes.body?.cancel()
     throw new Error(`ESPN injuries ${injuriesRes.status}`)
@@ -212,7 +218,7 @@ export type SourceNewsItem = {
 // ESPN's keyless NBA news feed. Articles tagged with an athlete map onto
 // players.espn_id; untagged league-wide stories keep player_id null.
 export async function fetchEspnNews(limit = 50): Promise<SourceNewsItem[]> {
-  const res = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/news?limit=${limit}`)
+  const res = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/news?limit=${limit}`, { headers: ESPN_HEADERS })
   if (!res.ok) {
     await res.body?.cancel()
     throw new Error(`ESPN news ${res.status}`)

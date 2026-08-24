@@ -549,7 +549,7 @@ export async function closeExpiredNominations(draftId: string): Promise<{ closed
 
 export function subscribeToDraft(
     draftId: string,
-    leagueId: string | null | undefined,
+    _leagueId: string | null | undefined,
     onChange: () => void,
     onStatus?: (status: RealtimeSubscriptionStatus) => void,
 ): RealtimeChannel {
@@ -559,7 +559,6 @@ export function subscribeToDraft(
             { table: 'nominations', filter: `draft_id=eq.${draftId}` },
             { table: 'draft_budgets', filter: `draft_id=eq.${draftId}` },
             { table: 'drafts', event: 'UPDATE', filter: `id=eq.${draftId}` },
-            ...(leagueId ? [{ table: 'bids', filter: `league_id=eq.${leagueId}` }] : []),
         ],
         onChange,
         onStatus,

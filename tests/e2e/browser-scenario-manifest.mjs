@@ -24,8 +24,8 @@ const evidenceByScenarioId = {
   auth: 'Exercises browser sign-in, session persistence, sign-out, and protected-route behavior.',
   performance: 'Measures browser feedback, navigation, heartbeat lag, and mutation load against executable budgets.',
   auction: 'Places a bid through the real draft-room UI and verifies persisted nomination and bid state.',
-  lineup: 'Moves a bench player into a starter slot through the real lineup modal and verifies persistence.',
-  'lineup-auto-set': 'Runs the real Auto-Set flow and verifies the generated lineup rows.',
+  lineup: 'Moves a bench player through the real lineup screen, then verifies persistence and live cross-tab agreement.',
+  'lineup-auto-set': 'Sets today and the remaining season through the real Auto-Set controls, then verifies every generated row.',
   'lineup-locked': 'Attempts a live-game lineup move and verifies locked-player protection in UI and storage.',
   playoffs: 'Advances a seeded playoff bracket and verifies the champion through the real browser surface.',
   'rookie-draft': 'Lets the visible rookie timer expire and verifies the browser-triggered auto-pick and roster insert.',
@@ -90,7 +90,18 @@ const isPassingResult = (result) => result != null && typeof result === 'object'
 
 /** @param {Record<string, unknown>} results */
 export const browserEvidenceIds = (results) => BROWSER_SCENARIO_MANIFEST
-  .flatMap((scenario) => isPassingResult(results[scenario.resultKey]) ? [scenario.evidenceId] : [])
+  .flatMap((scenario) => {
+    const result = results[scenario.resultKey]
+    if (!isPassingResult(result)) return []
+    const nestedEvidenceIds = result != null && typeof result === 'object'
+      ? Reflect.get(result, 'evidenceIds')
+      : []
+    const resultEvidenceIds = Array.isArray(nestedEvidenceIds)
+      ? nestedEvidenceIds.filter((id) => typeof id === 'string')
+      : []
+    return [scenario.evidenceId, ...resultEvidenceIds]
+  })
+  .filter((id, index, ids) => ids.indexOf(id) === index)
 
 /** @param {Record<string, unknown>} results */
 export const browserPassNotes = (results) => BROWSER_SCENARIO_MANIFEST

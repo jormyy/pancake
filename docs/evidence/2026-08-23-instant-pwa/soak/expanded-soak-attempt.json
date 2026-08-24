@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "startedAt": "2026-08-23T21:54:59.056Z",
+  "finishedAt": "2026-08-23T22:15:55.220Z",
+  "status": "incomplete",
+  "requestedSeasons": 20,
+  "completedSeasons": 0,
+  "partialSeason": 2,
+  "partialEvidence": [
+    "tests/artifacts/season-1/dynasty-decision-tools.json",
+    "tests/artifacts/season-1/fake-upstream.json",
+    "tests/artifacts/season-1/realtime-latency.json",
+    "tests/artifacts/season-1/smoke/auth-sign-in.png",
+    "tests/artifacts/season-1/browser-perf/draft-before-load.png",
+    "tests/artifacts/season-2/smoke/league.png"
+  ],
+  "verifiedSetupCorrections": [
+    "The Edge server uses the required fake push endpoint.",
+    "Docker reaches the fake NBA, Sleeper, and push services through host.docker.internal."
+  ],
+  "blockingFailure": {
+    "scenario": "browser smoke",
+    "route": "/league",
+    "operation": "online route open",
+    "result": "the browser command timed out before the online sweep recorded League",
+    "artifact": "tests/e2e-report.json"
+  },
+  "blockingFailureRecovered": true,
+  "recoveryEvidence": "soak/route-open-recovery.json",
+  "surfaceCoverageProved": false,
+  "twentySeasonClaimAllowed": false
+}

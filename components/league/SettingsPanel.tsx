@@ -115,6 +115,7 @@ export function SettingsPanel({
     onShareInviteCode,
     onOpenBracket,
     onOpenCommissionerSettings,
+    onOpenProfile,
 }: {
     inviteCode?: string | null
     isCommissioner: boolean
@@ -123,6 +124,7 @@ export function SettingsPanel({
     onShareInviteCode: () => void
     onOpenBracket: () => void
     onOpenCommissionerSettings: () => void
+    onOpenProfile: () => void
 }) {
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
@@ -186,6 +188,16 @@ export function SettingsPanel({
                     >
                         <Text style={panelStyles.secondaryDraftButtonText} numberOfLines={1}>Bracket</Text>
                     </Pressable>
+                    <Pressable
+                        style={[panelStyles.secondaryDraftButton, styles.settingsCompactButton]}
+                        onPress={onOpenProfile}
+                        role="button"
+                        aria-label="Open profile and settings"
+                        accessibilityRole="button"
+                        accessibilityLabel="Open profile and settings"
+                    >
+                        <Text style={panelStyles.secondaryDraftButtonText} numberOfLines={1}>Profile</Text>
+                    </Pressable>
                     {isCommissioner ? (
                         <Pressable
                             style={[panelStyles.secondaryDraftButton, styles.settingsCompactButton]}
@@ -242,6 +254,16 @@ export function SettingsPanel({
                     accessibilityLabel="Open playoff bracket"
                 >
                     <Text style={panelStyles.secondaryDraftButtonText}>Bracket</Text>
+                </Pressable>
+                <Pressable
+                    style={panelStyles.secondaryDraftButton}
+                    onPress={onOpenProfile}
+                    role="button"
+                    aria-label="Open profile and settings"
+                    accessibilityRole="button"
+                    accessibilityLabel="Open profile and settings"
+                >
+                    <Text style={panelStyles.secondaryDraftButtonText}>Profile & Settings</Text>
                 </Pressable>
                 {isCommissioner ? (
                     <Pressable

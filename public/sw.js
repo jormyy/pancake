@@ -32,6 +32,11 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'PANCAKE_WORKER_VERSION') return
+  event.ports?.[0]?.postMessage({ version: VERSION })
+})
+
 function staleWhileRevalidate(request) {
   return caches.open(ASSET_CACHE).then((cache) =>
     cache.match(request).then((cached) => {

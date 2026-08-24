@@ -5,6 +5,7 @@ import { BACKEND_SCENARIO_MANIFEST as BACKEND_SCENARIOS } from '../backend-scena
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-report.md')
+const REPORT_JSON_PATH = path.join(ROOT, 'tests/e2e-report.json')
 const COVERAGE_PATH = path.join(ROOT, 'tests/e2e-coverage.md')
 
 /** @typedef {{ season: number, status: string, notes: string, evidenceIds?: string[] }} SoakRow */
@@ -50,7 +51,19 @@ export const writeReport = async ({ status, startedAt, finishedAt, seasons, rows
     '',
     ...notes.map((note) => `- ${note}`),
   ]
-  await writeFile(REPORT_PATH, `${lines.join('\n')}\n`)
+  await Promise.all([
+    writeFile(REPORT_PATH, `${lines.join('\n')}\n`),
+    writeFile(REPORT_JSON_PATH, `${JSON.stringify({
+      schemaVersion: 1,
+      status,
+      startedAt,
+      finishedAt,
+      targetSeasons: seasons,
+      completedSeasons: rows.filter((row) => row.season > 0).length,
+      rows,
+      notes,
+    }, null, 2)}\n`),
+  ])
 }
 
 /** @param {SoakRow[]} rows @param {string} evidenceId */
