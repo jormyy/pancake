@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-08-23T19:10:00Z",
-  "proofStatus": "pending-expanded-soak",
+  "observedAt": "2026-08-24T08:16:41.907Z",
+  "proofStatus": "passed-expanded-soak",
   "inventoryRule": "Every app TSX route except layouts and +html must have one surface row.",
   "surfaces": [
     {

@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-24T08:16:41.907Z",
+  "status": "PASS",
+  "releaseIdentity": {
+    "frontendCommitSha": "e1492f8542fe70a9a6d8937509cb68a55385f832",
+    "frontendBundleDigest": "1c485bfa63e1637b5b2c196a98085fb98f0408fee51b3bb8d9322763c702015f",
+    "edgeCommitSha": "e1492f8542fe70a9a6d8937509cb68a55385f832",
+    "edgeArtifactDigest": "b31b4b5ba8d4e1c7c0162182ba9b5ce64804af1efa0000d63e131fb4b2286053"
+  },
+  "fixture": {
+    "seedRun": "20260824021200",
+    "leagueId": "dc30ea4c-5f53-4782-8016-387e4ee9777c",
+    "managers": 10,
+    "scope": "local-only"
+  },
+  "run": {
+    "startedAt": "2026-08-24T02:11:23.568Z",
+    "finishedAt": "2026-08-24T08:16:41.907Z",
+    "wallDurationSeconds": 21918.339,
+    "targetSeasons": 20,
+    "completedSeasons": 20,
+    "passingSeasonRows": 20,
+    "failingSeasonRows": 0,
+    "reportSha256": "bfd8a77bb301c21e334e41fc0413797de46c642c2e14863e922a5e2ace7f2bdf"
+  },
+  "surfaceCoverage": {
+    "status": "PASS",
+    "routes": 23,
+    "backgroundPaths": 5,
+    "dataClasses": 19,
+    "functions": 21,
+    "configuredSourceContracts": 6,
+    "uncoveredHappyPaths": 0,
+    "uncoveredFailurePaths": 0,
+    "uncoveredRecoveryPaths": 0
+  },
+  "browserPerformance": {
+    "status": "PASS",
+    "passingSeasons": 20,
+    "draftFeedbackMilliseconds": {
+      "minimum": 2.1,
+      "maximum": 24.3,
+      "budget": 100
+    },
+    "homeFeedbackMilliseconds": {
+      "minimum": 3.3,
+      "maximum": 17.6,
+      "budget": 100
+    },
+    "maximumHeartbeatLagMilliseconds": 47,
+    "longTaskCount": 0,
+    "longTaskBudgetMilliseconds": 50
+  },
+  "longHorizon": {
+    "runtimeDrift": "PASS",
+    "harnessMemoryDrift": "PASS",
+    "midlifeMigration": "CURRENT",
+    "snapshotSeasons": 20,
+    "realtimeClients": 10
+  },
+  "preservedKnownBadEvidence": [
+    "draft-long-task-season-4.json",
+    "draft-realtime-work-reduction.json",
+    "full-soak-draft-long-task.json",
+    "home-feedback-cleanup-recovery.json",
+    "route-open-recovery.json",
+    "browser-perf-capture-window.json"
+  ],
+  "artifacts": [
+    "../../../../tests/e2e-report.json",
+    "../../../../tests/e2e-coverage.md",
+    "../../../../tests/artifacts/perf-metrics.json",
+    "../../../../tests/artifacts/season-1",
+    "../../../../tests/artifacts/season-20",
+    "../../../../tests/snapshots/season-1",
+    "../../../../tests/snapshots/season-20",
+    "../surface-matrix.json"
+  ],
+  "claimBoundary": "Measured local release proof only. This record does not claim literal zero latency or permanent faultlessness."
+}

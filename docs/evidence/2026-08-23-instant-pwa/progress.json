@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-24T02:08:28Z",
+  "updatedAt": "2026-08-24T08:16:41.907Z",
   "resumedAt": "2026-08-23T21:17:00Z",
   "deadlineRemovedByUser": true,
-  "branchHead": "e3b426108718659792c84ddb74a5ff54195e2801",
+  "branchHead": "e1492f8542fe70a9a6d8937509cb68a55385f832",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
     "ports": [54321, 54322, 54323, 54324, 8081, 19006]
   },
   "finalRuntimeState": {
-    "observedAt": "2026-08-24T02:08:28Z",
+    "observedAt": "2026-08-24T08:16:41.907Z",
     "runtimeCondition": "No deadline or time limit. Continue until every acceptance item passes.",
     "initialServiceStateRestored": false,
     "activeLocalVerification": true,
@@ -18,7 +18,7 @@
     "protectedUnrelatedPort8082StillOpen": true,
     "worktreeClean": false,
     "goalComplete": false,
-    "remainingRequirement": "20 passing season rows with every mapped happy, failure, and recovery path covered"
+    "remainingRequirement": "repeat the test-pruning audit after the final behavior change"
   },
   "units": [
     {
@@ -333,21 +333,26 @@
     },
     {
       "id": "expanded-twenty-season-soak",
-      "status": "incomplete",
-      "observedAt": "2026-08-23T22:15:55Z",
+      "status": "complete",
+      "observedAt": "2026-08-24T08:16:41.907Z",
       "checks": {
         "requestedSeasons": 20,
-        "completedSeasons": 0,
-        "partialSeason": 2,
+        "completedSeasons": 20,
+        "passingSeasonRows": 20,
+        "failingSeasonRows": 0,
+        "wallDurationSeconds": 21918.339,
         "fakeUpstreamSafety": { "status": "pass" },
         "dockerUpstreamRouting": { "status": "pass" },
-        "partialSourceDynastyRealtimeEvidence": { "status": "saved" },
+        "sourceDynastyRealtimeEvidence": { "status": "pass" },
         "browserVisualCapture": { "status": "pass", "result": "auth and performance captures completed through the verified print fallback" },
         "browserPerformanceMeasurement": { "status": "recovered", "knownBad": "draft long task measured 60 milliseconds against a 50 millisecond budget", "result": "capture now completes before measurement starts" },
         "browserRouteOpen": { "status": "recovered", "knownBad": "season 2 timed out while opening League", "result": "all 23 online, offline, and reconnect routes passed after settle-aware recovery" },
-        "surfaceCoverage": { "status": "unproved" }
+        "surfaceCoverage": { "status": "pass", "routes": 23, "backgroundPaths": 5, "dataClasses": 19, "functions": 21, "gaps": 0 },
+        "browserPerformance": { "status": "pass", "draftFeedbackMaximumMilliseconds": 24.3, "homeFeedbackMaximumMilliseconds": 17.6, "maximumHeartbeatLagMilliseconds": 47, "longTasks": 0 },
+        "runtimeDrift": { "status": "pass" },
+        "harnessMemoryDrift": { "status": "pass" }
       },
-      "evidence": ["soak/expanded-soak-attempt.json", "../../../tests/e2e-report.json"]
+      "evidence": ["soak/expanded-soak-attempt.json", "soak/full-20-season-soak.json", "../../../tests/e2e-report.json"]
     },
     {
       "id": "expanded-test-pruning",
@@ -410,7 +415,7 @@
         "causalContract": { "status": "pass", "watchesBefore": 4, "watchesAfter": 3 },
         "postFixRepeats": { "status": "pass", "runs": 6, "mutations": 144, "maximumLagMilliseconds": 10, "longTasks": 0 },
         "regressions": { "status": "pass", "files": 113, "tests": 642, "qualityGate": "pass" },
-        "fullSoak": { "status": "pending" }
+        "fullSoak": { "status": "pass", "seasons": 20, "maximumLongTaskMilliseconds": 0 }
       },
       "evidence": ["soak/draft-realtime-work-reduction.json"]
     },
@@ -425,7 +430,7 @@
         "knownBadCleanup": { "status": "pass", "result": "auction completion left a nomination audit reference that blocked draft deletion" },
         "cleanupRecovery": { "status": "pass", "exactFixtureRemoved": true },
         "regressions": { "status": "pass", "files": 113, "tests": 642, "qualityGate": "pass" },
-        "fullSoak": { "status": "pending" }
+        "fullSoak": { "status": "pass", "seasons": 20, "maximumFeedbackMilliseconds": 24.3 }
       },
       "evidence": ["soak/home-feedback-cleanup-recovery.json"]
     }
@@ -488,8 +493,8 @@
     },
     {
       "id": "expanded-twenty-season-soak",
-      "status": "pending",
-      "missingEvidence": ["20 passing season rows with every mapped path covered"]
+      "status": "complete",
+      "missingEvidence": []
     },
     {
       "id": "expanded-test-pruning",
@@ -497,5 +502,5 @@
       "missingEvidence": ["repeat the pruning audit after the final behavior change"]
     }
   ],
-  "nextAction": "Commit the attributed feedback and cleanup wave, rebuild matching release artifacts, seed a fresh fixture, and rerun all 20 seasons."
+  "nextAction": "Repeat the test-pruning audit, run final verification, restore local services, and close the goal."
 }
