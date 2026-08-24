@@ -22,12 +22,16 @@ const MUTATION_COUNT = Number(process.env.E2E_BROWSER_PERF_MUTATIONS ?? 24)
 const MAX_HEARTBEAT_LAG_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LAG_MS ?? 600)
 const MAX_SCRIPT_MS = Number(process.env.E2E_BROWSER_PERF_MAX_SCRIPT_MS ?? 30000)
 const MAX_FEEDBACK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_FEEDBACK_MS ?? 100)
+const FEEDBACK_REPEATS = Number(process.env.E2E_BROWSER_PERF_FEEDBACK_REPEATS ?? 1)
 const MAX_LONG_TASK_MS = Number(process.env.E2E_BROWSER_PERF_MAX_LONG_TASK_MS ?? PERFORMANCE_BUDGETS.longTaskMs)
 const BROWSER_COMMAND_TIMEOUT_MS = Number(process.env.E2E_BROWSER_PERF_COMMAND_TIMEOUT_MS ?? 90_000)
 const MIN_HEARTBEAT_SAMPLES = PERFORMANCE_BUDGETS.minHeartbeatSamples
 
 if (!Number.isInteger(MIN_HEARTBEAT_SAMPLES) || MIN_HEARTBEAT_SAMPLES < 1) {
   throw new Error('globalBudgets.minHeartbeatSamples must be a positive integer')
+}
+if (!Number.isInteger(FEEDBACK_REPEATS) || FEEDBACK_REPEATS < 1) {
+  throw new Error('E2E_BROWSER_PERF_FEEDBACK_REPEATS must be a positive integer')
 }
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
@@ -637,7 +641,14 @@ export async function runBrowserPerfSmoke({
     const homeLoadTiming = await measureNavigationTiming(browser, session, {
       workflowId: 'home-live-lineup', label: 'home', sharedScriptUrls,
     })
-    const homeFeedback = await measureWorkflowFeedback(browser, session, { workflowId: 'home-live-lineup', label: 'home' })
+    const homeFeedbackSamples = []
+    for (let repeat = 0; repeat < FEEDBACK_REPEATS; repeat += 1) {
+      homeFeedbackSamples.push(await measureWorkflowFeedback(browser, session, { workflowId: 'home-live-lineup', label: 'home' }))
+      if (repeat + 1 < FEEDBACK_REPEATS) await browser(session, ['wait', '50'])
+    }
+    const homeFeedback = homeFeedbackSamples.reduce((worst, sample) => (
+      sample.feedbackMs > worst.feedbackMs ? sample : worst
+    ))
     await installHeartbeat(session)
     const homeLoad = await runLoadMutations({ supabase, auction: null, matchup })
     await browser(session, ['wait', '2500'])
@@ -684,6 +695,8 @@ export async function runBrowserPerfSmoke({
       matchupId: matchup?.id ?? null,
       load: { draft: draftLoad, home: homeLoad, durationMs: Math.max(draftLoad.durationMs, homeLoad.durationMs) },
       draftFeedback,
+      homeFeedback,
+      homeFeedbackSamples,
       draftPerf,
       homePerf,
       initialJavaScriptDelivery,

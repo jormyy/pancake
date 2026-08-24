@@ -31,9 +31,15 @@ export const disposeDisposableLeague = async (supabase, leagueId, label) => {
   const { error: pickRefError } = await retryTransient(() => supabase.from('draft_picks')
     .update({ rookie_draft_id: null }).eq('league_id', leagueId))
   if (pickRefError) throw new Error(`${label}: pick ref cleanup failed: ${pickRefError.message}`)
+  // A completed auction writes append-only audit rows that reference its
+  // nominations without ON DELETE CASCADE. The league is disposable, so
+  // remove its audit rows before deleting the draft graph.
+  const { error: transactionError } = await retryTransient(() => supabase.from('roster_transactions')
+    .delete().eq('league_id', leagueId))
   const { error: draftError } = await retryTransient(() => supabase.from('drafts').delete().eq('league_id', leagueId))
   const { error: deleteError } = await retryTransient(() => supabase.from('leagues').delete().eq('id', leagueId))
-  const failures = [tradeError, draftError, deleteError].filter(Boolean).map((error) => new Error(error.message))
+  const failures = [tradeError, transactionError, draftError, deleteError]
+    .filter(Boolean).map((error) => new Error(error.message))
   if (failures.length > 0) throw new AggregateError(failures, `${label}: league disposal failed`)
 }
 

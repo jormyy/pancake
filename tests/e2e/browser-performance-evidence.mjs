@@ -235,25 +235,58 @@ const markDynamicTarget = async (browser, session, expression, attribute) => {
 }
 
 const prepareFeedbackObserver = async (browser, session, expectedSource) => browserJson(browser, session, `(() => {
+  window.__pancakeWorkflowFeedbackCleanup?.();
   window.__pancakeWorkflowFeedbackObserver?.disconnect?.();
-  window.__pancakeWorkflowFeedback = { startedAt: null, observedAt: null };
+  window.__pancakeWorkflowEventObserver?.disconnect?.();
+  window.__pancakeWorkflowFeedback = { startedAt: null, observedAt: null, events: [], eventTimings: [] };
   const expected = () => Boolean(${expectedSource});
   const check = () => {
     const state = window.__pancakeWorkflowFeedback;
     if (state?.startedAt != null && state.observedAt == null && expected()) state.observedAt = performance.now();
   };
-  const start = (event) => {
-    if (!event.isTrusted || window.__pancakeWorkflowFeedback.startedAt != null) return;
-    window.__pancakeWorkflowFeedback.startedAt = performance.now();
-    queueMicrotask(check);
+  const listeners = [];
+  const record = (event) => {
+    const state = window.__pancakeWorkflowFeedback;
+    if (!state) return;
+    const observedAt = performance.now();
+    state.events.push({ type: event.type, observedAt, timeStamp: event.timeStamp, isTrusted: event.isTrusted });
+    if (event.isTrusted && state.startedAt == null && ['pointerdown', 'keydown', 'input'].includes(event.type)) {
+      state.startedAt = observedAt;
+      queueMicrotask(check);
+    }
   };
-  window.addEventListener('pointerdown', start, { capture: true, once: true });
-  window.addEventListener('keydown', start, { capture: true, once: true });
-  window.addEventListener('input', start, { capture: true, once: true });
+  for (const type of ['pointerdown', 'pointerup', 'click', 'keydown', 'input']) {
+    window.addEventListener(type, record, { capture: true, once: true });
+    listeners.push([type, record]);
+  }
   window.__pancakeWorkflowFeedbackObserver = new MutationObserver(check);
   window.__pancakeWorkflowFeedbackObserver.observe(document.documentElement, {
     subtree: true, childList: true, attributes: true, characterData: true,
   });
+  if ('PerformanceObserver' in window && PerformanceObserver.supportedEntryTypes?.includes('event')) {
+    try {
+      window.__pancakeWorkflowEventObserver = new PerformanceObserver((list) => {
+        const state = window.__pancakeWorkflowFeedback;
+        if (!state) return;
+        for (const entry of list.getEntries()) {
+          state.eventTimings.push({
+            name: entry.name,
+            startTime: entry.startTime,
+            duration: entry.duration,
+            processingStart: entry.processingStart,
+            processingEnd: entry.processingEnd,
+            interactionId: entry.interactionId,
+          });
+        }
+      });
+      window.__pancakeWorkflowEventObserver.observe({ type: 'event', buffered: true, durationThreshold: 16 });
+    } catch {}
+  }
+  window.__pancakeWorkflowFeedbackCleanup = () => {
+    for (const [type, listener] of listeners) window.removeEventListener(type, listener, { capture: true });
+    window.__pancakeWorkflowFeedbackObserver?.disconnect?.();
+    window.__pancakeWorkflowEventObserver?.disconnect?.();
+  };
   return JSON.stringify({ ok: true, expectedBeforeAction: expected() });
 })()`)
 
@@ -263,13 +296,19 @@ const collectFeedback = async (browser, session, interaction, target) => {
     while (performance.now() < deadline) {
       const state = window.__pancakeWorkflowFeedback;
       if (state?.startedAt != null && state.observedAt != null) {
-        window.__pancakeWorkflowFeedbackObserver?.disconnect?.();
-        return JSON.stringify({ feedbackMs: Math.round((state.observedAt - state.startedAt) * 10) / 10, observed: true });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        window.__pancakeWorkflowFeedbackCleanup?.();
+        return JSON.stringify({
+          feedbackMs: Math.round((state.observedAt - state.startedAt) * 10) / 10,
+          observed: true,
+          events: state.events,
+          eventTimings: state.eventTimings,
+        });
       }
       await new Promise((resolve) => setTimeout(resolve, 16));
     }
     const state = window.__pancakeWorkflowFeedback;
-    window.__pancakeWorkflowFeedbackObserver?.disconnect?.();
+    window.__pancakeWorkflowFeedbackCleanup?.();
     return JSON.stringify({
       observed: false,
       state,

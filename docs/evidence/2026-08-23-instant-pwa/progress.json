@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-24T00:56:59Z",
+  "updatedAt": "2026-08-24T02:08:28Z",
   "resumedAt": "2026-08-23T21:17:00Z",
   "deadlineRemovedByUser": true,
   "branchHead": "e3b426108718659792c84ddb74a5ff54195e2801",
@@ -10,7 +10,7 @@
     "ports": [54321, 54322, 54323, 54324, 8081, 19006]
   },
   "finalRuntimeState": {
-    "observedAt": "2026-08-24T00:56:59Z",
+    "observedAt": "2026-08-24T02:08:28Z",
     "runtimeCondition": "No deadline or time limit. Continue until every acceptance item passes.",
     "initialServiceStateRestored": false,
     "activeLocalVerification": true,
@@ -413,6 +413,21 @@
         "fullSoak": { "status": "pending" }
       },
       "evidence": ["soak/draft-realtime-work-reduction.json"]
+    },
+    {
+      "id": "home-feedback-attribution-and-cleanup",
+      "status": "complete",
+      "observedAt": "2026-08-24T02:08:28Z",
+      "checks": {
+        "knownBadFeedback": { "status": "pass", "milliseconds": 251.8, "budgetMilliseconds": 100 },
+        "attributedNormalRepeats": { "status": "pass", "runs": 9, "maximumMilliseconds": 37.2 },
+        "attributedStress": { "status": "pass", "samples": 100, "p95Milliseconds": 22.5, "maximumMilliseconds": 46.9 },
+        "knownBadCleanup": { "status": "pass", "result": "auction completion left a nomination audit reference that blocked draft deletion" },
+        "cleanupRecovery": { "status": "pass", "exactFixtureRemoved": true },
+        "regressions": { "status": "pass", "files": 113, "tests": 642, "qualityGate": "pass" },
+        "fullSoak": { "status": "pending" }
+      },
+      "evidence": ["soak/home-feedback-cleanup-recovery.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -482,5 +497,5 @@
       "missingEvidence": ["repeat the pruning audit after the final behavior change"]
     }
   ],
-  "nextAction": "Commit the verified draft realtime fix, rebuild matching release artifacts, seed a fresh fixture, and rerun all 20 seasons."
+  "nextAction": "Commit the attributed feedback and cleanup wave, rebuild matching release artifacts, seed a fresh fixture, and rerun all 20 seasons."
 }

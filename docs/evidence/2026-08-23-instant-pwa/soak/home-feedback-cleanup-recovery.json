@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "observedAt": "2026-08-24T02:08:28Z",
+  "feedbackBudgetMilliseconds": 100,
+  "knownBad": {
+    "fullSoakSeason": 2,
+    "feedbackMilliseconds": 251.8,
+    "interaction": "lineup-day-select",
+    "homeMaximumHeartbeatLagMilliseconds": 9,
+    "homeLongTasks": 0,
+    "homeFullLoadMilliseconds": 702,
+    "homeWarmRequestMilliseconds": 25,
+    "result": "FAIL"
+  },
+  "attribution": {
+    "normalRuns": 9,
+    "normalMinimumFeedbackMilliseconds": 5,
+    "normalMaximumFeedbackMilliseconds": 37.2,
+    "normalMaximumPointerToClickMilliseconds": 3.6,
+    "normalMaximumClickToObservedMilliseconds": 34.9,
+    "normalFailures": 0,
+    "stressSamples": 100,
+    "stressMinimumFeedbackMilliseconds": 2.5,
+    "stressMedianFeedbackMilliseconds": 5.9,
+    "stressP95FeedbackMilliseconds": 22.5,
+    "stressP99FeedbackMilliseconds": 39.3,
+    "stressMaximumFeedbackMilliseconds": 46.9,
+    "stressMaximumPointerToClickMilliseconds": 10,
+    "stressMaximumClickToObservedMilliseconds": 44.2,
+    "stressSamplesOverBudget": 0,
+    "result": "The isolated delay did not reproduce across 109 measured follow-up interactions. Event timing remains enabled for the next full soak."
+  },
+  "cleanupKnownBad": {
+    "trigger": "The 100-sample run outlived the auction countdown and completed the nomination.",
+    "failure": "Disposable draft deletion was blocked by a roster transaction that referenced the completed nomination.",
+    "secondaryFailure": "League deletion then encountered draft order member references because draft deletion had failed.",
+    "result": "FAIL"
+  },
+  "cleanupChange": {
+    "result": "Disposable league cleanup deletes its roster audit rows before its draft graph.",
+    "focusedTests": 65,
+    "focusedTestFiles": 3,
+    "exactLeakedFixtureRemoved": true,
+    "resultStatus": "PASS"
+  },
+  "regressions": {
+    "status": "PASS",
+    "testFiles": 113,
+    "tests": 642,
+    "qualityGate": "PASS",
+    "surfaceMatrix": { "routes": 23, "backgrounds": 5, "dataClasses": 19, "functions": 21 }
+  },
+  "scope": "This evidence does not replace the required 20-season pass."
+}
