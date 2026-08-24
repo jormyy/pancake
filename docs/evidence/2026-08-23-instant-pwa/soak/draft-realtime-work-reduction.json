@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "observedAt": "2026-08-24T00:56:59Z",
+  "budgetMilliseconds": 50,
+  "knownBad": {
+    "releaseSoak": {
+      "season": 4,
+      "maximumLongTaskMilliseconds": 69,
+      "result": "FAIL"
+    },
+    "renderSchedulingExperiment": {
+      "maximumLongTaskMilliseconds": 166,
+      "result": "FAIL",
+      "disposition": "reverted because it did not remove the defect"
+    },
+    "attributedRepeat": {
+      "season": 9,
+      "maximumHeartbeatLagMilliseconds": 58,
+      "longTaskMilliseconds": [88, 76],
+      "longAnimationFrames": 0,
+      "result": "FAIL"
+    },
+    "subscriptionContract": {
+      "expectedWatches": 3,
+      "observedWatches": 4,
+      "duplicateSignal": "Each atomic bid updated nominations and inserted bids, while the draft subscriber watched both tables."
+    }
+  },
+  "change": {
+    "result": "The draft subscriber now reloads from the nomination signal and no longer watches the redundant bid insert.",
+    "retainedWatches": [
+      "nominations by draft_id",
+      "draft_budgets by draft_id",
+      "drafts UPDATE by id"
+    ],
+    "focusedContractTest": "PASS"
+  },
+  "postFixRepeats": [
+    { "season": 91, "mutations": 24, "elapsedMilliseconds": 3225, "maximumLagMilliseconds": 8, "longTasks": 0, "longAnimationFrames": 0 },
+    { "season": 92, "mutations": 24, "elapsedMilliseconds": 3531, "maximumLagMilliseconds": 9, "longTasks": 0, "longAnimationFrames": 0 },
+    { "season": 93, "mutations": 24, "elapsedMilliseconds": 3644, "maximumLagMilliseconds": 8, "longTasks": 0, "longAnimationFrames": 0 },
+    { "season": 94, "mutations": 24, "elapsedMilliseconds": 4428, "maximumLagMilliseconds": 9, "longTasks": 0, "longAnimationFrames": 0 },
+    { "season": 95, "mutations": 24, "elapsedMilliseconds": 3634, "maximumLagMilliseconds": 10, "longTasks": 0, "longAnimationFrames": 0 },
+    { "season": 96, "mutations": 24, "elapsedMilliseconds": 4436, "maximumLagMilliseconds": 10, "longTasks": 0, "longAnimationFrames": 0 }
+  ],
+  "summary": {
+    "repeats": 6,
+    "mutations": 144,
+    "maximumLagMilliseconds": 10,
+    "longTasks": 0,
+    "longAnimationFrames": 0,
+    "result": "PASS"
+  },
+  "regressions": {
+    "status": "PASS",
+    "testFiles": 113,
+    "tests": 642,
+    "qualityGate": "PASS",
+    "surfaceMatrix": { "routes": 23, "backgrounds": 5, "dataClasses": 19, "functions": 21 }
+  },
+  "scope": "This evidence proves the measured local release path. The 20-season soak remains required."
+}

@@ -1,19 +1,17 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-23T22:22:41Z",
-  "deadline": "2026-08-23T13:30:00-07:00",
+  "updatedAt": "2026-08-24T00:56:59Z",
   "resumedAt": "2026-08-23T21:17:00Z",
   "deadlineRemovedByUser": true,
-  "branchHead": "449cc08384960d1a1ec980a88743ca64032e7305",
+  "branchHead": "e3b426108718659792c84ddb74a5ff54195e2801",
   "initialServices": {
     "supabase": "stopped",
     "frontend": "stopped",
     "ports": [54321, 54322, 54323, 54324, 8081, 19006]
   },
   "finalRuntimeState": {
-    "observedAt": "2026-08-23T22:22:41Z",
-    "deadlineReached": true,
-    "deadlineApplicable": false,
+    "observedAt": "2026-08-24T00:56:59Z",
+    "runtimeCondition": "No deadline or time limit. Continue until every acceptance item passes.",
     "initialServiceStateRestored": false,
     "activeLocalVerification": true,
     "closedPorts": [],
@@ -402,6 +400,19 @@
         "regressions": { "status": "pass", "files": 112, "tests": 641, "qualityGate": "pass" }
       },
       "evidence": ["soak/route-open-recovery.json"]
+    },
+    {
+      "id": "draft-realtime-work-reduction",
+      "status": "complete",
+      "observedAt": "2026-08-24T00:56:59Z",
+      "checks": {
+        "knownBad": { "status": "pass", "maximumLongTaskMilliseconds": 166, "budgetMilliseconds": 50 },
+        "causalContract": { "status": "pass", "watchesBefore": 4, "watchesAfter": 3 },
+        "postFixRepeats": { "status": "pass", "runs": 6, "mutations": 144, "maximumLagMilliseconds": 10, "longTasks": 0 },
+        "regressions": { "status": "pass", "files": 113, "tests": 642, "qualityGate": "pass" },
+        "fullSoak": { "status": "pending" }
+      },
+      "evidence": ["soak/draft-realtime-work-reduction.json"]
     }
   ],
   "acceptanceCriteria": [
@@ -471,5 +482,5 @@
       "missingEvidence": ["repeat the pruning audit after the final behavior change"]
     }
   ],
-  "nextAction": "Rebuild and seed the settle-aware local release environment, then rerun all 20 seasons and enforce every matrix evidence id."
+  "nextAction": "Commit the verified draft realtime fix, rebuild matching release artifacts, seed a fresh fixture, and rerun all 20 seasons."
 }

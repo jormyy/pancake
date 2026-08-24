@@ -1,0 +1,981 @@
+{
+  "status": "FAIL",
+  "season": 4,
+  "artifactDir": "/Users/michaelchen/Projects/Apps/pancake/tests/artifacts/season-4/browser-perf",
+  "auction": {
+    "leagueId": "fab8369a-6124-45ad-91d3-a80dff8c79f7",
+    "draftId": "c4c3b2b8-e85d-4b5c-91b9-53340e4a3200",
+    "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+    "playerId": "0671609c-093c-4a2c-8b17-dfa76335d473"
+  },
+  "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+  "load": {
+    "draft": {
+      "count": 24,
+      "durationMs": 813,
+      "mutations": [
+        {
+          "bidAmount": 2,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 1,
+          "awayPoints": 2
+        },
+        {
+          "bidAmount": 3,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 2,
+          "awayPoints": 3
+        },
+        {
+          "bidAmount": 4,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 3,
+          "awayPoints": 4
+        },
+        {
+          "bidAmount": 5,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 4,
+          "awayPoints": 5
+        },
+        {
+          "bidAmount": 6,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 5,
+          "awayPoints": 6
+        },
+        {
+          "bidAmount": 7,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 6,
+          "awayPoints": 7
+        },
+        {
+          "bidAmount": 8,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 7,
+          "awayPoints": 8
+        },
+        {
+          "bidAmount": 9,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 8,
+          "awayPoints": 9
+        },
+        {
+          "bidAmount": 10,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 9,
+          "awayPoints": 10
+        },
+        {
+          "bidAmount": 11,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 10,
+          "awayPoints": 11
+        },
+        {
+          "bidAmount": 12,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 11,
+          "awayPoints": 12
+        },
+        {
+          "bidAmount": 13,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 12,
+          "awayPoints": 13
+        },
+        {
+          "bidAmount": 14,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 13,
+          "awayPoints": 14
+        },
+        {
+          "bidAmount": 15,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 14,
+          "awayPoints": 15
+        },
+        {
+          "bidAmount": 16,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 15,
+          "awayPoints": 16
+        },
+        {
+          "bidAmount": 17,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 16,
+          "awayPoints": 17
+        },
+        {
+          "bidAmount": 18,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 17,
+          "awayPoints": 18
+        },
+        {
+          "bidAmount": 19,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 18,
+          "awayPoints": 19
+        },
+        {
+          "bidAmount": 20,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 19,
+          "awayPoints": 20
+        },
+        {
+          "bidAmount": 21,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 20,
+          "awayPoints": 21
+        },
+        {
+          "bidAmount": 22,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 21,
+          "awayPoints": 22
+        },
+        {
+          "bidAmount": 23,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 22,
+          "awayPoints": 23
+        },
+        {
+          "bidAmount": 24,
+          "bidderId": "96f43ee5-71c1-4e7a-94b1-229f5a5eb365",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 23,
+          "awayPoints": 24
+        },
+        {
+          "bidAmount": 25,
+          "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+          "nominationId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 24,
+          "awayPoints": 25
+        }
+      ],
+      "visibleUpdate": {
+        "kind": "auction-bid",
+        "entityId": "d6d4b65e-9f3a-4caf-8338-0a07029df54d",
+        "bidAmount": 25,
+        "bidderId": "e2b886c5-df8b-4fb1-93bc-bec58cfe01c6",
+        "leaderText": "You're leading",
+        "observed": true,
+        "observedText": "$25 | You're leading | 24 bids"
+      }
+    },
+    "home": {
+      "count": 24,
+      "durationMs": 77,
+      "mutations": [
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 1,
+          "awayPoints": 2
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 2,
+          "awayPoints": 3
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 3,
+          "awayPoints": 4
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 4,
+          "awayPoints": 5
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 5,
+          "awayPoints": 6
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 6,
+          "awayPoints": 7
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 7,
+          "awayPoints": 8
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 8,
+          "awayPoints": 9
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 9,
+          "awayPoints": 10
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 10,
+          "awayPoints": 11
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 11,
+          "awayPoints": 12
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 12,
+          "awayPoints": 13
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 13,
+          "awayPoints": 14
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 14,
+          "awayPoints": 15
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 15,
+          "awayPoints": 16
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 16,
+          "awayPoints": 17
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 17,
+          "awayPoints": 18
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 18,
+          "awayPoints": 19
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 19,
+          "awayPoints": 20
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 20,
+          "awayPoints": 21
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 21,
+          "awayPoints": 22
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 22,
+          "awayPoints": 23
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 23,
+          "awayPoints": 24
+        },
+        {
+          "bidAmount": null,
+          "bidderId": null,
+          "nominationId": null,
+          "matchupId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+          "homePoints": 24,
+          "awayPoints": 25
+        }
+      ],
+      "visibleUpdate": {
+        "kind": "matchup-score",
+        "entityId": "2a8a354b-9986-4c4a-ac12-172c7fda8ee3",
+        "homePoints": 24,
+        "awayPoints": 25,
+        "observed": true,
+        "observedText": "24.0 vs 25.0"
+      }
+    },
+    "durationMs": 813
+  },
+  "draftFeedback": {
+    "feedbackMs": 6.2,
+    "observed": true,
+    "interaction": "auction-increase-bid",
+    "target": "Increase bid"
+  },
+  "draftPerf": {
+    "ticks": 38,
+    "maxLagMs": 189,
+    "elapsedMs": 3987,
+    "longTaskCount": 1,
+    "maxLongTaskMs": 166,
+    "longTaskSupported": true,
+    "bodyTextSample": "B\nPancake E2E\n\n\n\nAuction Draft\n$1000 left\nCOMMISSIONER\nPause\nReset\nStop\nON THE BLOCK\nA.J. Lawson\nTOR · G\n$25\nYou're leading\n0:26\nBID HISTORY\n24 bids\nHigh\nbrowser performance Seed 1\n5:27 PM\n$25\n#23\nbrowser performance Seed 2\n5:27 PM\n$24\n#22\nbrowser performance Seed 1\n5:27 PM\n$23\n#21\nbrowser performance Seed 2\n5:27 PM\n$22\n#20\nbrowser performance Seed 1\n5:27 PM\n$21\n#19\nbrowser performance Seed 2\n5:27 PM\n$20\nBudgets\nHistory (0)\nbrowser performance Seed 1 (you)\n0 won\n$1000\nbrowser performance Seed"
+  },
+  "homePerf": {
+    "ticks": 31,
+    "maxLagMs": 10,
+    "elapsedMs": 3147,
+    "longTaskCount": 0,
+    "maxLongTaskMs": 0,
+    "longTaskSupported": true,
+    "bodyTextSample": "B\nPancake E2E\n\n\nWEEK 1\nIn Progress\nbrowser performance Seed 1\nPancak 0-0\n24.0\nvs\nbrowser performance Seed 2\nPancak 0-0\n25.0\n24.0\nOpp +1.0\n25.0\nLineup\nAUTO\nM\n17\nT\n18\nW\n19\nR\n20\nF\n21\nS\n22\nS\n23\nSTARTERS\n10\n—\nNo starter\n—\n—\nPG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nSG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nSF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nPF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nC\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nG\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nF\nNo starter\n—\n—\n—\n—\nNo starter\n—\n—\nUTIL\nNo starter\n—\n—\n—\n—"
+  },
+  "initialJavaScriptDelivery": {
+    "scriptCount": 11,
+    "scriptUrls": [
+      "http://127.0.0.1:8081/_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/__common-ed53d03cdf831006328838118e5abe10.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/index-731da4adde463d6e8f5c7acacaa87a7c.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/_layout-18fead3840b1499a759f2be317b967e9.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/_layout-04ec5bc56d24526b4b8757943e26f744.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+      "http://127.0.0.1:8081/_expo/static/js/web/sign-in-f64011b42286259deb49bfdf033284a7.js"
+    ],
+    "scriptEntries": [
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "name": "__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "initiator": "script",
+        "transferSize": 1685,
+        "encodedBodySize": 1385,
+        "decodedBodySize": 3802
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+        "name": "entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+        "initiator": "script",
+        "transferSize": 213138,
+        "encodedBodySize": 212838,
+        "decodedBodySize": 971542
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/__common-ed53d03cdf831006328838118e5abe10.js",
+        "name": "__common-ed53d03cdf831006328838118e5abe10.js",
+        "initiator": "script",
+        "transferSize": 329364,
+        "encodedBodySize": 329064,
+        "decodedBodySize": 1708335
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+        "name": "_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+        "initiator": "script",
+        "transferSize": 454,
+        "encodedBodySize": 154,
+        "decodedBodySize": 245
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/index-731da4adde463d6e8f5c7acacaa87a7c.js",
+        "name": "index-731da4adde463d6e8f5c7acacaa87a7c.js",
+        "initiator": "script",
+        "transferSize": 17644,
+        "encodedBodySize": 17344,
+        "decodedBodySize": 67187
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-18fead3840b1499a759f2be317b967e9.js",
+        "name": "_layout-18fead3840b1499a759f2be317b967e9.js",
+        "initiator": "script",
+        "transferSize": 3140,
+        "encodedBodySize": 2840,
+        "decodedBodySize": 10630
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-04ec5bc56d24526b4b8757943e26f744.js",
+        "name": "_layout-04ec5bc56d24526b4b8757943e26f744.js",
+        "initiator": "script",
+        "transferSize": 575,
+        "encodedBodySize": 275,
+        "decodedBodySize": 482
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+        "name": "_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+        "initiator": "script",
+        "transferSize": 869,
+        "encodedBodySize": 569,
+        "decodedBodySize": 2192
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+        "name": "_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+        "initiator": "script",
+        "transferSize": 976,
+        "encodedBodySize": 676,
+        "decodedBodySize": 2367
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+        "name": "_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+        "initiator": "script",
+        "transferSize": 10894,
+        "encodedBodySize": 10594,
+        "decodedBodySize": 44722
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/sign-in-f64011b42286259deb49bfdf033284a7.js",
+        "name": "sign-in-f64011b42286259deb49bfdf033284a7.js",
+        "initiator": "script",
+        "transferSize": 1508,
+        "encodedBodySize": 1208,
+        "decodedBodySize": 2725
+      }
+    ],
+    "networkEntryCount": 11,
+    "webJsEncodedKb": 563.4,
+    "webJsWireKb": 566.6,
+    "webJsTransferKb": 563.4,
+    "routeJsWireKb": 566.6,
+    "routeJsEncodedKb": 563.4,
+    "routeJsDecodedKb": 2748.3,
+    "routeJsLedger": [
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "name": "__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "transferSize": 1685,
+        "encodedBodySize": 1385,
+        "decodedBodySize": 3802
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+        "name": "entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+        "transferSize": 213138,
+        "encodedBodySize": 212838,
+        "decodedBodySize": 971542
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/__common-ed53d03cdf831006328838118e5abe10.js",
+        "name": "__common-ed53d03cdf831006328838118e5abe10.js",
+        "transferSize": 329364,
+        "encodedBodySize": 329064,
+        "decodedBodySize": 1708335
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+        "name": "_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+        "transferSize": 454,
+        "encodedBodySize": 154,
+        "decodedBodySize": 245
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/index-731da4adde463d6e8f5c7acacaa87a7c.js",
+        "name": "index-731da4adde463d6e8f5c7acacaa87a7c.js",
+        "transferSize": 17644,
+        "encodedBodySize": 17344,
+        "decodedBodySize": 67187
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-18fead3840b1499a759f2be317b967e9.js",
+        "name": "_layout-18fead3840b1499a759f2be317b967e9.js",
+        "transferSize": 3140,
+        "encodedBodySize": 2840,
+        "decodedBodySize": 10630
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-04ec5bc56d24526b4b8757943e26f744.js",
+        "name": "_layout-04ec5bc56d24526b4b8757943e26f744.js",
+        "transferSize": 575,
+        "encodedBodySize": 275,
+        "decodedBodySize": 482
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+        "name": "_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+        "transferSize": 869,
+        "encodedBodySize": 569,
+        "decodedBodySize": 2192
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+        "name": "_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+        "transferSize": 976,
+        "encodedBodySize": 676,
+        "decodedBodySize": 2367
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+        "name": "_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+        "transferSize": 10894,
+        "encodedBodySize": 10594,
+        "decodedBodySize": 44722
+      },
+      {
+        "url": "http://127.0.0.1:8081/_expo/static/js/web/sign-in-f64011b42286259deb49bfdf033284a7.js",
+        "name": "sign-in-f64011b42286259deb49bfdf033284a7.js",
+        "transferSize": 1508,
+        "encodedBodySize": 1208,
+        "decodedBodySize": 2725
+      }
+    ],
+    "routeJsEntryCount": 11,
+    "routeJsNetworkEntryCount": 11,
+    "routeJsCacheHit": false
+  },
+  "provenance": {
+    "commitSha": "e3b426108718659792c84ddb74a5ff54195e2801",
+    "bundleDigest": "df02e3096cd0dea41ab89f2dfe38a632c244330eae7ba5fd0f8674546624ab6b",
+    "runId": "local-e3b426108718-df02e3096cd0"
+  },
+  "navigationDiagnostics": {
+    "activeAuctionOpen": {
+      "wallMs": 254,
+      "pageState": {
+        "performanceNow": 245,
+        "pageReady": false,
+        "activeReady": false
+      }
+    },
+    "coldHome": {
+      "wallMs": 1343,
+      "firstPageState": {
+        "url": "http://127.0.0.1:8081/?e2e_perf_cold=1787531174219",
+        "performanceNow": 1131,
+        "auctionReady": false,
+        "homeReady": true
+      }
+    },
+    "measuredAuction": {
+      "wallMs": 795,
+      "firstPageState": {
+        "url": "http://127.0.0.1:8081/draft-room?draftId=c4c3b2b8-e85d-4b5c-91b9-53340e4a3200&e2e_perf_nav=1787531211805",
+        "performanceNow": 565,
+        "auctionReady": false,
+        "homeReady": false
+      }
+    },
+    "measuredHome": {
+      "wallMs": 3237,
+      "firstPageState": {
+        "url": "http://127.0.0.1:8081/?e2e_perf_nav=1787531240648",
+        "performanceNow": 2978,
+        "auctionReady": false,
+        "homeReady": false
+      }
+    }
+  },
+  "workflowMeasurements": [
+    {
+      "id": "auction-draft-room",
+      "route": "/draft-room?draftId=c4c3b2b8-e85d-4b5c-91b9-53340e4a3200",
+      "feedbackMs": 6.2,
+      "navigationLoadMs": 141,
+      "cachedRequestMs": 408,
+      "requestCount": 14,
+      "requestEvidence": "fetch-or-xhr-duration",
+      "domContentLoadedMs": 140,
+      "responseEndMs": 56,
+      "transferSize": 0,
+      "encodedBodySize": 46010,
+      "scriptCount": 11,
+      "scriptUrls": [
+        "http://127.0.0.1:8081/_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/__common-ed53d03cdf831006328838118e5abe10.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/index-731da4adde463d6e8f5c7acacaa87a7c.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-18fead3840b1499a759f2be317b967e9.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-04ec5bc56d24526b4b8757943e26f744.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/draft-room-a7b0e3129dacc8207dc50f0aed518d78.js"
+      ],
+      "scriptEntries": [
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+          "name": "__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 3802,
+          "decodedBodySize": 3802
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/__common-ed53d03cdf831006328838118e5abe10.js",
+          "name": "__common-ed53d03cdf831006328838118e5abe10.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 1708335,
+          "decodedBodySize": 1708335
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+          "name": "entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 971542,
+          "decodedBodySize": 971542
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+          "name": "_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 245,
+          "decodedBodySize": 245
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/index-731da4adde463d6e8f5c7acacaa87a7c.js",
+          "name": "index-731da4adde463d6e8f5c7acacaa87a7c.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 67187,
+          "decodedBodySize": 67187
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-18fead3840b1499a759f2be317b967e9.js",
+          "name": "_layout-18fead3840b1499a759f2be317b967e9.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 10630,
+          "decodedBodySize": 10630
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-04ec5bc56d24526b4b8757943e26f744.js",
+          "name": "_layout-04ec5bc56d24526b4b8757943e26f744.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 482,
+          "decodedBodySize": 482
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+          "name": "_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 2192,
+          "decodedBodySize": 2192
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+          "name": "_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 2367,
+          "decodedBodySize": 2367
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+          "name": "_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 44722,
+          "decodedBodySize": 44722
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/draft-room-a7b0e3129dacc8207dc50f0aed518d78.js",
+          "name": "draft-room-a7b0e3129dacc8207dc50f0aed518d78.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 40998,
+          "decodedBodySize": 40998
+        }
+      ],
+      "networkEntryCount": 0,
+      "webJsEncodedKb": 0,
+      "webJsWireKb": 0,
+      "webJsTransferKb": 0,
+      "routeJsWireKb": 0,
+      "routeJsEncodedKb": 40,
+      "routeJsDecodedKb": 40,
+      "routeJsLedger": [
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/draft-room-a7b0e3129dacc8207dc50f0aed518d78.js",
+          "name": "draft-room-a7b0e3129dacc8207dc50f0aed518d78.js",
+          "transferSize": 0,
+          "encodedBodySize": 40998,
+          "decodedBodySize": 40998
+        }
+      ],
+      "routeJsEntryCount": 1,
+      "routeJsNetworkEntryCount": 0,
+      "routeJsCacheHit": true,
+      "fullLoadMs": 433,
+      "readyState": true,
+      "coldFullLoadMs": 433,
+      "warmCachedRequestMs": 408,
+      "warmRequestCount": 14,
+      "warmRequestEvidence": "fetch-or-xhr-duration",
+      "feedbackObserved": true,
+      "feedbackInteraction": "auction-increase-bid",
+      "routeWebJsKb": 0
+    },
+    {
+      "id": "home-live-lineup",
+      "route": "/",
+      "feedbackMs": 8.7,
+      "navigationLoadMs": 2969,
+      "cachedRequestMs": 154,
+      "requestCount": 3,
+      "requestEvidence": "fetch-or-xhr-duration",
+      "domContentLoadedMs": 2959,
+      "responseEndMs": 1739,
+      "transferSize": 0,
+      "encodedBodySize": 46010,
+      "scriptCount": 10,
+      "scriptUrls": [
+        "http://127.0.0.1:8081/_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/__common-ed53d03cdf831006328838118e5abe10.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/index-731da4adde463d6e8f5c7acacaa87a7c.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-18fead3840b1499a759f2be317b967e9.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-04ec5bc56d24526b4b8757943e26f744.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+        "http://127.0.0.1:8081/_expo/static/js/web/_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js"
+      ],
+      "scriptEntries": [
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+          "name": "__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 3802,
+          "decodedBodySize": 3802
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/__common-ed53d03cdf831006328838118e5abe10.js",
+          "name": "__common-ed53d03cdf831006328838118e5abe10.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 1708335,
+          "decodedBodySize": 1708335
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+          "name": "entry-0c06bc7926be04f92ec36c3a89bc5027.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 971542,
+          "decodedBodySize": 971542
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+          "name": "_layout-9d0bc3ac9311befd61f6ee55ebcafb17.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 245,
+          "decodedBodySize": 245
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/index-731da4adde463d6e8f5c7acacaa87a7c.js",
+          "name": "index-731da4adde463d6e8f5c7acacaa87a7c.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 67187,
+          "decodedBodySize": 67187
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-18fead3840b1499a759f2be317b967e9.js",
+          "name": "_layout-18fead3840b1499a759f2be317b967e9.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 10630,
+          "decodedBodySize": 10630
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-04ec5bc56d24526b4b8757943e26f744.js",
+          "name": "_layout-04ec5bc56d24526b4b8757943e26f744.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 482,
+          "decodedBodySize": 482
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+          "name": "_layout-efd6a20678fc5345f88a34cc2c1571d7.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 2192,
+          "decodedBodySize": 2192
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+          "name": "_layout-aa0d811ebdba4f9513bef7a013f68d6b.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 2367,
+          "decodedBodySize": 2367
+        },
+        {
+          "url": "http://127.0.0.1:8081/_expo/static/js/web/_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+          "name": "_layout-26ca5cae4b71bcb414d3ce94fd995ee0.js",
+          "initiator": "script",
+          "transferSize": 0,
+          "encodedBodySize": 44722,
+          "decodedBodySize": 44722
+        }
+      ],
+      "networkEntryCount": 0,
+      "webJsEncodedKb": 0,
+      "webJsWireKb": 0,
+      "webJsTransferKb": 0,
+      "routeJsWireKb": 0,
+      "routeJsEncodedKb": 0,
+      "routeJsDecodedKb": 0,
+      "routeJsLedger": [],
+      "routeJsEntryCount": 0,
+      "routeJsNetworkEntryCount": 0,
+      "routeJsCacheHit": false,
+      "fullLoadMs": 1345,
+      "readyState": true,
+      "coldFullLoadMs": 1345,
+      "warmCachedRequestMs": 154,
+      "warmRequestCount": 3,
+      "warmRequestEvidence": "fetch-or-xhr-duration",
+      "feedbackObserved": true,
+      "feedbackInteraction": "lineup-day-select",
+      "initialWebJsKb": 563.4
+    }
+  ],
+  "thresholds": {
+    "maxHeartbeatLagMs": 600,
+    "maxScriptMs": 30000,
+    "maxFeedbackMs": 100,
+    "maxLongTaskMs": 50
+  },
+  "notes": [
+    "Frontend: http://127.0.0.1:8081",
+    "Session: pancake-perf-20260823231500-s4-41787",
+    "User: pancake-e2e-20260823231500-1@example.com",
+    "Presence peer: pancake-e2e-20260823231500-2@example.com",
+    "Mutation count: 24",
+    "No active sessions"
+  ],
+  "failures": [
+    "draft long task 166ms exceeded 50ms"
+  ]
+}

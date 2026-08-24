@@ -289,7 +289,9 @@ const installHeartbeat = async (session) => {
         startedAt: performance.now(),
         last: performance.now(),
         longTasks: [],
-        longTaskSupported: false
+        longTaskSupported: false,
+        longAnimationFrames: [],
+        longAnimationFrameSupported: false
       };
       if (window.__pancakePerfTimer) clearInterval(window.__pancakePerfTimer);
       window.__pancakePerfTimer = setInterval(() => {
@@ -303,11 +305,52 @@ const installHeartbeat = async (session) => {
         try {
           window.__pancakePerfObserver = new PerformanceObserver((list) => {
             for (const entry of list.getEntries()) {
-              window.__pancakePerf.longTasks.push({ name: entry.name, duration: entry.duration });
+              window.__pancakePerf.longTasks.push({
+                name: entry.name,
+                startTime: entry.startTime,
+                duration: entry.duration,
+                attribution: Array.from(entry.attribution || []).map((item) => ({
+                  name: item.name,
+                  entryType: item.entryType,
+                  containerType: item.containerType,
+                  containerName: item.containerName,
+                  containerId: item.containerId,
+                  containerSrc: item.containerSrc
+                }))
+              });
             }
           });
           window.__pancakePerfObserver.observe({ entryTypes: ['longtask'] });
           window.__pancakePerf.longTaskSupported = true;
+        } catch {}
+      }
+      if ('PerformanceObserver' in window && !window.__pancakeLoafObserver &&
+          PerformanceObserver.supportedEntryTypes?.includes('long-animation-frame')) {
+        try {
+          window.__pancakeLoafObserver = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              window.__pancakePerf.longAnimationFrames.push({
+                startTime: entry.startTime,
+                duration: entry.duration,
+                blockingDuration: entry.blockingDuration,
+                renderStart: entry.renderStart,
+                styleAndLayoutStart: entry.styleAndLayoutStart,
+                scripts: Array.from(entry.scripts || []).map((script) => ({
+                  sourceURL: script.sourceURL,
+                  sourceFunctionName: script.sourceFunctionName,
+                  invoker: script.invoker,
+                  invokerType: script.invokerType,
+                  startTime: script.startTime,
+                  duration: script.duration,
+                  executionStart: script.executionStart,
+                  forcedStyleAndLayoutDuration: script.forcedStyleAndLayoutDuration,
+                  pauseDuration: script.pauseDuration
+                }))
+              });
+            }
+          });
+          window.__pancakeLoafObserver.observe({ type: 'long-animation-frame', buffered: true });
+          window.__pancakePerf.longAnimationFrameSupported = true;
         } catch {}
       }
       return JSON.stringify({ ok: true });
@@ -327,6 +370,9 @@ const collectHeartbeat = async (session) => {
         longTaskCount: (perf.longTasks || []).length,
         maxLongTaskMs: Math.round(Math.max(0, ...(perf.longTasks || []).map((entry) => entry.duration || 0))),
         longTaskSupported: perf.longTaskSupported === true,
+        longTasks: perf.longTasks || [],
+        longAnimationFrameSupported: perf.longAnimationFrameSupported === true,
+        longAnimationFrames: perf.longAnimationFrames || [],
         bodyTextSample: (document.body?.innerText || '').slice(0, 500)
       });
     })()`,
