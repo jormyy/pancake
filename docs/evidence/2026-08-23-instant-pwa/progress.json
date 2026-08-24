@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-24T08:16:41.907Z",
+  "updatedAt": "2026-08-24T08:34:36Z",
   "resumedAt": "2026-08-23T21:17:00Z",
   "deadlineRemovedByUser": true,
   "branchHead": "e1492f8542fe70a9a6d8937509cb68a55385f832",
@@ -10,15 +10,15 @@
     "ports": [54321, 54322, 54323, 54324, 8081, 19006]
   },
   "finalRuntimeState": {
-    "observedAt": "2026-08-24T08:16:41.907Z",
+    "observedAt": "2026-08-24T08:34:36Z",
     "runtimeCondition": "No deadline or time limit. Continue until every acceptance item passes.",
-    "initialServiceStateRestored": false,
-    "activeLocalVerification": true,
-    "closedPorts": [],
+    "initialServiceStateRestored": true,
+    "activeLocalVerification": false,
+    "closedPorts": [54321, 54322, 54323, 54324, 8081, 19006],
     "protectedUnrelatedPort8082StillOpen": true,
-    "worktreeClean": false,
-    "goalComplete": false,
-    "remainingRequirement": "repeat the test-pruning audit after the final behavior change"
+    "worktreeClean": true,
+    "goalComplete": true,
+    "remainingRequirement": null
   },
   "units": [
     {
@@ -356,14 +356,26 @@
     },
     {
       "id": "expanded-test-pruning",
-      "status": "requires-repeat",
-      "observedAt": "2026-08-23T21:50:39Z",
+      "status": "complete",
+      "observedAt": "2026-08-24T08:34:36Z",
       "checks": {
-        "before": { "files": 112, "tests": 636, "wallSeconds": 2.14 },
-        "after": { "files": 112, "tests": 636, "wallSeconds": 2.10 },
+        "before": { "files": 113, "tests": 642, "vitestSeconds": 1.75, "wallSeconds": 2.1 },
+        "after": { "files": 113, "tests": 642, "vitestSeconds": 1.57, "wallSeconds": 1.9 },
         "removed": 0,
-        "coverage": "unavailable",
-        "mutationAudit": { "status": "pass", "mutations": 2 },
+        "coverage": "unavailable because the repository has no coverage command or installed Vitest coverage provider",
+        "suiteAudit": {
+          "status": "pass",
+          "assertionlessFiles": 0,
+          "skippedOrPendingTests": 0,
+          "exclusiveTests": 0,
+          "snapshots": 0
+        },
+        "mutationAudit": {
+          "status": "pass",
+          "mutations": 7,
+          "allTargetTestsFailed": true,
+          "allMutationsRestored": true
+        },
         "finalSuite": { "status": "pass" }
       },
       "evidence": ["expanded-test-pruning.md"]
@@ -498,9 +510,9 @@
     },
     {
       "id": "expanded-test-pruning",
-      "status": "pending",
-      "missingEvidence": ["repeat the pruning audit after the final behavior change"]
+      "status": "complete",
+      "missingEvidence": []
     }
   ],
-  "nextAction": "Repeat the test-pruning audit, run final verification, restore local services, and close the goal."
+  "nextAction": "Review the local commits and choose whether to push them."
 }
