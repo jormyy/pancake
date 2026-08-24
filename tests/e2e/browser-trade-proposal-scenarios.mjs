@@ -175,16 +175,32 @@ export async function runBrowserTradeScenario({
     return report
   } catch (error) {
     await browser(session, ['screenshot', path.join(artifactDir, 'failure.png')], { timeout: 60_000 }).catch(() => {})
+    await browser(counterSession, ['screenshot', path.join(artifactDir, 'counter-failure.png')], { timeout: 60_000 }).catch(() => {})
     const consoleOutput = await browser(session, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
     const errorOutput = await browser(session, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
     const networkOutput = await browser(session, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
+    const counterConsoleOutput = await browser(counterSession, ['console']).catch((consoleError) => `console unavailable: ${consoleError.message}`)
+    const counterErrorOutput = await browser(counterSession, ['errors']).catch((errorError) => `errors unavailable: ${errorError.message}`)
+    const counterNetworkOutput = await browser(counterSession, ['network', 'requests']).catch((networkError) => `network unavailable: ${networkError.message}`)
     await writeFile(path.join(artifactDir, 'console.txt'), `${consoleOutput}\n`).catch(() => {})
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`).catch(() => {})
     await writeFile(path.join(artifactDir, 'network.txt'), `${networkOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'counter-console.txt'), `${counterConsoleOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'counter-errors.txt'), `${counterErrorOutput}\n`).catch(() => {})
+    await writeFile(path.join(artifactDir, 'counter-network.txt'), `${counterNetworkOutput}\n`).catch(() => {})
     const tradeProposal = await verifyTradeProposal(fixture).catch((verifyError) => ({
       failures: [`verify unavailable: ${verifyError.message}`],
     }))
-    debug = { ...debug, tradeProposal, consoleOutput, errorOutput, networkOutput }
+    debug = {
+      ...debug,
+      tradeProposal,
+      consoleOutput,
+      errorOutput,
+      networkOutput,
+      counterConsoleOutput,
+      counterErrorOutput,
+      counterNetworkOutput,
+    }
     const report = {
       status: 'FAIL',
       season,
