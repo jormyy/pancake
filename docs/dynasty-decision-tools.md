@@ -10,6 +10,8 @@ This document defines the shared value engine for Dynasty Rankings and Trade Ana
 - League scoring adds value context. It does not reorder published ranks.
 - The engine keeps short-term points separate from long-term dynasty value.
 - Trade Analyzer always uses the 5-year outlook.
+- Each trade card opens the Analyzer from an Analyze control in its header, beside the
+  status badge; it is disabled while another trade action is in flight.
 - Analyzer experiments stay in session memory.
 - Make Offer needs an explicit action and confirmation.
 - The app does not call a trade won, lost, fair, unfair, approved, or rejected.

@@ -241,7 +241,7 @@ export default function PlayerDetailScreen() {
                 }
             } catch (refreshError) {
                 if (isCurrent(generation, requestedOwner)) {
-                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
+                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: getErrorMessage(refreshError) })
                 }
             }
         }
@@ -283,7 +283,7 @@ export default function PlayerDetailScreen() {
                 }
             } catch (refreshError) {
                 if (isCurrent(generation, requestedOwner)) {
-                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
+                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: getErrorMessage(refreshError) })
                 }
             }
         }
