@@ -3,32 +3,64 @@
  *   (no network round-trip on the critical path) and revalidate it in the
  *   background. New deploys still take over via the version-stamped worker
  *   update + controllerchange reload in +html.tsx.
- * - Fast repeat loads: same-origin static assets (hashed _expo / assets /
- *   fonts / images) use stale-while-revalidate.
+ * - Instant relaunch after a deploy: install precaches the shell *and* the
+ *   scripts/styles it boots from, so the reload that follows an update paints
+ *   from cache instead of re-downloading the whole bundle over the network.
+ * - Content-hashed assets are cache-first (the filename is the version, so a
+ *   hit can never be stale); everything else is stale-while-revalidate.
  * - Cross-origin requests (Supabase, realtime, external APIs) are never
  *   intercepted — the app's own offline/empty states handle them.
  */
-// Replaced with the release commit by scripts/stamp-release-provenance.mjs at
-// build time, so each deploy gets its own caches and drops the previous ones.
+// Both constants are replaced at build time by
+// scripts/stamp-release-provenance.mjs, so each deploy gets its own caches,
+// precaches its own bundle, and drops the previous deploy's entries.
 const VERSION = 'pancake-dev'
+const PRECACHE_URLS = ['/']
+
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const SHELL_URL = '/'
+// Content-hashed output: the filename changes whenever the bytes do. Covers the
+// bundle (/_expo/static) and the fonts and images the bundle asks for (/assets).
+const IMMUTABLE = /^\/(?:_expo\/static|assets)\//
+
+// Fetch one precache entry. A non-ok response is permanent (a stale manifest
+// entry) and is skipped; a rejected fetch is the network being unavailable, and
+// must fail the install rather than half-populate the cache.
+async function precache(cache, url) {
+  const response = await fetch(new Request(url, { cache: 'reload' }))
+  if (!response || !response.ok) return
+  await cache.put(url, response)
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.add(SHELL_URL)).then(() => self.skipWaiting()),
+    (async () => {
+      // Deliberately allowed to reject. Activation deletes the previous
+      // release's caches, so installing on a flaky link and then activating
+      // would leave a launch with neither release's assets. A rejected install
+      // is discarded and retried on the next update check, and the previous
+      // worker keeps serving in the meantime.
+      const shell = await caches.open(SHELL_CACHE)
+      await precache(shell, SHELL_URL)
+      const assets = await caches.open(ASSET_CACHE)
+      await Promise.all(
+        PRECACHE_URLS.filter((url) => url !== SHELL_URL).map((url) => precache(assets, url)),
+      )
+      await self.skipWaiting()
+    })(),
   )
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k))),
-      )
-      .then(() => self.clients.claim()),
+    (async () => {
+      // Only after install precached this version — dropping the previous
+      // deploy's entries before that would strand a launch with no assets.
+      const keys = await caches.keys()
+      await Promise.all(keys.filter((key) => !key.startsWith(VERSION)).map((key) => caches.delete(key)))
+      await self.clients.claim()
+    })(),
   )
 })
 
@@ -37,18 +69,25 @@ self.addEventListener('message', (event) => {
   event.ports?.[0]?.postMessage({ version: VERSION })
 })
 
-function staleWhileRevalidate(request) {
-  return caches.open(ASSET_CACHE).then((cache) =>
-    cache.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response && response.ok) cache.put(request, response.clone())
-          return response
-        })
-        .catch(() => cached)
-      return cached || network
-    }),
-  )
+async function cacheFirst(request) {
+  const cache = await caches.open(ASSET_CACHE)
+  const cached = await cache.match(request)
+  if (cached) return cached
+  const response = await fetch(request)
+  if (response && response.ok) cache.put(request, response.clone()).catch(() => {})
+  return response
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(ASSET_CACHE)
+  const cached = await cache.match(request)
+  const network = fetch(request)
+    .then((response) => {
+      if (response && response.ok) cache.put(request, response.clone()).catch(() => {})
+      return response
+    })
+    .catch(() => cached)
+  return cached || network
 }
 
 self.addEventListener('fetch', (event) => {
@@ -73,7 +112,7 @@ self.addEventListener('fetch', (event) => {
           new URL(response.url || request.url).pathname === SHELL_URL
         ) {
           const copy = response.clone()
-          caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy))
+          caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy)).catch(() => {})
         }
         return response
       })
@@ -85,11 +124,14 @@ self.addEventListener('fetch', (event) => {
           return cached
         }
         return refreshShell().catch(() => caches.match(request))
-      }),
+      }).catch(() => fetch(request)),
     )
     return
   }
 
-  // Static assets: stale-while-revalidate.
-  event.respondWith(staleWhileRevalidate(request))
+  event.respondWith(
+    (IMMUTABLE.test(url.pathname) ? cacheFirst(request) : staleWhileRevalidate(request))
+      // A cache that is evicted, disabled, or corrupt must never break a load.
+      .catch(() => fetch(request)),
+  )
 })

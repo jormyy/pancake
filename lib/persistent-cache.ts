@@ -6,8 +6,6 @@ type CacheEnvelope<T> = {
     value: T
 }
 
-type CacheReadOptions = { maxAgeMs?: number }
-
 const CACHE_PREFIX = 'pancake:'
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 const MAX_CACHE_ENTRIES = 64
@@ -102,13 +100,12 @@ function pruneMemoryCache(): void {
     }
 }
 
-export function readPersistentCache<T>(key: string, options: CacheReadOptions = {}): T | null {
-    const maxAgeMs = options.maxAgeMs ?? DEFAULT_MAX_AGE_MS
+export function readPersistentCache<T>(key: string): T | null {
     const storage = localStorageForCache()
     if (!storage) {
         const cached = memoryCache.get(key) as CacheEnvelope<T> | undefined
         if (!cached) return null
-        if (cached.version === 1 && isFresh(cached.savedAt, maxAgeMs)) return cached.value
+        if (cached.version === 1 && isFresh(cached.savedAt, DEFAULT_MAX_AGE_MS)) return cached.value
         memoryCache.delete(key)
         return null
     }
@@ -117,7 +114,7 @@ export function readPersistentCache<T>(key: string, options: CacheReadOptions = 
         const raw = storage.getItem(key)
         if (!raw) return null
         const parsed = JSON.parse(raw) as CacheEnvelope<T>
-        if (parsed.version === 1 && isFresh(parsed.savedAt, maxAgeMs)) return parsed.value
+        if (parsed.version === 1 && isFresh(parsed.savedAt, DEFAULT_MAX_AGE_MS)) return parsed.value
         removeStorageKey(storage, key)
         return null
     } catch {

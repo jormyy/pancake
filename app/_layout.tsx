@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { Platform } from 'react-native'
 import 'react-native-reanimated'
 
+import { colors } from '@/constants/tokens'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
@@ -27,8 +28,14 @@ export default function RootLayout() {
 
     // Web ships light-only (locked decision): never let react-navigation chrome
     // (modal/stack headers) follow the OS dark preference. Native keeps dark.
+    //
+    // The light theme's own background is a neutral grey, and the static export
+    // prerenders it into the root element — so a signed-out launch flashed grey
+    // over the cream document before React painted the real screen background.
     const navTheme =
-        Platform.OS !== 'web' && colorScheme === 'dark' ? DarkTheme : DefaultTheme
+        Platform.OS !== 'web' && colorScheme === 'dark'
+            ? DarkTheme
+            : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bgScreen } }
 
     return (
         <ThemeProvider value={navTheme}>

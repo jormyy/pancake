@@ -74,6 +74,8 @@
     "e2e:browser-waiver-drop": "node tests/e2e/browser-waiver-gameplay.mjs --drop",
     "e2e:browser-waiver-ir-block": "node tests/e2e/browser-waiver-gameplay.mjs --ir-block",
     "e2e:browser-trade": "node tests/e2e/browser-trade-gameplay.mjs",
+    "e2e:browser-pwa-launch": "node tests/e2e/browser-pwa-launch.mjs",
+    "e2e:pwa-update": "node tests/e2e/pwa-update.mjs",
     "e2e:dynasty-release-final-gate": "node tests/e2e/dynasty-release-final-gate.mjs",
     "e2e:dynasty-ranking-rpc": "node tests/e2e/dynasty-ranking-rpc.mjs",
     "e2e:web-static": "node tests/e2e/static-web-server.mjs",

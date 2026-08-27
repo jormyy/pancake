@@ -1,0 +1,198 @@
+{
+  "label": "baseline",
+  "kbps": "1600",
+  "rttMs": "150",
+  "at": "2026-08-27T21:21:07.667Z",
+  "measurements": [
+    {
+      "phase": "cold",
+      "route": "/",
+      "fcp": 2571,
+      "shellAt": null,
+      "mountAt": 2567,
+      "blankMs": 2571,
+      "rootNodes": 85,
+      "sw": true,
+      "load": 2497
+    },
+    {
+      "phase": "warm",
+      "route": "/",
+      "fcp": 2297,
+      "shellAt": null,
+      "mountAt": 2294,
+      "blankMs": 2297,
+      "rootNodes": 85,
+      "sw": true,
+      "load": 2260
+    },
+    {
+      "phase": "warm-repeat",
+      "route": "/",
+      "fcp": 49,
+      "shellAt": null,
+      "mountAt": 53,
+      "blankMs": 49,
+      "rootNodes": 85,
+      "sw": true,
+      "load": 27
+    },
+    {
+      "phase": "cold",
+      "route": "/roster",
+      "fcp": 324,
+      "shellAt": null,
+      "mountAt": 2531,
+      "blankMs": 324,
+      "rootNodes": 284,
+      "sw": true,
+      "load": 2456
+    },
+    {
+      "phase": "warm",
+      "route": "/roster",
+      "fcp": 2301,
+      "shellAt": null,
+      "mountAt": 2308,
+      "blankMs": 2301,
+      "rootNodes": 284,
+      "sw": true,
+      "load": 2268
+    },
+    {
+      "phase": "warm-repeat",
+      "route": "/roster",
+      "fcp": 59,
+      "shellAt": null,
+      "mountAt": 54,
+      "blankMs": 59,
+      "rootNodes": 284,
+      "sw": true,
+      "load": 28
+    },
+    {
+      "phase": "cold",
+      "route": "/players",
+      "fcp": 2525,
+      "shellAt": null,
+      "mountAt": 2536,
+      "blankMs": 2525,
+      "rootNodes": 755,
+      "sw": true,
+      "load": 2451
+    },
+    {
+      "phase": "warm",
+      "route": "/players",
+      "fcp": 2289,
+      "shellAt": null,
+      "mountAt": 2282,
+      "blankMs": 2289,
+      "rootNodes": 755,
+      "sw": true,
+      "load": 2260
+    },
+    {
+      "phase": "warm-repeat",
+      "route": "/players",
+      "fcp": 44,
+      "shellAt": null,
+      "mountAt": 41,
+      "blankMs": 44,
+      "rootNodes": 755,
+      "sw": true,
+      "load": 18
+    },
+    {
+      "phase": "cold",
+      "route": "/trades",
+      "fcp": 325,
+      "shellAt": null,
+      "mountAt": 2514,
+      "blankMs": 325,
+      "rootNodes": 332,
+      "sw": true,
+      "load": 2440
+    },
+    {
+      "phase": "warm",
+      "route": "/trades",
+      "fcp": 2270,
+      "shellAt": null,
+      "mountAt": 2274,
+      "blankMs": 2270,
+      "rootNodes": 332,
+      "sw": true,
+      "load": 2251
+    },
+    {
+      "phase": "warm-repeat",
+      "route": "/trades",
+      "fcp": 37,
+      "shellAt": null,
+      "mountAt": 43,
+      "blankMs": 37,
+      "rootNodes": 332,
+      "sw": true,
+      "load": 18
+    },
+    {
+      "phase": "in-app-nav",
+      "route": "/players",
+      "blankMs": null,
+      "navMs": 57,
+      "rootNodes": 75
+    },
+    {
+      "phase": "in-app-nav",
+      "route": "/trades",
+      "blankMs": null,
+      "navMs": 33,
+      "rootNodes": 75
+    },
+    {
+      "phase": "in-app-nav",
+      "route": "/roster",
+      "blankMs": null,
+      "navMs": 35,
+      "rootNodes": 75
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "the shell paints the cached identity and route before React mounts",
+      "pass": false,
+      "detail": "boot=false active=null league=\"null\" team=\"null\" initials=\"null\""
+    },
+    {
+      "name": "the shell paints before the app and hands off with no duplicate chrome",
+      "pass": false,
+      "detail": "shell=\u2014 mount=2498ms boot=false"
+    },
+    {
+      "name": "offline launch still reaches the app from cache",
+      "pass": true,
+      "detail": "nodes=85 text=\"Pancake MANAGER CONSOLE E Pancake E2E 202608\""
+    },
+    {
+      "name": "a corrupt session hides the chrome and still boots",
+      "pass": true,
+      "detail": "boot=false nodes=52 text=\"A calmer command center for serious \""
+    },
+    {
+      "name": "a wiped cache recovers from the network",
+      "pass": true,
+      "detail": "nodes=755"
+    },
+    {
+      "name": "after sign-out the next launch shows no app chrome",
+      "pass": true,
+      "detail": "boot=false text=\"A calmer command center for serious dyna\""
+    },
+    {
+      "name": "a different signed-in user paints their own team, never the previous one",
+      "pass": false,
+      "detail": "first=\"null\" (null) second=\"null\" (null)"
+    }
+  ]
+}

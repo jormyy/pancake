@@ -8,6 +8,7 @@ import {
 } from './browser-lineup-gameplay.mjs'
 import { runBrowserPerfSmoke } from './browser-perf-smoke.mjs'
 import { runBrowserPlayoffChampionScenario } from './browser-playoff-gameplay.mjs'
+import { runBrowserPwaLaunchScenario } from './browser-pwa-launch.mjs'
 import { runBrowserRookieDraftAutoPickScenario } from './browser-rookie-draft-gameplay.mjs'
 import { runBrowserSmoke } from './browser-smoke.mjs'
 import {
@@ -72,6 +73,7 @@ const standardRunners = {
   'waiver-drop': ({ season }) => runBrowserWaiverDropScenario({ season }),
   'waiver-ir-block': ({ season }) => runBrowserWaiverIrBlockScenario({ season }),
   'league-lifecycle': ({ season }) => runBrowserLeagueLifecycleScenario({ season }),
+  'pwa-launch': ({ season }) => runBrowserPwaLaunchScenario({ season }),
 }
 const tradeRunners = Object.fromEntries(TRADE_SCENARIOS.map((scenario) => [
   `trade-${scenario.id}`,

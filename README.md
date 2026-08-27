@@ -199,6 +199,13 @@ The web build (`npm run build:web:release` → `dist/`) ships light-only and ins
 as a PWA; `public/manifest.webmanifest` + `public/sw.js` provide install metadata and an
 offline app shell. API/realtime calls are never intercepted by the service worker.
 
+The exported document paints a static app shell before any JavaScript runs, and the
+build stamps the worker with a precache manifest of exactly what that shell boots from —
+so a deploy relaunches from disk instead of re-downloading the bundle. The stamp fails
+the build if the worker declares no manifest. When a release moves the bundle hashes,
+run `npm run e2e:pwa-update -- --previous=<dist-of-live-release> --next=dist` before
+promoting. See [docs/pwa-live-data.md](./docs/pwa-live-data.md).
+
 ## Documentation
 
 The `docs/` directory is indexed in [docs/README.md](./docs/README.md): operating plans,

@@ -29,6 +29,20 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
+const WORKER_TEMPLATE = [
+  "const VERSION = 'pancake-dev'",
+  "const PRECACHE_URLS = ['/']",
+  '',
+].join('\n')
+
+const SHELL_HTML =
+  '<html><head><link rel="stylesheet" href="/_expo/static/css/app.css"></head><body>' +
+  '<script src="/_expo/static/js/web/entry-abc.js" defer></script>' +
+  // Must not reach the manifest: the worker only serves its own origin.
+  '<script src="//cdn.example.com/off-origin.js" defer></script>' +
+  '<script src="https://cdn.example.com/absolute.js" defer></script>' +
+  '</body></html>'
+
 describe('release E2E contracts', () => {
   it('rejects mixed local and hosted E2E data targets', () => {
     expect(() => requireEnv({
@@ -229,12 +243,36 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('needs: release-soak')
   })
 
+  it('refuses to stamp a worker that declares no precache manifest', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-release-noprecache-'))
+    tempDirs.push(root)
+    await mkdir(path.join(root, 'dist'), { recursive: true })
+    await writeFile(path.join(root, 'dist', 'sw.js'), "const VERSION = 'pancake-dev'\n")
+    await writeFile(path.join(root, 'dist', 'index.html'), SHELL_HTML)
+    await Promise.all([
+      writeFile(path.join(root, 'app.json'), '{}\n'),
+      writeFile(path.join(root, 'package.json'), '{}\n'),
+      writeFile(path.join(root, 'package-lock.json'), '{}\n'),
+      writeFile(path.join(root, 'vercel.json'), '{}\n'),
+    ])
+    await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(
+      /PRECACHE_URLS/,
+    )
+  })
+
   it('stamps a self-consistent marker and build-specific cache version', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'pancake-release-bundle-'))
     tempDirs.push(root)
     await mkdir(path.join(root, 'dist'), { recursive: true })
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
-    await writeFile(path.join(root, 'dist', 'sw.js'), "const VERSION = 'pancake-dev'\n")
+    await writeFile(path.join(root, 'dist', 'sw.js'), WORKER_TEMPLATE)
+    await writeFile(path.join(root, 'dist', 'index.html'), SHELL_HTML)
+    await mkdir(path.join(root, 'dist', 'assets', 'fonts'), { recursive: true })
+    await writeFile(path.join(root, 'dist', 'assets', 'fonts', 'MaterialIcons.abc123.ttf'), 'font')
+    // A font the app never names must stay out, even though it is in the build.
+    await writeFile(path.join(root, 'dist', 'assets', 'fonts', 'Outfit_900Black.def456.ttf'), 'font')
+    await mkdir(path.join(root, 'app'), { recursive: true })
+    await writeFile(path.join(root, 'app', '_layout.tsx'), "import MaterialIcons from '@expo/vector-icons/MaterialIcons'\n")
     await Promise.all([
       writeFile(path.join(root, 'app.json'), '{}\n'),
       writeFile(path.join(root, 'package.json'), '{}\n'),
@@ -253,8 +291,22 @@ describe('release E2E contracts', () => {
 
     const firstWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
     expect(firstWorker).toMatch(/pancake-aaaaaaaaaaaa-[a-f0-9]{12}/)
+    // The worker must precache what the shell boots from, or the reload that
+    // follows an update re-downloads the whole bundle over the network.
+    expect(firstWorker).toContain(
+      `const PRECACHE_URLS = ${JSON.stringify([
+        '/',
+        '/_expo/static/css/app.css',
+        '/_expo/static/js/web/entry-abc.js',
+        // The bundle fetches the icon font, so the document never lists it; the
+        // real chrome renders empty boxes until it lands.
+        '/assets/fonts/MaterialIcons.abc123.ttf',
+        '/manifest.webmanifest',
+        '/pwa-192.png',
+      ])}`,
+    )
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("rebuilt release")\n')
-    await writeFile(path.join(root, 'dist', 'sw.js'), "const VERSION = 'pancake-dev'\n")
+    await writeFile(path.join(root, 'dist', 'sw.js'), WORKER_TEMPLATE)
     const rebuiltMarker = await stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })
     const rebuiltWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
     expect(rebuiltWorker).not.toBe(firstWorker)

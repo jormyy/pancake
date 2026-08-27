@@ -20,14 +20,26 @@ rank is `tests/e2e/performance-budgets.json`.
 
 ## Budgets
 
+- Launch: useful chrome on screen under 400ms, and the static shell may hold the
+  screen alone for at most 8s before the app takes over.
 - UI feedback: under 100ms for common taps, filters, and text input.
 - Cached or lightweight data request: under 300ms.
 - Full workflow/page load: under 1s.
 - Database hot query: target under 100ms.
 - Browser long task: target under 50ms.
 
+Launch is measured separately from the workflows above. A workflow budget starts
+once the app is running; the launch budget covers getting there.
+
 ## Regression Gates
 
+- `npm run e2e:browser-pwa-launch` enforces the installed-PWA launch path: the
+  static shell paints before React mounts, paints the cached identity and route,
+  hands off without duplicate chrome, survives background return and cache
+  aging, precaches its boot assets, and launches offline. Runs in CI as the
+  `pwa-launch` browser scenario.
+- `npm run e2e:pwa-update -- --previous=<dir> --next=<dir>` enforces the
+  deploy-update launch against two built releases.
 - `npm run perf:budget` validates the ranked workflow manifest and writes
   the ignored `tests/performance-budget-report.md` run artifact.
 - `npm run e2e:browser-perf && npm run perf:budget -- --require-report`
@@ -41,7 +53,33 @@ rank is `tests/e2e/performance-budgets.json`.
 
 ## Latest Measurements
 
-Validated on 2026-08-23 against a seeded release build and local Supabase.
+### Launch — 2026-08-27
+
+Blank-screen duration (time to first contentful paint) in headless WebKit,
+seeded with a returning user's storage, over 1600kbps / 150ms RTT, one browser
+context per launch. "Relaunch" is the installed-PWA case users see every day.
+Full table and raw runs: [`evidence/2026-08-27-instant-paint/`](./evidence/2026-08-27-instant-paint/).
+
+| Launch | Before | After |
+| --- | ---: | ---: |
+| Cold `/` | 2571ms | 332ms |
+| Relaunch `/` | 2297ms | 33ms |
+| Relaunch `/roster` | 2301ms | 29ms |
+| Relaunch `/players` | 2289ms | 34ms |
+| Relaunch `/trades` | 2270ms | 27ms |
+| First relaunch after a deploy | full re-download | 19ms |
+
+Cold `/roster` and cold `/trades` read ~325ms in both builds: those routes
+prerender enough markup to trip first paint already. The app still did not mount
+until ~2.5s before the change; after it, the same paint is the real chrome.
+
+In-app route changes were already fast and did not regress: 33-70ms before and
+after, within noise at this scale, so no route chunk is fetched and route
+prefetching would buy nothing.
+
+### Data — 2026-08-23
+
+Validated against a seeded release build and local Supabase.
 
 | Signal | Baseline | Current | Budget |
 | --- | ---: | ---: | ---: |
@@ -57,6 +95,10 @@ Player search now uses a request-specific database plan. It keeps paging and pro
 
 ## Current Implementation Notes
 
+- The document paints a static app shell before any JavaScript runs. See
+  [pwa-live-data.md](./pwa-live-data.md#boot-shell).
+- The service worker precaches the boot bundle at install, so a deploy relaunches
+  from disk instead of re-downloading.
 - League membership, player search, roster, and Dynasty news keep cached data
   visible while refreshing.
 - Home matchup/lineup and player detail screens hydrate same-day cached content
