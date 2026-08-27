@@ -48,8 +48,8 @@ It reads only this user's own storage. It writes nothing.
 | Data | Policy | Invalidation |
 | --- | --- | --- |
 | App shell | Cache first, then refresh `/` | Every release gets a new cache version. |
-| Boot bundle | Precached during install | The release's own manifest lists it. |
-| Hashed assets (`/_expo/static`) | Cache first | The filename is the version. |
+| Boot bundle and fonts | Precached during install | The release's own manifest lists them. |
+| Hashed assets (`/_expo/static`, `/assets`) | Cache first | The filename is the version. |
 | Other same-origin assets | Stale while revalidate | A new URL creates a new entry. |
 | Supabase API | Never intercepted | Each request reaches Supabase. |
 | Realtime | Never intercepted | The socket reconnects to Supabase. |
@@ -63,6 +63,12 @@ manifest into `dist/sw.js` at build time. The manifest lists exactly what the
 shell HTML boots from: its scripts, its stylesheet, the web manifest, and the
 brand mark. Per-route chunks stay lazy. The stamp fails the build when the
 worker declares no manifest, so a deploy cannot ship a cold bundle.
+
+Fonts are in the manifest for a specific reason: they are fetched by the bundle,
+not the document, so they only start downloading once the app has mounted. Left
+alone, the real chrome rendered empty icon boxes for about two seconds after the
+shell handed off. The rule is mechanical — any font under `dist/assets` whose
+filename appears in the built JavaScript — so it stays correct as fonts change.
 
 Install precaches that manifest before activation deletes the previous
 release's caches. Without it a deploy dropped the old assets and the
@@ -140,6 +146,12 @@ The first install needs one online load before every route asset can enter the c
 The boot shell does not shorten the bundle. It covers the wait; it does not
 remove it. A cold first install still downloads the bundle before the app is
 interactive. The shell is chrome, not the screen's content.
+
+A first-ever install fetches the fonts after mount, because the worker only
+installs once the page has loaded. Precaching fixes every launch after that.
+
+The precache is roughly a megabyte, most of it the bundle. It is fetched in the
+background after load, so it never blocks the launch that triggers it.
 
 A signed-out launch still shows the plain background until the bundle mounts.
 The shell stays hidden there on purpose: painting app chrome for someone who is

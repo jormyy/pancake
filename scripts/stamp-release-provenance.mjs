@@ -52,17 +52,32 @@ const bootAssets = (html, assets) => {
   return [...urls].sort()
 }
 
-/** Fonts under dist/assets that the built JavaScript actually references. */
+const FONT_SOURCE_ROOTS = ['app', 'components', 'constants', 'hooks', 'lib']
+
+const sourceText = async (dir) => {
+  const parts = []
+  for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+    const next = path.join(dir, entry.name)
+    if (entry.isDirectory()) parts.push(await sourceText(next))
+    else if (/\.(?:ts|tsx)$/.test(entry.name)) parts.push(await readFile(next, 'utf8'))
+  }
+  return parts.join('\n')
+}
+
+/**
+ * Fonts under dist/assets that the app itself names. Deliberately not "named
+ * anywhere in the bundle": @expo-google-fonts re-exports every weight, so that
+ * would precache nine Outfit faces to render three.
+ */
 const referencedFonts = async (root, assets) => {
   const fonts = assets.filter((url) => /\.(?:ttf|otf|woff2?)$/.test(url))
   if (fonts.length === 0) return []
-  const jsDir = path.join(root, 'dist', '_expo', 'static', 'js', 'web')
-  const names = await readdir(jsDir).catch(() => [])
-  const bundles = await Promise.all(
-    names.filter((name) => name.endsWith('.js')).map((name) => readFile(path.join(jsDir, name), 'utf8')),
-  )
-  const source = bundles.join('\n')
-  return fonts.filter((url) => source.includes(url.split('/').pop()))
+  const sources = await Promise.all(FONT_SOURCE_ROOTS.map((dir) => sourceText(path.join(root, dir))))
+  const appSource = sources.join('\n')
+  return fonts.filter((url) => {
+    const family = (url.split('/').pop() ?? '').split('.')[0]
+    return family.length > 0 && appSource.includes(family)
+  })
 }
 
 const setServiceWorkerPrecache = async (root) => {
