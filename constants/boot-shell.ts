@@ -259,10 +259,10 @@ export const BOOT_SHELL_SCRIPT = `
   };
   var memberships = envelope(read(function (k) { return k === 'pancake:league-memberships:v1:' + userId })) || [];
   var selectedId = envelope(read(function (k) { return k === 'pancake:selected-league:v1:' + userId }));
-  var current = null;
+  // Mirrors league-context: the selected membership, else the first one.
+  var current = memberships[0] || null;
   for (var i = 0; i < memberships.length; i++) {
-    if (!current || memberships[i].id === selectedId) current = memberships[i];
-    if (memberships[i].id === selectedId) break;
+    if (memberships[i].id === selectedId) { current = memberships[i]; break }
   }
 
   var setText = function (name, value) {
@@ -284,9 +284,9 @@ export const BOOT_SHELL_SCRIPT = `
     var teamName = current.team_name || 'Team';
     setText('league', leagueName);
     setText('team', teamName);
-    setText('crest', (leagueName.trim()[0] || 'P').toUpperCase());
+    setText('crest', (teamName.trim()[0] || 'P').toUpperCase());
     setText('initials', initials(teamName));
-    if (current.role === 'commissioner') {
+    if (current.role === 'commissioner' || current.role === 'co_commissioner') {
       var commissioner = el.querySelector('[data-pbs="commissioner"]');
       if (commissioner) commissioner.removeAttribute('hidden');
     }

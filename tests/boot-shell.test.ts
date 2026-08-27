@@ -1,9 +1,12 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' },
     StyleSheet: { create: (styles: unknown) => styles, flatten: (style: unknown) => style },
 }))
+
 
 const {
     APP_MOUNTED_MARK,
@@ -69,6 +72,16 @@ function runBootScript(pathname: string, storage: Storage) {
 
 const session = (userId = 'u1') => JSON.stringify({ access_token: 'fake-access-token', user: { id: userId } })
 
+const membershipStorage = ({ role = 'member', teamName = 'E2E Team 1', leagueName = 'Sunday Dynasty' } = {}) => ({
+    'sb-abc-auth-token': session(),
+    'pancake:league-memberships:v1:u1': JSON.stringify({
+        version: 1,
+        savedAt: Date.now(),
+        value: [{ id: 'm1', role, team_name: teamName, leagues: { id: 'l1', name: leagueName } }],
+    }),
+    'pancake:selected-league:v1:u1': JSON.stringify({ version: 1, savedAt: Date.now(), value: 'm1' }),
+})
+
 // The boot shell is emitted as a raw string into the document, so nothing type
 // checks it. A single lost escape once left the whole script unparsable, which
 // silently disabled the instant paint while every other gate stayed green.
@@ -92,18 +105,49 @@ describe('boot shell', () => {
     })
 
     it('renders the cached league, team, and initials the app will render', () => {
-        const { texts, breadcrumb, commissionerHidden } = runBootScript('/roster', {
+        const { texts, breadcrumb, commissionerHidden } = runBootScript('/roster', membershipStorage({ role: 'commissioner' }))
+        // The live LeagueSwitcher crest is the team's first letter, not the league's.
+        expect(texts).toEqual({ league: 'Sunday Dynasty', team: 'E2E Team 1', crest: 'E', initials: 'ET' })
+        expect(commissionerHidden).toBe(false)
+        expect(breadcrumb).toMatchObject({ league: 'Sunday Dynasty', team: 'E2E Team 1', active: '/roster' })
+    })
+
+    it('shows commissioner tools for co-commissioners too, matching isCommissioner', () => {
+        expect(runBootScript('/', membershipStorage({ role: 'co_commissioner' })).commissionerHidden).toBe(false)
+        expect(runBootScript('/', membershipStorage({ role: 'member' })).commissionerHidden).toBe(true)
+    })
+
+    it('picks the same membership league-context would', () => {
+        const two = (selected: string) => ({
             'sb-abc-auth-token': session(),
             'pancake:league-memberships:v1:u1': JSON.stringify({
                 version: 1,
                 savedAt: Date.now(),
-                value: [{ id: 'm1', role: 'commissioner', team_name: 'E2E Team 1', leagues: { id: 'l1', name: 'Sunday Dynasty' } }],
+                value: [
+                    { id: 'm1', role: 'member', team_name: 'First Team', leagues: { id: 'l1', name: 'First League' } },
+                    { id: 'm2', role: 'member', team_name: 'Second Team', leagues: { id: 'l2', name: 'Second League' } },
+                ],
             }),
-            'pancake:selected-league:v1:u1': JSON.stringify({ version: 1, savedAt: Date.now(), value: 'm1' }),
+            'pancake:selected-league:v1:u1': JSON.stringify({ version: 1, savedAt: Date.now(), value: selected }),
         })
-        expect(texts).toEqual({ league: 'Sunday Dynasty', team: 'E2E Team 1', crest: 'S', initials: 'ET' })
-        expect(commissionerHidden).toBe(false)
-        expect(breadcrumb).toMatchObject({ league: 'Sunday Dynasty', team: 'E2E Team 1', active: '/roster' })
+        expect(runBootScript('/', two('m2')).texts.league).toBe('Second League')
+        // Unknown selection falls back to the first membership, as useMemo does.
+        expect(runBootScript('/', two('gone')).texts.league).toBe('First League')
+    })
+
+    it('derives initials exactly like lib/format getInitials', async () => {
+        // Evaluate the real function's source rather than importing lib/format,
+        // which drags in the whole React Native module graph.
+        const source = await readFile(path.join(process.cwd(), 'lib/format.ts'), 'utf8')
+        const body = source.slice(source.indexOf('export function getInitials'))
+        const declaration = body.slice(0, body.indexOf('\n}\n') + 2).replace('export function', 'function')
+        expect(declaration).toContain('letterWords')
+        const getInitials = new Function(`${declaration.replace(/: string \| null \| undefined/g, '').replace(/: string/g, '')}; return getInitials`)() as (name: string) => string
+
+        for (const name of ['E2E Team 1', 'Sunday Dynasty', 'Team #1', 'Solo', 'a', '123', 'The Big Bad Wolves']) {
+            const { texts } = runBootScript('/', membershipStorage({ teamName: name }))
+            expect(texts.initials, `initials for ${name}`).toBe(getInitials(name))
+        }
     })
 
     it('paints the chrome but claims no league when the cache is long abandoned', () => {
@@ -123,7 +167,15 @@ describe('boot shell', () => {
 
     it('marks the moment it paints so the launch gate can measure the gap', () => {
         expect(runBootScript('/', { 'sb-abc-auth-token': session() }).marks).toEqual([BOOT_SHELL_MARK])
-        expect(APP_MOUNTED_MARK).toBe('pancake-app-mounted')
+    })
+
+    it('keeps the launch gate reading the marks this module actually emits', async () => {
+        // The gate is an .mjs harness and cannot import this module, so it
+        // repeats the mark names. Renaming one here must not silently blind it.
+        const gate = await readFile(path.join(process.cwd(), 'tests/e2e/browser-pwa-launch.mjs'), 'utf8')
+        expect(gate).toContain(`const BOOT_SHELL_MARK = '${BOOT_SHELL_MARK}'`)
+        expect(gate).toContain(`const APP_MOUNTED_MARK = '${APP_MOUNTED_MARK}'`)
+        expect(gate).toContain(`getElementById('${BOOT_SHELL_ID}')`)
     })
 
     it('links every primary route so the shell navigates without the bundle', () => {

@@ -14,6 +14,7 @@ records live under [`audits/`](./audits/).
 | [pwa-live-data.md](./pwa-live-data.md) | PWA architecture, cache rules, reconnect recovery, verification, and known limits. |
 | [source-monitoring.md](./source-monitoring.md) | Source freshness, completeness, failure records, recovery steps, and known limits. |
 | [supabase-backend-route-inventory.md](./supabase-backend-route-inventory.md) | Inventory of every Edge API route and internal function with its auth model. |
+| [evidence/](./evidence/) | Dated performance evidence: what was measured, under what conditions, and what the numbers do and do not claim. |
 | [audits/](./audits/) | Dated review ledgers and readiness snapshots (feedback-review hardening, multi-team trade parity, season readiness). |
 
 Related, outside this directory:
