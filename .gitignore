@@ -42,6 +42,7 @@ tests/snapshots/
 tests/*.md
 tests/e2e-state.json
 tests/e2e-browser-*-report.json
+tests/e2e-pwa-update-report.json
 validation/*
 !validation/
 !validation/fresh-hardening-report.md
