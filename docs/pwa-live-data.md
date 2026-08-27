@@ -81,14 +81,20 @@ worker declares no manifest, so a deploy cannot ship a cold bundle.
 Per-route chunks are deliberately absent from the manifest. The worker answers
 every navigation with the cached `/` document, so a launch — including a deep
 link and including the boot shell's own links — boots the `/` route chunk and
-then routes on the client. Measured client-side route changes are 26-64ms, well
+then routes on the client. Measured client-side route changes are 33-70ms, well
 under a single round trip, so nothing else needs prefetching.
 
 Fonts are in the manifest for a specific reason: they are fetched by the bundle,
 not the document, so they only start downloading once the app has mounted. Left
 alone, the real chrome rendered empty icon boxes for about two seconds after the
-shell handed off. The rule is mechanical — any font under `dist/assets` whose
-filename appears in the built JavaScript — so it stays correct as fonts change.
+shell handed off — measured on a relaunch, the icon font landed at 2196ms
+against a mount at 113ms. After precaching, the icon font and both Outfit faces
+resolve 11ms after mount with no bytes on the wire.
+
+The rule matches fonts under `dist/assets` whose family name appears in the
+app's own source, not anywhere in the bundle: `@expo-google-fonts` re-exports
+every weight, so matching the bundle would precache nine Outfit faces to render
+the three `useFonts` declares.
 
 Install precaches that manifest before activation deletes the previous
 release's caches. Without it a deploy dropped the old assets and the
