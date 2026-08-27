@@ -115,6 +115,24 @@ describe('boot shell', () => {
         expect(breadcrumb).toMatchObject({ league: 'Sunday Dynasty', team: 'E2E Team 1', active: '/roster' })
     })
 
+    it('renders plain chrome when the cached shape is not what it expects', () => {
+        // Cache keys carry their own version, so a schema change makes these
+        // reads miss rather than match. The shell must degrade, not break.
+        const shapes = [
+            JSON.stringify({ version: 2, savedAt: Date.now(), value: [{ id: 'm1', team_name: 'T' }] }),
+            JSON.stringify({ version: 1, savedAt: Date.now(), value: { not: 'an array' } }),
+            JSON.stringify({ version: 1, savedAt: Date.now(), value: null }),
+        ]
+        for (const memberships of shapes) {
+            const { attributes, texts } = runBootScript('/', {
+                'sb-abc-auth-token': session(),
+                'pancake:league-memberships:v1:u1': memberships,
+            })
+            expect(attributes['data-visible']).toBe('1')
+            expect(texts).toEqual({})
+        }
+    })
+
     it('compacts the mobile league label the way compactHeaderLabel does', () => {
         const long = runBootScript('/', membershipStorage({ leagueName: 'Pancake E2E 20260827175814' })).texts
         expect(long.league).toBe('Pancake E2E 20260827175814')

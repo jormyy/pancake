@@ -43,6 +43,20 @@ It paints chrome and cached identity only. It never paints scores, lineups,
 rosters, trades, or any value whose staleness could mislead a roster decision.
 It reads only this user's own storage. It writes nothing.
 
+### How it degrades
+
+Every failure path renders plain chrome rather than breaking the launch:
+
+| Condition | Result |
+| --- | --- |
+| No stored session | Shell stays hidden; the launch shows the marketing or auth screen. |
+| Sign-out, or a switch to another user | Storage is cleared or replaced, so the next launch paints that user's identity or nothing. |
+| Corrupt session entry | Parse fails; the shell stays hidden and the app boots to its signed-out state. |
+| Cache older than thirty days | Chrome paints without claiming a league. |
+| Cached shape the shell does not recognise | Chrome paints without identity. Cache keys carry their own version, so a schema change misses rather than mismatches. |
+| Storage unavailable (private mode) | Shell stays hidden. |
+| No service worker, evicted cache, or offline | Every cache path falls back to the network; the shell still paints from the document. |
+
 ## Cache policy
 
 | Data | Policy | Invalidation |
@@ -135,6 +149,13 @@ It installs the previous release's worker, swaps the origin to the next
 release, and checks that each release precaches what it declares, that only the
 activated release keeps caches, and that the first relaunch after the deploy
 still mounts. Run it before promoting a release whose asset hashes moved.
+
+### Schema
+
+The boot shell reads only browser storage and ships no migration. A release
+that changes it needs no Supabase change. If a cached shape it reads is ever
+versioned up, the shell misses that read and paints plain chrome — correct, but
+worth updating deliberately rather than by accident.
 
 The dated evidence lives in [`evidence/2026-08-23-instant-pwa/`](./evidence/2026-08-23-instant-pwa/)
 and [`evidence/2026-08-27-instant-paint/`](./evidence/2026-08-27-instant-paint/).
