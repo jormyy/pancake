@@ -24,19 +24,28 @@ const SHELL_URL = '/'
 // bundle (/_expo/static) and the fonts and images the bundle asks for (/assets).
 const IMMUTABLE = /^\/(?:_expo\/static|assets)\//
 
+// Fetch one precache entry. A non-ok response is permanent (a stale manifest
+// entry) and is skipped; a rejected fetch is the network being unavailable, and
+// must fail the install rather than half-populate the cache.
+async function precache(cache, url) {
+  const response = await fetch(new Request(url, { cache: 'reload' }))
+  if (!response || !response.ok) return
+  await cache.put(url, response)
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
+      // Deliberately allowed to reject. Activation deletes the previous
+      // release's caches, so installing on a flaky link and then activating
+      // would leave a launch with neither release's assets. A rejected install
+      // is discarded and retried on the next update check, and the previous
+      // worker keeps serving in the meantime.
       const shell = await caches.open(SHELL_CACHE)
-      await shell.add(SHELL_URL).catch(() => {})
-      // Precache the boot path so the post-update reload is served from disk.
-      // Individually, so one 404 from a stale manifest cannot fail the install
-      // and leave the previous worker serving a shell it no longer matches.
+      await precache(shell, SHELL_URL)
       const assets = await caches.open(ASSET_CACHE)
       await Promise.all(
-        PRECACHE_URLS.filter((url) => url !== SHELL_URL).map((url) =>
-          assets.add(new Request(url, { cache: 'reload' })).catch(() => {}),
-        ),
+        PRECACHE_URLS.filter((url) => url !== SHELL_URL).map((url) => precache(assets, url)),
       )
       await self.skipWaiting()
     })(),
