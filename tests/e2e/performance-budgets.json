@@ -11,7 +11,10 @@
     "maxMutationLoopMs": 30000,
     "maxInitialWebJsKb": 700,
     "maxRouteWebJsKb": 220,
-    "maxDbQueryMs": 100
+    "maxDbQueryMs": 100,
+    "launchShellPaintMs": 400,
+    "launchShellPaintWarmMs": 150,
+    "launchShellHoldMaxMs": 8000
   },
   "workflows": [
     {

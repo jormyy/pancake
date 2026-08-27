@@ -15,7 +15,7 @@ const COVERAGE_PATH = path.join(ROOT, 'tests/e2e-coverage.md')
  *   auction: boolean, browser: boolean, browserAuth: boolean, browserFullSweep: boolean,
  *   browserGameplay: boolean, browserLeagueLifecycle: boolean, browserLineup: boolean,
  *   browserLineupAutoSet: boolean, browserLineupLocked: boolean, browserPerf: boolean,
- *   browserPlayoff: boolean, browserRookieDraft: boolean, browserTrade: boolean,
+ *   browserPlayoff: boolean, browserPwaLaunch: boolean, browserRookieDraft: boolean, browserTrade: boolean,
  *   browserTradeAccept: boolean, browserTradeFuturePick: boolean,
  *   browserTradeFuturePickAccept: boolean, browserTradeOverflowAccept: boolean,
  *   browserTradePostDeadline: boolean, browserTradeTerminal: boolean, browserTradeVeto: boolean,

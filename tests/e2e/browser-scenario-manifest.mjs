@@ -1,6 +1,6 @@
 import process from 'node:process'
 
-/** @typedef {'browser' | 'browserAuth' | 'browserPerf' | 'browserGameplay' | 'browserLineup' | 'browserLineupAutoSet' | 'browserLineupLocked' | 'browserPlayoff' | 'browserRookieDraft' | 'browserWaiver' | 'browserWaiverDrop' | 'browserWaiverIrBlock' | 'browserLeagueLifecycle' | 'browserTrade' | 'browserTradeAccept' | 'browserTradeTerminal' | 'browserTradeFuturePick' | 'browserTradeFuturePickAccept' | 'browserTradeOverflowAccept' | 'browserTradePostDeadline' | 'browserTradeVeto' | 'browserTradeMultiTeam'} BrowserFlag */
+/** @typedef {'browser' | 'browserAuth' | 'browserPerf' | 'browserGameplay' | 'browserLineup' | 'browserLineupAutoSet' | 'browserLineupLocked' | 'browserPlayoff' | 'browserRookieDraft' | 'browserWaiver' | 'browserWaiverDrop' | 'browserWaiverIrBlock' | 'browserLeagueLifecycle' | 'browserTrade' | 'browserTradeAccept' | 'browserTradeTerminal' | 'browserTradeFuturePick' | 'browserTradeFuturePickAccept' | 'browserTradeOverflowAccept' | 'browserTradePostDeadline' | 'browserTradeVeto' | 'browserTradeMultiTeam' | 'browserPwaLaunch'} BrowserFlag */
 
 /**
  * @typedef {object} BrowserScenarioMetadata
@@ -42,6 +42,7 @@ const evidenceByScenarioId = {
   'trade-post-deadline': 'Attempts a proposal after the deadline and verifies rejection without persisted trade rows.',
   'trade-veto': 'Uses the real veto action and verifies threshold state without moving assets.',
   'trade-multi-team': 'Proposes, edits, and counters routed multi-team assets through responsive browser controls.',
+  'pwa-launch': 'Relaunches the installed PWA path and verifies the static shell paints the cached identity before React mounts, hands off without duplicate chrome, precaches its boot assets, and still launches offline.',
 }
 
 /** @type {Omit<BrowserScenarioMetadata, 'evidence'>[]} */
@@ -67,6 +68,7 @@ const browserScenarioDefinitions = [
   { id: 'trade-overflow-accept', cliFlag: 'browser-trade-overflow-accept', envFlag: 'E2E_ENABLE_BROWSER_TRADE_OVERFLOW_ACCEPT', flag: 'browserTradeOverflowAccept', resultKey: 'browserTradeOverflowAcceptCheck', evidenceId: 'browser.trade_overflow_accept', passNote: 'browser trade overflow accept gameplay passed', ciTier: 'fast', requiresSeed: false, releaseTier: 'release', weekly: true },
   { id: 'trade-post-deadline', cliFlag: 'browser-trade-post-deadline', envFlag: 'E2E_ENABLE_BROWSER_TRADE_POST_DEADLINE', flag: 'browserTradePostDeadline', resultKey: 'browserTradePostDeadlineCheck', evidenceId: 'browser.trade_post_deadline', passNote: 'browser post-deadline trade gameplay passed', ciTier: 'fast', requiresSeed: false, releaseTier: 'release', weekly: true },
   { id: 'trade-veto', cliFlag: 'browser-trade-veto', envFlag: 'E2E_ENABLE_BROWSER_TRADE_VETO', flag: 'browserTradeVeto', resultKey: 'browserTradeVetoCheck', evidenceId: 'browser.trade_veto', passNote: 'browser trade veto gameplay passed', ciTier: 'fast', requiresSeed: false, releaseTier: 'release', weekly: true },
+  { id: 'pwa-launch', cliFlag: 'browser-pwa-launch', envFlag: 'E2E_ENABLE_BROWSER_PWA_LAUNCH', flag: 'browserPwaLaunch', resultKey: 'browserPwaLaunchCheck', evidenceId: 'browser.pwa_launch', passNote: 'browser PWA launch gate passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
   { id: 'trade-multi-team', cliFlag: 'browser-trade-multi-team', envFlag: 'E2E_ENABLE_BROWSER_TRADE_MULTI_TEAM', flag: 'browserTradeMultiTeam', resultKey: 'browserTradeMultiTeamCheck', evidenceId: 'browser.trade_multi_team', passNote: 'browser multi-team trade gameplay passed', ciTier: 'fast', requiresSeed: false, releaseTier: 'release', weekly: true },
 ]
 

@@ -41,6 +41,7 @@ tests/artifacts/
 tests/snapshots/
 tests/*.md
 tests/e2e-state.json
+tests/e2e-browser-*-report.json
 validation/*
 !validation/
 !validation/fresh-hardening-report.md

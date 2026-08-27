@@ -29,6 +29,9 @@ import {
 export const BOOT_SHELL_ID = 'pancake-boot-shell'
 /** Marks the shell as painted; the paint probe and E2E gates assert on this. */
 export const BOOT_SHELL_READY_ATTR = 'data-pancake-shell'
+/** Performance marks for the two moments the launch gate measures. */
+export const BOOT_SHELL_MARK = 'pancake-boot-shell'
+export const APP_MOUNTED_MARK = 'pancake-app-mounted'
 
 const SIDEBAR_WIDTH = 264
 const MOBILE_TOPBAR_HEIGHT = 56
@@ -293,5 +296,14 @@ export const BOOT_SHELL_SCRIPT = `
   el.setAttribute('data-visible', '1');
   el.setAttribute(${JSON.stringify(BOOT_SHELL_READY_ATTR)}, '1');
   document.documentElement.setAttribute('data-pancake-boot', 'shell');
+  try { performance.mark(${JSON.stringify(BOOT_SHELL_MARK)}) } catch (e) {}
+  // What the shell actually painted, kept after the element is removed so the
+  // launch gate can assert on it without racing the handoff.
+  window.__PANCAKE_BOOT__ = {
+    league: (el.querySelector('[data-pbs="league"]') || {}).textContent || null,
+    team: (el.querySelector('[data-pbs="team"]') || {}).textContent || null,
+    initials: (el.querySelector('[data-pbs="initials"]') || {}).textContent || null,
+    active: (function () { var a = el.querySelector('[aria-current="page"]'); return a ? a.getAttribute('data-href') : null })(),
+  };
 })();
 `.trim()
