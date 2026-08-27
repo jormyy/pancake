@@ -78,6 +78,12 @@ shell HTML boots from: its scripts, its stylesheet, the web manifest, and the
 brand mark. Per-route chunks stay lazy. The stamp fails the build when the
 worker declares no manifest, so a deploy cannot ship a cold bundle.
 
+Per-route chunks are deliberately absent from the manifest. The worker answers
+every navigation with the cached `/` document, so a launch — including a deep
+link and including the boot shell's own links — boots the `/` route chunk and
+then routes on the client. Measured client-side route changes are 26-64ms, well
+under a single round trip, so nothing else needs prefetching.
+
 Fonts are in the manifest for a specific reason: they are fetched by the bundle,
 not the document, so they only start downloading once the app has mounted. Left
 alone, the real chrome rendered empty icon boxes for about two seconds after the

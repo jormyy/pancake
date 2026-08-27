@@ -71,7 +71,8 @@ range, seeded with a returning user's storage, shaped to 1600kbps / 150ms RTT.
 | First relaunch after a deploy | full re-download | 19ms |
 
 In-app route changes were already fast and did not regress: 26-64ms across
-Players, Trades, and Roster in both builds.
+Players, Trades, and Roster in both builds — under a single round trip, so no
+route chunk is fetched and route prefetching would buy nothing.
 
 The cold number is the HTML arriving over the shaped link. The app itself still
 mounts at ~2.6s there; the shell covers that wait with real chrome rather than
