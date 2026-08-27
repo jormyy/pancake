@@ -224,6 +224,19 @@ describe('boot shell', () => {
         }
     })
 
+    it('is announced as navigation, since it is the only nav on screen', () => {
+        // Focusable links inside an aria-hidden container is the anti-pattern.
+        // The shell is removed before the real navigation paints, so there is
+        // never a moment where both are announced.
+        expect(BOOT_SHELL_HTML).not.toContain(`id="${BOOT_SHELL_ID}" aria-hidden`)
+        expect(BOOT_SHELL_HTML).toContain('<nav class="pbs-side" aria-label="Primary">')
+        expect(BOOT_SHELL_HTML).toContain('<nav class="pbs-bottomnav" aria-label="Primary">')
+        // Icons and the menu affordance stay decorative.
+        const links = BOOT_SHELL_HTML.match(/<a class="pbs-[^"]*"[^>]*>/g) ?? []
+        expect(links.length).toBeGreaterThan(0)
+        for (const link of links) expect(link).not.toContain('aria-hidden')
+    })
+
     it('keeps the shell hidden until the script opts it in', () => {
         // Scoped to the shell's own rule: the mobile bars carry display:none
         // too, so a loose search would pass even with the shell shown by default.

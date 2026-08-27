@@ -176,8 +176,8 @@ const MENU_ICON =
     '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>'
 
 export const BOOT_SHELL_HTML = `
-<div id="${BOOT_SHELL_ID}" aria-hidden="true">
-  <nav class="pbs-side">
+<div id="${BOOT_SHELL_ID}">
+  <nav class="pbs-side" aria-label="Primary">
     <div class="pbs-side-scroll">
       <div class="pbs-brand">
         <img src="/pwa-192.png" alt="" />
@@ -214,10 +214,10 @@ export const BOOT_SHELL_HTML = `
     <div class="pbs-topbar-league"><div class="pbs-crest" data-pbs="crest">P</div>
       <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">Pancake League</div></div>
       ${CHEVRON_ICON}</div>
-    <div class="pbs-menu">${MENU_ICON}</div>
+    <div class="pbs-menu" aria-hidden="true">${MENU_ICON}</div>
   </div>
   <div class="pbs-content"></div>
-  <nav class="pbs-bottomnav">${NAV.map(bottomItem).join('')}</nav>
+  <nav class="pbs-bottomnav" aria-label="Primary">${NAV.map(bottomItem).join('')}</nav>
 </div>
 `.trim()
 
