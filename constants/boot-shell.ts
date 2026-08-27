@@ -226,6 +226,11 @@ export const BOOT_SHELL_HTML = `
 // from the persistent cache, and marks the active route.
 export const BOOT_SHELL_SCRIPT = `
 (function () {
+  // Everything here is cosmetic and runs before the app. Any unexpected stored
+  // shape must leave the launch untouched, so the whole body is guarded.
+  try { paint() } catch (e) {}
+
+  function paint() {
   var el = document.getElementById(${JSON.stringify(BOOT_SHELL_ID)});
   if (!el) return;
   var store;
@@ -268,9 +273,12 @@ export const BOOT_SHELL_SCRIPT = `
   var memberships = envelope(read(function (k) { return k === 'pancake:league-memberships:v1:' + userId })) || [];
   var selectedId = envelope(read(function (k) { return k === 'pancake:selected-league:v1:' + userId }));
   // Mirrors league-context: the selected membership, else the first one.
-  var current = memberships[0] || null;
+  var current = null;
   for (var i = 0; i < memberships.length; i++) {
-    if (memberships[i].id === selectedId) { current = memberships[i]; break }
+    var membership = memberships[i];
+    if (!membership || typeof membership !== 'object') continue;
+    if (!current) current = membership;
+    if (membership.id === selectedId) { current = membership; break }
   }
 
   var setText = function (name, value) {
@@ -325,5 +333,6 @@ export const BOOT_SHELL_SCRIPT = `
     initials: (el.querySelector('[data-pbs="initials"]') || {}).textContent || null,
     active: (function () { var a = el.querySelector('[aria-current="page"]'); return a ? a.getAttribute('data-href') : null })(),
   };
+  }
 })();
 `.trim()

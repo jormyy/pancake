@@ -122,6 +122,7 @@ describe('boot shell', () => {
             JSON.stringify({ version: 2, savedAt: Date.now(), value: [{ id: 'm1', team_name: 'T' }] }),
             JSON.stringify({ version: 1, savedAt: Date.now(), value: { not: 'an array' } }),
             JSON.stringify({ version: 1, savedAt: Date.now(), value: null }),
+            JSON.stringify({ version: 1, savedAt: Date.now(), value: [null, 'not a membership'] }),
         ]
         for (const memberships of shapes) {
             const { attributes, texts } = runBootScript('/', {
