@@ -21,6 +21,7 @@ DECLARE
   v_rows int;
   v_balance int;
   v_item_faab_amount int;
+  v_previous_flag text := COALESCE(current_setting('app.trade_lifecycle_server_write', true), '');
 BEGIN
   SELECT *
     INTO v_trade
@@ -173,6 +174,10 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Reserved assets may only move through this completion; the guards on
+  -- roster_players and draft_picks honour this transaction-local flag.
+  PERFORM set_config('app.trade_lifecycle_server_write', 'on', true);
+
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
   LOOP
@@ -256,6 +261,8 @@ BEGIN
   IF v_rows <> 1 THEN
     RAISE EXCEPTION 'Failed to complete trade atomically';
   END IF;
+
+  PERFORM set_config('app.trade_lifecycle_server_write', v_previous_flag, true);
 
   PERFORM private.log_league_activity(
     v_trade.league_id,

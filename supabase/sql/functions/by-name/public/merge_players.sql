@@ -75,6 +75,19 @@ BEGIN
   UPDATE waiver_claims       SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE waiver_claims       SET drop_player_id = winner_id WHERE drop_player_id = loser_id;
   UPDATE waiver_wire_log     SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- One identity cannot be rostered and clearing waivers in the same season.
+  UPDATE waiver_wire_log AS log
+     SET cleared_at = now()
+   WHERE log.player_id = winner_id
+     AND log.cleared_at IS NULL
+     AND EXISTS (
+       SELECT 1
+         FROM roster_players AS roster
+        WHERE roster.league_id = log.league_id
+          AND roster.league_season_id = log.league_season_id
+          AND roster.player_id = winner_id
+     );
   UPDATE trade_items         SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE roster_transactions SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE snake_draft_picks   SET player_id = winner_id WHERE player_id = loser_id;

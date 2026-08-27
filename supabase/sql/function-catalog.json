@@ -38,6 +38,7 @@
     "private.playoff_seed_rankings(uuid,uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.prevent_accepted_or_inactive_roster_move()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.prevent_accepted_trade_asset_roster_delete()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.prevent_accepted_trade_pick_change()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.prevent_active_over_cap()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.prevent_conflicting_or_inactive_trade_accept()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.prevent_deleted_league_season_insert()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

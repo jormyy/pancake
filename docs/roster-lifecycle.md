@@ -15,7 +15,7 @@ Every other roster-linked record falls into one of three classes.
 | `weekly_lineups` (future, unlocked dates) | live state | Cleared for that member and player. Rows for started or finished games stay for scoring. |
 | `waiver_claims` pending `drop_player_id` | live state | Set to NULL when the drop player leaves the roster; the claim stays pending and the processor applies the normal "roster full and no drop" rule. IR/taxi moves of a pending drop player are still rejected. |
 | `trades` pending with the lost asset | live state | Expired with `completion_failure_reason` and a `trade_expired` activity row. IR/taxi moves do not expire offers; acceptance already requires an active roster. |
-| `trades` accepted | reservation | Unchanged: deletes and status moves of reserved players are rejected. |
+| `trades` accepted | reservation | Deletes and IR/taxi moves of reserved players are rejected; a reserved pick cannot be used in a draft or change owner until the trade completes or expires. |
 | `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never touched. A succeeded claim keeps its drop player. |
 | `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
 | `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
@@ -110,3 +110,20 @@ offer whose player was dropped, a pending claim whose drop player left, a used p
 and a pick that changed owner, a player merge, an old-season row removal, a direct
 service-role delete, stale-client removals, and the global "no stale listing"
 invariant. On the schema before the migration the suite fails at its first scenario.
+
+`npm run test:db:roster-oracle` runs `tests/db/roster-lifecycle-oracle.sql`, a seeded
+state-machine oracle. It seeds two leagues (one user owns a team in both), then walks
+a random sequence of operations as managers, the commissioner, and the service role:
+listings, drops (including retries of removed rows and other users' rows), adds,
+drop-and-add, IR and taxi moves, trade proposals, acceptance, completion, rejection
+and withdrawal, waiver claims and processing, commissioner overrides, direct
+service-role deletes, pick consumption and ownership changes, player merges,
+cross-league attempts, lineup edits, and exact replays of the previous statement.
+After every step it checks the table above as executable invariants (listings,
+future lineups, pending drops, pending and accepted offers, roster flags and league
+scoping, history growth and terminal-record immutability, add counts, waiver
+windows) and that every operation expected to be rejected was rejected. Rotate the
+seed with `ORACLE_SEED=<n>` (default 1) and the length with `SET oracle.steps`. The
+oracle found the pick-reservation gap fixed in
+`20260827000003_reserve_accepted_trade_picks.sql`; removing any of the three
+enforcement triggers turns it red within a few dozen steps.

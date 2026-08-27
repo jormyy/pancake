@@ -17,6 +17,7 @@ AS $$
 DECLARE
   v_reason text := NULLIF(BTRIM(COALESCE(p_reason, '')), '');
   v_team text;
+  v_previous_flag text := COALESCE(current_setting('app.trade_lifecycle_server_write', true), '');
 BEGIN
   IF p_player_id IS NULL AND p_pick_id IS NULL THEN
     RETURN;
@@ -45,6 +46,7 @@ BEGIN
 
   -- This runs inside the caller's transaction, which may belong to an
   -- authenticated user; the status guard trusts this flag for the update only.
+  -- Trade completion may already hold the flag, so it is restored, not cleared.
   PERFORM set_config('app.trade_lifecycle_server_write', 'on', true);
 
   WITH expired AS (
@@ -88,6 +90,6 @@ BEGIN
     v_reason
     FROM expired;
 
-  PERFORM set_config('app.trade_lifecycle_server_write', '', true);
+  PERFORM set_config('app.trade_lifecycle_server_write', v_previous_flag, true);
 END;
 $$;
