@@ -96,14 +96,29 @@ describe('boot shell', () => {
             'sb-abc-auth-token': session(),
             'pancake:league-memberships:v1:u1': JSON.stringify({
                 version: 1,
-                savedAt: 0,
+                savedAt: Date.now(),
                 value: [{ id: 'm1', role: 'commissioner', team_name: 'E2E Team 1', leagues: { id: 'l1', name: 'Sunday Dynasty' } }],
             }),
-            'pancake:selected-league:v1:u1': JSON.stringify({ version: 1, savedAt: 0, value: 'm1' }),
+            'pancake:selected-league:v1:u1': JSON.stringify({ version: 1, savedAt: Date.now(), value: 'm1' }),
         })
         expect(texts).toEqual({ league: 'Sunday Dynasty', team: 'E2E Team 1', crest: 'S', initials: 'ET' })
         expect(commissionerHidden).toBe(false)
         expect(breadcrumb).toMatchObject({ league: 'Sunday Dynasty', team: 'E2E Team 1', active: '/roster' })
+    })
+
+    it('paints the chrome but claims no league when the cache is long abandoned', () => {
+        const ancient = Date.now() - 31 * 24 * 60 * 60 * 1000
+        const { attributes, texts } = runBootScript('/', {
+            'sb-abc-auth-token': session(),
+            'pancake:league-memberships:v1:u1': JSON.stringify({
+                version: 1,
+                savedAt: ancient,
+                value: [{ id: 'm1', role: 'member', team_name: 'Stale Team', leagues: { id: 'l1', name: 'Stale League' } }],
+            }),
+            'pancake:selected-league:v1:u1': JSON.stringify({ version: 1, savedAt: ancient, value: 'm1' }),
+        })
+        expect(attributes['data-visible']).toBe('1')
+        expect(texts).toEqual({})
     })
 
     it('marks the moment it paints so the launch gate can measure the gap', () => {

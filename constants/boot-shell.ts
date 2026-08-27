@@ -244,9 +244,18 @@ export const BOOT_SHELL_SCRIPT = `
   try { userId = JSON.parse(session.raw).user.id } catch (e) { return }
   if (!userId) return;
 
+  // The chrome is cosmetic and React corrects it within a frame or two, so a
+  // day-old league name is fine to paint. A long-abandoned install is not:
+  // past this bound the shell renders without claiming a specific league.
+  var MAX_IDENTITY_AGE_MS = 30 * 24 * 60 * 60 * 1000;
   var envelope = function (hit) {
     if (!hit) return null;
-    try { var parsed = JSON.parse(hit.raw); return parsed && parsed.version === 1 ? parsed.value : null } catch (e) { return null }
+    try {
+      var parsed = JSON.parse(hit.raw);
+      if (!parsed || parsed.version !== 1) return null;
+      if (!(typeof parsed.savedAt === 'number') || Date.now() - parsed.savedAt > MAX_IDENTITY_AGE_MS) return null;
+      return parsed.value;
+    } catch (e) { return null }
   };
   var memberships = envelope(read(function (k) { return k === 'pancake:league-memberships:v1:' + userId })) || [];
   var selectedId = envelope(read(function (k) { return k === 'pancake:selected-league:v1:' + userId }));

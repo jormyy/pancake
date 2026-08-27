@@ -162,13 +162,57 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
         relaunch.mountMark - relaunch.shellMark <= BUDGETS.launchShellHoldMaxMs,
       `held=${Math.round((relaunch.mountMark ?? 0) - (relaunch.shellMark ?? 0))}ms`)
 
-    // 3. The worker precached everything the shell boots from.
+    // 3. Background then foreground: an installed PWA spends most of its life
+    //    suspended, and the worker re-checks for updates on every foreground.
+    await browser(session, ['eval', `(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+      return JSON.stringify({ hidden: true });
+    })()`])
+    await browser(session, ['wait', '1500'])
+    await browser(session, ['eval', `(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+      return JSON.stringify({ visible: true });
+    })()`])
+    await browser(session, ['wait', '3000'])
+    const foreground = await evaluate(session, LAUNCH_STATE)
+    record('returning to the foreground keeps the app on screen',
+      foreground.rootText.length > 0 && !foreground.shellStillInDom,
+      `text="${foreground.rootText.slice(0, 40)}" shellInDom=${foreground.shellStillInDom}`)
+
+    // 4. Cache aging: the persisted screen caches expire, but the launch must
+    //    still paint chrome immediately and refresh behind it.
+    await browser(session, ['eval', `(() => {
+      const aged = Date.now() - 1000 * 60 * 60 * 24 * 7;
+      let rewritten = 0;
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (!key?.startsWith('pancake:')) continue;
+        try {
+          const parsed = JSON.parse(localStorage.getItem(key));
+          if (!parsed || parsed.version !== 1) continue;
+          parsed.savedAt = aged;
+          localStorage.setItem(key, JSON.stringify(parsed));
+          rewritten += 1;
+        } catch {}
+      }
+      return JSON.stringify({ rewritten });
+    })()`])
+    await openPage(session, joinUrl(env.frontendUrl, '/roster'), 'aged-cache relaunch')
+    await browser(session, ['wait', '4000'])
+    const aged = await evaluate(session, LAUNCH_STATE)
+    record('a week-old cache still paints the shell and refreshes behind it',
+      aged.shellMark !== null && aged.rootText.length > 0,
+      `shell=${aged.shellMark === null ? 'none' : Math.round(aged.shellMark) + 'ms'} text="${aged.rootText.slice(0, 40)}"`)
+
+    // 5. The worker precached everything the shell boots from.
     const precache = await evaluate(session, CACHED_BOOT_ASSETS)
     record('the worker precached every boot asset it declares',
       precache.declared.length >= 3 && precache.missing.length === 0,
       `declared=${precache.declared.length} missing=${precache.missing.join(', ') || 'none'}`)
 
-    // 4. Offline relaunch still reaches the app.
+    // 6. Offline relaunch still reaches the app.
     await browser(session, ['network', 'offline', 'on']).catch(() => {})
     await openPage(session, joinUrl(env.frontendUrl, '/'), 'offline relaunch').catch(() => {})
     await browser(session, ['wait', '4000'])
