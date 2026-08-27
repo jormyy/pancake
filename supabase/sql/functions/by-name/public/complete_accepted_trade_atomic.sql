@@ -18,7 +18,6 @@ DECLARE
   v_to_member uuid;
   v_member_lock uuid;
   v_lock_player_id uuid;
-  v_clear_player_id uuid;
   v_rows int;
   v_balance int;
   v_item_faab_amount int;
@@ -150,20 +149,6 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOR v_clear_player_id IN
-    SELECT DISTINCT player_id
-      FROM trade_items
-     WHERE trade_id = p_trade_id
-       AND player_id IS NOT NULL
-     ORDER BY player_id
-  LOOP
-    PERFORM private.clear_future_unlocked_lineups(
-      v_trade.league_id,
-      v_trade.league_season_id,
-      v_clear_player_id
-    );
-  END LOOP;
-
   FOR v_from_member, v_item_faab_amount IN
     SELECT
       item.from_member_id,
@@ -211,12 +196,6 @@ BEGIN
           USING ERRCODE = 'PT001';
       END IF;
 
-      PERFORM private.clear_trade_block_listing_for_asset(
-        v_trade.league_id,
-        v_from_member,
-        v_item.player_id
-      );
-
       INSERT INTO roster_transactions (
         league_id,
         league_season_id,
@@ -241,13 +220,6 @@ BEGIN
         RAISE EXCEPTION 'Failed to move draft-pick asset atomically'
           USING ERRCODE = 'PT001';
       END IF;
-
-      PERFORM private.clear_trade_block_listing_for_asset(
-        v_trade.league_id,
-        v_from_member,
-        NULL,
-        v_item.pick_id
-      );
     ELSE
       v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
       IF v_item_faab_amount <= 0 THEN

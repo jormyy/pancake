@@ -164,15 +164,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF p_to_ir THEN
-    DELETE FROM weekly_lineups
-     WHERE member_id = v_rp.member_id
-       AND league_id = v_rp.league_id
-       AND league_season_id = v_rp.league_season_id
-       AND player_id = v_rp.player_id
-       AND game_date >= (now() AT TIME ZONE 'America/New_York')::date;
-  END IF;
-
   INSERT INTO roster_transactions (
     league_id,
     league_season_id,

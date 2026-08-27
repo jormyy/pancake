@@ -369,7 +369,18 @@ BEGIN
       );
       RETURN;
     END IF;
+  END IF;
 
+  -- Mark the claim before the drop is released: the roster-lifecycle trigger
+  -- clears stale drop selections on pending claims, and this claim's recorded
+  -- drop must survive as history.
+  UPDATE waiver_claims
+     SET status = 'succeeded',
+         processed_at = now(),
+         failure_reason = NULL
+   WHERE id = v_claim.id;
+
+  IF v_drop_roster_id IS NOT NULL THEN
     PERFORM private.release_roster_player_to_waivers(
       v_drop_roster_id,
       v_claim.league_id,
@@ -446,12 +457,6 @@ BEGIN
    WHERE priority_row.league_id = v_claim.league_id
      AND priority_row.league_season_id = v_claim.league_season_id
      AND priority_row.member_id = v_claim.member_id;
-
-  UPDATE waiver_claims
-     SET status = 'succeeded',
-         processed_at = now(),
-         failure_reason = NULL
-   WHERE id = v_claim.id;
 
   PERFORM private.log_league_activity(
     v_claim.league_id,

@@ -12,6 +12,7 @@ records live under [`audits/`](./audits/).
 | [soak-harness-audit.md](./soak-harness-audit.md) | Forced-red audit of the release-soak harness: each major assertion family broken on purpose to prove its green is trustworthy. |
 | [instant-loading.md](./instant-loading.md) | Performance operating plan: top-10 workflows, latency budgets, and the regression gates that enforce them. |
 | [pwa-live-data.md](./pwa-live-data.md) | PWA architecture, cache rules, reconnect recovery, verification, and known limits. |
+| [roster-lifecycle.md](./roster-lifecycle.md) | Roster-linked state map: what happens to trade-block listings, lineups, pending claims, and pending offers when a player leaves a roster, and the triggers that enforce it. |
 | [source-monitoring.md](./source-monitoring.md) | Source freshness, completeness, failure records, recovery steps, and known limits. |
 | [supabase-backend-route-inventory.md](./supabase-backend-route-inventory.md) | Inventory of every Edge API route and internal function with its auth model. |
 | [evidence/](./evidence/) | Dated performance evidence: what was measured, under what conditions, and what the numbers do and do not claim. |

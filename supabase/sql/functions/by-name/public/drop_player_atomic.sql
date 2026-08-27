@@ -113,26 +113,6 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  DELETE FROM weekly_lineups wl
-   WHERE wl.league_id = v_rp.league_id
-     AND wl.league_season_id = v_rp.league_season_id
-     AND wl.member_id = v_rp.member_id
-     AND wl.player_id = v_rp.player_id
-     AND wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date
-     AND NOT EXISTS (
-       SELECT 1
-         FROM players p
-         JOIN nba_games g
-           ON g.game_date = wl.game_date
-          AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
-        WHERE p.id = wl.player_id
-          AND (
-            g.status IN ('InProgress', 'Final')
-            OR (g.game_time IS NOT NULL AND g.game_time <= now())
-            OR (g.started_at IS NOT NULL AND g.started_at <= now())
-          )
-     );
-
   INSERT INTO waiver_wire_log (
     league_id,
     league_season_id,

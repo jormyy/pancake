@@ -151,6 +151,12 @@ prunes only rows the product never reads: ops telemetry past its window, lineups
 than two seasons, old-season non-final standings snapshots, and transactions older than
 three seasons.
 
+Roster-linked state (trade-block listings, future lineup slots, pending waiver drops,
+pending offers) is kept consistent by database triggers whenever a player leaves a
+roster or a pick changes hands, on every path: drops, waiver drops, trades, IR/taxi
+moves, merges, resets, and service-role maintenance. History rows are never rewritten.
+See [docs/roster-lifecycle.md](./docs/roster-lifecycle.md).
+
 ## Testing
 
 ```bash
