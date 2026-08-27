@@ -134,7 +134,15 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
       signedOut.boot === null && !signedOut.shellStillInDom,
       `boot=${JSON.stringify(signedOut.boot)} shellInDom=${signedOut.shellStillInDom}`)
 
-    // 2. Sign in, then relaunch — the installed-PWA path.
+    // 2. The exported document must not prerender a background that differs
+    //    from the app's own, or a signed-out launch flashes it before React
+    //    paints. react-navigation's light theme defaults to #F2F2F2 grey.
+    const documentHtml = await fetch(joinUrl(env.frontendUrl, '/')).then((response) => response.text())
+    record('the exported document prerenders no foreign background',
+      !/rgba?\(\s*242\s*,\s*242\s*,\s*242/.test(documentHtml),
+      documentHtml.match(/rgba?\([^)]*242[^)]*\)/)?.[0] ?? 'none')
+
+    // 3. Sign in, then relaunch — the installed-PWA path.
     await signIn(session, env.frontendUrl, user.email, state.password)
     await browser(session, ['wait', '2000'])
 
@@ -162,7 +170,7 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
         relaunch.mountMark - relaunch.shellMark <= BUDGETS.launchShellHoldMaxMs,
       `held=${Math.round((relaunch.mountMark ?? 0) - (relaunch.shellMark ?? 0))}ms`)
 
-    // 3. Background then foreground: an installed PWA spends most of its life
+    // 4. Background then foreground: an installed PWA spends most of its life
     //    suspended, and the worker re-checks for updates on every foreground.
     await browser(session, ['eval', `(() => {
       Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
@@ -181,7 +189,7 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
       foreground.rootText.length > 0 && !foreground.shellStillInDom,
       `text="${foreground.rootText.slice(0, 40)}" shellInDom=${foreground.shellStillInDom}`)
 
-    // 4. Cache aging: the persisted screen caches expire, but the launch must
+    // 5. Cache aging: the persisted screen caches expire, but the launch must
     //    still paint chrome immediately and refresh behind it.
     await browser(session, ['eval', `(() => {
       const aged = Date.now() - 1000 * 60 * 60 * 24 * 7;
@@ -206,13 +214,13 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
       aged.shellMark !== null && aged.rootText.length > 0,
       `shell=${aged.shellMark === null ? 'none' : Math.round(aged.shellMark) + 'ms'} text="${aged.rootText.slice(0, 40)}"`)
 
-    // 5. The worker precached everything the shell boots from.
+    // 6. The worker precached everything the shell boots from.
     const precache = await evaluate(session, CACHED_BOOT_ASSETS)
     record('the worker precached every boot asset it declares',
       precache.declared.length >= 3 && precache.missing.length === 0,
       `declared=${precache.declared.length} missing=${precache.missing.join(', ') || 'none'}`)
 
-    // 6. Offline relaunch still reaches the app.
+    // 7. Offline relaunch still reaches the app.
     await browser(session, ['network', 'offline', 'on']).catch(() => {})
     await openPage(session, joinUrl(env.frontendUrl, '/'), 'offline relaunch').catch(() => {})
     await browser(session, ['wait', '4000'])
