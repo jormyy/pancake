@@ -44,12 +44,25 @@ const bootAssets = (html, assets) => {
   // The boot shell paints its brand mark before any bundle runs.
   urls.add('/pwa-192.png')
   urls.add('/manifest.webmanifest')
-  // The icon font is fetched by the bundle, not the document, so without this
-  // the real chrome renders empty boxes for ~2s after the shell hands off.
-  for (const url of assets) {
-    if (/MaterialIcons\.[0-9a-f]+\.ttf$/.test(url)) urls.add(url)
-  }
+  // Fonts are fetched by the bundle, not the document, so they only start
+  // downloading once the app has mounted: the chrome renders empty icon boxes
+  // and fallback type for seconds after the shell hands off. Precache the ones
+  // the bundle actually names — they are small next to the bundle itself.
+  for (const url of assets.fonts) urls.add(url)
   return [...urls].sort()
+}
+
+/** Fonts under dist/assets that the built JavaScript actually references. */
+const referencedFonts = async (root, assets) => {
+  const fonts = assets.filter((url) => /\.(?:ttf|otf|woff2?)$/.test(url))
+  if (fonts.length === 0) return []
+  const jsDir = path.join(root, 'dist', '_expo', 'static', 'js', 'web')
+  const names = await readdir(jsDir).catch(() => [])
+  const bundles = await Promise.all(
+    names.filter((name) => name.endsWith('.js')).map((name) => readFile(path.join(jsDir, name), 'utf8')),
+  )
+  const source = bundles.join('\n')
+  return fonts.filter((url) => source.includes(url.split('/').pop()))
 }
 
 const setServiceWorkerPrecache = async (root) => {
@@ -64,7 +77,8 @@ const setServiceWorkerPrecache = async (root) => {
     throw new Error('Service worker is missing its PRECACHE_URLS declaration; deploys would launch with a cold bundle')
   }
   const html = await readFile(path.join(root, 'dist', 'index.html'), 'utf8')
-  const urls = bootAssets(html, await assetUrls(root))
+  const assets = await assetUrls(root)
+  const urls = bootAssets(html, { fonts: await referencedFonts(root, assets) })
   if (urls.length < 3) {
     throw new Error('Release build produced no boot assets to precache; the shell HTML is probably malformed')
   }

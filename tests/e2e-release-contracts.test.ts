@@ -265,6 +265,13 @@ describe('release E2E contracts', () => {
     await writeFile(path.join(root, 'dist', 'index.html'), SHELL_HTML)
     await mkdir(path.join(root, 'dist', 'assets', 'fonts'), { recursive: true })
     await writeFile(path.join(root, 'dist', 'assets', 'fonts', 'MaterialIcons.abc123.ttf'), 'font')
+    // An unreferenced font must stay out of the manifest.
+    await writeFile(path.join(root, 'dist', 'assets', 'fonts', 'Unused.def456.ttf'), 'font')
+    await mkdir(path.join(root, 'dist', '_expo', 'static', 'js', 'web'), { recursive: true })
+    await writeFile(
+      path.join(root, 'dist', '_expo', 'static', 'js', 'web', 'entry-abc.js'),
+      'require("/assets/fonts/MaterialIcons.abc123.ttf")\n',
+    )
     await Promise.all([
       writeFile(path.join(root, 'app.json'), '{}\n'),
       writeFile(path.join(root, 'package.json'), '{}\n'),
