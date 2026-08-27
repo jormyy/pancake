@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -109,7 +110,7 @@ describe('boot shell', () => {
         // The live LeagueSwitcher crest is the team's first letter, not the league's.
         expect(texts).toEqual({
             league: 'Sunday Dynasty', 'league-compact': 'Sunday Dynasty',
-            team: 'E2E Team 1', crest: 'E', initials: 'ET',
+            team: 'E2E Team 1', profile: 'E2E Team 1', crest: 'E', initials: 'ET',
         })
         expect(commissionerHidden).toBe(false)
         expect(breadcrumb).toMatchObject({ league: 'Sunday Dynasty', team: 'E2E Team 1', active: '/roster' })
@@ -132,6 +133,25 @@ describe('boot shell', () => {
             expect(attributes['data-visible']).toBe('1')
             expect(texts).toEqual({})
         }
+    })
+
+    // LeagueSwitcher renders "No league" / "Create or join from League" when the
+    // user has joined none. The shell must ship the same words, or a signed-in
+    // user without a league is shown a league that does not exist.
+    it('leaves the no-league wording LeagueSwitcher uses when there is no league', () => {
+        const component = readFileSync(path.join(process.cwd(), 'components/navigation/WebTabShell.tsx'), 'utf8')
+        expect(component).toContain('>No league<')
+        expect(component).toContain('>Create or join from League<')
+        expect(BOOT_SHELL_HTML).toContain('data-pbs="league">No league<')
+        expect(BOOT_SHELL_HTML).toContain('data-pbs="league-compact">No league<')
+        expect(BOOT_SHELL_HTML).toContain('data-pbs="team">Create or join from League<')
+        expect(BOOT_SHELL_HTML).toContain('data-pbs="profile">Profile<')
+
+        // With a session but no membership, the script must not overwrite them.
+        const { attributes, texts, breadcrumb } = runBootScript('/', { 'sb-abc-auth-token': session() })
+        expect(attributes['data-visible']).toBe('1')
+        expect(texts).toEqual({})
+        expect(breadcrumb).toMatchObject({ league: null, team: null, initials: null })
     })
 
     it('compacts the mobile league label the way compactHeaderLabel does', () => {

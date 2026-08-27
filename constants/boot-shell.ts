@@ -187,8 +187,8 @@ export const BOOT_SHELL_HTML = `
       <div class="pbs-league">
         <div class="pbs-crest" data-pbs="crest">P</div>
         <div class="pbs-league-text">
-          <div class="pbs-league-name" data-pbs="league">Pancake League</div>
-          <div class="pbs-league-meta" data-pbs="team">Team</div>
+          <div class="pbs-league-name" data-pbs="league">No league</div>
+          <div class="pbs-league-meta" data-pbs="team">Create or join from League</div>
         </div>
       </div>
       <div class="pbs-navgroup">${PRIMARY_NAV.map(sideItem).join('')}</div>
@@ -204,7 +204,7 @@ export const BOOT_SHELL_HTML = `
       <div class="pbs-userchip">
         <div class="pbs-avatar" data-pbs="initials">P</div>
         <div class="pbs-league-text">
-          <div class="pbs-username" data-pbs="team">Profile</div>
+          <div class="pbs-username" data-pbs="profile">Profile</div>
           <div class="pbs-usermeta">Profile &amp; settings</div>
         </div>
       </div>
@@ -213,7 +213,7 @@ export const BOOT_SHELL_HTML = `
   <div class="pbs-topbar">
     <img src="/pwa-192.png" alt="" />
     <div class="pbs-topbar-league"><div class="pbs-crest" data-pbs="crest">P</div>
-      <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">Pancake League</div></div>
+      <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">No league</div></div>
       ${CHEVRON_ICON}</div>
     <div class="pbs-menu" aria-hidden="true">${MENU_ICON}</div>
   </div>
@@ -295,14 +295,17 @@ export const BOOT_SHELL_SCRIPT = `
     if (pick.length === 1) return pick[0].replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase();
     return (safe.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '?').toUpperCase();
   };
+  var leagueName = null;
+  var teamName = null;
   if (current) {
-    var leagueName = (current.leagues && current.leagues.name) || 'Pancake League';
-    var teamName = current.team_name || 'Team';
+    leagueName = (current.leagues && current.leagues.name) || 'Pancake League';
+    teamName = current.team_name || 'Team';
     setText('league', leagueName);
     // Mirrors compactHeaderLabel: the mobile bar shows at most two words.
     var words = leagueName.trim().split(/\\s+/).filter(Boolean);
     setText('league-compact', words.length > 2 ? words.slice(0, 2).join(' ') : leagueName);
     setText('team', teamName);
+    setText('profile', teamName);
     setText('crest', (teamName.trim()[0] || 'P').toUpperCase());
     setText('initials', initials(teamName));
     if (current.role === 'commissioner' || current.role === 'co_commissioner') {
@@ -328,9 +331,9 @@ export const BOOT_SHELL_SCRIPT = `
   // What the shell actually painted, kept after the element is removed so the
   // launch gate can assert on it without racing the handoff.
   window.__PANCAKE_BOOT__ = {
-    league: (el.querySelector('[data-pbs="league"]') || {}).textContent || null,
-    team: (el.querySelector('[data-pbs="team"]') || {}).textContent || null,
-    initials: (el.querySelector('[data-pbs="initials"]') || {}).textContent || null,
+    league: leagueName,
+    team: teamName,
+    initials: teamName ? initials(teamName) : null,
     active: (function () { var a = el.querySelector('[aria-current="page"]'); return a ? a.getAttribute('data-href') : null })(),
   };
   }
