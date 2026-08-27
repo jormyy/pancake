@@ -13,6 +13,47 @@ const repositoryCommit = (root) => execFileSync('git', ['rev-parse', 'HEAD'], {
 }).trim()
 
 const SERVICE_WORKER_VERSION = /const VERSION = '[^']*'/
+const SERVICE_WORKER_PRECACHE = /const PRECACHE_URLS = \[[^\]]*\]/
+
+// Everything the shell HTML boots from. Precaching exactly this set means the
+// reload that follows a service-worker update paints from disk instead of
+// re-downloading the bundle, which is what turned every deploy into a blank
+// launch. Deliberately not the whole build: per-route chunks stay lazy.
+const bootAssets = (html) => {
+  const urls = new Set(['/'])
+  for (const [, src] of html.matchAll(/<script[^>]+src="([^"]+)"/g)) {
+    if (src.startsWith('/')) urls.add(src)
+  }
+  for (const [, href] of html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)) {
+    if (href.startsWith('/')) urls.add(href)
+  }
+  // The boot shell paints its brand mark before any bundle runs.
+  urls.add('/pwa-192.png')
+  urls.add('/manifest.webmanifest')
+  return [...urls].sort()
+}
+
+const setServiceWorkerPrecache = async (root) => {
+  const workerPath = path.join(root, 'dist', 'sw.js')
+  let source
+  try {
+    source = await readFile(workerPath, 'utf8')
+  } catch {
+    return
+  }
+  if (!SERVICE_WORKER_PRECACHE.test(source)) {
+    throw new Error('Service worker is missing its PRECACHE_URLS declaration; deploys would launch with a cold bundle')
+  }
+  const html = await readFile(path.join(root, 'dist', 'index.html'), 'utf8')
+  const urls = bootAssets(html)
+  if (urls.length < 3) {
+    throw new Error('Release build produced no boot assets to precache; the shell HTML is probably malformed')
+  }
+  await writeFile(
+    workerPath,
+    source.replace(SERVICE_WORKER_PRECACHE, `const PRECACHE_URLS = ${JSON.stringify(urls)}`),
+  )
+}
 
 // Normalize before hashing. This makes repeated stamps deterministic.
 const setServiceWorkerVersion = async (root, version) => {
@@ -38,6 +79,8 @@ export const stampReleaseProvenance = async ({
     process.env.E2E_RELEASE_SHA || process.env.GITHUB_SHA || repositoryCommit(root),
 } = {}) => {
   if (!fullSha(commitSha)) throw new Error('Release marker requires a full commit SHA')
+  // Before the digest, so the precached set is covered by the cache version.
+  await setServiceWorkerPrecache(root)
   await setServiceWorkerVersion(root, 'pancake-build')
   const cacheDigest = await digestReleaseBundle(root)
   await setServiceWorkerVersion(
