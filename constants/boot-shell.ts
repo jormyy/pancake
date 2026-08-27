@@ -316,7 +316,10 @@ export const BOOT_SHELL_SCRIPT = `
 
   // Mark the active route the same way WebTabShell's isRouteActive does.
   var active = function (href) {
-    if (href === '/') return path === '/' || path === '' || path === '/index';
+    if (href === '/') {
+      return path === '/' || path === '' || path === '/index' ||
+        path === '/(tabs)' || path === '/(tabs)/index';
+    }
     return path.indexOf(href) === 0;
   };
   var links = el.querySelectorAll('[data-href]');

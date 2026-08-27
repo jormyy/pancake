@@ -21,6 +21,8 @@ const {
 
 type Storage = Record<string, string>
 
+const NAV_HREFS = ['/', '/roster', '/players', '/trades', '/dynasty', '/league']
+
 /** Minimal DOM stand-in: the shell script only reads storage and one element. */
 function runBootScript(pathname: string, storage: Storage) {
     const texts: Record<string, string> = {}
@@ -33,9 +35,18 @@ function runBootScript(pathname: string, storage: Storage) {
         getAttribute: () => (name === 'active' ? '/roster' : null),
         removeAttribute: () => {},
     })
+    const activeHrefs: string[] = []
     const element = {
         setAttribute(key: string, value: string) { attributes[key] = value },
         querySelectorAll: (selector: string) => {
+            if (selector === '[data-href]') {
+                return NAV_HREFS.map((href) => ({
+                    getAttribute: (name: string) => (name === 'data-href' ? href : null),
+                    setAttribute: (name: string, value: string) => {
+                        if (name === 'aria-current' && value === 'page') activeHrefs.push(href)
+                    },
+                }))
+            }
             const match = /\[data-pbs="([^"]+)"\]/.exec(selector)
             return match ? [textNode(match[1])] : []
         },
@@ -68,7 +79,7 @@ function runBootScript(pathname: string, storage: Storage) {
         }),
         { mark: (name: string) => marks.push(name) },
     )
-    return { attributes, texts, marks, breadcrumb: scope.__PANCAKE_BOOT__, commissionerHidden: hidden.has('commissioner') }
+    return { attributes, texts, marks, activeHrefs, breadcrumb: scope.__PANCAKE_BOOT__, commissionerHidden: hidden.has('commissioner') }
 }
 
 const session = (userId = 'u1') => JSON.stringify({ access_token: 'fake-access-token', user: { id: userId } })
@@ -152,6 +163,20 @@ describe('boot shell', () => {
         expect(attributes['data-visible']).toBe('1')
         expect(texts).toEqual({})
         expect(breadcrumb).toMatchObject({ league: null, team: null, initials: null })
+    })
+
+    it('marks the active route exactly as isRouteActive does', () => {
+        const storage = membershipStorage()
+        const activeFor = (pathname: string) => runBootScript(pathname, storage).activeHrefs
+        // Every form isRouteActive treats as the home route.
+        for (const home of ['/', '/index', '/(tabs)', '/(tabs)/index']) {
+            expect(activeFor(home), `home form ${home}`).toContain('/')
+        }
+        expect(activeFor('/roster')).toEqual(['/roster'])
+        expect(activeFor('/players')).toEqual(['/players'])
+        // A route outside the nav highlights nothing, as in the component.
+        expect(activeFor('/profile')).toEqual([])
+        expect(activeFor('/player/abc')).toEqual([])
     })
 
     it('compacts the mobile league label the way compactHeaderLabel does', () => {

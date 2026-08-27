@@ -43,6 +43,15 @@ It paints chrome and cached identity only. It never paints scores, lineups,
 rosters, trades, or any value whose staleness could mislead a roster decision.
 It reads only this user's own storage. It writes nothing.
 
+### What the shell deliberately omits
+
+Two things the real chrome shows are additive at handoff, so the shell leaves
+them out rather than guessing: the pending-trade badge on the Trades item, and a
+profile photo on the footer chip. Neither is in the persistent cache the shell
+reads, and both only ever *appear* at mount — they never replace something the
+shell got wrong. Everything else the chrome renders is pinned to its component
+by a test.
+
 ### How it degrades
 
 Every failure path renders plain chrome rather than breaking the launch:
