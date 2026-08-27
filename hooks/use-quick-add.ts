@@ -8,6 +8,8 @@ import {
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { submitWaiverClaim } from '@/lib/waivers'
 import { getErrorMessage } from '@/lib/alert'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage, getAddLimitStatus, isAddLimitError } from '@/lib/add-limit'
+import type { MemberTransactionState } from '@/lib/league'
 
 type IRModalState = {
     ineligible: RosterPlayer[]
@@ -22,6 +24,7 @@ export function useQuickAdd(
     waiverIds: Set<string>,
     refreshOwned: () => void,
     refreshTransactionState?: () => void,
+    transactionState?: MemberTransactionState | null,
 ) {
     const [adding, setAdding] = useState<string | null>(null)
     const [dropPickerPlayer, setDropPickerPlayer] = useState<PlayerRow | null>(null)
@@ -51,6 +54,29 @@ export function useQuickAdd(
         setDropping(null)
         setIrModal(null)
     }, [ownerIdentity])
+
+    // The server is authoritative; this only saves a round trip and explains the
+    // block up front when the cached state already says the week is used up.
+    const explainAddLimitBlock = useCallback(() => {
+        const status = getAddLimitStatus(transactionState)
+        if (!status?.reached) return false
+        Alert.alert(ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage(status))
+        refreshTransactionState?.()
+        return true
+    }, [transactionState, refreshTransactionState])
+
+    const reportAddError = useCallback((error: unknown) => {
+        const message = getErrorMessage(error)
+        if (isAddLimitError(message)) {
+            // A stale client or a slot consumed elsewhere: the server message
+            // carries the reset time, and the picker has nothing left to offer.
+            setDropPickerPlayer(null)
+            refreshTransactionState?.()
+            Alert.alert(ADD_LIMIT_BLOCKED_TITLE, message)
+            return
+        }
+        Alert.alert('Error', message)
+    }, [refreshTransactionState])
 
     const checkIR = useCallback(
         async (player: PlayerRow, lid: string, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
@@ -82,6 +108,7 @@ export function useQuickAdd(
                             const generation = generationRef.current
                             const identity = ownerIdentity
                             if (!isCurrent(generation, identity)) return
+                            if (explainAddLimitBlock()) return
                             setAdding(player.id)
                             try {
                                 await submitWaiverClaim(memberId, lid, player.id)
@@ -89,7 +116,7 @@ export function useQuickAdd(
                                 onAfterClaim?.()
                                 refreshTransactionState?.()
                             } catch (e) {
-                                if (isCurrent(generation, identity)) Alert.alert('Error', getErrorMessage(e))
+                                if (isCurrent(generation, identity)) reportAddError(e)
                             } finally {
                                 if (isCurrent(generation, identity)) {
                                     setAdding(null)
@@ -101,13 +128,14 @@ export function useQuickAdd(
                 ],
             )
         },
-        [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent]
+        [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent, explainAddLimitBlock, reportAddError]
     )
 
     const addFreeAgentWithFallback = useCallback(async (player: PlayerRow, lid: string) => {
         if (!memberId) return
         const generation = generationRef.current
         const identity = ownerIdentity
+        if (explainAddLimitBlock()) return
         setAdding(player.id)
         try {
             const result = await addFreeAgentOrRequestDrop(memberId, lid, player.id)
@@ -120,11 +148,11 @@ export function useQuickAdd(
             await refreshOwned()
             refreshTransactionState?.()
         } catch (e) {
-            if (isCurrent(generation, identity)) Alert.alert('Error', getErrorMessage(e))
+            if (isCurrent(generation, identity)) reportAddError(e)
         } finally {
             if (isCurrent(generation, identity)) setAdding(null)
         }
-    }, [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent])
+    }, [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent, explainAddLimitBlock, reportAddError])
 
     const proceedAfterIR = useCallback(async (player: PlayerRow, lid: string) => {
         if (waiverIds.has(player.id)) {
@@ -148,6 +176,7 @@ export function useQuickAdd(
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
+        if (explainAddLimitBlock()) return
 
         if (waiverIds.has(player.id)) {
             const roster = await checkIR(player, leagueId)
@@ -180,7 +209,7 @@ export function useQuickAdd(
                 Alert.alert('Added', `${player.display_name} added to your roster.`)
             }
         } catch (e) {
-            if (isCurrent(generation, identity)) Alert.alert('Error', getErrorMessage(e))
+            if (isCurrent(generation, identity)) reportAddError(e)
         } finally {
             if (isCurrent(generation, identity)) {
                 setAdding(null)
@@ -188,12 +217,16 @@ export function useQuickAdd(
                 refreshTransactionState?.()
             }
         }
-    }, [memberId, leagueId, ownerIdentity, rosterSize, waiverIds, checkIR, claimWaiver, refreshOwned, refreshTransactionState, isCurrent])
+    }, [memberId, leagueId, ownerIdentity, rosterSize, waiverIds, checkIR, claimWaiver, refreshOwned, refreshTransactionState, isCurrent, explainAddLimitBlock, reportAddError])
 
     const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
         if (!memberId || !dropPickerPlayer || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
+        if (explainAddLimitBlock()) {
+            setDropPickerPlayer(null)
+            return
+        }
 
         const roster = await checkIR(dropPickerPlayer, leagueId, rosterPlayer.id)
         if (!isCurrent(generation, identity)) return
@@ -207,11 +240,11 @@ export function useQuickAdd(
             await refreshOwned()
             refreshTransactionState?.()
         } catch (e) {
-            if (isCurrent(generation, identity)) Alert.alert('Error', getErrorMessage(e))
+            if (isCurrent(generation, identity)) reportAddError(e)
         } finally {
             if (isCurrent(generation, identity)) setDropping(null)
         }
-    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshOwned, refreshTransactionState, isCurrent])
+    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshOwned, refreshTransactionState, isCurrent, explainAddLimitBlock, reportAddError])
 
     const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
         if (!memberId || !leagueId) return

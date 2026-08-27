@@ -232,6 +232,10 @@ export type MemberTransactionState = {
     waiverMode: WaiverMode
     faabStartingBudget: number
     faabBalance: number
+    /** When the current add week ends and the count resets; null when the league has no schedule yet. */
+    addLimitResetsAt: string | null
+    /** IANA zone the league's add weeks are drawn in. */
+    addWeekTimeZone: string
 }
 
 type MemberTransactionStateRow = {
@@ -242,6 +246,8 @@ type MemberTransactionStateRow = {
     waiver_mode: WaiverMode
     faab_starting_budget: number
     faab_balance: number
+    add_limit_resets_at: string | null
+    add_week_timezone: string | null
 }
 
 export async function getMemberTransactionState(
@@ -263,6 +269,8 @@ export async function getMemberTransactionState(
         waiverMode: row.waiver_mode,
         faabStartingBudget: row.faab_starting_budget,
         faabBalance: row.faab_balance,
+        addLimitResetsAt: row.add_limit_resets_at ?? null,
+        addWeekTimeZone: row.add_week_timezone ?? 'America/New_York',
     }
 }
 

@@ -24,6 +24,7 @@ function PlayerSearchItemImpl({
     showCompactStats = true,
     statMode = 'season',
     animate = true,
+    addBlockedReason = null,
     onAdd,
     onPress,
 }: {
@@ -37,6 +38,8 @@ function PlayerSearchItemImpl({
     showCompactStats?: boolean
     statMode?: 'season' | 'projection'
     animate?: boolean
+    /** Why a pickup is unavailable right now (weekly add limit). The button stays pressable so the tap explains it. */
+    addBlockedReason?: string | null
     onAdd: (player: PlayerRow) => void
     onPress: (player: PlayerRow) => void
 }) {
@@ -96,16 +99,17 @@ function PlayerSearchItemImpl({
             <View style={styles.addCol}>
                 {canAdd ? (
                     <MotionPressable
-                        style={styles.addBtn}
+                        style={[styles.addBtn, addBlockedReason ? styles.addBtnBlocked : null]}
                         onPress={() => onAdd(item)}
                         disabled={isAdding}
                         accessibilityRole="button"
                         accessibilityLabel={`Add ${item.display_name}`}
-                        accessibilityState={{ disabled: isAdding }}
+                        accessibilityHint={addBlockedReason ?? undefined}
+                        accessibilityState={{ disabled: isAdding || !!addBlockedReason }}
                         hitSlop={8}
                         pressedScale={0.88}
                     >
-                        <Text style={styles.addBtnText}>+</Text>
+                        <Text style={[styles.addBtnText, addBlockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
                     </MotionPressable>
                 ) : null}
             </View>
@@ -287,6 +291,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
+    addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
+    addBtnTextBlocked: { color: colors.textPlaceholder },
     playerCard: {
         flex: 1,
         flexDirection: 'row',

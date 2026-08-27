@@ -33,6 +33,10 @@ type Props = {
     leagueActive: boolean
     actionLoading: boolean
     playedToday?: boolean
+    /** Full explanation of why a pickup is unavailable (weekly add limit); the action stays pressable so a tap explains it. */
+    addBlockedReason?: string | null
+    /** One-line caption shown under the blocked action, e.g. "Adds 7/7 · resets Mon 12:00 AM ET". */
+    addBlockedCaption?: string | null
     onAdd: () => void
     onDrop: () => void
     onClaim: () => void
@@ -45,6 +49,8 @@ export function PlayerHeader({
     leagueActive,
     actionLoading,
     playedToday = false,
+    addBlockedReason = null,
+    addBlockedCaption = null,
     onAdd,
     onDrop,
     onClaim,
@@ -112,21 +118,39 @@ export function PlayerHeader({
             {leagueActive && rosterStatus && (
                 <View style={styles.actionWrap}>
                     {rosterStatus.status === 'free_agent' ? (
-                        <Pressable
-                            style={styles.addButton}
-                            onPress={onAdd}
-                            disabled={actionLoading}
-                        >
-                            <Text style={styles.addButtonText}>+ Add</Text>
-                        </Pressable>
+                        <View style={styles.pickupAction}>
+                            <Pressable
+                                style={[styles.addButton, addBlockedReason ? styles.pickupBlocked : null]}
+                                onPress={onAdd}
+                                disabled={actionLoading}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Add ${player.display_name}`}
+                                accessibilityHint={addBlockedReason ?? undefined}
+                                accessibilityState={{ disabled: actionLoading || !!addBlockedReason }}
+                            >
+                                <Text style={[styles.addButtonText, addBlockedReason ? styles.pickupBlockedText : null]}>+ Add</Text>
+                            </Pressable>
+                            {addBlockedReason && addBlockedCaption ? (
+                                <Text style={styles.pickupCaption} numberOfLines={2}>{addBlockedCaption}</Text>
+                            ) : null}
+                        </View>
                     ) : rosterStatus.status === 'on_waivers' ? (
-                        <Pressable
-                            style={styles.claimButton}
-                            onPress={onClaim}
-                            disabled={actionLoading}
-                        >
-                            <Text style={styles.claimButtonText}>Claim</Text>
-                        </Pressable>
+                        <View style={styles.pickupAction}>
+                            <Pressable
+                                style={[styles.claimButton, addBlockedReason ? styles.pickupBlocked : null]}
+                                onPress={onClaim}
+                                disabled={actionLoading}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Claim ${player.display_name}`}
+                                accessibilityHint={addBlockedReason ?? undefined}
+                                accessibilityState={{ disabled: actionLoading || !!addBlockedReason }}
+                            >
+                                <Text style={[styles.claimButtonText, addBlockedReason ? styles.pickupBlockedText : null]}>Claim</Text>
+                            </Pressable>
+                            {addBlockedReason && addBlockedCaption ? (
+                                <Text style={styles.pickupCaption} numberOfLines={2}>{addBlockedCaption}</Text>
+                            ) : null}
+                        </View>
                     ) : rosterStatus.status === 'mine' ? (
                         <View style={styles.myActions}>
                             <Pressable
@@ -176,6 +200,10 @@ const styles = StyleSheet.create({
 
     actionWrap: { flexShrink: 0 },
     myActions: { gap: spacing.sm, alignItems: 'stretch' },
+    pickupAction: { alignItems: 'flex-end', gap: spacing.xs, maxWidth: 160 },
+    pickupBlocked: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
+    pickupBlockedText: { color: colors.textPlaceholder },
+    pickupCaption: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'right' },
 
     lineupButton: {
         backgroundColor: colors.primary,

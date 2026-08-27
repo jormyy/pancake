@@ -65,6 +65,42 @@ Migration `20260827000001_roster_lifecycle_invariants.sql` introduced the trigge
 removed the older per-RPC cleanup calls, and backfilled rows that had already
 drifted (stale listings, stale pending drops, pending offers whose asset was gone).
 
+## Weekly add limits
+
+A league's `weekly_add_limit` caps free-agent adds and processed waiver claims per
+add week. The server is authoritative on every path: `add_free_agent_atomic`,
+`drop_and_add_free_agent_atomic`, `create_waiver_claim_atomic` (at submission) and
+the waiver processor (at success) all call `private.assert_weekly_add_available`.
+
+Add weeks follow `season_weeks` in Eastern Time: the count resets at 12:00 AM ET the
+day after the scheduled week ends. Before the first scheduled week the count belongs
+to that week. Past the last scheduled week (playoffs, offseason) the count rolls every
+seven days from the day after that week; a new season with no schedule yet keeps the
+same cadence anchored on the prior season. `private.weekly_add_limit_resets_at`
+computes that instant with the same rules as `private.current_add_week_number`.
+
+Feedback:
+
+- The rejection reads `Weekly add limit reached (7/7 adds used this week). Adds reset
+  Mon, Nov 2 at 12:00 AM ET.` so a stale client, or a client whose last slot was
+  consumed elsewhere, still learns the next eligible time from the server.
+- `get_member_transaction_state` returns `add_limit_resets_at` and `add_week_timezone`.
+  Every pickup entry point (players tab add button and header line, player page Add
+  and Claim, the waiver-claim modal, the drop-to-add picker and the IR-resolution
+  continuation) reads them through `lib/add-limit.ts`, renders the action in a
+  disabled state with the reason as its accessibility hint, and explains the block on
+  tap with the reset shown in ET and in the viewer's local zone when they differ.
+- A cached count whose week already ended is treated as available again on the client;
+  the server opens the new week on the next request.
+- A commissioner override (`commissioner_override_weekly_add_count_atomic`) changes the
+  count only; the reset instant is unchanged.
+
+`npm run test:db:weekly-add-limit` runs `tests/db/weekly-add-limit-boundaries.sql`:
+inside a week, the last day of a week, the first day of a week, a gap before the next
+week, the seven-day cadence past the schedule (two buckets), an unscheduled new
+season, no schedule at all, and the rejection message and member state agreeing on the
+instant.
+
 ## Testing
 
 `npm run test:db:roster-lifecycle` runs `tests/db/roster-lifecycle-invariants.sql`

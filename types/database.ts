@@ -3985,6 +3985,8 @@ export type Database = {
       get_member_transaction_state: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: {
+          add_limit_resets_at: string
+          add_week_timezone: string
           faab_balance: number
           faab_starting_budget: number
           league_season_id: string

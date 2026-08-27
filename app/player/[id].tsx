@@ -13,6 +13,8 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage, addLimitSummary, getAddLimitStatus, isAddLimitError } from '@/lib/add-limit'
+import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -56,11 +58,14 @@ export default function PlayerDetailScreen() {
     const [rosterStatusResource, setRosterStatusResource] = useState<{
         ownerIdentity: string | null
         status: PlayerRosterStatus | null
+        transactionState: MemberTransactionState | null
         error: string | null
-    }>({ ownerIdentity, status: null, error: null })
+    }>({ ownerIdentity, status: null, transactionState: null, error: null })
     const ownsRosterStatus = rosterStatusResource.ownerIdentity === ownerIdentity
     const rosterStatus = ownsRosterStatus ? rosterStatusResource.status : null
     const rosterStatusError = ownsRosterStatus ? rosterStatusResource.error : null
+    const addLimit = getAddLimitStatus(ownsRosterStatus ? rosterStatusResource.transactionState : null)
+    const addBlockedReason = addLimit?.reached ? addLimitBlockedMessage(addLimit) : null
     const [actionLoading, setActionLoading] = useState(false)
 
     // Drop picker + IR resolution state
@@ -90,19 +95,43 @@ export default function PlayerDetailScreen() {
     const loadRosterStatus = useCallback(async () => {
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
-        setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: null })
+        setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: null })
         if (!current || !leagueId || !requestedOwner) return
         try {
-            const status = await getPlayerRosterStatus(id, current.id, leagueId)
+            const [status, transactionState] = await Promise.all([
+                getPlayerRosterStatus(id, current.id, leagueId),
+                getMemberTransactionState(current.id, leagueId),
+            ])
             if (isCurrent(generation, requestedOwner)) {
-                setRosterStatusResource({ ownerIdentity: requestedOwner, status, error: null })
+                setRosterStatusResource({ ownerIdentity: requestedOwner, status, transactionState, error: null })
             }
         } catch (e) {
             if (isCurrent(generation, requestedOwner)) {
-                setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(e) })
+                setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: getErrorMessage(e) })
             }
         }
     }, [current, id, leagueId, ownerIdentity])
+
+    // Explains a blocked pickup from cached state; the server stays authoritative
+    // and its own rejection (a stale client, a slot consumed elsewhere) is shown
+    // through the same title.
+    function explainAddLimitBlock(): boolean {
+        if (!addBlockedReason) return false
+        showAlert(ADD_LIMIT_BLOCKED_TITLE, addBlockedReason)
+        void loadRosterStatus()
+        return true
+    }
+
+    function reportPickupError(e: unknown) {
+        const message = getErrorMessage(e)
+        if (isAddLimitError(message)) {
+            setDropPickerVisible(false)
+            showAlert(ADD_LIMIT_BLOCKED_TITLE, message)
+            void loadRosterStatus()
+            return
+        }
+        showAlert('Error', message)
+    }
 
     useEffect(() => {
         loadRosterStatus()
@@ -110,6 +139,7 @@ export default function PlayerDetailScreen() {
 
     async function handleAdd() {
         if (!current || !leagueId) return
+        if (explainAddLimitBlock()) return
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
         setActionLoading(true)
@@ -146,7 +176,7 @@ export default function PlayerDetailScreen() {
                 await loadRosterStatus()
             }
         } catch (e) {
-            if (isCurrent(generation, requestedOwner)) showAlert('Error', getErrorMessage(e))
+            if (isCurrent(generation, requestedOwner)) reportPickupError(e)
         } finally {
             if (isCurrent(generation, requestedOwner)) setActionLoading(false)
         }
@@ -170,7 +200,7 @@ export default function PlayerDetailScreen() {
             setDropPickerVisible(false)
             await loadRosterStatus()
         } catch (e) {
-            if (isCurrent(generation, requestedOwner)) showAlert('Error', getErrorMessage(e))
+            if (isCurrent(generation, requestedOwner)) reportPickupError(e)
         } finally {
             if (isCurrent(generation, requestedOwner)) setDropping(null)
         }
@@ -286,6 +316,7 @@ export default function PlayerDetailScreen() {
 
     async function handleClaim() {
         if (!current || !leagueId) return
+        if (explainAddLimitBlock()) return
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
         // Check for ineligible IR players before allowing waiver claim
@@ -336,6 +367,8 @@ export default function PlayerDetailScreen() {
                         leagueActive={!!current}
                         actionLoading={ownsActionState ? actionLoading : false}
                         playedToday={playedToday}
+                        addBlockedReason={addBlockedReason}
+                        addBlockedCaption={addLimit?.reached ? addLimitSummary(addLimit) : null}
                         onAdd={handleAdd}
                         onDrop={handleDrop}
                         onClaim={handleClaim}

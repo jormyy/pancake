@@ -54,7 +54,11 @@ BEGIN
    FOR UPDATE;
 
   IF COALESCE(v_used, 0) >= v_limit THEN
-    RAISE EXCEPTION '%', private.weekly_add_limit_message(COALESCE(v_used, 0), v_limit)
+    RAISE EXCEPTION '%', private.weekly_add_limit_message(
+      COALESCE(v_used, 0),
+      v_limit,
+      private.weekly_add_limit_resets_at(p_league_id, p_league_season_id)
+    )
       USING ERRCODE = 'P0001';
   END IF;
 END;

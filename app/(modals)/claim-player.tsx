@@ -19,6 +19,7 @@ import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage, addLimitSummary, getAddLimitStatus, isAddLimitError } from '@/lib/add-limit'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
@@ -98,10 +99,18 @@ export default function ClaimPlayerScreen() {
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
+    const addLimit = getAddLimitStatus(transactionState)
+    const addBlockedReason = addLimit?.reached ? addLimitBlockedMessage(addLimit) : null
 
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
+        if (addBlockedReason) {
+            // Claims count as adds when they process, and the server rejects a
+            // claim submitted after this week's adds are used up.
+            showAlert(ADD_LIMIT_BLOCKED_TITLE, addBlockedReason)
+            return
+        }
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
@@ -127,7 +136,17 @@ export default function ClaimPlayerScreen() {
             )
             router.back()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            const message = getErrorMessage(e)
+            if (isAddLimitError(message)) {
+                showAlert(ADD_LIMIT_BLOCKED_TITLE, message)
+                if (current && currentLeague) {
+                    void getMemberTransactionState(current.id, currentLeague.id)
+                        .then((state) => setTransactionState(state))
+                        .catch(() => {})
+                }
+            } else {
+                showAlert('Error', message)
+            }
         } finally {
             setSubmitting(false)
         }
@@ -143,7 +162,24 @@ export default function ClaimPlayerScreen() {
     })
     const claimReady = !loading && !!player
     const submitDisabled = submitting || !claimReady || (needsDrop && !selectedDrop)
+    const submitLooksDisabled = submitDisabled || !!addBlockedReason
     const compactDropMode = isCompactLandscape && needsDrop
+
+    function renderAddLimitNotice() {
+        if (!addBlockedReason || !addLimit) return null
+        return (
+            <View
+                style={[styles.limitCard, isCompactLandscape && styles.compactLimitCard]}
+                accessibilityLiveRegion="polite"
+                role="status"
+                testID="add-limit-notice"
+            >
+                <Text style={styles.limitTitle}>{ADD_LIMIT_BLOCKED_TITLE}</Text>
+                <Text style={styles.limitBody}>{addBlockedReason} Claims can be submitted again after the reset.</Text>
+                <Text style={styles.limitMeta}>{addLimitSummary(addLimit)}</Text>
+            </View>
+        )
+    }
 
     function renderScreenHeader() {
         return (
@@ -250,6 +286,7 @@ export default function ClaimPlayerScreen() {
                             contentContainerStyle={[styles.bodyContent, isCompactLandscape && styles.compactBodyContent]}
                             keyboardShouldPersistTaps="handled"
                         >
+                            {renderAddLimitNotice()}
                             {!compactDropMode ? (
                                 <>
                                     <View style={[styles.claimCard, isCompactLandscape && styles.compactClaimCard]}>
@@ -350,10 +387,12 @@ export default function ClaimPlayerScreen() {
                                         />
                                     </View>
                                     <Pressable
-                                        style={[styles.submitButton, styles.compactSubmitButton, submitDisabled && styles.submitButtonDisabled]}
+                                        style={[styles.submitButton, styles.compactSubmitButton, submitLooksDisabled && styles.submitButtonDisabled]}
                                         onPress={handleSubmit}
                                         accessibilityRole="button"
                                         accessibilityLabel="Submit waiver claim"
+                                        accessibilityHint={addBlockedReason ?? undefined}
+                                        accessibilityState={{ disabled: submitLooksDisabled }}
                                         disabled={submitDisabled}
                                     >
                                         <Text style={styles.submitButtonText}>Submit Claim</Text>
@@ -361,10 +400,12 @@ export default function ClaimPlayerScreen() {
                                 </View>
                             ) : (
                                 <Pressable
-                                    style={[styles.submitButton, submitDisabled && styles.submitButtonDisabled]}
+                                    style={[styles.submitButton, submitLooksDisabled && styles.submitButtonDisabled]}
                                     onPress={handleSubmit}
                                     accessibilityRole="button"
                                     accessibilityLabel="Submit waiver claim"
+                                    accessibilityHint={addBlockedReason ?? undefined}
+                                    accessibilityState={{ disabled: submitLooksDisabled }}
                                     disabled={submitDisabled}
                                 >
                                     <Text style={styles.submitButtonText}>Submit Claim</Text>
@@ -426,6 +467,25 @@ const styles = StyleSheet.create({
         marginVertical: spacing.md,
         padding: spacing.lg,
     },
+    limitCard: {
+        marginHorizontal: spacing.xl,
+        marginTop: spacing.xl,
+        padding: spacing.lg,
+        backgroundColor: uiColors.brandSurfaceSoft,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: uiColors.brandBorder,
+        gap: spacing.xs,
+    },
+    compactLimitCard: {
+        marginHorizontal: spacing['2xl'],
+        marginTop: spacing.md,
+        padding: spacing.md,
+    },
+    limitTitle: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    limitBody: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 20 },
+    limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
     claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 0 },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     claimPlayerCopy: { flex: 1, minWidth: 0 },

@@ -13,7 +13,9 @@ RETURNS TABLE (
   weekly_add_count int,
   waiver_mode text,
   faab_starting_budget int,
-  faab_balance int
+  faab_balance int,
+  add_limit_resets_at timestamptz,
+  add_week_timezone text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -79,7 +81,9 @@ BEGIN
     count_row.add_count,
     league.waiver_mode,
     league.faab_starting_budget,
-    v_balance
+    v_balance,
+    private.weekly_add_limit_resets_at(p_league_id, v_season_id),
+    'America/New_York'::text
   FROM leagues AS league
   JOIN weekly_add_counts AS count_row
     ON count_row.league_id = league.id

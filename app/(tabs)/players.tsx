@@ -28,6 +28,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage, addLimitSummary, getAddLimitStatus } from '@/lib/add-limit'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
@@ -238,6 +239,8 @@ export default function PlayersScreen() {
     const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
     const playerSupportReady = !leagueId || playerSupportForLeague != null
     const transactionState = playerSupportForLeague?.transactionState ?? null
+    const addLimit = getAddLimitStatus(transactionState)
+    const addBlockedReason = addLimit?.reached ? addLimitBlockedMessage(addLimit) : null
 
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady })
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
@@ -258,6 +261,7 @@ export default function PlayersScreen() {
         waiverIds,
         refreshPlayerSupport,
         refreshPlayerSupport,
+        transactionState,
     )
     const gamesLeftVersion = useMemo(() => Array.from(search.availability.gamesLeft.entries())
         .sort(([a], [b]) => a.localeCompare(b))
@@ -285,10 +289,11 @@ export default function PlayersScreen() {
             showStats={showStatTable}
             showCompactStats={false}
             animate={false}
+            addBlockedReason={addBlockedReason}
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -357,7 +362,7 @@ export default function PlayersScreen() {
                         {collapsibleFilters
                             ? `${search.results.loading && search.results.players.length === 0 ? '—' : search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} players · `
                             : ''}
-                        Adds {transactionState ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'}` : '—/—'}
+                        {addLimit ? addLimitSummary(addLimit) : transactionState ? `Adds ${transactionState.weeklyAddCount}/∞` : 'Adds —/—'}
                         {' · '}
                         {transactionState
                             ? transactionState.waiverMode === 'faab'
@@ -365,6 +370,16 @@ export default function PlayersScreen() {
                                 : 'Rolling waivers'
                             : 'Waivers —'}
                     </Text>
+                    {addBlockedReason ? (
+                        <Text
+                            style={localStyles.addLimitNotice}
+                            accessibilityLiveRegion="polite"
+                            role="status"
+                            testID="add-limit-notice"
+                        >
+                            {ADD_LIMIT_BLOCKED_TITLE}. {addBlockedReason}
+                        </Text>
+                    ) : null}
                 </View>
                 <Animated.View style={{
                     overflow: 'hidden',
@@ -530,6 +545,12 @@ const localStyles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
+    },
+    addLimitNotice: {
+        marginTop: spacing.xs,
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.semibold,
+        color: colors.warningDark,
     },
 })
 
