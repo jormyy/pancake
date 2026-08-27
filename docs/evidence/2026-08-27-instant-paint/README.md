@@ -77,6 +77,23 @@ Cold `/` and cold `/players` prerendered nothing, so there the number moves too:
 In-app route changes were already fast and did not regress: 33-70ms before and
 after, within noise of each other at this scale.
 
+## Fonts
+
+MaterialIcons and the Outfit faces are fetched by the bundle, not the document,
+so they only start downloading once the app has mounted. Left alone the real
+chrome rendered empty icon boxes and fallback type for seconds *after* the shell
+handed off — the boot shell made that more obvious, not less, because it draws
+correct inline SVG icons.
+
+| Relaunch | Mount | Icon font | Outfit faces |
+| --- | ---: | --- | --- |
+| Before precaching | 113ms | 2196ms, 349KB transferred | 652ms |
+| After precaching | 64ms | 75ms, **0 bytes** | 74-75ms, **0 bytes** |
+
+A first-ever install still fetches them after mount — 4728ms for the icon font
+on the shaped link — because the worker only installs once the page has loaded.
+Precaching fixes every launch after that.
+
 ## Visual evidence
 
 [`webkit/`](./webkit/) holds the shell and the mounted app at both widths, so
