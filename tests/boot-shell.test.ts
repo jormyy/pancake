@@ -107,9 +107,20 @@ describe('boot shell', () => {
     it('renders the cached league, team, and initials the app will render', () => {
         const { texts, breadcrumb, commissionerHidden } = runBootScript('/roster', membershipStorage({ role: 'commissioner' }))
         // The live LeagueSwitcher crest is the team's first letter, not the league's.
-        expect(texts).toEqual({ league: 'Sunday Dynasty', team: 'E2E Team 1', crest: 'E', initials: 'ET' })
+        expect(texts).toEqual({
+            league: 'Sunday Dynasty', 'league-compact': 'Sunday Dynasty',
+            team: 'E2E Team 1', crest: 'E', initials: 'ET',
+        })
         expect(commissionerHidden).toBe(false)
         expect(breadcrumb).toMatchObject({ league: 'Sunday Dynasty', team: 'E2E Team 1', active: '/roster' })
+    })
+
+    it('compacts the mobile league label the way compactHeaderLabel does', () => {
+        const long = runBootScript('/', membershipStorage({ leagueName: 'Pancake E2E 20260827175814' })).texts
+        expect(long.league).toBe('Pancake E2E 20260827175814')
+        expect(long['league-compact']).toBe('Pancake E2E')
+        const short = runBootScript('/', membershipStorage({ leagueName: 'Sunday Dynasty' })).texts
+        expect(short['league-compact']).toBe('Sunday Dynasty')
     })
 
     it('shows commissioner tools for co-commissioners too, matching isCommissioner', () => {

@@ -139,6 +139,7 @@ html,body{background-color:${palette.cream100};}
     gap:${spacing.md}px;padding:0 ${spacing.md}px;border-radius:${radii.lg}px;
     background:${palette.cream200};border:1px solid ${palette.cream300};}
   .pbs-topbar-league .pbs-league-name{color:${palette.espresso};font-size:${fontSize.sm}px;}
+  .pbs-chevron{width:18px;height:18px;flex-shrink:0;fill:${palette.latte};}
   .pbs-menu{width:44px;height:44px;border-radius:${radii.lg}px;background:${palette.cream200};
     display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .pbs-menu svg{width:22px;height:22px;fill:${palette.espresso};}
@@ -164,6 +165,9 @@ const sideItem = (item: BootNavItem) =>
 
 const bottomItem = (item: BootNavItem) =>
     `<a class="pbs-bottomitem" data-href="${item.href}" href="${item.href}">${icon(item.icon)}<span class="pbs-bottomlabel">${item.mobileLabel}</span></a>`
+
+const CHEVRON_ICON =
+    '<svg class="pbs-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>'
 
 const MENU_ICON =
     '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>'
@@ -205,7 +209,8 @@ export const BOOT_SHELL_HTML = `
   <div class="pbs-topbar">
     <img src="/pwa-192.png" alt="" />
     <div class="pbs-topbar-league"><div class="pbs-crest" data-pbs="crest">P</div>
-      <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league">Pancake League</div></div></div>
+      <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">Pancake League</div></div>
+      ${CHEVRON_ICON}</div>
     <div class="pbs-menu">${MENU_ICON}</div>
   </div>
   <div class="pbs-content"></div>
@@ -283,6 +288,9 @@ export const BOOT_SHELL_SCRIPT = `
     var leagueName = (current.leagues && current.leagues.name) || 'Pancake League';
     var teamName = current.team_name || 'Team';
     setText('league', leagueName);
+    // Mirrors compactHeaderLabel: the mobile bar shows at most two words.
+    var words = leagueName.trim().split(/\\s+/).filter(Boolean);
+    setText('league-compact', words.length > 2 ? words.slice(0, 2).join(' ') : leagueName);
     setText('team', teamName);
     setText('crest', (teamName.trim()[0] || 'P').toUpperCase());
     setText('initials', initials(teamName));
