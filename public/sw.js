@@ -20,8 +20,9 @@ const PRECACHE_URLS = ['/']
 const SHELL_CACHE = `${VERSION}-shell`
 const ASSET_CACHE = `${VERSION}-assets`
 const SHELL_URL = '/'
-// Content-hashed output: the filename changes whenever the bytes do.
-const IMMUTABLE = /^\/_expo\/static\//
+// Content-hashed output: the filename changes whenever the bytes do. Covers the
+// bundle (/_expo/static) and the fonts and images the bundle asks for (/assets).
+const IMMUTABLE = /^\/(?:_expo\/static|assets)\//
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

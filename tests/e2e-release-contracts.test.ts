@@ -263,6 +263,8 @@ describe('release E2E contracts', () => {
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
     await writeFile(path.join(root, 'dist', 'sw.js'), WORKER_TEMPLATE)
     await writeFile(path.join(root, 'dist', 'index.html'), SHELL_HTML)
+    await mkdir(path.join(root, 'dist', 'assets', 'fonts'), { recursive: true })
+    await writeFile(path.join(root, 'dist', 'assets', 'fonts', 'MaterialIcons.abc123.ttf'), 'font')
     await Promise.all([
       writeFile(path.join(root, 'app.json'), '{}\n'),
       writeFile(path.join(root, 'package.json'), '{}\n'),
@@ -288,6 +290,9 @@ describe('release E2E contracts', () => {
         '/',
         '/_expo/static/css/app.css',
         '/_expo/static/js/web/entry-abc.js',
+        // The bundle fetches the icon font, so the document never lists it; the
+        // real chrome renders empty boxes until it lands.
+        '/assets/fonts/MaterialIcons.abc123.ttf',
         '/manifest.webmanifest',
         '/pwa-192.png',
       ])}`,
