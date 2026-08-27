@@ -60,15 +60,18 @@ const ICONS: Record<string, string> = {
         'M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z',
 }
 
-// Mirrors MOBILE_NAV / MOBILE_LABELS in WebTabShell.
-const NAV: BootNavItem[] = [
+// Mirrors PRIMARY_NAV in WebTabShell; the sidebar groups these together.
+const PRIMARY_NAV: BootNavItem[] = [
     { label: 'Matchup', mobileLabel: 'Match', href: '/', icon: 'home' },
     { label: 'Roster', mobileLabel: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Players', mobileLabel: 'Players', href: '/players', icon: 'groups' },
     { label: 'Trades', mobileLabel: 'Trades', href: '/trades', icon: 'swap-horiz' },
     { label: 'Dynasty', mobileLabel: 'Dyn', href: '/dynasty', icon: 'auto-awesome' },
-    { label: 'League', mobileLabel: 'League', href: '/league', icon: 'emoji-events' },
 ]
+
+// League sits in its own sidebar group, and joins the primary items on mobile.
+const LEAGUE_NAV: BootNavItem = { label: 'League', mobileLabel: 'League', href: '/league', icon: 'emoji-events' }
+const NAV: BootNavItem[] = [...PRIMARY_NAV, LEAGUE_NAV]
 
 const themeVars = Object.entries(WEB_THEME_VARS)
     .map(([name, value]) => `--pancake-${name}:${value};`)
@@ -187,8 +190,8 @@ export const BOOT_SHELL_HTML = `
           <div class="pbs-league-meta" data-pbs="team">Team</div>
         </div>
       </div>
-      <div class="pbs-navgroup">${NAV.slice(0, 5).map(sideItem).join('')}</div>
-      <div class="pbs-navgroup">${sideItem(NAV[5])}</div>
+      <div class="pbs-navgroup">${PRIMARY_NAV.map(sideItem).join('')}</div>
+      <div class="pbs-navgroup">${sideItem(LEAGUE_NAV)}</div>
       <div class="pbs-section">Season tools</div>
       <div class="pbs-navgroup">
         <div class="pbs-navitem">${icon('flash-on')}<span>Draft Room</span></div>
@@ -244,7 +247,6 @@ export const BOOT_SHELL_SCRIPT = `
 
   // Only a stored Supabase session means "this launch will land in the app".
   var session = read(function (k) { return k.indexOf('sb-') === 0 && k.lastIndexOf('-auth-token') === k.length - 11 });
-  if (!session) return;
   var userId = null;
   try { userId = JSON.parse(session.raw).user.id } catch (e) { return }
   if (!userId) return;

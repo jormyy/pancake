@@ -189,16 +189,28 @@ describe('boot shell', () => {
         expect(gate).toContain(`getElementById('${BOOT_SHELL_ID}')`)
     })
 
-    it('links every primary route so the shell navigates without the bundle', () => {
+    it('links every primary route in both the sidebar and the mobile bar', () => {
+        // Checked per region: the two navs carry the same routes, so a single
+        // whole-document search stays green when one of them loses an item.
+        const region = (className: string) => {
+            const start = BOOT_SHELL_HTML.indexOf(`<nav class="${className}"`)
+            expect(start, `${className} region`).toBeGreaterThan(-1)
+            return BOOT_SHELL_HTML.slice(start, BOOT_SHELL_HTML.indexOf('</nav>', start))
+        }
+        const sidebar = region('pbs-side')
+        const bottomNav = region('pbs-bottomnav')
         for (const href of ['/', '/roster', '/players', '/trades', '/dynasty', '/league']) {
-            expect(BOOT_SHELL_HTML).toContain(`data-href="${href}"`)
-            expect(BOOT_SHELL_HTML).toContain(`href="${href}"`)
+            expect(sidebar, `sidebar ${href}`).toContain(`data-href="${href}"`)
+            expect(bottomNav, `bottom nav ${href}`).toContain(`data-href="${href}"`)
+            expect(sidebar, `sidebar href ${href}`).toContain(`href="${href}"`)
         }
     })
 
     it('keeps the shell hidden until the script opts it in', () => {
-        expect(BOOT_SHELL_CSS).toContain(`#${BOOT_SHELL_ID}{`)
-        expect(BOOT_SHELL_CSS).toContain('display:none')
+        // Scoped to the shell's own rule: the mobile bars carry display:none
+        // too, so a loose search would pass even with the shell shown by default.
+        const rule = BOOT_SHELL_CSS.slice(BOOT_SHELL_CSS.indexOf(`#${BOOT_SHELL_ID}{`))
+        expect(rule.slice(0, rule.indexOf('}'))).toContain('display:none')
         expect(BOOT_SHELL_CSS).toContain(`#${BOOT_SHELL_ID}[data-visible="1"]{display:block;}`)
     })
 })

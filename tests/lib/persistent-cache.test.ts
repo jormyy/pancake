@@ -14,14 +14,19 @@ describe('persistent cache bounds', () => {
         vi.useRealTimers()
     })
 
-    it('expires entries by saved age', () => {
+    // Both sides of the boundary. Asserting only the expired side passes even
+    // if the default age collapses to a millisecond and nothing is ever cached.
+    it('keeps entries until a day old, then expires them', () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date('2026-07-09T00:00:00Z'))
-        writePersistentCache('pancake:test:old', { value: 1 })
+        const day = 24 * 60 * 60 * 1000
+        writePersistentCache('pancake:test:entry', { value: 1 })
 
-        vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1)
+        vi.advanceTimersByTime(day - 1000)
+        expect(readPersistentCache('pancake:test:entry')).toEqual({ value: 1 })
 
-        expect(readPersistentCache('pancake:test:old')).toBeNull()
+        vi.advanceTimersByTime(1001)
+        expect(readPersistentCache('pancake:test:entry')).toBeNull()
     })
 
     it('bounds high-cardinality player-search entries', () => {
