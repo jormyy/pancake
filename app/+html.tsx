@@ -1,6 +1,7 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
 import { type PropsWithChildren } from 'react'
 import { webChrome } from '@/constants/tokens'
+import { BOOT_SHELL_CSS, BOOT_SHELL_HTML, BOOT_SHELL_SCRIPT } from '@/constants/boot-shell'
 
 // Root HTML document for the web build. Adds the PWA manifest, theme color,
 // Apple install metadata, and registers the offline-shell service worker.
@@ -10,8 +11,7 @@ import { webChrome } from '@/constants/tokens'
 // stale-while-revalidate would replay outdated module graphs after every edit
 // ("Requiring unknown module"). Registration is a production-build concern only.
 const SW_REGISTER = process.env.NODE_ENV === 'production' ? `
-if ('serviceWorker' in navigator &&
-    (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+if ('serviceWorker' in navigator && window.isSecureContext) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('/sw.js').then(function (registration) {
       // Auto-update: re-check on every foreground so a backgrounded PWA picks
@@ -90,6 +90,9 @@ export default function Root({ children }: PropsWithChildren) {
                 <link rel="manifest" href="/manifest.webmanifest" />
                 <meta name="theme-color" content={webChrome.themeColor} />
                 <style dangerouslySetInnerHTML={{ __html: webChrome.rootBackgroundCss }} />
+                {/* Paints the real app chrome from static HTML, before the JS
+                    bundle mounts React. Removed by WebAppShell on mount. */}
+                <style dangerouslySetInnerHTML={{ __html: BOOT_SHELL_CSS }} />
                 <style dangerouslySetInnerHTML={{ __html: 'input:focus,textarea:focus{outline:none;}' }} />
                 <link rel="icon" href="/favicon.ico" />
                 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -101,7 +104,11 @@ export default function Root({ children }: PropsWithChildren) {
                 <ScrollViewStyleReset />
                 <script dangerouslySetInnerHTML={{ __html: SW_REGISTER }} />
             </head>
-            <body>{children}</body>
+            <body>
+                <div dangerouslySetInnerHTML={{ __html: BOOT_SHELL_HTML }} />
+                <script dangerouslySetInnerHTML={{ __html: BOOT_SHELL_SCRIPT }} />
+                {children}
+            </body>
         </html>
     )
 }

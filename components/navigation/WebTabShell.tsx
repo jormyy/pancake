@@ -7,6 +7,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { getProfile } from '@/lib/auth'
+import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
 import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
@@ -502,6 +503,8 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
     const compact = width < breakpoints.compact
     usePancakeWebTheme()
     useDocumentTitle()
+    // Swap the static boot shell for this one before the first paint.
+    useBootShellHandoff()
     const [menuOpen, setMenuOpen] = useState(false)
 
     // Keep the shell mounted for ALL web routes (stable element type) so toggling
