@@ -40,20 +40,48 @@ so storage, HTTP cache, and worker registration all start cold.
 
 ## Measurements
 
-Blank-screen duration (time to first contentful paint), WebKit, seeded with a
-returning user's storage.
+Blank-screen duration — time to first contentful paint — in headless WebKit,
+seeded with a returning user's storage, over a 1600kbps / 150ms RTT link. One
+browser context per launch, so storage, HTTP cache, and the worker registration
+all start cold. Raw runs: [`launch-before.json`](./launch-before.json),
+[`launch-after.json`](./launch-after.json).
 
-| Launch | Before | After |
-| --- | ---: | ---: |
-| Cold `/` (nothing cached) | 2526ms | 353ms |
-| Relaunch `/` | 2280ms | 32ms |
-| Repeat relaunch `/` | 77ms | 15ms |
-| Relaunch `/roster` | 2256ms | 31ms |
-| Relaunch `/players` | 2267ms | 27ms |
-| Relaunch `/trades` | 2268ms | 31ms |
-| First relaunch after a deploy | full re-download | 19ms |
+"Relaunch" is the installed-PWA case: the worker is installed and the app has
+run before. It is the launch users see every day.
 
-In-app route changes did not regress: 26-64ms in both builds.
+| Launch | Before | After | After: shell | After: mount |
+| --- | ---: | ---: | ---: | ---: |
+| Cold `/` | 2571ms | 332ms | 324ms | 2614ms |
+| Relaunch `/` | 2297ms | **33ms** | 16ms | 60ms |
+| Repeat relaunch `/` | 49ms | 34ms | 34ms | 65ms |
+| Cold `/roster` | 324ms | 328ms | 318ms | 2614ms |
+| Relaunch `/roster` | 2301ms | **29ms** | 29ms | 56ms |
+| Repeat relaunch `/roster` | 59ms | 27ms | 27ms | 54ms |
+| Cold `/players` | 2525ms | 324ms | 318ms | 2618ms |
+| Relaunch `/players` | 2289ms | **34ms** | 34ms | 64ms |
+| Repeat relaunch `/players` | 44ms | 27ms | 27ms | 68ms |
+| Cold `/trades` | 325ms | 334ms | 320ms | 2610ms |
+| Relaunch `/trades` | 2270ms | **27ms** | 27ms | 53ms |
+| Repeat relaunch `/trades` | 37ms | 25ms | 24ms | 52ms |
+
+Read the two flat rows honestly. Cold `/roster` and cold `/trades` show the same
+~325ms before and after, because those routes already prerendered enough static
+markup to trip first contentful paint. What painted was fragments of layout, and
+the app did not mount until ~2.5s. After the change the same ~320ms paint is the
+real chrome, with the league, team, and active route on it. The number is flat;
+what is on the screen is not.
+
+Cold `/` and cold `/players` prerendered nothing, so there the number moves too:
+2.5s to ~330ms.
+
+In-app route changes were already fast and did not regress: 33-70ms before and
+after, within noise of each other at this scale.
+
+## Visual evidence
+
+[`webkit/`](./webkit/) holds the shell and the mounted app at both widths, so
+the handoff can be compared directly: `1280x900-roster-shell.png` against
+`1280x900-roster-mounted.png`, and the same pair at `390x844`.
 
 ## Scenario coverage
 
@@ -70,6 +98,12 @@ pass on the new one, which is what makes the gate meaningful.
 | a wiped cache recovers from the network | PASS | PASS |
 | after sign-out the next launch shows no app chrome | PASS | PASS |
 
+Three-season soak on this build — full browser matrix repeated every season,
+realtime, push, history, pick chain, and a mid-life migration boundary between
+seasons 1 and 2: **PASS**, 66 scenario reports, zero failures, `pwa-launch`
+green in all three seasons. The migration boundary reported CURRENT, which is
+correct: this work ships no migration.
+
 Deploy-update path, against two releases whose `__common` hash moved:
 
 | Check | Old worker | New worker |
@@ -79,6 +113,13 @@ Deploy-update path, against two releases whose `__common` hash moved:
 | only the activated release keeps caches | PASS | PASS |
 | first relaunch after the deploy still mounts | PASS | PASS |
 | no reload storm | PASS (3 loads) | PASS (3 loads) |
+
+## Cost
+
+The shell adds 17KB raw to every exported document — 5.2KB of CSS, 7.1KB of
+markup, 4.8KB of script — which is about 7KB compressed on the critical path.
+The precache is 3.3MB raw across 14 entries, most of it the bundle, fetched in
+the background after load.
 
 ## What this does not claim
 

@@ -55,28 +55,27 @@ once the app is running; the launch budget covers getting there.
 
 ### Launch — 2026-08-27
 
-Blank-screen duration in WebKit against two release builds of the same commit
-range, seeded with a returning user's storage, shaped to 1600kbps / 150ms RTT.
-"Blank" is time to first contentful paint; before the boot shell that moment
-*was* the React mount.
+Blank-screen duration (time to first contentful paint) in headless WebKit,
+seeded with a returning user's storage, over 1600kbps / 150ms RTT, one browser
+context per launch. "Relaunch" is the installed-PWA case users see every day.
+Full table and raw runs: [`evidence/2026-08-27-instant-paint/`](./evidence/2026-08-27-instant-paint/).
 
 | Launch | Before | After |
 | --- | ---: | ---: |
-| Cold `/` (nothing cached) | 2526ms | 353ms |
-| Relaunch `/` (worker installed) | 2280ms | 32ms |
-| Repeat relaunch `/` | 77ms | 15ms |
-| Relaunch `/roster` | 2256ms | 31ms |
-| Relaunch `/players` | 2267ms | 27ms |
-| Relaunch `/trades` | 2268ms | 31ms |
+| Cold `/` | 2571ms | 332ms |
+| Relaunch `/` | 2297ms | 33ms |
+| Relaunch `/roster` | 2301ms | 29ms |
+| Relaunch `/players` | 2289ms | 34ms |
+| Relaunch `/trades` | 2270ms | 27ms |
 | First relaunch after a deploy | full re-download | 19ms |
 
-In-app route changes were already fast and did not regress: 26-64ms across
-Players, Trades, and Roster in both builds — under a single round trip, so no
-route chunk is fetched and route prefetching would buy nothing.
+Cold `/roster` and cold `/trades` read ~325ms in both builds: those routes
+prerender enough markup to trip first paint already. The app still did not mount
+until ~2.5s before the change; after it, the same paint is the real chrome.
 
-The cold number is the HTML arriving over the shaped link. The app itself still
-mounts at ~2.6s there; the shell covers that wait with real chrome rather than
-removing it. Nothing here claims zero loading.
+In-app route changes were already fast and did not regress: 33-70ms before and
+after, within noise at this scale, so no route chunk is fetched and route
+prefetching would buy nothing.
 
 ### Data — 2026-08-23
 
