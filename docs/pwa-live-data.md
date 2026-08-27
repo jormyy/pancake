@@ -97,6 +97,22 @@ The page reloads once after a new worker takes control. The first worker install
 Every cache path falls back to the network. An evicted, disabled, or corrupt
 cache cannot break a launch.
 
+## What is never cached
+
+The service worker intercepts same-origin documents and static assets only.
+Supabase, realtime, and every other cross-origin request pass straight through,
+so no API response, token, or row of another user's data reaches a cache the
+worker controls. The cached `/` document is the static export: identical for
+every user, with no data baked in.
+
+The boot shell reads three keys, all scoped to the user id in the stored
+session, and writes none. It renders a league name, a team name, and initials —
+nothing whose staleness could mislead a roster decision, and no authorization
+decision. The app still validates the session before anything acts on it.
+
+Sign-out and a change of user both clear the persistent caches, so the next
+launch paints the new user's identity or none.
+
 ## Offline and reconnect behavior
 
 The installed shell opens without a network. Cached matchup and lineup data remain visible.
