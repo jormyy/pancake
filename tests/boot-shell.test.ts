@@ -208,6 +208,38 @@ describe('boot shell', () => {
         expect(gate).toContain(`getElementById('${BOOT_SHELL_ID}')`)
     })
 
+    // The shell restates WebTabShell's navigation so it can render without the
+    // bundle. Five separate drift bugs already shipped in this file's first
+    // draft, so pin the restatement against the component it mirrors.
+    it('mirrors the navigation WebTabShell renders, label, route, and icon', async () => {
+        const shell = await readFile(path.join(process.cwd(), 'components/navigation/WebTabShell.tsx'), 'utf8')
+        const block = (name: string) => {
+            const start = shell.indexOf(`const ${name}`)
+            expect(start, `${name} in WebTabShell`).toBeGreaterThan(-1)
+            return shell.slice(start, shell.indexOf('\n]', start))
+        }
+        const entries = (source: string) =>
+            [...source.matchAll(/\{ label: '([^']+)', href: '([^']+)', icon: '([^']+)' \}/g)]
+                .map((m) => ({ label: m[1], href: m[2], icon: m[3] }))
+        const live = entries(block('PRIMARY_NAV'))
+        expect(live.length).toBeGreaterThan(0)
+
+        // League is appended to PRIMARY_NAV to form MOBILE_NAV; the shell keeps
+        // it in its own sidebar group, so assert it separately.
+        const mobileLabels = Object.fromEntries(
+            [...block('MOBILE_LABELS').matchAll(/'([^']+)': '([^']+)'/g)].map((m) => [m[1], m[2]]),
+        )
+
+        for (const item of [...live, { label: 'League', href: '/league', icon: 'emoji-events' }]) {
+            expect(BOOT_SHELL_HTML, `route ${item.href}`).toContain(`data-href="${item.href}"`)
+            expect(BOOT_SHELL_HTML, `sidebar label for ${item.href}`).toContain(`<span>${item.label}</span>`)
+            const mobile = mobileLabels[item.href]
+            expect(mobile, `MOBILE_LABELS entry for ${item.href}`).toBeTruthy()
+            expect(BOOT_SHELL_HTML, `mobile label for ${item.href}`)
+                .toContain(`<span class="pbs-bottomlabel">${mobile}</span>`)
+        }
+    })
+
     it('links every primary route in both the sidebar and the mobile bar', () => {
         // Checked per region: the two navs carry the same routes, so a single
         // whole-document search stays green when one of them loses an item.
