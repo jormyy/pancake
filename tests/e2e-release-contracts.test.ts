@@ -36,8 +36,12 @@ const WORKER_TEMPLATE = [
 ].join('\n')
 
 const SHELL_HTML =
-  '<html><head><link rel="stylesheet" href="/_expo/static/css/app.css"></head>' +
-  '<body><script src="/_expo/static/js/web/entry-abc.js" defer></script></body></html>'
+  '<html><head><link rel="stylesheet" href="/_expo/static/css/app.css"></head><body>' +
+  '<script src="/_expo/static/js/web/entry-abc.js" defer></script>' +
+  // Must not reach the manifest: the worker only serves its own origin.
+  '<script src="//cdn.example.com/off-origin.js" defer></script>' +
+  '<script src="https://cdn.example.com/absolute.js" defer></script>' +
+  '</body></html>'
 
 describe('release E2E contracts', () => {
   it('rejects mixed local and hosted E2E data targets', () => {

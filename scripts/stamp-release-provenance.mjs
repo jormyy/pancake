@@ -33,13 +33,18 @@ const assetUrls = async (root) => {
   return walk(path.join(root, 'dist', 'assets'), '/assets')
 }
 
+// Same-origin absolute paths only. "//host/path" also starts with a slash but
+// resolves off-origin, and the worker must never precache something it does not
+// serve.
+const isSameOriginPath = (url) => url.startsWith('/') && !url.startsWith('//')
+
 const bootAssets = (html, assets) => {
   const urls = new Set(['/'])
   for (const [, src] of html.matchAll(/<script[^>]+src="([^"]+)"/g)) {
-    if (src.startsWith('/')) urls.add(src)
+    if (isSameOriginPath(src)) urls.add(src)
   }
   for (const [, href] of html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)) {
-    if (href.startsWith('/')) urls.add(href)
+    if (isSameOriginPath(href)) urls.add(href)
   }
   // The boot shell paints its brand mark before any bundle runs.
   urls.add('/pwa-192.png')
