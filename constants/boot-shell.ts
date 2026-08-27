@@ -22,9 +22,10 @@ import {
 // It is built from the same design tokens as WebTabShell, so the two cannot
 // drift apart in color, size, or spacing.
 //
-// The shell is inert HTML with real <a href> links: it paints and navigates
-// even if the bundle never arrives. WebAppShell removes it before its own first
-// paint, so the handoff has no flicker and no duplicated chrome.
+// The shell is plain HTML with real <a href> links, so it paints and navigates
+// without any JavaScript beyond the small inline script that reveals it.
+// WebAppShell removes it before its own first paint, so the handoff has no
+// flicker and no duplicated chrome.
 
 export const BOOT_SHELL_ID = 'pancake-boot-shell'
 /** Marks the shell as painted; the paint probe and E2E gates assert on this. */
