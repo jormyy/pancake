@@ -134,17 +134,24 @@ DO $$
 DECLARE
   v_accept_definition text;
   v_asset_assertion_definition text;
+  v_reservation_definition text;
   v_missing text[];
   v_superseded text[];
 BEGIN
+  -- Acceptance checks reservations through the one reservation owner, keyed by
+  -- the participant that gives the asset (from_member_id), never by trade side.
   SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
     INTO v_accept_definition;
   SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)'::regprocedure)
     INTO v_asset_assertion_definition;
+  SELECT pg_get_functiondef('private.is_reserved_trade_asset(uuid,uuid,uuid,uuid,uuid,uuid)'::regprocedure)
+    INTO v_reservation_definition;
   IF v_accept_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
      OR v_accept_definition ILIKE '%accepted_item.side%'
-     OR v_asset_assertion_definition NOT ILIKE '%accepted_item.from_member_id = item.from_member_id%'
-     OR v_asset_assertion_definition ILIKE '%accepted_item.side%' THEN
+     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id%'
+     OR v_asset_assertion_definition ILIKE '%.side%'
+     OR v_reservation_definition NOT ILIKE '%item.from_member_id = p_member_id%'
+     OR v_reservation_definition ILIKE '%item.side%' THEN
     RAISE EXCEPTION 'Trade acceptance does not exclusively use canonical participant-owned routes';
   END IF;
 
@@ -408,7 +415,8 @@ BEGIN
      OR v_accept_trigger_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
      OR v_accept_definition ILIKE '%accepted_item.player_id%'
      OR v_accept_definition ILIKE '%accepted_item.pick_id%'
-     OR v_asset_assertion_definition NOT ILIKE '%accepted_item.from_member_id = item.from_member_id%' THEN
+     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, item.player_id, NULL, p_trade_id)%'
+     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, NULL, item.pick_id, p_trade_id)%' THEN
     RAISE EXCEPTION 'Trade acceptance does not use one canonical set-based asset assertion';
   END IF;
   IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE')
