@@ -72,6 +72,20 @@ Migration `20260827000001_roster_lifecycle_invariants.sql` introduced the trigge
 removed the older per-RPC cleanup calls, and backfilled rows that had already
 drifted (stale listings, stale pending drops, pending offers whose asset was gone).
 
+## Waiver window
+
+A dropped player's entry clears 48 hours after the drop, but the run that
+processes claims is daily (3:00 AM ET). Until the run processes the entry the
+player stays on waivers: `prevent_uncleared_waiver_free_agent_add` rejects a
+free-agent add of any uncleared entry (SQLSTATE `PA002`, so waiver priority never
+loses to the fastest add), and `create_waiver_claim_atomic` accepts a claim on any
+uncleared entry. Expired uncleared entries stay hidden from league-wide reads, so a
+client may show such a player as a free agent; the Edge API forwards `PA002` and
+every pickup entry point then offers the claim flow instead of a dead end.
+`npm run test:db:waiver-window` runs `tests/db/waiver-clearing-window.sql`, which
+covers the add rejection, the claim inside the window, the rejected claim on a
+processed entry, and the next run picking the claim up.
+
 ## Weekly add limits
 
 A league's `weekly_add_limit` caps free-agent adds and processed waiver claims per

@@ -79,7 +79,7 @@ BEGIN
 
   IF v_waiver_log_id IS NOT NULL THEN
     RAISE EXCEPTION 'This player is on waivers - submit a waiver claim instead.'
-      USING ERRCODE = 'P0001';
+      USING ERRCODE = 'PA002';
   END IF;
 
   SELECT id

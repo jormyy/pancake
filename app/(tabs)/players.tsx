@@ -252,6 +252,9 @@ export default function PlayersScreen() {
             search.sort.setDir('desc')
         }
     }
+    const openClaim = useCallback((player: PlayerRow) => {
+        push(`/(modals)/claim-player?playerId=${player.id}`)
+    }, [push])
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
@@ -260,6 +263,7 @@ export default function PlayersScreen() {
         refreshOwned: refreshPlayerSupport,
         refreshTransactionState: refreshPlayerSupport,
         transactionState,
+        onClaimInstead: openClaim,
     })
     const addBlockedReason = quickAdd.addBlockedReason
     const gamesLeftVersion = useMemo(() => Array.from(search.availability.gamesLeft.entries())
@@ -269,11 +273,11 @@ export default function PlayersScreen() {
     const quickAddHandleAdd = quickAdd.handleAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
         if (waiverIds.has(player.id)) {
-            push(`/(modals)/claim-player?playerId=${player.id}`)
+            openClaim(player)
         } else {
             void quickAddHandleAdd(player)
         }
-    }, [waiverIds, push, quickAddHandleAdd])
+    }, [waiverIds, openClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])

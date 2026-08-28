@@ -96,15 +96,21 @@ describe('classifyPickupError', () => {
     it('recognizes the weekly limit by its SQLSTATE from either request path', () => {
         const message = 'Weekly add limit reached (7/7 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.'
         expect(classifyPickupError(new RequestError(message, { code: 'PA001', status: 400 })))
-            .toEqual({ limitReached: true, title: 'Weekly add limit reached', message })
+            .toEqual({ limitReached: true, onWaivers: false, title: 'Weekly add limit reached', message })
         expect(classifyPickupError({ message, code: 'PA001' }))
-            .toEqual({ limitReached: true, title: 'Weekly add limit reached', message })
+            .toEqual({ limitReached: true, onWaivers: false, title: 'Weekly add limit reached', message })
+    })
+
+    it('recognizes a player the server still holds on waivers by its SQLSTATE', () => {
+        const message = 'This player is on waivers - submit a waiver claim instead.'
+        expect(classifyPickupError(new RequestError(message, { code: 'PA002', status: 400 })))
+            .toEqual({ limitReached: false, onWaivers: true, title: 'Still on waivers', message })
     })
 
     it('leaves every other failure on the generic path', () => {
         expect(classifyPickupError(new RequestError('Your active roster is full (20 players).', { code: 'P0001' })))
-            .toEqual({ limitReached: false, title: 'Error', message: 'Your active roster is full (20 players).' })
-        expect(classifyPickupError(new Error('offline'))).toEqual({ limitReached: false, title: 'Error', message: 'offline' })
+            .toEqual({ limitReached: false, onWaivers: false, title: 'Error', message: 'Your active roster is full (20 players).' })
+        expect(classifyPickupError(new Error('offline'))).toEqual({ limitReached: false, onWaivers: false, title: 'Error', message: 'offline' })
     })
 })
 

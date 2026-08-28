@@ -264,7 +264,7 @@ BEGIN
       '00000000-0000-0000-0000-000000030401', 'free_agent'
     );
     RAISE EXCEPTION 'Due waiver player was acquired as a free agent';
-  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  EXCEPTION WHEN SQLSTATE 'PA002' THEN
     IF SQLERRM NOT LIKE 'This player is on waivers%' THEN RAISE; END IF;
   END;
 

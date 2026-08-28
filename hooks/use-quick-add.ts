@@ -24,6 +24,8 @@ export type QuickAddOptions = {
     refreshOwned: () => void
     refreshTransactionState?: () => void
     transactionState?: MemberTransactionState | null
+    /** Opens the claim flow when the server says the player is still on waivers. */
+    onClaimInstead?: (player: PlayerRow) => void
 }
 
 export function useQuickAdd({
@@ -34,6 +36,7 @@ export function useQuickAdd({
     refreshOwned,
     refreshTransactionState,
     transactionState,
+    onClaimInstead,
 }: QuickAddOptions) {
     const [adding, setAdding] = useState<string | null>(null)
     const [dropPickerPlayer, setDropPickerPlayer] = useState<PlayerRow | null>(null)
@@ -134,14 +137,14 @@ export function useQuickAdd({
             showSuccess('Added', `${player.display_name} added to your roster.`)
             refreshTransactionState?.()
         } catch (e) {
-            if (isCurrent(generation, identity)) reportError(e)
+            if (isCurrent(generation, identity)) reportError(e, onClaimInstead && (() => onClaimInstead(player)))
         } finally {
             if (isCurrent(generation, identity)) {
                 setAdding(null)
                 refreshOwned()
             }
         }
-    }, [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent, reportError])
+    }, [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent, reportError, onClaimInstead])
 
     // The one dispatch for a pickup once IR is clear: waivers get a claim, a full
     // roster gets the drop picker, everything else is added directly.
@@ -200,14 +203,14 @@ export function useQuickAdd({
             setDropPickerPlayer(null)
             refreshTransactionState?.()
         } catch (e) {
-            if (isCurrent(generation, identity)) reportError(e)
+            if (isCurrent(generation, identity)) reportError(e, onClaimInstead && (() => onClaimInstead(dropPickerPlayer)))
         } finally {
             if (isCurrent(generation, identity)) {
                 setDropping(null)
                 refreshOwned()
             }
         }
-    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshOwned, refreshTransactionState, isCurrent, explainBlock, reportError])
+    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshOwned, refreshTransactionState, isCurrent, explainBlock, reportError, onClaimInstead])
 
     const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
         if (!memberId || !leagueId) return

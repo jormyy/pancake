@@ -181,7 +181,7 @@ export default function PlayerDetailScreen() {
                 await loadRosterStatus()
             }
         } catch (e) {
-            if (isCurrent(generation, requestedOwner)) reportPickupError(e)
+            if (isCurrent(generation, requestedOwner)) reportPickupError(e, handleClaim)
         } finally {
             if (isCurrent(generation, requestedOwner)) setActionLoading(false)
         }
@@ -205,7 +205,7 @@ export default function PlayerDetailScreen() {
             setDropPickerVisible(false)
             await loadRosterStatus()
         } catch (e) {
-            if (isCurrent(generation, requestedOwner)) reportPickupError(e)
+            if (isCurrent(generation, requestedOwner)) reportPickupError(e, handleClaim)
         } finally {
             if (isCurrent(generation, requestedOwner)) setDropping(null)
         }

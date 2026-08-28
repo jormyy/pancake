@@ -547,7 +547,7 @@ BEGIN
     ELSIF v_roll < 0.82 THEN
       v_op := 'waiver_claim';
       SELECT log.player_id INTO v_player FROM public.waiver_wire_log AS log
-       WHERE log.league_id = v_league AND log.league_season_id = v_season AND log.cleared_at IS NULL AND log.clears_at > now()
+       WHERE log.league_id = v_league AND log.league_season_id = v_season AND log.cleared_at IS NULL
        ORDER BY random() LIMIT 1;
       IF v_player IS NULL THEN CONTINUE; END IF;
       v_roster := NULL;

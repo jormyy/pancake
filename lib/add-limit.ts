@@ -13,13 +13,17 @@ export type AddLimitStatus = {
 
 export type PickupError = {
     limitReached: boolean
+    /** The player is still on waivers (possibly past the 48-hour mark, until the run processes the entry); a claim is the way in. */
+    onWaivers: boolean
     title: string
     message: string
 }
 
 export const ADD_LIMIT_BLOCKED_TITLE = 'Weekly add limit reached'
-/** SQLSTATE raised by private.assert_weekly_add_available; the Edge API forwards it as `code`. */
+const ON_WAIVERS_TITLE = 'Still on waivers'
+/** SQLSTATEs raised by the pickup rules (private.assert_weekly_add_available, the uncleared-waiver add guard); the Edge API forwards them as `code`. */
 const WEEKLY_ADD_LIMIT_CODE = 'PA001'
+const ON_WAIVERS_CODE = 'PA002'
 
 const ZONE_LABELS: Record<string, string> = { 'America/New_York': 'ET' }
 
@@ -102,12 +106,14 @@ export function addLimitSummary(state: AddLimitSource | null | undefined, now = 
     return reset ? `${base} · resets ${reset}` : `${base} · limit reached`
 }
 
-/** Splits a failed pickup into the weekly-limit case (the server message carries the reset time) and everything else. */
+/** Splits a failed pickup into the weekly-limit case (the server message carries the reset time), the on-waivers case, and everything else. */
 export function classifyPickupError(error: unknown): PickupError {
     const message = getErrorMessage(error)
     const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined
     const limitReached = code === WEEKLY_ADD_LIMIT_CODE
-    return { limitReached, title: limitReached ? ADD_LIMIT_BLOCKED_TITLE : 'Error', message }
+    const onWaivers = code === ON_WAIVERS_CODE
+    const title = limitReached ? ADD_LIMIT_BLOCKED_TITLE : onWaivers ? ON_WAIVERS_TITLE : 'Error'
+    return { limitReached, onWaivers, title, message }
 }
 
 /** Accessibility props for an action that stays pressable so a tap can explain why it is unavailable. */

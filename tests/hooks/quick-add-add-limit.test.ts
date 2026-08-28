@@ -9,13 +9,14 @@ import { memberTransactionState, playerRow, rosterPlayer } from '../helpers/fixt
 const mocks = vi.hoisted(() => ({
     alert: vi.fn(),
     success: vi.fn(),
+    confirm: vi.fn(),
     loadGate: vi.fn(),
     addOrRequestDrop: vi.fn(),
     dropAndAdd: vi.fn(),
     submitClaim: vi.fn(),
 }))
 
-vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: mocks.success, confirmAction: vi.fn() }))
+vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: mocks.success, confirmAction: mocks.confirm }))
 vi.mock('@/lib/roster', () => ({ dropAndAddFreeAgent: mocks.dropAndAdd }))
 vi.mock('@/lib/roster-add-flow', () => ({
     addFreeAgentOrRequestDrop: mocks.addOrRequestDrop,
@@ -101,13 +102,32 @@ describe('useQuickAdd weekly add limit', () => {
         expect(probe.refreshTransactionState).toHaveBeenCalled()
     })
 
+    it('offers the claim flow when the server still holds the player on waivers', async () => {
+        mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
+        mocks.addOrRequestDrop.mockRejectedValue(new RequestError('This player is on waivers - submit a waiver claim instead.', { code: 'PA002' }))
+        const onClaimInstead = vi.fn()
+        const probe = await mount(usedUp({ weeklyAddCount: 1 }), { onClaimInstead })
+        await act(async () => { await probe.latest.handleAdd(player) })
+
+        expect(mocks.alert).not.toHaveBeenCalled()
+        const [title, message, claim, confirmText, destructive] = mocks.confirm.mock.calls[0]
+        expect({ title, message, confirmText, destructive }).toEqual({
+            title: 'Still on waivers',
+            message: 'This player is on waivers - submit a waiver claim instead. Claims are processed on the next waiver run.',
+            confirmText: 'Claim',
+            destructive: false,
+        })
+        claim()
+        expect(onClaimInstead).toHaveBeenCalledWith(player)
+    })
+
     it('keeps other server errors on the generic path', async () => {
         mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
-        mocks.addOrRequestDrop.mockRejectedValue(new RequestError('This player is on waivers - submit a waiver claim instead.', { code: 'P0001' }))
+        mocks.addOrRequestDrop.mockRejectedValue(new RequestError('Your active roster is full (20 players).', { code: 'P0001' }))
         const probe = await mount(usedUp({ weeklyAddCount: 1 }))
         await act(async () => { await probe.latest.handleAdd(player) })
 
-        expect(mocks.alert).toHaveBeenCalledWith('Error', 'This player is on waivers - submit a waiver claim instead.')
+        expect(mocks.alert).toHaveBeenCalledWith('Error', 'Your active roster is full (20 players).')
     })
 
     it('does nothing special for unlimited leagues', async () => {
