@@ -22,6 +22,7 @@ vi.mock('@/lib/trades', () => ({
     getTradesForScreen,
     getTradeHistoryForScreen,
     removeTradeBlockItem: vi.fn(),
+    withTradeBlockStats: (items: TradeBlockItem[]) => items,
 }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
 vi.mock('@/lib/roster', () => ({ getRoster }))

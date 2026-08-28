@@ -112,15 +112,18 @@ describe('screen request budgets', () => {
         })
     })
 
-    it('trade block tab load (listings + own roster + averages)', async () => {
+    it('trade block tab load (listings + own roster + one averages fetch for both)', async () => {
         const result = await measure(async () => {
             const [items, roster] = await Promise.all([getTradeBlockItems('league'), getRoster('member', 'league')])
-            await getRosterStatsMaps(roster.map((row) => row.players.id), 'league')
+            await getRosterStatsMaps([
+                ...items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : []),
+                ...roster.map((row) => row.players.id),
+            ], 'league')
             return items
         })
         expect(result).toEqual({
-            requests: 7,
-            byTarget: { league_seasons: 1, mv_player_season_averages: 2, roster_players: 1, trade_block_items: 1, v_player_avg_fantasy_points: 2 },
+            requests: 5,
+            byTarget: { league_seasons: 1, mv_player_season_averages: 1, roster_players: 1, trade_block_items: 1, v_player_avg_fantasy_points: 1 },
         })
     })
 

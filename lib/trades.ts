@@ -780,15 +780,19 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
         return []
     })
 
-    const playerIds = items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : [])
-    if (playerIds.length === 0) return items
-    const { avgMap, avgStatsMap } = await getRosterStatsMaps(playerIds, leagueId)
-    return items.map((item) => ({
-        ...item,
-        asset: item.asset.kind === 'player'
-            ? enrichItemsWithStats([item.asset], avgMap, avgStatsMap)[0]
-            : item.asset,
-    }))
+    return items
+}
+
+/** Attaches season averages to listed players; the caller loads the averages once for listings and roster together. */
+export function withTradeBlockStats(
+    items: TradeBlockItem[],
+    avgMap: Map<string, number>,
+    avgStatsMap: Map<string, { avg_minutes_played: number | null }>,
+): TradeBlockItem[] {
+    if (avgMap.size === 0 && avgStatsMap.size === 0) return items
+    return items.map((item) => item.asset.kind === 'player'
+        ? { ...item, asset: enrichItemsWithStats([item.asset], avgMap, avgStatsMap)[0] }
+        : item)
 }
 
 export async function addTradeBlockItem(params: {
