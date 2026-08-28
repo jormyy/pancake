@@ -1,7 +1,6 @@
 import { Alert, Platform } from 'react-native'
 import { feedbackBridge } from '@/components/ui/feedback'
 
-
 type BrowserAlertWindow = Window & { __pancakeAlerts?: string[] }
 
 function captureBrowserAlert(title: string, message?: string) {

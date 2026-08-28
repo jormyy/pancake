@@ -35,7 +35,6 @@ export type PlayerRosterStatus =
     | { status: 'on_waivers'; logId: string; clearsAt: string }
     | { status: 'free_agent' }
 
-
 export async function getRoster(memberId: string, leagueId: string): Promise<RosterPlayer[]> {
     const rosters = await getRostersForMembers([memberId], leagueId)
     return rosters[memberId] ?? []
@@ -202,7 +201,7 @@ export async function dropPlayer(rosterPlayerId: string): Promise<void> {
     })
     if (error) {
         if (error.code === 'P0002') {
-            throw new Error('Could not drop player — you may not have permission or they are no longer on your roster.')
+            throw rpcError(error, 'Could not drop player — you may not have permission or they are no longer on your roster.')
         }
         throw error
     }
@@ -236,7 +235,7 @@ export async function activateRosterPlayerWithOverflow(
         p_free_action: freeAction,
     })
 
-    if (error) throw new Error(error.message)
+    if (error) throw rpcError(error)
 }
 
 export async function activateRosterPlayerWithLineup({
@@ -264,5 +263,5 @@ export async function activateRosterPlayerWithLineup({
         p_slot_type: slotType as RosterSlotType | null,
     })
 
-    if (error) throw new Error(error.message)
+    if (error) throw rpcError(error)
 }

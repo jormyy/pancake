@@ -93,7 +93,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_ir_slots := COALESCE(v_league.ir_slots, 2);
 
@@ -103,10 +102,7 @@ BEGIN
       FROM players p
      WHERE p.id = v_rp.player_id;
 
-    IF NOT (
-      lower(COALESCE(v_injury, '')) = 'out'
-      OR lower(COALESCE(v_injury, '')) LIKE 'ir%'
-    ) THEN
+    IF NOT private.is_ir_designation(v_injury) THEN
       RAISE EXCEPTION 'Only players with Out or IR designations can be placed on IR.'
         USING ERRCODE = 'P0001';
     END IF;

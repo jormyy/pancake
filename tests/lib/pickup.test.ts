@@ -74,7 +74,7 @@ describe('reportPickupError', () => {
         const onIneligibleIr = vi.fn()
         const error = new RequestError('You have ineligible players on IR (Player A). Activate or drop them before adding players.', { code: 'PA005' })
         reportPickupError(error, { onIneligibleIr })
-        expect(onIneligibleIr).toHaveBeenCalledTimes(1)
+        expect(onIneligibleIr).toHaveBeenCalledWith(error.message)
         expect(alerts.show).not.toHaveBeenCalled()
         reportPickupError(error)
         expect(alerts.show).toHaveBeenCalledWith('Error', error.message)

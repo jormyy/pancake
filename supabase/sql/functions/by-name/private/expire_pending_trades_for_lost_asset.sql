@@ -62,27 +62,25 @@ BEGIN
        )
      RETURNING trade.id, trade.league_id, trade.league_season_id, trade.proposer_member_id, trade.recipient_member_id
   )
+  -- The reason stays on the trade (visible to its parties); the league-wide
+  -- activity row names no asset of a pending offer.
   INSERT INTO league_activity (
     league_id,
     league_season_id,
     actor_member_id,
     target_member_id,
-    related_player_id,
     related_trade_id,
     event_type,
-    title,
-    body
+    title
   )
   SELECT
     expired.league_id,
     expired.league_season_id,
     expired.proposer_member_id,
     expired.recipient_member_id,
-    p_player_id,
     expired.id,
     'trade_expired',
-    'Trade offer expired',
-    v_reason
+    'Trade offer expired'
     FROM expired;
 
   PERFORM private.end_trade_lifecycle_write(v_previous_flag);

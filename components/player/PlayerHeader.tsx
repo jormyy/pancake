@@ -18,7 +18,7 @@ import { PosTag } from '@/components/PosTag'
 import { playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 
-export type PlayerHeaderPlayer = {
+type PlayerHeaderPlayer = {
     display_name: string
     nba_team: string | null
     position: string | null

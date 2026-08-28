@@ -112,8 +112,6 @@ export default function ClaimPlayerScreen() {
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
-        // Claims count as adds when they process, and the server rejects a
-        // claim submitted after this week's adds are used up.
         if (explainBlock()) return
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')

@@ -255,8 +255,7 @@ export default function PlayersScreen() {
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
-        refreshOwned: refreshPlayerSupport,
-        refreshTransactionState: refreshPlayerSupport,
+        onChanged: refreshPlayerSupport,
         transactionState,
         onClaimInstead: openClaim,
     })

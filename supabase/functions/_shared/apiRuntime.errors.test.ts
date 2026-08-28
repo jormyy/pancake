@@ -2,7 +2,7 @@
 // a 400 with its code, whether or not the route wrapped it in throwDb; a server
 // failure masks both message and code.
 Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:1')
-Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_error_contract_test')
+Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'not-a-real-key-error-contract-test')
 Deno.env.set('PANCAKE_EDGE_INTERNAL_TOKEN', 'edge-error-contract-test')
 
 const { handleApiRequest, throwDb } = await import('./apiRuntime.ts')

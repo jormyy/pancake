@@ -1,4 +1,5 @@
-import type { PlayerHeaderPlayer } from '@/components/player/PlayerHeader'
+import type { ComponentProps } from 'react'
+import type { PlayerHeader } from '@/components/player/PlayerHeader'
 import type { MemberTransactionState } from '@/lib/league'
 import type { PlayerRow } from '@/lib/players'
 import type { PlayerRosterStatus, RosterPlayer } from '@/lib/roster'
@@ -19,6 +20,8 @@ export function playerRow(overrides: Partial<PlayerRow> = {}): PlayerRow {
         ...overrides,
     }
 }
+
+type PlayerHeaderPlayer = ComponentProps<typeof PlayerHeader>['player']
 
 export function headerPlayer(overrides: Partial<PlayerHeaderPlayer> = {}): PlayerHeaderPlayer {
     return {

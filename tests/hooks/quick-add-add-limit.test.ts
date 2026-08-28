@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useQuickAdd, type QuickAddOptions } from '@/hooks/use-quick-add'
+import { useQuickAdd } from '@/hooks/use-quick-add'
 import type { MemberTransactionState } from '@/lib/league'
 import { RequestError } from '@/lib/shared/errors'
 import { memberTransactionState, playerRow, rosterPlayer } from '../helpers/fixtures'
@@ -40,18 +40,15 @@ const usedUp = (overrides: Partial<MemberTransactionState> = {}) =>
 type Latest = ReturnType<typeof useQuickAdd>
 let renderer: ReactTestRenderer | null = null
 
-async function mount(transactionState: MemberTransactionState | null, options: Partial<QuickAddOptions> = {}) {
-    const refreshTransactionState = vi.fn()
+async function mount(transactionState: MemberTransactionState | null, options: Partial<Parameters<typeof useQuickAdd>[0]> = {}) {
+    const onChanged = vi.fn()
     let latest!: Latest
     const Probe = () => {
-        latest = useQuickAdd({
-            memberId: 'member-a', leagueId: 'league-a',
-            refreshOwned: vi.fn(), refreshTransactionState, transactionState, ...options,
-        })
+        latest = useQuickAdd({ memberId: 'member-a', leagueId: 'league-a', onChanged, transactionState, ...options })
         return null
     }
     await act(async () => { renderer = create(React.createElement(Probe)) })
-    return { get latest() { return latest }, refreshTransactionState }
+    return { get latest() { return latest }, onChanged }
 }
 
 beforeEach(() => {
@@ -74,7 +71,7 @@ describe('useQuickAdd weekly add limit', () => {
         expect(mocks.alert).toHaveBeenCalledTimes(1)
         expect(mocks.alert.mock.calls[0][0]).toBe('Weekly add limit reached')
         expect(mocks.alert.mock.calls[0][1]).toBe(probe.latest.addBlockedReason)
-        expect(probe.refreshTransactionState).toHaveBeenCalled()
+        expect(probe.onChanged).toHaveBeenCalled()
     })
 
     it('proceeds once the reported week has ended, even if the cached count is full', async () => {
@@ -100,7 +97,7 @@ describe('useQuickAdd weekly add limit', () => {
 
         expect(mocks.alert).toHaveBeenLastCalledWith('Weekly add limit reached', LIMIT_MESSAGE)
         expect(probe.latest.dropPickerPlayer).toBeNull()
-        expect(probe.refreshTransactionState).toHaveBeenCalled()
+        expect(probe.onChanged).toHaveBeenCalled()
     })
 
     it('offers the claim flow when the server still holds the player on waivers', async () => {

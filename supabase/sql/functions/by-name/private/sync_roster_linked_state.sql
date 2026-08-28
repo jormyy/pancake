@@ -13,31 +13,16 @@ DECLARE
   v_became_inactive boolean := TG_OP = 'UPDATE'
     AND (NEW.is_on_ir = true OR NEW.is_on_taxi = true)
     AND (OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi);
-  v_still_active boolean;
 BEGIN
   IF NOT (v_left_roster OR v_became_inactive) THEN
     RETURN NULL;
   END IF;
 
-  -- Roster-linked state is only stale when no active current-season row is left
-  -- for this member and player (an old-season row going away must not touch it).
-  SELECT EXISTS (
-    SELECT 1
-      FROM roster_players AS roster
-      JOIN league_seasons AS season
-        ON season.id = roster.league_season_id
-       AND season.is_current = true
-     WHERE roster.league_id = OLD.league_id
-       AND roster.member_id = OLD.member_id
-       AND roster.player_id = OLD.player_id
-       AND roster.is_on_ir = false
-       AND roster.is_on_taxi = false
-  )
-    INTO v_still_active;
-
-  IF v_still_active THEN
+  -- An old-season row going away never touches live state.
+  IF NOT EXISTS (SELECT 1 FROM league_seasons WHERE id = OLD.league_season_id AND is_current = true) THEN
     RETURN NULL;
   END IF;
+
 
   PERFORM private.clear_future_unlocked_lineups(
     OLD.league_id,

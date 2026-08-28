@@ -87,9 +87,6 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  PERFORM v_member.id;
-
-
   DELETE FROM roster_players
    WHERE id = p_roster_player_id;
 

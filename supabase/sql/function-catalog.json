@@ -30,6 +30,7 @@
     "private.fail_waiver_claim(uuid,uuid,uuid,uuid,uuid,waiver_claim_status,text,text,text,jsonb)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.ineligible_ir_player_names(uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_commissioner(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.is_ir_designation(text)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_league_member(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_reserved_trade_asset(uuid,uuid,uuid,uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_valid_stats_sync_job_type(text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

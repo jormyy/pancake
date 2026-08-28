@@ -94,7 +94,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_taxi_slots := COALESCE(v_league.taxi_slots, 0);
 

@@ -11,7 +11,7 @@ import { showAlert, showSuccess } from '@/lib/alert'
 import type { MemberTransactionState } from '@/lib/league'
 
 /** What a pickup needs to know about its player. */
-export type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'>
+type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'>
 
 type PickupAction = 'add' | 'claim'
 
@@ -23,11 +23,11 @@ type IRModalState = {
     action: PickupAction
 } | null
 
-export type QuickAddOptions = {
+type QuickAddOptions = {
     memberId: string | undefined
     leagueId: string | null
-    refreshOwned: () => void
-    refreshTransactionState?: () => void
+    /** Reloads whatever the screen shows about ownership and the weekly add state, after a change or a block. */
+    onChanged: () => void
     transactionState?: MemberTransactionState | null
     /** Opens the claim flow: for a claim once IR is clear, or when the server says an added player is still on waivers. */
     onClaimInstead?: (player: QuickAddPlayer) => void
@@ -36,8 +36,7 @@ export type QuickAddOptions = {
 export function useQuickAdd({
     memberId,
     leagueId,
-    refreshOwned,
-    refreshTransactionState,
+    onChanged,
     transactionState,
     onClaimInstead,
 }: QuickAddOptions) {
@@ -59,12 +58,7 @@ export function useQuickAdd({
     const ownsState = stateOwnerIdentity === ownerIdentity
     const isCurrent = useCallback((generation: number, identity: string | null) =>
         generationRef.current === generation && activeOwnerRef.current === identity, [])
-    const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
-    // The same screen state usually serves both refreshes; one call is enough then.
-    const refreshAfterChange = useCallback(() => {
-        refreshOwned()
-        if (refreshTransactionState && refreshTransactionState !== refreshOwned) refreshTransactionState()
-    }, [refreshOwned, refreshTransactionState])
+    const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: onChanged })
 
     useEffect(() => {
         generationRef.current += 1
@@ -95,11 +89,13 @@ export function useQuickAdd({
     )
 
     const report = useCallback((error: unknown, player?: QuickAddPlayer) => reportPickupError(error, {
-        refresh: refreshTransactionState,
+        refresh: onChanged,
         onLimitReached: () => setDropPickerPlayer(null),
         claim: onClaimInstead && player ? () => onClaimInstead(player) : undefined,
-        onIneligibleIr: player && leagueId ? () => { void checkIR(player, leagueId, 'add') } : undefined,
-    }), [refreshTransactionState, onClaimInstead, leagueId, checkIR])
+        onIneligibleIr: player && leagueId
+            ? (message) => { void checkIR(player, leagueId, 'add').then((roster) => { if (roster) showAlert('Error', message) }) }
+            : undefined,
+    }), [onChanged, onClaimInstead, leagueId, checkIR])
 
     // The server decides between an add and a full roster; a full roster opens
     // the drop picker with the roster already in hand.
@@ -117,13 +113,13 @@ export function useQuickAdd({
                 return
             }
             showSuccess('Added', `${player.display_name} added to your roster.`)
-            refreshAfterChange()
+            onChanged()
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, player)
         } finally {
             if (isCurrent(generation, identity)) setAdding(null)
         }
-    }, [memberId, ownerIdentity, refreshAfterChange, isCurrent, report])
+    }, [memberId, ownerIdentity, onChanged, isCurrent, report])
 
     const continueAfterIRResolution = useCallback(async (lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) => {
         if (remaining.length > 0) {
@@ -171,13 +167,13 @@ export function useQuickAdd({
             await dropAndAddFreeAgent(rosterPlayer.id, memberId, leagueId, dropPickerPlayer.id)
             if (!isCurrent(generation, identity)) return
             setDropPickerPlayer(null)
-            refreshAfterChange()
+            onChanged()
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, dropPickerPlayer)
         } finally {
             if (isCurrent(generation, identity)) setDropping(null)
         }
-    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshAfterChange, isCurrent, explainBlock, report])
+    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, onChanged, isCurrent, explainBlock, report])
 
     const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
         if (!memberId || !leagueId) return

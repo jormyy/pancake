@@ -289,7 +289,6 @@ const styles = StyleSheet.create({
     scroll: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing['5xl'] },
     scrollCompact: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
 
-
     championBanner: {
         backgroundColor: uiColors.warningSurface,
         borderRadius: radii.md,

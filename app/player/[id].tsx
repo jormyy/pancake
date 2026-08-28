@@ -12,7 +12,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
-import { loadAddLimitState, loadPickupState } from '@/lib/roster-add-flow'
+import { loadPickupState } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { addLimitSummary } from '@/lib/pickup'
@@ -97,14 +97,6 @@ export default function PlayerDetailScreen() {
         }
     }, [current, id, leagueId, ownerIdentity])
 
-    const refreshPickupState = useCallback(async () => {
-        const generation = generationRef.current
-        const requestedOwner = ownerIdentity
-        if (!current || !leagueId || !requestedOwner) return
-        const transactionState = await loadAddLimitState(current.id, leagueId)
-        if (isCurrent(generation, requestedOwner)) setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
-    }, [current, leagueId, ownerIdentity])
-
     useEffect(() => {
         loadRosterStatus()
     }, [loadRosterStatus])
@@ -113,8 +105,7 @@ export default function PlayerDetailScreen() {
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
-        refreshOwned: loadRosterStatus,
-        refreshTransactionState: refreshPickupState,
+        onChanged: loadRosterStatus,
         transactionState: pickupState,
         onClaimInstead: openClaim,
     })

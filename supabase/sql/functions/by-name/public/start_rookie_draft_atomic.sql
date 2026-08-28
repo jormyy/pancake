@@ -81,7 +81,7 @@ BEGIN
        AND pick.is_used = false
        AND private.is_reserved_trade_asset(pick.league_id, NULL, pick.current_owner_id, NULL, pick.id)
   ) THEN
-    RAISE EXCEPTION 'A pick in this draft class is reserved by an accepted trade. Complete or expire that trade before starting the rookie draft.'
+    RAISE EXCEPTION 'A pick in this draft class is reserved by an accepted trade. Complete or veto that trade before starting the rookie draft.'
       USING ERRCODE = 'P0001';
   END IF;
 

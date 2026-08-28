@@ -799,5 +799,4 @@ const styles = StyleSheet.create({
     },
     retryButtonText: { fontSize: fontSize.sm, color: colors.textWhite, fontWeight: fontWeight.bold },
 
-
 })

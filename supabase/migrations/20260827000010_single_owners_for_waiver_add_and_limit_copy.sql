@@ -47,6 +47,7 @@ $$;
 
 REVOKE ALL ON FUNCTION private.sync_pick_linked_state() FROM PUBLIC;
 
+DROP TRIGGER IF EXISTS sync_pick_linked_state ON public.draft_picks;
 CREATE TRIGGER sync_pick_linked_state
 AFTER UPDATE OF current_owner_id, is_used ON public.draft_picks
 FOR EACH ROW

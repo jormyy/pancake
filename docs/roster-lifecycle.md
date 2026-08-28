@@ -15,7 +15,7 @@ Every other roster-linked record falls into one of three classes.
 | `weekly_lineups` (future, unlocked dates) | live state | Cleared for that member and player. Rows for started or finished games stay for scoring. |
 | `waiver_claims` pending `drop_player_id` | live state | Set to NULL when the drop player leaves the roster; the claim stays pending and the processor applies the normal "roster full and no drop" rule. IR/taxi moves of a pending drop player are still rejected. |
 | `trades` pending with the lost asset | live state | Expired with `completion_failure_reason` and a `trade_expired` activity row. IR/taxi moves do not expire offers; acceptance already requires an active roster. |
-| `trades` accepted | reservation | Deletes and IR/taxi moves of reserved players are rejected; a reserved pick cannot be used in a draft or change owner until the trade completes or expires. |
+| `trades` accepted | reservation | Deletes and IR/taxi moves of reserved players are rejected; a reserved pick cannot be used in a draft or change owner until the trade completes or is vetoed. |
 | `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never deleted. A succeeded claim keeps its drop player. A player merge re-points the surviving identity and closes an open waiver entry whose player is rostered under it. |
 | `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
 | `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
@@ -41,8 +41,8 @@ per-RPC code:
 - `sync_roster_linked_state` on `roster_players` (`DELETE`, `UPDATE OF member_id,
   is_on_ir, is_on_taxi`) removes the listing, clears future unlocked lineups, nulls
   stale pending waiver drops, and expires pending offers that included the player.
-  It only acts when no active current-season row is left for that member and player,
-  so removing an old-season row never touches live state.
+  It acts only on current-season rows, so removing an old-season row never touches
+  live state.
 - `sync_pick_linked_state` on `draft_picks` (`UPDATE OF current_owner_id, is_used`)
   removes pick listings and expires pending offers for the pick.
 
@@ -63,11 +63,13 @@ sentence): the roster and pick guards raise it, trade acceptance raises it for a
 asset reserved by another trade, and waiver-drop validation returns the same sentence.
 The drop and IR/taxi RPCs rely on the guards rather than checking again.
 `start_rookie_draft_atomic` refuses to start while a pick of the draft class is
-reserved, so a slot never stalls on a pick the trade still owns.
+reserved (an accepted trade completes or is vetoed; it does not expire), so a slot
+never stalls on a pick the trade still owns.
 `private.lineup_game_started` is the one "this slot's game has started" rule, read by
 the lineup RPCs, the lifecycle cleanup, and the DB suites (the lineup RPCs now also
 treat a recorded `started_at` as started; before they read only the feed status and
-the tip-off time). `private.ineligible_ir_player_names` is the one list of IR players
+the tip-off time); `gameHasStarted` in `lib/lineup/read.ts` is its one client reading.
+`private.is_ir_designation` is the one reading of an IR-eligible injury status. `private.ineligible_ir_player_names` is the one list of IR players
 who no longer qualify: a free-agent add raises it as SQLSTATE `PA005` and the app
 opens the IR resolution flow, and the waiver processor records it as the claim's
 failure reason.
@@ -117,9 +119,9 @@ weekly-limit check turns it red.
 ## Weekly add limits
 
 A league's `weekly_add_limit` caps free-agent adds and processed waiver claims per
-add week. The server is authoritative on every path: `add_free_agent_atomic`,
-`drop_and_add_free_agent_atomic`, `create_waiver_claim_atomic` (at submission) and
-the waiver processor (at success) all call `private.assert_weekly_add_available`.
+add week. The server is authoritative on every path: `add_free_agent_atomic` (which
+`drop_and_add_free_agent_atomic` calls), `create_waiver_claim_atomic` (at submission)
+and the waiver processor (at success) all call `private.assert_weekly_add_available`.
 
 Add weeks follow `season_weeks` in Eastern Time (`private.add_week_timezone`): the
 count resets at 12:00 AM ET the day after the scheduled week ends. Before the first
@@ -193,5 +195,6 @@ never reaches a path cannot pass as green. Rotate the seed with `ORACLE_SEED=<n>
 `SET oracle.steps`. The seed fixes the walk's choices, but new rows still take
 `gen_random_uuid()` ids, so a failing seed reproduces in distribution rather than
 step for step; rerun it a few times. The oracle found the pick-reservation gap fixed in
-`20260827000003_reserve_accepted_trade_picks.sql`; removing any of the three
-enforcement triggers turns it red within a few dozen steps.
+`20260827000003_reserve_accepted_trade_picks.sql`; removing `sync_roster_linked_state`,
+`sync_pick_linked_state`, or the `prevent_accepted_trade_pick_change` guard turns it
+red within a few dozen steps.

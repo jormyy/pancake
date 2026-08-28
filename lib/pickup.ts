@@ -52,8 +52,8 @@ type ReportOptions = {
     onLimitReached?: () => void
     /** Opens the claim flow when the server still holds the player on waivers. */
     claim?: () => void
-    /** Opens the IR resolution flow when the server finds IR players who no longer qualify (a stale client). */
-    onIneligibleIr?: () => void
+    /** Opens the IR resolution flow when the server finds IR players who no longer qualify (a stale client); receives the sentence to show if nothing turns out to be ineligible. */
+    onIneligibleIr?: (message: string) => void
 }
 
 /**
@@ -76,7 +76,7 @@ export function reportPickupError(error: unknown, { refresh, onLimitReached, cla
         return
     }
     if (code === RULE_CODES.ineligibleIr && onIneligibleIr) {
-        onIneligibleIr()
+        onIneligibleIr(message)
         return
     }
     showAlert(code === RULE_CODES.onWaivers ? ON_WAIVERS_TITLE : 'Error', message)

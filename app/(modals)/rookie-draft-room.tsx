@@ -621,8 +621,6 @@ const styles = StyleSheet.create({
     resultTeam: { fontSize: fontSize['2sm'], color: colors.textMuted },
     pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
-
-
     posChipXs: {
         paddingHorizontal: 5,
         paddingVertical: 2,
@@ -630,7 +628,6 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
     },
     posChipXsText: { color: colors.textWhite, fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
-
 
     separator: { height: 1, backgroundColor: colors.separator },
 

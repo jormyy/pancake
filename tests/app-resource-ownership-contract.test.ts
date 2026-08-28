@@ -25,7 +25,7 @@ describe('route resource ownership contracts', () => {
         expect(player).toContain('rosterStatusResource.ownerIdentity === ownerIdentity')
         expect(player).toContain('if (!isCurrent(generation, requestedOwner)) return')
         // The pickup flow lives in useQuickAdd, keyed to member + league; the page only feeds it and reads its state.
-        expect(player).toContain('refreshOwned: loadRosterStatus,')
+        expect(player).toContain('onChanged: loadRosterStatus,')
         expect(player).toContain('visible={quickAdd.dropPickerPlayer !== null}')
         expect(player).not.toContain('loadRosterAddGate')
         expect(player).not.toContain('tryAddFreeAgent/push/id are stable enough')
