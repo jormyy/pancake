@@ -153,6 +153,29 @@ CREATE FUNCTION pg_temp.current_season(p_league uuid) RETURNS uuid LANGUAGE sql 
   SELECT id FROM public.league_seasons WHERE league_id = p_league AND is_current LIMIT 1
 $$;
 
+-- Mirrors private.prevent_uncleared_waiver_free_agent_add: a player whose waiver
+-- entry is not cleared yet must be claimed, not added.
+CREATE FUNCTION pg_temp.on_waivers(p_league uuid, p_season uuid, p_player uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (SELECT 1 FROM public.waiver_wire_log log
+                  WHERE log.league_id = p_league AND log.league_season_id = p_season AND log.player_id = p_player
+                    AND log.cleared_at IS NULL)
+$$;
+
+-- Mirrors the drop paths: an accepted-trade asset cannot be dropped.
+CREATE FUNCTION pg_temp.reserved_row(p_roster uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT COALESCE((SELECT private.is_reserved_trade_asset(r.league_id, r.league_season_id, r.member_id, r.player_id)
+                     FROM public.roster_players r WHERE r.id = p_roster), false)
+$$;
+
+-- Mirrors private.assert_weekly_add_available: an add past the limit must be rejected.
+CREATE FUNCTION pg_temp.add_limit_reached(p_member uuid, p_league uuid, p_season uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT l.weekly_add_limit IS NOT NULL
+     AND COALESCE((SELECT c.add_count FROM public.weekly_add_counts c
+                    WHERE c.league_id = p_league AND c.league_season_id = p_season AND c.member_id = p_member
+                      AND c.week_number = (SELECT week_number FROM private.current_add_week(p_league, p_season))), 0) >= l.weekly_add_limit
+    FROM public.leagues l WHERE l.id = p_league
+$$;
+
 CREATE FUNCTION pg_temp.check_invariants(p_step int, p_op text) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
   v_count int;
@@ -319,6 +342,8 @@ DECLARE
   v_rejected int := 0;
   v_expected_failures int := 0;
   v_flag boolean;
+  v_eligible boolean;
+  v_context text;
   v_row record;
 BEGIN
   FOR v_step IN 1..v_steps LOOP
@@ -361,6 +386,7 @@ BEGIN
       v_op := 'drop';
       SELECT id INTO v_roster FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season ORDER BY random() LIMIT 1;
       IF v_roster IS NULL THEN CONTINUE; END IF;
+      v_expect_failure := pg_temp.reserved_row(v_roster);
       v_sql := format('SELECT public.drop_player_atomic(%L)', v_roster);
       v_detail := 'roster ' || left(v_roster::text, 8);
       INSERT INTO oracle_dropped VALUES (v_roster);
@@ -371,7 +397,7 @@ BEGIN
       -- Authorization is per user: the row must belong to a team this user owns.
       v_expect_failure := NOT EXISTS (
         SELECT 1 FROM public.roster_players AS roster JOIN public.league_members AS member ON member.id = roster.member_id
-         WHERE roster.id = v_roster AND member.user_id = v_user);
+         WHERE roster.id = v_roster AND member.user_id = v_user) OR pg_temp.reserved_row(v_roster);
       v_sql := format('SELECT public.drop_player_atomic(%L)', v_roster);
       v_detail := 'retry of dropped row';
     ELSIF v_roll < 0.33 THEN
@@ -384,32 +410,72 @@ BEGIN
       v_detail := 'another user''s row';
     ELSIF v_roll < 0.41 THEN
       v_op := 'add_free_agent';
+      -- Mostly true free agents; a player still on waivers must be rejected.
       SELECT id INTO v_player FROM public.players AS p
        WHERE NOT EXISTS (SELECT 1 FROM public.roster_players r WHERE r.league_season_id = v_season AND r.player_id = p.id)
+         AND (NOT pg_temp.on_waivers(v_league, v_season, p.id) OR random() < 0.2)
        ORDER BY random() LIMIT 1;
       IF v_player IS NULL THEN CONTINUE; END IF;
+      v_expect_failure := pg_temp.add_limit_reached(v_member, v_league, v_season) OR pg_temp.on_waivers(v_league, v_season, v_player);
       v_sql := format('SELECT public.add_free_agent_atomic(%L, %L, %L)', v_member, v_league, v_player);
       v_detail := 'player ' || left(v_player::text, 8);
     ELSIF v_roll < 0.46 THEN
       v_op := 'drop_and_add';
-      SELECT id INTO v_roster FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season ORDER BY random() LIMIT 1;
+      -- Mostly droppable rows and true free agents; a reserved drop or a
+      -- player still on waivers must be rejected.
+      SELECT id INTO v_roster FROM public.roster_players r
+       WHERE r.member_id = v_member AND r.league_season_id = v_season AND (NOT pg_temp.reserved_row(r.id) OR random() < 0.2)
+       ORDER BY random() LIMIT 1;
       SELECT id INTO v_player FROM public.players AS p
        WHERE NOT EXISTS (SELECT 1 FROM public.roster_players r WHERE r.league_season_id = v_season AND r.player_id = p.id)
+         AND (NOT pg_temp.on_waivers(v_league, v_season, p.id) OR random() < 0.2)
        ORDER BY random() LIMIT 1;
       IF v_roster IS NULL OR v_player IS NULL THEN CONTINUE; END IF;
+      v_expect_failure := pg_temp.add_limit_reached(v_member, v_league, v_season)
+        OR pg_temp.on_waivers(v_league, v_season, v_player) OR pg_temp.reserved_row(v_roster);
       v_sql := format('SELECT public.drop_and_add_free_agent_atomic(%L, %L, %L, %L)', v_roster, v_member, v_league, v_player);
       v_detail := 'drop ' || left(v_roster::text, 8) || ' add ' || left(v_player::text, 8);
       INSERT INTO oracle_dropped VALUES (v_roster);
     ELSIF v_roll < 0.52 THEN
       v_op := 'toggle_ir';
-      SELECT id, is_on_ir INTO v_roster, v_flag FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season ORDER BY random() LIMIT 1;
+      -- Mostly rows the IR rule allows (already on IR, or Out/IR designated);
+      -- a move that breaks the rule must be rejected.
+      SELECT rp.id, rp.is_on_ir, true INTO v_roster, v_flag, v_eligible
+        FROM public.roster_players rp JOIN public.players p ON p.id = rp.player_id
+       WHERE rp.member_id = v_member AND rp.league_season_id = v_season
+         AND (rp.is_on_ir OR lower(COALESCE(p.injury_status, '')) = 'out' OR lower(COALESCE(p.injury_status, '')) LIKE 'ir%')
+         AND random() < 0.8
+       ORDER BY random() LIMIT 1;
+      IF v_roster IS NULL THEN
+        SELECT rp.id, rp.is_on_ir, rp.is_on_ir OR lower(COALESCE(p.injury_status, '')) = 'out' OR lower(COALESCE(p.injury_status, '')) LIKE 'ir%'
+          INTO v_roster, v_flag, v_eligible
+          FROM public.roster_players rp JOIN public.players p ON p.id = rp.player_id
+         WHERE rp.member_id = v_member AND rp.league_season_id = v_season
+         ORDER BY random() LIMIT 1;
+      END IF;
       IF v_roster IS NULL THEN CONTINUE; END IF;
+      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster);
       v_sql := format('SELECT public.toggle_ir_atomic(%L, %L, %L)', v_roster, NOT v_flag, v_user);
       v_detail := CASE WHEN v_flag THEN 'activate from IR' ELSE 'move to IR' END || ' ' || left(v_roster::text, 8);
     ELSIF v_roll < 0.56 THEN
       v_op := 'toggle_taxi';
-      SELECT id, is_on_taxi INTO v_roster, v_flag FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season ORDER BY random() LIMIT 1;
+      -- Mostly rows the taxi rule allows (already on taxi, or a drafted rookie
+      -- not on IR); a move that breaks the rule must be rejected.
+      SELECT rp.id, rp.is_on_taxi, true INTO v_roster, v_flag, v_eligible
+        FROM public.roster_players rp JOIN public.players p ON p.id = rp.player_id
+       WHERE rp.member_id = v_member AND rp.league_season_id = v_season
+         AND (rp.is_on_taxi OR (p.nba_draft_number IS NOT NULL AND p.years_exp = 0 AND rp.is_on_ir = false))
+         AND random() < 0.8
+       ORDER BY random() LIMIT 1;
+      IF v_roster IS NULL THEN
+        SELECT rp.id, rp.is_on_taxi, rp.is_on_taxi OR (p.nba_draft_number IS NOT NULL AND p.years_exp = 0 AND rp.is_on_ir = false)
+          INTO v_roster, v_flag, v_eligible
+          FROM public.roster_players rp JOIN public.players p ON p.id = rp.player_id
+         WHERE rp.member_id = v_member AND rp.league_season_id = v_season
+         ORDER BY random() LIMIT 1;
+      END IF;
       IF v_roster IS NULL THEN CONTINUE; END IF;
+      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster);
       v_sql := format('SELECT public.toggle_taxi_atomic(%L, %L, %L)', v_roster, NOT v_flag, v_user);
       v_detail := CASE WHEN v_flag THEN 'activate from taxi' ELSE 'move to taxi' END || ' ' || left(v_roster::text, 8);
     ELSIF v_roll < 0.64 THEN
@@ -424,13 +490,33 @@ BEGIN
       v_detail := format('%s players + %s picks for %s players + %s picks', cardinality(v_offer), cardinality(v_offer_picks), cardinality(v_request), cardinality(v_request_picks));
     ELSIF v_roll < 0.69 THEN
       v_op := 'accept_trade';
-      SELECT id INTO v_trade FROM public.trades WHERE status = 'pending' AND recipient_member_id = v_member ORDER BY random() LIMIT 1;
-      IF v_trade IS NULL THEN
+      -- Accept runs as the service for the recipient it names. Mostly a live
+      -- offer whose player assets are still on the active side (any recipient,
+      -- so the walk reaches acceptance); sometimes a stale accept of a
+      -- terminal trade, which must be rejected.
+      v_trade := NULL;
+      IF random() < 0.25 THEN
         SELECT id INTO v_trade FROM public.trades WHERE status <> 'pending' AND recipient_member_id = v_member ORDER BY random() LIMIT 1;
-        IF v_trade IS NULL THEN CONTINUE; END IF;
+      END IF;
+      IF v_trade IS NOT NULL THEN
         v_expect_failure := true;
         v_detail := 'stale accept of a terminal trade';
       ELSE
+        SELECT t.id, t.recipient_member_id INTO v_trade, v_member FROM public.trades t
+         WHERE t.status = 'pending'
+           AND (t.expires_at IS NULL OR t.expires_at > now())
+           AND NOT EXISTS (
+             SELECT 1 FROM public.trade_items ti
+              WHERE ti.trade_id = t.id AND ti.player_id IS NOT NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM public.roster_players rp
+                   WHERE rp.player_id = ti.player_id AND rp.member_id = ti.from_member_id AND rp.league_id = t.league_id
+                     AND rp.league_season_id = t.league_season_id AND rp.is_on_ir = false AND rp.is_on_taxi = false))
+         ORDER BY random() LIMIT 1;
+        IF v_trade IS NULL THEN
+          SELECT id, recipient_member_id INTO v_trade, v_member FROM public.trades WHERE status = 'pending' ORDER BY random() LIMIT 1;
+        END IF;
+        IF v_trade IS NULL THEN CONTINUE; END IF;
         v_detail := 'trade ' || left(v_trade::text, 8);
       END IF;
       PERFORM pg_temp.act_as(NULL);
@@ -447,6 +533,10 @@ BEGIN
       v_op := 'reject_or_withdraw';
       SELECT id, proposer_member_id INTO v_trade, v_other FROM public.trades WHERE status = 'pending' AND (proposer_member_id = v_member OR recipient_member_id = v_member) ORDER BY random() LIMIT 1;
       IF v_trade IS NULL THEN CONTINUE; END IF;
+      -- Like accept, these RPCs are service-role only: the API calls them with
+      -- the acting member and user as arguments, never as the end user.
+      PERFORM pg_temp.act_as(NULL);
+      v_actor := 'service for ' || left(v_member::text, 8);
       IF v_other = v_member THEN
         v_sql := format('SELECT public.withdraw_trade_atomic(%L, %L, %L)', v_trade, v_member, v_user);
         v_detail := 'withdraw ' || left(v_trade::text, 8);
@@ -464,6 +554,8 @@ BEGIN
       IF random() < 0.5 THEN
         SELECT player_id INTO v_roster FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season AND is_on_ir = false AND is_on_taxi = false ORDER BY random() LIMIT 1;
       END IF;
+      v_expect_failure := pg_temp.add_limit_reached(v_member, v_league, v_season)
+        OR (v_roster IS NOT NULL AND private.is_reserved_trade_asset(v_league, v_season, v_member, v_roster));
       v_sql := format('SELECT public.create_waiver_claim_atomic(%L, %L, %L, %L, %L, %s)', v_league, v_member, v_player, v_roster, v_user, (random() * 5)::int);
       v_detail := 'claim ' || left(v_player::text, 8) || COALESCE(' drop ' || left(v_roster::text, 8), '');
     ELSIF v_roll < 0.86 THEN
@@ -569,6 +661,14 @@ BEGIN
         IF SQLERRM LIKE 'AUTHZ violated%' THEN
           RAISE;
         END IF;
+        -- A business rule is a RAISE in a function. An error the engine raised
+        -- (a missing column, a raw constraint violation, a bad call) is a broken
+        -- function or a broken walk, never a rule, so it fails the run.
+        GET STACKED DIAGNOSTICS v_context = PG_EXCEPTION_CONTEXT;
+        IF split_part(v_context, E'\n', 1) NOT LIKE '%at RAISE' THEN
+          RAISE EXCEPTION 'HARNESS defect at step % (%): % raised SQLSTATE % (%)', v_step, v_op, v_detail, SQLSTATE, SQLERRM
+            USING DETAIL = v_context;
+        END IF;
         IF v_expect_failure THEN
           v_expected_failures := v_expected_failures + 1;
           INSERT INTO oracle_log VALUES (v_step, v_op, v_actor, v_detail, 'rejected as expected', SQLERRM);
@@ -591,6 +691,18 @@ BEGIN
     COALESCE(NULLIF(current_setting('oracle.seed', true), ''), '1'), v_steps, v_ok, v_rejected, v_expected_failures, v_replays;
   FOR v_row IN SELECT op, count(*) FILTER (WHERE outcome = 'ok') AS ok, count(*) FILTER (WHERE outcome <> 'ok') AS other FROM oracle_log GROUP BY op ORDER BY op LOOP
     RAISE NOTICE '  % ok=% other=%', rpad(v_row.op, 24), v_row.ok, v_row.other;
+  END LOOP;
+  -- A family that expected success at least once but never got it is
+  -- exercising nothing; the walk must reach every success path, or the run is
+  -- not a run. Replays are exempt: a retry may legitimately fail every time.
+  FOR v_row IN
+    SELECT op, string_agg(DISTINCT left(error, 160), ' | ') FILTER (WHERE outcome = 'rejected') AS errors FROM oracle_log
+     WHERE op <> 'replay_last'
+     GROUP BY op
+    HAVING count(*) FILTER (WHERE outcome IN ('ok', 'rejected')) > 0
+       AND count(*) FILTER (WHERE outcome = 'ok') = 0
+  LOOP
+    RAISE EXCEPTION 'COVERAGE gap: op family % never succeeded in % steps', v_row.op, v_steps USING DETAIL = v_row.errors;
   END LOOP;
 END $$;
 

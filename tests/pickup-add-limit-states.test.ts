@@ -22,7 +22,7 @@ afterEach(async () => {
 async function renderSearchItem(props: Partial<React.ComponentProps<typeof PlayerSearchItem>> = {}) {
     await act(async () => {
         renderer = create(React.createElement(PlayerSearchItem, {
-            item: playerRow(), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), adding: null,
+            item: playerRow(), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false,
             gamesLeft: new Map(), animate: false, onAdd: vi.fn(), onPress: vi.fn(), ...props,
         }))
     })

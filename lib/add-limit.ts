@@ -1,4 +1,5 @@
 import type { MemberTransactionState } from '@/lib/league'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 export type AddLimitSource = Pick<MemberTransactionState, 'weeklyAddLimit' | 'weeklyAddCount' | 'addLimitResetsAt' | 'addWeekTimeZone'>
 
@@ -18,7 +19,7 @@ export type PickupError = {
 
 export const ADD_LIMIT_BLOCKED_TITLE = 'Weekly add limit reached'
 /** SQLSTATE raised by private.assert_weekly_add_available; the Edge API forwards it as `code`. */
-export const WEEKLY_ADD_LIMIT_CODE = 'PA001'
+const WEEKLY_ADD_LIMIT_CODE = 'PA001'
 
 const ZONE_LABELS: Record<string, string> = { 'America/New_York': 'ET' }
 
@@ -67,20 +68,18 @@ function formatInZone(date: Date, timeZone: string, style: 'long' | 'short'): st
  */
 export function formatAddLimitReset(
     status: Pick<AddLimitStatus, 'resetsAt' | 'timeZone'>,
-    options: { style?: 'long' | 'short'; localTimeZone?: string | null } = {},
+    options: { style?: 'long' | 'short'; localTimeZone?: string } = {},
 ): string | null {
     if (!status.resetsAt) return null
     const style = options.style ?? 'long'
     const league = formatInZone(status.resetsAt, status.timeZone, style)
     if (style === 'short') return league
-    const local = options.localTimeZone === undefined
-        ? Intl.DateTimeFormat().resolvedOptions().timeZone
-        : options.localTimeZone
+    const local = options.localTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
     if (!local || local === status.timeZone) return league
     return `${league} (${formatInZone(status.resetsAt, local, 'long')})`
 }
 
-export function addLimitBlockedMessage(status: AddLimitStatus, options?: { localTimeZone?: string | null }): string {
+export function addLimitBlockedMessage(status: AddLimitStatus, options?: { localTimeZone?: string }): string {
     const reset = formatAddLimitReset(status, { style: 'long', localTimeZone: options?.localTimeZone })
     const opening = `You've used all ${status.limit} of this week's adds.`
     return reset ? `${opening} Adds reset ${reset}.` : `${opening} Adds reset when the next week starts.`
@@ -105,7 +104,7 @@ export function addLimitSummary(state: AddLimitSource | null | undefined, now = 
 
 /** Splits a failed pickup into the weekly-limit case (the server message carries the reset time) and everything else. */
 export function classifyPickupError(error: unknown): PickupError {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = getErrorMessage(error)
     const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined
     const limitReached = code === WEEKLY_ADD_LIMIT_CODE
     return { limitReached, title: limitReached ? ADD_LIMIT_BLOCKED_TITLE : 'Error', message }

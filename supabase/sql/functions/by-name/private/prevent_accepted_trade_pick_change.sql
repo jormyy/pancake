@@ -12,10 +12,8 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF (
-    OLD.current_owner_id IS DISTINCT FROM NEW.current_owner_id
-    OR (NEW.is_used = true AND OLD.is_used IS DISTINCT FROM NEW.is_used)
-  ) AND private.is_reserved_trade_asset(OLD.league_id, NULL, OLD.current_owner_id, NULL, OLD.id) THEN
+  IF private.pick_left_owner(OLD, NEW)
+     AND private.is_reserved_trade_asset(OLD.league_id, NULL, OLD.current_owner_id, NULL, OLD.id) THEN
     RAISE EXCEPTION 'This pick is reserved as an accepted trade asset.'
       USING ERRCODE = 'P0001';
   END IF;

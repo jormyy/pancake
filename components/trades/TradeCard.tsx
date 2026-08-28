@@ -145,8 +145,8 @@ export function TradeCard({
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
-    /** Opens the Trade Analyzer prefilled with this trade; rendered in the card header when provided. */
-    onAnalyze?: () => void
+    /** Opens the Trade Analyzer prefilled with this trade; rendered in the card header. */
+    onAnalyze: () => void
 }) {
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
@@ -201,21 +201,19 @@ export function TradeCard({
             <View style={styles.cardHeader}>
                 <Text style={styles.cardOpponent} numberOfLines={1}>{opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
-                    {onAnalyze ? (
-                        <MotionPressable
-                            style={[styles.analyzeBtn, acting && styles.analyzeBtnDisabled]}
-                            onPress={onAnalyze}
-                            disabled={acting}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Analyze trade from ${trade.proposerTeamName}`}
-                            accessibilityState={{ disabled: acting }}
-                            testID={`trade-analyze-${trade.id}`}
-                            id={`trade-analyze-${trade.id}`}
-                            pressedScale={0.94}
-                        >
-                            <Text style={styles.analyzeBtnText}>Analyze</Text>
-                        </MotionPressable>
-                    ) : null}
+                    <MotionPressable
+                        style={[styles.analyzeBtn, acting && styles.analyzeBtnDisabled]}
+                        onPress={onAnalyze}
+                        disabled={acting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Analyze trade from ${trade.proposerTeamName}`}
+                        accessibilityState={{ disabled: acting }}
+                        testID={`trade-analyze-${trade.id}`}
+                        id={`trade-analyze-${trade.id}`}
+                        pressedScale={0.94}
+                    >
+                        <Text style={styles.analyzeBtnText}>Analyze</Text>
+                    </MotionPressable>
                     <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
                         <Text style={[styles.statusText, { color: statusStyle.text }]}>
                             {STATUS_LABELS[trade.status] ?? trade.status}

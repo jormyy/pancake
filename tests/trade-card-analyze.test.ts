@@ -29,7 +29,7 @@ async function renderCard(overrides: Partial<React.ComponentProps<typeof TradeCa
     await act(async () => {
         renderer = create(React.createElement(TradeCard, {
             trade: completed, myMemberId: 'member-a', tab: 'history', acting: false,
-            onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn(),
+            onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn(), onAnalyze: vi.fn(),
             ...overrides,
         }))
     })
@@ -58,11 +58,6 @@ describe('TradeCard analyze action', () => {
         const analyze = tree.root.findByProps({ accessibilityLabel: ANALYZE })
         expect(analyze.props.disabled).toBe(true)
         expect(analyze.props.accessibilityState).toEqual({ disabled: true })
-    })
-
-    it('is absent when the card has no analyzer to open', async () => {
-        const tree = await renderCard()
-        expect(tree.root.findAllByProps({ accessibilityLabel: ANALYZE })).toHaveLength(0)
     })
 
     it('trade rows render exactly one analyze control, inside the card', async () => {

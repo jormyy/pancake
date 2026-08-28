@@ -283,7 +283,7 @@ export default function PlayersScreen() {
             currentMemberId={current?.id}
             ownedMap={ownedMap}
             waiverIds={waiverIds}
-            adding={quickAdd.adding}
+            isAdding={quickAdd.adding === item.id}
             gamesLeft={search.availability.gamesLeft}
             showStats={showStatTable}
             showCompactStats={false}

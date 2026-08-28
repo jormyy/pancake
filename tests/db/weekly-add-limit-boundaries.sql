@@ -1,6 +1,6 @@
 -- Weekly add limit reset boundaries: the reset instant the server reports (and
--- puts in its rejection message) must match the add-week rules in
--- private.current_add_week_number for every schedule shape.
+-- puts in its rejection message) must follow the add-week rule owned by
+-- private.current_add_week for every schedule shape.
 -- Runs inside one transaction and rolls back.
 BEGIN;
 

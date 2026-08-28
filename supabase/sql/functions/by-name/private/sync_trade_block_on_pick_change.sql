@@ -9,10 +9,9 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_owner_changed boolean := OLD.current_owner_id IS DISTINCT FROM NEW.current_owner_id;
   v_consumed boolean := NEW.is_used = true AND OLD.is_used IS DISTINCT FROM NEW.is_used;
 BEGIN
-  IF NOT (v_owner_changed OR v_consumed) THEN
+  IF NOT private.pick_left_owner(OLD, NEW) THEN
     RETURN NULL;
   END IF;
 

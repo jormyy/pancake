@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
+import { getMemberTransactionState } from '@/lib/league'
+import { getRoster, getPlayerRosterStatus, pickupPossible } from '@/lib/roster'
+import { getRosterStatsMaps } from '@/lib/roster-stats'
+import { getTradeBlockItems, getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
+import { invalidateSeasonCache } from '@/lib/shared/season'
 
 // Request budget per screen load: every Supabase table read or RPC the data
 // layer issues for a workflow, counted through a filter-aware fake client.
@@ -48,13 +54,6 @@ vi.mock('@/lib/supabase', () => {
         },
     }
 })
-
-import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
-import { getMemberTransactionState } from '@/lib/league'
-import { getRoster, getPlayerRosterStatus, pickupPossible } from '@/lib/roster'
-import { getRosterStatsMaps } from '@/lib/roster-stats'
-import { getTradeBlockItems, getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
-import { invalidateSeasonCache } from '@/lib/shared/season'
 
 const player = (id: string) => ({
     id, display_name: `Player ${id}`, nba_team: 'LAL', position: 'PG', eligible_positions: ['PG'],

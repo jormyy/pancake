@@ -195,8 +195,7 @@ INSERT INTO public.waiver_claims (id, league_id, league_season_id, member_id, pl
 SELECT '00000000-0000-0000-0000-0000000a0701', ids.league_id, ids.season_id, ids.member_b, ids.waiver_target, ids.waiver_drop, 2, current_date - 1, 0, 1
   FROM lifecycle_ids AS ids;
 SELECT set_config('request.jwt.claim.sub', '', true);
-CREATE TEMP TABLE lifecycle_waiver_result AS
-SELECT * FROM public.process_next_waiver_claim_atomic(current_date);
+SELECT count(*) FROM public.process_next_waiver_claim_atomic(current_date);
 DO $$
 DECLARE ids lifecycle_ids%ROWTYPE; v_claim public.waiver_claims%ROWTYPE;
 BEGIN

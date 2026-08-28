@@ -39,11 +39,10 @@ Two `AFTER` row triggers own the cleanup, so every path above is covered without
 per-RPC code:
 
 - `sync_roster_linked_state` on `roster_players` (`DELETE`, `UPDATE OF member_id,
-  player_id, is_on_ir, is_on_taxi`) removes the listing, clears future unlocked
-  lineups, nulls stale pending waiver drops, expires pending offers that included the
-  player, and re-points a listing when a player merge changes `player_id`. It only
-  acts when no active current-season row is left for that member and player, so
-  removing an old-season row never touches live state.
+  is_on_ir, is_on_taxi`) removes the listing, clears future unlocked lineups, nulls
+  stale pending waiver drops, and expires pending offers that included the player.
+  It only acts when no active current-season row is left for that member and player,
+  so removing an old-season row never touches live state.
 - `sync_trade_block_on_pick_change` on `draft_picks` (`UPDATE OF current_owner_id,
   is_used`) removes pick listings and expires pending offers for the pick.
 
@@ -55,8 +54,11 @@ drop is in flight. A player merge (`merge_players`) re-points listings to the
 surviving player next to the other tables it re-points.
 
 `private.is_reserved_trade_asset` is the single accepted-trade reservation check
-used by the roster and pick guards, the drop and IR/taxi RPCs, and waiver-drop
-validation. Trade completion and pending-offer expiry mark their transaction through
+used by the roster and pick guards, the drop and IR/taxi RPCs, waiver-drop
+validation, and trade acceptance (which excludes the trade being accepted).
+`private.pick_left_owner` is the one rule for "this pick left its owner" that the
+pick guard and the pick-listing sync share. Trade completion and pending-offer
+expiry mark their transaction through
 `private.begin_trade_lifecycle_write` / `end_trade_lifecycle_write`;
 `prevent_trade_status_client_writes` and `prevent_accepted_trade_pick_change` honour
 that mark, so an expiry that runs inside an authenticated drop still goes through
@@ -97,9 +99,11 @@ Feedback:
 - `get_member_transaction_state` returns `add_limit_resets_at` and `add_week_timezone`.
   Every pickup entry point (players tab add button and header line, player page Add
   and Claim, the waiver-claim modal, the drop-to-add picker and the IR-resolution
-  continuation) reads them through `lib/add-limit.ts`, renders the action in a
-  disabled state with the reason as its accessibility hint, and explains the block on
-  tap with the reset shown in ET and in the viewer's local zone when they differ.
+  continuation) reads them through `lib/add-limit.ts` and the `useAddLimitGate`
+  hook, the one client owner of "explain the block before the request, report the
+  server's rejection after it". The action renders in a disabled state with the
+  reason as its accessibility hint and explains the block on tap with the reset
+  shown in ET and in the viewer's local zone when they differ.
 - A cached count whose week already ended is treated as available again on the client;
   the server opens the new week on the next request.
 - A commissioner override (`commissioner_override_weekly_add_count_atomic`) changes the
@@ -132,8 +136,12 @@ cross-league attempts, lineup edits, and exact replays of the previous statement
 After every step it checks the table above as executable invariants (listings,
 future lineups, pending drops, pending and accepted offers, roster flags and league
 scoping, history growth and terminal-record immutability, add counts, waiver
-windows) and that every operation expected to be rejected was rejected. Rotate the
-seed with `ORACLE_SEED=<n>` (default 1) and the length with `SET oracle.steps`. The
-oracle found the pick-reservation gap fixed in
+windows) and that every operation expected to be rejected was rejected. Accept,
+reject and withdraw run as the service role, as the API calls them. A rejection the
+engine raised rather than a `RAISE` in a function (a missing column, a raw constraint
+violation, a bad call) fails the run, and so does any operation family that expected
+success at least once and never got it, so a silently broken function or a walk that
+never reaches a path cannot pass as green. Rotate the seed with `ORACLE_SEED=<n>` (default 1) and the length with
+`SET oracle.steps`. The oracle found the pick-reservation gap fixed in
 `20260827000003_reserve_accepted_trade_picks.sql`; removing any of the three
 enforcement triggers turns it red within a few dozen steps.

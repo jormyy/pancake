@@ -1,13 +1,9 @@
 import { Alert, Platform } from 'react-native'
 import { feedbackBridge } from '@/components/ui/feedback'
 
-type BrowserAlertWindow = Window & { __pancakeAlerts?: string[] }
+export { getErrorMessage } from '@/lib/shared/errors'
 
-export function getErrorMessage(e: unknown): string {
-    if (e instanceof Error) return e.message
-    if (typeof e === 'string') return e
-    return String(e)
-}
+type BrowserAlertWindow = Window & { __pancakeAlerts?: string[] }
 
 function captureBrowserAlert(title: string, message?: string) {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return

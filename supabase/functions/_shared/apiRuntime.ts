@@ -108,7 +108,7 @@ function errorResponse(scope: string, error: unknown): Response {
   return json({
     ok: false,
     error: status >= 500 ? 'Internal server error' : errorMessage(error),
-    ...(code ? { code } : {}),
+    code,
     requestId,
   }, status)
 }

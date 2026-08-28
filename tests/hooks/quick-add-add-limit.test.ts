@@ -8,13 +8,14 @@ import { memberTransactionState, playerRow, rosterPlayer } from '../helpers/fixt
 
 const mocks = vi.hoisted(() => ({
     alert: vi.fn(),
+    success: vi.fn(),
     loadGate: vi.fn(),
     addOrRequestDrop: vi.fn(),
     dropAndAdd: vi.fn(),
     submitClaim: vi.fn(),
 }))
 
-vi.mock('react-native', () => ({ Alert: { alert: mocks.alert } }))
+vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: mocks.success, confirmAction: vi.fn() }))
 vi.mock('@/lib/roster', () => ({ dropAndAddFreeAgent: mocks.dropAndAdd }))
 vi.mock('@/lib/roster-add-flow', () => ({
     addFreeAgentOrRequestDrop: mocks.addOrRequestDrop,
@@ -82,7 +83,7 @@ describe('useQuickAdd weekly add limit', () => {
         await act(async () => { await probe.latest.handleAdd(player) })
 
         expect(mocks.addOrRequestDrop).toHaveBeenCalledWith('member-a', 'league-a', 'player-a')
-        expect(mocks.alert).toHaveBeenCalledWith('Added', 'Player A added to your roster.')
+        expect(mocks.success).toHaveBeenCalledWith('Added', 'Player A added to your roster.')
     })
 
     it('shows the server reset message and closes the drop picker when the last slot went elsewhere', async () => {

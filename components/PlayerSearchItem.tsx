@@ -19,7 +19,7 @@ function PlayerSearchItemImpl({
     currentMemberId,
     ownedMap,
     waiverIds,
-    adding,
+    isAdding,
     gamesLeft,
     showStats = false,
     showCompactStats = true,
@@ -33,7 +33,7 @@ function PlayerSearchItemImpl({
     currentMemberId: string | undefined
     ownedMap: Map<string, OwnedEntry>
     waiverIds: Set<string>
-    adding: string | null
+    isAdding: boolean
     gamesLeft: Map<string, number>
     showStats?: boolean
     showCompactStats?: boolean
@@ -50,7 +50,6 @@ function PlayerSearchItemImpl({
     const isWaiver = !owned && waiverIds.has(item.id)
     const isFA = !owned && !isWaiver
     const canAdd = currentMemberId && (isFA || isWaiver)
-    const isAdding = adding === item.id
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(item.nba_id)
     const projectionGame = formatProjectionGame({

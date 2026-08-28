@@ -19,9 +19,10 @@ import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedReason, addLimitSummary, blockedActionProps, classifyPickupError } from '@/lib/add-limit'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary, blockedActionProps } from '@/lib/add-limit'
+import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
+import { showAlert, showSuccess } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
 
 export default function ClaimPlayerScreen() {
@@ -108,17 +109,14 @@ export default function ClaimPlayerScreen() {
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
-    const addBlockedReason = addLimitBlockedReason(transactionState)
+    const { addBlockedReason, explainBlock, reportError } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
-        if (addBlockedReason) {
-            // Claims count as adds when they process, and the server rejects a
-            // claim submitted after this week's adds are used up.
-            showAlert(ADD_LIMIT_BLOCKED_TITLE, addBlockedReason)
-            return
-        }
+        // Claims count as adds when they process, and the server rejects a
+        // claim submitted after this week's adds are used up.
+        if (explainBlock()) return
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
@@ -144,9 +142,7 @@ export default function ClaimPlayerScreen() {
             )
             router.back()
         } catch (e) {
-            const failure = classifyPickupError(e)
-            showAlert(failure.title, failure.message)
-            if (failure.limitReached) void refreshTransactionState()
+            reportError(e)
         } finally {
             setSubmitting(false)
         }

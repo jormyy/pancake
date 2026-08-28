@@ -7,7 +7,8 @@ CREATE OR REPLACE FUNCTION private.is_reserved_trade_asset(
   p_league_season_id uuid,
   p_member_id uuid,
   p_player_id uuid DEFAULT NULL,
-  p_pick_id uuid DEFAULT NULL
+  p_pick_id uuid DEFAULT NULL,
+  p_exclude_trade_id uuid DEFAULT NULL
 )
 RETURNS boolean
 LANGUAGE sql
@@ -22,6 +23,7 @@ AS $$
        AND trade.status = 'accepted'::trade_status
      WHERE trade.league_id = p_league_id
        AND (p_league_season_id IS NULL OR trade.league_season_id = p_league_season_id)
+       AND (p_exclude_trade_id IS NULL OR trade.id <> p_exclude_trade_id)
        AND item.from_member_id = p_member_id
        AND (
          (p_player_id IS NOT NULL AND item.player_id = p_player_id)

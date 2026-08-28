@@ -14,6 +14,7 @@ AS $$
 DECLARE
   v_limit int;
   v_week int;
+  v_resets_at timestamptz;
   v_used int;
 BEGIN
   SELECT weekly_add_limit
@@ -26,7 +27,9 @@ BEGIN
     RETURN;
   END IF;
 
-  v_week := private.current_add_week_number(p_league_id, p_league_season_id);
+  SELECT week.week_number, week.resets_at
+    INTO v_week, v_resets_at
+    FROM private.current_add_week(p_league_id, p_league_season_id) AS week;
 
   INSERT INTO weekly_add_counts (
     league_id,
@@ -55,11 +58,7 @@ BEGIN
 
   -- PA001 is the weekly add limit; the Edge API and the app classify on it.
   IF COALESCE(v_used, 0) >= v_limit THEN
-    RAISE EXCEPTION '%', private.weekly_add_limit_message(
-      COALESCE(v_used, 0),
-      v_limit,
-      private.weekly_add_limit_resets_at(p_league_id, p_league_season_id)
-    )
+    RAISE EXCEPTION '%', private.weekly_add_limit_message(COALESCE(v_used, 0), v_limit, v_resets_at)
       USING ERRCODE = 'PA001';
   END IF;
 END;

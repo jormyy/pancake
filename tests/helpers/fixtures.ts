@@ -1,3 +1,4 @@
+import type { PlayerHeaderPlayer } from '@/components/player/PlayerHeader'
 import type { MemberTransactionState } from '@/lib/league'
 import type { PlayerRow } from '@/lib/players'
 import type { PlayerRosterStatus, RosterPlayer } from '@/lib/roster'
@@ -19,21 +20,7 @@ export function playerRow(overrides: Partial<PlayerRow> = {}): PlayerRow {
     }
 }
 
-/** The player shape the player-page header renders. */
-export type HeaderPlayer = {
-    display_name: string
-    nba_team: string | null
-    position: string | null
-    eligible_positions: string[] | null
-    jersey_number: string | null
-    injury_status: string | null
-    dynasty_rank: number | null
-    headshot_url: string | null
-    nba_id: string | null
-    years_exp: number | null
-}
-
-export function headerPlayer(overrides: Partial<HeaderPlayer> = {}): HeaderPlayer {
+export function headerPlayer(overrides: Partial<PlayerHeaderPlayer> = {}): PlayerHeaderPlayer {
     return {
         display_name: 'Player A',
         nba_team: 'LAL',

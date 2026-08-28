@@ -138,12 +138,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM private.clear_future_unlocked_lineups(
-    p_league_id,
-    v_season_id,
-    p_player_id
-  );
-
   INSERT INTO roster_players (
     member_id,
     league_id,

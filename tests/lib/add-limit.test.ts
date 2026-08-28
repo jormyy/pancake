@@ -98,7 +98,7 @@ describe('classifyPickupError', () => {
         expect(classifyPickupError(new RequestError(message, { code: 'PA001', status: 400 })))
             .toEqual({ limitReached: true, title: 'Weekly add limit reached', message })
         expect(classifyPickupError({ message, code: 'PA001' }))
-            .toEqual({ limitReached: true, title: 'Weekly add limit reached', message: '[object Object]' })
+            .toEqual({ limitReached: true, title: 'Weekly add limit reached', message })
     })
 
     it('leaves every other failure on the generic path', () => {

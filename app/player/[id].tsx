@@ -13,7 +13,8 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, pickupPossible, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedReason, addLimitSummary, classifyPickupError } from '@/lib/add-limit'
+import { addLimitSummary } from '@/lib/add-limit'
+import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -70,7 +71,6 @@ export default function PlayerDetailScreen() {
         transactionState: MemberTransactionState | null
     }>({ ownerIdentity, transactionState: null })
     const pickupState = pickupStateResource.ownerIdentity === ownerIdentity ? pickupStateResource.transactionState : null
-    const addBlockedReason = addLimitBlockedReason(pickupState)
     const [actionLoading, setActionLoading] = useState(false)
 
     // Drop picker + IR resolution state
@@ -131,25 +131,12 @@ export default function PlayerDetailScreen() {
         if (pickupPossible(rosterStatus)) void loadPickupState()
     }, [loadPickupState, rosterStatus])
 
-    // Explains a blocked pickup from cached state; the server stays authoritative
-    // and its own rejection (a stale client, a slot consumed elsewhere) is shown
-    // through the same title.
-    function explainAddLimitBlock(): boolean {
-        const reason = addLimitBlockedReason(pickupState)
-        if (!reason) return false
-        showAlert(ADD_LIMIT_BLOCKED_TITLE, reason)
-        void loadPickupState()
-        return true
-    }
-
-    function reportPickupError(e: unknown) {
-        const failure = classifyPickupError(e)
-        if (failure.limitReached) {
-            setDropPickerVisible(false)
-            void loadPickupState()
-        }
-        showAlert(failure.title, failure.message)
-    }
+    const closeDropPicker = useCallback(() => setDropPickerVisible(false), [])
+    const { addBlockedReason, explainBlock: explainAddLimitBlock, reportError: reportPickupError } = useAddLimitGate({
+        transactionState: pickupState,
+        refresh: loadPickupState,
+        onLimitReached: closeDropPicker,
+    })
 
     useEffect(() => {
         loadRosterStatus()

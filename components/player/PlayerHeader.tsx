@@ -18,7 +18,7 @@ import { PosTag } from '@/components/PosTag'
 import { playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 
-type Player = {
+export type PlayerHeaderPlayer = {
     display_name: string
     nba_team: string | null
     position: string | null
@@ -32,7 +32,7 @@ type Player = {
 }
 
 type Props = {
-    player: Player
+    player: PlayerHeaderPlayer
     rosterStatus: PlayerRosterStatus | null
     leagueActive: boolean
     actionLoading: boolean

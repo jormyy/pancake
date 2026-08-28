@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
     loadGate: vi.fn(),
 }))
 
-vi.mock('react-native', () => ({ Alert: { alert: vi.fn() } }))
 vi.mock('@/lib/roster', () => ({ dropAndAddFreeAgent: vi.fn() }))
 vi.mock('@/lib/roster-add-flow', () => ({
     addFreeAgentOrRequestDrop: vi.fn(),
@@ -17,7 +16,7 @@ vi.mock('@/lib/roster-add-flow', () => ({
     resolveRosterAddIRConflict: vi.fn(),
 }))
 vi.mock('@/lib/waivers', () => ({ submitWaiverClaim: vi.fn() }))
-vi.mock('@/lib/alert', () => ({ getErrorMessage: String }))
+vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), showSuccess: vi.fn(), confirmAction: vi.fn() }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
