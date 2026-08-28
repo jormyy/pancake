@@ -70,6 +70,16 @@ describe('reportPickupError', () => {
         expect(alerts.show).toHaveBeenCalledWith('Still on waivers', 'This player is on waivers - submit a waiver claim instead.')
     })
 
+    it('opens the IR flow when the server finds IR players who no longer qualify', () => {
+        const onIneligibleIr = vi.fn()
+        const error = new RequestError('You have ineligible players on IR (Player A). Activate or drop them before adding players.', { code: 'PA005' })
+        reportPickupError(error, { onIneligibleIr })
+        expect(onIneligibleIr).toHaveBeenCalledTimes(1)
+        expect(alerts.show).not.toHaveBeenCalled()
+        reportPickupError(error)
+        expect(alerts.show).toHaveBeenCalledWith('Error', error.message)
+    })
+
     it('shows every other failure as it came', () => {
         reportPickupError(new RequestError('Your active roster is full (20 players).', { code: 'PA003' }))
         expect(alerts.show).toHaveBeenCalledWith('Error', 'Your active roster is full (20 players).')

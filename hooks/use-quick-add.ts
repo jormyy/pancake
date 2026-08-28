@@ -13,10 +13,14 @@ import type { MemberTransactionState } from '@/lib/league'
 /** What a pickup needs to know about its player. */
 export type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'>
 
+type PickupAction = 'add' | 'claim'
+
 type IRModalState = {
     ineligible: RosterPlayer[]
     roster: RosterPlayer[]
     pendingPlayer: QuickAddPlayer
+    /** What continues once IR is resolved: the add itself, or the claim flow. */
+    action: PickupAction
 } | null
 
 export type QuickAddOptions = {
@@ -25,7 +29,7 @@ export type QuickAddOptions = {
     refreshOwned: () => void
     refreshTransactionState?: () => void
     transactionState?: MemberTransactionState | null
-    /** Opens the claim flow when the server says the player is still on waivers. */
+    /** Opens the claim flow: for a claim once IR is clear, or when the server says an added player is still on waivers. */
     onClaimInstead?: (player: QuickAddPlayer) => void
 }
 
@@ -56,11 +60,11 @@ export function useQuickAdd({
     const isCurrent = useCallback((generation: number, identity: string | null) =>
         generationRef.current === generation && activeOwnerRef.current === identity, [])
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
-    const report = useCallback((error: unknown, player?: QuickAddPlayer) => reportPickupError(error, {
-        refresh: refreshTransactionState,
-        onLimitReached: () => setDropPickerPlayer(null),
-        claim: onClaimInstead && player ? () => onClaimInstead(player) : undefined,
-    }), [refreshTransactionState, onClaimInstead])
+    // The same screen state usually serves both refreshes; one call is enough then.
+    const refreshAfterChange = useCallback(() => {
+        refreshOwned()
+        if (refreshTransactionState && refreshTransactionState !== refreshOwned) refreshTransactionState()
+    }, [refreshOwned, refreshTransactionState])
 
     useEffect(() => {
         generationRef.current += 1
@@ -73,22 +77,29 @@ export function useQuickAdd({
     }, [ownerIdentity])
 
     // Resolves to the roster when it has no ineligible IR players; otherwise
-    // opens the IR modal, which continues the add once IR is clear.
+    // opens the IR modal, which continues the pickup once IR is clear.
     const checkIR = useCallback(
-        async (player: QuickAddPlayer, lid: string, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
+        async (player: QuickAddPlayer, lid: string, action: PickupAction, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
             if (!memberId) return null
             const generation = generationRef.current
             const identity = ownerIdentity
             const { roster, ineligible } = await loadRosterAddGate(memberId, lid, excludeRosterId)
             if (!isCurrent(generation, identity)) return null
             if (ineligible.length > 0) {
-                setIrModal({ ineligible, roster, pendingPlayer: player })
+                setIrModal({ ineligible, roster, pendingPlayer: player, action })
                 return null
             }
             return roster
         },
         [memberId, ownerIdentity, isCurrent]
     )
+
+    const report = useCallback((error: unknown, player?: QuickAddPlayer) => reportPickupError(error, {
+        refresh: refreshTransactionState,
+        onLimitReached: () => setDropPickerPlayer(null),
+        claim: onClaimInstead && player ? () => onClaimInstead(player) : undefined,
+        onIneligibleIr: player && leagueId ? () => { void checkIR(player, leagueId, 'add') } : undefined,
+    }), [refreshTransactionState, onClaimInstead, leagueId, checkIR])
 
     // The server decides between an add and a full roster; a full roster opens
     // the drop picker with the roster already in hand.
@@ -106,34 +117,43 @@ export function useQuickAdd({
                 return
             }
             showSuccess('Added', `${player.display_name} added to your roster.`)
-            refreshTransactionState?.()
+            refreshAfterChange()
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, player)
         } finally {
-            if (isCurrent(generation, identity)) {
-                setAdding(null)
-                refreshOwned()
-            }
+            if (isCurrent(generation, identity)) setAdding(null)
         }
-    }, [memberId, ownerIdentity, refreshOwned, refreshTransactionState, isCurrent, report])
+    }, [memberId, ownerIdentity, refreshAfterChange, isCurrent, report])
 
     const continueAfterIRResolution = useCallback(async (lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) => {
         if (remaining.length > 0) {
             setIrModal((prev) => prev ? { ...prev, ineligible: remaining, roster } : null)
-        } else {
-            const pending = irModal!.pendingPlayer
-            setIrModal(null)
-            if (explainBlock()) return
-            await addFreeAgent(pending, lid, roster)
+            return
         }
-    }, [irModal, addFreeAgent, explainBlock])
+        const { pendingPlayer, action } = irModal!
+        setIrModal(null)
+        if (action === 'claim') {
+            onClaimInstead?.(pendingPlayer)
+            return
+        }
+        if (explainBlock()) return
+        await addFreeAgent(pendingPlayer, lid, roster)
+    }, [irModal, addFreeAgent, explainBlock, onClaimInstead])
 
     const handleAdd = useCallback(async (player: QuickAddPlayer) => {
         if (!memberId || !leagueId) return
         if (explainBlock()) return
-        const roster = await checkIR(player, leagueId)
+        const roster = await checkIR(player, leagueId, 'add')
         if (roster) await addFreeAgent(player, leagueId, roster)
     }, [memberId, leagueId, checkIR, addFreeAgent, explainBlock])
+
+    // A claim runs the same IR gate as an add and then hands off to the claim
+    // flow, which owns the add-limit gate with fresh state.
+    const handleClaim = useCallback(async (player: QuickAddPlayer) => {
+        if (!memberId || !leagueId) return
+        const roster = await checkIR(player, leagueId, 'claim')
+        if (roster) onClaimInstead?.(player)
+    }, [memberId, leagueId, checkIR, onClaimInstead])
 
     const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
         if (!memberId || !dropPickerPlayer || !leagueId) return
@@ -144,23 +164,20 @@ export function useQuickAdd({
         const generation = generationRef.current
         const identity = ownerIdentity
 
-        if (!await checkIR(dropPickerPlayer, leagueId, rosterPlayer.id)) return
+        if (!await checkIR(dropPickerPlayer, leagueId, 'add', rosterPlayer.id)) return
 
         setDropping(rosterPlayer.id)
         try {
             await dropAndAddFreeAgent(rosterPlayer.id, memberId, leagueId, dropPickerPlayer.id)
             if (!isCurrent(generation, identity)) return
             setDropPickerPlayer(null)
-            refreshTransactionState?.()
+            refreshAfterChange()
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, dropPickerPlayer)
         } finally {
-            if (isCurrent(generation, identity)) {
-                setDropping(null)
-                refreshOwned()
-            }
+            if (isCurrent(generation, identity)) setDropping(null)
         }
-    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshOwned, refreshTransactionState, isCurrent, explainBlock, report])
+    }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, refreshAfterChange, isCurrent, explainBlock, report])
 
     const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
         if (!memberId || !leagueId) return
@@ -196,11 +213,12 @@ export function useQuickAdd({
         irModal: ownsState ? irModal : null, setIrModal,
         addBlockedReason,
         handleAdd,
+        handleClaim,
         handleDropAndAdd,
         handleIRActivate,
         handleDropAndIRActivate,
     }), [
         ownsState, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason,
-        handleAdd, handleDropAndAdd, handleIRActivate, handleDropAndIRActivate,
+        handleAdd, handleClaim, handleDropAndAdd, handleIRActivate, handleDropAndIRActivate,
     ])
 }

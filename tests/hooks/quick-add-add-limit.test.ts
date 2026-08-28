@@ -131,6 +131,19 @@ describe('useQuickAdd weekly add limit', () => {
         expect(mocks.alert).toHaveBeenCalledWith('Error', 'Your active roster is full (20 players).')
     })
 
+    it('runs the IR gate before a claim and hands off once IR is clear', async () => {
+        const onClaimInstead = vi.fn()
+        mocks.loadGate.mockResolvedValue({ roster: [ownRosterPlayer], ineligible: [ownRosterPlayer] })
+        const probe = await mount(memberTransactionState(), { onClaimInstead })
+        await act(async () => { await probe.latest.handleClaim(player) })
+        expect(probe.latest.irModal).toMatchObject({ action: 'claim', pendingPlayer: player })
+        expect(onClaimInstead).not.toHaveBeenCalled()
+
+        mocks.loadGate.mockResolvedValue({ roster: [ownRosterPlayer], ineligible: [] })
+        await act(async () => { probe.latest.setIrModal(null); await probe.latest.handleClaim(player) })
+        expect(onClaimInstead).toHaveBeenCalledWith(player)
+    })
+
     it('does nothing special for unlimited leagues', async () => {
         mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
         mocks.addOrRequestDrop.mockResolvedValue({ status: 'added' })

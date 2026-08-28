@@ -4,7 +4,6 @@ import {
     addFreeAgent,
     getPlayerRosterStatus,
     getRoster,
-    pickupPossible,
     toggleIR,
     type PlayerRosterStatus,
     type RosterPlayer,
@@ -42,24 +41,24 @@ export async function loadPickupState(
     leagueId: string,
 ): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null }> {
     const status = await getPlayerRosterStatus(playerId, memberId, leagueId)
-    return { status, transactionState: pickupPossible(status) ? await loadAddLimitState(memberId, leagueId) : null }
+    const pickupPossible = status.status === 'free_agent' || status.status === 'on_waivers'
+    return { status, transactionState: pickupPossible ? await loadAddLimitState(memberId, leagueId) : null }
 }
 
 export async function addFreeAgentOrRequestDrop(
     memberId: string,
     leagueId: string,
     playerId: string,
-    roster?: RosterPlayer[],
+    roster: RosterPlayer[],
 ): Promise<{ status: 'added' } | { status: 'roster_full'; activeRoster: RosterPlayer[] }> {
     try {
         await addFreeAgent(memberId, leagueId, playerId)
         return { status: 'added' }
     } catch (error) {
         if (errorCode(error) !== RULE_CODES.rosterFull) throw error
-        const current = roster ?? await getRoster(memberId, leagueId)
         return {
             status: 'roster_full',
-            activeRoster: current.filter((player) => !player.is_on_ir && !player.is_on_taxi),
+            activeRoster: roster.filter((player) => !player.is_on_ir && !player.is_on_taxi),
         }
     }
 }

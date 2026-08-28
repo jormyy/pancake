@@ -184,7 +184,7 @@ export default function PlayerDetailScreen() {
                         addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}
                         onAdd={() => quickAdd.handleAdd({ id, display_name: player.display_name })}
                         onDrop={handleDrop}
-                        onClaim={openClaim}
+                        onClaim={() => quickAdd.handleClaim({ id, display_name: player.display_name })}
                         onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
                     />
 

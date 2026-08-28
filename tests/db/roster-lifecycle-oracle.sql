@@ -157,8 +157,8 @@ CREATE FUNCTION pg_temp.current_season(p_league uuid) RETURNS uuid LANGUAGE sql 
   SELECT id FROM public.league_seasons WHERE league_id = p_league AND is_current LIMIT 1
 $$;
 
--- Mirrors private.prevent_uncleared_waiver_free_agent_add: a player whose waiver
--- entry is not cleared yet must be claimed, not added.
+-- Mirrors private.prevent_uncleared_waiver_free_agent_add (checked by I10): a player
+-- whose waiver entry is not cleared yet must be claimed, not added.
 CREATE FUNCTION pg_temp.on_waivers(p_league uuid, p_season uuid, p_player uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT EXISTS (SELECT 1 FROM public.waiver_wire_log log
                   WHERE log.league_id = p_league AND log.league_season_id = p_season AND log.player_id = p_player
@@ -185,15 +185,15 @@ CREATE FUNCTION pg_temp.reserved_pick(p_pick uuid) RETURNS boolean LANGUAGE sql 
                  WHERE pick.id = p_pick)
 $$;
 
--- Mirrors private.prevent_accepted_or_inactive_roster_move: a player named as a
--- pending claim's drop cannot leave the active roster.
+-- Mirrors private.prevent_accepted_or_inactive_roster_move (checked by I4): a player
+-- named as a pending claim's drop cannot leave the active roster.
 CREATE FUNCTION pg_temp.pending_drop_row(p_roster uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT EXISTS (SELECT 1 FROM public.roster_players r JOIN public.waiver_claims c
                    ON c.member_id = r.member_id AND c.drop_player_id = r.player_id AND c.league_season_id = r.league_season_id
                 WHERE r.id = p_roster AND c.status = 'pending')
 $$;
 
--- Mirrors private.assert_weekly_add_available: an add past the limit must be rejected.
+-- Mirrors private.assert_weekly_add_available (checked by I9): an add past the limit must be rejected.
 CREATE FUNCTION pg_temp.add_limit_reached(p_member uuid, p_league uuid, p_season uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT l.weekly_add_limit IS NOT NULL
      AND COALESCE((SELECT c.add_count FROM public.weekly_add_counts c

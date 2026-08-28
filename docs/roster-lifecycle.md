@@ -16,7 +16,7 @@ Every other roster-linked record falls into one of three classes.
 | `waiver_claims` pending `drop_player_id` | live state | Set to NULL when the drop player leaves the roster; the claim stays pending and the processor applies the normal "roster full and no drop" rule. IR/taxi moves of a pending drop player are still rejected. |
 | `trades` pending with the lost asset | live state | Expired with `completion_failure_reason` and a `trade_expired` activity row. IR/taxi moves do not expire offers; acceptance already requires an active roster. |
 | `trades` accepted | reservation | Deletes and IR/taxi moves of reserved players are rejected; a reserved pick cannot be used in a draft or change owner until the trade completes or expires. |
-| `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never touched. A succeeded claim keeps its drop player. The one exception: a player merge closes an open waiver entry whose player is rostered under the surviving identity. |
+| `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never deleted. A succeeded claim keeps its drop player. A player merge re-points the surviving identity and closes an open waiver entry whose player is rostered under it. |
 | `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
 | `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
 | Client caches (trade block, player support, roster) | derived | Refreshed on focus, and on realtime changes each screen watches: the players tab `roster_players`; the roster tab `roster_players` and `draft_picks`; the trades screen the trade tables, `trade_block_items` and `draft_picks` (`lib/trades-realtime.ts`). |
@@ -65,7 +65,12 @@ The drop and IR/taxi RPCs rely on the guards rather than checking again.
 `start_rookie_draft_atomic` refuses to start while a pick of the draft class is
 reserved, so a slot never stalls on a pick the trade still owns.
 `private.lineup_game_started` is the one "this slot's game has started" rule, read by
-the lineup RPCs, the lifecycle cleanup, and the DB suites.
+the lineup RPCs, the lifecycle cleanup, and the DB suites (the lineup RPCs now also
+treat a recorded `started_at` as started; before they read only the feed status and
+the tip-off time). `private.ineligible_ir_player_names` is the one list of IR players
+who no longer qualify: a free-agent add raises it as SQLSTATE `PA005` and the app
+opens the IR resolution flow, and the waiver processor records it as the claim's
+failure reason.
 `private.pick_left_owner` is the one rule for "this pick left its owner" that the
 pick guard and the pick-listing sync share. Trade completion and pending-offer
 expiry mark their transaction through
@@ -139,10 +144,11 @@ Feedback:
   (the same sentence, present while the week's adds are used up) and
   `add_limit_resets_label`. Free-agent adds (the players tab add button and header
   line, the player page Add) read them through `lib/pickup.ts` and the
-  `useAddLimitGate` hook inside `useQuickAdd` and render the action in a disabled
-  state with the reason as its accessibility hint; the drop-to-add picker and the
-  IR-resolution continuation gate on tap only; claims open the claim modal, which
-  owns its own gate with fresh state. Every one explains the block with that
+  `useAddLimitGate` hook inside `useQuickAdd` and mark the action blocked through
+  `accessibilityState` with the reason as its hint (it stays pressable so a tap
+  explains); the drop-to-add picker and the IR-resolution continuation gate on tap
+  only; claims run the same IR gate as adds and then open the claim modal, which owns
+  the add-limit gate with fresh state. Every one explains the block with that
   sentence, so the pre-check and the rejection say the same thing, and
   `reportPickupError` in `lib/pickup.ts` turns the server's rejection into the same
   explanation.

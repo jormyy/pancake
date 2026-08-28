@@ -64,14 +64,14 @@ export function PlayerHeader({
     const eligiblePositions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
 
-    function renderPickupAction(
-        label: string,
-        accessibilityLabel: string,
-        buttonStyle: StyleProp<ViewStyle>,
-        textStyle: StyleProp<TextStyle>,
-        onPress: () => void,
-        blockedReason: string | null,
-    ) {
+    function renderPickupAction({ label, accessibilityLabel, buttonStyle, textStyle, onPress, blockedReason }: {
+        label: string
+        accessibilityLabel: string
+        buttonStyle: StyleProp<ViewStyle>
+        textStyle: StyleProp<TextStyle>
+        onPress: () => void
+        blockedReason: string | null
+    }) {
         return (
             <View style={styles.pickupAction}>
                 <Pressable
@@ -149,9 +149,9 @@ export function PlayerHeader({
             {leagueActive && rosterStatus && (
                 <View style={styles.actionWrap}>
                     {rosterStatus.status === 'free_agent' ? (
-                        renderPickupAction('+ Add', `Add ${player.display_name}`, styles.addButton, styles.addButtonText, onAdd, addBlockedReason)
+                        renderPickupAction({ label: '+ Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: styles.addButton, textStyle: styles.addButtonText, onPress: onAdd, blockedReason: addBlockedReason })
                     ) : rosterStatus.status === 'on_waivers' ? (
-                        renderPickupAction('Claim', `Claim ${player.display_name}`, styles.claimButton, styles.claimButtonText, onClaim, null)
+                        renderPickupAction({ label: 'Claim', accessibilityLabel: `Claim ${player.display_name}`, buttonStyle: styles.claimButton, textStyle: styles.claimButtonText, onPress: onClaim, blockedReason: null })
                     ) : rosterStatus.status === 'mine' ? (
                         <View style={styles.myActions}>
                             <Pressable

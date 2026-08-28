@@ -52,6 +52,8 @@ type ReportOptions = {
     onLimitReached?: () => void
     /** Opens the claim flow when the server still holds the player on waivers. */
     claim?: () => void
+    /** Opens the IR resolution flow when the server finds IR players who no longer qualify (a stale client). */
+    onIneligibleIr?: () => void
 }
 
 /**
@@ -60,7 +62,7 @@ type ReportOptions = {
  * waivers (possibly past the 48-hour mark, until the run processes the entry)
  * is offered the claim flow, everything else is shown as it came.
  */
-export function reportPickupError(error: unknown, { refresh, onLimitReached, claim }: ReportOptions = {}) {
+export function reportPickupError(error: unknown, { refresh, onLimitReached, claim, onIneligibleIr }: ReportOptions = {}) {
     const code = errorCode(error)
     const message = getErrorMessage(error)
     if (code === RULE_CODES.weeklyAddLimit) {
@@ -71,6 +73,10 @@ export function reportPickupError(error: unknown, { refresh, onLimitReached, cla
     }
     if (code === RULE_CODES.onWaivers && claim) {
         confirmAction(ON_WAIVERS_TITLE, `${message} Claims are processed on the next waiver run.`, claim, 'Claim', false)
+        return
+    }
+    if (code === RULE_CODES.ineligibleIr && onIneligibleIr) {
+        onIneligibleIr()
         return
     }
     showAlert(code === RULE_CODES.onWaivers ? ON_WAIVERS_TITLE : 'Error', message)

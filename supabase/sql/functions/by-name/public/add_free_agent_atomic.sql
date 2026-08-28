@@ -45,23 +45,10 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_player_id::text));
 
-  SELECT string_agg(COALESCE(p.display_name, 'Unknown'), ', ')
-    INTO v_ineligible
-    FROM roster_players rp
-    JOIN players p ON p.id = rp.player_id
-   WHERE rp.member_id = p_member_id
-     AND rp.league_id = p_league_id
-     AND rp.league_season_id = v_season_id
-     AND rp.is_on_ir = true
-     AND NOT (
-       lower(COALESCE(p.injury_status, '')) = 'out'
-       OR lower(COALESCE(p.injury_status, '')) LIKE 'ir%'
-     );
-
-  IF v_ineligible IS NOT NULL AND length(v_ineligible) > 0 THEN
-    RAISE EXCEPTION 'You have ineligible players on IR (%). Activate or drop them before adding players.',
-      v_ineligible
-      USING ERRCODE = 'P0001';
+  v_ineligible := private.ineligible_ir_player_names(p_league_id, v_season_id, p_member_id);
+  IF v_ineligible IS NOT NULL THEN
+    RAISE EXCEPTION 'You have ineligible players on IR (%). Activate or drop them before adding players.', v_ineligible
+      USING ERRCODE = 'PA005';
   END IF;
 
   SELECT id

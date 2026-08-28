@@ -35,10 +35,6 @@ export type PlayerRosterStatus =
     | { status: 'on_waivers'; logId: string; clearsAt: string }
     | { status: 'free_agent' }
 
-/** Only a free agent or a player on waivers can be picked up, so only then is the add-limit state worth loading. */
-export function pickupPossible(status: PlayerRosterStatus | null): boolean {
-    return status?.status === 'free_agent' || status?.status === 'on_waivers'
-}
 
 export async function getRoster(memberId: string, leagueId: string): Promise<RosterPlayer[]> {
     const rosters = await getRostersForMembers([memberId], leagueId)

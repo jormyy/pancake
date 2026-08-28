@@ -177,7 +177,6 @@
     "public.register_push_token_atomic(uuid,text,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.reject_trade_atomic(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.release_live_poll_lease(bigint,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
-    "public.release_live_poll_lock()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.release_stats_sync_job_atomic(uuid,uuid,integer,jsonb)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.remove_trade_block_item_atomic(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.reorder_waiver_claim_atomic(uuid,uuid,uuid,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},

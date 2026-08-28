@@ -193,7 +193,6 @@ const requireColumn = async (supabase, table, column) => {
 export const runSchemaPreflight = async (supabase) => {
   const zeroUuid = '00000000-0000-0000-0000-000000000000'
   const checks = await Promise.all([
-    requireRpc(supabase, 'release_live_poll_lock', {}, null),
     requireRpc(supabase, 'accept_trade_atomic', { p_trade_id: zeroUuid, p_accepting_member_id: zeroUuid }, /Trade not found/i),
     requireRpc(supabase, 'advance_season_atomic', { p_league_id: zeroUuid }, /League not found/i),
     requireRpc(

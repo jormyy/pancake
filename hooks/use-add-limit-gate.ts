@@ -9,9 +9,9 @@ type AddLimitGateOptions = {
 }
 
 /**
- * The one client-side owner of "is a pickup blocked by the weekly add limit".
- * The server stays authoritative: `explainBlock` only saves a round trip when
- * the cached state already carries the server's rejection sentence.
+ * Explains a blocked pickup from cached state before a request is made. The
+ * server stays authoritative: `explainBlock` only saves a round trip when the
+ * cached state already carries the server's rejection sentence.
  */
 export function useAddLimitGate({ transactionState, refresh }: AddLimitGateOptions) {
     const addBlockedReason = addLimitBlockedReason(transactionState)

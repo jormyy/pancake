@@ -11,6 +11,8 @@ export const RULE_CODES = {
     onWaivers: 'PA002',
     /** add_free_agent_atomic: the active roster is full */
     rosterFull: 'PA003',
+    /** add_free_agent_atomic: players on IR who no longer qualify block the add */
+    ineligibleIr: 'PA005',
 } as const
 
 export function errorCode(error: unknown): string | undefined {

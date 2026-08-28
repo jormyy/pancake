@@ -18,9 +18,9 @@ import { getRoster, RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
-import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
+import { type MemberTransactionState } from '@/lib/league'
 import { loadAddLimitState } from '@/lib/roster-add-flow'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary, reportPickupError } from '@/lib/pickup'
+import { addLimitSummary, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
@@ -81,7 +81,7 @@ export default function ClaimPlayerScreen() {
                     getPlayer(requestedPlayerId),
                     getRoster(memberId, requestedLeagueId),
                     getMyWaiverPriority(memberId, requestedLeagueId),
-                    getMemberTransactionState(memberId, requestedLeagueId),
+                    loadAddLimitState(memberId, requestedLeagueId),
                 ])
                 if (claimLoadSeqRef.current !== requestId) return
                 setPlayer(p)
@@ -167,8 +167,7 @@ export default function ClaimPlayerScreen() {
                 role="status"
                 testID="add-limit-notice"
             >
-                <Text style={styles.limitTitle}>{ADD_LIMIT_BLOCKED_TITLE}</Text>
-                <Text style={styles.limitBody}>{addBlockedReason} Claims can be submitted again after the reset.</Text>
+                <Text style={styles.limitBody}>{addBlockedReason}</Text>
                 <Text style={styles.limitMeta}>{addLimitSummary(transactionState)}</Text>
             </View>
         )
@@ -469,7 +468,6 @@ const styles = StyleSheet.create({
         marginTop: spacing.md,
         padding: spacing.md,
     },
-    limitTitle: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     limitBody: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 20 },
     limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
     claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 0 },

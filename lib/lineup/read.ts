@@ -57,16 +57,18 @@ export function clampDateToWeek(date: string, days: WeekDay[]): string {
 export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
     const { data, error } = await supabase
         .from('nba_games')
-        .select('home_team, away_team, status, game_time')
+        .select('home_team, away_team, status, game_time, started_at')
         .eq('game_date', gameDate)
     if (error) throw error
 
     const teams = new Set<string>()
     const now = new Date().toISOString()
     for (const g of data ?? []) {
+        // Mirrors private.lineup_game_started.
         const hasStarted =
             ['InProgress', 'Final'].includes(g.status ?? '') ||
-            (g.game_time != null && g.game_time <= now)
+            (g.game_time != null && g.game_time <= now) ||
+            (g.started_at != null && g.started_at <= now)
         if (!hasStarted) continue
         if (g.home_team) teams.add(g.home_team)
         if (g.away_team) teams.add(g.away_team)
