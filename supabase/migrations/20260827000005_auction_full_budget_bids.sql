@@ -1,6 +1,13 @@
--- Canonical SQL source for public.place_auction_bid_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Auction bids may spend the full remaining budget.
+--
+-- The $1-per-unfilled-slot reserve is gone from live auction drafts (mock rooms
+-- never had it): a manager may go all-in and finish the draft with open roster
+-- slots, then fill them through waivers or free agency. The auto-award check
+-- ("can anyone still outbid?") now only asks for the next dollar and an open
+-- active slot. tests/db/auction-budget-rule.sql covers exact-budget bids, zero
+-- budget, ties, retries, commissioner pause/resume, roster sizes, auto-award,
+-- draft completion, and the free-agent fill afterwards.
+
 
 CREATE OR REPLACE FUNCTION public.place_auction_bid_atomic(
   p_draft_id uuid,

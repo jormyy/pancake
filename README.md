@@ -20,7 +20,8 @@ commissioner disappears.
 ## Highlights
 
 - **Startup auction draft** with real-time bidding, commissioner-chosen nomination-order
-  modes, nomination withdrawal, and free-form validated bids
+  modes, nomination withdrawal, and free-form validated bids; a manager may spend the
+  full remaining budget and fill any open slots later through waivers or free agency
 - **Mock draft rooms** (auction or rookie) with scheduling, realtime multi-user play,
   creator/commissioner deletion, and daily auto-expiry of finished or stale rooms
 - **Snake rookie draft** for annual offseason drafts (pick-ownership ordered), with an
