@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import type { LeagueInfo } from '@/types/app'
 import { getLeagueMembers, getLineupSlots, updateLeagueConfiguration } from '@/lib/league'
-import { getErrorMessage, showAlert } from '@/lib/alert'
+import { showAlert } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { COMMISSIONER_SCORING_FIELDS } from '@/lib/commissioner-settings-fields'
 import {
     EMPTY_COMMISSIONER_SETTINGS_DRAFT,

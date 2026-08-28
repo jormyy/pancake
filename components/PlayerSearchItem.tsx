@@ -8,7 +8,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
-import { blockedActionProps } from '@/lib/add-limit'
+import { blockedActionProps } from '@/lib/a11y'
 import {
     formatProjectionGame,
     numberOrDash,

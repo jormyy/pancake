@@ -33,8 +33,7 @@ CREATE OR REPLACE FUNCTION pg_temp.expect_reset(p_case text, p_expected_week int
 DECLARE ids add_limit_ids%ROWTYPE; v_week int; v_reset timestamptz;
 BEGIN
   SELECT * INTO ids FROM add_limit_ids;
-  v_week := private.current_add_week_number(ids.league_id, ids.season_id);
-  v_reset := private.weekly_add_limit_resets_at(ids.league_id, ids.season_id);
+  SELECT week.week_number, week.resets_at INTO v_week, v_reset FROM private.current_add_week(ids.league_id, ids.season_id) AS week;
   IF v_week IS DISTINCT FROM p_expected_week THEN
     RAISE EXCEPTION '%: week % expected %', p_case, v_week, p_expected_week;
   END IF;

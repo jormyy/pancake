@@ -22,12 +22,11 @@ export function useAddLimitGate({ transactionState, refresh, onLimitReached }: A
     const addBlockedReason = addLimitBlockedReason(transactionState)
 
     const explainBlock = useCallback(() => {
-        const reason = addLimitBlockedReason(transactionState)
-        if (!reason) return false
-        showAlert(ADD_LIMIT_BLOCKED_TITLE, reason)
+        if (!addBlockedReason) return false
+        showAlert(ADD_LIMIT_BLOCKED_TITLE, addBlockedReason)
         refresh?.()
         return true
-    }, [transactionState, refresh])
+    }, [addBlockedReason, refresh])
 
     const reportError = useCallback((error: unknown, claim?: false | (() => void)) => {
         const failure = classifyPickupError(error)

@@ -13,7 +13,8 @@ import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
-import { getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
+import { showAlert, showSuccess } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import {
     buildTwoTeamTradeComposerPayload,

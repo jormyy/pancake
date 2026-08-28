@@ -11,7 +11,8 @@ import { activateRosterPlayerWithLineup, toggleIR, toggleTaxi } from '@/lib/rost
 import { todayET } from '@/lib/shared/dates'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
-import { confirmAction, getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
+import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir?: LineupPlayer[]; taxi?: LineupPlayer[] }
 type Sel = LineupSelection

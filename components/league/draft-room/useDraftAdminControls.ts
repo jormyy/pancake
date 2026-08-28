@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { pauseDraft, resetDraft, resumeDraft, stopDraft } from '@/lib/draft'
-import { confirmAction, getErrorMessage, showAlert } from '@/lib/alert'
+import { confirmAction, showAlert } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 type DraftAdminConfirmCopy = {
     stop: string

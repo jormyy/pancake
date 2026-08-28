@@ -16,7 +16,7 @@ Every other roster-linked record falls into one of three classes.
 | `waiver_claims` pending `drop_player_id` | live state | Set to NULL when the drop player leaves the roster; the claim stays pending and the processor applies the normal "roster full and no drop" rule. IR/taxi moves of a pending drop player are still rejected. |
 | `trades` pending with the lost asset | live state | Expired with `completion_failure_reason` and a `trade_expired` activity row. IR/taxi moves do not expire offers; acceptance already requires an active roster. |
 | `trades` accepted | reservation | Deletes and IR/taxi moves of reserved players are rejected; a reserved pick cannot be used in a draft or change owner until the trade completes or expires. |
-| `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never touched. A succeeded claim keeps its drop player. |
+| `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never touched. A succeeded claim keeps its drop player. The one exception: a player merge closes an open waiver entry whose player is rostered under the surviving identity. |
 | `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
 | `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
 | Client caches (trade block, player support, roster) | derived | Refreshed on focus and on realtime changes to `roster_players`, `trade_block_items`, `draft_picks`, `trades`. |
@@ -50,8 +50,12 @@ Both run inside the mutating transaction, so a partial failure rolls everything
 back, a retry has nothing left to clean, and concurrent requests serialize on the
 row and advisory locks the mutation already holds. `add_trade_block_item_atomic`
 locks the roster row `FOR SHARE`, so a listing cannot be created for a player whose
-drop is in flight. A player merge (`merge_players`) re-points listings to the
-surviving player next to the other tables it re-points.
+drop is in flight. A player merge (`merge_players`) moves the listings, lineups,
+pending drops and offers of a member who already holds the surviving player on the
+active roster before it deletes their duplicate row, so the trigger finds nothing of
+theirs under the old identity; every other member's state is cleared by the trigger
+or moves with their re-pointed roster row. The merge then closes an open waiver
+entry whose player is rostered under the surviving identity.
 
 `private.is_reserved_trade_asset` is the single accepted-trade reservation check
 used by the roster and pick guards, the drop and IR/taxi RPCs, waiver-drop
@@ -99,8 +103,7 @@ scheduled week the count belongs to that week. Past the last scheduled week (pla
 offseason) the count rolls every seven days from the day after that week; a new
 season with no schedule yet keeps the same cadence anchored on the prior season.
 `private.current_add_week` owns that rule and returns both the week number and the
-reset instant; `current_add_week_number` and `weekly_add_limit_resets_at` are
-projections of it.
+reset instant; `current_add_week_number` is a projection of it for the counters.
 
 Feedback:
 
@@ -156,6 +159,8 @@ engine raised rather than a `RAISE` in a function (a missing column, a raw const
 violation, a bad call) fails the run, and so does any operation family that expected
 success at least once and never got it, so a silently broken function or a walk that
 never reaches a path cannot pass as green. Rotate the seed with `ORACLE_SEED=<n>` (default 1) and the length with
-`SET oracle.steps`. The oracle found the pick-reservation gap fixed in
+`SET oracle.steps`. The seed fixes the walk's choices, but new rows still take
+`gen_random_uuid()` ids, so a failing seed reproduces in distribution rather than
+step for step; rerun it a few times. The oracle found the pick-reservation gap fixed in
 `20260827000003_reserve_accepted_trade_picks.sql`; removing any of the three
 enforcement triggers turns it red within a few dozen steps.

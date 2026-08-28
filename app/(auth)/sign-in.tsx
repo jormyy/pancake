@@ -5,7 +5,7 @@ import { AuthScaffold } from '@/components/auth/AuthScaffold'
 import type { AuthHeroContent } from '@/components/auth/AuthHero'
 import { Button, Input } from '@/components/ui'
 import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { signIn } from '@/lib/auth'
 
 const SIGN_IN_HERO: AuthHeroContent = {

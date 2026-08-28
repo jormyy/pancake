@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderCounts as renders } from './helpers/native-component-mocks'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { playerRow } from './helpers/fixtures'
 
@@ -8,32 +9,9 @@ import { playerRow } from './helpers/fixtures'
 // the row that stopped) may re-render. Every row re-rendering on each state
 // change is what makes long lists feel sticky on phones.
 
-const renders = vi.hoisted(() => ({ avatar: 0 }))
-vi.mock('react-native', () => ({
-    Platform: { OS: 'ios' },
-    NativeModules: { BlobModule: null },
-    StyleSheet: { create: (styles: unknown) => styles },
-    Image: 'Image',
-    Pressable: 'Pressable',
-    Text: 'Text',
-    View: 'View',
-}))
-vi.mock('@/components/Motion', () => ({
-    MotionPressable: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-        React.createElement('Pressable', props, children),
-    MotionView: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-        React.createElement('View', props, children),
-}))
-vi.mock('@/components/Avatar', () => ({
-    Avatar: () => { renders.avatar += 1; return null },
-}))
-vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
-vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
 vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null, numberOrDash: String }))
-
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const ROWS = 20
 const players = Array.from({ length: ROWS }, (_, index) => playerRow({ id: `player-${index}`, display_name: `Player ${index}` }))

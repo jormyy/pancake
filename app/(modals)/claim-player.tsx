@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
@@ -19,7 +19,8 @@ import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary, blockedActionProps } from '@/lib/add-limit'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary } from '@/lib/add-limit'
+import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { showAlert, showSuccess } from '@/lib/alert'
@@ -96,14 +97,14 @@ export default function ClaimPlayerScreen() {
         load()
     }, [leagueId, memberId, playerId, userId])
 
-    async function refreshTransactionState() {
+    const refreshTransactionState = useCallback(async () => {
         if (!memberId || !leagueId) return
         try {
             setTransactionState(await getMemberTransactionState(memberId, leagueId))
         } catch (e) {
             console.warn('Could not refresh the weekly add state.', e)
         }
-    }
+    }, [memberId, leagueId])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))

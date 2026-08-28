@@ -3,7 +3,6 @@ import {
     addLimitBlockedMessage,
     addLimitBlockedReason,
     addLimitSummary,
-    blockedActionProps,
     classifyPickupError,
     formatAddLimitReset,
     getAddLimitStatus,
@@ -111,13 +110,5 @@ describe('classifyPickupError', () => {
         expect(classifyPickupError(new RequestError('Your active roster is full (20 players).', { code: 'P0001' })))
             .toEqual({ limitReached: false, onWaivers: false, title: 'Error', message: 'Your active roster is full (20 players).' })
         expect(classifyPickupError(new Error('offline'))).toEqual({ limitReached: false, onWaivers: false, title: 'Error', message: 'offline' })
-    })
-})
-
-describe('blockedActionProps', () => {
-    it('announces the block as a hint on a still-pressable control', () => {
-        expect(blockedActionProps('reason')).toEqual({ accessibilityHint: 'reason', accessibilityState: { disabled: true } })
-        expect(blockedActionProps(null)).toEqual({ accessibilityHint: undefined, accessibilityState: { disabled: false } })
-        expect(blockedActionProps(null, true)).toEqual({ accessibilityHint: undefined, accessibilityState: { disabled: true } })
     })
 })

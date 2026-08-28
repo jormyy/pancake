@@ -135,7 +135,7 @@ BEGIN
 
   IF v_active_count >= COALESCE(v_league.roster_size, 20) THEN
     RAISE EXCEPTION 'Your active roster is full (% players).', COALESCE(v_league.roster_size, 20)
-      USING ERRCODE = 'P0001';
+      USING ERRCODE = 'PA003';
   END IF;
 
   INSERT INTO roster_players (

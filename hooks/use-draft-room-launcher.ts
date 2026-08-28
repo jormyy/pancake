@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { getJoinableDraft } from '@/lib/draft'
-import { getErrorMessage, showAlert } from '@/lib/alert'
+import { showAlert } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 type LaunchResult = 'opened' | 'missing' | 'error' | 'stale'
 

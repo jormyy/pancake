@@ -155,7 +155,9 @@ three seasons.
 Roster-linked state (trade-block listings, future lineup slots, pending waiver drops,
 pending offers) is kept consistent by database triggers whenever a player leaves a
 roster or a pick changes hands, on every path: drops, waiver drops, trades, IR/taxi
-moves, merges, resets, and service-role maintenance. History rows are never rewritten.
+moves, merges, resets, and service-role maintenance. History rows are never rewritten;
+a merge only closes an open waiver entry whose player is rostered under the surviving
+identity.
 See [docs/roster-lifecycle.md](./docs/roster-lifecycle.md).
 
 ## Testing

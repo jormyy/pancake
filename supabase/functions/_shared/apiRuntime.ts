@@ -103,7 +103,7 @@ function errorResponse(scope: string, error: unknown): Response {
     console.error(`[${scope}]`, { requestId, error })
   }
 
-  const code = error instanceof ApiError && status < 500 ? error.code : undefined
+  const code = status < 500 ? (error instanceof ApiError ? error.code : dbErrorCode(error)) : undefined
 
   return json({
     ok: false,

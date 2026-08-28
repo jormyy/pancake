@@ -7,7 +7,7 @@ import {
     type RosterPlayer,
 } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
-import { getErrorMessage } from '@/lib/alert'
+import { RULE_CODES, errorCode } from '@/lib/shared/errors'
 
 export async function loadRosterAddGate(
     memberId: string,
@@ -30,7 +30,7 @@ export async function addFreeAgentOrRequestDrop(
         await addFreeAgent(memberId, leagueId, playerId)
         return { status: 'added' }
     } catch (error) {
-        if (!getErrorMessage(error)?.includes('full')) throw error
+        if (errorCode(error) !== RULE_CODES.rosterFull) throw error
         const roster = await getRoster(memberId, leagueId)
         return {
             status: 'roster_full',

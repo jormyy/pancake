@@ -10,7 +10,7 @@ import {
 } from 'react-native'
 import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
-import { blockedActionProps } from '@/lib/add-limit'
+import { blockedActionProps } from '@/lib/a11y'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'

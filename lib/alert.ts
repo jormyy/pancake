@@ -1,7 +1,6 @@
 import { Alert, Platform } from 'react-native'
 import { feedbackBridge } from '@/components/ui/feedback'
 
-export { getErrorMessage } from '@/lib/shared/errors'
 
 type BrowserAlertWindow = Window & { __pancakeAlerts?: string[] }
 

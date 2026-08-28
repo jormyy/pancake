@@ -103,6 +103,10 @@ VALUES
   (pg_temp.oid('league-2'), pg_temp.oid('season-2'), pg_temp.oid('player-29'), pg_temp.oid('member-B2'), now() - interval '3 days', now() - interval '1 minute'),
   (pg_temp.oid('league-2'), pg_temp.oid('season-2'), pg_temp.oid('player-30'), pg_temp.oid('member-B2'), now() - interval '1 hour', now() + interval '47 hours');
 
+-- One game already in progress today, so some lineup slots are locked ------------
+INSERT INTO public.nba_games (sportsdata_game_id, season_year, game_date, week_number, home_team, away_team, status, started_at)
+VALUES ('oracle-started-game', 2098, (now() AT TIME ZONE 'America/New_York')::date, 1, 'LAL', 'BOS', 'InProgress', now() - interval '1 hour');
+
 -- Picks -------------------------------------------------------------------
 INSERT INTO public.draft_picks (id, league_id, season_year, round, original_owner_id, current_owner_id)
 SELECT pg_temp.oid('pick-' || member.key || '-' || round.n), member.league, 2100, round.n, member.id, member.id
@@ -167,6 +171,14 @@ CREATE FUNCTION pg_temp.reserved_row(p_roster uuid) RETURNS boolean LANGUAGE sql
                      FROM public.roster_players r WHERE r.id = p_roster), false)
 $$;
 
+-- Mirrors private.prevent_accepted_or_inactive_roster_move: a player named as a
+-- pending claim's drop cannot leave the active roster.
+CREATE FUNCTION pg_temp.pending_drop_row(p_roster uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (SELECT 1 FROM public.roster_players r JOIN public.waiver_claims c
+                   ON c.member_id = r.member_id AND c.drop_player_id = r.player_id AND c.league_season_id = r.league_season_id
+                WHERE r.id = p_roster AND c.status = 'pending')
+$$;
+
 -- Mirrors private.assert_weekly_add_available: an add past the limit must be rejected.
 CREATE FUNCTION pg_temp.add_limit_reached(p_member uuid, p_league uuid, p_season uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT l.weekly_add_limit IS NOT NULL
@@ -206,7 +218,9 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM public.draft_picks AS pick WHERE pick.id = item.pick_id AND pick.league_id = item.league_id AND pick.current_owner_id = item.member_id AND pick.is_used = false);
   IF v_count > 0 THEN RAISE EXCEPTION 'I2 violated after step % (%): % stale pick listing(s)', p_step, p_op, v_count USING DETAIL = v_tail; END IF;
 
-  -- I3: future lineup slots belong to active roster players of that member.
+  -- I3: future lineup slots belong to active roster players of that member,
+  -- except slots whose game already started (clear_future_unlocked_lineups
+  -- leaves those alone on purpose).
   SELECT count(*) INTO v_count
     FROM public.weekly_lineups AS lineup
    WHERE lineup.game_date >= (now() AT TIME ZONE 'America/New_York')::date
@@ -214,7 +228,14 @@ BEGIN
        SELECT 1 FROM public.roster_players AS roster
         WHERE roster.league_id = lineup.league_id AND roster.league_season_id = lineup.league_season_id
           AND roster.member_id = lineup.member_id AND roster.player_id = lineup.player_id
-          AND roster.is_on_ir = false AND roster.is_on_taxi = false);
+          AND roster.is_on_ir = false AND roster.is_on_taxi = false)
+     AND NOT EXISTS (
+       SELECT 1 FROM public.players AS p
+         JOIN public.nba_games AS g ON g.game_date = lineup.game_date AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
+        WHERE p.id = lineup.player_id
+          AND (g.status IN ('InProgress', 'Final')
+            OR (g.game_time IS NOT NULL AND g.game_time <= now())
+            OR (g.started_at IS NOT NULL AND g.started_at <= now())));
   IF v_count > 0 THEN RAISE EXCEPTION 'I3 violated after step % (%): % stale future lineup slot(s)', p_step, p_op, v_count USING DETAIL = v_tail; END IF;
 
   -- I4: a pending claim's drop player is on that member's active roster.
@@ -454,7 +475,7 @@ BEGIN
          ORDER BY random() LIMIT 1;
       END IF;
       IF v_roster IS NULL THEN CONTINUE; END IF;
-      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster);
+      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster) OR (NOT v_flag AND pg_temp.pending_drop_row(v_roster));
       v_sql := format('SELECT public.toggle_ir_atomic(%L, %L, %L)', v_roster, NOT v_flag, v_user);
       v_detail := CASE WHEN v_flag THEN 'activate from IR' ELSE 'move to IR' END || ' ' || left(v_roster::text, 8);
     ELSIF v_roll < 0.56 THEN
@@ -475,7 +496,7 @@ BEGIN
          ORDER BY random() LIMIT 1;
       END IF;
       IF v_roster IS NULL THEN CONTINUE; END IF;
-      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster);
+      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster) OR (NOT v_flag AND pg_temp.pending_drop_row(v_roster));
       v_sql := format('SELECT public.toggle_taxi_atomic(%L, %L, %L)', v_roster, NOT v_flag, v_user);
       v_detail := CASE WHEN v_flag THEN 'activate from taxi' ELSE 'move to taxi' END || ' ' || left(v_roster::text, 8);
     ELSIF v_roll < 0.64 THEN
@@ -599,6 +620,8 @@ BEGIN
       v_actor := 'service';
       SELECT id, current_owner_id INTO v_pick, v_other FROM public.draft_picks WHERE league_id = v_league AND is_used = false ORDER BY random() LIMIT 1;
       IF v_pick IS NULL THEN CONTINUE; END IF;
+      -- A pick reserved by an accepted trade cannot change hands or be used.
+      v_expect_failure := (SELECT private.is_reserved_trade_asset(pick.league_id, NULL, pick.current_owner_id, NULL, pick.id) FROM public.draft_picks AS pick WHERE pick.id = v_pick);
       IF random() < 0.5 THEN
         v_sql := format('UPDATE public.draft_picks SET is_used = true, used_at = now() WHERE id = %L', v_pick);
         v_detail := 'pick used ' || left(v_pick::text, 8);
@@ -612,7 +635,9 @@ BEGIN
       PERFORM pg_temp.act_as(NULL);
       v_actor := 'service';
       SELECT id INTO v_player FROM public.players WHERE id IN (SELECT pg_temp.oid('player-' || n) FROM generate_series(1, 40) AS n) ORDER BY random() LIMIT 1;
-      SELECT id INTO v_other FROM public.players WHERE id IN (SELECT pg_temp.oid('player-' || n) FROM generate_series(1, 40) AS n) AND id <> v_player ORDER BY random() LIMIT 1;
+      -- A merge joins two records of one real player, so both carry the same team.
+      SELECT id INTO v_other FROM public.players WHERE id IN (SELECT pg_temp.oid('player-' || n) FROM generate_series(1, 40) AS n) AND id <> v_player
+         AND nba_team = (SELECT nba_team FROM public.players WHERE id = v_player) ORDER BY random() LIMIT 1;
       IF v_player IS NULL OR v_other IS NULL THEN CONTINUE; END IF;
       v_sql := format('SELECT public.merge_players(%L, %L)', v_player, v_other);
       v_detail := 'winner ' || left(v_player::text, 8) || ' loser ' || left(v_other::text, 8);
@@ -634,9 +659,9 @@ BEGIN
       v_actor := 'service';
       SELECT id, player_id, league_id, league_season_id, member_id INTO v_row FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season AND is_on_ir = false AND is_on_taxi = false ORDER BY random() LIMIT 1;
       IF v_row.id IS NULL THEN CONTINUE; END IF;
-      v_sql := format('INSERT INTO public.weekly_lineups (league_id, league_season_id, member_id, player_id, slot_type, game_date) VALUES (%L, %L, %L, %L, %L, CURRENT_DATE + %s) ON CONFLICT DO NOTHING',
-        v_row.league_id, v_row.league_season_id, v_row.member_id, v_row.player_id, 'UTIL', 1 + (random() * 2)::int);
-      v_detail := 'future slot for ' || left(v_row.player_id::text, 8);
+      v_sql := format('INSERT INTO public.weekly_lineups (league_id, league_season_id, member_id, player_id, slot_type, game_date) VALUES (%L, %L, %L, %L, %L, (now() AT TIME ZONE %L)::date + %s) ON CONFLICT DO NOTHING',
+        v_row.league_id, v_row.league_season_id, v_row.member_id, v_row.player_id, 'UTIL', 'America/New_York', (random() * 3)::int);
+      v_detail := 'slot today or later for ' || left(v_row.player_id::text, 8);
     ELSE
       v_op := 'replay_last';
       SELECT sql INTO v_sql FROM oracle_last;

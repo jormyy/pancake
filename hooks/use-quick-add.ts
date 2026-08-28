@@ -149,7 +149,6 @@ export function useQuickAdd({
     // The one dispatch for a pickup once IR is clear: waivers get a claim, a full
     // roster gets the drop picker, everything else is added directly.
     const proceedAfterIR = useCallback(async (player: PlayerRow, lid: string, roster: RosterPlayer[]) => {
-        if (explainBlock()) return
         if (waiverIds.has(player.id)) {
             claimWaiver(player, lid)
             return
@@ -161,7 +160,7 @@ export function useQuickAdd({
             return
         }
         await addFreeAgent(player, lid)
-    }, [explainBlock, waiverIds, claimWaiver, rosterSize, addFreeAgent])
+    }, [waiverIds, claimWaiver, rosterSize, addFreeAgent])
 
     const continueAfterIRResolution = useCallback(async (lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) => {
         if (remaining.length > 0) {
@@ -169,9 +168,10 @@ export function useQuickAdd({
         } else {
             const pending = irModal!.pendingPlayer
             setIrModal(null)
+            if (explainBlock()) return
             await proceedAfterIR(pending, lid, roster)
         }
-    }, [irModal, proceedAfterIR])
+    }, [irModal, proceedAfterIR, explainBlock])
 
     const handleAdd = useCallback(async (player: PlayerRow) => {
         if (!memberId || !leagueId) return

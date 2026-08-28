@@ -11,49 +11,12 @@ import { invalidateSeasonCache } from '@/lib/shared/season'
 // Lowering a number here is an improvement; raising one is a regression that
 // needs a reason in the same change.
 
-type Row = Record<string, unknown>
 const counts = vi.hoisted(() => new Map<string, number>())
-const fixtures = vi.hoisted((): Record<string, Row[]> => ({}))
+const fixtures = vi.hoisted((): Record<string, Record<string, unknown>[]> => ({}))
 
-vi.mock('@/lib/supabase', () => {
-    const applyFilters = (rows: Row[], filters: [string, unknown[]][]) => rows.filter((row) => filters.every(([op, args]) => {
-        const [column, value] = args as [string, unknown]
-        if (!(column in row)) return true
-        if (op === 'eq') return row[column] === value
-        if (op === 'neq') return row[column] !== value
-        if (op === 'in') return (value as unknown[]).includes(row[column])
-        if (op === 'is') return row[column] === value
-        return true
-    }))
-    const builder = (target: string) => {
-        counts.set(target, (counts.get(target) ?? 0) + 1)
-        const filters: [string, unknown[]][] = []
-        let single = false
-        const proxy: Record<string, unknown> = new Proxy({}, {
-            get(_, prop: string) {
-                if (prop === 'then') {
-                    return (resolve: (value: unknown) => void, reject: (reason: unknown) => void) => {
-                        const rows = applyFilters(fixtures[target] ?? [], filters)
-                        const data = single ? rows[0] ?? null : rows
-                        return Promise.resolve({ data, error: null }).then(resolve, reject)
-                    }
-                }
-                return (...args: unknown[]) => {
-                    if (prop === 'maybeSingle' || prop === 'single') single = true
-                    if (['eq', 'neq', 'in', 'is'].includes(prop)) filters.push([prop, args])
-                    return proxy
-                }
-            },
-        })
-        return proxy
-    }
-    return {
-        supabase: {
-            from: (table: string) => builder(table),
-            rpc: (name: string) => builder(`rpc:${name}`),
-        },
-    }
-})
+vi.mock('@/lib/supabase', async () => ({
+    supabase: (await import('./helpers/fake-supabase')).createFakeSupabase(counts, fixtures),
+}))
 
 const player = (id: string) => ({
     id, display_name: `Player ${id}`, nba_team: 'LAL', position: 'PG', eligible_positions: ['PG'],

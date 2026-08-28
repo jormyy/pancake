@@ -1,6 +1,357 @@
--- Canonical SQL source for public.process_next_waiver_claim_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Rule codes, merge ordering, and a test-only helper removed.
+--
+-- add_free_agent_atomic raises the roster-full rejection with SQLSTATE PA003 so
+-- the app classifies it on the code like the other pickup rules.
+-- merge_players re-points listings, lineups, pending drops and trade items
+-- before it touches roster rows, so the roster lifecycle trigger finds nothing
+-- to expire or clear under the loser identity.
+-- process_next_waiver_claim_atomic lets private.assert_weekly_add_available
+-- decide whether a limit applies.
+-- private.weekly_add_limit_resets_at had no caller outside a test; the test
+-- reads private.current_add_week directly.
+
+
+DROP FUNCTION IF EXISTS private.weekly_add_limit_resets_at(uuid, uuid);
+
+CREATE OR REPLACE FUNCTION public.add_free_agent_atomic(
+  p_member_id uuid,
+  p_league_id uuid,
+  p_player_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_league leagues%ROWTYPE;
+  v_season_id uuid;
+  v_active_count int;
+  v_waiver_log_id uuid;
+  v_existing_roster_id uuid;
+  v_ineligible text;
+BEGIN
+  PERFORM 1
+    FROM league_members
+   WHERE id = p_member_id
+     AND league_id = p_league_id
+     AND user_id = auth.uid();
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Could not add player - you may not have permission for this league.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT id
+    INTO v_season_id
+    FROM league_seasons
+   WHERE league_id = p_league_id
+     AND is_current = true
+   LIMIT 1;
+
+  IF v_season_id IS NULL THEN
+    RAISE EXCEPTION 'No active season found.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
+  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_player_id::text));
+
+  SELECT string_agg(COALESCE(p.display_name, 'Unknown'), ', ')
+    INTO v_ineligible
+    FROM roster_players rp
+    JOIN players p ON p.id = rp.player_id
+   WHERE rp.member_id = p_member_id
+     AND rp.league_id = p_league_id
+     AND rp.league_season_id = v_season_id
+     AND rp.is_on_ir = true
+     AND NOT (
+       lower(COALESCE(p.injury_status, '')) = 'out'
+       OR lower(COALESCE(p.injury_status, '')) LIKE 'ir%'
+     );
+
+  IF v_ineligible IS NOT NULL AND length(v_ineligible) > 0 THEN
+    RAISE EXCEPTION 'You have ineligible players on IR (%). Activate or drop them before adding players.',
+      v_ineligible
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT id
+    INTO v_waiver_log_id
+    FROM waiver_wire_log
+   WHERE league_id = p_league_id
+     AND league_season_id = v_season_id
+     AND player_id = p_player_id
+     AND cleared_at IS NULL
+     AND clears_at > now()
+   ORDER BY clears_at
+   LIMIT 1
+   FOR UPDATE;
+
+  IF v_waiver_log_id IS NOT NULL THEN
+    RAISE EXCEPTION 'This player is on waivers - submit a waiver claim instead.'
+      USING ERRCODE = 'PA002';
+  END IF;
+
+  SELECT id
+    INTO v_existing_roster_id
+    FROM roster_players
+   WHERE league_id = p_league_id
+     AND league_season_id = v_season_id
+     AND player_id = p_player_id
+   FOR UPDATE;
+
+  IF v_existing_roster_id IS NOT NULL THEN
+    RAISE EXCEPTION 'This player is already on a roster.'
+      USING ERRCODE = '23505';
+  END IF;
+
+  SELECT *
+    INTO v_league
+    FROM leagues
+   WHERE id = p_league_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'League not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
+    RAISE EXCEPTION 'Free-agent adds require an active or playoff season.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM 1
+    FROM league_seasons AS season
+   WHERE season.id = v_season_id
+     AND season.is_current = true
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Free-agent adds require the current season.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM private.assert_weekly_add_available(p_league_id, v_season_id, p_member_id);
+
+  SELECT count(*)
+    INTO v_active_count
+    FROM roster_players
+   WHERE member_id = p_member_id
+     AND league_id = p_league_id
+     AND league_season_id = v_season_id
+     AND is_on_ir = false
+     AND is_on_taxi = false;
+
+  IF v_active_count >= COALESCE(v_league.roster_size, 20) THEN
+    RAISE EXCEPTION 'Your active roster is full (% players).', COALESCE(v_league.roster_size, 20)
+      USING ERRCODE = 'PA003';
+  END IF;
+
+  INSERT INTO roster_players (
+    member_id,
+    league_id,
+    league_season_id,
+    player_id,
+    acquired_via
+  )
+  VALUES (
+    p_member_id,
+    p_league_id,
+    v_season_id,
+    p_player_id,
+    'free_agent'
+  );
+
+  INSERT INTO roster_transactions (
+    league_id,
+    league_season_id,
+    member_id,
+    player_id,
+    transaction_type
+  )
+  VALUES (
+    p_league_id,
+    v_season_id,
+    p_member_id,
+    p_player_id,
+    'fa_add'
+  );
+
+  PERFORM private.consume_weekly_add(p_league_id, v_season_id, p_member_id);
+
+  PERFORM private.log_league_activity(
+    p_league_id,
+    v_season_id,
+    'free_agent_added',
+    'Free agent added',
+    NULL,
+    p_member_id,
+    p_member_id,
+    p_player_id,
+    NULL,
+    NULL,
+    '{}'::jsonb
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION merge_players(winner_id uuid, loser_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_loser_sleeper_id text;
+  v_loser_nba_id text;
+BEGIN
+  IF winner_id = loser_id THEN RETURN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM players WHERE id = winner_id) THEN RETURN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM players WHERE id = loser_id)  THEN RETURN; END IF;
+
+  SELECT sleeper_id, nba_id
+    INTO v_loser_sleeper_id, v_loser_nba_id
+    FROM players
+   WHERE id = loser_id;
+
+  UPDATE players
+    SET sleeper_id = NULL
+    WHERE id = loser_id AND v_loser_sleeper_id IS NOT NULL
+      AND (SELECT sleeper_id FROM players WHERE id = winner_id) IS NULL;
+
+  UPDATE players
+    SET sleeper_id = v_loser_sleeper_id
+    WHERE id = winner_id AND sleeper_id IS NULL
+      AND v_loser_sleeper_id IS NOT NULL;
+
+  UPDATE players
+    SET nba_id = NULL
+    WHERE id = loser_id AND v_loser_nba_id IS NOT NULL
+      AND (SELECT nba_id FROM players WHERE id = winner_id) IS NULL;
+
+  UPDATE players
+    SET nba_id = v_loser_nba_id
+    WHERE id = winner_id AND nba_id IS NULL
+      AND v_loser_nba_id IS NOT NULL;
+
+  -- A member who already holds the winner on the active roster keeps that row,
+  -- so their listings, lineups, pending drops and offers move to the winner
+  -- before their loser row goes; the roster lifecycle trigger then finds
+  -- nothing of theirs under the old identity. Every other member's state is
+  -- cleared by that trigger when their loser row is deleted below, or moves
+  -- with their roster row when it is re-pointed.
+  DELETE FROM trade_block_items AS stale
+    WHERE stale.player_id = loser_id
+      AND EXISTS (
+        SELECT 1 FROM trade_block_items AS kept
+         WHERE kept.league_id = stale.league_id
+           AND kept.member_id = stale.member_id
+           AND kept.player_id = winner_id
+      );
+  UPDATE trade_block_items AS listing
+     SET player_id = winner_id
+   WHERE listing.player_id = loser_id
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+         JOIN league_seasons AS season ON season.id = own.league_season_id AND season.is_current = true
+        WHERE own.player_id = winner_id AND own.member_id = listing.member_id AND own.league_id = listing.league_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  DELETE FROM weekly_lineups
+    WHERE player_id = loser_id
+      AND (league_id, league_season_id, member_id, game_date) IN (
+        SELECT league_id, league_season_id, member_id, game_date
+          FROM weekly_lineups WHERE player_id = winner_id
+      );
+  UPDATE weekly_lineups AS lineup
+     SET player_id = winner_id
+   WHERE lineup.player_id = loser_id
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+        WHERE own.player_id = winner_id AND own.member_id = lineup.member_id AND own.league_season_id = lineup.league_season_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  UPDATE waiver_claims AS claim
+     SET drop_player_id = winner_id
+   WHERE claim.drop_player_id = loser_id
+     AND claim.status = 'pending'::waiver_claim_status
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+        WHERE own.player_id = winner_id AND own.member_id = claim.member_id AND own.league_season_id = claim.league_season_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  UPDATE trade_items AS item
+     SET player_id = winner_id
+    FROM trades AS trade
+   WHERE trade.id = item.trade_id
+     AND item.player_id = loser_id
+     AND trade.status IN ('pending'::trade_status, 'accepted'::trade_status)
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+        WHERE own.player_id = winner_id AND own.member_id = item.from_member_id AND own.league_season_id = trade.league_season_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  -- roster_players: drop the loser's rows that already have a winner row in the
+  -- same (league, season), then re-point the rest.
+  DELETE FROM roster_players
+    WHERE player_id = loser_id
+      AND (league_id, league_season_id) IN (
+        SELECT league_id, league_season_id FROM roster_players WHERE player_id = winner_id
+      );
+  UPDATE roster_players SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- Everything still under the loser identity belongs to a re-pointed roster
+  -- row or to history; it moves with the identity.
+  UPDATE trade_block_items SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE weekly_lineups    SET player_id = winner_id WHERE player_id = loser_id;
+
+  DELETE FROM player_projections
+    WHERE player_id = loser_id
+      AND (season_year, week_number) IN (
+        SELECT season_year, week_number FROM player_projections WHERE player_id = winner_id
+      );
+  UPDATE player_projections SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- nominations: UNIQUE(draft_id, player_id) — drop loser dupes per draft first.
+  DELETE FROM nominations
+    WHERE player_id = loser_id
+      AND draft_id IN (SELECT draft_id FROM nominations WHERE player_id = winner_id);
+  UPDATE nominations SET player_id = winner_id WHERE player_id = loser_id;
+
+  UPDATE waiver_claims       SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE waiver_claims       SET drop_player_id = winner_id WHERE drop_player_id = loser_id;
+  UPDATE waiver_wire_log     SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- One identity cannot be rostered and clearing waivers in the same season.
+  UPDATE waiver_wire_log AS log
+     SET cleared_at = now()
+   WHERE log.player_id = winner_id
+     AND log.cleared_at IS NULL
+     AND EXISTS (
+       SELECT 1
+         FROM roster_players AS roster
+        WHERE roster.league_id = log.league_id
+          AND roster.league_season_id = log.league_season_id
+          AND roster.player_id = winner_id
+     );
+  UPDATE trade_items         SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE roster_transactions SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE snake_draft_picks   SET player_id = winner_id WHERE player_id = loser_id;
+
+  DELETE FROM player_game_stats
+    WHERE player_id = loser_id
+      AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = winner_id);
+  UPDATE player_game_stats SET player_id = winner_id WHERE player_id = loser_id;
+
+  DELETE FROM players WHERE id = loser_id;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.process_next_waiver_claim_atomic(
   p_process_date date

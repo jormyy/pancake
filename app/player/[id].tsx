@@ -12,7 +12,8 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, pickupPossible, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
-import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { showAlert, confirmAction } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { addLimitSummary } from '@/lib/add-limit'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
@@ -191,11 +192,15 @@ export default function PlayerDetailScreen() {
     // can stay mounted while the selected league changes.
     function continueAfterIR(action: 'add' | 'claim') {
         if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
-        else void tryAddFreeAgent()
+        else if (!explainAddLimitBlock()) void tryAddFreeAgent()
     }
 
     async function handleDropAndAdd(rosterPlayer: RosterPlayer) {
         if (!current || !leagueId) return
+        if (explainAddLimitBlock()) {
+            setDropPickerVisible(false)
+            return
+        }
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
         setDropping(rosterPlayer.id)

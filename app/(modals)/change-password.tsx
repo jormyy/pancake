@@ -10,7 +10,8 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { changePassword } from '@/lib/auth'
 import { Input, Button } from '@/components/ui'
-import { showSuccess, getErrorMessage } from '@/lib/alert'
+import { showSuccess } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 
 const MIN_PASSWORD_LENGTH = 8

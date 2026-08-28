@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getTradesForScreen, type Trade, type TradePageCursor } from '@/lib/trades'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const TRADES_CACHE_PREFIX = 'pancake:trades:v2:'

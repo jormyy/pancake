@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { joinLeague } from '@/lib/league'
 import { breakpoints, colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 export default function JoinLeagueScreen() {
     const { user } = useAuth()

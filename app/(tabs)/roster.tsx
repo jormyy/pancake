@@ -5,7 +5,8 @@ import {
     StyleSheet,
     useWindowDimensions,
 } from 'react-native'
-import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { showAlert, confirmAction } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { FlashList, FlashListRef } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'

@@ -27,7 +27,8 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Button, ErrorBanner } from '@/components/ui'
-import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { showAlert, confirmAction } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 export default function ProfileScreen() {
     const { user } = useAuth()

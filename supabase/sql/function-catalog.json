@@ -69,7 +69,6 @@
     "private.trade_lifecycle_write_active()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.validate_waiver_claim_drop_player(uuid,uuid,uuid,uuid,text)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.weekly_add_limit_message(integer,integer,timestamp with time zone)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
-    "private.weekly_add_limit_resets_at(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.accept_trade_atomic(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.activate_rookie_draft_league_atomic(uuid)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,integer,roster_slot_type)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
