@@ -28,7 +28,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary } from '@/lib/add-limit'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
@@ -258,8 +258,6 @@ export default function PlayersScreen() {
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
-        rosterSize: currentLeague?.roster_size ?? 20,
-        waiverIds,
         refreshOwned: refreshPlayerSupport,
         refreshTransactionState: refreshPlayerSupport,
         transactionState,
@@ -270,14 +268,14 @@ export default function PlayersScreen() {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
         .join(','), [search.availability.gamesLeft])
-    const quickAddHandleAdd = quickAdd.handleAdd
+    const { handleAdd: quickAddHandleAdd, explainBlock } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
-        if (waiverIds.has(player.id)) {
-            openClaim(player)
-        } else {
+        if (!waiverIds.has(player.id)) {
             void quickAddHandleAdd(player)
+        } else if (!explainBlock()) {
+            openClaim(player)
         }
-    }, [waiverIds, openClaim, quickAddHandleAdd])
+    }, [waiverIds, openClaim, quickAddHandleAdd, explainBlock])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])

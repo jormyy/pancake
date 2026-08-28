@@ -1,9 +1,11 @@
+import React from 'react'
+import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useTradeBlock } from '@/hooks/use-trade-block'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
 import { getMemberTransactionState } from '@/lib/league'
-import { getRoster, getPlayerRosterStatus, pickupPossible } from '@/lib/roster'
-import { getRosterStatsMaps } from '@/lib/roster-stats'
-import { getTradeBlockItems, getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
+import { getPlayerRosterStatus, pickupPossible } from '@/lib/roster'
+import { getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 
 // Request budget per screen load: every Supabase table read or RPC the data
@@ -17,6 +19,9 @@ const fixtures = vi.hoisted((): Record<string, Record<string, unknown>[]> => ({}
 vi.mock('@/lib/supabase', async () => ({
     supabase: (await import('./helpers/fake-supabase')).createFakeSupabase(counts, fixtures),
 }))
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: () => {} }))
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const player = (id: string) => ({
     id, display_name: `Player ${id}`, nba_team: 'LAL', position: 'PG', eligible_positions: ['PG'],
@@ -33,7 +38,7 @@ function seedFixtures() {
     fixtures.waiver_wire_log = [{ id: 'log-1', league_id: 'league', league_season_id: 'season', player_id: 'p-9', clears_at: '2099-01-01T00:00:00.000Z', cleared_at: null }]
     fixtures['rpc:get_member_transaction_state'] = [{
         league_season_id: 'season', week_number: 3, weekly_add_limit: 7, weekly_add_count: 2, waiver_mode: 'faab',
-        faab_starting_budget: 100, faab_balance: 60, add_limit_resets_at: null, add_week_timezone: 'America/New_York',
+        faab_starting_budget: 100, faab_balance: 60, add_limit_resets_at: null, add_limit_message: null, add_limit_resets_label: null,
     }]
     fixtures.trade_block_items = [{
         id: 'tb-1', league_id: 'league', member_id: 'member', player_id: 'p-1', pick_id: null, note: null, updated_at: iso,
@@ -75,14 +80,16 @@ describe('screen request budgets', () => {
         })
     })
 
-    it('trade block tab load (listings + own roster + one averages fetch for both)', async () => {
+    it('trade block tab load through its hook (listings + own roster + one averages fetch for both)', async () => {
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = () => { latest = useTradeBlock('member', 'league'); return null }
         const result = await measure(async () => {
-            const [items, roster] = await Promise.all([getTradeBlockItems('league'), getRoster('member', 'league')])
-            await getRosterStatsMaps([
-                ...items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : []),
-                ...roster.map((row) => row.players.id),
-            ], 'league')
-            return items
+            let renderer!: ReactTestRenderer
+            await act(async () => { renderer = create(React.createElement(Probe)) })
+            await act(async () => { await latest.refresh() })
+            await act(async () => {})
+            expect(latest.avgMap.get('p-1')).toBe(30)
+            await act(async () => { renderer.unmount() })
         })
         expect(result).toEqual({
             requests: 5,
@@ -106,7 +113,7 @@ describe('screen request budgets', () => {
         })
     })
 
-    it('player page pickup state for a rostered player and for a free agent', async () => {
+    it('player page pickup state, data layer: roster status, then the weekly add state only when pick-up-able', async () => {
         // The player page loads the weekly add state only once the player turns
         // out to be pick-up-able, so a rostered player costs no extra request.
         const load = async (playerId: string) => {

@@ -19,7 +19,7 @@ import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary } from '@/lib/add-limit'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
@@ -110,7 +110,7 @@ export default function ClaimPlayerScreen() {
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
-    const { addBlockedReason, explainBlock, reportError } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
+    const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
@@ -143,7 +143,7 @@ export default function ClaimPlayerScreen() {
             )
             router.back()
         } catch (e) {
-            reportError(e)
+            reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
             setSubmitting(false)
         }

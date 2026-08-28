@@ -58,8 +58,6 @@ export function rosterPlayer(overrides: Partial<RosterPlayer> = {}): RosterPlaye
 }
 
 export const rosterStatus = {
-    mine: (rosterPlayerId = 'roster-a'): PlayerRosterStatus => ({ status: 'mine', rosterPlayerId }),
-    taken: (ownerTeamName = 'Rival'): PlayerRosterStatus => ({ status: 'taken', ownerTeamName }),
     onWaivers: (): PlayerRosterStatus => ({ status: 'on_waivers', logId: 'log-1', clearsAt: '2099-01-01T00:00:00.000Z' }),
     freeAgent: (): PlayerRosterStatus => ({ status: 'free_agent' }),
 }
@@ -74,7 +72,8 @@ export function memberTransactionState(overrides: Partial<MemberTransactionState
         faabStartingBudget: 100,
         faabBalance: 40,
         addLimitResetsAt: null,
-        addWeekTimeZone: 'America/New_York',
+        addLimitMessage: null,
+        addLimitResetsLabel: null,
         ...overrides,
     }
 }

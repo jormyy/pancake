@@ -15,7 +15,8 @@ RETURNS TABLE (
   faab_starting_budget int,
   faab_balance int,
   add_limit_resets_at timestamptz,
-  add_week_timezone text
+  add_limit_message text,
+  add_limit_resets_label text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -86,7 +87,10 @@ BEGIN
     league.faab_starting_budget,
     v_balance,
     v_resets_at,
-    private.add_week_timezone()
+    CASE WHEN league.weekly_add_limit IS NOT NULL AND count_row.add_count >= league.weekly_add_limit
+         THEN private.weekly_add_limit_message(count_row.add_count, league.weekly_add_limit, v_resets_at)
+    END,
+    private.weekly_add_limit_reset_label(v_resets_at)
   FROM leagues AS league
   JOIN weekly_add_counts AS count_row
     ON count_row.league_id = league.id

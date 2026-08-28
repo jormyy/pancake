@@ -24,7 +24,6 @@ vi.mock('@/lib/trades', () => ({
     removeTradeBlockItem: vi.fn(),
     withTradeBlockStats: (items: TradeBlockItem[]) => items,
 }))
-vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
 vi.mock('@/lib/roster', () => ({ getRoster }))
 vi.mock('@/lib/roster-stats', () => ({
     EMPTY_AVG_MAP: new Map(),

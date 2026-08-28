@@ -18,10 +18,6 @@ DECLARE
   v_reason text;
   v_previous_flag text;
 BEGIN
-  IF p_player_id IS NULL AND p_pick_id IS NULL THEN
-    RETURN;
-  END IF;
-
   IF p_player_id IS NOT NULL THEN
     SELECT format('%s is no longer on %s.', player.display_name, COALESCE(member.team_name, 'the offering team'))
       INTO v_reason

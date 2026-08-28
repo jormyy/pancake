@@ -19,7 +19,7 @@ Every other roster-linked record falls into one of three classes.
 | `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never touched. A succeeded claim keeps its drop player. The one exception: a player merge closes an open waiver entry whose player is rostered under the surviving identity. |
 | `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
 | `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
-| Client caches (trade block, player support, roster) | derived | Refreshed on focus and on realtime changes to `roster_players`, `trade_block_items`, `draft_picks`, `trades`. |
+| Client caches (trade block, player support, roster) | derived | Refreshed on focus, and on realtime changes each screen watches: the players tab `roster_players`; the roster tab `roster_players` and `draft_picks`; the trades screen the trade tables, `trade_block_items` and `draft_picks` (`lib/trades-realtime.ts`). |
 
 ## Paths that change ownership
 
@@ -43,8 +43,8 @@ per-RPC code:
   stale pending waiver drops, and expires pending offers that included the player.
   It only acts when no active current-season row is left for that member and player,
   so removing an old-season row never touches live state.
-- `sync_trade_block_on_pick_change` on `draft_picks` (`UPDATE OF current_owner_id,
-  is_used`) removes pick listings and expires pending offers for the pick.
+- `sync_pick_linked_state` on `draft_picks` (`UPDATE OF current_owner_id, is_used`)
+  removes pick listings and expires pending offers for the pick.
 
 Both run inside the mutating transaction, so a partial failure rolls everything
 back, a retry has nothing left to clean, and concurrent requests serialize on the
@@ -74,7 +74,8 @@ processed.
 
 Migration `20260827000001_roster_lifecycle_invariants.sql` introduced the triggers,
 removed the older per-RPC cleanup calls, and backfilled rows that had already
-drifted (stale listings, stale pending drops, pending offers whose asset was gone).
+drifted (stale listings, stale pending drops, pending offers whose asset was gone);
+`20260827000010` backfilled stale future lineup slots the same way.
 
 ## Waiver window
 
@@ -82,10 +83,11 @@ A dropped player's entry clears 48 hours after the drop, but the run that
 processes claims is daily (3:00 AM ET). Until the run processes the entry the
 player stays on waivers: `prevent_uncleared_waiver_free_agent_add` rejects a
 free-agent add of any uncleared entry (SQLSTATE `PA002`, so waiver priority never
-loses to the fastest add), and `create_waiver_claim_atomic` accepts a claim on any
-uncleared entry. Expired uncleared entries stay hidden from league-wide reads, so a
-client may show such a player as a free agent; the Edge API forwards `PA002` and
-every pickup entry point then offers the claim flow instead of a dead end.
+loses to the fastest add; the add RPC itself never reads the wire), and
+`create_waiver_claim_atomic` accepts a claim on any uncleared entry. Expired
+uncleared entries stay hidden from league-wide reads, so a client may show such a
+player as a free agent; the rejection carries `PA002` and every pickup entry point
+then offers the claim flow instead of a dead end.
 `npm run test:db:waiver-window` runs `tests/db/waiver-clearing-window.sql`, which
 covers the add rejection, the claim inside the window, the rejected claim on a
 processed entry, and the next run picking the claim up.
@@ -108,19 +110,23 @@ reset instant; `current_add_week_number` is a projection of it for the counters.
 Feedback:
 
 - The rejection reads `Weekly add limit reached (7/7 adds used this week). Adds reset
-  Mon, Nov 2 at 12:00 AM ET.` and is raised with SQLSTATE `PA001`; the Edge API
-  forwards that code and the app classifies on it, so a stale client, or a client
+  Mon, Nov 2 at 12:00 AM ET.` and is raised with SQLSTATE `PA001`. The code reaches
+  the app as `code` (through supabase-js for direct RPC calls, through the Edge API
+  for routed ones) and the app classifies on it, so a stale client, or a client
   whose last slot was consumed elsewhere, still learns the next eligible time from
   the server. A waiver claim that fails the same check at processing time records the
-  same message as its failure reason.
-- `get_member_transaction_state` returns `add_limit_resets_at` and `add_week_timezone`.
-  Every pickup entry point (players tab add button and header line, player page Add
-  and Claim, the waiver-claim modal, the drop-to-add picker and the IR-resolution
-  continuation) reads them through `lib/add-limit.ts` and the `useAddLimitGate`
-  hook, the one client owner of "explain the block before the request, report the
-  server's rejection after it". The action renders in a disabled state with the
-  reason as its accessibility hint and explains the block on tap with the reset
-  shown in ET and in the viewer's local zone when they differ.
+  same message as its failure reason. `private.weekly_add_limit_message` and
+  `private.weekly_add_limit_reset_label` are the only renderings of that sentence
+  and of the reset boundary.
+- `get_member_transaction_state` returns `add_limit_resets_at`, `add_limit_message`
+  (the same sentence, present while the week's adds are used up) and
+  `add_limit_resets_label`. Every pickup entry point (players tab add button and
+  header line, player page Add and Claim, the waiver-claim modal, the drop-to-add
+  picker and the IR-resolution continuation) reads them through `lib/pickup.ts` and
+  the `useAddLimitGate` hook, renders the action in a disabled state with the reason
+  as its accessibility hint, and explains the block on tap with that sentence, so the
+  pre-check and the rejection say the same thing. `reportPickupError` in
+  `lib/pickup.ts` turns the server's rejection into the same explanation.
 - A cached count whose week already ended is treated as available again on the client;
   the server opens the new week on the next request.
 - A commissioner override (`commissioner_override_weekly_add_count_atomic`) changes the
@@ -139,8 +145,8 @@ against the local stack. It exercises a direct drop and its retry, IR and taxi m
 a processed waiver drop (history kept), a completed player and pick trade, a pending
 offer whose player was dropped, a pending claim whose drop player left, a used pick
 and a pick that changed owner, a player merge, an old-season row removal, a direct
-service-role delete, stale-client removals, and the global "no stale listing"
-invariant. On the schema before the migration the suite fails at its first scenario.
+service-role delete, and stale-client removals. On the schema before the migration
+the suite fails at its first scenario.
 
 `npm run test:db:roster-oracle` runs `tests/db/roster-lifecycle-oracle.sql`, a seeded
 state-machine oracle. It seeds two leagues (one user owns a team in both), then walks

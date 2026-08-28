@@ -165,10 +165,21 @@ CREATE FUNCTION pg_temp.on_waivers(p_league uuid, p_season uuid, p_player uuid) 
                     AND log.cleared_at IS NULL)
 $$;
 
--- Mirrors the drop paths: an accepted-trade asset cannot be dropped.
+-- Mirrors the reservation rule without calling it: an asset named in an accepted
+-- trade belongs to that trade until it completes or expires.
+CREATE FUNCTION pg_temp.reserved_player(p_league uuid, p_season uuid, p_member uuid, p_player uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (SELECT 1 FROM public.trade_items ti JOIN public.trades t ON t.id = ti.trade_id
+                  WHERE t.status = 'accepted' AND t.league_id = p_league AND t.league_season_id = p_season
+                    AND ti.from_member_id = p_member AND ti.player_id = p_player)
+$$;
 CREATE FUNCTION pg_temp.reserved_row(p_roster uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
-  SELECT COALESCE((SELECT private.is_reserved_trade_asset(r.league_id, r.league_season_id, r.member_id, r.player_id)
+  SELECT COALESCE((SELECT pg_temp.reserved_player(r.league_id, r.league_season_id, r.member_id, r.player_id)
                      FROM public.roster_players r WHERE r.id = p_roster), false)
+$$;
+CREATE FUNCTION pg_temp.reserved_pick(p_pick uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
+  SELECT EXISTS (SELECT 1 FROM public.draft_picks pick JOIN public.trade_items ti ON ti.pick_id = pick.id AND ti.from_member_id = pick.current_owner_id
+                  JOIN public.trades t ON t.id = ti.trade_id AND t.status = 'accepted' AND t.league_id = pick.league_id
+                 WHERE pick.id = p_pick)
 $$;
 
 -- Mirrors private.prevent_accepted_or_inactive_roster_move: a player named as a
@@ -576,7 +587,7 @@ BEGIN
         SELECT player_id INTO v_roster FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season AND is_on_ir = false AND is_on_taxi = false ORDER BY random() LIMIT 1;
       END IF;
       v_expect_failure := pg_temp.add_limit_reached(v_member, v_league, v_season)
-        OR (v_roster IS NOT NULL AND private.is_reserved_trade_asset(v_league, v_season, v_member, v_roster));
+        OR (v_roster IS NOT NULL AND pg_temp.reserved_player(v_league, v_season, v_member, v_roster));
       v_sql := format('SELECT public.create_waiver_claim_atomic(%L, %L, %L, %L, %L, %s)', v_league, v_member, v_player, v_roster, v_user, (random() * 5)::int);
       v_detail := 'claim ' || left(v_player::text, 8) || COALESCE(' drop ' || left(v_roster::text, 8), '');
     ELSIF v_roll < 0.86 THEN
@@ -621,7 +632,7 @@ BEGIN
       SELECT id, current_owner_id INTO v_pick, v_other FROM public.draft_picks WHERE league_id = v_league AND is_used = false ORDER BY random() LIMIT 1;
       IF v_pick IS NULL THEN CONTINUE; END IF;
       -- A pick reserved by an accepted trade cannot change hands or be used.
-      v_expect_failure := (SELECT private.is_reserved_trade_asset(pick.league_id, NULL, pick.current_owner_id, NULL, pick.id) FROM public.draft_picks AS pick WHERE pick.id = v_pick);
+      v_expect_failure := pg_temp.reserved_pick(v_pick);
       IF random() < 0.5 THEN
         v_sql := format('UPDATE public.draft_picks SET is_used = true, used_at = now() WHERE id = %L', v_pick);
         v_detail := 'pick used ' || left(v_pick::text, 8);

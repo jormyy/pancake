@@ -14,7 +14,7 @@ import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, pickupPossible,
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { addLimitSummary } from '@/lib/add-limit'
+import { addLimitSummary, reportPickupError } from '@/lib/pickup'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
@@ -132,11 +132,14 @@ export default function PlayerDetailScreen() {
         if (pickupPossible(rosterStatus)) void loadPickupState()
     }, [loadPickupState, rosterStatus])
 
-    const closeDropPicker = useCallback(() => setDropPickerVisible(false), [])
-    const { addBlockedReason, explainBlock: explainAddLimitBlock, reportError: reportPickupError } = useAddLimitGate({
+    const { addBlockedReason, explainBlock: explainAddLimitBlock } = useAddLimitGate({
         transactionState: pickupState,
         refresh: loadPickupState,
-        onLimitReached: closeDropPicker,
+    })
+    const reportPickup = (error: unknown, claim?: () => void) => reportPickupError(error, {
+        refresh: loadPickupState,
+        onLimitReached: () => setDropPickerVisible(false),
+        claim,
     })
 
     useEffect(() => {
@@ -182,7 +185,7 @@ export default function PlayerDetailScreen() {
                 await loadRosterStatus()
             }
         } catch (e) {
-            if (isCurrent(generation, requestedOwner)) reportPickupError(e, handleClaim)
+            if (isCurrent(generation, requestedOwner)) reportPickup(e, handleClaim)
         } finally {
             if (isCurrent(generation, requestedOwner)) setActionLoading(false)
         }
@@ -210,7 +213,7 @@ export default function PlayerDetailScreen() {
             setDropPickerVisible(false)
             await loadRosterStatus()
         } catch (e) {
-            if (isCurrent(generation, requestedOwner)) reportPickupError(e, handleClaim)
+            if (isCurrent(generation, requestedOwner)) reportPickup(e, handleClaim)
         } finally {
             if (isCurrent(generation, requestedOwner)) setDropping(null)
         }

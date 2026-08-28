@@ -112,7 +112,6 @@ export async function apiPost<T = unknown>(
         const json = await res!.json()
         if (!res!.ok || json?.ok === false) {
             throw new RequestError(apiErrorMessage(json, res!.status), {
-                status: res!.status,
                 code: typeof json?.code === 'string' ? json.code : undefined,
             })
         }

@@ -15,7 +15,6 @@ vi.mock('@/lib/roster-add-flow', () => ({
     loadRosterAddGate: mocks.loadGate,
     resolveRosterAddIRConflict: vi.fn(),
 }))
-vi.mock('@/lib/waivers', () => ({ submitWaiverClaim: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), showSuccess: vi.fn(), confirmAction: vi.fn() }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -36,7 +35,7 @@ describe('useQuickAdd owner identity', () => {
         } as unknown as RosterPlayer
         let latest!: ReturnType<typeof useQuickAdd>
         const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
-            latest = useQuickAdd({ memberId, leagueId, rosterSize: 20, waiverIds: new Set(), refreshOwned: vi.fn() })
+            latest = useQuickAdd({ memberId, leagueId, refreshOwned: vi.fn() })
             return null
         }
         let renderer!: ReactTestRenderer

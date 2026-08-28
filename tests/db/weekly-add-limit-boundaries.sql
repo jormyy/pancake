@@ -79,7 +79,8 @@ SELECT pg_temp.expect_reset('F unscheduled new season', 1001, pg_temp.et_midnigh
 DELETE FROM public.season_weeks WHERE season_year IN (2097, 2098);
 SELECT pg_temp.expect_reset('G no schedule', 1, NULL);
 
--- H: the rejection message and the member state carry the same reset instant.
+-- H: the rejection message and the member state carry the same reset instant,
+-- the same sentence, and the same label.
 INSERT INTO public.season_weeks (season_year, week_number, week_start, week_end)
 SELECT 2098, 5, ids.today - 2, ids.today + 4 FROM add_limit_ids AS ids;
 INSERT INTO public.weekly_add_counts (league_id, league_season_id, member_id, week_number, add_count)
@@ -103,8 +104,10 @@ BEGIN
     RAISE EXCEPTION 'H: unexpected message: %', v_message;
   END IF;
   SELECT * INTO v_state FROM public.get_member_transaction_state(ids.member_id, ids.league_id);
-  IF v_state.add_limit_resets_at IS DISTINCT FROM v_expected OR v_state.add_week_timezone <> 'America/New_York' THEN
-    RAISE EXCEPTION 'H: state reset % / % expected %', v_state.add_limit_resets_at, v_state.add_week_timezone, v_expected;
+  IF v_state.add_limit_resets_at IS DISTINCT FROM v_expected
+     OR v_state.add_limit_message IS DISTINCT FROM v_message
+     OR v_state.add_limit_resets_label IS DISTINCT FROM v_expected_text || ' ET' THEN
+    RAISE EXCEPTION 'H: state % / % / % expected % / %', v_state.add_limit_resets_at, v_state.add_limit_message, v_state.add_limit_resets_label, v_expected, v_message;
   END IF;
   IF v_state.weekly_add_count <> 1 OR v_state.weekly_add_limit <> 1 OR v_state.week_number <> 5 THEN
     RAISE EXCEPTION 'H: state counters wrong: % / % / %', v_state.weekly_add_count, v_state.weekly_add_limit, v_state.week_number;

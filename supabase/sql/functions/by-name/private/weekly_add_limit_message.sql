@@ -12,11 +12,5 @@ LANGUAGE sql
 STABLE
 AS $$
   SELECT format('Weekly add limit reached (%s/%s adds used this week).', p_used, p_limit)
-    || CASE
-         WHEN p_resets_at IS NULL THEN ''
-         ELSE format(
-           ' Adds reset %s ET.',
-           to_char(p_resets_at AT TIME ZONE private.add_week_timezone(), 'Dy, Mon FMDD "at" FMHH12:MI AM')
-         )
-       END;
+    || COALESCE(format(' Adds reset %s.', private.weekly_add_limit_reset_label(p_resets_at)), '');
 $$;

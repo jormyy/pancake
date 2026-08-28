@@ -27,10 +27,10 @@ Deno.test('a rule SQLSTATE wrapped by throwDb is a 400 that keeps its code', asy
 })
 
 Deno.test('a raw database error keeps its code too', async () => {
-  const { status, body } = await respond(() => { throw { code: 'PA002', message: 'This player is on waivers - submit a waiver claim instead.' } })
+  const { status, body } = await respond(() => { throw { code: '23505', message: 'duplicate key value violates unique constraint "waiver_claims_member_player_key"' } })
   expect(status, 400, 'status')
-  expect(body.code, 'PA002', 'code')
-  expect(body.error, 'This player is on waivers - submit a waiver claim instead.', 'error')
+  expect(body.code, '23505', 'code')
+  expect(body.error, 'duplicate key value violates unique constraint "waiver_claims_member_player_key"', 'error')
 })
 
 Deno.test('a server failure masks the message and carries no code', async () => {

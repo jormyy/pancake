@@ -1,8 +1,8 @@
--- Canonical SQL source for private.sync_trade_block_on_pick_change.
+-- Canonical SQL source for private.sync_pick_linked_state.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION private.sync_trade_block_on_pick_change()
+CREATE OR REPLACE FUNCTION private.sync_pick_linked_state()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER

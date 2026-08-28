@@ -16,7 +16,6 @@ DECLARE
   v_league leagues%ROWTYPE;
   v_season_id uuid;
   v_active_count int;
-  v_waiver_log_id uuid;
   v_existing_roster_id uuid;
   v_ineligible text;
 BEGIN
@@ -63,23 +62,6 @@ BEGIN
     RAISE EXCEPTION 'You have ineligible players on IR (%). Activate or drop them before adding players.',
       v_ineligible
       USING ERRCODE = 'P0001';
-  END IF;
-
-  SELECT id
-    INTO v_waiver_log_id
-    FROM waiver_wire_log
-   WHERE league_id = p_league_id
-     AND league_season_id = v_season_id
-     AND player_id = p_player_id
-     AND cleared_at IS NULL
-     AND clears_at > now()
-   ORDER BY clears_at
-   LIMIT 1
-   FOR UPDATE;
-
-  IF v_waiver_log_id IS NOT NULL THEN
-    RAISE EXCEPTION 'This player is on waivers - submit a waiver claim instead.'
-      USING ERRCODE = 'PA002';
   END IF;
 
   SELECT id
