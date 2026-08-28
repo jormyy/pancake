@@ -69,33 +69,33 @@ export function useQuickAdd({
         setIrModal(null)
     }, [ownerIdentity])
 
-    // Resolves to true when the roster has no ineligible IR players; otherwise
+    // Resolves to the roster when it has no ineligible IR players; otherwise
     // opens the IR modal, which continues the add once IR is clear.
     const checkIR = useCallback(
-        async (player: PlayerRow, lid: string, excludeRosterId?: string): Promise<boolean> => {
-            if (!memberId) return false
+        async (player: PlayerRow, lid: string, excludeRosterId?: string): Promise<RosterPlayer[] | null> => {
+            if (!memberId) return null
             const generation = generationRef.current
             const identity = ownerIdentity
             const { roster, ineligible } = await loadRosterAddGate(memberId, lid, excludeRosterId)
-            if (!isCurrent(generation, identity)) return false
+            if (!isCurrent(generation, identity)) return null
             if (ineligible.length > 0) {
                 setIrModal({ ineligible, roster, pendingPlayer: player })
-                return false
+                return null
             }
-            return true
+            return roster
         },
         [memberId, ownerIdentity, isCurrent]
     )
 
     // The server decides between an add and a full roster; a full roster opens
-    // the drop picker with the roster it returned.
-    const addFreeAgent = useCallback(async (player: PlayerRow, lid: string) => {
+    // the drop picker with the roster already in hand.
+    const addFreeAgent = useCallback(async (player: PlayerRow, lid: string, roster: RosterPlayer[]) => {
         if (!memberId) return
         const generation = generationRef.current
         const identity = ownerIdentity
         setAdding(player.id)
         try {
-            const result = await addFreeAgentOrRequestDrop(memberId, lid, player.id)
+            const result = await addFreeAgentOrRequestDrop(memberId, lid, player.id, roster)
             if (!isCurrent(generation, identity)) return
             if (result.status === 'roster_full') {
                 setMyRoster(result.activeRoster)
@@ -121,14 +121,15 @@ export function useQuickAdd({
             const pending = irModal!.pendingPlayer
             setIrModal(null)
             if (explainBlock()) return
-            await addFreeAgent(pending, lid)
+            await addFreeAgent(pending, lid, roster)
         }
     }, [irModal, addFreeAgent, explainBlock])
 
     const handleAdd = useCallback(async (player: PlayerRow) => {
         if (!memberId || !leagueId) return
         if (explainBlock()) return
-        if (await checkIR(player, leagueId)) await addFreeAgent(player, leagueId)
+        const roster = await checkIR(player, leagueId)
+        if (roster) await addFreeAgent(player, leagueId, roster)
     }, [memberId, leagueId, checkIR, addFreeAgent, explainBlock])
 
     const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
@@ -192,13 +193,12 @@ export function useQuickAdd({
         dropping: ownsState ? dropping : null,
         irModal: ownsState ? irModal : null, setIrModal,
         addBlockedReason,
-        explainBlock,
         handleAdd,
         handleDropAndAdd,
         handleIRActivate,
         handleDropAndIRActivate,
     }), [
-        ownsState, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason, explainBlock,
+        ownsState, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason,
         handleAdd, handleDropAndAdd, handleIRActivate, handleDropAndIRActivate,
     ])
 }

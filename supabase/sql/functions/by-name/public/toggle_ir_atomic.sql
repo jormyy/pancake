@@ -93,10 +93,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF private.is_reserved_trade_asset(v_rp.league_id, v_rp.league_season_id, v_rp.member_id, v_rp.player_id) THEN
-    RAISE EXCEPTION 'Player is reserved as an accepted trade asset.'
-      USING ERRCODE = 'P0001';
-  END IF;
 
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_ir_slots := COALESCE(v_league.ir_slots, 2);

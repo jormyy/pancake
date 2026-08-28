@@ -180,7 +180,7 @@ export default function ClaimPlayerScreen() {
     function renderSubmitButton(compact: boolean) {
         return (
             <Pressable
-                style={[styles.submitButton, compact && styles.compactSubmitButton, (submitDisabled || addBlockedReason) && styles.submitButtonDisabled]}
+                style={[styles.submitButton, compact && styles.compactSubmitButton, (submitDisabled || addBlockedReason != null) && styles.submitButtonDisabled]}
                 onPress={handleSubmit}
                 accessibilityRole="button"
                 accessibilityLabel="Submit waiver claim"

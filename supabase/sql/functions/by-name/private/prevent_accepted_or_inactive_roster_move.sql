@@ -8,12 +8,8 @@ LANGUAGE plpgsql
 SET search_path = public, private
 AS $$
 BEGIN
-  IF (
-    OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR
-    OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi
-  ) AND private.is_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id) THEN
-    RAISE EXCEPTION 'This roster player is reserved as an accepted trade asset.'
-      USING ERRCODE = 'P0001';
+  IF OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi THEN
+    PERFORM private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id);
   END IF;
 
   IF (

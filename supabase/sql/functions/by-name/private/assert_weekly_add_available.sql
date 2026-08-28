@@ -16,6 +16,7 @@ DECLARE
   v_week int;
   v_resets_at timestamptz;
   v_used int;
+  v_message text;
 BEGIN
   SELECT weekly_add_limit
     INTO v_limit
@@ -56,10 +57,10 @@ BEGIN
      AND count_row.week_number = v_week
    FOR UPDATE;
 
-  -- PA001 is the weekly add limit; the Edge API and the app classify on it.
-  IF COALESCE(v_used, 0) >= v_limit THEN
-    RAISE EXCEPTION '%', private.weekly_add_limit_message(COALESCE(v_used, 0), v_limit, v_resets_at)
-      USING ERRCODE = 'PA001';
+  -- PA001 is the weekly add limit; the app classifies on the code.
+  v_message := private.weekly_add_limit_message(v_used, v_limit, v_resets_at);
+  IF v_message IS NOT NULL THEN
+    RAISE EXCEPTION '%', v_message USING ERRCODE = 'PA001';
   END IF;
 END;
 $$;

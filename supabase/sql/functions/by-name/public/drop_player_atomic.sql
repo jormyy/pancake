@@ -89,10 +89,6 @@ BEGIN
 
   PERFORM v_member.id;
 
-  IF private.is_reserved_trade_asset(v_rp.league_id, v_rp.league_season_id, v_rp.member_id, v_rp.player_id) THEN
-    RAISE EXCEPTION 'Player is reserved as an accepted trade asset.'
-      USING ERRCODE = 'P0001';
-  END IF;
 
   DELETE FROM roster_players
    WHERE id = p_roster_player_id;

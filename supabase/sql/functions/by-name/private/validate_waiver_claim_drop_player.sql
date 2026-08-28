@@ -42,7 +42,7 @@ BEGIN
   END IF;
 
   IF private.is_reserved_trade_asset(p_league_id, p_league_season_id, p_member_id, p_drop_player_id) THEN
-    RETURN QUERY SELECT v_roster_player_id, 'Drop player is reserved for an accepted trade.';
+    RETURN QUERY SELECT v_roster_player_id, private.reserved_trade_asset_message();
     RETURN;
   END IF;
 

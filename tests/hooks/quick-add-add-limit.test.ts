@@ -84,7 +84,7 @@ describe('useQuickAdd weekly add limit', () => {
         expect(probe.latest.addBlockedReason).toBeNull()
         await act(async () => { await probe.latest.handleAdd(player) })
 
-        expect(mocks.addOrRequestDrop).toHaveBeenCalledWith('member-a', 'league-a', 'player-a')
+        expect(mocks.addOrRequestDrop).toHaveBeenCalledWith('member-a', 'league-a', 'player-a', [])
         expect(mocks.success).toHaveBeenCalledWith('Added', 'Player A added to your roster.')
     })
 

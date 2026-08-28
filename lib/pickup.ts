@@ -7,8 +7,7 @@ export type AddLimitSource = Pick<MemberTransactionState, 'weeklyAddLimit' | 'we
 export type AddLimitStatus = {
     limit: number
     used: number
-    /** The server's verdict: its rejection sentence is present exactly while the week's adds are used up. */
-    reached: boolean
+    /** The server's verdict: its rejection sentence, present exactly while the week's adds are used up. */
     message: string | null
     resetsLabel: string | null
 }
@@ -21,14 +20,8 @@ export function getAddLimitStatus(state: AddLimitSource | null | undefined, now 
     // A count whose week already ended is stale client state; the server opens a
     // fresh week on the next request, so the action is available again.
     const weekEnded = state.addLimitResetsAt != null && Date.parse(state.addLimitResetsAt) <= now
-    if (weekEnded) return { limit: state.weeklyAddLimit, used: 0, reached: false, message: null, resetsLabel: null }
-    return {
-        limit: state.weeklyAddLimit,
-        used: state.weeklyAddCount,
-        reached: state.addLimitMessage != null,
-        message: state.addLimitMessage,
-        resetsLabel: state.addLimitResetsLabel,
-    }
+    if (weekEnded) return { limit: state.weeklyAddLimit, used: 0, message: null, resetsLabel: null }
+    return { limit: state.weeklyAddLimit, used: state.weeklyAddCount, message: state.addLimitMessage, resetsLabel: state.addLimitResetsLabel }
 }
 
 /** The server's explanation while a pickup is blocked by the weekly add limit, or null when adds are available. */
@@ -42,26 +35,8 @@ export function addLimitSummary(state: AddLimitSource | null | undefined, now = 
     const status = getAddLimitStatus(state, now)
     if (!status) return `Adds ${state.weeklyAddCount}/∞`
     const base = `Adds ${status.used}/${status.limit}`
-    if (!status.reached) return base
+    if (status.message == null) return base
     return status.resetsLabel ? `${base} · resets ${status.resetsLabel}` : `${base} · limit reached`
-}
-
-export type PickupError = {
-    limitReached: boolean
-    /** The player is still on waivers (possibly past the 48-hour mark, until the run processes the entry); a claim is the way in. */
-    onWaivers: boolean
-    title: string
-    message: string
-}
-
-/** Splits a failed pickup into the weekly-limit case (the server message carries the reset time), the on-waivers case, and everything else. */
-export function classifyPickupError(error: unknown): PickupError {
-    const message = getErrorMessage(error)
-    const code = errorCode(error)
-    const limitReached = code === RULE_CODES.weeklyAddLimit
-    const onWaivers = code === RULE_CODES.onWaivers
-    const title = limitReached ? ADD_LIMIT_BLOCKED_TITLE : onWaivers ? ON_WAIVERS_TITLE : 'Error'
-    return { limitReached, onWaivers, title, message }
 }
 
 type ReportOptions = {
@@ -74,19 +49,23 @@ type ReportOptions = {
 }
 
 /**
- * Explains a rejected pickup from the server's own verdict: the weekly limit
- * refreshes the cached state, a player still on waivers is offered the claim
- * flow, everything else is shown as it came.
+ * Explains a rejected pickup from the server's own verdict, classified on its
+ * SQLSTATE: the weekly limit refreshes the cached state, a player still on
+ * waivers (possibly past the 48-hour mark, until the run processes the entry)
+ * is offered the claim flow, everything else is shown as it came.
  */
 export function reportPickupError(error: unknown, { refresh, onLimitReached, claim }: ReportOptions = {}) {
-    const failure = classifyPickupError(error)
-    if (failure.limitReached) {
+    const code = errorCode(error)
+    const message = getErrorMessage(error)
+    if (code === RULE_CODES.weeklyAddLimit) {
         onLimitReached?.()
         refresh?.()
-    }
-    if (failure.onWaivers && claim) {
-        confirmAction(failure.title, `${failure.message} Claims are processed on the next waiver run.`, claim, 'Claim', false)
+        showAlert(ADD_LIMIT_BLOCKED_TITLE, message)
         return
     }
-    showAlert(failure.title, failure.message)
+    if (code === RULE_CODES.onWaivers && claim) {
+        confirmAction(ON_WAIVERS_TITLE, `${message} Claims are processed on the next waiver run.`, claim, 'Claim', false)
+        return
+    }
+    showAlert(code === RULE_CODES.onWaivers ? ON_WAIVERS_TITLE : 'Error', message)
 }

@@ -31,7 +31,7 @@ import { getMemberTransactionState } from '@/lib/league'
 import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
+import { loadPlayerSupport } from '@/lib/player-availability'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import {
     debounceRealtimeRefresh,
@@ -198,18 +198,15 @@ export default function PlayersScreen() {
                 transactionState: null,
             }
         }
-        const [availability, transactionState] = await Promise.all([
-            getPlayerAvailabilitySnapshot(leagueId),
-            current?.id ? getMemberTransactionState(current.id, leagueId) : Promise.resolve(null),
-        ])
+        const support = await loadPlayerSupport(current?.id, leagueId)
         if (current?.id) {
             writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
-                ownedEntries: Array.from(availability.ownedMap.entries()),
-                waiverIds: Array.from(availability.waiverIds),
-                transactionState,
+                ownedEntries: Array.from(support.ownedMap.entries()),
+                waiverIds: Array.from(support.waiverIds),
+                transactionState: support.transactionState,
             })
         }
-        return { ...availability, transactionState }
+        return support
     }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
 
     useEffect(() => {
@@ -268,14 +265,11 @@ export default function PlayersScreen() {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
         .join(','), [search.availability.gamesLeft])
-    const { handleAdd: quickAddHandleAdd, explainBlock } = quickAdd
+    const quickAddHandleAdd = quickAdd.handleAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
-        if (!waiverIds.has(player.id)) {
-            void quickAddHandleAdd(player)
-        } else if (!explainBlock()) {
-            openClaim(player)
-        }
-    }, [waiverIds, openClaim, quickAddHandleAdd, explainBlock])
+        if (waiverIds.has(player.id)) openClaim(player)
+        else void quickAddHandleAdd(player)
+    }, [waiverIds, openClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])

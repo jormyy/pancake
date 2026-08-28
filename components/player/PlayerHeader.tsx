@@ -39,7 +39,7 @@ type Props = {
     playedToday?: boolean
     /** Full explanation of why a pickup is unavailable (weekly add limit); the action stays pressable so a tap explains it. */
     addBlockedReason?: string | null
-    /** One-line caption shown under the blocked action, e.g. "Adds 7/7 · resets Mon 12:00 AM ET". */
+    /** One-line caption shown under the blocked action, e.g. "Adds 7/7 · resets Mon, Nov 2 at 12:00 AM ET". */
     addBlockedCaption?: string | null
     onAdd: () => void
     onDrop: () => void

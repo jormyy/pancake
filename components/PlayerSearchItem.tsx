@@ -39,7 +39,7 @@ function PlayerSearchItemImpl({
     showCompactStats?: boolean
     statMode?: 'season' | 'projection'
     animate?: boolean
-    /** Why a pickup is unavailable right now (weekly add limit). The button stays pressable so the tap explains it. */
+    /** Why a free-agent add is unavailable right now (weekly add limit). The button stays pressable so the tap explains it; claims are gated by the claim modal. */
     addBlockedReason?: string | null
     onAdd: (player: PlayerRow) => void
     onPress: (player: PlayerRow) => void
@@ -50,6 +50,7 @@ function PlayerSearchItemImpl({
     const isWaiver = !owned && waiverIds.has(item.id)
     const isFA = !owned && !isWaiver
     const canAdd = currentMemberId && (isFA || isWaiver)
+    const blockedReason = isWaiver ? null : addBlockedReason
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(item.nba_id)
     const projectionGame = formatProjectionGame({
@@ -99,16 +100,16 @@ function PlayerSearchItemImpl({
             <View style={styles.addCol}>
                 {canAdd ? (
                     <MotionPressable
-                        style={[styles.addBtn, addBlockedReason ? styles.addBtnBlocked : null]}
+                        style={[styles.addBtn, blockedReason ? styles.addBtnBlocked : null]}
                         onPress={() => onAdd(item)}
                         disabled={isAdding}
                         accessibilityRole="button"
                         accessibilityLabel={`Add ${item.display_name}`}
-                        {...blockedActionProps(addBlockedReason, isAdding)}
+                        {...blockedActionProps(blockedReason, isAdding)}
                         hitSlop={8}
                         pressedScale={0.88}
                     >
-                        <Text style={[styles.addBtnText, addBlockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
+                        <Text style={[styles.addBtnText, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
                     </MotionPressable>
                 ) : null}
             </View>

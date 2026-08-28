@@ -6,11 +6,14 @@ CREATE OR REPLACE FUNCTION private.pick_left_owner(
   p_old draft_picks,
   p_new draft_picks
 )
-RETURNS boolean
+RETURNS text
 LANGUAGE sql
 IMMUTABLE
 AS $$
-  -- A pick leaves its owner's hands when ownership changes or it is used in a draft.
-  SELECT p_old.current_owner_id IS DISTINCT FROM p_new.current_owner_id
-      OR (p_new.is_used = true AND p_old.is_used IS DISTINCT FROM p_new.is_used)
+  -- How a pick left its owner's hands: 'used' in a draft, 'owner' when it
+  -- changed hands, NULL when it did not leave.
+  SELECT CASE
+           WHEN p_new.is_used = true AND p_old.is_used IS DISTINCT FROM p_new.is_used THEN 'used'
+           WHEN p_old.current_owner_id IS DISTINCT FROM p_new.current_owner_id THEN 'owner'
+         END
 $$;

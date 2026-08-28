@@ -19,13 +19,6 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  PERFORM private.clear_future_unlocked_lineups(
-    OLD.league_id,
-    OLD.league_season_id,
-    OLD.player_id,
-    OLD.member_id
-  );
-
   -- Roster-linked state is only stale when no active current-season row is left
   -- for this member and player (an old-season row going away must not touch it).
   SELECT EXISTS (
@@ -45,6 +38,13 @@ BEGIN
   IF v_still_active THEN
     RETURN NULL;
   END IF;
+
+  PERFORM private.clear_future_unlocked_lineups(
+    OLD.league_id,
+    OLD.league_season_id,
+    OLD.player_id,
+    OLD.member_id
+  );
 
   DELETE FROM trade_block_items
    WHERE league_id = OLD.league_id

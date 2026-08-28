@@ -10,8 +10,8 @@ import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
-import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, pickupPossible, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
-import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
+import { dropAndAddFreeAgent, dropPlayer, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
+import { addFreeAgentOrRequestDrop, loadPickupState, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { addLimitSummary, reportPickupError } from '@/lib/pickup'
@@ -104,9 +104,10 @@ export default function PlayerDetailScreen() {
         setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: null })
         if (!current || !leagueId || !requestedOwner) return
         try {
-            const status = await getPlayerRosterStatus(id, current.id, leagueId)
+            const { status, transactionState } = await loadPickupState(id, current.id, leagueId)
             if (isCurrent(generation, requestedOwner)) {
                 setRosterStatusResource({ ownerIdentity: requestedOwner, status, error: null })
+                setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
             }
         } catch (e) {
             if (isCurrent(generation, requestedOwner)) {
@@ -115,7 +116,7 @@ export default function PlayerDetailScreen() {
         }
     }, [current, id, leagueId, ownerIdentity])
 
-    const loadPickupState = useCallback(async () => {
+    const refreshPickupState = useCallback(async () => {
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
         if (!current || !leagueId || !requestedOwner) return
@@ -128,16 +129,12 @@ export default function PlayerDetailScreen() {
         }
     }, [current, leagueId, ownerIdentity])
 
-    useEffect(() => {
-        if (pickupPossible(rosterStatus)) void loadPickupState()
-    }, [loadPickupState, rosterStatus])
-
     const { addBlockedReason, explainBlock: explainAddLimitBlock } = useAddLimitGate({
         transactionState: pickupState,
-        refresh: loadPickupState,
+        refresh: refreshPickupState,
     })
     const reportPickup = (error: unknown, claim?: () => void) => reportPickupError(error, {
-        refresh: loadPickupState,
+        refresh: refreshPickupState,
         onLimitReached: () => setDropPickerVisible(false),
         claim,
     })

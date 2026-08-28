@@ -87,9 +87,7 @@ BEGIN
     league.faab_starting_budget,
     v_balance,
     v_resets_at,
-    CASE WHEN league.weekly_add_limit IS NOT NULL AND count_row.add_count >= league.weekly_add_limit
-         THEN private.weekly_add_limit_message(count_row.add_count, league.weekly_add_limit, v_resets_at)
-    END,
+    private.weekly_add_limit_message(count_row.add_count, league.weekly_add_limit, v_resets_at),
     private.weekly_add_limit_reset_label(v_resets_at)
   FROM leagues AS league
   JOIN weekly_add_counts AS count_row

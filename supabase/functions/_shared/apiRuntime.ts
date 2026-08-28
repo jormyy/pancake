@@ -113,8 +113,7 @@ function errorResponse(scope: string, error: unknown): Response {
   }, status)
 }
 
-// Pancake's own SQLSTATEs (PA001 weekly add limit, PA002 on waivers, PA003
-// roster full) are rule rejections the client classifies on.
+// Pancake's own SQLSTATE class: rule rejections the client classifies on.
 const isRuleCode = (code: string | undefined) => code?.startsWith('PA') === true
 
 function dbErrorCode(error: unknown): string | undefined {

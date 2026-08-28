@@ -2,9 +2,8 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeBlock } from '@/hooks/use-trade-block'
-import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
-import { getMemberTransactionState } from '@/lib/league'
-import { getPlayerRosterStatus, pickupPossible } from '@/lib/roster'
+import { loadPlayerSupport } from '@/lib/player-availability'
+import { loadPickupState } from '@/lib/roster-add-flow'
 import { getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 
@@ -70,10 +69,7 @@ beforeEach(seedFixtures)
 
 describe('screen request budgets', () => {
     it('players tab support load (availability + transaction state)', async () => {
-        const result = await measure(() => Promise.all([
-            getPlayerAvailabilitySnapshot('league'),
-            getMemberTransactionState('member', 'league'),
-        ]))
+        const result = await measure(() => loadPlayerSupport('member', 'league'))
         expect(result).toEqual({
             requests: 4,
             byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1 },
@@ -116,16 +112,12 @@ describe('screen request budgets', () => {
     it('player page pickup state, data layer: roster status, then the weekly add state only when pick-up-able', async () => {
         // The player page loads the weekly add state only once the player turns
         // out to be pick-up-able, so a rostered player costs no extra request.
-        const load = async (playerId: string) => {
-            const status = await getPlayerRosterStatus(playerId, 'member', 'league')
-            if (pickupPossible(status)) await getMemberTransactionState('member', 'league')
-        }
-        const rostered = await measure(() => load('p-1'))
+        const rostered = await measure(() => loadPickupState('p-1', 'member', 'league'))
         expect(rostered).toEqual({
             requests: 2,
             byTarget: { league_seasons: 1, roster_players: 1 },
         })
-        const freeAgent = await measure(() => load('p-7'))
+        const freeAgent = await measure(() => loadPickupState('p-7', 'member', 'league'))
         expect(freeAgent).toEqual({
             requests: 4,
             byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1 },

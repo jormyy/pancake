@@ -10,8 +10,8 @@ vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playe
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
 vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null, numberOrDash: String }))
 
-const REASON = "You've used all 7 of this week's adds. Adds reset Mon, Nov 2 at 12:00 AM ET."
-const CAPTION = 'Adds 7/7 · resets Mon 12:00 AM ET'
+const REASON = 'Weekly add limit reached (7/7 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.'
+const CAPTION = 'Adds 7/7 · resets Mon, Nov 2 at 12:00 AM ET'
 let renderer: ReactTestRenderer | null = null
 
 afterEach(async () => {

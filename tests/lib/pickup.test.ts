@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
     addLimitBlockedReason,
     addLimitSummary,
-    classifyPickupError,
     getAddLimitStatus,
     reportPickupError,
     type AddLimitSource,
@@ -30,12 +29,12 @@ beforeEach(() => { alerts.show.mockReset(); alerts.confirm.mockReset() })
 
 describe('getAddLimitStatus', () => {
     it('takes the server verdict and sentence as they are', () => {
-        expect(getAddLimitStatus(reached(), BEFORE_RESET)).toEqual({ limit: 7, used: 7, reached: true, message: MESSAGE, resetsLabel: LABEL })
-        expect(getAddLimitStatus(open(), BEFORE_RESET)).toEqual({ limit: 7, used: 2, reached: false, message: null, resetsLabel: LABEL })
+        expect(getAddLimitStatus(reached(), BEFORE_RESET)).toEqual({ limit: 7, used: 7, message: MESSAGE, resetsLabel: LABEL })
+        expect(getAddLimitStatus(open(), BEFORE_RESET)).toEqual({ limit: 7, used: 2, message: null, resetsLabel: LABEL })
     })
 
     it('treats a count from an ended week as stale and available again', () => {
-        expect(getAddLimitStatus(reached(), AFTER_RESET)).toEqual({ limit: 7, used: 0, reached: false, message: null, resetsLabel: null })
+        expect(getAddLimitStatus(reached(), AFTER_RESET)).toEqual({ limit: 7, used: 0, message: null, resetsLabel: null })
     })
 
     it('is null for unlimited leagues and missing state', () => {
@@ -61,35 +60,16 @@ describe('add-limit copy', () => {
     })
 })
 
-describe('classifyPickupError', () => {
-    it('recognizes the weekly limit by its SQLSTATE from either request path', () => {
-        expect(classifyPickupError(new RequestError(MESSAGE, { code: 'PA001' })))
-            .toEqual({ limitReached: true, onWaivers: false, title: 'Weekly add limit reached', message: MESSAGE })
-        expect(classifyPickupError({ message: MESSAGE, code: 'PA001' }))
-            .toEqual({ limitReached: true, onWaivers: false, title: 'Weekly add limit reached', message: MESSAGE })
-    })
-
-    it('recognizes a player the server still holds on waivers by its SQLSTATE', () => {
-        const message = 'This player is on waivers - submit a waiver claim instead.'
-        expect(classifyPickupError(new RequestError(message, { code: 'PA002' })))
-            .toEqual({ limitReached: false, onWaivers: true, title: 'Still on waivers', message })
-    })
-
-    it('leaves every other failure on the generic path', () => {
-        expect(classifyPickupError(new RequestError('Your active roster is full (20 players).', { code: 'PA003' })))
-            .toEqual({ limitReached: false, onWaivers: false, title: 'Error', message: 'Your active roster is full (20 players).' })
-        expect(classifyPickupError(new Error('offline'))).toEqual({ limitReached: false, onWaivers: false, title: 'Error', message: 'offline' })
-    })
-})
-
 describe('reportPickupError', () => {
-    it('shows the limit sentence, closes local state, and refreshes the cached week', () => {
+    it('recognizes the weekly limit by its SQLSTATE from either request path, closes local state, and refreshes the cached week', () => {
         const refresh = vi.fn()
         const onLimitReached = vi.fn()
         reportPickupError(new RequestError(MESSAGE, { code: 'PA001' }), { refresh, onLimitReached })
-        expect(onLimitReached).toHaveBeenCalledTimes(1)
-        expect(refresh).toHaveBeenCalledTimes(1)
-        expect(alerts.show).toHaveBeenCalledWith('Weekly add limit reached', MESSAGE)
+        reportPickupError({ message: MESSAGE, code: 'PA001' }, { refresh, onLimitReached })
+        expect(onLimitReached).toHaveBeenCalledTimes(2)
+        expect(refresh).toHaveBeenCalledTimes(2)
+        expect(alerts.show).toHaveBeenNthCalledWith(1, 'Weekly add limit reached', MESSAGE)
+        expect(alerts.show).toHaveBeenNthCalledWith(2, 'Weekly add limit reached', MESSAGE)
     })
 
     it('offers the claim flow for a player still on waivers, and only when a claim path exists', () => {
@@ -108,6 +88,8 @@ describe('reportPickupError', () => {
     })
 
     it('shows every other failure as it came', () => {
+        reportPickupError(new RequestError('Your active roster is full (20 players).', { code: 'PA003' }))
+        expect(alerts.show).toHaveBeenCalledWith('Error', 'Your active roster is full (20 players).')
         reportPickupError(new Error('offline'))
         expect(alerts.show).toHaveBeenCalledWith('Error', 'offline')
     })

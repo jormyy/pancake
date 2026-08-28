@@ -57,9 +57,11 @@ theirs under the old identity; every other member's state is cleared by the trig
 or moves with their re-pointed roster row. The merge then closes an open waiver
 entry whose player is rostered under the surviving identity.
 
-`private.is_reserved_trade_asset` is the single accepted-trade reservation check
-used by the roster and pick guards, the drop and IR/taxi RPCs, waiver-drop
-validation, and trade acceptance (which excludes the trade being accepted).
+`private.is_reserved_trade_asset` is the single accepted-trade reservation check and
+`private.assert_not_reserved_trade_asset` its single rejection (SQLSTATE `PA004`, one
+sentence): the roster and pick guards raise it, trade acceptance raises it for an
+asset reserved by another trade, and waiver-drop validation returns the same sentence.
+The drop and IR/taxi RPCs rely on the guards rather than checking again.
 `private.pick_left_owner` is the one rule for "this pick left its owner" that the
 pick guard and the pick-listing sync share. Trade completion and pending-offer
 expiry mark their transaction through
@@ -92,6 +94,16 @@ then offers the claim flow instead of a dead end.
 covers the add rejection, the claim inside the window, the rejected claim on a
 processed entry, and the next run picking the claim up.
 
+`npm run test:db:three-season` runs `tests/db/three-season-simulation.sql`: two
+leagues with different settings play three seasons through the real RPCs (an
+auction start with full-budget bids and open slots, free agency under weekly limits
+with commissioner overrides and week resets, drops, FAAB and rolling claims, trades
+with member and commissioner vetoes and expiry, trade-block cleanup, lineups, IR and
+taxi moves, rookie snake drafts with commissioner picks and pause/resume, retries of
+every mutation, three rollovers) and checks the invariants, growing history, and
+frozen past seasons after every phase. Removing an enforcement trigger or the
+weekly-limit check turns it red.
+
 ## Weekly add limits
 
 A league's `weekly_add_limit` caps free-agent adds and processed waiver claims per
@@ -120,12 +132,12 @@ Feedback:
   and of the reset boundary.
 - `get_member_transaction_state` returns `add_limit_resets_at`, `add_limit_message`
   (the same sentence, present while the week's adds are used up) and
-  `add_limit_resets_label`. Every pickup entry point (players tab add button and
-  header line, player page Add and Claim, the waiver-claim modal, the drop-to-add
-  picker and the IR-resolution continuation) reads them through `lib/pickup.ts` and
-  the `useAddLimitGate` hook, renders the action in a disabled state with the reason
-  as its accessibility hint, and explains the block on tap with that sentence, so the
-  pre-check and the rejection say the same thing. `reportPickupError` in
+  `add_limit_resets_label`. The players tab add button and header line, the player
+  page Add and Claim, and the waiver-claim modal read them through `lib/pickup.ts`
+  and the `useAddLimitGate` hook and render the action in a disabled state with the
+  reason as its accessibility hint; the drop-to-add picker and the IR-resolution
+  continuation gate on tap only. Every one explains the block with that sentence, so
+  the pre-check and the rejection say the same thing, and `reportPickupError` in
   `lib/pickup.ts` turns the server's rejection into the same explanation.
 - A cached count whose week already ended is treated as available again on the client;
   the server opens the new week on the next request.

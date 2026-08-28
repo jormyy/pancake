@@ -8,10 +8,7 @@ LANGUAGE plpgsql
 SET search_path = public, private
 AS $$
 BEGIN
-  IF private.is_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id) THEN
-    RAISE EXCEPTION 'This roster player is reserved as an accepted trade asset.'
-      USING ERRCODE = 'P0001';
-  END IF;
+  PERFORM private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id);
 
   RETURN OLD;
 END;

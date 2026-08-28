@@ -43,15 +43,10 @@ BEGIN
     RAISE EXCEPTION 'Player asset is no longer owned by the expected active roster side';
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-     WHERE item.trade_id = p_trade_id
-       AND item.player_id IS NOT NULL
-       AND private.is_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, item.player_id, NULL, p_trade_id)
-  ) THEN
-    RAISE EXCEPTION 'Player asset is reserved for another accepted trade';
-  END IF;
+  PERFORM private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, item.player_id, NULL, p_trade_id)
+     FROM trade_items AS item
+    WHERE item.trade_id = p_trade_id
+      AND item.player_id IS NOT NULL;
 
   PERFORM 1
     FROM trade_items AS item
@@ -82,14 +77,9 @@ BEGIN
     RAISE EXCEPTION 'Draft-pick asset is no longer owned by the expected trade side';
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-     WHERE item.trade_id = p_trade_id
-       AND item.pick_id IS NOT NULL
-       AND private.is_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, NULL, item.pick_id, p_trade_id)
-  ) THEN
-    RAISE EXCEPTION 'Draft-pick asset is reserved for another accepted trade';
-  END IF;
+  PERFORM private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, NULL, item.pick_id, p_trade_id)
+     FROM trade_items AS item
+    WHERE item.trade_id = p_trade_id
+      AND item.pick_id IS NOT NULL;
 END;
 $$;

@@ -56,8 +56,8 @@ describe('Sleeper lazy roster-limit contracts', () => {
 
         expect(migration).toContain('DROP TABLE public.trade_drop_reservations')
         expect(reservation).toContain("trade.status = 'accepted'::trade_status")
-        expect(deleteGuard).toContain('private.is_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id)')
-        expect(moveGuard).toContain('private.is_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id)')
+        expect(deleteGuard).toContain('private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id)')
+        expect(moveGuard).toContain('private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id)')
         expect(moveGuard).toContain('Inactive roster players must be activated before they can be traded.')
     })
 })
