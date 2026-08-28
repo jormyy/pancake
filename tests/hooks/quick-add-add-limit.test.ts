@@ -1,10 +1,10 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useQuickAdd } from '@/hooks/use-quick-add'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useQuickAdd, type QuickAddOptions } from '@/hooks/use-quick-add'
 import type { MemberTransactionState } from '@/lib/league'
-import type { PlayerRow } from '@/lib/players'
-import type { RosterPlayer } from '@/lib/roster'
+import { RequestError } from '@/lib/shared/errors'
+import { memberTransactionState, playerRow, rosterPlayer } from '../helpers/fixtures'
 
 const mocks = vi.hoisted(() => ({
     alert: vi.fn(),
@@ -22,104 +22,100 @@ vi.mock('@/lib/roster-add-flow', () => ({
     resolveRosterAddIRConflict: vi.fn(),
 }))
 vi.mock('@/lib/waivers', () => ({ submitWaiverClaim: mocks.submitClaim }))
-vi.mock('@/lib/alert', () => ({ getErrorMessage: (e: unknown) => (e instanceof Error ? e.message : String(e)) }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const player = { id: 'player-a', display_name: 'Player A' } as PlayerRow
-const rosterPlayer = { id: 'roster-a', is_on_ir: false, is_on_taxi: false, acquired_via: 'draft', players: player } as unknown as RosterPlayer
+const player = playerRow()
+const ownRosterPlayer = rosterPlayer()
 const futureReset = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 const pastReset = new Date(Date.now() - 60 * 1000).toISOString()
+const LIMIT_MESSAGE = 'Weekly add limit reached (3/3 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.'
 
-const state = (overrides: Partial<MemberTransactionState> = {}): MemberTransactionState => ({
-    leagueSeasonId: 'season', weekNumber: 4, weeklyAddLimit: 3, weeklyAddCount: 3, waiverMode: 'faab',
-    faabStartingBudget: 100, faabBalance: 40, addLimitResetsAt: futureReset, addWeekTimeZone: 'America/New_York',
-    ...overrides,
-})
+const usedUp = (overrides: Partial<MemberTransactionState> = {}) =>
+    memberTransactionState({ weeklyAddLimit: 3, weeklyAddCount: 3, addLimitResetsAt: futureReset, ...overrides })
 
 type Latest = ReturnType<typeof useQuickAdd>
+let renderer: ReactTestRenderer | null = null
 
-async function mount(transactionState: MemberTransactionState | null, refreshTransactionState = vi.fn()) {
+async function mount(transactionState: MemberTransactionState | null, options: Partial<QuickAddOptions> = {}) {
+    const refreshTransactionState = vi.fn()
     let latest!: Latest
     const Probe = () => {
-        latest = useQuickAdd('member-a', 'league-a', 20, new Set(), vi.fn(), refreshTransactionState, transactionState)
+        latest = useQuickAdd({
+            memberId: 'member-a', leagueId: 'league-a', rosterSize: 20, waiverIds: new Set(),
+            refreshOwned: vi.fn(), refreshTransactionState, transactionState, ...options,
+        })
         return null
     }
-    let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(Probe)) })
-    return { get latest() { return latest }, renderer, refreshTransactionState }
+    return { get latest() { return latest }, refreshTransactionState }
 }
 
-describe('useQuickAdd weekly add limit', () => {
-    beforeEach(() => {
-        mocks.alert.mockReset()
-        mocks.loadGate.mockReset()
-        mocks.addOrRequestDrop.mockReset()
-        mocks.dropAndAdd.mockReset()
-        mocks.submitClaim.mockReset()
-    })
+beforeEach(() => {
+    for (const mock of Object.values(mocks)) mock.mockReset()
+})
 
-    it('explains a used-up week before calling the server', async () => {
-        const probe = await mount(state())
+afterEach(async () => {
+    if (renderer) await act(async () => { renderer?.unmount() })
+    renderer = null
+})
+
+describe('useQuickAdd weekly add limit', () => {
+    it('explains a used-up week before calling the server and exposes the reason for rendering', async () => {
+        const probe = await mount(usedUp())
+        expect(probe.latest.addBlockedReason).toMatch(/^You've used all 3 of this week's adds\. Adds reset .* ET/)
         await act(async () => { await probe.latest.handleAdd(player) })
 
         expect(mocks.loadGate).not.toHaveBeenCalled()
         expect(mocks.addOrRequestDrop).not.toHaveBeenCalled()
         expect(mocks.alert).toHaveBeenCalledTimes(1)
-        const [title, message] = mocks.alert.mock.calls[0]
-        expect(title).toBe('Weekly add limit reached')
-        expect(message).toMatch(/^You've used all 3 of this week's adds\. Adds reset .* ET/)
+        expect(mocks.alert.mock.calls[0][0]).toBe('Weekly add limit reached')
+        expect(mocks.alert.mock.calls[0][1]).toBe(probe.latest.addBlockedReason)
         expect(probe.refreshTransactionState).toHaveBeenCalled()
-        await act(async () => { probe.renderer.unmount() })
     })
 
     it('proceeds once the reported week has ended, even if the cached count is full', async () => {
         mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
         mocks.addOrRequestDrop.mockResolvedValue({ status: 'added' })
-        const probe = await mount(state({ addLimitResetsAt: pastReset }))
+        const probe = await mount(usedUp({ addLimitResetsAt: pastReset }))
+        expect(probe.latest.addBlockedReason).toBeNull()
         await act(async () => { await probe.latest.handleAdd(player) })
 
         expect(mocks.addOrRequestDrop).toHaveBeenCalledWith('member-a', 'league-a', 'player-a')
         expect(mocks.alert).toHaveBeenCalledWith('Added', 'Player A added to your roster.')
-        await act(async () => { probe.renderer.unmount() })
     })
 
     it('shows the server reset message and closes the drop picker when the last slot went elsewhere', async () => {
-        mocks.loadGate.mockResolvedValue({ roster: [rosterPlayer], ineligible: [] })
-        mocks.addOrRequestDrop.mockResolvedValue({ status: 'roster_full', activeRoster: [rosterPlayer] })
-        const probe = await mount(state({ weeklyAddCount: 2 }))
+        mocks.loadGate.mockResolvedValue({ roster: [ownRosterPlayer], ineligible: [] })
+        mocks.addOrRequestDrop.mockResolvedValue({ status: 'roster_full', activeRoster: [ownRosterPlayer] })
+        const probe = await mount(usedUp({ weeklyAddCount: 2 }))
         await act(async () => { await probe.latest.handleAdd(player) })
         expect(probe.latest.dropPickerPlayer).toEqual(player)
 
-        mocks.dropAndAdd.mockRejectedValue(new Error('Weekly add limit reached (3/3 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.'))
-        await act(async () => { await probe.latest.handleDropAndAdd(rosterPlayer) })
+        mocks.dropAndAdd.mockRejectedValue(new RequestError(LIMIT_MESSAGE, { code: 'PA001' }))
+        await act(async () => { await probe.latest.handleDropAndAdd(ownRosterPlayer) })
 
-        expect(mocks.alert).toHaveBeenLastCalledWith(
-            'Weekly add limit reached',
-            'Weekly add limit reached (3/3 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.',
-        )
+        expect(mocks.alert).toHaveBeenLastCalledWith('Weekly add limit reached', LIMIT_MESSAGE)
         expect(probe.latest.dropPickerPlayer).toBeNull()
         expect(probe.refreshTransactionState).toHaveBeenCalled()
-        await act(async () => { probe.renderer.unmount() })
     })
 
     it('keeps other server errors on the generic path', async () => {
         mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
-        mocks.addOrRequestDrop.mockRejectedValue(new Error('This player is on waivers - submit a waiver claim instead.'))
-        const probe = await mount(state({ weeklyAddCount: 1 }))
+        mocks.addOrRequestDrop.mockRejectedValue(new RequestError('This player is on waivers - submit a waiver claim instead.', { code: 'P0001' }))
+        const probe = await mount(usedUp({ weeklyAddCount: 1 }))
         await act(async () => { await probe.latest.handleAdd(player) })
 
         expect(mocks.alert).toHaveBeenCalledWith('Error', 'This player is on waivers - submit a waiver claim instead.')
-        await act(async () => { probe.renderer.unmount() })
     })
 
     it('does nothing special for unlimited leagues', async () => {
         mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
         mocks.addOrRequestDrop.mockResolvedValue({ status: 'added' })
-        const probe = await mount(state({ weeklyAddLimit: null, weeklyAddCount: 40 }))
+        const probe = await mount(memberTransactionState({ weeklyAddLimit: null, weeklyAddCount: 40 }))
+        expect(probe.latest.addBlockedReason).toBeNull()
         await act(async () => { await probe.latest.handleAdd(player) })
 
         expect(mocks.addOrRequestDrop).toHaveBeenCalled()
-        await act(async () => { probe.renderer.unmount() })
     })
 })

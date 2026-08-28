@@ -28,7 +28,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage, addLimitSummary, getAddLimitStatus } from '@/lib/add-limit'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary } from '@/lib/add-limit'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
@@ -239,8 +239,6 @@ export default function PlayersScreen() {
     const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
     const playerSupportReady = !leagueId || playerSupportForLeague != null
     const transactionState = playerSupportForLeague?.transactionState ?? null
-    const addLimit = getAddLimitStatus(transactionState)
-    const addBlockedReason = addLimit?.reached ? addLimitBlockedMessage(addLimit) : null
 
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady })
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
@@ -254,15 +252,16 @@ export default function PlayersScreen() {
             search.sort.setDir('desc')
         }
     }
-    const quickAdd = useQuickAdd(
-        current?.id,
+    const quickAdd = useQuickAdd({
+        memberId: current?.id,
         leagueId,
-        currentLeague?.roster_size ?? 20,
+        rosterSize: currentLeague?.roster_size ?? 20,
         waiverIds,
-        refreshPlayerSupport,
-        refreshPlayerSupport,
+        refreshOwned: refreshPlayerSupport,
+        refreshTransactionState: refreshPlayerSupport,
         transactionState,
-    )
+    })
+    const addBlockedReason = quickAdd.addBlockedReason
     const gamesLeftVersion = useMemo(() => Array.from(search.availability.gamesLeft.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
@@ -362,7 +361,7 @@ export default function PlayersScreen() {
                         {collapsibleFilters
                             ? `${search.results.loading && search.results.players.length === 0 ? '—' : search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} players · `
                             : ''}
-                        {addLimit ? addLimitSummary(addLimit) : transactionState ? `Adds ${transactionState.weeklyAddCount}/∞` : 'Adds —/—'}
+                        {addLimitSummary(transactionState)}
                         {' · '}
                         {transactionState
                             ? transactionState.waiverMode === 'faab'

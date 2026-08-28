@@ -1,23 +1,26 @@
 import type { MemberTransactionState } from '@/lib/league'
 
+export type AddLimitSource = Pick<MemberTransactionState, 'weeklyAddLimit' | 'weeklyAddCount' | 'addLimitResetsAt' | 'addWeekTimeZone'>
+
 export type AddLimitStatus = {
     limit: number
     used: number
-    remaining: number
     reached: boolean
     resetsAt: Date | null
     timeZone: string
 }
 
-type AddLimitSource = Pick<MemberTransactionState, 'weeklyAddLimit' | 'weeklyAddCount' | 'addLimitResetsAt' | 'addWeekTimeZone'>
+export type PickupError = {
+    limitReached: boolean
+    title: string
+    message: string
+}
 
 export const ADD_LIMIT_BLOCKED_TITLE = 'Weekly add limit reached'
+/** SQLSTATE raised by private.assert_weekly_add_available; the Edge API forwards it as `code`. */
+export const WEEKLY_ADD_LIMIT_CODE = 'PA001'
 
 const ZONE_LABELS: Record<string, string> = { 'America/New_York': 'ET' }
-
-export function isAddLimitError(message: string | null | undefined): boolean {
-    return /weekly add limit reached/i.test(message ?? '')
-}
 
 export function getAddLimitStatus(state: AddLimitSource | null | undefined, now = Date.now()): AddLimitStatus | null {
     if (!state || state.weeklyAddLimit == null) return null
@@ -26,22 +29,12 @@ export function getAddLimitStatus(state: AddLimitSource | null | undefined, now 
     // A count whose week already ended is stale client state; the server opens a
     // fresh week on the next request, so the action is available again.
     const weekEnded = resetsAt != null && resetsAt.getTime() <= now
-    const used = weekEnded ? 0 : state.weeklyAddCount
     return {
         limit: state.weeklyAddLimit,
-        used,
-        remaining: Math.max(0, state.weeklyAddLimit - used),
+        used: weekEnded ? 0 : state.weeklyAddCount,
         reached: !weekEnded && state.weeklyAddCount >= state.weeklyAddLimit,
         resetsAt: weekEnded ? null : resetsAt,
-        timeZone: state.addWeekTimeZone || 'America/New_York',
-    }
-}
-
-function deviceTimeZone(): string | null {
-    try {
-        return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null
-    } catch {
-        return null
+        timeZone: state.addWeekTimeZone,
     }
 }
 
@@ -80,13 +73,11 @@ export function formatAddLimitReset(
     const style = options.style ?? 'long'
     const league = formatInZone(status.resetsAt, status.timeZone, style)
     if (style === 'short') return league
-    const local = options.localTimeZone === undefined ? deviceTimeZone() : options.localTimeZone
+    const local = options.localTimeZone === undefined
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone
+        : options.localTimeZone
     if (!local || local === status.timeZone) return league
-    try {
-        return `${league} (${formatInZone(status.resetsAt, local, 'long')})`
-    } catch {
-        return league
-    }
+    return `${league} (${formatInZone(status.resetsAt, local, 'long')})`
 }
 
 export function addLimitBlockedMessage(status: AddLimitStatus, options?: { localTimeZone?: string | null }): string {
@@ -95,10 +86,35 @@ export function addLimitBlockedMessage(status: AddLimitStatus, options?: { local
     return reset ? `${opening} Adds reset ${reset}.` : `${opening} Adds reset when the next week starts.`
 }
 
-/** Compact status for headers: "Adds 7/7 · resets Mon 12:00 AM ET". */
-export function addLimitSummary(status: AddLimitStatus): string {
+/** The explanation to show when a pickup is blocked by the weekly add limit, or null when adds are available. */
+export function addLimitBlockedReason(state: AddLimitSource | null | undefined, now = Date.now()): string | null {
+    const status = getAddLimitStatus(state, now)
+    return status?.reached ? addLimitBlockedMessage(status) : null
+}
+
+/** Compact header status: "Adds 7/7 · resets Mon 12:00 AM ET", "Adds 2/∞", or "Adds —/—" before state loads. */
+export function addLimitSummary(state: AddLimitSource | null | undefined, now = Date.now()): string {
+    if (!state) return 'Adds —/—'
+    const status = getAddLimitStatus(state, now)
+    if (!status) return `Adds ${state.weeklyAddCount}/∞`
     const base = `Adds ${status.used}/${status.limit}`
     if (!status.reached) return base
     const reset = formatAddLimitReset(status, { style: 'short' })
     return reset ? `${base} · resets ${reset}` : `${base} · limit reached`
+}
+
+/** Splits a failed pickup into the weekly-limit case (the server message carries the reset time) and everything else. */
+export function classifyPickupError(error: unknown): PickupError {
+    const message = error instanceof Error ? error.message : String(error)
+    const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined
+    const limitReached = code === WEEKLY_ADD_LIMIT_CODE
+    return { limitReached, title: limitReached ? ADD_LIMIT_BLOCKED_TITLE : 'Error', message }
+}
+
+/** Accessibility props for an action that stays pressable so a tap can explain why it is unavailable. */
+export function blockedActionProps(reason: string | null, busy = false) {
+    return {
+        accessibilityHint: reason ?? undefined,
+        accessibilityState: { disabled: busy || reason != null },
+    }
 }

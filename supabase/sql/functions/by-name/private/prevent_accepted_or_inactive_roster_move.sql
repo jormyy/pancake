@@ -11,17 +11,7 @@ BEGIN
   IF (
     OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR
     OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi
-  ) AND EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trades AS trade
-        ON trade.id = item.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE trade.league_id = OLD.league_id
-       AND trade.league_season_id = OLD.league_season_id
-       AND item.player_id = OLD.player_id
-       AND item.from_member_id = OLD.member_id
-  ) THEN
+  ) AND private.is_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id) THEN
     RAISE EXCEPTION 'This roster player is reserved as an accepted trade asset.'
       USING ERRCODE = 'P0001';
   END IF;

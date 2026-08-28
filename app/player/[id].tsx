@@ -10,10 +10,10 @@ import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
-import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
+import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, pickupPossible, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage, addLimitSummary, getAddLimitStatus, isAddLimitError } from '@/lib/add-limit'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedReason, addLimitSummary, classifyPickupError } from '@/lib/add-limit'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -58,14 +58,19 @@ export default function PlayerDetailScreen() {
     const [rosterStatusResource, setRosterStatusResource] = useState<{
         ownerIdentity: string | null
         status: PlayerRosterStatus | null
-        transactionState: MemberTransactionState | null
         error: string | null
-    }>({ ownerIdentity, status: null, transactionState: null, error: null })
+    }>({ ownerIdentity, status: null, error: null })
     const ownsRosterStatus = rosterStatusResource.ownerIdentity === ownerIdentity
     const rosterStatus = ownsRosterStatus ? rosterStatusResource.status : null
     const rosterStatusError = ownsRosterStatus ? rosterStatusResource.error : null
-    const addLimit = getAddLimitStatus(ownsRosterStatus ? rosterStatusResource.transactionState : null)
-    const addBlockedReason = addLimit?.reached ? addLimitBlockedMessage(addLimit) : null
+    // Loaded only once the player turns out to be pick-up-able; a failure here
+    // must not hide the roster status, so it is its own resource.
+    const [pickupStateResource, setPickupStateResource] = useState<{
+        ownerIdentity: string | null
+        transactionState: MemberTransactionState | null
+    }>({ ownerIdentity, transactionState: null })
+    const pickupState = pickupStateResource.ownerIdentity === ownerIdentity ? pickupStateResource.transactionState : null
+    const addBlockedReason = addLimitBlockedReason(pickupState)
     const [actionLoading, setActionLoading] = useState(false)
 
     // Drop picker + IR resolution state
@@ -95,42 +100,55 @@ export default function PlayerDetailScreen() {
     const loadRosterStatus = useCallback(async () => {
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
-        setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: null })
+        setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: null })
         if (!current || !leagueId || !requestedOwner) return
         try {
-            const [status, transactionState] = await Promise.all([
-                getPlayerRosterStatus(id, current.id, leagueId),
-                getMemberTransactionState(current.id, leagueId),
-            ])
+            const status = await getPlayerRosterStatus(id, current.id, leagueId)
             if (isCurrent(generation, requestedOwner)) {
-                setRosterStatusResource({ ownerIdentity: requestedOwner, status, transactionState, error: null })
+                setRosterStatusResource({ ownerIdentity: requestedOwner, status, error: null })
             }
         } catch (e) {
             if (isCurrent(generation, requestedOwner)) {
-                setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: getErrorMessage(e) })
+                setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(e) })
             }
         }
     }, [current, id, leagueId, ownerIdentity])
+
+    const loadPickupState = useCallback(async () => {
+        const generation = generationRef.current
+        const requestedOwner = ownerIdentity
+        if (!current || !leagueId || !requestedOwner) return
+        try {
+            const transactionState = await getMemberTransactionState(current.id, leagueId)
+            if (isCurrent(generation, requestedOwner)) setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
+        } catch (e) {
+            // The pickup itself still goes to the server, which explains any block.
+            console.warn('Could not load the weekly add state.', e)
+        }
+    }, [current, leagueId, ownerIdentity])
+
+    useEffect(() => {
+        if (pickupPossible(rosterStatus)) void loadPickupState()
+    }, [loadPickupState, rosterStatus])
 
     // Explains a blocked pickup from cached state; the server stays authoritative
     // and its own rejection (a stale client, a slot consumed elsewhere) is shown
     // through the same title.
     function explainAddLimitBlock(): boolean {
-        if (!addBlockedReason) return false
-        showAlert(ADD_LIMIT_BLOCKED_TITLE, addBlockedReason)
-        void loadRosterStatus()
+        const reason = addLimitBlockedReason(pickupState)
+        if (!reason) return false
+        showAlert(ADD_LIMIT_BLOCKED_TITLE, reason)
+        void loadPickupState()
         return true
     }
 
     function reportPickupError(e: unknown) {
-        const message = getErrorMessage(e)
-        if (isAddLimitError(message)) {
+        const failure = classifyPickupError(e)
+        if (failure.limitReached) {
             setDropPickerVisible(false)
-            showAlert(ADD_LIMIT_BLOCKED_TITLE, message)
-            void loadRosterStatus()
-            return
+            void loadPickupState()
         }
-        showAlert('Error', message)
+        showAlert(failure.title, failure.message)
     }
 
     useEffect(() => {
@@ -241,7 +259,7 @@ export default function PlayerDetailScreen() {
                 }
             } catch (refreshError) {
                 if (isCurrent(generation, requestedOwner)) {
-                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: getErrorMessage(refreshError) })
+                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
                 }
             }
         }
@@ -283,7 +301,7 @@ export default function PlayerDetailScreen() {
                 }
             } catch (refreshError) {
                 if (isCurrent(generation, requestedOwner)) {
-                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, transactionState: null, error: getErrorMessage(refreshError) })
+                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
                 }
             }
         }
@@ -368,7 +386,7 @@ export default function PlayerDetailScreen() {
                         actionLoading={ownsActionState ? actionLoading : false}
                         playedToday={playedToday}
                         addBlockedReason={addBlockedReason}
-                        addBlockedCaption={addLimit?.reached ? addLimitSummary(addLimit) : null}
+                        addBlockedCaption={addBlockedReason ? addLimitSummary(pickupState) : null}
                         onAdd={handleAdd}
                         onDrop={handleDrop}
                         onClaim={handleClaim}

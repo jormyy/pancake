@@ -15,27 +15,6 @@ DECLARE
     AND (OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi);
   v_still_active boolean;
 BEGIN
-  IF TG_OP = 'UPDATE' AND OLD.player_id IS DISTINCT FROM NEW.player_id THEN
-    -- Player identity merge: the listing follows the surviving player row.
-    DELETE FROM trade_block_items AS stale
-     WHERE stale.league_id = OLD.league_id
-       AND stale.member_id = OLD.member_id
-       AND stale.player_id = OLD.player_id
-       AND EXISTS (
-         SELECT 1
-           FROM trade_block_items AS kept
-          WHERE kept.league_id = OLD.league_id
-            AND kept.member_id = OLD.member_id
-            AND kept.player_id = NEW.player_id
-       );
-
-    UPDATE trade_block_items
-       SET player_id = NEW.player_id
-     WHERE league_id = OLD.league_id
-       AND member_id = OLD.member_id
-       AND player_id = OLD.player_id;
-  END IF;
-
   IF NOT (v_left_roster OR v_became_inactive) THEN
     RETURN NULL;
   END IF;

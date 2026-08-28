@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { RequestError } from '@/lib/shared/errors'
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim()
 const configuredSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()
@@ -110,7 +111,10 @@ export async function apiPost<T = unknown>(
 
         const json = await res!.json()
         if (!res!.ok || json?.ok === false) {
-            throw new Error(apiErrorMessage(json, res!.status))
+            throw new RequestError(apiErrorMessage(json, res!.status), {
+                status: res!.status,
+                code: typeof json?.code === 'string' ? json.code : undefined,
+            })
         }
         return json as T
     }

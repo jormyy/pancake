@@ -25,6 +25,7 @@ DECLARE
   v_user_id uuid := auth.uid();
   v_season_id uuid;
   v_week int;
+  v_resets_at timestamptz;
   v_balance int;
 BEGIN
   IF v_user_id IS NULL THEN
@@ -54,7 +55,9 @@ BEGIN
     RETURN;
   END IF;
 
-  v_week := private.current_add_week_number(p_league_id, v_season_id);
+  SELECT week.week_number, week.resets_at
+    INTO v_week, v_resets_at
+    FROM private.current_add_week(p_league_id, v_season_id) AS week;
   v_balance := private.ensure_faab_balance(p_league_id, v_season_id, p_member_id);
 
   INSERT INTO weekly_add_counts (
@@ -82,8 +85,8 @@ BEGIN
     league.waiver_mode,
     league.faab_starting_budget,
     v_balance,
-    private.weekly_add_limit_resets_at(p_league_id, v_season_id),
-    'America/New_York'::text
+    v_resets_at,
+    private.add_week_timezone()
   FROM leagues AS league
   JOIN weekly_add_counts AS count_row
     ON count_row.league_id = league.id

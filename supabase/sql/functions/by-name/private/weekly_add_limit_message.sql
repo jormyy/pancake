@@ -5,7 +5,7 @@
 CREATE OR REPLACE FUNCTION private.weekly_add_limit_message(
   p_used int,
   p_limit int,
-  p_resets_at timestamptz DEFAULT NULL
+  p_resets_at timestamptz
 )
 RETURNS text
 LANGUAGE sql
@@ -16,7 +16,7 @@ AS $$
          WHEN p_resets_at IS NULL THEN ''
          ELSE format(
            ' Adds reset %s ET.',
-           to_char(p_resets_at AT TIME ZONE 'America/New_York', 'Dy, Mon FMDD "at" FMHH12:MI AM')
+           to_char(p_resets_at AT TIME ZONE private.add_week_timezone(), 'Dy, Mon FMDD "at" FMHH12:MI AM')
          )
        END;
 $$;

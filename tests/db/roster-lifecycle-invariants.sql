@@ -366,37 +366,4 @@ BEGIN
   END;
 END $$;
 
--- T14: the global invariant holds at the end of every path exercised above.
-DO $$
-DECLARE v_stale int;
-BEGIN
-  SELECT count(*) INTO v_stale
-    FROM public.trade_block_items AS item
-   WHERE item.player_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1
-         FROM public.roster_players AS roster
-         JOIN public.league_seasons AS season ON season.id = roster.league_season_id AND season.is_current
-        WHERE roster.league_id = item.league_id
-          AND roster.member_id = item.member_id
-          AND roster.player_id = item.player_id
-          AND roster.is_on_ir = false
-          AND roster.is_on_taxi = false
-     );
-  IF v_stale <> 0 THEN
-    RAISE EXCEPTION 'T14: % stale player listing(s) remain', v_stale;
-  END IF;
-  SELECT count(*) INTO v_stale
-    FROM public.trade_block_items AS item
-   WHERE item.pick_id IS NOT NULL
-     AND NOT EXISTS (
-       SELECT 1 FROM public.draft_picks AS pick
-        WHERE pick.id = item.pick_id AND pick.current_owner_id = item.member_id AND pick.is_used = false
-     );
-  IF v_stale <> 0 THEN
-    RAISE EXCEPTION 'T14: % stale pick listing(s) remain', v_stale;
-  END IF;
-  RAISE NOTICE 'roster lifecycle invariants hold';
-END $$;
-
 ROLLBACK;

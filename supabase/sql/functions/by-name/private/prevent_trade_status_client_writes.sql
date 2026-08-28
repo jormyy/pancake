@@ -18,9 +18,8 @@ BEGIN
   -- withdraw) flow through service-role paths, so we trust them. Server-owned
   -- lifecycle code that runs inside an authenticated transaction (the roster
   -- lifecycle trigger expiring an offer whose asset just left a roster) marks
-  -- itself with the transaction-local app.trade_lifecycle_server_write flag.
-  IF v_caller IS NULL
-     OR current_setting('app.trade_lifecycle_server_write', true) = 'on' THEN
+  -- itself through private.begin_trade_lifecycle_write().
+  IF v_caller IS NULL OR private.trade_lifecycle_write_active() THEN
     RETURN NEW;
   END IF;
 

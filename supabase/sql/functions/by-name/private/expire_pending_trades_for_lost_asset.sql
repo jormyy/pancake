@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION private.expire_pending_trades_for_lost_asset(
   p_member_id uuid,
   p_player_id uuid DEFAULT NULL,
   p_pick_id uuid DEFAULT NULL,
-  p_reason text DEFAULT NULL
+  p_pick_consumed boolean DEFAULT false
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -15,39 +15,38 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_reason text := NULLIF(BTRIM(COALESCE(p_reason, '')), '');
-  v_team text;
-  v_previous_flag text := COALESCE(current_setting('app.trade_lifecycle_server_write', true), '');
+  v_reason text;
+  v_previous_flag text;
 BEGIN
   IF p_player_id IS NULL AND p_pick_id IS NULL THEN
     RETURN;
   END IF;
 
-  IF v_reason IS NULL THEN
-    SELECT member.team_name
-      INTO v_team
-      FROM league_members AS member
-     WHERE member.id = p_member_id;
-
-    IF p_player_id IS NOT NULL THEN
-      SELECT format('%s is no longer on %s.', COALESCE(player.display_name, 'A player'), COALESCE(v_team, 'the offering roster'))
-        INTO v_reason
-        FROM players AS player
-       WHERE player.id = p_player_id;
-    ELSE
-      SELECT format('The %s round %s pick is no longer owned by %s.', pick.season_year, pick.round, COALESCE(v_team, 'the offering team'))
-        INTO v_reason
-        FROM draft_picks AS pick
-       WHERE pick.id = p_pick_id;
-    END IF;
-
-    v_reason := COALESCE(v_reason, 'A trade asset is no longer available.');
+  IF p_player_id IS NOT NULL THEN
+    SELECT format('%s is no longer on %s.', player.display_name, COALESCE(member.team_name, 'the offering team'))
+      INTO v_reason
+      FROM players AS player, league_members AS member
+     WHERE player.id = p_player_id
+       AND member.id = p_member_id;
+  ELSE
+    SELECT format(
+             CASE
+               WHEN p_pick_consumed THEN 'The %s round %s pick has been used in the draft.'
+               ELSE 'The %s round %s pick is no longer owned by %s.'
+             END,
+             pick.season_year,
+             pick.round,
+             COALESCE(member.team_name, 'the offering team')
+           )
+      INTO v_reason
+      FROM draft_picks AS pick, league_members AS member
+     WHERE pick.id = p_pick_id
+       AND member.id = p_member_id;
   END IF;
 
-  -- This runs inside the caller's transaction, which may belong to an
-  -- authenticated user; the status guard trusts this flag for the update only.
-  -- Trade completion may already hold the flag, so it is restored, not cleared.
-  PERFORM set_config('app.trade_lifecycle_server_write', 'on', true);
+  -- This may run inside an authenticated user's transaction (a drop expiring
+  -- an offer); the status guard trusts server-owned lifecycle work.
+  v_previous_flag := private.begin_trade_lifecycle_write();
 
   WITH expired AS (
     UPDATE trades AS trade
@@ -90,6 +89,6 @@ BEGIN
     v_reason
     FROM expired;
 
-  PERFORM set_config('app.trade_lifecycle_server_write', v_previous_flag, true);
+  PERFORM private.end_trade_lifecycle_write(v_previous_flag);
 END;
 $$;

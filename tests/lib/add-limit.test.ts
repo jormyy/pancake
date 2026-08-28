@@ -1,18 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import {
     addLimitBlockedMessage,
+    addLimitBlockedReason,
     addLimitSummary,
+    blockedActionProps,
+    classifyPickupError,
     formatAddLimitReset,
     getAddLimitStatus,
-    isAddLimitError,
+    type AddLimitSource,
 } from '@/lib/add-limit'
+import { RequestError } from '@/lib/shared/errors'
 
 // Midnight ET on Monday 2026-11-02 (EST, UTC-5).
 const RESET = '2026-11-02T05:00:00.000Z'
 const BEFORE_RESET = Date.parse('2026-11-01T20:00:00.000Z')
 const AFTER_RESET = Date.parse('2026-11-02T05:00:01.000Z')
 
-const state = (overrides: Partial<Parameters<typeof getAddLimitStatus>[0] & object> = {}) => ({
+const state = (overrides: Partial<AddLimitSource> = {}): AddLimitSource => ({
     weeklyAddLimit: 7,
     weeklyAddCount: 7,
     addLimitResetsAt: RESET,
@@ -23,13 +27,12 @@ const state = (overrides: Partial<Parameters<typeof getAddLimitStatus>[0] & obje
 describe('getAddLimitStatus', () => {
     it('reports a reached limit with the reset instant', () => {
         const status = getAddLimitStatus(state(), BEFORE_RESET)
-        expect(status).toMatchObject({ limit: 7, used: 7, remaining: 0, reached: true, timeZone: 'America/New_York' })
+        expect(status).toMatchObject({ limit: 7, used: 7, reached: true, timeZone: 'America/New_York' })
         expect(status?.resetsAt?.toISOString()).toBe(RESET)
     })
 
     it('treats a count from an ended week as stale and available again', () => {
-        const status = getAddLimitStatus(state(), AFTER_RESET)
-        expect(status).toMatchObject({ used: 0, remaining: 7, reached: false, resetsAt: null })
+        expect(getAddLimitStatus(state(), AFTER_RESET)).toMatchObject({ used: 0, reached: false, resetsAt: null })
     })
 
     it('is null for unlimited leagues and missing state', () => {
@@ -38,8 +41,8 @@ describe('getAddLimitStatus', () => {
     })
 
     it('ignores a malformed reset timestamp', () => {
-        const status = getAddLimitStatus(state({ addLimitResetsAt: 'not-a-date', weeklyAddCount: 3 }), BEFORE_RESET)
-        expect(status).toMatchObject({ used: 3, remaining: 4, reached: false, resetsAt: null })
+        expect(getAddLimitStatus(state({ addLimitResetsAt: 'not-a-date', weeklyAddCount: 3 }), BEFORE_RESET))
+            .toMatchObject({ used: 3, reached: false, resetsAt: null })
     })
 })
 
@@ -66,18 +69,49 @@ describe('messages', () => {
         const status = getAddLimitStatus(state(), BEFORE_RESET)!
         expect(addLimitBlockedMessage(status, { localTimeZone: 'America/Chicago' }))
             .toBe("You've used all 7 of this week's adds. Adds reset Mon, Nov 2 at 12:00 AM ET (Sun, Nov 1 at 11:00 PM CST).")
-        expect(addLimitSummary(status)).toBe('Adds 7/7 · resets Mon 12:00 AM ET')
+        expect(addLimitSummary(state(), BEFORE_RESET)).toBe('Adds 7/7 · resets Mon 12:00 AM ET')
+    })
+
+    it('derives the blocked reason only while the limit is reached', () => {
+        expect(addLimitBlockedReason(state(), BEFORE_RESET)).toMatch(/^You've used all 7 of this week's adds\./)
+        expect(addLimitBlockedReason(state({ weeklyAddCount: 6 }), BEFORE_RESET)).toBeNull()
+        expect(addLimitBlockedReason(state(), AFTER_RESET)).toBeNull()
+        expect(addLimitBlockedReason(null)).toBeNull()
+    })
+
+    it('summarizes unknown, unlimited, reached, and open states', () => {
+        expect(addLimitSummary(null)).toBe('Adds —/—')
+        expect(addLimitSummary(state({ weeklyAddLimit: null, weeklyAddCount: 9 }))).toBe('Adds 9/∞')
+        expect(addLimitSummary(state({ addLimitResetsAt: null }), BEFORE_RESET)).toBe('Adds 7/7 · limit reached')
+        expect(addLimitSummary(state({ weeklyAddCount: 2 }), BEFORE_RESET)).toBe('Adds 2/7')
     })
 
     it('falls back when the reset is unknown', () => {
         const status = getAddLimitStatus(state({ addLimitResetsAt: null }), BEFORE_RESET)!
         expect(addLimitBlockedMessage(status)).toBe("You've used all 7 of this week's adds. Adds reset when the next week starts.")
-        expect(addLimitSummary(status)).toBe('Adds 7/7 · limit reached')
-        expect(addLimitSummary(getAddLimitStatus(state({ weeklyAddCount: 2 }), BEFORE_RESET)!)).toBe('Adds 2/7')
+    })
+})
+
+describe('classifyPickupError', () => {
+    it('recognizes the weekly limit by its SQLSTATE from either request path', () => {
+        const message = 'Weekly add limit reached (7/7 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.'
+        expect(classifyPickupError(new RequestError(message, { code: 'PA001', status: 400 })))
+            .toEqual({ limitReached: true, title: 'Weekly add limit reached', message })
+        expect(classifyPickupError({ message, code: 'PA001' }))
+            .toEqual({ limitReached: true, title: 'Weekly add limit reached', message: '[object Object]' })
     })
 
-    it('recognizes the server rejection', () => {
-        expect(isAddLimitError('Weekly add limit reached (7/7 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.')).toBe(true)
-        expect(isAddLimitError('Your active roster is full (20 players).')).toBe(false)
+    it('leaves every other failure on the generic path', () => {
+        expect(classifyPickupError(new RequestError('Your active roster is full (20 players).', { code: 'P0001' })))
+            .toEqual({ limitReached: false, title: 'Error', message: 'Your active roster is full (20 players).' })
+        expect(classifyPickupError(new Error('offline'))).toEqual({ limitReached: false, title: 'Error', message: 'offline' })
+    })
+})
+
+describe('blockedActionProps', () => {
+    it('announces the block as a hint on a still-pressable control', () => {
+        expect(blockedActionProps('reason')).toEqual({ accessibilityHint: 'reason', accessibilityState: { disabled: true } })
+        expect(blockedActionProps(null)).toEqual({ accessibilityHint: undefined, accessibilityState: { disabled: false } })
+        expect(blockedActionProps(null, true)).toEqual({ accessibilityHint: undefined, accessibilityState: { disabled: true } })
     })
 })

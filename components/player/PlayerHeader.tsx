@@ -4,9 +4,13 @@ import {
     Image,
     StyleSheet,
     Pressable,
+    type StyleProp,
+    type TextStyle,
+    type ViewStyle,
 } from 'react-native'
 import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
+import { blockedActionProps } from '@/lib/add-limit'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
@@ -59,6 +63,32 @@ export function PlayerHeader({
     const [headshotError, setHeadshotError] = useState(false)
     const eligiblePositions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
+
+    function renderPickupAction(
+        label: string,
+        accessibilityLabel: string,
+        buttonStyle: StyleProp<ViewStyle>,
+        textStyle: StyleProp<TextStyle>,
+        onPress: () => void,
+    ) {
+        return (
+            <View style={styles.pickupAction}>
+                <Pressable
+                    style={[buttonStyle, addBlockedReason ? styles.pickupBlocked : null]}
+                    onPress={onPress}
+                    disabled={actionLoading}
+                    accessibilityRole="button"
+                    accessibilityLabel={accessibilityLabel}
+                    {...blockedActionProps(addBlockedReason, actionLoading)}
+                >
+                    <Text style={[textStyle, addBlockedReason ? styles.pickupBlockedText : null]}>{label}</Text>
+                </Pressable>
+                {addBlockedReason && addBlockedCaption ? (
+                    <Text style={styles.pickupCaption} numberOfLines={2}>{addBlockedCaption}</Text>
+                ) : null}
+            </View>
+        )
+    }
 
     const metaParts = [
         player.jersey_number ? `#${player.jersey_number}` : null,
@@ -118,39 +148,9 @@ export function PlayerHeader({
             {leagueActive && rosterStatus && (
                 <View style={styles.actionWrap}>
                     {rosterStatus.status === 'free_agent' ? (
-                        <View style={styles.pickupAction}>
-                            <Pressable
-                                style={[styles.addButton, addBlockedReason ? styles.pickupBlocked : null]}
-                                onPress={onAdd}
-                                disabled={actionLoading}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Add ${player.display_name}`}
-                                accessibilityHint={addBlockedReason ?? undefined}
-                                accessibilityState={{ disabled: actionLoading || !!addBlockedReason }}
-                            >
-                                <Text style={[styles.addButtonText, addBlockedReason ? styles.pickupBlockedText : null]}>+ Add</Text>
-                            </Pressable>
-                            {addBlockedReason && addBlockedCaption ? (
-                                <Text style={styles.pickupCaption} numberOfLines={2}>{addBlockedCaption}</Text>
-                            ) : null}
-                        </View>
+                        renderPickupAction('+ Add', `Add ${player.display_name}`, styles.addButton, styles.addButtonText, onAdd)
                     ) : rosterStatus.status === 'on_waivers' ? (
-                        <View style={styles.pickupAction}>
-                            <Pressable
-                                style={[styles.claimButton, addBlockedReason ? styles.pickupBlocked : null]}
-                                onPress={onClaim}
-                                disabled={actionLoading}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Claim ${player.display_name}`}
-                                accessibilityHint={addBlockedReason ?? undefined}
-                                accessibilityState={{ disabled: actionLoading || !!addBlockedReason }}
-                            >
-                                <Text style={[styles.claimButtonText, addBlockedReason ? styles.pickupBlockedText : null]}>Claim</Text>
-                            </Pressable>
-                            {addBlockedReason && addBlockedCaption ? (
-                                <Text style={styles.pickupCaption} numberOfLines={2}>{addBlockedCaption}</Text>
-                            ) : null}
-                        </View>
+                        renderPickupAction('Claim', `Claim ${player.display_name}`, styles.claimButton, styles.claimButtonText, onClaim)
                     ) : rosterStatus.status === 'mine' ? (
                         <View style={styles.myActions}>
                             <Pressable

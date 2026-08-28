@@ -91,14 +91,16 @@ DECLARE ids add_limit_ids%ROWTYPE; v_message text; v_state record; v_expected ti
 BEGIN
   SELECT * INTO ids FROM add_limit_ids;
   v_expected := pg_temp.et_midnight(ids.today + 5);
-  v_expected_text := to_char(v_expected AT TIME ZONE 'America/New_York', 'Dy, Mon FMDD "at" FMHH12:MI AM');
+  -- Independent rendering of the same instant: weekday, month, day, midnight.
+  v_expected_text := trim(to_char(ids.today + 5, 'Dy')) || ', ' || trim(to_char(ids.today + 5, 'Mon')) || ' '
+    || extract(day FROM ids.today + 5)::int || ' at 12:00 AM';
   BEGIN
     PERFORM private.assert_weekly_add_available(ids.league_id, ids.season_id, ids.member_id);
     RAISE EXCEPTION 'H: limit was not enforced';
   EXCEPTION
-    WHEN SQLSTATE 'P0001' THEN v_message := SQLERRM;
+    WHEN SQLSTATE 'PA001' THEN v_message := SQLERRM;
   END;
-  IF v_message NOT LIKE 'Weekly add limit reached (1/1 adds used this week). Adds reset ' || v_expected_text || ' ET.' THEN
+  IF v_message <> 'Weekly add limit reached (1/1 adds used this week). Adds reset ' || v_expected_text || ' ET.' THEN
     RAISE EXCEPTION 'H: unexpected message: %', v_message;
   END IF;
   SELECT * INTO v_state FROM public.get_member_transaction_state(ids.member_id, ids.league_id);

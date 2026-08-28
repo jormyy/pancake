@@ -26,10 +26,7 @@ BEGIN
     OLD.current_owner_id,
     NULL,
     OLD.id,
-    CASE
-      WHEN v_consumed THEN format('The %s round %s pick has been used in the draft.', OLD.season_year, OLD.round)
-      ELSE NULL
-    END
+    v_consumed
   );
 
   RETURN NULL;

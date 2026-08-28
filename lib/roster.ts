@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
 import { isDTD, isIREligible, isTaxiEligible as isEligibleForTaxi } from '@pancake/core'
 import { apiPost } from '@/lib/shared/api'
+import { rpcError } from '@/lib/shared/errors'
 import type { RosterSlotType } from '@/types/database'
 
 export { isIREligible, isDTD }
@@ -33,6 +34,11 @@ export type PlayerRosterStatus =
     | { status: 'taken'; ownerTeamName: string }
     | { status: 'on_waivers'; logId: string; clearsAt: string }
     | { status: 'free_agent' }
+
+/** Only a free agent or a player on waivers can be picked up, so only then is the add-limit state worth loading. */
+export function pickupPossible(status: PlayerRosterStatus | null): boolean {
+    return status?.status === 'free_agent' || status?.status === 'on_waivers'
+}
 
 export async function getRoster(memberId: string, leagueId: string): Promise<RosterPlayer[]> {
     const rosters = await getRostersForMembers([memberId], leagueId)
@@ -165,8 +171,8 @@ export async function addFreeAgent(
     })
 
     if (error) {
-        if (error.code === '23505') throw new Error('This player is already on a roster.')
-        throw new Error(error.message)
+        if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
+        throw rpcError(error)
     }
 }
 
@@ -184,8 +190,8 @@ export async function dropAndAddFreeAgent(
     })
 
     if (error) {
-        if (error.code === '23505') throw new Error('This player is already on a roster.')
-        throw new Error(error.message)
+        if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
+        throw rpcError(error)
     }
 }
 

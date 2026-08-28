@@ -33,8 +33,6 @@ DECLARE
   v_target_player_id uuid;
   v_ineligible text;
   v_faab_balance int;
-  v_week int;
-  v_weekly_add_count int;
   v_player_name text;
   v_candidate record;
 BEGIN
@@ -200,49 +198,24 @@ BEGIN
    WHERE id = v_claim.player_id;
 
   IF v_league.weekly_add_limit IS NOT NULL THEN
-    v_week := private.current_add_week_number(v_claim.league_id, v_claim.league_season_id);
-
-    INSERT INTO weekly_add_counts (
-      league_id,
-      league_season_id,
-      member_id,
-      week_number,
-      add_count
-    )
-    VALUES (
-      v_claim.league_id,
-      v_claim.league_season_id,
-      v_claim.member_id,
-      v_week,
-      0
-    )
-    ON CONFLICT ON CONSTRAINT weekly_add_counts_league_id_league_season_id_member_id_week_key DO NOTHING;
-
-    SELECT count_row.add_count
-      INTO v_weekly_add_count
-      FROM weekly_add_counts AS count_row
-     WHERE count_row.league_id = v_claim.league_id
-       AND count_row.league_season_id = v_claim.league_season_id
-       AND count_row.member_id = v_claim.member_id
-       AND count_row.week_number = v_week
-     FOR UPDATE;
-
-    IF COALESCE(v_weekly_add_count, 0) >= v_league.weekly_add_limit THEN
-      v_failure := private.weekly_add_limit_message(COALESCE(v_weekly_add_count, 0), v_league.weekly_add_limit);
-      RETURN QUERY SELECT * FROM private.fail_waiver_claim(
-        v_claim.id,
-        v_claim.league_id,
-        v_claim.league_season_id,
-        v_claim.member_id,
-        v_claim.player_id,
-        'failed_roster'::waiver_claim_status,
-        v_failure,
-        'waiver_claim_failed_add_limit',
-        'Waiver claim failed',
-        jsonb_build_object('bid_amount', v_claim.bid_amount)
-      );
-      RETURN;
-    END IF;
+    BEGIN
+      PERFORM private.assert_weekly_add_available(v_claim.league_id, v_claim.league_season_id, v_claim.member_id);
+    EXCEPTION
+      WHEN SQLSTATE 'PA001' THEN
+        RETURN QUERY SELECT * FROM private.fail_waiver_claim(
+          v_claim.id,
+          v_claim.league_id,
+          v_claim.league_season_id,
+          v_claim.member_id,
+          v_claim.player_id,
+          'failed_roster'::waiver_claim_status,
+          SQLERRM,
+          'waiver_claim_failed_add_limit',
+          'Waiver claim failed',
+          jsonb_build_object('bid_amount', v_claim.bid_amount)
+        );
+        RETURN;
+    END;
   END IF;
 
   IF v_league.waiver_mode = 'faab' THEN

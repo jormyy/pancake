@@ -94,17 +94,7 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trades AS trade
-        ON trade.id = item.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE item.player_id = v_rp.player_id
-       AND trade.league_id = v_rp.league_id
-       AND trade.league_season_id = v_rp.league_season_id
-       AND item.from_member_id = v_rp.member_id
-  ) THEN
+  IF private.is_reserved_trade_asset(v_rp.league_id, v_rp.league_season_id, v_rp.member_id, v_rp.player_id) THEN
     RAISE EXCEPTION 'Player is reserved as an accepted trade asset.'
       USING ERRCODE = 'P0001';
   END IF;

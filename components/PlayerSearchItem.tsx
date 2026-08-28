@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import { blockedActionProps } from '@/lib/add-limit'
 import {
     formatProjectionGame,
     numberOrDash,
@@ -104,8 +105,7 @@ function PlayerSearchItemImpl({
                         disabled={isAdding}
                         accessibilityRole="button"
                         accessibilityLabel={`Add ${item.display_name}`}
-                        accessibilityHint={addBlockedReason ?? undefined}
-                        accessibilityState={{ disabled: isAdding || !!addBlockedReason }}
+                        {...blockedActionProps(addBlockedReason, isAdding)}
                         hitSlop={8}
                         pressedScale={0.88}
                     >

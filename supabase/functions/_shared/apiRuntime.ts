@@ -20,10 +20,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 class ApiError extends Error {
   status: number
+  /** SQLSTATE of the database error this wraps, when the client may classify on it. */
+  code?: string
 
-  constructor(message: string, status = 500) {
+  constructor(message: string, status = 500, code?: string) {
     super(message)
     this.status = status
+    this.code = code
   }
 }
 
@@ -100,24 +103,35 @@ function errorResponse(scope: string, error: unknown): Response {
     console.error(`[${scope}]`, { requestId, error })
   }
 
+  const code = error instanceof ApiError && status < 500 ? error.code : undefined
+
   return json({
     ok: false,
     error: status >= 500 ? 'Internal server error' : errorMessage(error),
+    ...(code ? { code } : {}),
     requestId,
   }, status)
 }
 
-function dbErrorStatus(error: unknown): number {
-  if (!error || typeof error !== 'object') return 500
+// Custom SQLSTATE raised by private.assert_weekly_add_available.
+const WEEKLY_ADD_LIMIT_CODE = 'PA001'
+
+function dbErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined
   const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code : undefined
+}
+
+function dbErrorStatus(error: unknown): number {
+  const code = dbErrorCode(error)
   if (code === '42501') return 403
   if (code === 'P0002' || code === 'PGRST116') return 404
-  if (code === 'P0001' || code === '23505' || code === '23514' || code === '22003' || code === '22023') return 400
+  if (code === 'P0001' || code === WEEKLY_ADD_LIMIT_CODE || code === '23505' || code === '23514' || code === '22003' || code === '22023') return 400
   return 500
 }
 
 export function throwDb(error: unknown): never {
-  throw new ApiError(errorMessage(error), dbErrorStatus(error))
+  throw new ApiError(errorMessage(error), dbErrorStatus(error), dbErrorCode(error))
 }
 
 const MAX_JSON_BODY_BYTES = 64 * 1024

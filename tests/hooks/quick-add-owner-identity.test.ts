@@ -37,7 +37,7 @@ describe('useQuickAdd owner identity', () => {
         } as unknown as RosterPlayer
         let latest!: ReturnType<typeof useQuickAdd>
         const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
-            latest = useQuickAdd(memberId, leagueId, 20, new Set(), vi.fn())
+            latest = useQuickAdd({ memberId, leagueId, rosterSize: 20, waiverIds: new Set(), refreshOwned: vi.fn() })
             return null
         }
         let renderer!: ReactTestRenderer

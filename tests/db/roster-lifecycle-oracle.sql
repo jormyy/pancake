@@ -174,7 +174,7 @@ BEGIN
          JOIN public.league_seasons AS season ON season.id = roster.league_season_id AND season.is_current
         WHERE roster.league_id = item.league_id AND roster.member_id = item.member_id AND roster.player_id = item.player_id
           AND roster.is_on_ir = false AND roster.is_on_taxi = false);
-  IF v_count > 0 THEN RAISE EXCEPTION 'I1 violated after step % (%): % stale player listing(s)%%', p_step, p_op, v_count USING DETAIL = v_tail; END IF;
+  IF v_count > 0 THEN RAISE EXCEPTION 'I1 violated after step % (%): % stale player listing(s)', p_step, p_op, v_count USING DETAIL = v_tail; END IF;
 
   -- I2: a pick listing needs an unused pick owned by that member.
   SELECT count(*) INTO v_count
@@ -566,7 +566,7 @@ BEGIN
       END IF;
     EXCEPTION
       WHEN OTHERS THEN
-        IF SQLERRM LIKE 'AUTHZ violated%' OR SQLERRM LIKE 'I% violated%' THEN
+        IF SQLERRM LIKE 'AUTHZ violated%' THEN
           RAISE;
         END IF;
         IF v_expect_failure THEN

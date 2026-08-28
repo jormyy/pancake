@@ -8,23 +8,14 @@ LANGUAGE plpgsql
 SET search_path = public, private
 AS $$
 BEGIN
-  -- Trade completion moves reserved picks itself and marks the transaction.
-  IF current_setting('app.trade_lifecycle_server_write', true) = 'on' THEN
+  IF private.trade_lifecycle_write_active() THEN
     RETURN NEW;
   END IF;
 
   IF (
     OLD.current_owner_id IS DISTINCT FROM NEW.current_owner_id
     OR (NEW.is_used = true AND OLD.is_used IS DISTINCT FROM NEW.is_used)
-  ) AND EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trades AS trade
-        ON trade.id = item.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE item.pick_id = OLD.id
-       AND item.from_member_id = OLD.current_owner_id
-  ) THEN
+  ) AND private.is_reserved_trade_asset(OLD.league_id, NULL, OLD.current_owner_id, NULL, OLD.id) THEN
     RAISE EXCEPTION 'This pick is reserved as an accepted trade asset.'
       USING ERRCODE = 'P0001';
   END IF;

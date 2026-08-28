@@ -53,13 +53,14 @@ BEGIN
      AND count_row.week_number = v_week
    FOR UPDATE;
 
+  -- PA001 is the weekly add limit; the Edge API and the app classify on it.
   IF COALESCE(v_used, 0) >= v_limit THEN
     RAISE EXCEPTION '%', private.weekly_add_limit_message(
       COALESCE(v_used, 0),
       v_limit,
       private.weekly_add_limit_resets_at(p_league_id, p_league_season_id)
     )
-      USING ERRCODE = 'P0001';
+      USING ERRCODE = 'PA001';
   END IF;
 END;
 $$;

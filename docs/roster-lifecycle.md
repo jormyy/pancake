@@ -51,11 +51,16 @@ Both run inside the mutating transaction, so a partial failure rolls everything
 back, a retry has nothing left to clean, and concurrent requests serialize on the
 row and advisory locks the mutation already holds. `add_trade_block_item_atomic`
 locks the roster row `FOR SHARE`, so a listing cannot be created for a player whose
-drop is in flight.
+drop is in flight. A player merge (`merge_players`) re-points listings to the
+surviving player next to the other tables it re-points.
 
-Pending-offer expiry inside an authenticated transaction sets the transaction-local
-`app.trade_lifecycle_server_write` flag that `prevent_trade_status_client_writes`
-honours; direct client writes to `trades.status` stay rejected.
+`private.is_reserved_trade_asset` is the single accepted-trade reservation check
+used by the roster and pick guards, the drop and IR/taxi RPCs, and waiver-drop
+validation. Trade completion and pending-offer expiry mark their transaction through
+`private.begin_trade_lifecycle_write` / `end_trade_lifecycle_write`;
+`prevent_trade_status_client_writes` and `prevent_accepted_trade_pick_change` honour
+that mark, so an expiry that runs inside an authenticated drop still goes through
+while direct client writes to `trades.status` stay rejected.
 
 The waiver processor marks a claim `succeeded` before it releases the drop player, so
 the trigger's "null stale pending drops" step never rewrites the claim being
@@ -72,18 +77,23 @@ add week. The server is authoritative on every path: `add_free_agent_atomic`,
 `drop_and_add_free_agent_atomic`, `create_waiver_claim_atomic` (at submission) and
 the waiver processor (at success) all call `private.assert_weekly_add_available`.
 
-Add weeks follow `season_weeks` in Eastern Time: the count resets at 12:00 AM ET the
-day after the scheduled week ends. Before the first scheduled week the count belongs
-to that week. Past the last scheduled week (playoffs, offseason) the count rolls every
-seven days from the day after that week; a new season with no schedule yet keeps the
-same cadence anchored on the prior season. `private.weekly_add_limit_resets_at`
-computes that instant with the same rules as `private.current_add_week_number`.
+Add weeks follow `season_weeks` in Eastern Time (`private.add_week_timezone`): the
+count resets at 12:00 AM ET the day after the scheduled week ends. Before the first
+scheduled week the count belongs to that week. Past the last scheduled week (playoffs,
+offseason) the count rolls every seven days from the day after that week; a new
+season with no schedule yet keeps the same cadence anchored on the prior season.
+`private.current_add_week` owns that rule and returns both the week number and the
+reset instant; `current_add_week_number` and `weekly_add_limit_resets_at` are
+projections of it.
 
 Feedback:
 
 - The rejection reads `Weekly add limit reached (7/7 adds used this week). Adds reset
-  Mon, Nov 2 at 12:00 AM ET.` so a stale client, or a client whose last slot was
-  consumed elsewhere, still learns the next eligible time from the server.
+  Mon, Nov 2 at 12:00 AM ET.` and is raised with SQLSTATE `PA001`; the Edge API
+  forwards that code and the app classifies on it, so a stale client, or a client
+  whose last slot was consumed elsewhere, still learns the next eligible time from
+  the server. A waiver claim that fails the same check at processing time records the
+  same message as its failure reason.
 - `get_member_transaction_state` returns `add_limit_resets_at` and `add_week_timezone`.
   Every pickup entry point (players tab add button and header line, player page Add
   and Claim, the waiver-claim modal, the drop-to-add picker and the IR-resolution

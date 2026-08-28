@@ -19,7 +19,7 @@ import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
-import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedMessage, addLimitSummary, getAddLimitStatus, isAddLimitError } from '@/lib/add-limit'
+import { ADD_LIMIT_BLOCKED_TITLE, addLimitBlockedReason, addLimitSummary, blockedActionProps, classifyPickupError } from '@/lib/add-limit'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
@@ -95,12 +95,20 @@ export default function ClaimPlayerScreen() {
         load()
     }, [leagueId, memberId, playerId, userId])
 
+    async function refreshTransactionState() {
+        if (!memberId || !leagueId) return
+        try {
+            setTransactionState(await getMemberTransactionState(memberId, leagueId))
+        } catch (e) {
+            console.warn('Could not refresh the weekly add state.', e)
+        }
+    }
+
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
-    const addLimit = getAddLimitStatus(transactionState)
-    const addBlockedReason = addLimit?.reached ? addLimitBlockedMessage(addLimit) : null
+    const addBlockedReason = addLimitBlockedReason(transactionState)
 
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
@@ -136,17 +144,9 @@ export default function ClaimPlayerScreen() {
             )
             router.back()
         } catch (e) {
-            const message = getErrorMessage(e)
-            if (isAddLimitError(message)) {
-                showAlert(ADD_LIMIT_BLOCKED_TITLE, message)
-                if (current && currentLeague) {
-                    void getMemberTransactionState(current.id, currentLeague.id)
-                        .then((state) => setTransactionState(state))
-                        .catch(() => {})
-                }
-            } else {
-                showAlert('Error', message)
-            }
+            const failure = classifyPickupError(e)
+            showAlert(failure.title, failure.message)
+            if (failure.limitReached) void refreshTransactionState()
         } finally {
             setSubmitting(false)
         }
@@ -162,11 +162,10 @@ export default function ClaimPlayerScreen() {
     })
     const claimReady = !loading && !!player
     const submitDisabled = submitting || !claimReady || (needsDrop && !selectedDrop)
-    const submitLooksDisabled = submitDisabled || !!addBlockedReason
     const compactDropMode = isCompactLandscape && needsDrop
 
     function renderAddLimitNotice() {
-        if (!addBlockedReason || !addLimit) return null
+        if (!addBlockedReason) return null
         return (
             <View
                 style={[styles.limitCard, isCompactLandscape && styles.compactLimitCard]}
@@ -176,8 +175,23 @@ export default function ClaimPlayerScreen() {
             >
                 <Text style={styles.limitTitle}>{ADD_LIMIT_BLOCKED_TITLE}</Text>
                 <Text style={styles.limitBody}>{addBlockedReason} Claims can be submitted again after the reset.</Text>
-                <Text style={styles.limitMeta}>{addLimitSummary(addLimit)}</Text>
+                <Text style={styles.limitMeta}>{addLimitSummary(transactionState)}</Text>
             </View>
+        )
+    }
+
+    function renderSubmitButton(compact: boolean) {
+        return (
+            <Pressable
+                style={[styles.submitButton, compact && styles.compactSubmitButton, (submitDisabled || addBlockedReason) && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="Submit waiver claim"
+                {...blockedActionProps(addBlockedReason, submitDisabled)}
+                disabled={submitDisabled}
+            >
+                <Text style={styles.submitButtonText}>Submit Claim</Text>
+            </Pressable>
         )
     }
 
@@ -386,31 +400,9 @@ export default function ClaimPlayerScreen() {
                                             accessibilityLabel="FAAB bid amount"
                                         />
                                     </View>
-                                    <Pressable
-                                        style={[styles.submitButton, styles.compactSubmitButton, submitLooksDisabled && styles.submitButtonDisabled]}
-                                        onPress={handleSubmit}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Submit waiver claim"
-                                        accessibilityHint={addBlockedReason ?? undefined}
-                                        accessibilityState={{ disabled: submitLooksDisabled }}
-                                        disabled={submitDisabled}
-                                    >
-                                        <Text style={styles.submitButtonText}>Submit Claim</Text>
-                                    </Pressable>
+                                    {renderSubmitButton(true)}
                                 </View>
-                            ) : (
-                                <Pressable
-                                    style={[styles.submitButton, submitLooksDisabled && styles.submitButtonDisabled]}
-                                    onPress={handleSubmit}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Submit waiver claim"
-                                    accessibilityHint={addBlockedReason ?? undefined}
-                                    accessibilityState={{ disabled: submitLooksDisabled }}
-                                    disabled={submitDisabled}
-                                >
-                                    <Text style={styles.submitButtonText}>Submit Claim</Text>
-                                </Pressable>
-                            )}
+                            ) : renderSubmitButton(false)}
                         </View>
                     </>
                 )}

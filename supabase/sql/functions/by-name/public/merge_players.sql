@@ -50,6 +50,18 @@ BEGIN
       );
   UPDATE roster_players SET player_id = winner_id WHERE player_id = loser_id;
 
+  -- trade_block_items: UNIQUE(league, member, player) — drop loser listings a
+  -- winner listing already covers, then re-point the rest.
+  DELETE FROM trade_block_items AS stale
+    WHERE stale.player_id = loser_id
+      AND EXISTS (
+        SELECT 1 FROM trade_block_items AS kept
+         WHERE kept.league_id = stale.league_id
+           AND kept.member_id = stale.member_id
+           AND kept.player_id = winner_id
+      );
+  UPDATE trade_block_items SET player_id = winner_id WHERE player_id = loser_id;
+
   -- weekly_lineups: same, scoped by (league, season, member, game_date).
   DELETE FROM weekly_lineups
     WHERE player_id = loser_id
