@@ -5,6 +5,7 @@
 CREATE OR REPLACE FUNCTION private.prevent_accepted_trade_pick_change()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public, private
 AS $$
 BEGIN

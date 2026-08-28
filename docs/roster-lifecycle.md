@@ -80,6 +80,10 @@ expiry mark their transaction through
 `prevent_trade_status_client_writes` and `prevent_accepted_trade_pick_change` honour
 that mark, so an expiry that runs inside an authenticated drop still goes through
 while direct client writes to `trades.status` stay rejected.
+Every trigger function that calls a private helper is `SECURITY DEFINER`: a row
+trigger otherwise runs with the caller's privileges, and only `postgres` may use the
+private schema. The catalog test pins this and writes a roster row, a pick, and a
+delete as `service_role`.
 
 The waiver processor marks a claim `succeeded` before it releases the drop player, so
 the trigger's "null stale pending drops" step never rewrites the claim being

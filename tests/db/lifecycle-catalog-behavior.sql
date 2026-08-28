@@ -259,6 +259,60 @@ EXCEPTION WHEN OTHERS THEN
   RAISE;
 END $$;
 
+-- Trigger functions run with the caller's privileges unless they are
+-- SECURITY DEFINER, and only postgres may use the private schema. A row
+-- trigger that reaches a private helper must therefore be SECURITY DEFINER,
+-- or every direct table write by service_role or authenticated fails with
+-- "permission denied for schema private".
+DO $$
+DECLARE
+  v_offenders text;
+BEGIN
+  SELECT string_agg(DISTINCT procedure.proname, ', ' ORDER BY procedure.proname)
+    INTO v_offenders
+    FROM pg_trigger AS trigger_row
+    JOIN pg_proc AS procedure ON procedure.oid = trigger_row.tgfoid
+   WHERE NOT trigger_row.tgisinternal
+     AND procedure.prosrc ~ 'private\.'
+     AND NOT procedure.prosecdef;
+  IF v_offenders IS NOT NULL THEN
+    RAISE EXCEPTION 'Trigger functions that call private helpers are not SECURITY DEFINER: %', v_offenders;
+  END IF;
+END $$;
+
+SAVEPOINT definer_trigger_probe;
+
+INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions)
+VALUES ('00000000-0000-0000-0000-000000030409', 'Direct', 'Write', 'FA', 'C', 3, ARRAY['C']);
+
+INSERT INTO public.roster_players (id, league_id, league_season_id, member_id, player_id, acquired_via)
+VALUES (
+  '00000000-0000-0000-0000-000000030509',
+  '00000000-0000-0000-0000-000000030101',
+  '00000000-0000-0000-0000-000000030301',
+  '00000000-0000-0000-0000-000000030202',
+  '00000000-0000-0000-0000-000000030409', 'draft'
+);
+
+INSERT INTO public.draft_picks (id, league_id, season_year, round, original_owner_id, current_owner_id)
+VALUES (
+  '00000000-0000-0000-0000-000000030609',
+  '00000000-0000-0000-0000-000000030101', 2100, 1,
+  '00000000-0000-0000-0000-000000030202', '00000000-0000-0000-0000-000000030202'
+);
+
+SET LOCAL ROLE service_role;
+
+UPDATE public.roster_players SET is_on_ir = true WHERE id = '00000000-0000-0000-0000-000000030509';
+UPDATE public.roster_players SET is_on_ir = false WHERE id = '00000000-0000-0000-0000-000000030509';
+UPDATE public.draft_picks SET current_owner_id = '00000000-0000-0000-0000-000000030203'
+ WHERE id = '00000000-0000-0000-0000-000000030609';
+DELETE FROM public.roster_players WHERE id = '00000000-0000-0000-0000-000000030509';
+
+RESET ROLE;
+
+ROLLBACK TO SAVEPOINT definer_trigger_probe;
+
 DO $$
 BEGIN
   BEGIN

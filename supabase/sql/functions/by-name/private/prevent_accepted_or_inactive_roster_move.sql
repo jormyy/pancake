@@ -5,6 +5,7 @@
 CREATE OR REPLACE FUNCTION private.prevent_accepted_or_inactive_roster_move()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public, private
 AS $$
 BEGIN
