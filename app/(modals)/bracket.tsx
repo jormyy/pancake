@@ -289,9 +289,6 @@ const styles = StyleSheet.create({
     scroll: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing['5xl'] },
     scrollCompact: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
 
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing['4xl'], gap: 10 },
-    emptyTitle: { fontSize: 18, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center', lineHeight: 20 },
 
     championBanner: {
         backgroundColor: uiColors.warningSurface,

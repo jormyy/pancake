@@ -7,7 +7,7 @@ import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { dropAndAddFreeAgent, dropPlayer, getPlayerRosterStatus, pickupPossible, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
@@ -492,60 +492,4 @@ const styles = StyleSheet.create({
     warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     // Drop picker modal
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: scrim,
-        justifyContent: 'flex-end',
-    },
-    modalCard: {
-        backgroundColor: colors.bgScreen,
-        borderTopLeftRadius: radii['3xl'],
-        borderTopRightRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        paddingTop: spacing['3xl'],
-        paddingHorizontal: spacing['2xl'],
-        paddingBottom: 36,
-        maxHeight: '80%',
-    },
-    modalTitle: {
-        fontSize: 17,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        textAlign: 'center',
-        marginBottom: spacing.xs,
-    },
-    modalPlayerName: { color: colors.primaryDark },
-    modalSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginBottom: spacing.xl },
-    dropList: { maxHeight: 360 },
-    dropRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-        gap: spacing.lg,
-    },
-    dropInfo: { flex: 1 },
-    dropName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    dropMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
-    dropMeta: { fontSize: 12, color: colors.textMuted },
-    dropBtn: {
-        backgroundColor: colors.danger,
-        paddingHorizontal: spacing.lg + spacing.xxs,
-        paddingVertical: 7,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        minWidth: 60,
-        alignItems: 'center',
-    },
-    dropBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-    modalCancel: {
-        marginTop: spacing.xl,
-        paddingVertical: spacing.lg + spacing.xxs,
-        alignItems: 'center',
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgSubtle,
-    },
-    modalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

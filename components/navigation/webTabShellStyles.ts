@@ -295,18 +295,6 @@ export const styles = StyleSheet.create({
     userChipHover: {
         backgroundColor: brand.overlay,
     },
-    userAvatar: {
-        width: 34,
-        height: 34,
-        borderRadius: radii.full,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.primary,
-    },
-    userAvatarText: {
-        color: colors.textWhite,
-        fontWeight: fontWeight.extrabold,
-    },
     userName: {
         color: brand.onStrong,
         fontSize: fontSize.sm,

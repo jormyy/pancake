@@ -1020,9 +1020,6 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
 
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
-    emptyTitle: { fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary },
-    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
