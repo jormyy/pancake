@@ -94,21 +94,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trades AS trade
-        ON trade.id = item.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE item.player_id = v_rp.player_id
-       AND trade.league_id = v_rp.league_id
-       AND trade.league_season_id = v_rp.league_season_id
-       AND item.from_member_id = v_rp.member_id
-  ) THEN
-    RAISE EXCEPTION 'Player is reserved as an accepted trade asset.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_taxi_slots := COALESCE(v_league.taxi_slots, 0);
 
@@ -164,15 +149,6 @@ BEGIN
   IF v_rows <> 1 THEN
     RAISE EXCEPTION 'Failed to toggle taxi status'
       USING ERRCODE = 'P0001';
-  END IF;
-
-  IF p_to_taxi THEN
-    DELETE FROM weekly_lineups
-     WHERE member_id = v_rp.member_id
-       AND league_id = v_rp.league_id
-       AND league_season_id = v_rp.league_season_id
-       AND player_id = v_rp.player_id
-       AND game_date >= (now() AT TIME ZONE 'America/New_York')::date;
   END IF;
 
   INSERT INTO roster_transactions (

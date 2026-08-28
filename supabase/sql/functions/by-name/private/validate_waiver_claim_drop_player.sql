@@ -41,18 +41,8 @@ BEGIN
     RETURN;
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trades AS trade
-        ON trade.id = item.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE item.player_id = p_drop_player_id
-       AND trade.league_id = p_league_id
-       AND trade.league_season_id = p_league_season_id
-       AND item.from_member_id = p_member_id
-  ) THEN
-    RETURN QUERY SELECT v_roster_player_id, 'Drop player is reserved for an accepted trade.';
+  IF private.is_reserved_trade_asset(p_league_id, p_league_season_id, p_member_id, p_drop_player_id) THEN
+    RETURN QUERY SELECT v_roster_player_id, private.reserved_trade_asset_message();
     RETURN;
   END IF;
 

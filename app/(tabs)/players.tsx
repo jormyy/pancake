@@ -28,9 +28,10 @@ import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
+import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getPlayerAvailabilitySnapshot } from '@/lib/player-availability'
+import { loadPlayerSupport } from '@/lib/player-availability'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import {
     debounceRealtimeRefresh,
@@ -197,18 +198,15 @@ export default function PlayersScreen() {
                 transactionState: null,
             }
         }
-        const [availability, transactionState] = await Promise.all([
-            getPlayerAvailabilitySnapshot(leagueId),
-            current?.id ? getMemberTransactionState(current.id, leagueId) : Promise.resolve(null),
-        ])
+        const support = await loadPlayerSupport(current?.id, leagueId)
         if (current?.id) {
             writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
-                ownedEntries: Array.from(availability.ownedMap.entries()),
-                waiverIds: Array.from(availability.waiverIds),
-                transactionState,
+                ownedEntries: Array.from(support.ownedMap.entries()),
+                waiverIds: Array.from(support.waiverIds),
+                transactionState: support.transactionState,
             })
         }
-        return { ...availability, transactionState }
+        return support
     }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
 
     useEffect(() => {
@@ -251,26 +249,26 @@ export default function PlayersScreen() {
             search.sort.setDir('desc')
         }
     }
-    const quickAdd = useQuickAdd(
-        current?.id,
+    const openClaim = useCallback((player: Pick<PlayerRow, 'id'>) => {
+        push(`/(modals)/claim-player?playerId=${player.id}`)
+    }, [push])
+    const quickAdd = useQuickAdd({
+        memberId: current?.id,
         leagueId,
-        currentLeague?.roster_size ?? 20,
-        waiverIds,
-        refreshPlayerSupport,
-        refreshPlayerSupport,
-    )
+        onChanged: refreshPlayerSupport,
+        transactionState,
+        onClaimInstead: openClaim,
+    })
+    const addBlockedReason = quickAdd.addBlockedReason
     const gamesLeftVersion = useMemo(() => Array.from(search.availability.gamesLeft.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([team, count]) => `${team}:${count}`)
         .join(','), [search.availability.gamesLeft])
-    const quickAddHandleAdd = quickAdd.handleAdd
+    const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
-        if (waiverIds.has(player.id)) {
-            push(`/(modals)/claim-player?playerId=${player.id}`)
-        } else {
-            void quickAddHandleAdd(player)
-        }
-    }, [waiverIds, push, quickAddHandleAdd])
+        if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
+        else void quickAddHandleAdd(player)
+    }, [waiverIds, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])
@@ -280,15 +278,16 @@ export default function PlayersScreen() {
             currentMemberId={current?.id}
             ownedMap={ownedMap}
             waiverIds={waiverIds}
-            adding={quickAdd.adding}
+            isAdding={quickAdd.adding === item.id}
             gamesLeft={search.availability.gamesLeft}
             showStats={showStatTable}
             showCompactStats={false}
             animate={false}
+            addBlockedReason={addBlockedReason}
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -357,7 +356,7 @@ export default function PlayersScreen() {
                         {collapsibleFilters
                             ? `${search.results.loading && search.results.players.length === 0 ? '—' : search.results.players.length}${search.activeFilterCount > 0 ? ' filtered' : ''} players · `
                             : ''}
-                        Adds {transactionState ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'}` : '—/—'}
+                        {addLimitSummary(transactionState)}
                         {' · '}
                         {transactionState
                             ? transactionState.waiverMode === 'faab'
@@ -365,6 +364,16 @@ export default function PlayersScreen() {
                                 : 'Rolling waivers'
                             : 'Waivers —'}
                     </Text>
+                    {addBlockedReason ? (
+                        <Text
+                            style={localStyles.addLimitNotice}
+                            accessibilityLiveRegion="polite"
+                            role="status"
+                            testID="add-limit-notice"
+                        >
+                            {addBlockedReason}
+                        </Text>
+                    ) : null}
                 </View>
                 <Animated.View style={{
                     overflow: 'hidden',
@@ -530,6 +539,12 @@ const localStyles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.semibold,
         color: colors.textMuted,
+    },
+    addLimitNotice: {
+        marginTop: spacing.xs,
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.semibold,
+        color: colors.warningDark,
     },
 })
 

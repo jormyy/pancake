@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { adjustFaabBalance, overrideWeeklyAddCount } from '@/lib/league'
-import { getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
+import { showAlert, showSuccess } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 export function useCommissionerOverrides(
     ownerId: string | null,

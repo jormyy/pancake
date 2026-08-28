@@ -1,12 +1,11 @@
--- Canonical SQL source for public.release_live_poll_lock.
+-- Canonical SQL source for private.reserved_trade_asset_message.
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.release_live_poll_lock()
-RETURNS boolean
+CREATE OR REPLACE FUNCTION private.reserved_trade_asset_message()
+RETURNS text
 LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
+IMMUTABLE
 AS $$
-  SELECT pg_advisory_unlock(779001, 1);
+  SELECT 'This asset is reserved by an accepted trade.'
 $$;

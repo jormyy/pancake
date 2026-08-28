@@ -22,11 +22,14 @@ DECLARE
   v_item_faab_amount int;
   v_balance int;
 BEGIN
+  -- Read first, lock parties and players in the order every roster mutation
+  -- uses, then lock the trade row: a drop that expires this offer holds the
+  -- member and player locks while it updates the trade, so taking the trade
+  -- row first would deadlock against it.
   SELECT *
     INTO v_trade
     FROM trades
-   WHERE id = p_trade_id
-   FOR UPDATE;
+   WHERE id = p_trade_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Trade not found'
@@ -100,6 +103,17 @@ BEGIN
       hashtext(v_lock_player_id::text)
     );
   END LOOP;
+
+  SELECT *
+    INTO v_trade
+    FROM trades
+   WHERE id = p_trade_id
+   FOR UPDATE;
+
+  IF v_trade.status <> 'pending'::trade_status THEN
+    RAISE EXCEPTION 'This trade is no longer pending.'
+      USING ERRCODE = 'P0001';
+  END IF;
 
   SELECT *
     INTO v_league

@@ -5,7 +5,8 @@ import {
     StyleSheet,
     useWindowDimensions,
 } from 'react-native'
-import { showAlert, confirmAction, getErrorMessage } from '@/lib/alert'
+import { showAlert, confirmAction } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { FlashList, FlashListRef } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -1019,9 +1020,6 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
 
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
-    emptyTitle: { fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary },
-    emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

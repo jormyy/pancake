@@ -3985,6 +3985,9 @@ export type Database = {
       get_member_transaction_state: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: {
+          add_limit_message: string
+          add_limit_resets_at: string
+          add_limit_resets_label: string
           faab_balance: number
           faab_starting_budget: number
           league_season_id: string
@@ -4204,7 +4207,6 @@ export type Database = {
         Args: { p_holder_id: string; p_lock_key: number }
         Returns: boolean
       }
-      release_live_poll_lock: { Args: never; Returns: boolean }
       release_stats_sync_job_atomic: {
         Args: {
           p_claim_token: string
@@ -4464,7 +4466,6 @@ export type Database = {
         Args: { p_lock_key: number; p_ttl_seconds?: number }
         Returns: string
       }
-      try_live_poll_lock: { Args: never; Returns: boolean }
       update_league_configuration_atomic: {
         Args: { p_league_id: string; p_settings: Json; p_slots?: Json }
         Returns: undefined

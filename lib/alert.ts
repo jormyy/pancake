@@ -3,12 +3,6 @@ import { feedbackBridge } from '@/components/ui/feedback'
 
 type BrowserAlertWindow = Window & { __pancakeAlerts?: string[] }
 
-export function getErrorMessage(e: unknown): string {
-    if (e instanceof Error) return e.message
-    if (typeof e === 'string') return e
-    return String(e)
-}
-
 function captureBrowserAlert(title: string, message?: string) {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return
     const alerts = (window as BrowserAlertWindow).__pancakeAlerts

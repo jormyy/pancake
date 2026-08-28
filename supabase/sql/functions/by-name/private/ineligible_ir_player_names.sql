@@ -20,8 +20,5 @@ AS $$
      AND roster_row.league_id = p_league_id
      AND roster_row.league_season_id = p_league_season_id
      AND roster_row.is_on_ir = true
-     AND NOT (
-       lower(COALESCE(player_row.injury_status, '')) = 'out'
-       OR lower(COALESCE(player_row.injury_status, '')) LIKE 'ir%'
-     )
+     AND NOT private.is_ir_designation(player_row.injury_status)
 $$;

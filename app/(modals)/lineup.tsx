@@ -2,12 +2,12 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { PosTag } from '@/components/PosTag'
-import { colors, fontSize, fontWeight, radii, scrim, spacing, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useLiveStats } from '@/hooks/use-live-stats'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import {
     clampDateToWeek,
     getLineupContext,
@@ -798,16 +798,5 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     retryButtonText: { fontSize: fontSize.sm, color: colors.textWhite, fontWeight: fontWeight.bold },
-
-    savingOverlay: {
-        position: 'absolute',
-        bottom: 24,
-        alignSelf: 'center',
-        backgroundColor: scrim,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing['2xl'],
-        paddingVertical: 10,
-    },
 
 })

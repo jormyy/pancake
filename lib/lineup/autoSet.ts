@@ -5,7 +5,7 @@ import { todayET } from '@/lib/shared/dates'
 import { isIREligible } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { getProjectionMap } from '@/lib/projections'
-import { getWeekDays } from './read'
+import { getWeekDays, gameHasStarted } from './read'
 import { apiPost } from '@/lib/shared/api'
 
 type LineupAssignment = {
@@ -43,6 +43,7 @@ type GameRow = {
     away_team: string | null
     status: string | null
     game_time: string | null
+    started_at: string | null
 }
 type WeeklyLineupRow = {
     player_id: string
@@ -181,7 +182,7 @@ async function autoSetForDate(
     const [{ data: games, error: gamesErr }, { data: existingEntries, error: existingErr }] = await Promise.all([
         supabase
             .from('nba_games')
-            .select('home_team, away_team, status, game_time')
+            .select('home_team, away_team, status, game_time, started_at')
             .eq('season_year', seasonYear)
             .eq('game_date', gameDate),
         supabase
@@ -218,10 +219,7 @@ async function autoSetForDate(
     for (const game of (games ?? []) as GameRow[]) {
         if (game.home_team) playingTeams.add(game.home_team)
         if (game.away_team) playingTeams.add(game.away_team)
-        const hasStarted =
-            ['InProgress', 'Final'].includes(game.status ?? '') ||
-            (game.game_time != null && game.game_time <= now)
-        if (hasStarted) {
+        if (gameHasStarted(game, now)) {
             if (game.home_team) startedTeams.add(game.home_team)
             if (game.away_team) startedTeams.add(game.away_team)
         }

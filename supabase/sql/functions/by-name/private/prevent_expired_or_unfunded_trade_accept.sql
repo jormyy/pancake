@@ -5,6 +5,7 @@
 CREATE OR REPLACE FUNCTION private.prevent_expired_or_unfunded_trade_accept()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE

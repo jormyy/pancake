@@ -208,7 +208,6 @@ export const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    saveButtonDisabled: { opacity: 0.55 },
     saveButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 
     actionButton: {

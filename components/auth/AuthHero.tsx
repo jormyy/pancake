@@ -57,28 +57,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
     },
-    brandName: {
-        color: brand.on,
-        fontSize: 23,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-    },
-    brandSub: {
-        marginTop: -2,
-        color: brand.onSubtle,
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.bold,
-        letterSpacing: 1.5,
-        textTransform: 'uppercase' as const,
-    },
     content: {
         marginTop: 32,
         maxWidth: 760,
-    },
-    kicker: {
-        color: brand.onSubtle,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
     },
     title: {
         marginTop: spacing.lg,

@@ -133,6 +133,7 @@ export function TradeCard({
     onReject,
     onVeto,
     onWithdraw,
+    onAnalyze,
 }: {
     trade: Trade
     myMemberId: string
@@ -144,6 +145,8 @@ export function TradeCard({
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
+    /** Opens the Trade Analyzer prefilled with this trade; rendered in the card header. */
+    onAnalyze: () => void
 }) {
     const { push } = useRouter()
     const isProposer = trade.proposerMemberId === myMemberId
@@ -196,11 +199,26 @@ export function TradeCard({
     return (
         <MotionView style={styles.card} preset="rise">
             <View style={styles.cardHeader}>
-                <Text style={styles.cardOpponent}>{opponentName}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                    <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                        {STATUS_LABELS[trade.status] ?? trade.status}
-                    </Text>
+                <Text style={styles.cardOpponent} numberOfLines={1}>{opponentName}</Text>
+                <View style={styles.cardHeaderControls}>
+                    <MotionPressable
+                        style={[styles.analyzeBtn, acting && styles.analyzeBtnDisabled]}
+                        onPress={onAnalyze}
+                        disabled={acting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Analyze trade from ${trade.proposerTeamName}`}
+                        accessibilityState={{ disabled: acting }}
+                        testID={`trade-analyze-${trade.id}`}
+                        id={`trade-analyze-${trade.id}`}
+                        pressedScale={0.94}
+                    >
+                        <Text style={styles.analyzeBtnText}>Analyze</Text>
+                    </MotionPressable>
+                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                        <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                            {STATUS_LABELS[trade.status] ?? trade.status}
+                        </Text>
+                    </View>
                 </View>
             </View>
 
@@ -340,7 +358,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: spacing.sm,
     },
-    cardOpponent: { fontSize: 15, fontWeight: fontWeight.bold, color: colors.textPrimary, flex: 1 },
+    cardOpponent: { fontSize: 15, fontWeight: fontWeight.bold, color: colors.textPrimary, flex: 1, minWidth: 0 },
+    cardHeaderControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
+    analyzeBtn: {
+        minHeight: 44,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    analyzeBtnDisabled: { opacity: 0.5 },
+    analyzeBtnText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
     statusBadge: {
         paddingHorizontal: spacing.md,
         paddingVertical: 3,

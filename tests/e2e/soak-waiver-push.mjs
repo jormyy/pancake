@@ -280,8 +280,8 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
       league_season_id: currentSeason.id,
       draft_type: 'auction',
       status: 'in_progress',
-      // Budget must cover the $1-per-remaining-active-slot reserve rule
-      // (place_auction_bid_atomic): empty 20-slot roster -> reserve 19.
+      // Any budget works: bids are capped only by the remaining budget, so a
+      // manager may go all-in and fill open slots later.
       budget_per_team: 30,
       started_at: now,
       current_nomination_order: 1,

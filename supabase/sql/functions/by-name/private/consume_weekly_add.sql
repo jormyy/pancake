@@ -25,7 +25,6 @@ BEGIN
     RETURN;
   END IF;
 
-  PERFORM private.assert_weekly_add_available(p_league_id, p_league_season_id, p_member_id);
   v_week := private.current_add_week_number(p_league_id, p_league_season_id);
 
   UPDATE weekly_add_counts AS count_row

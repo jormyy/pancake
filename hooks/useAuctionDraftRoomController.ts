@@ -13,7 +13,8 @@ import {
     type DraftState,
     type NominationOrderMode,
 } from '@/lib/draft'
-import { getErrorMessage, showAlert } from '@/lib/alert'
+import { showAlert } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import {
     debounceRealtimeRefresh,
     reportRealtimeCleanup,

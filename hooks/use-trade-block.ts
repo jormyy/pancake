@@ -3,18 +3,24 @@ import {
     addTradeBlockItem,
     getTradeBlockItems,
     removeTradeBlockItem,
+    withTradeBlockStats,
     type TradeBlockItem,
     type TradePickItem,
 } from '@/lib/trades'
 import { getRoster, type RosterPlayer } from '@/lib/roster'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage } from '@/lib/roster-stats'
 import { isTradeableRosterPlayer } from '@/lib/trade-assets'
 
-type TradeBlockCache = { items: TradeBlockItem[]; roster: RosterPlayer[] }
+type TradeBlockCache = {
+    items: TradeBlockItem[]
+    roster: RosterPlayer[]
+    avgEntries: [string, number][]
+    avgStatsEntries: [string, RosterAverage][]
+}
 
-const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v1:'
+const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v2:'
 const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
     `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
@@ -26,10 +32,12 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             : null,
         [memberId, leagueId],
     )
+    const cachedAvgMap = useMemo(() => cached ? new Map(cached.avgEntries) : EMPTY_AVG_MAP, [cached])
+    const cachedAvgStatsMap = useMemo(() => cached ? new Map(cached.avgStatsEntries) : EMPTY_STATS_MAP, [cached])
     const [items, setItems] = useState<TradeBlockItem[]>(cached?.items ?? [])
     const [roster, setRoster] = useState<RosterPlayer[]>(cached?.roster ?? [])
-    const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
-    const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
+    const [avgMap, setAvgMap] = useState(cachedAvgMap)
+    const [avgStatsMap, setAvgStatsMap] = useState(cachedAvgStatsMap)
     const [loading, setLoading] = useState(!cached)
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
@@ -65,7 +73,6 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setAvgMap(EMPTY_AVG_MAP)
             setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
-            writePersistentCache(tradeBlockCacheKey(memberId, leagueId), { items: nextItems, roster: nextRoster })
         } catch (cause) {
             if (loadSequence.current !== requestId) return
             console.error(cause)
@@ -82,30 +89,43 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         mutationQueue.current = Promise.resolve()
         setItems(cached?.items ?? [])
         setRoster(cached?.roster ?? [])
-        setAvgMap(EMPTY_AVG_MAP)
-        setAvgStatsMap(EMPTY_STATS_MAP)
+        setAvgMap(cachedAvgMap)
+        setAvgStatsMap(cachedAvgStatsMap)
         setError(null)
         setBusyId(null)
         setLoading(!cached)
         setDataKey(resourceKey)
-    }, [cached, resourceKey])
+    }, [cached, cachedAvgMap, cachedAvgStatsMap, resourceKey])
 
+    // One averages fetch covers the league's listed players and the member's
+    // own roster; the listings and roster render before it lands, and the cache
+    // is written once the averages are known (or known to be missing).
     useEffect(() => {
         const requestId = ++statsLoadSequence.current
-        setAvgMap(EMPTY_AVG_MAP)
-        setAvgStatsMap(EMPTY_STATS_MAP)
-        if (!memberId || !leagueId || dataKey !== resourceKey || roster.length === 0) return
+        if (!memberId || !leagueId || dataKey !== resourceKey) return
+        const playerIds = [...new Set([
+            ...items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : []),
+            ...roster.map((player) => player.players.id),
+        ])]
+        const persist = (avg: Map<string, number>, stats: Map<string, RosterAverage>) => writePersistentCache(tradeBlockCacheKey(memberId, leagueId), {
+            items, roster, avgEntries: Array.from(avg.entries()), avgStatsEntries: Array.from(stats.entries()),
+        })
+        if (playerIds.length === 0) {
+            persist(EMPTY_AVG_MAP, EMPTY_STATS_MAP)
+            return
+        }
 
         const loadStats = async () => {
             try {
-                const stats = await getRosterStatsMaps(roster.map((player) => player.players.id), leagueId)
+                const stats = await getRosterStatsMaps(playerIds, leagueId)
                 if (statsLoadSequence.current !== requestId) return
                 setAvgMap(stats.avgMap)
                 setAvgStatsMap(stats.avgStatsMap)
+                persist(stats.avgMap, stats.avgStatsMap)
             } catch (statsError) {
-                if (statsLoadSequence.current === requestId) {
-                    console.warn('Could not load optional trade-block player averages.', statsError)
-                }
+                if (statsLoadSequence.current !== requestId) return
+                console.warn('Could not load optional trade-block player averages.', statsError)
+                persist(EMPTY_AVG_MAP, EMPTY_STATS_MAP)
             }
         }
         void loadStats()
@@ -113,7 +133,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         return () => {
             if (statsLoadSequence.current === requestId) statsLoadSequence.current += 1
         }
-    }, [dataKey, leagueId, memberId, resourceKey, roster])
+    }, [dataKey, items, leagueId, memberId, resourceKey, roster])
 
     useEffect(() => () => {
         loadSequence.current += 1
@@ -162,11 +182,16 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     }, [memberId, mutate])
 
     const ownsResource = dataKey === resourceKey
+    const itemsWithStats = useMemo(() => withTradeBlockStats(
+        ownsResource ? items : cached?.items ?? [],
+        ownsResource ? avgMap : cachedAvgMap,
+        ownsResource ? avgStatsMap : cachedAvgStatsMap,
+    ), [ownsResource, items, cached, avgMap, avgStatsMap, cachedAvgMap, cachedAvgStatsMap])
     return {
-        items: ownsResource ? items : cached?.items ?? [],
+        items: itemsWithStats,
         roster: ownsResource ? roster : cached?.roster ?? [],
-        avgMap: ownsResource ? avgMap : EMPTY_AVG_MAP,
-        avgStatsMap: ownsResource ? avgStatsMap : EMPTY_STATS_MAP,
+        avgMap: ownsResource ? avgMap : cachedAvgMap,
+        avgStatsMap: ownsResource ? avgStatsMap : cachedAvgStatsMap,
         loading: ownsResource ? loading : !cached,
         error: ownsResource ? error : null,
         busyId: ownsResource ? busyId : null,

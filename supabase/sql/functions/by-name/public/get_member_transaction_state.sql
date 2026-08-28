@@ -13,7 +13,10 @@ RETURNS TABLE (
   weekly_add_count int,
   waiver_mode text,
   faab_starting_budget int,
-  faab_balance int
+  faab_balance int,
+  add_limit_resets_at timestamptz,
+  add_limit_message text,
+  add_limit_resets_label text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -23,6 +26,7 @@ DECLARE
   v_user_id uuid := auth.uid();
   v_season_id uuid;
   v_week int;
+  v_resets_at timestamptz;
   v_balance int;
 BEGIN
   IF v_user_id IS NULL THEN
@@ -52,7 +56,9 @@ BEGIN
     RETURN;
   END IF;
 
-  v_week := private.current_add_week_number(p_league_id, v_season_id);
+  SELECT week.week_number, week.resets_at
+    INTO v_week, v_resets_at
+    FROM private.current_add_week(p_league_id, v_season_id) AS week;
   v_balance := private.ensure_faab_balance(p_league_id, v_season_id, p_member_id);
 
   INSERT INTO weekly_add_counts (
@@ -79,7 +85,10 @@ BEGIN
     count_row.add_count,
     league.waiver_mode,
     league.faab_starting_budget,
-    v_balance
+    v_balance,
+    v_resets_at,
+    private.weekly_add_limit_message(count_row.add_count, league.weekly_add_limit, v_resets_at),
+    private.weekly_add_limit_reset_label(v_resets_at)
   FROM leagues AS league
   JOIN weekly_add_counts AS count_row
     ON count_row.league_id = league.id

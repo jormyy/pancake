@@ -232,6 +232,12 @@ export type MemberTransactionState = {
     waiverMode: WaiverMode
     faabStartingBudget: number
     faabBalance: number
+    /** When the current add week ends and the count resets; null when the league has no schedule yet. */
+    addLimitResetsAt: string | null
+    /** The sentence the server raises while this week's adds are used up; null otherwise. */
+    addLimitMessage: string | null
+    /** "Mon, Nov 2 at 12:00 AM ET" — the reset boundary as the server renders it; null when the league has no schedule yet. */
+    addLimitResetsLabel: string | null
 }
 
 type MemberTransactionStateRow = {
@@ -242,6 +248,9 @@ type MemberTransactionStateRow = {
     waiver_mode: WaiverMode
     faab_starting_budget: number
     faab_balance: number
+    add_limit_resets_at: string | null
+    add_limit_message: string | null
+    add_limit_resets_label: string | null
 }
 
 export async function getMemberTransactionState(
@@ -263,6 +272,9 @@ export async function getMemberTransactionState(
         waiverMode: row.waiver_mode,
         faabStartingBudget: row.faab_starting_budget,
         faabBalance: row.faab_balance,
+        addLimitResetsAt: row.add_limit_resets_at,
+        addLimitMessage: row.add_limit_message,
+        addLimitResetsLabel: row.add_limit_resets_label,
     }
 }
 

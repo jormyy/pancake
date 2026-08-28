@@ -134,17 +134,24 @@ DO $$
 DECLARE
   v_accept_definition text;
   v_asset_assertion_definition text;
+  v_reservation_definition text;
   v_missing text[];
   v_superseded text[];
 BEGIN
+  -- Acceptance checks reservations through the one reservation owner, keyed by
+  -- the participant that gives the asset (from_member_id), never by trade side.
   SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
     INTO v_accept_definition;
   SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)'::regprocedure)
     INTO v_asset_assertion_definition;
+  SELECT pg_get_functiondef('private.is_reserved_trade_asset(uuid,uuid,uuid,uuid,uuid,uuid)'::regprocedure)
+    INTO v_reservation_definition;
   IF v_accept_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
      OR v_accept_definition ILIKE '%accepted_item.side%'
-     OR v_asset_assertion_definition NOT ILIKE '%accepted_item.from_member_id = item.from_member_id%'
-     OR v_asset_assertion_definition ILIKE '%accepted_item.side%' THEN
+     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id%'
+     OR v_asset_assertion_definition ILIKE '%.side%'
+     OR v_reservation_definition NOT ILIKE '%item.from_member_id = p_member_id%'
+     OR v_reservation_definition ILIKE '%item.side%' THEN
     RAISE EXCEPTION 'Trade acceptance does not exclusively use canonical participant-owned routes';
   END IF;
 
@@ -252,6 +259,60 @@ EXCEPTION WHEN OTHERS THEN
   RAISE;
 END $$;
 
+-- Trigger functions run with the caller's privileges unless they are
+-- SECURITY DEFINER, and only postgres may use the private schema. A row
+-- trigger that reaches a private helper must therefore be SECURITY DEFINER,
+-- or every direct table write by service_role or authenticated fails with
+-- "permission denied for schema private".
+DO $$
+DECLARE
+  v_offenders text;
+BEGIN
+  SELECT string_agg(DISTINCT procedure.proname, ', ' ORDER BY procedure.proname)
+    INTO v_offenders
+    FROM pg_trigger AS trigger_row
+    JOIN pg_proc AS procedure ON procedure.oid = trigger_row.tgfoid
+   WHERE NOT trigger_row.tgisinternal
+     AND procedure.prosrc ~ 'private\.'
+     AND NOT procedure.prosecdef;
+  IF v_offenders IS NOT NULL THEN
+    RAISE EXCEPTION 'Trigger functions that call private helpers are not SECURITY DEFINER: %', v_offenders;
+  END IF;
+END $$;
+
+SAVEPOINT definer_trigger_probe;
+
+INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions)
+VALUES ('00000000-0000-0000-0000-000000030409', 'Direct', 'Write', 'FA', 'C', 3, ARRAY['C']);
+
+INSERT INTO public.roster_players (id, league_id, league_season_id, member_id, player_id, acquired_via)
+VALUES (
+  '00000000-0000-0000-0000-000000030509',
+  '00000000-0000-0000-0000-000000030101',
+  '00000000-0000-0000-0000-000000030301',
+  '00000000-0000-0000-0000-000000030202',
+  '00000000-0000-0000-0000-000000030409', 'draft'
+);
+
+INSERT INTO public.draft_picks (id, league_id, season_year, round, original_owner_id, current_owner_id)
+VALUES (
+  '00000000-0000-0000-0000-000000030609',
+  '00000000-0000-0000-0000-000000030101', 2100, 1,
+  '00000000-0000-0000-0000-000000030202', '00000000-0000-0000-0000-000000030202'
+);
+
+SET LOCAL ROLE service_role;
+
+UPDATE public.roster_players SET is_on_ir = true WHERE id = '00000000-0000-0000-0000-000000030509';
+UPDATE public.roster_players SET is_on_ir = false WHERE id = '00000000-0000-0000-0000-000000030509';
+UPDATE public.draft_picks SET current_owner_id = '00000000-0000-0000-0000-000000030203'
+ WHERE id = '00000000-0000-0000-0000-000000030609';
+DELETE FROM public.roster_players WHERE id = '00000000-0000-0000-0000-000000030509';
+
+RESET ROLE;
+
+ROLLBACK TO SAVEPOINT definer_trigger_probe;
+
 DO $$
 BEGIN
   BEGIN
@@ -264,7 +325,7 @@ BEGIN
       '00000000-0000-0000-0000-000000030401', 'free_agent'
     );
     RAISE EXCEPTION 'Due waiver player was acquired as a free agent';
-  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  EXCEPTION WHEN SQLSTATE 'PA002' THEN
     IF SQLERRM NOT LIKE 'This player is on waivers%' THEN RAISE; END IF;
   END;
 
@@ -408,7 +469,8 @@ BEGIN
      OR v_accept_trigger_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
      OR v_accept_definition ILIKE '%accepted_item.player_id%'
      OR v_accept_definition ILIKE '%accepted_item.pick_id%'
-     OR v_asset_assertion_definition NOT ILIKE '%accepted_item.from_member_id = item.from_member_id%' THEN
+     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, item.player_id, NULL, p_trade_id)%'
+     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, NULL, item.pick_id, p_trade_id)%' THEN
     RAISE EXCEPTION 'Trade acceptance does not use one canonical set-based asset assertion';
   END IF;
   IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE')

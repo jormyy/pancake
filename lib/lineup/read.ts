@@ -54,20 +54,24 @@ export function clampDateToWeek(date: string, days: WeekDay[]): string {
 }
 
 // Returns the set of NBA team abbreviations whose game has already started on the given date.
+/** The one client reading of "this game has started" (the server's is private.lineup_game_started). */
+export function gameHasStarted(game: { status: string | null; game_time: string | null; started_at: string | null }, now: string): boolean {
+    return ['InProgress', 'Final'].includes(game.status ?? '')
+        || (game.game_time != null && game.game_time <= now)
+        || (game.started_at != null && game.started_at <= now)
+}
+
 export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
     const { data, error } = await supabase
         .from('nba_games')
-        .select('home_team, away_team, status, game_time')
+        .select('home_team, away_team, status, game_time, started_at')
         .eq('game_date', gameDate)
     if (error) throw error
 
     const teams = new Set<string>()
     const now = new Date().toISOString()
     for (const g of data ?? []) {
-        const hasStarted =
-            ['InProgress', 'Final'].includes(g.status ?? '') ||
-            (g.game_time != null && g.game_time <= now)
-        if (!hasStarted) continue
+        if (!gameHasStarted(g, now)) continue
         if (g.home_team) teams.add(g.home_team)
         if (g.away_team) teams.add(g.away_team)
     }

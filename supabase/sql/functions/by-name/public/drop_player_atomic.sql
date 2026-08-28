@@ -87,23 +87,6 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  PERFORM v_member.id;
-
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trades AS trade
-        ON trade.id = item.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE item.player_id = v_rp.player_id
-       AND trade.league_id = v_rp.league_id
-       AND trade.league_season_id = v_rp.league_season_id
-       AND item.from_member_id = v_rp.member_id
-  ) THEN
-    RAISE EXCEPTION 'Player is reserved as an accepted trade asset.'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   DELETE FROM roster_players
    WHERE id = p_roster_player_id;
 
@@ -112,26 +95,6 @@ BEGIN
     RAISE EXCEPTION 'Could not drop player - you may not have permission or they are no longer on your roster.'
       USING ERRCODE = 'P0002';
   END IF;
-
-  DELETE FROM weekly_lineups wl
-   WHERE wl.league_id = v_rp.league_id
-     AND wl.league_season_id = v_rp.league_season_id
-     AND wl.member_id = v_rp.member_id
-     AND wl.player_id = v_rp.player_id
-     AND wl.game_date >= (now() AT TIME ZONE 'America/New_York')::date
-     AND NOT EXISTS (
-       SELECT 1
-         FROM players p
-         JOIN nba_games g
-           ON g.game_date = wl.game_date
-          AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
-        WHERE p.id = wl.player_id
-          AND (
-            g.status IN ('InProgress', 'Final')
-            OR (g.game_time IS NOT NULL AND g.game_time <= now())
-            OR (g.started_at IS NOT NULL AND g.started_at <= now())
-          )
-     );
 
   INSERT INTO waiver_wire_log (
     league_id,

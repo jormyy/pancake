@@ -340,7 +340,6 @@ export default function HomeScreen() {
     )
 }
 
-
 function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; compact: boolean }) {
     const { width } = useWindowDimensions()
     const otherMatchups = matchups.filter((item) => !item.isMine)
@@ -404,7 +403,6 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
         </View>
     )
 }
-
 
 function MatchupLineupView({
     myLineup,
@@ -763,12 +761,6 @@ const styles = StyleSheet.create({
     noLineupText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
     setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
     setLineupBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-
-    noMatchup: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 32 },
-    noMatchupText: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    noMatchupSub: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
-
-    dateLabel: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', paddingVertical: 10 },
 
 })
 

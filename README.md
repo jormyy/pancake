@@ -20,7 +20,8 @@ commissioner disappears.
 ## Highlights
 
 - **Startup auction draft** with real-time bidding, commissioner-chosen nomination-order
-  modes, nomination withdrawal, and free-form validated bids
+  modes, nomination withdrawal, and free-form validated bids; a manager may spend the
+  full remaining budget and fill any open slots later through waivers or free agency
 - **Mock draft rooms** (auction or rookie) with scheduling, realtime multi-user play,
   creator/commissioner deletion, and daily auto-expiry of finished or stale rooms
 - **Snake rookie draft** for annual offseason drafts (pick-ownership ordered), with an
@@ -151,11 +152,19 @@ prunes only rows the product never reads: ops telemetry past its window, lineups
 than two seasons, old-season non-final standings snapshots, and transactions older than
 three seasons.
 
+Roster-linked state (trade-block listings, future lineup slots, pending waiver drops,
+pending offers) is kept consistent by database triggers whenever a player leaves a
+roster or a pick changes hands, on every path: drops, waiver drops, trades, IR/taxi
+moves, merges, resets, and service-role maintenance. History rows are never deleted;
+a merge re-points the surviving player identity and closes an open waiver entry whose
+player is rostered under it.
+See [docs/roster-lifecycle.md](./docs/roster-lifecycle.md).
+
 ## Testing
 
 ```bash
 npm run check:comprehensive   # lint, typechecks, dead-code, parity, edge + db checks
-npm test                      # vitest: app, lib, cross-cutting guards (594 tests)
+npm test                      # vitest: app, lib, cross-cutting guards (692 tests)
 npm run check:edge-functions  # deno check + deno test for Edge functions
 npm run test:db               # DB behavior suites against the local stack
 npm run perf:budget           # top-workflow performance budget contract
