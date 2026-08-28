@@ -1,11 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-    addLimitBlockedReason,
-    addLimitSummary,
-    getAddLimitStatus,
-    reportPickupError,
-    type AddLimitSource,
-} from '@/lib/pickup'
+import { addLimitBlockedReason, addLimitSummary, reportPickupError, type AddLimitSource } from '@/lib/pickup'
 import { RequestError } from '@/lib/shared/errors'
 
 const alerts = vi.hoisted(() => ({ show: vi.fn(), confirm: vi.fn() }))
@@ -27,22 +21,6 @@ const open = (overrides: Partial<AddLimitSource> = {}): AddLimitSource => ({
 
 beforeEach(() => { alerts.show.mockReset(); alerts.confirm.mockReset() })
 
-describe('getAddLimitStatus', () => {
-    it('takes the server verdict and sentence as they are', () => {
-        expect(getAddLimitStatus(reached(), BEFORE_RESET)).toEqual({ limit: 7, used: 7, message: MESSAGE, resetsLabel: LABEL })
-        expect(getAddLimitStatus(open(), BEFORE_RESET)).toEqual({ limit: 7, used: 2, message: null, resetsLabel: LABEL })
-    })
-
-    it('treats a count from an ended week as stale and available again', () => {
-        expect(getAddLimitStatus(reached(), AFTER_RESET)).toEqual({ limit: 7, used: 0, message: null, resetsLabel: null })
-    })
-
-    it('is null for unlimited leagues and missing state', () => {
-        expect(getAddLimitStatus(reached({ weeklyAddLimit: null }))).toBeNull()
-        expect(getAddLimitStatus(null)).toBeNull()
-    })
-})
-
 describe('add-limit copy', () => {
     it('explains the block with the server sentence only while the limit is reached', () => {
         expect(addLimitBlockedReason(reached(), BEFORE_RESET)).toBe(MESSAGE)
@@ -57,6 +35,11 @@ describe('add-limit copy', () => {
         expect(addLimitSummary(reached(), BEFORE_RESET)).toBe(`Adds 7/7 · resets ${LABEL}`)
         expect(addLimitSummary(reached({ addLimitResetsAt: null, addLimitResetsLabel: null }), BEFORE_RESET)).toBe('Adds 7/7 · limit reached')
         expect(addLimitSummary(open(), BEFORE_RESET)).toBe('Adds 2/7')
+    })
+
+    it('reports an ended week as such instead of inventing the next count', () => {
+        expect(addLimitSummary(reached(), AFTER_RESET)).toBe('Adds 7/7 · new week')
+        expect(addLimitSummary(open(), AFTER_RESET)).toBe('Adds 2/7 · new week')
     })
 })
 

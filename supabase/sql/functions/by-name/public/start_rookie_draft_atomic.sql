@@ -73,6 +73,18 @@ BEGIN
     END IF;
   END IF;
 
+  IF NOT v_is_mock AND EXISTS (
+    SELECT 1
+      FROM draft_picks AS pick
+     WHERE pick.league_id = p_league_id
+       AND pick.season_year = v_season.season_year
+       AND pick.is_used = false
+       AND private.is_reserved_trade_asset(pick.league_id, NULL, pick.current_owner_id, NULL, pick.id)
+  ) THEN
+    RAISE EXCEPTION 'A pick in this draft class is reserved by an accepted trade. Complete or expire that trade before starting the rookie draft.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
   SELECT count(*)
     INTO v_member_count
     FROM league_members

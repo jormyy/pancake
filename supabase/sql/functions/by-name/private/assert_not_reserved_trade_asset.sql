@@ -14,7 +14,6 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- PA004 is the accepted-trade reservation; one sentence for every path that hits it.
   IF private.is_reserved_trade_asset(p_league_id, p_league_season_id, p_member_id, p_player_id, p_pick_id, p_exclude_trade_id) THEN
     RAISE EXCEPTION '%', private.reserved_trade_asset_message() USING ERRCODE = 'PA004';
   END IF;

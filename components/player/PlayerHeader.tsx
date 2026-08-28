@@ -37,7 +37,7 @@ type Props = {
     leagueActive: boolean
     actionLoading: boolean
     playedToday?: boolean
-    /** Full explanation of why a pickup is unavailable (weekly add limit); the action stays pressable so a tap explains it. */
+    /** Why a free-agent add is unavailable (weekly add limit); the action stays pressable so a tap explains it. A claim is gated by the claim modal. */
     addBlockedReason?: string | null
     /** One-line caption shown under the blocked action, e.g. "Adds 7/7 · resets Mon, Nov 2 at 12:00 AM ET". */
     addBlockedCaption?: string | null
@@ -70,20 +70,21 @@ export function PlayerHeader({
         buttonStyle: StyleProp<ViewStyle>,
         textStyle: StyleProp<TextStyle>,
         onPress: () => void,
+        blockedReason: string | null,
     ) {
         return (
             <View style={styles.pickupAction}>
                 <Pressable
-                    style={[buttonStyle, addBlockedReason ? styles.pickupBlocked : null]}
+                    style={[buttonStyle, blockedReason ? styles.pickupBlocked : null]}
                     onPress={onPress}
                     disabled={actionLoading}
                     accessibilityRole="button"
                     accessibilityLabel={accessibilityLabel}
-                    {...blockedActionProps(addBlockedReason, actionLoading)}
+                    {...blockedActionProps(blockedReason, actionLoading)}
                 >
-                    <Text style={[textStyle, addBlockedReason ? styles.pickupBlockedText : null]}>{label}</Text>
+                    <Text style={[textStyle, blockedReason ? styles.pickupBlockedText : null]}>{label}</Text>
                 </Pressable>
-                {addBlockedReason && addBlockedCaption ? (
+                {blockedReason && addBlockedCaption ? (
                     <Text style={styles.pickupCaption} numberOfLines={2}>{addBlockedCaption}</Text>
                 ) : null}
             </View>
@@ -148,9 +149,9 @@ export function PlayerHeader({
             {leagueActive && rosterStatus && (
                 <View style={styles.actionWrap}>
                     {rosterStatus.status === 'free_agent' ? (
-                        renderPickupAction('+ Add', `Add ${player.display_name}`, styles.addButton, styles.addButtonText, onAdd)
+                        renderPickupAction('+ Add', `Add ${player.display_name}`, styles.addButton, styles.addButtonText, onAdd, addBlockedReason)
                     ) : rosterStatus.status === 'on_waivers' ? (
-                        renderPickupAction('Claim', `Claim ${player.display_name}`, styles.claimButton, styles.claimButtonText, onClaim)
+                        renderPickupAction('Claim', `Claim ${player.display_name}`, styles.claimButton, styles.claimButtonText, onClaim, null)
                     ) : rosterStatus.status === 'mine' ? (
                         <View style={styles.myActions}>
                             <Pressable

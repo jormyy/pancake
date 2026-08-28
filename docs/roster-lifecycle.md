@@ -31,7 +31,7 @@ Every other roster-linked record falls into one of three classes.
 | IR / taxi | `toggle_ir_atomic`, `toggle_taxi_atomic`, `clear_ineligible_taxi_players` | `UPDATE is_on_ir / is_on_taxi` |
 | Player identity merge | `merge_players` (service role) | `UPDATE player_id` and duplicate `DELETE` |
 | Draft reset, commissioner or service-role maintenance, E2E fixtures | `reset_draft_atomic`, direct SQL | `DELETE` |
-| Pick moves | `complete_accepted_trade_atomic`, `make_snake_pick_atomic`, `reseed_rookie_draft_picks_atomic` | `UPDATE draft_picks.current_owner_id / is_used` |
+| Pick moves | `complete_accepted_trade_atomic` (owner), `private.make_snake_pick_atomic_internal` and `process_expired_snake_pick(s)_atomic` (`is_used`), `reset_draft_atomic` (`is_used` back to false) | `UPDATE draft_picks.current_owner_id / is_used` |
 
 ## Enforcement
 
@@ -62,6 +62,10 @@ entry whose player is rostered under the surviving identity.
 sentence): the roster and pick guards raise it, trade acceptance raises it for an
 asset reserved by another trade, and waiver-drop validation returns the same sentence.
 The drop and IR/taxi RPCs rely on the guards rather than checking again.
+`start_rookie_draft_atomic` refuses to start while a pick of the draft class is
+reserved, so a slot never stalls on a pick the trade still owns.
+`private.lineup_game_started` is the one "this slot's game has started" rule, read by
+the lineup RPCs, the lifecycle cleanup, and the DB suites.
 `private.pick_left_owner` is the one rule for "this pick left its owner" that the
 pick guard and the pick-listing sync share. Trade completion and pending-offer
 expiry mark their transaction through
@@ -99,9 +103,10 @@ leagues with different settings play three seasons through the real RPCs (an
 auction start with full-budget bids and open slots, free agency under weekly limits
 with commissioner overrides and week resets, drops, FAAB and rolling claims, trades
 with member and commissioner vetoes and expiry, trade-block cleanup, lineups, IR and
-taxi moves, rookie snake drafts with commissioner picks and pause/resume, retries of
-every mutation, three rollovers) and checks the invariants, growing history, and
-frozen past seasons after every phase. Removing an enforcement trigger or the
+taxi moves, rookie snake drafts with commissioner picks and pause/resume, a draft
+that waits for a reserved pick, retries of the start, bid, add, drop, claim, accept,
+pick, activation and rollover calls, three rollovers) and checks the invariants,
+growing history, and frozen past seasons after every phase. Removing an enforcement trigger or the
 weekly-limit check turns it red.
 
 ## Weekly add limits
@@ -132,13 +137,15 @@ Feedback:
   and of the reset boundary.
 - `get_member_transaction_state` returns `add_limit_resets_at`, `add_limit_message`
   (the same sentence, present while the week's adds are used up) and
-  `add_limit_resets_label`. The players tab add button and header line, the player
-  page Add and Claim, and the waiver-claim modal read them through `lib/pickup.ts`
-  and the `useAddLimitGate` hook and render the action in a disabled state with the
-  reason as its accessibility hint; the drop-to-add picker and the IR-resolution
-  continuation gate on tap only. Every one explains the block with that sentence, so
-  the pre-check and the rejection say the same thing, and `reportPickupError` in
-  `lib/pickup.ts` turns the server's rejection into the same explanation.
+  `add_limit_resets_label`. Free-agent adds (the players tab add button and header
+  line, the player page Add) read them through `lib/pickup.ts` and the
+  `useAddLimitGate` hook inside `useQuickAdd` and render the action in a disabled
+  state with the reason as its accessibility hint; the drop-to-add picker and the
+  IR-resolution continuation gate on tap only; claims open the claim modal, which
+  owns its own gate with fresh state. Every one explains the block with that
+  sentence, so the pre-check and the rejection say the same thing, and
+  `reportPickupError` in `lib/pickup.ts` turns the server's rejection into the same
+  explanation.
 - A cached count whose week already ended is treated as available again on the client;
   the server opens the new week on the next request.
 - A commissioner override (`commissioner_override_weekly_add_count_atomic`) changes the

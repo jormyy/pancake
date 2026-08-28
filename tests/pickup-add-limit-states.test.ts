@@ -48,11 +48,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         expect(add.props.accessibilityHint).toBeUndefined()
     })
 
-    it.each([
-        ['free_agent', rosterStatus.freeAgent(), 'Add Player A', 'onAdd'],
-        ['on_waivers', rosterStatus.onWaivers(), 'Claim Player A', 'onClaim'],
-    ] as const)('player header %s action carries the reason and a caption', async (_name, status, label, handlerName) => {
-        const handlers = { onAdd: vi.fn(), onClaim: vi.fn() }
+    async function renderHeader(status: ReturnType<typeof rosterStatus.freeAgent>, handlers: { onAdd: () => void; onClaim: () => void }) {
         await act(async () => {
             renderer = create(React.createElement(PlayerHeader, {
                 player: headerPlayer(), rosterStatus: status, leagueActive: true, actionLoading: false,
@@ -60,11 +56,28 @@ describe('pickup entry points when the weekly add limit is reached', () => {
                 onDrop: vi.fn(), onSetLineup: vi.fn(), ...handlers,
             }))
         })
-        const action = renderer!.root.findByProps({ accessibilityLabel: label })
+        return renderer!
+    }
+
+    it('player header add action carries the reason and a caption', async () => {
+        const onAdd = vi.fn()
+        const tree = await renderHeader(rosterStatus.freeAgent(), { onAdd, onClaim: vi.fn() })
+        const action = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
         expect(action.props.accessibilityState).toEqual({ disabled: true })
         expect(action.props.accessibilityHint).toBe(REASON)
-        expect(renderer!.root.findAllByProps({ children: CAPTION }).length).toBeGreaterThan(0)
+        expect(tree.root.findAllByProps({ children: CAPTION }).length).toBeGreaterThan(0)
         await act(async () => { action.props.onPress() })
-        expect(handlers[handlerName]).toHaveBeenCalled()
+        expect(onAdd).toHaveBeenCalled()
+    })
+
+    it('player header claim action stays plain; the claim modal owns that gate', async () => {
+        const onClaim = vi.fn()
+        const tree = await renderHeader(rosterStatus.onWaivers(), { onAdd: vi.fn(), onClaim })
+        const action = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
+        expect(action.props.accessibilityState).toEqual({ disabled: false })
+        expect(action.props.accessibilityHint).toBeUndefined()
+        expect(tree.root.findAllByProps({ children: CAPTION })).toHaveLength(0)
+        await act(async () => { action.props.onPress() })
+        expect(onClaim).toHaveBeenCalled()
     })
 })

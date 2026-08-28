@@ -29,10 +29,11 @@ CREATE FUNCTION pg_temp.ok(p_label text, p_result text) RETURNS void LANGUAGE pl
 BEGIN
   IF p_result IS NOT NULL THEN RAISE EXCEPTION '% failed: %', p_label, p_result; END IF;
 END $$;
-CREATE FUNCTION pg_temp.rejected(p_label text, p_result text, p_like text) RETURNS void LANGUAGE plpgsql AS $$
+-- p_pattern is a LIKE pattern or, with alternatives, a regular expression.
+CREATE FUNCTION pg_temp.rejected(p_label text, p_result text, p_pattern text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   IF p_result IS NULL THEN RAISE EXCEPTION '% was accepted but must be rejected', p_label; END IF;
-  IF p_result NOT LIKE p_like THEN RAISE EXCEPTION '% rejected for the wrong reason: %', p_label, p_result; END IF;
+  IF p_result NOT LIKE p_pattern AND p_result !~ p_pattern THEN RAISE EXCEPTION '% rejected for the wrong reason: %', p_label, p_result; END IF;
 END $$;
 CREATE FUNCTION pg_temp.assert(p_cond boolean, p_msg text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
@@ -141,9 +142,11 @@ BEGIN
    WHERE item.pick_id IS NOT NULL AND NOT EXISTS (
      SELECT 1 FROM public.draft_picks AS pick WHERE pick.id = item.pick_id AND pick.league_id = item.league_id AND pick.current_owner_id = item.member_id AND pick.is_used = false);
   PERFORM pg_temp.assert(v_count = 0, format('%s: %s stale pick listing(s)', p_label, v_count));
-  -- I3 future lineup slots belong to active roster players (no games are seeded, so nothing is locked).
+  -- I3 future unlocked lineup slots belong to active roster players.
   SELECT count(*) INTO v_count FROM public.weekly_lineups AS lineup
-   WHERE lineup.game_date >= (now() AT TIME ZONE 'America/New_York')::date AND NOT EXISTS (
+   WHERE lineup.game_date >= (now() AT TIME ZONE 'America/New_York')::date
+     AND NOT private.lineup_game_started(lineup.player_id, lineup.game_date)
+     AND NOT EXISTS (
      SELECT 1 FROM public.roster_players AS r WHERE r.league_id = lineup.league_id AND r.league_season_id = lineup.league_season_id
       AND r.member_id = lineup.member_id AND r.player_id = lineup.player_id AND r.is_on_ir = false AND r.is_on_taxi = false);
   PERFORM pg_temp.assert(v_count = 0, format('%s: %s stale future lineup slot(s)', p_label, v_count));
@@ -314,7 +317,7 @@ BEGIN
       END IF;
       PERFORM pg_temp.act_as(v_user);
       PERFORM pg_temp.ok('winning bid ' || n, pg_temp.try(format('SELECT public.place_auction_bid_atomic(%L, %L, %L, 5, %L)', v_draft, v_nominator, v_nom, v_user)));
-      PERFORM pg_temp.rejected('bid retry ' || n, pg_temp.try(format('SELECT public.place_auction_bid_atomic(%L, %L, %L, 5, %L)', v_draft, v_nominator, v_nom, v_user)), '%');
+      PERFORM pg_temp.rejected('bid retry ' || n, pg_temp.try(format('SELECT public.place_auction_bid_atomic(%L, %L, %L, 5, %L)', v_draft, v_nominator, v_nom, v_user)), 'highest bidder|closed|must exceed|not in progress');
       PERFORM pg_temp.act_as(NULL);
       IF (SELECT status FROM public.nominations WHERE id = v_nom) = 'open' THEN
         -- The countdown runs out (the cron closes expired nominations the same way).
@@ -364,7 +367,7 @@ BEGIN
   PERFORM pg_temp.act_as(i.u3);
   PERFORM pg_temp.ok('A3 add 14', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a3, i.a, pg_temp.vet(14))));
   PERFORM pg_temp.ok('A3 add 15', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a3, i.a, pg_temp.vet(15))));
-  -- League B has no limit: eight adds in a row.
+  -- League B has no limit: two more adds go through unchecked.
   PERFORM pg_temp.act_as(i.u4);
   FOR n IN 29..30 LOOP
     PERFORM pg_temp.ok('B3 add ' || n, pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.b3, i.b, pg_temp.vet(n))));
@@ -438,7 +441,7 @@ BEGIN
   -- T1 completes: A1's vet 8 for A2's listed (and injured) vet 13.
   v_t1 := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a1, i.a2, ARRAY[pg_temp.vet(8)], ARRAY[pg_temp.vet(13)], '{}', '{}');
   PERFORM public.accept_trade_atomic(v_t1, i.a2);
-  PERFORM pg_temp.rejected('accept retry', pg_temp.try(format('SELECT public.accept_trade_atomic(%L, %L)', v_t1, i.a2)), '%');
+  PERFORM pg_temp.rejected('accept retry', pg_temp.try(format('SELECT public.accept_trade_atomic(%L, %L)', v_t1, i.a2)), 'not pending|no longer pending|already');
   PERFORM pg_temp.rejected('party veto', pg_temp.try(format('SELECT public.veto_trade_atomic(%L, %L)', v_t1, i.a1)), '%cannot veto%');
   PERFORM pg_temp.act_as(i.u1);
   PERFORM pg_temp.rejected('drop a reserved asset', pg_temp.try(format('SELECT public.drop_player_atomic(%L)', pg_temp.row_of(i.a1, pg_temp.vet(8)))), 'PA004:%reserved%');
@@ -558,7 +561,7 @@ BEGIN
     ELSE
       PERFORM public.make_snake_pick_atomic(v_draft, v_member, pg_temp.rookie(v_rookie));
     END IF;
-    PERFORM pg_temp.rejected('pick retry', pg_temp.try(format('SELECT public.make_snake_pick_atomic(%L, %L, %L)', v_draft, v_member, pg_temp.rookie(v_rookie))), '%');
+    PERFORM pg_temp.rejected('pick retry', pg_temp.try(format('SELECT public.make_snake_pick_atomic(%L, %L, %L)', v_draft, v_member, pg_temp.rookie(v_rookie))), 'not your pick|already|complete|not in progress');
     PERFORM pg_temp.assert(pg_temp.owner_of(p_league, pg_temp.rookie(v_rookie)) = v_member, 'rookie ' || v_rookie || ' did not land on the picking roster');
     v_rookie := v_rookie + 1;
   END LOOP;
@@ -665,6 +668,12 @@ BEGIN
   SELECT * INTO i FROM ids;
   PERFORM pg_temp.act_as(NULL);
   PERFORM public.add_trade_block_item_atomic(i.a1, i.a, NULL, pg_temp.pick('A1', 2100, 2), NULL, i.u1);
+  -- A pick of the class sits in an accepted, uncompleted trade: the draft waits.
+  v_t := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a2, i.a3, '{}', '{}', ARRAY[pg_temp.pick('A2', 2100, 1)], ARRAY[pg_temp.pick('A3', 2100, 2)]);
+  PERFORM public.accept_trade_atomic(v_t, i.a3);
+  PERFORM pg_temp.rejected('rookie draft with a reserved pick', pg_temp.try(format('SELECT public.start_rookie_draft_atomic(%L, 2, false, 30, %L)', i.a, 'commissioner_pick')), '%reserved%');
+  v_n := pg_temp.complete_due_trades();
+  PERFORM pg_temp.assert(pg_temp.trade_status(v_t) = 'completed', 'the pick trade did not complete');
   PERFORM pg_temp.run_rookie_draft(i.a, i.u1, 7, pg_temp.pick('A1', 2100, 2));
   PERFORM pg_temp.run_rookie_draft(i.b, i.u2, 1, pg_temp.pick('B1', 2100, 1));
   PERFORM pg_temp.checkpoint('season 3: rookie drafts');

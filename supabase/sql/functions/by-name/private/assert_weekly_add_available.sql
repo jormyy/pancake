@@ -57,7 +57,6 @@ BEGIN
      AND count_row.week_number = v_week
    FOR UPDATE;
 
-  -- PA001 is the weekly add limit; the app classifies on the code.
   v_message := private.weekly_add_limit_message(v_used, v_limit, v_resets_at);
   IF v_message IS NOT NULL THEN
     RAISE EXCEPTION '%', v_message USING ERRCODE = 'PA001';

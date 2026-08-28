@@ -19,6 +19,7 @@ import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
+import { loadAddLimitState } from '@/lib/roster-add-flow'
 import { ADD_LIMIT_BLOCKED_TITLE, addLimitSummary, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
@@ -99,11 +100,7 @@ export default function ClaimPlayerScreen() {
 
     const refreshTransactionState = useCallback(async () => {
         if (!memberId || !leagueId) return
-        try {
-            setTransactionState(await getMemberTransactionState(memberId, leagueId))
-        } catch (e) {
-            console.warn('Could not refresh the weekly add state.', e)
-        }
+        setTransactionState(await loadAddLimitState(memberId, leagueId))
     }, [memberId, leagueId])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)

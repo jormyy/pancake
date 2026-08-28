@@ -249,7 +249,7 @@ export default function PlayersScreen() {
             search.sort.setDir('desc')
         }
     }
-    const openClaim = useCallback((player: PlayerRow) => {
+    const openClaim = useCallback((player: Pick<PlayerRow, 'id'>) => {
         push(`/(modals)/claim-player?playerId=${player.id}`)
     }, [push])
     const quickAdd = useQuickAdd({

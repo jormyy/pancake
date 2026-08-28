@@ -4,9 +4,11 @@ import { RULE_CODES, errorCode, getErrorMessage } from '@/lib/shared/errors'
 
 export type AddLimitSource = Pick<MemberTransactionState, 'weeklyAddLimit' | 'weeklyAddCount' | 'addLimitResetsAt' | 'addLimitMessage' | 'addLimitResetsLabel'>
 
-export type AddLimitStatus = {
+type AddLimitStatus = {
     limit: number
     used: number
+    /** The reported week already ended; the count belongs to it and the server opens a fresh week on the next request. */
+    weekEnded: boolean
     /** The server's verdict: its rejection sentence, present exactly while the week's adds are used up. */
     message: string | null
     resetsLabel: string | null
@@ -15,13 +17,16 @@ export type AddLimitStatus = {
 export const ADD_LIMIT_BLOCKED_TITLE = 'Weekly add limit reached'
 const ON_WAIVERS_TITLE = 'Still on waivers'
 
-export function getAddLimitStatus(state: AddLimitSource | null | undefined, now = Date.now()): AddLimitStatus | null {
+function getAddLimitStatus(state: AddLimitSource | null | undefined, now = Date.now()): AddLimitStatus | null {
     if (!state || state.weeklyAddLimit == null) return null
-    // A count whose week already ended is stale client state; the server opens a
-    // fresh week on the next request, so the action is available again.
     const weekEnded = state.addLimitResetsAt != null && Date.parse(state.addLimitResetsAt) <= now
-    if (weekEnded) return { limit: state.weeklyAddLimit, used: 0, message: null, resetsLabel: null }
-    return { limit: state.weeklyAddLimit, used: state.weeklyAddCount, message: state.addLimitMessage, resetsLabel: state.addLimitResetsLabel }
+    return {
+        limit: state.weeklyAddLimit,
+        used: state.weeklyAddCount,
+        weekEnded,
+        message: weekEnded ? null : state.addLimitMessage,
+        resetsLabel: weekEnded ? null : state.addLimitResetsLabel,
+    }
 }
 
 /** The server's explanation while a pickup is blocked by the weekly add limit, or null when adds are available. */
@@ -29,12 +34,13 @@ export function addLimitBlockedReason(state: AddLimitSource | null | undefined, 
     return getAddLimitStatus(state, now)?.message ?? null
 }
 
-/** Compact header status: "Adds 7/7 · resets Mon, Nov 2 at 12:00 AM ET", "Adds 2/∞", or "Adds —/—" before state loads. */
+/** Compact header status: "Adds 7/7 · resets Mon, Nov 2 at 12:00 AM ET", "Adds 7/7 · new week", "Adds 2/∞", or "Adds —/—" before state loads. */
 export function addLimitSummary(state: AddLimitSource | null | undefined, now = Date.now()): string {
     if (!state) return 'Adds —/—'
     const status = getAddLimitStatus(state, now)
     if (!status) return `Adds ${state.weeklyAddCount}/∞`
     const base = `Adds ${status.used}/${status.limit}`
+    if (status.weekEnded) return `${base} · new week`
     if (status.message == null) return base
     return status.resetsLabel ? `${base} · resets ${status.resetsLabel}` : `${base} · limit reached`
 }

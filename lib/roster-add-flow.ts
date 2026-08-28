@@ -25,20 +25,24 @@ export async function loadRosterAddGate(
     }
 }
 
-/** Roster status first; the weekly add state only once the player turns out to be pick-up-able, and never at the cost of the status. */
+/** The member's weekly add state, or null when it cannot load: a pickup still goes to the server, which explains any block. */
+export async function loadAddLimitState(memberId: string, leagueId: string): Promise<MemberTransactionState | null> {
+    try {
+        return await getMemberTransactionState(memberId, leagueId)
+    } catch (error) {
+        console.warn('Could not load the weekly add state.', error)
+        return null
+    }
+}
+
+/** Roster status first; the weekly add state only once the player turns out to be pick-up-able. */
 export async function loadPickupState(
     playerId: string,
     memberId: string,
     leagueId: string,
 ): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null }> {
     const status = await getPlayerRosterStatus(playerId, memberId, leagueId)
-    if (!pickupPossible(status)) return { status, transactionState: null }
-    try {
-        return { status, transactionState: await getMemberTransactionState(memberId, leagueId) }
-    } catch (error) {
-        console.warn('Could not load the weekly add state.', error)
-        return { status, transactionState: null }
-    }
+    return { status, transactionState: pickupPossible(status) ? await loadAddLimitState(memberId, leagueId) : null }
 }
 
 export async function addFreeAgentOrRequestDrop(

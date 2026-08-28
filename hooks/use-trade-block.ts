@@ -73,9 +73,6 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setAvgMap(EMPTY_AVG_MAP)
             setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
-            writePersistentCache(tradeBlockCacheKey(memberId, leagueId), {
-                items: nextItems, roster: nextRoster, avgEntries: [], avgStatsEntries: [],
-            })
         } catch (cause) {
             if (loadSequence.current !== requestId) return
             console.error(cause)
@@ -101,7 +98,8 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     }, [cached, cachedAvgMap, cachedAvgStatsMap, resourceKey])
 
     // One averages fetch covers the league's listed players and the member's
-    // own roster; the listings and roster render before it lands.
+    // own roster; the listings and roster render before it lands, and the cache
+    // is written once the averages are known (or known to be missing).
     useEffect(() => {
         const requestId = ++statsLoadSequence.current
         if (!memberId || !leagueId || dataKey !== resourceKey) return
@@ -109,7 +107,13 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             ...items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : []),
             ...roster.map((player) => player.players.id),
         ])]
-        if (playerIds.length === 0) return
+        const persist = (avg: Map<string, number>, stats: Map<string, RosterAverage>) => writePersistentCache(tradeBlockCacheKey(memberId, leagueId), {
+            items, roster, avgEntries: Array.from(avg.entries()), avgStatsEntries: Array.from(stats.entries()),
+        })
+        if (playerIds.length === 0) {
+            persist(EMPTY_AVG_MAP, EMPTY_STATS_MAP)
+            return
+        }
 
         const loadStats = async () => {
             try {
@@ -117,15 +121,11 @@ export function useTradeBlock(memberId: string, leagueId: string) {
                 if (statsLoadSequence.current !== requestId) return
                 setAvgMap(stats.avgMap)
                 setAvgStatsMap(stats.avgStatsMap)
-                writePersistentCache(tradeBlockCacheKey(memberId, leagueId), {
-                    items, roster,
-                    avgEntries: Array.from(stats.avgMap.entries()),
-                    avgStatsEntries: Array.from(stats.avgStatsMap.entries()),
-                })
+                persist(stats.avgMap, stats.avgStatsMap)
             } catch (statsError) {
-                if (statsLoadSequence.current === requestId) {
-                    console.warn('Could not load optional trade-block player averages.', statsError)
-                }
+                if (statsLoadSequence.current !== requestId) return
+                console.warn('Could not load optional trade-block player averages.', statsError)
+                persist(EMPTY_AVG_MAP, EMPTY_STATS_MAP)
             }
         }
         void loadStats()

@@ -11,11 +11,10 @@ RETURNS text
 LANGUAGE sql
 STABLE
 AS $$
-  -- The one verdict on the weekly limit: the rejection sentence while the
-  -- week's adds are used up, NULL while adds remain or the league has no limit.
+  -- The rejection sentence while the week's adds are used up, NULL otherwise.
   SELECT CASE
-           WHEN p_limit IS NULL OR COALESCE(p_used, 0) < p_limit THEN NULL
-           ELSE format('Weekly add limit reached (%s/%s adds used this week).', COALESCE(p_used, 0), p_limit)
+           WHEN private.weekly_add_limit_reached(p_used, p_limit)
+           THEN format('Weekly add limit reached (%s/%s adds used this week).', COALESCE(p_used, 0), p_limit)
              || COALESCE(format(' Adds reset %s.', private.weekly_add_limit_reset_label(p_resets_at)), '')
          END;
 $$;

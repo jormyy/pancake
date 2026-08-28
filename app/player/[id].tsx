@@ -10,13 +10,13 @@ import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
-import { dropAndAddFreeAgent, dropPlayer, type PlayerRosterStatus, type RosterPlayer } from '@/lib/roster'
-import { addFreeAgentOrRequestDrop, loadPickupState, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
+import { useQuickAdd } from '@/hooks/use-quick-add'
+import { dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
+import { loadAddLimitState, loadPickupState } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { addLimitSummary, reportPickupError } from '@/lib/pickup'
-import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
-import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
+import { addLimitSummary } from '@/lib/pickup'
+import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -72,30 +72,11 @@ export default function PlayerDetailScreen() {
         transactionState: MemberTransactionState | null
     }>({ ownerIdentity, transactionState: null })
     const pickupState = pickupStateResource.ownerIdentity === ownerIdentity ? pickupStateResource.transactionState : null
-    const [actionLoading, setActionLoading] = useState(false)
-
-    // Drop picker + IR resolution state
-    const [dropPickerVisible, setDropPickerVisible] = useState(false)
-    const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
-    const [dropping, setDropping] = useState<string | null>(null)
-    const [irModal, setIrModal] = useState<{
-        ineligible: RosterPlayer[]
-        roster: RosterPlayer[]
-        // Which flow opened the IR modal, so the continuation resumes the right
-        // action once IR is resolved (add a free agent vs. submit a waiver claim).
-        action: 'add' | 'claim'
-    } | null>(null)
-    const [actionStateOwner, setActionStateOwner] = useState(ownerIdentity)
-    const ownsActionState = actionStateOwner === ownerIdentity
+    const [dropping, setDropping] = useState(false)
 
     useEffect(() => {
         generationRef.current += 1
-        setActionStateOwner(ownerIdentity)
-        setActionLoading(false)
-        setDropPickerVisible(false)
-        setMyRoster([])
-        setDropping(null)
-        setIrModal(null)
+        setDropping(false)
     }, [ownerIdentity])
 
     const loadRosterStatus = useCallback(async () => {
@@ -120,184 +101,23 @@ export default function PlayerDetailScreen() {
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
         if (!current || !leagueId || !requestedOwner) return
-        try {
-            const transactionState = await getMemberTransactionState(current.id, leagueId)
-            if (isCurrent(generation, requestedOwner)) setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
-        } catch (e) {
-            // The pickup itself still goes to the server, which explains any block.
-            console.warn('Could not load the weekly add state.', e)
-        }
+        const transactionState = await loadAddLimitState(current.id, leagueId)
+        if (isCurrent(generation, requestedOwner)) setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
     }, [current, leagueId, ownerIdentity])
-
-    const { addBlockedReason, explainBlock: explainAddLimitBlock } = useAddLimitGate({
-        transactionState: pickupState,
-        refresh: refreshPickupState,
-    })
-    const reportPickup = (error: unknown, claim?: () => void) => reportPickupError(error, {
-        refresh: refreshPickupState,
-        onLimitReached: () => setDropPickerVisible(false),
-        claim,
-    })
 
     useEffect(() => {
         loadRosterStatus()
     }, [loadRosterStatus])
 
-    async function handleAdd() {
-        if (!current || !leagueId) return
-        if (explainAddLimitBlock()) return
-        const generation = generationRef.current
-        const requestedOwner = ownerIdentity
-        setActionLoading(true)
-        try {
-            const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
-            if (!isCurrent(generation, requestedOwner)) return
-
-            if (ineligible.length > 0) {
-                setActionLoading(false)
-                setIrModal({ ineligible, roster, action: 'add' })
-                return
-            }
-
-            await tryAddFreeAgent()
-        } catch (e) {
-            if (isCurrent(generation, requestedOwner)) showAlert('Error', getErrorMessage(e))
-        } finally {
-            if (isCurrent(generation, requestedOwner)) setActionLoading(false)
-        }
-    }
-
-    async function tryAddFreeAgent() {
-        if (!current || !leagueId) return
-        const generation = generationRef.current
-        const requestedOwner = ownerIdentity
-        setActionLoading(true)
-        try {
-            const result = await addFreeAgentOrRequestDrop(current.id, leagueId, id)
-            if (!isCurrent(generation, requestedOwner)) return
-            if (result.status === 'roster_full') {
-                setMyRoster(result.activeRoster)
-                setDropPickerVisible(true)
-            } else {
-                await loadRosterStatus()
-            }
-        } catch (e) {
-            if (isCurrent(generation, requestedOwner)) reportPickup(e, handleClaim)
-        } finally {
-            if (isCurrent(generation, requestedOwner)) setActionLoading(false)
-        }
-    }
-
-    // This intentionally uses the current render's mutation function. The route
-    // can stay mounted while the selected league changes.
-    function continueAfterIR(action: 'add' | 'claim') {
-        if (action === 'claim') push(`/(modals)/claim-player?playerId=${id}`)
-        else if (!explainAddLimitBlock()) void tryAddFreeAgent()
-    }
-
-    async function handleDropAndAdd(rosterPlayer: RosterPlayer) {
-        if (!current || !leagueId) return
-        if (explainAddLimitBlock()) {
-            setDropPickerVisible(false)
-            return
-        }
-        const generation = generationRef.current
-        const requestedOwner = ownerIdentity
-        setDropping(rosterPlayer.id)
-        try {
-            await dropAndAddFreeAgent(rosterPlayer.id, current.id, leagueId, id)
-            if (!isCurrent(generation, requestedOwner)) return
-            setDropPickerVisible(false)
-            await loadRosterStatus()
-        } catch (e) {
-            if (isCurrent(generation, requestedOwner)) reportPickup(e, handleClaim)
-        } finally {
-            if (isCurrent(generation, requestedOwner)) setDropping(null)
-        }
-    }
-
-    async function handleIRActivate(rp: RosterPlayer) {
-        if (!current || !leagueId) return
-        const generation = generationRef.current
-        const requestedOwner = ownerIdentity
-        try {
-            const result = await resolveRosterAddIRConflict({
-                memberId: current.id,
-                leagueId,
-                activatePlayer: rp,
-            })
-            if (!isCurrent(generation, requestedOwner)) return
-            if (result.status === 'locked') {
-                showAlert('Roster locked', result.message)
-                return
-            }
-
-            if (result.remaining.length > 0) {
-                setIrModal((prev) => prev ? { ...prev, ineligible: result.remaining, roster: result.roster } : null)
-            } else {
-                const action = irModal?.action ?? 'add'
-                setIrModal(null)
-                continueAfterIR(action)
-            }
-        } catch (e) {
-            if (!isCurrent(generation, requestedOwner)) return
-            // Keep modal open so user can retry — but refresh its state in case
-            // the failure left the roster in an unexpected shape.
-            showAlert('Could not activate from IR', getErrorMessage(e) ?? 'Unknown error')
-            try {
-                const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
-                if (isCurrent(generation, requestedOwner)) {
-                    setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
-                }
-            } catch (refreshError) {
-                if (isCurrent(generation, requestedOwner)) {
-                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
-                }
-            }
-        }
-    }
-
-    async function handleDropAndIRActivate(toDrop: RosterPlayer, activatePlayer: RosterPlayer) {
-        if (!current || !leagueId) return
-        const generation = generationRef.current
-        const requestedOwner = ownerIdentity
-        try {
-            const result = await resolveRosterAddIRConflict({
-                memberId: current.id,
-                leagueId,
-                activatePlayer,
-                dropPlayer: toDrop,
-            })
-            if (!isCurrent(generation, requestedOwner)) return
-            if (result.status === 'locked') {
-                showAlert('Roster locked', result.message)
-                return
-            }
-
-            if (result.remaining.length > 0) {
-                setIrModal((prev) => prev ? { ...prev, ineligible: result.remaining, roster: result.roster } : null)
-            } else {
-                const action = irModal?.action ?? 'add'
-                setIrModal(null)
-                continueAfterIR(action)
-            }
-        } catch (e) {
-            if (!isCurrent(generation, requestedOwner)) return
-            const underlying = getErrorMessage(e) ?? 'Unknown error'
-            showAlert('Could not update roster', underlying)
-            // Refresh modal state to reflect actual roster after the failed transaction.
-            try {
-                const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
-                if (isCurrent(generation, requestedOwner)) {
-                    setIrModal((prev) => prev ? { ...prev, ineligible, roster } : null)
-                }
-            } catch (refreshError) {
-                if (isCurrent(generation, requestedOwner)) {
-                    setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(refreshError) })
-                }
-            }
-        }
-    }
+    const openClaim = useCallback(() => push(`/(modals)/claim-player?playerId=${id}`), [push, id])
+    const quickAdd = useQuickAdd({
+        memberId: current?.id,
+        leagueId,
+        refreshOwned: loadRosterStatus,
+        refreshTransactionState: refreshPickupState,
+        transactionState: pickupState,
+        onClaimInstead: openClaim,
+    })
 
     function handleDrop() {
         if (rosterStatus?.status !== 'mine') return
@@ -309,36 +129,19 @@ export default function PlayerDetailScreen() {
             'They will be placed on waivers for 48 hours.',
             async () => {
                 if (!isCurrent(generation, requestedOwner)) return
-                setActionLoading(true)
+                setDropping(true)
                 try {
                     await dropPlayer(rosterPlayerId)
                     if (isCurrent(generation, requestedOwner)) push('/(tabs)/roster')
                 } catch (e) {
                     if (isCurrent(generation, requestedOwner)) {
                         showAlert('Error', getErrorMessage(e))
-                        setActionLoading(false)
+                        setDropping(false)
                     }
                 }
             },
             'Drop',
         )
-    }
-
-    async function handleClaim() {
-        if (!current || !leagueId) return
-        if (explainAddLimitBlock()) return
-        const generation = generationRef.current
-        const requestedOwner = ownerIdentity
-        // Check for ineligible IR players before allowing waiver claim
-        const { roster, ineligible } = await loadRosterAddGate(current.id, leagueId)
-        if (!isCurrent(generation, requestedOwner)) return
-
-        if (ineligible.length > 0) {
-            setIrModal({ ineligible, roster, action: 'claim' })
-            return
-        }
-
-        push(`/(modals)/claim-player?playerId=${id}`)
     }
 
     if (!player) {
@@ -375,13 +178,13 @@ export default function PlayerDetailScreen() {
                         player={player}
                         rosterStatus={rosterStatus}
                         leagueActive={!!current}
-                        actionLoading={ownsActionState ? actionLoading : false}
+                        actionLoading={dropping || quickAdd.adding === id}
                         playedToday={playedToday}
-                        addBlockedReason={addBlockedReason}
-                        addBlockedCaption={addBlockedReason ? addLimitSummary(pickupState) : null}
-                        onAdd={handleAdd}
+                        addBlockedReason={quickAdd.addBlockedReason}
+                        addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}
+                        onAdd={() => quickAdd.handleAdd({ id, display_name: player.display_name })}
                         onDrop={handleDrop}
-                        onClaim={handleClaim}
+                        onClaim={openClaim}
                         onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
                     />
 
@@ -448,25 +251,24 @@ export default function PlayerDetailScreen() {
             </SafeAreaView>
 
             <DropPlayerPickerModal
-                visible={ownsActionState && dropPickerVisible}
-                title={`Drop a player to add\n${player?.display_name ?? ''}`}
+                visible={quickAdd.dropPickerPlayer !== null}
+                title={`Drop a player to add\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
                 subtitle="Your roster is full. Pick someone to release."
-                roster={ownsActionState ? myRoster : []}
-                dropping={ownsActionState ? dropping : null}
-                onDrop={handleDropAndAdd}
-                onCancel={() => setDropPickerVisible(false)}
+                roster={quickAdd.myRoster}
+                dropping={quickAdd.dropping}
+                onDrop={quickAdd.handleDropAndAdd}
+                onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 
-            {/* IR resolution modal */}
             <IRResolutionModal
-                visible={ownsActionState && irModal !== null}
-                ineligibleIR={ownsActionState ? irModal?.ineligible ?? [] : []}
-                activeRoster={(ownsActionState ? irModal?.roster ?? [] : []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
+                visible={quickAdd.irModal !== null}
+                ineligibleIR={quickAdd.irModal?.ineligible ?? []}
+                activeRoster={(quickAdd.irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
-                pendingPlayerName={player?.display_name ?? ''}
-                onActivate={handleIRActivate}
-                onDropAndActivate={handleDropAndIRActivate}
-                onCancel={() => setIrModal(null)}
+                pendingPlayerName={quickAdd.irModal?.pendingPlayer.display_name ?? ''}
+                onActivate={quickAdd.handleIRActivate}
+                onDropAndActivate={quickAdd.handleDropAndIRActivate}
+                onCancel={() => quickAdd.setIrModal(null)}
             />
         </>
     )

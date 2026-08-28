@@ -165,8 +165,11 @@ CREATE FUNCTION pg_temp.on_waivers(p_league uuid, p_season uuid, p_player uuid) 
                     AND log.cleared_at IS NULL)
 $$;
 
--- Mirrors the reservation rule without calling it: an asset named in an accepted
--- trade belongs to that trade until it completes or expires.
+-- Mirrors the reservation rule without calling private.is_reserved_trade_asset:
+-- the guards (I6) only catch a reservation that is too narrow, so a too-broad
+-- production predicate would go unnoticed if the expectation reused it. The
+-- add-week helper below does call private.current_add_week because calendar
+-- placement is not the rule under test, only the count against the limit is.
 CREATE FUNCTION pg_temp.reserved_player(p_league uuid, p_season uuid, p_member uuid, p_player uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT EXISTS (SELECT 1 FROM public.trade_items ti JOIN public.trades t ON t.id = ti.trade_id
                   WHERE t.status = 'accepted' AND t.league_id = p_league AND t.league_season_id = p_season
@@ -240,13 +243,7 @@ BEGIN
         WHERE roster.league_id = lineup.league_id AND roster.league_season_id = lineup.league_season_id
           AND roster.member_id = lineup.member_id AND roster.player_id = lineup.player_id
           AND roster.is_on_ir = false AND roster.is_on_taxi = false)
-     AND NOT EXISTS (
-       SELECT 1 FROM public.players AS p
-         JOIN public.nba_games AS g ON g.game_date = lineup.game_date AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
-        WHERE p.id = lineup.player_id
-          AND (g.status IN ('InProgress', 'Final')
-            OR (g.game_time IS NOT NULL AND g.game_time <= now())
-            OR (g.started_at IS NOT NULL AND g.started_at <= now())));
+     AND NOT private.lineup_game_started(lineup.player_id, lineup.game_date);
   IF v_count > 0 THEN RAISE EXCEPTION 'I3 violated after step % (%): % stale future lineup slot(s)', p_step, p_op, v_count USING DETAIL = v_tail; END IF;
 
   -- I4: a pending claim's drop player is on that member's active roster.
@@ -375,6 +372,7 @@ DECLARE
   v_expected_failures int := 0;
   v_flag boolean;
   v_eligible boolean;
+  v_drop uuid;
   v_context text;
   v_row record;
 BEGIN
@@ -582,14 +580,14 @@ BEGIN
        WHERE log.league_id = v_league AND log.league_season_id = v_season AND log.cleared_at IS NULL
        ORDER BY random() LIMIT 1;
       IF v_player IS NULL THEN CONTINUE; END IF;
-      v_roster := NULL;
+      v_drop := NULL;
       IF random() < 0.5 THEN
-        SELECT player_id INTO v_roster FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season AND is_on_ir = false AND is_on_taxi = false ORDER BY random() LIMIT 1;
+        SELECT player_id INTO v_drop FROM public.roster_players WHERE member_id = v_member AND league_season_id = v_season AND is_on_ir = false AND is_on_taxi = false ORDER BY random() LIMIT 1;
       END IF;
       v_expect_failure := pg_temp.add_limit_reached(v_member, v_league, v_season)
-        OR (v_roster IS NOT NULL AND pg_temp.reserved_player(v_league, v_season, v_member, v_roster));
-      v_sql := format('SELECT public.create_waiver_claim_atomic(%L, %L, %L, %L, %L, %s)', v_league, v_member, v_player, v_roster, v_user, (random() * 5)::int);
-      v_detail := 'claim ' || left(v_player::text, 8) || COALESCE(' drop ' || left(v_roster::text, 8), '');
+        OR (v_drop IS NOT NULL AND pg_temp.reserved_player(v_league, v_season, v_member, v_drop));
+      v_sql := format('SELECT public.create_waiver_claim_atomic(%L, %L, %L, %L, %L, %s)', v_league, v_member, v_player, v_drop, v_user, (random() * 5)::int);
+      v_detail := 'claim ' || left(v_player::text, 8) || COALESCE(' drop ' || left(v_drop::text, 8), '');
     ELSIF v_roll < 0.86 THEN
       v_op := 'process_waivers';
       PERFORM pg_temp.act_as(NULL);

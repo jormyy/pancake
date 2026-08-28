@@ -4467,7 +4467,6 @@ export type Database = {
         Args: { p_lock_key: number; p_ttl_seconds?: number }
         Returns: string
       }
-      try_live_poll_lock: { Args: never; Returns: boolean }
       update_league_configuration_atomic: {
         Args: { p_league_id: string; p_settings: Json; p_slots?: Json }
         Returns: undefined
