@@ -309,3 +309,32 @@ Residual work for the next implementation phase (ordered): (1) clear the boundin
 processor fixture to assert the failure path. Ambiguous league rules unchanged.
 
 Local servers, fake upstream and the Supabase stack stopped; baseline worktree removed.
+
+### Iteration 7 — 2026-09-12 (review round 2 + scheduling fixes, sandbox on)
+
+Review round 2 preserved at `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase4/independent-review-round2.md`.
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `d7636b9` | B2: retry body-stall test clears its guard timer | `deno test retry.test.ts` 5/5, no leak |
+| `bb84804` | S5 handlers re-raise unless the gate message fired; S6 comment names the real indexes; S7 comment order; S8 focus-gated reconnect/foreground refetch; S9 derived FK set test; S10 draft-order 45 s overall deadline; S11 no empty rows under a trades error banner | vitest 693; lint/typecheck/knip PASS |
+| `<this>` | Scheduling: once-per-period catch-up (`cron_dispatch_state`, `claim_cron_dispatch`), durable `edge_invocations` + `reconcile_edge_invocations` cron, missing-stats live-poll gate, `renew_live_poll_lease` + edge heartbeat, optimizer least-recently-first ordering | DB tests written for each probe (unrun here); `leaseHeartbeat.test.ts` 3/3; wiring contracts; migration safety, parity, catalog manifest PASS |
+
+Dispositions of the iteration-6 probe list:
+- ops#3 missed minute/hour gates → **fixed** (`tests/db/cron-dispatch-catchup.sql` mirrors probe P1 with `p_now`).
+- ops#2 cron HTTP failures without a durable result → **fixed** (`edge-invocation-reconcile.sql` mirrors P3).
+- ops#11 Final game without stats → **fixed** (`live-poll-gate-and-lease.sql` mirrors P4).
+- ops#7 slow live-poll lease → **renewal added** (same test); per-write fencing not added.
+- ops#8 optimizer cursor → inspected: settings were unordered and the loop has no deadline, so
+  starvation needs a platform kill mid-run; no run in the harness shows it. Chosen change: order by
+  `last_optimized_at` asc nulls first (no schema), which makes any partial run resume at the tail.
+- roster#8 / roster#3 claim processor → **investigated with a complete fixture**
+  (`waiver-claim-projection.sql`): documents that both claims are accepted at create time, the drop
+  of a pending claim's drop player is not guarded, and processing fails claim B with
+  "Drop player is no longer on this active roster". No policy imposed.
+- ops#4 parked stats jobs → unchanged (resurrection policy undocumented).
+
+Remaining gates: (1) local phase: `db reset` (migration `20260912000003`, new cron job),
+`npm run generate:database-types` then `check:database-types` (new tables), `npm run test:db`
+(22 suites), Deno full run (expect 116/0), perpetual x2 + negative control, seed, tick-enabled
+soak, browser chain, perf gates; (2) independent round-3 review of `main..HEAD`.
