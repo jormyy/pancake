@@ -113,7 +113,12 @@ and strand a launch with no assets.
 
 Activation deletes older Pancake caches. The new worker takes control immediately.
 
-The page reloads once after a new worker takes control. The first worker install does not reload the page.
+The page checks for a new worker on every return to the foreground, on the browser `online`
+event, and hourly while it stays visible. The page reloads once after a new worker takes
+control. The first worker install does not reload the page.
+
+A response the host rewrote to a document (the `+not-found.html` HTTP 200 rewrite for a
+hashed asset from a previous release) is never stored in an asset cache.
 
 Every cache path falls back to the network. An evicted, disabled, or corrupt
 cache cannot break a launch.
@@ -143,6 +148,8 @@ A failed refresh stays visible. The error banner shows that cached data can be s
 Lineup and roster writes require the server. Pancake does not queue time-sensitive sports actions offline.
 
 The browser `online` event clears season and week lookup caches. Home then reloads the current matchup.
+Every focus-loaded screen (roster, players, trades, dynasty, league) refetches on `online` and
+re-checks staleness when the page becomes visible again.
 
 Realtime subscriptions reconnect separately. Cross-tab events still update active screens.
 

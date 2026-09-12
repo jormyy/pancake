@@ -129,3 +129,44 @@ Not run: `e2e:soak` / `e2e:soak:release` (long multi-season release gate), `brow
 
 Local servers and the Supabase stack were stopped at the end of this phase; the local volume keeps
 the seeded/perpetual data. Paused at a clean tree for sandbox restoration.
+
+### Iteration 3 — 2026-09-12 (implementation, sandbox on)
+
+Sandbox note: with the command sandbox restored, Bash could not write any file under `hooks/`
+(`touch hooks/use-online-status.ts` → `Operation not permitted`; `components/`, `lib/`, `app/`,
+`tests/` were writable). `hooks/use-focus-async-data.ts` was edited through the harness Edit tool.
+`git stash` on that file also failed for the same reason; nothing was lost (verified by diff).
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `f619cf3` | `tests/e2e/harness-cleanup.mjs`: FK-ordered removal of harness players (12 referencing tables, children first) used by `perpetual-season.mjs`; `ensureRosterFixture` (seeded `e2e-player-*` only) runs in tab-only smoke as well as full sweep | `tests/e2e-harness-fixtures.test.ts` 8 cases (fake client + source contracts). Real re-run of `e2e:perpetual --disable-boundary` and tab-only `e2e:browser-smoke` is queued for the next local phase |
+| `e9a8ee0` | WORKLOG correction: sandbox did not bound file writes in the baseline phase | — |
+| `687e735` | Home: failed matchup load shows a retry state, never "No matchup this week yet"; Trades: empty text for offers/block/league block/history; `+html.tsx`: update check on `online` + hourly while visible, worker-version wait 2 s → 10 s | `tests/ux-state-contracts.test.ts` |
+| `0623e2c` | season-boundary records per-league failures on `sync_runs` (`recordSyncRun` gains `failure`); process-waivers notifies per committed batch; `/sync/backfill/:id` projects columns; migration `20260912000001` adds `sync_runs(started_at)`, `projection_sync_runs(started_at)`, `standings(league_season_id, member_id, week_number desc)`, `roster_transactions(league_id, player_id, occurred_at desc)` | `seasonBoundaryFailures.test.ts` 3 cases; source contracts; migration-deployment-safety PASS. Indexes not yet applied to any DB |
+| `1a27a2c` | `useFocusAsyncData` refetches on `online` (forced) and on visibility return (stale-gated), listeners removed on unmount; DaySelector compact cells 36 → 44 px tall | `tests/hooks/focus-async-data.test.ts` (fails with listeners removed) |
+| `7ff4ab5` | `edit_waiver_claim_atomic` applies the create-time gates (league status, current season, weekly add, open waiver window, no self-drop); migration `20260912000002`; DB test `tests/db/waiver-claim-edit-gates.sql` added to `npm run test:db` | `check:db-function-sources` PASS. DB test NOT executed here |
+
+Static gates after this iteration: `lint:all`, all five typechecks, `check:core-cjs`, `check:dead-code`,
+`check:edge-shared`, `check:edge-function-inventory`, `check:db-function-sources`,
+`check:surface-matrix` all exit 0; `npx vitest run` 117 files / 684 tests; Deno suite 62 passed,
+8 failed only on sandbox `Deno.serve` listen (109/0 when run unsandboxed in iteration 2).
+
+Deliberately not changed (rule ambiguity, docs do not settle):
+- `edit_waiver_claim_atomic` still resets `submitted_at`; whether an edit is a resubmission is
+  undocumented.
+- `prevent_uncleared_waiver_free_agent_add` trigger blocks on `cleared_at IS NULL` while
+  `add_free_agent_atomic` and the client use `clears_at > now()`. The sweep keeps a hold while
+  claims are pending, so the trigger may be the intended backstop; which predicate wins between an
+  expired hold with pending claims and a free-agent add is not written down.
+- FAAB reservation across pending claims; offseason synthetic add-week numbering; Oct 1 season
+  year flip; playoff `finalized_at` meaning (the code fix keeps both readings consistent by not
+  re-stamping unchanged rows).
+
+Remaining test/review gates (not self-approved):
+1. Local test phase: `supabase db reset` (applies the two new migrations), `npm run test:db`
+   (includes the new waiver-edit-gates test), `npm run e2e:perpetual` and
+   `npm run e2e:perpetual -- --disable-boundary` (red-proof must now run), tab-only
+   `npm run e2e:browser-smoke`, `npm run e2e:pwa-update` main→branch, `npm run e2e:browser-perf`,
+   `npm run perf:budget -- --require-report`, plus the scenarios not run in iteration 2.
+2. Index DDL: confirm no duplicate/overlapping index in production catalog before predeploy build.
+3. Independent Opus review of every commit on `task/t_a4dc0293-hardening` (main..HEAD).
