@@ -25,10 +25,16 @@ async function attempt(url: string | URL, init: RequestInit | undefined, timeout
     ? null
     : setTimeout(() => controller.abort(new DOMException('Attempt timed out.', 'TimeoutError')), timeoutMs)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    const response = await fetch(url, { ...init, signal: controller.signal })
+    // The per-attempt timer only guards the wait for headers. The caller's own
+    // signal stays linked so a later abort (an overall deadline) still cancels
+    // the body stream the caller is reading.
+    return response
+  } catch (error) {
+    outer?.removeEventListener('abort', onOuterAbort)
+    throw error
   } finally {
     if (timer != null) clearTimeout(timer)
-    outer?.removeEventListener('abort', onOuterAbort)
   }
 }
 

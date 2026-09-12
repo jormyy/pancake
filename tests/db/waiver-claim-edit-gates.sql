@@ -21,6 +21,9 @@ VALUES
   ('00000000-0000-0000-0000-000000060402', 'edit-gates-rostered', 'Rostered', 'Player', 'PG', ARRAY['PG'], 'Active', 'SIM');
 INSERT INTO public.roster_players (league_id, league_season_id, member_id, player_id, acquired_via, acquisition_cost)
 VALUES ('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060402', 'free_agent', 0);
+-- create_waiver_claim_atomic refuses without a waiver priority row for the member.
+INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, priority)
+VALUES ('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201', 1);
 INSERT INTO public.waiver_wire_log (league_id, league_season_id, player_id, clears_at)
 VALUES ('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060401', now() + interval '1 day');
 
@@ -69,7 +72,9 @@ END $$;
 UPDATE public.leagues SET status = 'active' WHERE id = '00000000-0000-0000-0000-000000060101';
 
 -- 5. The weekly add limit gate applies on edit as on create.
-UPDATE public.leagues SET weekly_add_limit = 0 WHERE id = '00000000-0000-0000-0000-000000060101';
+-- leagues_weekly_add_limit_valid allows NULL or >= 1, so exhaust a limit of 1 with a real consumed add.
+UPDATE public.leagues SET weekly_add_limit = 1 WHERE id = '00000000-0000-0000-0000-000000060101';
+SELECT private.consume_weekly_add('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201');
 DO $$
 BEGIN
   PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 5);

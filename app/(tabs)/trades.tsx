@@ -222,7 +222,6 @@ export default function TradesScreen() {
         ) : activeTabLoading ? null
             : tab === 'picks' && picksError ? null
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
-                    : tab !== 'picks' && !activeError && listData.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>{TRADE_TAB_EMPTY_TEXT[tab]}</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
                         ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
                         onEndReached={tab === 'history' && historyHasMore
@@ -230,15 +229,6 @@ export default function TradesScreen() {
                             : tab === 'offers' && offersHaveMore && !offersLoadingMore ? loadMoreOffers : undefined}
                         onEndReachedThreshold={0.4} />}
     </View></SafeAreaView>
-}
-
-// One line per tab so an empty list never reads like a failed load (the error
-// banner covers that case). Analyzer and picks have their own branches.
-const TRADE_TAB_EMPTY_TEXT: Record<Exclude<TradeTabKey, 'analyzer' | 'picks'>, string> = {
-    offers: 'No trade offers yet',
-    block: 'Nothing on your trade block',
-    leagueBlock: 'Nobody has listed players on the trade block',
-    history: 'No completed trades yet',
 }
 
 function TradeHeader({ disabled, onPropose }: { disabled: boolean; onPropose: () => void }) {

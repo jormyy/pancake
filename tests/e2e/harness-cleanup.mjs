@@ -6,7 +6,6 @@
 
 /** @type {Array<{ table: string, column: string }>} */
 export const PLAYER_REFERENCE_TABLES = [
-  { table: 'trade_drop_reservations', column: 'player_id' },
   { table: 'trade_items', column: 'player_id' },
   { table: 'waiver_claims', column: 'drop_player_id' },
   { table: 'waiver_claims', column: 'player_id' },

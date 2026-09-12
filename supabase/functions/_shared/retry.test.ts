@@ -62,3 +62,27 @@ Deno.test('a caller abort cancels the whole call instead of retrying', async () 
   assert(calls === 1, `expected 1 attempt, saw ${calls}`)
   assert((thrown as Error)?.message === 'caller gave up', `expected caller abort reason, got ${String(thrown)}`)
 })
+
+// Review C1: headers arrive, then the body stalls. The caller's overall
+// deadline must still cancel the body read.
+Deno.test('a caller deadline aborts a body that stalls after headers', async () => {
+  let thrown: unknown = null
+  await withFetch(async (_url, init) => {
+    const signal = (init as RequestInit | undefined)?.signal as AbortSignal
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        signal.addEventListener('abort', () => controller.error(signal.reason), { once: true })
+      },
+    })
+    return new Response(body, { status: 200 })
+  }, async () => {
+    const res = await fetchWithRetry('https://cdn.test/box', { signal: AbortSignal.timeout(30) }, { attemptTimeoutMs: 1000, ...noDelay })
+    // Bounded so a helper that leaves the body unlinked fails instead of hanging the runner.
+    await Promise.race([
+      res.text(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('body read did not abort')), 500)),
+    ]).catch((error) => { thrown = error })
+  })
+  assert(thrown != null, 'expected the stalled body read to be aborted')
+  assert((thrown as { name?: string }).name === 'TimeoutError', `expected TimeoutError, got ${String(thrown)}`)
+})

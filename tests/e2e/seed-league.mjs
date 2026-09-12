@@ -198,6 +198,42 @@ const signInClient = async (env, email, password) => {
   return client
 }
 
+// get_dynasty_forecast_inputs (soak dynasty checks) only returns players that
+// have a hashtagbasketball.com ranking row. A fresh local stack has none, so
+// the seed writes synthetic rows for its own players. Ranks live in a high
+// band and carry an e2e- source_player_id so they never collide with, or
+// overwrite, real rankings on a shared database.
+export const DYNASTY_FIXTURE_SOURCE = 'hashtagbasketball.com'
+export const DYNASTY_FIXTURE_RANK_BASE = 9000
+
+export const buildDynastyRankingFixtures = (players, fetchedAt = new Date().toISOString()) => players.map((player, index) => ({
+  source: DYNASTY_FIXTURE_SOURCE,
+  source_rank: DYNASTY_FIXTURE_RANK_BASE + index + 1,
+  source_player_id: `e2e-${player.sportsdata_id}`,
+  source_player_name: `${player.first_name} ${player.last_name}`,
+  source_positions: player.eligible_positions ?? [],
+  source_team: player.nba_team ?? null,
+  scoring_format: 'overall',
+  player_id: player.id,
+  rank_change: 0,
+  fetched_at: fetchedAt,
+}))
+
+export const seedDynastyRankingFixtures = async (admin, players) => {
+  const { error: cleanupError } = await admin
+    .from('dynasty_rankings')
+    .delete()
+    .like('source_player_id', 'e2e-%')
+  if (cleanupError) throw new Error(`dynasty ranking fixture cleanup: ${cleanupError.message}`)
+  const rows = buildDynastyRankingFixtures(players)
+  if (rows.length === 0) return 0
+  const { error } = await admin
+    .from('dynasty_rankings')
+    .upsert(rows, { onConflict: 'source,source_rank' })
+  if (error) throw new Error(`dynasty ranking fixture upsert: ${error.message}`)
+  return rows.length
+}
+
 const seedLatencyFixtures = async (admin, leagueId, members) => {
   const { data: season, error: seasonError } = await admin
     .from('league_seasons')
@@ -327,6 +363,19 @@ const main = async () => {
       name: 'player_fixtures',
       status: playerFixtureCount >= 80 ? 'PASS' : 'FAIL',
       detail: `${playerFixtureCount} E2E players with 20 rookie draft numbers`,
+    })
+
+    const { data: rankedPlayers, error: rankedPlayersError } = await admin
+      .from('players')
+      .select('id, sportsdata_id, first_name, last_name, eligible_positions, nba_team')
+      .like('sportsdata_id', 'e2e-player-%')
+      .order('sportsdata_id', { ascending: true })
+    if (rankedPlayersError) throw new Error(`players fixture lookup: ${rankedPlayersError.message}`)
+    const dynastyFixtureCount = await seedDynastyRankingFixtures(admin, rankedPlayers ?? [])
+    checks.push({
+      name: 'dynasty_ranking_fixtures',
+      status: dynastyFixtureCount >= 80 ? 'PASS' : 'FAIL',
+      detail: `${dynastyFixtureCount} synthetic ${DYNASTY_FIXTURE_SOURCE} rows from rank ${DYNASTY_FIXTURE_RANK_BASE + 1}`,
     })
 
     const commissioner = await signInClient(env, users[0].email, password)

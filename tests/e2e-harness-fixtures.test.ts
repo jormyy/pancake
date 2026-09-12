@@ -109,3 +109,36 @@ describe('browser smoke roster readiness contract', () => {
         expect(source).not.toMatch(/from\('players'\)\s*\.delete\(\)/)
     })
 })
+
+describe('harness cleanup table list', () => {
+    it('lists only tables the migration set still has', async () => {
+        const { readdir, readFile } = await import('node:fs/promises')
+        const dir = 'supabase/migrations'
+        const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort()
+        const created = new Set<string>()
+        const dropped = new Set<string>()
+        for (const file of files) {
+            const sql = await readFile(`${dir}/${file}`, 'utf8')
+            for (const m of sql.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+(?:public\.)?([a-z_]+)/gi)) { created.add(m[1]); dropped.delete(m[1]) }
+            for (const m of sql.matchAll(/DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/gi)) dropped.add(m[1])
+        }
+        for (const { table } of PLAYER_REFERENCE_TABLES) {
+            expect(created.has(table), `${table} was never created`).toBe(true)
+            expect(dropped.has(table), `${table} was dropped by a migration`).toBe(false)
+        }
+    })
+})
+
+describe('dynasty ranking seed fixtures', () => {
+    it('builds synthetic hashtag rows in the high rank band tagged with the e2e player id', async () => {
+        const { buildDynastyRankingFixtures, DYNASTY_FIXTURE_RANK_BASE } = await import('./e2e/seed-league.mjs')
+        const rows = buildDynastyRankingFixtures([
+            { id: 'p1', sportsdata_id: 'e2e-player-001', first_name: 'E2E', last_name: 'Player001', eligible_positions: ['PG'], nba_team: 'ATL' },
+            { id: 'p2', sportsdata_id: 'e2e-player-002', first_name: 'E2E', last_name: 'Player002', eligible_positions: ['SG'], nba_team: null },
+        ], '2026-09-12T00:00:00.000Z')
+        expect(rows.map((r: { source_rank: number }) => r.source_rank)).toEqual([DYNASTY_FIXTURE_RANK_BASE + 1, DYNASTY_FIXTURE_RANK_BASE + 2])
+        expect(rows.every((r: { source: string; source_player_id: string }) => r.source === 'hashtagbasketball.com' && r.source_player_id.startsWith('e2e-'))).toBe(true)
+        expect(rows[0]).toMatchObject({ player_id: 'p1', source_player_name: 'E2E Player001', source_team: 'ATL', scoring_format: 'overall' })
+        expect(rows[1].source_team).toBeNull()
+    })
+})

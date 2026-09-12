@@ -27,6 +27,7 @@ import { MatchupRow } from '@/components/MatchupRow'
 import { LeagueSwitcher } from '@/components/LeagueSwitcher'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
+import { resolveHomeSurface } from '@/lib/home-surface'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { countLabel, formatPoints, shortName } from '@/lib/format'
@@ -91,6 +92,7 @@ export default function HomeScreen() {
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh,
     } = useMatchupData(current, user, league)
+    const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error })
 
     const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshSilently)
     const actionContext = useMemo(() => matchup && league ? {
@@ -290,9 +292,21 @@ export default function HomeScreen() {
                         </>
                     )}
                 </View>
-            ) : matchupLoading ? (
+            ) : homeSurface === 'draft' ? (
+                <View style={styles.playSurface}>
+                    <EmptyState
+                        fullScreen={false}
+                        framed
+                        icon="flash-on"
+                        message="Your draft is live"
+                        description="The auction draft is underway — nominate players and build your roster before the season tips off."
+                        actionLabel="Go to Draft Room"
+                        onAction={() => router.push('/league')}
+                    />
+                </View>
+            ) : homeSurface === 'loading' ? (
                 <View style={styles.playSurface} />
-            ) : error ? (
+            ) : homeSurface === 'error' ? (
                 // A failed load is not an empty week: never tell the manager no
                 // matchup exists when the request simply failed (offline, cold cache).
                 <View style={styles.playSurface}>
@@ -308,27 +322,15 @@ export default function HomeScreen() {
                 </View>
             ) : (
                 <View style={styles.playSurface}>
-                    {league?.status === 'drafting' ? (
-                        <EmptyState
-                            fullScreen={false}
-                            framed
-                            icon="flash-on"
-                            message="Your draft is live"
-                            description="The auction draft is underway — nominate players and build your roster before the season tips off."
-                            actionLabel="Go to Draft Room"
-                            onAction={() => router.push('/league')}
-                        />
-                    ) : (
-                        <EmptyState
-                            fullScreen={false}
-                            framed
-                            icon="event"
-                            message="No matchup this week yet"
-                            description="Matchups post before each week starts. Until then, scout the player pool and get your roster ready."
-                            actionLabel="Browse Players"
-                            onAction={() => router.push('/players')}
-                        />
-                    )}
+                    <EmptyState
+                        fullScreen={false}
+                        framed
+                        icon="event"
+                        message="No matchup this week yet"
+                        description="Matchups post before each week starts. Until then, scout the player pool and get your roster ready."
+                        actionLabel="Browse Players"
+                        onAction={() => router.push('/players')}
+                    />
                 </View>
             )}
 

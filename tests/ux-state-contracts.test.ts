@@ -7,24 +7,22 @@ const read = (path: string) => readFile(path, 'utf8')
 // never render as an empty result, empty lists must say so, and the PWA must
 // keep looking for updates while it stays in the foreground.
 
-describe('home matchup error state', () => {
-    it('renders the error branch before the "no matchup" empty state', async () => {
+describe('home matchup surface wiring', () => {
+    it('drives the play surface from resolveHomeSurface so the tested precedence is what renders', async () => {
         const source = await read('app/(tabs)/index.tsx')
-        const errorBranch = source.indexOf(") : error ? (")
-        const emptyBranch = source.indexOf('message="No matchup this week yet"')
-        expect(errorBranch).toBeGreaterThan(-1)
-        expect(errorBranch).toBeLessThan(emptyBranch)
-        expect(source.slice(errorBranch, emptyBranch)).toMatch(/message="Couldn't load your matchup"[\s\S]*onAction=\{refresh\}/)
+        expect(source).toContain("resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error })")
+        for (const surface of ['draft', 'loading', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
+        expect(source.indexOf("homeSurface === 'error'")).toBeLessThan(source.indexOf('message="No matchup this week yet"'))
     })
 })
 
 describe('trades tab empty states', () => {
-    it('gives every list tab an empty message distinct from the error banner', async () => {
+    // The read model emits its own empty rows per section, so the screen must
+    // not add a parallel empty branch (review S3: listData always has a header).
+    it('lets the read model own the empty rows and adds no screen-level fallback', async () => {
         const source = await read('app/(tabs)/trades.tsx')
-        for (const tab of ['offers', 'block', 'leagueBlock', 'history']) {
-            expect(source).toMatch(new RegExp(`\\b${tab}: '[^']+'`))
-        }
-        expect(source).toMatch(/tab !== 'picks' && !activeError && listData\.length === 0 \?/)
+        expect(source).not.toContain('TRADE_TAB_EMPTY_TEXT')
+        expect(source).not.toMatch(/listData\.length === 0/)
     })
 })
 
