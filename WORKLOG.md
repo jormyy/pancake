@@ -31,6 +31,10 @@ Read-only production latency probe (curl, 5 samples, from this host; no writes, 
 `GET /health` 0.18–0.37 s; PostgREST `players?select=id&limit=1` 0.18–0.33 s. See `api-latency-probe.txt`.
 These are single-host WAN samples, not a load test.
 
+Initial JS (`__common` + `entry`, gzip -9) = 677,943 B ≈ 662 KiB against the manifest budget
+`maxInitialWebJsKb` 700 (the browser gate measures encoded transfer size, which on the host CDN is
+brotli, so this local gzip figure is an upper bound).
+
 ## 2. Environment limits (verified, evidence in `local-stack-failure.txt`)
 
 - Docker Desktop socket exists (`~/.docker/run/docker.sock`) but the sandbox denies connecting:
