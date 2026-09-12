@@ -77,11 +77,13 @@ Deno.test('a caller deadline aborts a body that stalls after headers', async () 
     return new Response(body, { status: 200 })
   }, async () => {
     const res = await fetchWithRetry('https://cdn.test/box', { signal: AbortSignal.timeout(30) }, { attemptTimeoutMs: 1000, ...noDelay })
-    // Bounded so a helper that leaves the body unlinked fails instead of hanging the runner.
-    await Promise.race([
-      res.text(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('body read did not abort')), 500)),
-    ]).catch((error) => { thrown = error })
+    // Bounded so a helper that leaves the body unlinked fails instead of hanging
+    // the runner; the guard timer is cleared so Deno's leak sanitizer stays quiet.
+    let guard: number | undefined
+    const bounded = new Promise((_, reject) => {
+      guard = setTimeout(() => reject(new Error('body read did not abort')), 500)
+    })
+    await Promise.race([res.text(), bounded]).catch((error) => { thrown = error }).finally(() => clearTimeout(guard))
   })
   assert(thrown != null, 'expected the stalled body read to be aborted')
   assert((thrown as { name?: string }).name === 'TimeoutError', `expected TimeoutError, got ${String(thrown)}`)
