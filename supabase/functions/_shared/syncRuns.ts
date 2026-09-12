@@ -51,14 +51,23 @@ const syncRuns = createClient<SyncRunsDatabase>(
 
 // Best-effort sync_runs bookkeeping keeps cron health queryable without putting
 // observability writes on the critical path of the sync itself.
+// `failure` lets a job that completed its loop but had per-item failures (for
+// example one league out of many) record the run as failed with the summary
+// while still returning its partial result to the caller.
 export async function recordSyncRun<T>(
   functionName: string,
-  run: () => Promise<{ result: T; rowsAffected: number | null }>,
+  run: () => Promise<{ result: T; rowsAffected: number | null; failure?: string | null }>,
 ): Promise<T> {
   const startedId = await startSyncRun(functionName)
 
   try {
-    const { result, rowsAffected } = await run()
+    const { result, rowsAffected, failure } = await run()
+    if (startedId && failure) {
+      await finishSyncRun(startedId, { status: 'failed', rows_affected: rowsAffected, error: failure }).catch(
+        (updateError) => console.error(`[${functionName}] could not record partially failed sync run:`, updateError),
+      )
+      return result
+    }
     if (startedId) {
       await finishSyncRun(startedId, { status: 'success', rows_affected: rowsAffected }).catch(
         (updateError) => console.error(`[${functionName}] could not record successful sync run:`, updateError),
