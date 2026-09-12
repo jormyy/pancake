@@ -292,6 +292,20 @@ export default function HomeScreen() {
                 </View>
             ) : matchupLoading ? (
                 <View style={styles.playSurface} />
+            ) : error ? (
+                // A failed load is not an empty week: never tell the manager no
+                // matchup exists when the request simply failed (offline, cold cache).
+                <View style={styles.playSurface}>
+                    <EmptyState
+                        fullScreen={false}
+                        framed
+                        icon="cloud-off"
+                        message="Couldn't load your matchup"
+                        description="Check your connection and try again. Nothing here is stale data."
+                        actionLabel="Retry"
+                        onAction={refresh}
+                    />
+                </View>
             ) : (
                 <View style={styles.playSurface}>
                     {league?.status === 'drafting' ? (
