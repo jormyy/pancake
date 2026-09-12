@@ -25,6 +25,7 @@ import {
   LIVE_POLL_LOCK_KEY,
   livePollCandidateDates,
 } from '../_shared/livePoll.ts'
+import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 
 serveInternal('live-poll', async () => {
   const { data: holderId, error: lockErr } = await supabase.rpc('try_live_poll_lease', {
@@ -33,6 +34,24 @@ serveInternal('live-poll', async () => {
   })
   if (lockErr) throw lockErr
   if (!holderId) return Response.json({ ok: true, action: 'lease-skip' })
+
+  // A busy night outruns the 90 s lease; renew it while the run is alive so a
+  // second worker cannot start writing beside this one. Losing the lease is
+  // logged loudly: the sync itself stays idempotent, but two pollers double
+  // the CDN traffic and race the stat upserts.
+  const heartbeat = startLeaseHeartbeat(
+    async () => {
+      const { data, error } = await supabase.rpc('renew_live_poll_lease', {
+        p_lock_key: LIVE_POLL_LOCK_KEY,
+        p_holder_id: holderId,
+        p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
+      })
+      if (error) throw error
+      return data === true
+    },
+    (LIVE_POLL_LEASE_TTL_SECONDS * 1000) / 3,
+    (error) => console.error('[live-poll] lease lost mid-run; another poller may be active', error ?? ''),
+  )
 
   try {
     const candidateDates = livePollCandidateDates()
@@ -125,6 +144,7 @@ serveInternal('live-poll', async () => {
     console.log(`[live-poll] No active games. Updated ${statusUpdates} statuses.`)
     return Response.json({ ok: true, action: 'status-check', statusUpdates })
   } finally {
+    heartbeat.stop()
     const { error: releaseErr } = await supabase.rpc('release_live_poll_lease', {
       p_lock_key: LIVE_POLL_LOCK_KEY,
       p_holder_id: holderId,

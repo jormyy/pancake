@@ -172,6 +172,11 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
     .from('lineup_optimizer_settings')
     .select('league_id, league_season_id, member_id')
     .eq('enabled', true)
+    // Least recently optimized first: the loop has no deadline, so a run the
+    // platform kills partway would otherwise redo the same head on every tick
+    // and never reach the tail. With this order the tail goes first next time.
+    .order('last_optimized_at', { ascending: true, nullsFirst: true })
+    .order('member_id', { ascending: true })
   if (settingsError) throw settingsError
 
   // Many enabled members share a league; load each league and season once.

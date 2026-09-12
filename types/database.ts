@@ -4204,6 +4204,10 @@ export type Database = {
         Args: { p_holder_id: string; p_lock_key: number }
         Returns: boolean
       }
+      renew_live_poll_lease: {
+        Args: { p_holder_id: string; p_lock_key: number; p_ttl_seconds?: number }
+        Returns: boolean
+      }
       release_live_poll_lock: { Args: never; Returns: boolean }
       release_stats_sync_job_atomic: {
         Args: {
