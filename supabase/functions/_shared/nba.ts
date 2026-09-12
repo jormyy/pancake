@@ -55,17 +55,13 @@ type NBAScheduleGamePayload = {
 }
 
 async function cdnGet(path: string): Promise<unknown> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20_000)
-  try {
-    const res = await fetchWithRetry(`${NBA_CDN}${path}`, { headers: NBA_HEADERS, signal: controller.signal })
-    if (!res.ok) {
-      throw new CdnHttpError(res.status, path)
-    }
-    return await res.json()
-  } finally {
-    clearTimeout(timeout)
+  // fetchWithRetry times out each attempt on its own, so a hung first attempt
+  // still leaves the retry a full budget.
+  const res = await fetchWithRetry(`${NBA_CDN}${path}`, { headers: NBA_HEADERS }, { attemptTimeoutMs: 20_000 })
+  if (!res.ok) {
+    throw new CdnHttpError(res.status, path)
   }
+  return await res.json()
 }
 
 // Parse NBA ISO duration like "PT35M12.00S" → decimal minutes (e.g. 35.2)
