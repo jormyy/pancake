@@ -1,0 +1,6 @@
+# like-for-like: same host, same seeded league, same stack, back to back; baseline = main 2909a0a, branch = 8a3874f
+pwa-launch baseline {shellPaintMs:8.8, appMountedMs:34.5, firstContentfulPaintMs:36, shellHeldAloneMs:25.7}
+pwa-launch branch   {shellPaintMs:8.1, appMountedMs:32.6, firstContentfulPaintMs:36, shellHeldAloneMs:24.5}
+browser-perf (feedback / full / cached / initialJsKb): baseline 3.5/439/4 and 5/757/5/567.7; branch 3.4/437/4 and 3.9/729/5/567.7
+data-latency totalMedianMs baseline -> branch: home 15->11.3, lineup-day 10.2->8.6, player-search 17.2->11.9, player-detail 19.7->17.7, roster 15.2->10.4, waiver 13->9.8, trade 11.5->8.5, auction 15.2->11, rookie 10.9->8.4, dynasty 9.5->9 (all PASS both)
+# reading: within run-to-run noise on a loopback stack; the branch shows no regression. The latency medians ran second and benefit from warm caches; not a claimed gain.

@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "previousRoot": "/private/tmp/claude-501/-Users-michaelchen-Projects-Apps-pancake/d0fb02a5-fe4b-4066-8a8d-f3caf50ed823/scratchpad/baseline-main/dist",
+  "nextRoot": "dist",
+  "previousVersion": "pancake-2909a0ad669b-bb5d4ea0bf7a",
+  "nextVersion": "pancake-8a3874ff692f-5b12519269a3",
+  "measurements": {
+    "shellPaintMs": null,
+    "appMountedMs": 34.90000009536743,
+    "firstContentfulPaintMs": 396
+  },
+  "checks": [
+    {
+      "name": "the previous release precaches every boot asset it declares",
+      "status": "PASS",
+      "detail": "version=pancake-2909a0ad669b-bb5d4 declared=14 missing=0"
+    },
+    {
+      "name": "the next release precaches its own boot assets",
+      "status": "PASS",
+      "detail": "version=pancake-8a3874ff692f-5b125 declared=14 missing=none"
+    },
+    {
+      "name": "only the activated release keeps caches",
+      "status": "PASS",
+      "detail": "caches=2"
+    },
+    {
+      "name": "the first relaunch after the deploy still mounts the app",
+      "status": "PASS",
+      "detail": "text=\"A calmer command center for serious dynasty leag\""
+    }
+  ]
+}

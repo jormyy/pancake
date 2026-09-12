@@ -1,0 +1,3 @@
+# npm run e2e:soak (ticks off): exit 1 — season 1 PASS (dynasty batch now has rows thanks to the seed fixture), season 2 FAIL 'active season did not advance: 2026 -> 2026' (season reset needs backend ticks; harness default). Pre-existing configuration behaviour.
+# E2E_ENABLE_BACKEND_TICKS=1 E2E_ENABLE_EDGE_TICKS=1 node tests/e2e/soak.mjs --seasons=3 with the fake upstream (edge env NBA_CDN/SLEEPER/EXPO_PUSH -> host.docker.internal:4555, PLAYER_SYNC_SOURCE=sleeper as in CI): exit 0, PASS 3/3.
+# first tick-enabled attempt without PLAYER_SYNC_SOURCE=sleeper: exit 1 'fake upstream traffic incomplete: NBA CDN delta=2, Sleeper delta=0' (config, matches CI's explicit source pin).

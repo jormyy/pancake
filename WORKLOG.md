@@ -271,3 +271,41 @@ Remaining gates: (1) next local phase: `db reset`, `npm run test:db` (waiver-edi
 pass), perpetual x2 + `--disable-boundary`, `e2e:seed` (new dynasty fixture check), `e2e:soak`
 (dynasty batch should return rows), browser chain, `perf:budget` gates; (2) independent re-review
 of `main..HEAD`.
+
+### Iteration 6 — 2026-09-12 (LOCAL TEST PHASE 3, sandbox temporarily off; evidence only, no code edits)
+
+Stack from `8a3874f`: `supabase start` exit 0, `db reset` exit 0 (306 migrations; the three retained
+indexes present, the removed duplicate absent). Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase4/`.
+
+| Check | Result |
+| --- | --- |
+| `npm run test:db` (18 suites incl. `waiver-claim-edit-gates.sql`) | **PASS, exit 0** — all four gates refuse (B1 resolved) |
+| `check:db-function-catalog` | PASS |
+| `deno test --allow-all --no-check supabase/functions` | **exit 1: 112 passed / 1 failed** — `retry.test.ts` "a caller deadline aborts a body that stalls after headers" fails with `Leaks detected` (the 500 ms bounding timer added in `01d8731` is never cleared). Behaviour under test passes; the test's own timer leaks. **Residual: fix in the next implementation phase** |
+| `e2e:perpetual` run1, run2 (same DB), `--disable-boundary`, run3 | PASS exit 0 / PASS exit 0 / **exit 1 with 4 boundary FAIL rows (correct negative control)** / PASS exit 0 — the FK-ordered cleanup holds across repeated runs |
+| `pwa-update` main 2909a0a → branch 8a3874f | PASS exit 0 |
+| `e2e:seed` | PASS; new check `dynasty_ranking_fixtures` PASS (80 synthetic rows from rank 9001) |
+| Browser chain (16 scenarios incl. tab-only smoke and full sweep) | all exit 0 (`browser-chain-exits.txt`) |
+| `perf:budget --require-report` / `--require-workflow-reports` | exit 1 after tab-only (no player-detail route), exit 0 after full sweep |
+| Baseline vs branch (same host/league/stack) | shell paint 8.8→8.1 ms, mounted 34.5→32.6 ms, FCP 36→36 ms; workflow feedback 3.5/5→3.4/3.9 ms, full load 439/757→437/729 ms; initial JS 567.7 KB both; latency medians 9.5–19.7 → 8.4–17.7 ms. Within noise; no regression (`baseline-vs-branch-performance.txt`) |
+| `e2e:soak` (ticks off) | exit 1: season 1 now PASSES (dynasty batch has rows), season 2 fails "active season did not advance" (season reset needs backend ticks; harness default). Configuration, not a regression |
+| `soak.mjs --seasons=3` with backend ticks + fake upstream (`PLAYER_SYNC_SOURCE=sleeper` as in CI; edge env pointed at `host.docker.internal:4555`) | **PASS 3/3, exit 0** (first attempt without the source pin: "Sleeper delta=0", config) |
+| `e2e:soak:release` (20 seasons) | **INTERRUPTED after ~15 min on operator request; no exit code; NOT a pass** (`soak-release-INTERRUPTED-partial.txt`) |
+
+Executable probes on the deferred candidates (scratch SQL, rolled back; `probe-*.sql/.txt`):
+- ops#3 minute-exact ET gates — **confirmed**: `invoke_edge_function_at_et_time` gate is `hour = p_hour AND minute = p_minute`; boundary gate `hour <> 9 → return`; a call outside the minute queues nothing (`net.http_request_queue` 0 → 0).
+- ops#2 cron→edge fire-and-forget — **confirmed**: `invoke_edge_function` to an unreachable target leaves only a `net._http_response` row ("Couldn't connect to server"); `sync_runs` unchanged (1850 → 1850); only pg_net's own functions read `_http_response`.
+- ops#11 Final game without stats — **confirmed**: `count_final_games_missing_stats(2026)` = 1 while the live-poll gate predicate is false and no cron job references that function.
+- ops#7 live-poll lease — **confirmed**: holder A acquired, second caller refused inside TTL, no renew function exists, third caller took the lease after 91 s while A never released.
+- ops#8 optimizer — **confirmed by schema**: `lineup_optimizer_settings` has no cursor column.
+- ops#4 parked stats job — probe insert failed on this schema (`sync_jobs` metadata validation); the existing `stats-sync-jobs` DB test already proves the terminal cap; **resurrection path unverified** (no cron job calls `create_or_resume_stats_sync_job_atomic` — confirmed from `cron.job`).
+- roster#8 claim projection/order — **confirmed**: on a 1/1 roster two claims with no drop and the same `claim_order` are both accepted as pending. Processing step returned 0 rows in the probe (processor needs the fuller fixture) — not exercised.
+- roster#3 drop of a pending claim's drop player — **confirmed**: `drop_player_atomic` removes the player while the claim stays pending.
+- roster#1 IR/taxi lock — **confirmed at DB level**: no DB function checks game status; `toggle_ir_atomic(IR→active)` succeeds during an in-progress game for the player's team. Which lock window is the rule (Edge yesterday+12h vs client today's tips) remains **ambiguous**; the DB-level gap itself is now evidence-backed.
+
+Residual work for the next implementation phase (ordered): (1) clear the bounding timer in
+`retry.test.ts` (Deno leak); (2) roster#1 shared lock assertion once the window is decided;
+(3) ops#3/#2/#11/#7 have reproducible probes to drive fixes and DB tests; (4) roster#8/#3 need the
+processor fixture to assert the failure path. Ambiguous league rules unchanged.
+
+Local servers, fake upstream and the Supabase stack stopped; baseline worktree removed.

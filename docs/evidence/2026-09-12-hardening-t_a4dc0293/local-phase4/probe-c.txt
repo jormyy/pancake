@@ -1,0 +1,94 @@
+==== P5 roster#8 claim ordering/projection at create time
+BEGIN
+INSERT 0 1
+INSERT 0 0
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 4
+INSERT 0 1
+INSERT 0 2
+                  step                   | accepted 
+-----------------------------------------+----------
+ claim A (no drop, roster full, order 1) | t
+(1 row)
+                     step                      | accepted 
+-----------------------------------------------+----------
+ claim B (no drop, roster full, order 1 again) | t
+(1 row)
+ is_a | claim_order | no_drop | status  
+------+-------------+---------+---------
+ t    |           1 | t       | pending
+ f    |           1 | t       | pending
+(2 rows)
+ processed | status | reason 
+-----------+--------+--------
+(0 rows)
+ROLLBACK
+==== P6 roster#3 dropping the player a pending claim names as its drop
+BEGIN
+INSERT 0 1
+INSERT 0 0
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+               step                | accepted 
+-----------------------------------+----------
+ claim with drop = rostered player | t
+(1 row)
+ jwt_set 
+---------
+ t
+(1 row)
+               step                
+-----------------------------------
+ drop_player_atomic on that player
+(1 row)
+ drop_player_atomic 
+--------------------
+ 
+(1 row)
+ still_rostered 
+----------------
+              0
+(1 row)
+ claims_still_pending 
+----------------------
+                    1
+(1 row)
+ note | processed | status | reason 
+------+-----------+--------+--------
+(0 rows)
+ROLLBACK
+==== P7 roster#1 toggle_ir_atomic has no lineup-lock check (team already tipped today)
+BEGIN
+INSERT 0 1
+INSERT 0 0
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+                 note                  | db_functions_checking_game_status 
+---------------------------------------+-----------------------------------
+ edge-only lock check functions in DB: |                                 0
+(1 row)
+                       step                        
+---------------------------------------------------
+ toggle_ir_atomic(IR -> active) during a live game
+(1 row)
+ toggle_ir_atomic 
+------------------
+ 
+(1 row)
+ is_on_ir 
+----------
+ f
+(1 row)
+ROLLBACK
