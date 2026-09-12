@@ -204,3 +204,70 @@ Ambiguous league policies (unchanged, unresolved): edit = resubmission (`submitt
 waiver-window predicate; FAAB reservation; offseason add-week numbering; Oct 1 season-year flip.
 
 Local servers and the Supabase stack stopped; baseline worktree removed. Paused at a clean tree.
+
+### Iteration 5 — 2026-09-12 (review round 1 fixes + deferred-candidate disposition, sandbox on)
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `01d8731` | Review B1: DB test seeds `waiver_priorities`, exhausts limit 1 via `consume_weekly_add`. C1: `cdnGet` overall 45 s deadline covers the body; `retry.ts` keeps the caller signal linked after headers. S1/S2: duplicate `roster_transactions` index removed, migration comment corrected. S3: dead trades empty branch removed. S4: `lib/home-surface.ts` precedence (draft > matchup > loading > error > empty). Cleanup list drops `trade_drop_reservations`; migration-scan test. Seed writes synthetic `hashtagbasketball.com` rows (ranks 9001+, `e2e-*`) so the soak dynasty check has candidates | `retry.test.ts` body-stall case FAILS on previous helper, 5/5 now; `tests/lib/home-surface.test.ts`; `tests/e2e-harness-fixtures.test.ts` 10 cases; DB test itself still needs the next local phase |
+| `<this>` | Quick-add hook's unreachable waiver path removed; `editWaiverClaim` drop id explicit; roster-full message pinned; 14 dead type exports made local; README offseason add-week note | vitest 691; knip PASS |
+
+Disposition of every deferred candidate (evidence-backed; "fixed" = in this branch, "DB phase" =
+implementable but needs the local stack to test, "ambiguous" = docs/config do not settle it, left):
+
+Roster / pickups / drops
+1. Edge lineup-lock check bypassable via `activate_roster_player_with_overflow_atomic` (authenticated
+   RPC calls `toggle_ir_atomic` without the Edge window) — real gap; the lock window itself is
+   defined only in Edge (`assertRosterToggleUnlocked`, yesterday+12h) while the client uses today's
+   tips (`lib/roster-locks.ts`). Which window is the rule is undocumented → **ambiguous**; DB-phase
+   proposal: move the Edge window into a `private.assert_roster_toggle_unlocked` used by both.
+2. UI shows expired-uncleared waiver hold as FA while the trigger blocks → **ambiguous** (trigger may
+   be the intended backstop while claims are pending); unchanged.
+3. Drop/IR of a pending claim's `drop_player_id` fails the claim later → **ambiguous** (block the drop
+   vs fail the claim); unchanged.
+4. Quick-add claim without drop on a full roster → **fixed**: the path was unreachable (Players
+   routes waivers to the modal); removed so it cannot regress.
+5. `editWaiverClaim` clears drop on omission → **fixed** at the type level (explicit `null`); RPC
+   semantics (null = clear) unchanged.
+6. Edit resets `submitted_at` → **ambiguous**; unchanged.
+7. Edit skips create gates → **fixed** (`7ff4ab5`, test fixtures `01d8731`).
+8. `create_waiver_claim_atomic` no roster projection / duplicate `claim_order` → **DB phase**
+   (needs the processor tests); not changed.
+9. Roster-full fallback by message substring → **pinned by test** (`roster-add-flow-message.test.ts`).
+10. Offseason synthetic add weeks undocumented → **documented** (README).
+11. Duplicated weekly-limit check in `process_next_waiver_claim_atomic` → **DB phase** refactor to
+    `private.assert_weekly_add_available`; behaviour identical today, so not changed blind.
+12. Trades bypass the roster cap → **intended** (roster-overflow recovery UI exists); no change.
+
+Scheduled ops
+1. Playoff `finalized_at` re-stamp → **fixed** (`2ec4589`), perpetual PASS.
+2. Cron→edge fire-and-forget → **DB phase / design**: needs a `net._http_response` reconciliation
+   into `sync_runs`; not changed.
+3. Minute-exact ET gates skip on delay → **DB phase**: replace equality with a last-run watermark
+   (pattern exists in `20260814000001`); scheduling semantics, so needs the harness.
+4. Stats-range job parks after 3 failures → **ambiguous** (dead-letter policy undocumented).
+5. Retry with aborted signal → **fixed** (`aea0e49`, `01d8731`).
+6. Waiver notifications per batch → **fixed** (`0623e2c`).
+7. Live-poll lease TTL 90 s vs work → **DB phase**: lease renewal mid-run; needs the stack.
+8. Lineup-optimizer no cursor → **DB phase** (needs a persisted cursor column).
+9. Boundary single-hour gate → same as 3.
+10. Playoff snapshot backfill only regular season → **DB phase**; needs a failing scenario first.
+11. Missed stats days after Final → **DB phase**; `count_final_games_missing_stats` exists unused.
+12. Boundary failures recorded as success → **fixed** (`0623e2c`).
+
+DB performance / dead code
+- A1/A2 prune indexes → **fixed** (`20260912000001`, S1 duplicate removed). A3 → covered by an
+  existing index (review S1). A4 lineup "added after" read → **DB phase** (index + limit).
+- A5/A6/A7 N+1 in sync-players / playerResolver / draft-order → **DB phase**: batching changes insert
+  semantics for missing ids; not changed blind.
+- A8/A9/B4 redundant or unused indexes → **needs production `pg_stat_user_indexes`**; not changed.
+- A10 `select('*')` → **fixed** (`0623e2c`). A11 trade-block unbounded → bounded by league size; a
+  cap would be policy → unchanged. A12 realtime fan-out → unchanged (debounce exists).
+- B1 dead type exports → **fixed** (14 removed). B2 ET helper triplication → generated copies with
+  parity tests; consolidation touches the generator → deferred. B3 write-only
+  `rookie_draft_scheduled_at` → product decision → **ambiguous**.
+
+Remaining gates: (1) next local phase: `db reset`, `npm run test:db` (waiver-edit-gates must now
+pass), perpetual x2 + `--disable-boundary`, `e2e:seed` (new dynasty fixture check), `e2e:soak`
+(dynasty batch should return rows), browser chain, `perf:budget` gates; (2) independent re-review
+of `main..HEAD`.
