@@ -118,6 +118,22 @@ export function useFocusAsyncData<T>(
         }, [load]),
     )
 
+    // On the web, a PWA returning to the foreground or regaining the network
+    // does not re-run useFocusEffect, so a screen the user is already on kept
+    // its pre-sleep data. A reconnect always refetches; a foreground return
+    // goes through the normal staleness gate.
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof document === 'undefined') return
+        const onOnline = () => { void load({ force: true }) }
+        const onVisible = () => { if (document.visibilityState === 'visible') void load() }
+        window.addEventListener('online', onOnline)
+        document.addEventListener('visibilitychange', onVisible)
+        return () => {
+            window.removeEventListener('online', onOnline)
+            document.removeEventListener('visibilitychange', onVisible)
+        }
+    }, [load])
+
     const refresh = useCallback(() => load({ force: true }), [load])
 
     return {
