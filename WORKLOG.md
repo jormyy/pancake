@@ -2,7 +2,10 @@
 
 Branch: `task/t_a4dc0293-hardening`. Baseline commit: `2909a0a` (main, clean tree) on 2026-09-12.
 Host: MAIN MacBook, Node v26.7.0, Deno, psql 14 client, Supabase CLI. All commands ran inside the
-Claude Code sandbox (filesystem write limited to repo + tmp; no local port binding; no Docker socket).
+Claude Code sandbox (no local port binding; no Docker socket). Correction 2026-09-12: the earlier
+claim that filesystem writes were bounded to repo + tmp was wrong; the launch inspector showed the
+sandbox did not bound file writes. No writes outside the repo, the scratchpad and `$TMPDIR` were made
+by this session, but that was by practice, not enforcement.
 
 Evidence directory: `docs/evidence/2026-09-12-hardening-t_a4dc0293/`.
 
