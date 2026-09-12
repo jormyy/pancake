@@ -1,0 +1,27 @@
+# npm run e2e:soak (branch 40d94a3, seeded league, fresh local DB): exit 1 after season 1
+{
+ "status": "FAIL",
+ "completedSeasons": 1,
+ "targetSeasons": 10,
+ "rows": [
+  {
+   "season": 1,
+   "status": "FAIL",
+   "notes": "authorized dynasty batch failed: no rows"
+  }
+ ]
+}
+
+# baseline main (2909a0a) tests/e2e/soak.mjs --seasons=1 on the SAME DB and seed: exit 1, same row
+{
+ "status": "FAIL",
+ "rows": [
+  {
+   "season": 1,
+   "status": "FAIL",
+   "notes": "authorized dynasty batch failed: no rows"
+  }
+ ]
+}
+
+# cause: soak-dynasty-decision-tools.mjs calls get_dynasty_forecast_inputs, which joins public.dynasty_rankings; e2e:seed and tests/e2e/fake-upstream.mjs seed no rankings rows, so a fresh local stack returns no rows. Pre-existing; not a branch regression.

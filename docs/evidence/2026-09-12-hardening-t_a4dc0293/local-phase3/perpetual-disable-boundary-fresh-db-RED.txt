@@ -1,0 +1,16 @@
+> pancake-init@1.0.0 e2e:perpetual
+> node tests/e2e/perpetual-season.mjs --disable-boundary
+WARN: config section [inbucket] is deprecated. Please use [local_smtp] instead.
+Stopped services: [supabase_imgproxy_pancake supabase_studio_pancake supabase_analytics_pancake supabase_vector_pancake supabase_pooler_pancake]
+perpetual-season: rollovers=2 boundary=DISABLED (forced-red)
+target: http://127.0.0.1:54321
+--- Default: playing season 4210 (season 1/3) ---
+FAIL: Default season 4210: playoff bracket was not auto-generated after the last regular-season week finalized
+--- Custom: playing season 4220 (season 1/3) ---
+FAIL: Custom season 4220: playoff bracket was not auto-generated after the last regular-season week finalized
+--- Sixseed: playing season 4230 (season 1/3) ---
+FAIL: Sixseed season 4230: playoff bracket was not auto-generated after the last regular-season week finalized
+--- Manual: playing season 4240 (season 1/3) ---
+FAIL: Manual: new season has 0 matchups; expected 38
+perpetual-season: FAIL (4 failures)
+npm run e2e:perpetual -- --disable-boundary  0.96s user 0.13s system 12% cpu 8.836 total

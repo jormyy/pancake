@@ -1,0 +1,21 @@
+e2e:seed exit 0
+const VERSION = 'pancake-40d94a3887a3-ccffb6e8e717'
+e2e:browser-pwa-launch exit 0 (32.443 total)
+e2e:browser-smoke exit 0 (31.864 total)
+e2e:browser-perf exit 0 (48.197 total)
+e2e:data-latency exit 0 (1.485 total)
+e2e:browser-lineup exit 0 (39.141 total)
+e2e:browser-lineup-auto-set exit 0 (23.239 total)
+e2e:browser-lineup-locked exit 0 (18.420 total)
+e2e:browser-waiver exit 0 (21.443 total)
+e2e:browser-waiver-drop exit 0 (21.712 total)
+e2e:browser-waiver-ir-block exit 0 (15.622 total)
+e2e:browser-trade exit 0 (1:01.30 total)
+e2e:browser-auth exit 0 (2:53.89 total)
+e2e:browser-playoff exit 0 (16.925 total)
+e2e:browser-rookie-draft exit 0 (18.375 total)
+e2e:browser-league-lifecycle exit 0 (24.271 total)
+perf:budget --require-report exit 1
+perf:budget --require-workflow-reports exit 1
+e2e:browser-smoke FULL_SWEEP exit 0
+[exited with code 0]

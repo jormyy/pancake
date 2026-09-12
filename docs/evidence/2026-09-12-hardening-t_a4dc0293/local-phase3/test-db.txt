@@ -1,0 +1,349 @@
+
+> pancake-init@1.0.0 test:db
+> npm run test:db:draft-goal && npm run test:db:dynasty-ranking && npm run test:db:dynasty-decision-inputs && npm run test:db:fantasypros-projections && npm run test:db:lifecycle-catalog && npm run test:db:lineup-idempotence && npm run test:db:push-token-revocation && npm run test:db:push-token-predeploy && npm run test:db:notification-receipts && npm run test:db:push-token-concurrency && npm run test:db:auth-profile && npm run test:db:waiver-backlog && npm run test:db:multi-team-trade && npm run test:db:trade-notification-outbox && npm run test:db:stats-sync-jobs && npm run test:db:retention && npm run test:db:season-boundary-gate && npm run test:db:waiver-edit-gates
+
+
+> pancake-init@1.0.0 test:db:draft-goal
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql
+
+BEGIN
+INSERT 0 2
+INSERT 0 2
+INSERT 0 3
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SELECT 1
+DO
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+DO
+INSERT 0 2
+INSERT 0 4
+INSERT 0 2
+INSERT 0 3
+INSERT 0 5
+INSERT 0 6
+INSERT 0 4
+DO
+DO
+ pause_draft_atomic 
+--------------------
+ 
+(1 row)
+
+DO
+                                                                                                                                                                                                                    commissioner_snake_pick_atomic                                                                                                                                                                                                                    
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {"pick": {"id": "00000000-0000-0000-0000-000000010706", "round": 1, "member_id": "00000000-0000-0000-0000-000000010303", "overall_pick": 1, "draft_pick_id": null, "pick_in_round": 1}, "is_mock": true, "activated": false, "completed": true, "league_id": "00000000-0000-0000-0000-000000010202", "player_id": "00000000-0000-0000-0000-000000010102", "remaining": 0, "league_season_id": "00000000-0000-0000-0000-000000010402", "next_timer_expires_at": null}
+(1 row)
+
+DO
+INSERT 0 2
+INSERT 0 4
+INSERT 0 2
+INSERT 0 1
+INSERT 0 2
+INSERT 0 2
+INSERT 0 2
+DO
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+SET
+DO
+RESET
+SET
+DO
+RESET
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:dynasty-ranking
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/dynasty-ranking-metadata.sql
+
+BEGIN
+                                                                     replace_dynasty_rankings                                                                      
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {"rows": 1, "deleted": 0, "upserted": 1, "sourceUrl": "https://example.test/dynasty-points", "scoringFormat": "points", "playersCleared": 0, "playersUpdated": 0}
+(1 row)
+
+DO
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:dynasty-decision-inputs
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/dynasty-decision-inputs.sql
+
+BEGIN
+DO
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 2
+DO
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 00000000-0000-0000-0000-0000000d1001
+(1 row)
+
+  set_config   
+---------------
+ authenticated
+(1 row)
+
+SET
+DO
+              set_config              
+--------------------------------------
+ 00000000-0000-0000-0000-0000000d1002
+(1 row)
+
+DO
+RESET
+SET
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:fantasypros-projections
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/fantasypros-projections.sql
+
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 2
+INSERT 0 4
+INSERT 0 1
+INSERT 0 4
+INSERT 0 3
+REFRESH MATERIALIZED VIEW
+INSERT 0 1
+INSERT 0 4
+INSERT 0 6
+DO
+DO
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:lifecycle-catalog
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/lifecycle-catalog-behavior.sql
+
+BEGIN
+INSERT 0 1
+INSERT 0 0
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 0
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 41
+INSERT 0 2
+DO
+RESET
+DO
+DO
+DO
+DO
+DO
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:lineup-idempotence
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/lineup-optimizer-idempotence.sql
+
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+ auto_set_lineup_service_atomic 
+--------------------------------
+ 
+(1 row)
+
+SELECT 1
+ auto_set_lineup_service_atomic 
+--------------------------------
+ 
+(1 row)
+
+DO
+SET
+DO
+RESET
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:push-token-revocation
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/push-token-revocation.sql
+
+BEGIN
+INSERT 0 2
+INSERT 0 2
+DO
+UPDATE 1
+DO
+SET
+              set_config              
+--------------------------------------
+ 00000000-0000-0000-0000-000000090001
+(1 row)
+
+UPDATE 1
+RESET
+DO
+ register_push_token_atomic 
+----------------------------
+ 
+(1 row)
+
+ register_push_token_atomic 
+----------------------------
+ 
+(1 row)
+
+DO
+ register_push_token_atomic 
+----------------------------
+ 
+(1 row)
+
+DO
+SET
+DO
+RESET
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:push-token-predeploy
+> node tests/e2e/push-token-predeploy-retry.mjs
+
+PASS push-token predeploy retry: invalid and not-ready remnants recover online
+
+> pancake-init@1.0.0 test:db:notification-receipts
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/notification-receipt-lifecycle.sql
+
+BEGIN
+DO
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+DO
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:push-token-concurrency
+> node tests/e2e/push-token-concurrency-db.mjs
+
+PASS push token concurrency: 12 atomic ownership transfers
+
+> pancake-init@1.0.0 test:db:auth-profile
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/auth-profile-trigger.sql
+
+BEGIN
+INSERT 0 3
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:waiver-backlog
+> node tests/e2e/waiver-backlog-db.mjs
+
+DELETE 0
+DELETE 0
+DELETE 0
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 2
+INSERT 0 2
+INSERT 0 2
+INSERT 0 130
+INSERT 0 2
+INSERT 0 1
+INSERT 0 130
+INSERT 0 130
+INSERT 0 1
+SELECT 1
+DO
+PASS waiver backlog: behavior and lock resources cleaned up
+
+> pancake-init@1.0.0 test:db:multi-team-trade
+> node tests/e2e/multi-team-trade-db.mjs
+
+PASS multi-team trade DB: canonical asset assertions, lazy roster limits, keyset pages, mixed-trade races, and terminal failures
+
+> pancake-init@1.0.0 test:db:trade-notification-outbox
+> node tests/e2e/trade-notification-outbox-db.mjs
+
+PASS trade notification outbox: all actions transactional with complete recipients
+
+> pancake-init@1.0.0 test:db:stats-sync-jobs
+> node tests/e2e/stats-sync-jobs-db.mjs
+
+PASS stats sync jobs: rollout rescue, fencing, dispatcher recovery, terminal cap, and malformed-job repair
+
+> pancake-init@1.0.0 test:db:retention
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/retention-pruning.sql
+
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 4
+INSERT 0 1
+INSERT 0 4
+INSERT 0 4
+INSERT 0 12
+INSERT 0 4
+INSERT 0 2
+INSERT 0 2
+INSERT 0 2
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:season-boundary-gate
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/season-boundary-gate.sql
+
+BEGIN
+DO
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+DO
+ROLLBACK
+
+> pancake-init@1.0.0 test:db:waiver-edit-gates
+> psql "${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}" --set ON_ERROR_STOP=1 -f tests/db/waiver-claim-edit-gates.sql
+
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+psql:tests/db/waiver-claim-edit-gates.sql:29: ERROR:  No waiver priority found for your team.
+CONTEXT:  PL/pgSQL function create_waiver_claim_atomic(uuid,uuid,uuid,uuid,uuid,integer,integer) line 52 at RAISE
+npm run test:db  2.74s user 1.07s system 32% cpu 11.687 total

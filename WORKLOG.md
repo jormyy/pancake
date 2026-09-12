@@ -170,3 +170,37 @@ Remaining test/review gates (not self-approved):
    `npm run perf:budget -- --require-report`, plus the scenarios not run in iteration 2.
 2. Index DDL: confirm no duplicate/overlapping index in production catalog before predeploy build.
 3. Independent Opus review of every commit on `task/t_a4dc0293-hardening` (main..HEAD).
+
+### Iteration 4 — 2026-09-12 (LOCAL TEST PHASE 2, sandbox temporarily off; evidence only, no code edits)
+
+Stack: `supabase start` exit 0, `supabase db reset` exit 0 (306 migrations incl. `20260912000001/2`,
+all four new indexes present), local API/DB on 127.0.0.1 from the private env files; production `.env`
+unused. Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase3/` (redacted, leak-checked).
+Independent review round 1 retained verbatim at `local-phase3/independent-review-round1.md` (verdict BLOCK;
+gating item B1 = the new DB test's fixtures). No fixes were applied in this phase.
+
+| Check | Result |
+| --- | --- |
+| `deno test --allow-all --no-check supabase/functions` | PASS 112/0, exit 0 |
+| `npm run test:db` (18 suites) | exit 3: 17 pass; **`waiver-claim-edit-gates.sql` FAILS at fixture** (`No waiver priority found for your team.`; then `leagues_weekly_add_limit_valid` when limit=0). Confirms review B1 |
+| ad-hoc copy of that test with a `waiver_priorities` row and limit=1 + `consume_weekly_add` | all 5 gates refuse correctly, final state intact, ROLLBACK (`waiver-edit-gates-adhoc.txt`) |
+| `check:db-function-catalog` | PASS |
+| `e2e:perpetual` run1 (fresh DB) | PASS exit 0 |
+| `e2e:perpetual` run2/run3, `--disable-boundary` on same DB | exit 1: **residual defect in `f619cf3`**: `PLAYER_REFERENCE_TABLES` lists `trade_drop_reservations`, dropped by `20260709100027`; PostgREST returns "table not in schema cache" before any delete runs |
+| `e2e:perpetual -- --disable-boundary` after `db reset` | exit 1 with 4 boundary FAIL rows — red-proof reproduced for the intended reason |
+| `pwa-update` main 2909a0a → branch | PASS exit 0 (`pwa-update-report.json`) |
+| Browser chain on branch: pwa-launch, **tab-only smoke (now PASS, was FAIL)**, perf, data-latency, lineup, lineup-auto-set, lineup-locked, waiver, waiver-drop, waiver-ir-block, trade, auth, playoff, rookie-draft, league-lifecycle, full-sweep smoke | all exit 0 (`browser-chain-exits.txt`) |
+| `perf:budget --require-report` / `--require-workflow-reports` | exit 1 after tab-only smoke (report lacks player-detail), exit 0 after full sweep |
+| Baseline vs branch (same host/league/stack, back to back) | within noise: shell paint 8.7→7.8 ms, app mounted 37.2→37.4 ms, FCP 36→44 ms; workflow feedback 3.4/8.4→2/3.7 ms, full load 439/727→430/703 ms; initial JS 567.7→567.5 KB; data-latency medians 10–22 ms both, all PASS (`baseline-vs-branch-performance.txt`) |
+| `e2e:soak` (10 seasons) | exit 1 in season 1: `authorized dynasty batch failed: no rows`. **Pre-existing**: identical on baseline main against the same DB; `get_dynasty_forecast_inputs` needs `dynasty_rankings` rows that neither the seed nor the fake upstream provides (`soak-season1-dynasty-batch-FAIL-preexisting.txt`). `e2e:soak:release` not attempted for the same reason |
+
+Residual failures to fix in the next implementation phase (ordered):
+1. `tests/db/waiver-claim-edit-gates.sql` fixtures (review B1, gating): add `waiver_priorities`; use limit 1 + consumed add.
+2. `tests/e2e/harness-cleanup.mjs`: drop `trade_drop_reservations` (or derive the list from `pg_constraint`); re-run perpetual x2 + red-proof.
+3. Review C1: `cdnGet` body read lost its overall timeout; S1 duplicate `roster_transactions` index (existing `(player_id, league_id, occurred_at desc)`); S2 migration comment (no predeploy build exists; prune is weekly); S3 dead trades empty branch (`listData` always has a header row); S4 Home error card precedes the live-draft card.
+4. Soak on a fresh local stack needs a rankings fixture (environment gap, pre-existing).
+
+Ambiguous league policies (unchanged, unresolved): edit = resubmission (`submitted_at`); trigger vs RPC
+waiver-window predicate; FAAB reservation; offseason add-week numbering; Oct 1 season-year flip.
+
+Local servers and the Supabase stack stopped; baseline worktree removed. Paused at a clean tree.

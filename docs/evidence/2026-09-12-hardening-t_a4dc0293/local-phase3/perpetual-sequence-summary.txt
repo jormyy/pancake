@@ -1,0 +1,13 @@
+# perpetual-season sequence on branch 40d94a3 (fresh DB, then repeats on the same DB)
+run1: exit 0 PASS
+run2: exit 1 — cleanup trade_drop_reservations.player_id: Could not find the table 'public.trade_drop_reservations' in the schema cache (table dropped by 20260709100027; stale entry in tests/e2e/harness-cleanup.mjs PLAYER_REFERENCE_TABLES) — RESIDUAL DEFECT in f619cf3
+--disable-boundary on that DB: exit 1 for the same cleanup reason (BLOCKED)
+run3: exit 1 same
+after supabase db reset: --disable-boundary exit 1 with 4 boundary FAIL rows (red-proof reproduced for the intended reason):
+FAIL: Default season 4210: playoff bracket was not auto-generated after the last regular-season week finalized
+FAIL: Custom season 4220: playoff bracket was not auto-generated after the last regular-season week finalized
+FAIL: Sixseed season 4230: playoff bracket was not auto-generated after the last regular-season week finalized
+FAIL: Manual: new season has 0 matchups; expected 38
+perpetual-season: FAIL (4 failures)
+
+live FK list on public.players (confdeltype='a', local DB): roster_players, weekly_lineups, player_game_stats, player_projections, nominations, snake_draft_picks, waiver_claims(x2), waiver_wire_log, trade_items, roster_transactions
