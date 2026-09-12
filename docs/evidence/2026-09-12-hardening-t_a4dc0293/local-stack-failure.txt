@@ -1,0 +1,32 @@
+# 2026-09-12T21:11:09Z local stack probe
+## docker version
+Client:
+ Version:           29.6.2
+ API version:       1.55
+ Go version:        go1.26.5
+ Git commit:        dfc4efb
+ Built:             Thu Jul 16 16:11:17 2026
+ OS/Arch:           darwin/arm64
+ Context:           desktop-linux
+permission denied while trying to connect to the docker API at unix:///Users/michaelchen/.docker/run/docker.sock
+exit=0
+## docker context ls
+NAME              DESCRIPTION                               DOCKER ENDPOINT                                     ERROR
+default           Current DOCKER_HOST based configuration   unix:///var/run/docker.sock                         
+desktop-linux *   Docker Desktop                            unix:///Users/michaelchen/.docker/run/docker.sock   
+## docker socket
+ls: /var/run/docker.sock: No such file or directory
+srwxr-xr-x  1 michaelchen  staff  0 Sep  3 22:57 /Users/michaelchen/.docker/run/docker.sock
+## Docker.app process
+sysmon request failed with error: sysmond service not found
+pgrep: Cannot get process list
+pgrep exit=0
+## open -a Docker
+The application /Applications/Docker.app cannot be opened for an unexpected reason, error=Error Domain=NSOSStatusErrorDomain Code=-600 "procNotFound: no eligible process with specified descriptor" UserInfo={_LSLine=392, _LSFunction=_LSAnnotateAndSendAppleEventWithOptions, _LSFile=LSOpenCore.mm, _LSErrorMessage=procNotFound}
+open exit=1
+## supabase start (telemetry disabled attempt)
+WARN: config section [inbucket] is deprecated. Please use [local_smtp] instead.
+{"_tag":"Error","error":{"code":"LegacyDockerLifecycleInspectError","message":"failed to inspect container health: permission denied while trying to connect to the docker API at unix:///Users/michaelchen/.docker/run/docker.sock"}}
+supabase exit=
+## supabase status
+{"_tag":"Error","error":{"code":"LegacyStatusDbInspectError","message":"failed to inspect container health: permission denied while trying to connect to the docker API at unix:///Users/michaelchen/.docker/run/docker.sock"}}

@@ -1,0 +1,7 @@
+file raw_bytes gzip_bytes
+__common.js  1725689   413629
+entry.js   971542   264314
+league.js   133329    38196
+index.html    64653    18579
+sw.js     5678     2238
+total_js_gzip   877584
