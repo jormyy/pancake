@@ -1,6 +1,10 @@
--- Canonical SQL source for public.edit_waiver_claim_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- edit_waiver_claim_atomic skipped the gates create_waiver_claim_atomic applies,
+-- so a pending claim could be edited after the league left an eligible state,
+-- after the season rolled, after the weekly add limit was exhausted, or after
+-- the player's waiver window closed, and a member could set drop_player_id to
+-- the claimed player. The edit now applies the same checks as creation.
+-- Canonical source: supabase/sql/functions/by-name/public/edit_waiver_claim_atomic.sql
+
 
 CREATE OR REPLACE FUNCTION public.edit_waiver_claim_atomic(
   p_claim_id uuid,
