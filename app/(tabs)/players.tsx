@@ -255,7 +255,6 @@ export default function PlayersScreen() {
         current?.id,
         leagueId,
         currentLeague?.roster_size ?? 20,
-        waiverIds,
         refreshPlayerSupport,
         refreshPlayerSupport,
     )

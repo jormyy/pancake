@@ -92,11 +92,14 @@ export async function cancelWaiverClaim(claimId: string, memberId: string): Prom
 export async function editWaiverClaim(
     claimId: string,
     memberId: string,
-    updates: { dropPlayerId?: string | null; bidAmount?: number; claimOrder?: number | null },
+    // dropPlayerId is required (null clears it): edit_waiver_claim_atomic writes
+    // whatever it receives, so an omitted field would silently drop the drop
+    // player and turn a valid claim into one that fails "roster full".
+    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null },
 ): Promise<void> {
     await apiPost(`/waivers/claims/${claimId}/edit`, {
         memberId,
-        dropPlayerId: updates.dropPlayerId ?? null,
+        dropPlayerId: updates.dropPlayerId,
         bidAmount: updates.bidAmount ?? 0,
         claimOrder: updates.claimOrder ?? null,
     })

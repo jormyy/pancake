@@ -31,7 +31,7 @@ type TradeListInput = {
     leagueBlockItems: TradeBlockItem[]
 }
 
-export type TradeScreenSections = Pick<TradeListInput,
+type TradeScreenSections = Pick<TradeListInput,
     'vetoableTrades' | 'incomingTrades' | 'outgoingTrades' | 'historyTrades' | 'myBlockItems'>
 
 export function selectTradeScreenSections(
@@ -87,7 +87,7 @@ export function tradeListKey(item: TradeListItem, index: number): string {
 
 export const tradeListItemType = (item: TradeListItem) => item._type
 
-export type TradeScreenResource = 'picks' | 'block' | 'trades' | 'history'
+type TradeScreenResource = 'picks' | 'block' | 'trades' | 'history'
 
 export function tradeScreenResource(tab: TradeTabKey): TradeScreenResource {
     if (tab === 'picks') return 'picks'

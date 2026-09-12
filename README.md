@@ -30,7 +30,8 @@ commissioner disappears.
   and rookie filters
 - **Dynasty Hub** with Hashtag Basketball dynasty rankings, source stat strips, player
   headshots, curated news, and roster-filtered My News
-- **Waiver wire** with weekly add limits, rolling or FAAB claim modes, blind bids,
+- **Waiver wire** with weekly add limits (in the offseason the limit keeps counting in
+  synthetic 7-day weeks anchored to the last regular-season week), rolling or FAAB claim modes, blind bids,
   pending-claim edit/reorder/cancel, and a 48h clearance window
 - **Trades** with active-roster players, future draft picks, tradeable FAAB, multi-team
   offers, expiration, counteroffers, outgoing edits, trade block, and a 24h veto window

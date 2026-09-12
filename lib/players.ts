@@ -222,13 +222,13 @@ export type TransactionHistoryEntry = {
     occurredAt: string
 }
 
-export type PlayerHealthFilter = 'all' | 'healthy' | 'gtd' | 'out' | 'ir'
-export type PlayerSearchQueryConstraints = {
+type PlayerHealthFilter = 'all' | 'healthy' | 'gtd' | 'out' | 'ir'
+type PlayerSearchQueryConstraints = {
     includePlayerIds?: string[]
     excludePlayerIds?: string[]
     excludedTeams?: string[]
 }
-export type PlayerSearchOptions = {
+type PlayerSearchOptions = {
     sortMode?: PlayerSearchSortMode
     sortDir?: PlayerSearchSortDir
     pageSize?: number
