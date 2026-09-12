@@ -89,3 +89,40 @@ Deferred to review (need DB to change/test; not implemented):
   synthetic add-week numbering vs `resolveSeasonWeekNumber`; season-year flip on Oct 1.
 
 Paused here at a clean tree on user request (sandbox adjustment pending for DB/browser tests).
+
+### Iteration 2 — 2026-09-12 (LOCAL TEST PHASE, sandbox temporarily lifted for local DB/browser only)
+
+Environment: Docker Desktop reachable; `supabase start` (first attempt hit Docker Hub
+`toomanyrequests` mid-pull, second attempt exit 0); local API `http://127.0.0.1:54321`, local DB
+`127.0.0.1:54322`. All env for this phase came from `supabase status` written to private 0600 files
+in the scratchpad; the writer refuses any non-loopback URL. `.env` (production) was not used for any
+write; production restrictions unchanged. Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local/`
+(secrets redacted, leak-checked).
+
+The local Docker volume still held e2e leagues from 2026-08-15..27 (18 leagues). `supabase db reset`
+rebuilt the DB from scratch: 304 migrations applied cleanly in 27.8 s (`db-reset.txt`).
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Deno edge tests | `deno test --allow-all --no-check supabase/functions` | PASS 109/0, exit 0 (baseline in sandbox: 44/9) |
+| DB behaviour suites | `npm run test:db` (17 suites) | PASS, exit 0 (`test-db.txt`) |
+| DB function catalog | `npm run check:db-function-catalog` | PASS, exit 0 |
+| Perpetual season (branch, 2 rollovers, boundary on) | `npm run e2e:perpetual` | PASS, exit 0, 20.7 s: 48h grace waited, in-window correction re-decided SF, closed SF immutable, 160-claim drain (`perpetual-season.txt`, `-report.json`) |
+| Perpetual red-proof | `npm run e2e:perpetual -- --disable-boundary` | **BLOCKED** (exit 1 for the wrong reason): harness `cleanupPreviousRuns` deletes `players LIKE 'perpetual-%'` before `roster_players`; FK `roster_players_player_id_fkey` fails on any second run against the same DB. Reproduced twice. Pre-existing harness defect, preserved in `perpetual-disable-boundary-red-proof-BLOCKED.txt` |
+| finalized_at re-stamp (motivation for `2ec4589`) | psql demo on local DB | unchanged finalized QF row passed back to `finalize_score_week_atomic` → `finalized_at` advanced (`restamped = t`), 0 notifications (`finalized-at-restamp-demo.txt`) |
+| PWA deploy-update gate | `node tests/e2e/pwa-update.mjs --previous=<main 2909a0a dist> --next=dist` | PASS, exit 0: both releases precache 14/14 boot assets, only the activated release keeps caches, first relaunch mounts (`pwa-update-report.json`) |
+| Seed browser fixture | `npm run e2e:seed` | PASS, exit 0 (10 users, 80 players, no rosters by design) |
+| PWA launch | `npm run e2e:browser-pwa-launch` | PASS, exit 0: shell paint 6.7 ms, app mounted 28 ms, FCP 44 ms vs 400 ms budget |
+| Browser perf | `npm run e2e:browser-perf` | PASS, exit 0: feedback 5.8–6.7 ms (budget 100), max long task 0 ms, heartbeat lag 4 ms |
+| Data latency | `npm run e2e:data-latency` | PASS, exit 0 (report copied) |
+| Lineup / waiver / waiver-drop / trade | `npm run e2e:browser-lineup`, `-waiver`, `-waiver-drop`, `-trade` | PASS, exit 0 each |
+| Browser smoke, tab-only | `npm run e2e:browser-smoke` | **FAIL exit 1** on branch dist, on rerun, and on BASELINE main dist: `Workflow roster-review-manage did not reach its ready state`. Cause: the roster fixture row is only inserted in full-sweep mode and `roster.tsx` renders the auto-set control only when the roster is non-empty. Pre-existing; preserved in `browser-smoke-tab-only-failure.txt` |
+| Browser smoke, full sweep | `E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke` | PASS, exit 0, 1:27 wall |
+| Perf budget gate | `npm run perf:budget -- --require-report` | FAIL after the tab-only smoke (downstream of that report), PASS after the full-sweep smoke |
+
+Not run: `e2e:soak` / `e2e:soak:release` (long multi-season release gate), `browser-auth`,
+`browser-playoff`, `browser-rookie-draft`, `browser-league-lifecycle`, `waiver-ir-block`,
+`parity:players`, `prod:*` (production-facing by definition). Left for the next phase or review.
+
+Local servers and the Supabase stack were stopped at the end of this phase; the local volume keeps
+the seeded/perpetual data. Paused at a clean tree for sandbox restoration.

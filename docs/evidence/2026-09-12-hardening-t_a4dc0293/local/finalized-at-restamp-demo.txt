@@ -1,0 +1,5 @@
+-- local DB demo: finalize_score_week_atomic re-stamps finalized_at for an unchanged finalized playoff row
+before: 049eef58-f5f8-438e-9c2f-6adf9c0bb78e 2026-09-12 21:29:11.838+00
+
+0
+after:|049eef58-f5f8-438e-9c2f-6adf9c0bb78e|2026-09-12 21:30:38.602797+00|t
