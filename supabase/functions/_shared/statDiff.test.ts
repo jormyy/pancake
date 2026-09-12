@@ -1,4 +1,4 @@
-import { changedStatRows } from './syncStats.ts'
+import { changedStatRows } from './statDiff.ts'
 
 const PLAYER_A = '00000000-0000-4000-8000-00000000000a'
 const PLAYER_B = '00000000-0000-4000-8000-00000000000b'
