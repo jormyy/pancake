@@ -207,8 +207,9 @@ async function fetchNbaComDraftOrder(seasonYear: number): Promise<NBADraftPick[]
 }
 
 function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  // Per-attempt timeout: a hung first attempt must not consume the retry's budget.
-  return fetchWithRetry(url, init, { attemptTimeoutMs: 20_000 })
+  // Per-attempt timeout for headers, plus an overall deadline that also covers
+  // the body read (same shape as cdnGet).
+  return fetchWithRetry(url, { ...init, signal: AbortSignal.timeout(45_000) }, { attemptTimeoutMs: 20_000 })
 }
 
 function parseDraftPicksFromNbaComHtml(html: string): NBADraftPick[] {

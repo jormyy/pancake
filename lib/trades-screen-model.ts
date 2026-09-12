@@ -25,8 +25,11 @@ type TradeListInput = {
     historyTrades: Trade[]
     picks: TradePickItem[]
     tradesLoading: boolean
+    /** A failed trades load: the error banner owns the message, so no empty rows. */
+    tradesError?: boolean
     myBlockItems: TradeBlockItem[]
     blockLoading: boolean
+    blockError?: boolean
     blockRoster: RosterPlayer[]
     leagueBlockItems: TradeBlockItem[]
 }
@@ -119,12 +122,12 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
         }
         result.push({ _type: 'header', label: 'Incoming' })
         input.incomingTrades.forEach((trade) => result.push({ _type: 'trade', trade }))
-        if (input.incomingTrades.length === 0 && !input.tradesLoading) {
+        if (input.incomingTrades.length === 0 && !input.tradesLoading && !input.tradesError) {
             result.push({ _type: 'empty', key: 'incoming-offers', message: 'No incoming offers.' })
         }
         result.push({ _type: 'header', label: 'Outgoing' })
         input.outgoingTrades.forEach((trade) => result.push({ _type: 'trade', trade }))
-        if (input.outgoingTrades.length === 0 && !input.tradesLoading) {
+        if (input.outgoingTrades.length === 0 && !input.tradesLoading && !input.tradesError) {
             result.push({ _type: 'empty', key: 'outgoing-offers', message: 'No outgoing offers.' })
         }
         return result
@@ -132,7 +135,7 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
     if (input.tab === 'block') {
         result.push({ _type: 'header', label: 'Your Listings' })
         input.myBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
-        if (input.myBlockItems.length === 0 && !input.blockLoading) {
+        if (input.myBlockItems.length === 0 && !input.blockLoading && !input.blockError) {
             result.push({ _type: 'empty', key: 'my-block-listings', message: 'No listings yet.' })
         }
         result.push({ _type: 'header', label: 'List Your Players' })
@@ -144,14 +147,14 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
     if (input.tab === 'leagueBlock') {
         result.push({ _type: 'header', label: 'League Trade Block' })
         input.leagueBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
-        if (input.leagueBlockItems.length === 0 && !input.blockLoading) {
+        if (input.leagueBlockItems.length === 0 && !input.blockLoading && !input.blockError) {
             result.push({ _type: 'empty', key: 'league-block-listings', message: 'No league listings yet.' })
         }
         return result
     }
     result.push({ _type: 'header', label: 'Trade History' })
     input.historyTrades.forEach((trade) => result.push({ _type: 'trade', trade }))
-    if (input.historyTrades.length === 0 && !input.tradesLoading) {
+    if (input.historyTrades.length === 0 && !input.tradesLoading && !input.tradesError) {
         result.push({ _type: 'empty', key: 'trade-history', message: 'No completed trades yet.' })
     }
     return result

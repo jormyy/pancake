@@ -4,11 +4,13 @@
 -- predicate; the existing composite indexes lead with function_name/source/
 -- status, so the prune scanned both tables in full on every run and they are
 -- the fastest-growing tables (one row per cron tick). The standings prune runs
--- a correlated max(week_number) per (league_season_id, member_id) that only
--- had a member_id index.
+-- a correlated max(week_number) per (league_season_id, member_id); the
+-- existing standings indexes (league_season_id alone, (league_id,
+-- league_season_id, week_number), member_id, and the unique key) none lead
+-- with (league_season_id, member_id).
 --
 -- The per-player transaction history read is already served by
--- idx_roster_transactions_player_league_occurred (20260702000003); no index is
+-- idx_roster_transactions_player_league_recent (20260702000003); no index is
 -- added for it here.
 --
 -- Plain btree indexes on small or pruned tables, built inside the migration

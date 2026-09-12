@@ -138,10 +138,12 @@ export default function TradesScreen() {
         memberId: myMemberId,
         picks: picksList,
         tradesLoading: tab === 'history' ? historyLoading : loading,
+        tradesError: Boolean(tab === 'history' ? historyError : tradesError),
         blockLoading,
+        blockError: Boolean(blockError),
         blockRoster,
         leagueBlockItems: blockItems,
-    }), [blockItems, blockLoading, blockRoster, historyLoading, historyTrades, loading, myMemberId, picksList, tab, trades])
+    }), [blockError, blockItems, blockLoading, blockRoster, historyError, historyLoading, historyTrades, loading, myMemberId, picksList, tab, trades, tradesError])
     const { listData, pendingInboxCount } = screenModel
     const renderItem = useCallback(({ item }: { item: TradeListItem }) => {
         switch (item._type) {

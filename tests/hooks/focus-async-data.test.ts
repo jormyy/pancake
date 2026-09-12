@@ -75,7 +75,7 @@ describe('useFocusAsyncData', () => {
 describe('useFocusAsyncData web reconnect and foreground', () => {
     const dispatch = (target: EventTarget, type: string) => target.dispatchEvent(new Event(type))
 
-    it('refetches on the online event even when the data is fresh, and on foreground only when stale', async () => {
+    it('reacts to online/foreground only while focused: online always refetches, foreground only when stale', async () => {
         // The suite runs in a node environment; stand in for the browser globals
         // the hook listens on, and remove them afterwards.
         const fakeWindow = new EventTarget()
@@ -85,22 +85,30 @@ describe('useFocusAsyncData web reconnect and foreground', () => {
         globals.window = fakeWindow
         globals.document = fakeDocument
         const fetcher = vi.fn(async () => 'value')
-        let latest!: ReturnType<typeof useFocusAsyncData<string>>
-        const Probe = () => { latest = useFocusAsyncData(fetcher, ['k'], { staleMs: 60_000 }); return null }
+        const Probe = () => { useFocusAsyncData(fetcher, ['k'], { staleMs: 60_000 }); return null }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => { await latest.refresh() })
-        expect(fetcher).toHaveBeenCalledTimes(1)
+        // Screens stay mounted but unfocused on web: before focus, browser events must be ignored.
+        await act(async () => { dispatch(fakeWindow, 'online') })
+        expect(fetcher).toHaveBeenCalledTimes(0)
+
+        let blur: (() => void) | void
+        await act(async () => { blur = (focusCallbacks.at(-1) as () => (() => void) | void)() })
+        expect(fetcher).toHaveBeenCalledTimes(1) // focus loads once
 
         await act(async () => { dispatch(fakeDocument, 'visibilitychange') })
         expect(fetcher).toHaveBeenCalledTimes(1) // fresh: gate holds
 
         await act(async () => { dispatch(fakeWindow, 'online') })
-        expect(fetcher).toHaveBeenCalledTimes(2) // reconnect always refetches
+        expect(fetcher).toHaveBeenCalledTimes(2) // reconnect on the focused screen always refetches
 
         visibility = 'hidden'
         await act(async () => { dispatch(fakeDocument, 'visibilitychange') })
         expect(fetcher).toHaveBeenCalledTimes(2)
+
+        await act(async () => { if (typeof blur === 'function') blur() })
+        await act(async () => { dispatch(fakeWindow, 'online') })
+        expect(fetcher).toHaveBeenCalledTimes(2) // blurred screen ignores reconnect
 
         await act(async () => { renderer.unmount() })
         await act(async () => { dispatch(fakeWindow, 'online') })

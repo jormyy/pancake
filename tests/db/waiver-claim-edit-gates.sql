@@ -1,4 +1,6 @@
 -- edit_waiver_claim_atomic must apply the same gates as create_waiver_claim_atomic.
+-- Each handler re-raises unless the gate's own message fired, so the block's
+-- 'expected ... refused' exception (also P0001) can never satisfy itself.
 -- Run: psql "$SUPABASE_DB_URL" --set ON_ERROR_STOP=1 -f tests/db/waiver-claim-edit-gates.sql
 BEGIN;
 
@@ -44,6 +46,7 @@ BEGIN
   PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', '00000000-0000-0000-0000-000000060401', 0, NULL);
   RAISE EXCEPTION 'expected self-drop edit to be refused';
 EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM NOT LIKE 'You cannot drop the player you are claiming%' THEN RAISE; END IF;
   RAISE NOTICE 'ok: self-drop refused';
 END $$;
 
@@ -55,6 +58,7 @@ BEGIN
   PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 3);
   RAISE EXCEPTION 'expected closed-window edit to be refused';
 EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  IF SQLERRM NOT LIKE 'This player is no longer on waivers%' THEN RAISE; END IF;
   RAISE NOTICE 'ok: closed window refused';
 END $$;
 UPDATE public.waiver_wire_log SET clears_at = now() + interval '1 day'
@@ -67,6 +71,7 @@ BEGIN
   PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 4);
   RAISE EXCEPTION 'expected ineligible league edit to be refused';
 EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  IF SQLERRM NOT LIKE 'Waiver claims require an active or playoff season%' THEN RAISE; END IF;
   RAISE NOTICE 'ok: ineligible league refused';
 END $$;
 UPDATE public.leagues SET status = 'active' WHERE id = '00000000-0000-0000-0000-000000060101';
@@ -80,6 +85,7 @@ BEGIN
   PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 5);
   RAISE EXCEPTION 'expected exhausted add limit edit to be refused';
 EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  IF SQLERRM NOT LIKE 'Weekly add limit reached%' THEN RAISE; END IF;
   RAISE NOTICE 'ok: add limit refused';
 END $$;
 

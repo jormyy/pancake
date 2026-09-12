@@ -127,6 +127,34 @@ describe('harness cleanup table list', () => {
             expect(dropped.has(table), `${table} was dropped by a migration`).toBe(false)
         }
     })
+
+    // Review round 2, S9: derive the set of live tables that reference players
+    // without ON DELETE from the migrations themselves, so a new plain foreign
+    // key to players cannot appear without the cleanup list going red.
+    it('covers every live table with a plain foreign key to players', async () => {
+        const { readdir, readFile } = await import('node:fs/promises')
+        const dir = 'supabase/migrations'
+        const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort()
+        const referencing = new Set<string>()
+        const dropped = new Set<string>()
+        for (const file of files) {
+            const sql = await readFile(`${dir}/${file}`, 'utf8')
+            let table: string | null = null
+            for (const raw of sql.split('\n')) {
+                const line = raw.replace(/--.*$/, '')
+                const create = line.match(/CREATE TABLE(?: IF NOT EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                const alter = line.match(/ALTER TABLE(?: ONLY)?(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                if (create) { table = create[1]; dropped.delete(table) }
+                else if (alter) table = alter[1]
+                const drop = line.match(/DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                if (drop) { dropped.add(drop[1]); continue }
+                if (table && /REFERENCES\s+(?:public\.)?players\s*\(\s*id\s*\)/i.test(line) && !/ON DELETE/i.test(line)) referencing.add(table)
+            }
+        }
+        for (const t of dropped) referencing.delete(t)
+        const listed = new Set(PLAYER_REFERENCE_TABLES.map((t) => t.table))
+        expect([...referencing].sort()).toEqual([...listed].sort())
+    })
 })
 
 describe('dynasty ranking seed fixtures', () => {
