@@ -1,0 +1,170 @@
+--- types/database.ts	2026-09-12 16:51:36
++++ /private/tmp/claude-501/-Users-michaelchen-Projects-Apps-pancake/d0fb02a5-fe4b-4066-8a8d-f3caf50ed823/scratchpad/local/database.generated.ts	2026-09-12 16:56:59
+@@ -146,6 +146,24 @@
+             referencedColumns: ["id"]
+           },
+         ]
++      }
++      cron_dispatch_state: {
++        Row: {
++          dispatched_at: string
++          job_key: string
++          period_key: string
++        }
++        Insert: {
++          dispatched_at?: string
++          job_key: string
++          period_key: string
++        }
++        Update: {
++          dispatched_at?: string
++          job_key?: string
++          period_key?: string
++        }
++        Relationships: []
+       }
+       draft_audit_logs: {
+         Row: {
+@@ -622,6 +640,36 @@
+           },
+         ]
+       }
++      edge_invocations: {
++        Row: {
++          error_message: string | null
++          function_name: string
++          id: number
++          queued_at: string
++          reconciled_at: string | null
++          request_id: number | null
++          status_code: number | null
++        }
++        Insert: {
++          error_message?: string | null
++          function_name: string
++          id?: never
++          queued_at?: string
++          reconciled_at?: string | null
++          request_id?: number | null
++          status_code?: number | null
++        }
++        Update: {
++          error_message?: string | null
++          function_name?: string
++          id?: never
++          queued_at?: string
++          reconciled_at?: string | null
++          request_id?: number | null
++          status_code?: number | null
++        }
++        Relationships: []
++      }
+       faab_balances: {
+         Row: {
+           balance: number
+@@ -3433,13 +3481,13 @@
+         Args: {
+           p_activate_roster_player_id: string
+           p_activate_source: string
+-          p_free_action: string | null
+-          p_free_roster_player_id: string | null
++          p_free_action: string
++          p_free_roster_player_id: string
+           p_game_date: string
+           p_league_id: string
+           p_league_season_id: string
+           p_member_id: string
+-          p_slot_type?: Database["public"]["Enums"]["roster_slot_type"] | null
++          p_slot_type?: Database["public"]["Enums"]["roster_slot_type"]
+           p_week_number: number
+         }
+         Returns: undefined
+@@ -4011,7 +4059,7 @@
+         }[]
+       }
+       invoke_dynasty_ranking_views_at_et_time: {
+-        Args: { p_hour: number; p_minute?: number }
++        Args: { p_hour: number; p_minute?: number; p_now?: string }
+         Returns: undefined
+       }
+       invoke_edge_function: {
+@@ -4019,13 +4067,21 @@
+         Returns: undefined
+       }
+       invoke_edge_function_at_et_time: {
+-        Args: { p_function_name: string; p_hour: number; p_minute?: number }
++        Args: {
++          p_function_name: string
++          p_hour: number
++          p_minute?: number
++          p_now?: string
++        }
+         Returns: undefined
+       }
+       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
+       invoke_live_poll_if_due: { Args: never; Returns: undefined }
+       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
+-      invoke_season_boundary_if_due: { Args: never; Returns: undefined }
++      invoke_season_boundary_if_due: {
++        Args: { p_now?: string }
++        Returns: undefined
++      }
+       is_regular_season_game_id: {
+         Args: { p_game_id: string }
+         Returns: boolean
+@@ -4204,10 +4260,6 @@
+         Args: { p_holder_id: string; p_lock_key: number }
+         Returns: boolean
+       }
+-      renew_live_poll_lease: {
+-        Args: { p_holder_id: string; p_lock_key: number; p_ttl_seconds?: number }
+-        Returns: boolean
+-      }
+       release_live_poll_lock: { Args: never; Returns: boolean }
+       release_stats_sync_job_atomic: {
+         Args: {
+@@ -4221,6 +4273,14 @@
+       remove_trade_block_item_atomic: {
+         Args: { p_item_id: string; p_member_id: string; p_user_id?: string }
+         Returns: undefined
++      }
++      renew_live_poll_lease: {
++        Args: {
++          p_holder_id: string
++          p_lock_key: number
++          p_ttl_seconds?: number
++        }
++        Returns: boolean
+       }
+       reorder_waiver_claim_atomic: {
+         Args: {
+@@ -4749,29 +4809,3 @@
+   },
+ } as const
+ 
+-export type LeagueStatus = Database["public"]["Enums"]["league_status"]
+-export type LeagueMemberRole = Database["public"]["Enums"]["league_member_role"]
+-export type DraftType = Database["public"]["Enums"]["draft_type"]
+-export type DraftStatus = Database["public"]["Enums"]["draft_status"]
+-export type NominationStatus = Database["public"]["Enums"]["nomination_status"]
+-export type RosterSlotType = Database["public"]["Enums"]["roster_slot_type"]
+-export type NBAPosition = Database["public"]["Enums"]["nba_position"]
+-export type WaiverClaimStatus = Database["public"]["Enums"]["waiver_claim_status"]
+-export type TradeStatus = Database["public"]["Enums"]["trade_status"]
+-export type TradeSide = Database["public"]["Enums"]["trade_side"]
+-export type VetoType = Database["public"]["Enums"]["veto_type"]
+-export type MatchupType = Database["public"]["Enums"]["matchup_type"]
+-export type RpsChoice = Database["public"]["Enums"]["rps_choice"]
+-export type RpsStatus = Database["public"]["Enums"]["rps_status"]
+-
+-export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
+-export type League = Database["public"]["Tables"]["leagues"]["Row"]
+-export type LeagueMember = Database["public"]["Tables"]["league_members"]["Row"]
+-export type LeagueSeason = Database["public"]["Tables"]["league_seasons"]["Row"]
+-export type Player = Database["public"]["Tables"]["players"]["Row"]
+-export type RosterPlayer = Database["public"]["Tables"]["roster_players"]["Row"]
+-export type WeeklyLineup = Database["public"]["Tables"]["weekly_lineups"]["Row"]
+-export type PlayerGameStats = Database["public"]["Tables"]["player_game_stats"]["Row"]
+-export type Matchup = Database["public"]["Tables"]["matchups"]["Row"]
+-export type Draft = Database["public"]["Tables"]["drafts"]["Row"]
+-export type DraftPick = Database["public"]["Tables"]["draft_picks"]["Row"]

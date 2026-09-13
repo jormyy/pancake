@@ -1,0 +1,16 @@
+e2e:seed exit 0
+| dynasty_ranking_fixtures | PASS | 80 synthetic hashtagbasketball.com rows from rank 9001 |
+const VERSION = 'pancake-09676e4bd048-21cc519decd4'
+e2e:browser-pwa-launch exit 1 (32.375 total)
+e2e:browser-smoke exit 0 (1:11.94 total)
+e2e:browser-perf exit 0 (1:33.68 total)
+e2e:data-latency exit 0 (1.415 total)
+e2e:browser-lineup exit 0 (49.885 total)
+e2e:browser-waiver exit 0 (31.693 total)
+e2e:browser-waiver-drop exit 0 (38.405 total)
+e2e:browser-trade exit 0 (1:01.30 total)
+e2e:browser-smoke FULL_SWEEP (incl. offline/reconnect route evidence) exit 0
+routeEvidence online/offline/reconnect: 0 0 0 status PASS
+perf:budget --require-report exit 0
+perf:budget --require-workflow-reports exit 0
+[exited with code 0]

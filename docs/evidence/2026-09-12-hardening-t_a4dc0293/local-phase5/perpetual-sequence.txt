@@ -1,0 +1,14 @@
+e2e:perpetual run1 exit 0
+perpetual-season: PASS — every boundary step ran with zero manual commissioner actions
+e2e:perpetual run2 exit 0
+perpetual-season: PASS — every boundary step ran with zero manual commissioner actions
+e2e:perpetual --disable-boundary exit 1
+perpetual-season: rollovers=2 boundary=DISABLED (forced-red)
+FAIL: Default season 4210: playoff bracket was not auto-generated after the last regular-season week finalized
+FAIL: Custom season 4220: playoff bracket was not auto-generated after the last regular-season week finalized
+FAIL: Sixseed season 4230: playoff bracket was not auto-generated after the last regular-season week finalized
+FAIL: Manual: new season has 0 matchups; expected 38
+perpetual-season: FAIL (4 failures)
+e2e:perpetual run3 exit 0
+perpetual-season: PASS — every boundary step ran with zero manual commissioner actions
+[exited with code 0]

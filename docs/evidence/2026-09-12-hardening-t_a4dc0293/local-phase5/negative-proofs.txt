@@ -1,0 +1,33 @@
+# Negative proofs: old function bodies installed inside the test transaction (rolled back), then the new regression test run against them
+
+## tests/db/waiver-claim-edit-gates.sql vs main's edit_waiver_claim_atomic: exit 3
+psql:tests/db/waiver-claim-edit-gates.sql:51: ERROR:  Drop player must be on your active roster.
+CONTEXT:  PL/pgSQL function edit_waiver_claim_atomic(uuid,uuid,uuid,uuid,integer,integer) line 70 at RAISE
+## same test with case 2 removed (scratch copy) vs main's function: exit 3 (cases 3-5 reached; the handler re-raised, nothing swallowed)
+psql:/private/tmp/claude-501/-Users-michaelchen-Projects-Apps-pancake/d0fb02a5-fe4b-4066-8a8d-f3caf50ed823/scratchpad/local/neg/edit-gates-cases-3-5.sql:53: ERROR:  expected closed-window edit to be r
+CONTEXT:  PL/pgSQL function inline_code_block line 4 at RAISE
+## same scratch copy vs new function: exit 0
+
+## tests/db/cron-dispatch-catchup.sql vs old fire-and-forget invoke_edge_function (no edge_invocations insert): exit 3
+psql:tests/db/cron-dispatch-catchup.sql:63: ERROR:  late tick did not catch up
+## vs old minute-exact gates: NOT PROVABLE this way — the old gates lack the p_now argument, so installing them alongside created overloads and the test still called the new 4-arg functions (exit 0). The minute-exact behaviour is documented by the real-clock probe P1 in local-phase4/probe-a.txt.
+
+## new tests on the new code:
+waiver-claim-edit-gates: exit 0
+cron-dispatch-catchup: exit 0
+live-poll-gate-and-lease: exit 3 — psql:tests/db/live-poll-gate-and-lease.sql:17: ERROR:  syntax error at or near ":"
+edge-invocation-reconcile: exit 3 — psql:tests/db/edge-invocation-reconcile.sql:33: ERROR:  syntax error at or near ":"
+waiver-claim-projection: exit 3 — psql:tests/db/waiver-claim-projection.sql:28: ERROR:  This player is no longer on waivers.
+
+## cron-dispatch-catchup notices (new code):
+NOTICE:  before target -> 0
+NOTICE:  late tick (03:01:07) -> 1
+NOTICE:  second tick same day -> 1
+NOTICE:  next day catch-up -> 2
+NOTICE:  weekly before target -> 0
+NOTICE:  weekly tuesday catch-up -> 3
+NOTICE:  weekly wednesday no double -> 3
+NOTICE:  weekly next monday -> 6
+NOTICE:  boundary before 09:00 -> 0
+NOTICE:  boundary late tick -> 1
+NOTICE:  boundary repeat -> 1

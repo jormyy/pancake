@@ -338,3 +338,34 @@ Remaining gates: (1) local phase: `db reset` (migration `20260912000003`, new cr
 `npm run generate:database-types` then `check:database-types` (new tables), `npm run test:db`
 (22 suites), Deno full run (expect 116/0), perpetual x2 + negative control, seed, tick-enabled
 soak, browser chain, perf gates; (2) independent round-3 review of `main..HEAD`.
+
+### Iteration 8 — 2026-09-12 (LOCAL TEST PHASE 4, sandbox temporarily off; evidence only, no code edits)
+
+Stack from `09676e4`: loopback verified (API 127.0.0.1:54321, DB 127.0.0.1:54322), `db reset` exit 0
+with **307** migrations, both new tables and the `edge-invocation-reconcile` cron job present.
+Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase5/`.
+
+| Check | Result |
+| --- | --- |
+| `node scripts/check-edge-functions.mjs` (CI exact, Deno 2.7.14 = CI pin) | **PASS 116/0, exit 0** (round-2 B2 resolved) |
+| `deno test --allow-all --no-check supabase/functions` | PASS 116/0 |
+| `check:db-function-catalog` | PASS (manifest matches the DB after the signature changes) |
+| `npm run test:db` (22 suites, `&&` chain) | **exit 3, stops at suite 3**. Individually: 17 pass, 5 fail |
+| … `dynasty-decision-inputs.sql`, `season-boundary-gate.sql` | **FAIL — regression from `c29e81c`**: both reference the old signatures `invoke_dynasty_ranking_views_at_et_time(integer,integer)` / `invoke_season_boundary_if_due()` via `regprocedure`, which the migration dropped |
+| … `live-poll-gate-and-lease.sql`, `edge-invocation-reconcile.sql` | **FAIL — defect in the new tests**: psql `:var` used inside `DO $$` blocks (syntax error at `:`) |
+| … `waiver-claim-projection.sql` | **FAIL — fixture defect**: `create_waiver_claim_atomic` says "This player is no longer on waivers" at case A (window predicate not met by the fixture as written); needs investigation |
+| … `waiver-claim-edit-gates.sql`, `cron-dispatch-catchup.sql` | PASS; catch-up notices recorded (late tick 1, same-day repeat 1, next day 2, weekly Tuesday catch-up 3, no double, next Monday 6, boundary late tick 1, repeat 1) |
+| Negative proofs (old bodies installed in the rolled-back test transaction) | `waiver-claim-edit-gates` vs main's function: **red** at case 2 ("Drop player must be on your active roster."); scratch copy without case 2 vs main: **red** at case 3 with the re-raised "expected closed-window edit to be refused" (nothing swallowed); same copy vs new: exit 0. `cron-dispatch-catchup` vs old fire-and-forget `invoke_edge_function`: **red** ("late tick did not catch up"). vs old minute-exact gates: **not provable this way** (old gates lack `p_now`; overloads coexisted) — the real-clock probe P1 remains the evidence |
+| `e2e:perpetual` run1, run2, `--disable-boundary`, run3 | PASS / PASS / **exit 1 with 4 boundary FAIL rows** / PASS |
+| `e2e:seed` | PASS incl. `dynasty_ranking_fixtures` |
+| Browser: smoke (tab-only), perf, data-latency, lineup, waiver, waiver-drop, trade, full-sweep smoke | all exit 0; `perf:budget --require-report` and `--require-workflow-reports` exit 0 |
+| `e2e:browser-pwa-launch` | **FAIL exit 1 on 4 branch runs and on baseline main** (same host/seed): `firstContentfulPaintMs=null`; shell paint 7–11 ms and app mounted 32–38 ms recorded. The `first-contentful-paint` entry is absent on this host session (it was 36–44 ms in phases 2–4). Environment, preserved as a failure |
+| `soak.mjs --seasons=3` with ticks + fake upstream | PASS 3/3, exit 0 |
+| `supabase gen types typescript --local` | generated into scratch; 170-line diff vs `types/database.ts` saved as `database-types.generated.diff` (two new tables, `p_now` args, plus pre-existing nullability drift) — to apply once the sandbox is back on |
+| `e2e:soak:release` | not run (known fixes pending) |
+
+Fix queue for the next implementation phase (ordered): (1) keep zero/two-argument overloads (or update the
+two existing DB tests) for the changed cron gate signatures; (2) `:var` → `current_setting` in the two
+new DB tests; (3) `waiver-claim-projection.sql` fixture vs the create window predicate; (4) apply the
+generated types diff; (5) `check:database-types` and re-run `npm run test:db`. Ambiguous league rules
+unchanged. Local jobs and the Pancake stack stopped; baseline worktree removed.
