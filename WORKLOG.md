@@ -426,3 +426,19 @@ Current state at this checkpoint:
 - Not yet verified: this test fix; the full 22/22 chain; `e2e:soak:release` (unfinished release gate).
 - Deferred notes: round-3 #10 (RLS on `cron_dispatch_state`/`edge_invocations`, security), #18, #20–22,
   #30, #33. Round-4 review pending on `c34c33c`. Ambiguous league rules unchanged.
+
+### Iteration 12 — 2026-09-12 (review round 4, sandbox on)
+
+Round 4 preserved at `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase6/independent-review-round4.md`
+(13 survivors). Item 1 (gating, enum literal) was fixed in `c18c6b8`. Items 2–9, 12, 13 applied in
+`<this>` (see commit body). Item 10 (RLS on the two new tables) stays deferred as security; item 11
+(a lost lease also writes a failed `cron:live-poll` row) noted as intended noise.
+
+Current state:
+- Verified on a local stack (phase 5, `766d126`): types parity, CI edge 117/0, 21/22 DB suites, four
+  negative proofs, perpetual x3 + negative control, browser chain + perf gates with real FCP, tick soak.
+- Unverified since then (static checks only): the claim-projection enum fix, the round-4 batch
+  (hooks, optimizer sync_runs, live-poll decision/backoff, DB test changes). Next approved phase:
+  `db reset`, `check:database-types`, `npm run test:db` (22/22 expected), CI edge checker, perpetual
+  x2 + negative, browser chain, tick soak; only then `e2e:soak:release` (still unfinished).
+- Deferred notes: round-3 #10 RLS; #18, #20–22, #30, #33; round-4 #11. Ambiguous league rules unchanged.
