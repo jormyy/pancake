@@ -531,3 +531,17 @@ Repair for the next implementation phase (sandbox on): wrap the probe's `main()`
 
 Early-observer support is not asserted from the missing agent-browser init flag: it is tried through CDP on
 every launch and the result is data. Phase-8 run 1 (0/20, probe defect) stays recorded.
+
+### Iteration 18 — 2026-09-13 (LOCAL TEST PHASE 8: paint probe run 2, sandbox temporarily off; evidence only)
+
+Setup from `c8945c4` green (307 migrations, functions 200, stamped build, seed, static server; the host's one
+pre-existing browser session untouched). Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase9/`.
+
+| Check | Result |
+| --- | --- |
+| `npm run e2e:pwa-paint-probe -- --launches=20` | **exit 1, 17:33 wall — 0 of 20 launches measured, 20 probe errors**: `Expected property name or '}' in JSON at position 1` on each launch's first `eval` (sign-in setup). The phase-8 owner defect is gone (sessions were created, opened and driven). **No paint measurement exists; no engine conclusion.** |
+| Raw eval diagnosis (one probe-owned diagnostic session, opened → evaluated → closed) | agent-browser prints the eval result as a JSON-encoded string (`"{\"path\":\"/sign-in\",\"text\":605}"`, byte view retained). The launch scenario's parser (last line, parse, parse again if string) decodes it; the probe's parser (slice from the first `{`) fails at position 1 on the same bytes |
+
+Repair for the next implementation phase: replace the probe's `parseEvalJson` with the scenario's, add an
+executable test using the retained raw sample, keep everything else. Phase-8 run 1 (owner defect) and this
+run 2 (parser defect) are both retained as separate failures. Own processes and the Pancake stack stopped.
