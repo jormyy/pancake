@@ -464,14 +464,15 @@ Verified (real runs, exit codes preserved):
 | Seed; browser chain (16 scenarios) from a closed browser session; full sweep; `perf:budget` both gates | all exit 0; branch pwa-launch FCP 52 ms, baseline 48 ms (single samples) |
 | Baseline vs branch | recorded as single samples with direction only; every metric slower on the branch in this sample; run order (branch first, cold) confounds it; significance unknown (`baseline-vs-branch-performance.txt`) |
 | Tick-enabled soak (3 seasons) | PASS 3/3 |
-| `e2e:soak:release` attempt 1 (bound 7200 s) | **STOPPED by me (SIGTERM) after season 1 (1128 s)** to re-bound; season-1 scenario summaries all PASS; captured exit 143 (128+SIGTERM); not a pass |
-| `e2e:soak:release` attempt 2 (bound 36000 s, sessions closed first) | **FAIL exit 1**: seasons 1 and 2 completed all 23 browser scenarios (artifacts to 02:06Z); season 3 wrote 22 scenario entries and failed at its pwa-launch (02:23Z) with `fcp=unknown`, diagnostics `paintEntries=[] visible focused paintTimingSupported=true`. The report's `ERROR 0/20, season 0` is the harness fallback counter, not the failure point. Material gate red; not retried |
+| `e2e:soak:release` attempt 1 (bound 7200 s, `E2E_ENABLE_MIDLIFE_MIGRATION=0`) | **STOPPED by me (SIGTERM) after season 1** (1128 s from the start line to the first season-2 artifact; the log spans 1176 s) to re-bound; season-1 scenario summaries all PASS; captured exit 143 (128+SIGTERM); not a pass |
+| `e2e:soak:release` attempt 2 (bound 36000 s, sessions closed first, `E2E_ENABLE_MIDLIFE_MIGRATION=0`) | **FAIL exit 1**: seasons 1 and 2 completed all 23 browser scenarios (artifacts to 02:06Z); season 3 wrote 22 scenario entries and failed at its pwa-launch (02:23Z) with `fcp=unknown`, diagnostics `paintEntries=[] visible focused paintTimingSupported=true`. The report's `ERROR 0/20, season 0` is the harness fallback counter, not the failure point. Material gate red; not retried |
 
-Release gate status: **unfinished and currently red** on the host's missing paint entry, which has now been
-seen with and without a fresh browser session, and which appears intermittently: the same run passed
-pwa-launch in seasons 1 and 2 and lost every paint entry in season 3. The measurement records why (no paint entries at all while
-the document is visible and focused), which is a host/browser-engine condition this branch neither
-introduced nor can fix. Supervisor decision needed on how to obtain paint evidence for the release run.
+Release gate status: **unfinished and currently red** on a missing paint entry, seen with and without a
+fresh browser session and intermittent: the same run passed pwa-launch in seasons 1 and 2 and lost every
+paint entry in season 3. Seen on baseline main too (phase 5), so not introduced by this branch; cause
+unknown (engine output or late-reader measurement); the paint probe is the pending diagnosis. The
+release-soak attempts ran with `E2E_ENABLE_MIDLIFE_MIGRATION=0` (see iteration 19), so even a green run
+would not have satisfied the release gate's required `long.migration` row.
 
 Local jobs and the Pancake stack stopped; baseline worktree removed. Ambiguous league rules unchanged.
 
@@ -545,3 +546,45 @@ pre-existing browser session untouched). Evidence: `docs/evidence/2026-09-12-har
 Repair for the next implementation phase: replace the probe's `parseEvalJson` with the scenario's, add an
 executable test using the retained raw sample, keep everything else. Phase-8 run 1 (owner defect) and this
 run 2 (parser defect) are both retained as separate failures. Own processes and the Pancake stack stopped.
+
+### Iteration 19 — 2026-09-13 (review round 6 repairs, sandbox on; no servers run)
+
+Round 6 preserved at `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase9/independent-review-round6.md`
+(APPROVE is code-only; the probe still had to be repaired before it can measure anything). All 26 items:
+
+| # | Disposition |
+| --- | --- |
+| 1 | **Fixed**: `parseEvalJson` = last non-empty line, parse, parse again if string; `tests/fixtures/agent-browser-eval-sample.txt` is the phase-9 raw bytes and is decoded in a test; the entry test's fake double-encodes every eval |
+| 2 | **Fixed**: `beginEarlyObserver` keeps the CDP client attached through the measured navigation and read; `finish()` removes the script then closes; `earlyObserver.ran` is true only when the page exposed the store; verdict buckets (`BUCKETS`, 8) are exhaustive and exclusive and the summary is derived from them; tests cover attach/remove/close order and ran-vs-registered |
+| 3 | **Fixed**: gate paragraph now says seen on main too, cause unknown (engine or late-reader measurement), probe pending; `relaunch.png` citation dropped |
+| 4 | **Fixed**: the probe runs the gate's prelude verbatim (signed-out `/`, cleared relaunch, 2500 ms, sign-in, 2000 ms) before the measured `/roster`; reused launches skip it after the first and the record says so |
+| 5 | **Fixed**: setup attempts ride on the thrown error and land in the record; test asserts 3 on a failed setup |
+| 6 | **Fixed**: the fake releases only after a successful close, has a real dispose, and a test makes a fresh close fail (record gets `closeError`, the entry rejects with the owner's cleanup error after the report is on disk) |
+| 7 | **Fixed**: tests now fail on a retried measured open, on a fresh session left open, on `early-none` passing, on a hardcoded "not registered" (the probe must ask for `cdp-url`), on the reused session re-running the prelude, and on shared fresh names; a signed-in entry test exists |
+| 8 | **Fixed in the probe** (`pathToFileURL`); the 27-file sweep is left as a separate tracker |
+| 9 | **Fixed** by the exclusive buckets (`early-saw` precedes late-observer checks; nothing counts twice) |
+| 10 | **Fixed**: `store.error` becomes bucket `missing:early-error` |
+| 11 | **Fixed**: "browser CDP endpoint" in code and README |
+| 12 | **Fixed**: header rewritten (own sessions, three readers, counted setup retries) |
+| 13 | **Recorded and investigated**: both release attempts ran with `E2E_ENABLE_MIDLIFE_MIGRATION=0` and could not have satisfied `long.migration`; the evidence files and the gate paragraph say so. README now documents the local mid-life procedure (stack on the deployed schema `20260823000001` with the three branch migrations moved aside, `E2E_MIDLIFE_EXPECTED_*` from `release-soak-migration-plan.mjs`, `E2E_ENABLE_MIDLIFE_MIGRATION=1`, push at the season-5 boundary). Not run here |
+| 14 | **Fixed**: `--launches 20` form accepted, bare flag refused, `[::1]`/`::1` loopback accepted (tests) |
+| 15 | **Fixed**: temp dirs removed in `afterEach` |
+| 16 | **Fixed**: WORKLOG and attempt-1 file state 1128 s (start to first season-2 artifact) vs 1176 s log span |
+| 17 | **Fixed**: the two unlabelled lines in the attempt-2 file are labelled as wrapper text |
+| 18 | **Fixed**: "15 recorded commands, then the full-sweep smoke" |
+| 19 | **Fixed**: budget gates ran on the branch only; stated |
+| 20 | **Fixed**: merged numbers re-laid out |
+| 21 | **Fixed**: README no longer claims the closed-session recovery; it records the intermittent evidence |
+| 22 | **Fixed**: scratch SQL carries a negative-proof header and states it wakes on any game |
+| 23 | **Fixed**: `soak-ticks.txt` and `negative-proofs.txt` say what was captured and what was not retained |
+| 24 | **Fixed**: SIGINT/SIGTERM close the probe-owned sessions before exit (the gate's same gap is a tracker) |
+| 25 | **Fixed**: `openCdpClient` closes the socket on connect timeout or error |
+| 26 | **Fixed**: fresh session names carry a per-run random tag plus the launch index; test asserts distinct names |
+
+Carried unchanged: round-5 items 1–10, round-4 items 10 and 11, round-3 items 10 (RLS, security, deferred),
+18, 20, 21, 22, 30, 33. Phase-8 run 1 and phase-9 run 2 remain recorded as separate probe failures.
+
+Checks: vitest 123 files / 719 tests; lint, `typecheck:e2e`, `typecheck:tests`, knip PASS. Not executed
+against a browser or database here. Next approved local phase: the 20-launch probe
+(`npm run e2e:pwa-paint-probe -- --launches=20`), then — only with a diagnosis in hand — the release
+soak with the mid-life migration gate configured as documented, never with it disabled.

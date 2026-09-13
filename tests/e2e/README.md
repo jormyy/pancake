@@ -89,29 +89,63 @@ Snapshots are written under `tests/snapshots/season-<N>/` after the season bound
 Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs shorter than 10 seasons record timings and harness memory only. Runs of 10+ seasons fail D.LONG.6 if the latest season runtime is more than `E2E_PERF_DRIFT_LIMIT` above season 1; the default is `1.2` for the requested 20% drift ceiling. Runs of 10+ seasons also fail D.LONG.7 if harness RSS or heap memory exceeds `E2E_MEMORY_DRIFT_LIMIT` above season 1; the default is also `1.2`. The RSS gate has an `E2E_MEMORY_DRIFT_MIN_BYTES` absolute floor, defaulting to 48 MiB, to avoid failing on Node allocator high-water noise while still catching material native growth. The heap gate has a separate `E2E_MEMORY_HEAP_DRIFT_MIN_BYTES` floor, defaulting to 24 MiB, so retained JS object growth remains a stricter leak signal.
 
 Browser launch measurements (`npm run e2e:browser-pwa-launch`) read the document's
-`first-contentful-paint` entry. On 2026-09-12 a host with long-lived `agent-browser`
-sessions reported no paint entry at all on both the baseline and branch builds (the gate
-failed with `fcp=unknown`); starting from a closed session recovered a real value. Start
-launch runs from a fresh, probe-owned session (the gate itself starts its own session), and
-treat a missing entry as unknown, never as a pass. The report's `paintDiagnostics` (paint entries, visibility state,
+`first-contentful-paint` entry. On 2026-09-12/13 the same host produced runs with and without
+that entry on both the baseline and branch builds, including a release-soak run that passed
+the gate in seasons 1 and 2 and lost every paint entry in season 3; starting from a fresh
+session does not reliably change that. Treat a missing entry as unknown, never as a pass; the
+paint probe above is the diagnostic. The report's `paintDiagnostics` (paint entries, visibility state,
 prerendering, focus, paint-timing support) says why an entry is missing.
 
 `npm run e2e:pwa-paint-probe` is the diagnostic for a missing paint entry. With the seeded
-league and the release build served on `E2E_FRONTEND_URL`, it launches the app 20 times
-(`--launches=N`), alternating a fresh browser session (a new probe-owned session, closed after
-its launch) with one reused probe-owned session kept across every reused launch. It closes
-only sessions it created. Before each measured navigation it tries to register a
-document-start `PerformanceObserver` through the page's CDP endpoint
-(`Page.addScriptToEvaluateOnNewDocument`; the same `get cdp-url` route the screenshot path
-uses) and records whether that worked. For each launch it records the paint entries seen by
-that early observer, by `getEntriesByType('paint')` and by a late buffered
-`PerformanceObserver`, plus the boot marks, visibility, focus, navigation type and user
-agent. The measured navigation is one attempt (sign-in setup may retry and its attempts are
-counted in the record). Every launch is kept; a missing entry is a failure, never a pass, and
-says nothing about speed. When the early observer could not be installed, the two remaining
-readers run after the navigation, so an empty result cannot prove the engine produced no paint
-timing; the report labels that case `no-late-reader-evidence`. Report:
-`tests/artifacts/pwa-paint-probe/report.md` (+ `report.json` and one screenshot per launch).
+league and the release build served on `E2E_FRONTEND_URL`, it repeats the launch gate's own
+sequence 20 times (`--launches=N` or `--launches N`): a signed-out launch of `/`, a cleared
+`localStorage` relaunch, a 2500 ms settle, sign-in, a 2000 ms settle, then the measured relaunch
+of `/roster`. Launches alternate a fresh probe-owned session (full prelude, closed after its
+launch) with one reused probe-owned session kept across every reused launch (prelude once,
+then measured relaunches only). It opens and closes only sessions it created. Before each
+measured navigation it attaches to the browser's CDP endpoint (`get cdp-url`, the same route
+the screenshot path uses), registers a document-start `PerformanceObserver` with
+`Page.addScriptToEvaluateOnNewDocument`, keeps that CDP client attached through the
+navigation and the read, then removes the script and closes the client. The record says
+whether the observer was registered and, separately, whether it actually ran (the page
+exposed its store). Three readers are recorded per launch: the early observer,
+`getEntriesByType('paint')` (what the gate reads) and a late buffered `PerformanceObserver`,
+plus the boot marks, visibility, focus, navigation type and user agent. The measured
+navigation is one attempt; the prelude's navigations and sign-in may retry and every attempt
+is counted in the record, including when setup fails. Every launch is kept and lands in
+exactly one bucket (`pass`, `budget`, `missing:early-saw`, `missing:early-none`,
+`missing:early-error`, `missing:late-observer-saw`, `missing:no-evidence`, `probe-error`); a
+missing entry is a failure, never a pass, and says nothing about speed. When the early
+observer did not run, an empty result cannot prove the engine produced no paint timing
+(`missing:no-evidence`). Report: `tests/artifacts/pwa-paint-probe/report.md` (+ `report.json`
+and one screenshot per launch).
+
+### Release soak locally with the mid-life migration gate
+
+`npm run e2e:soak:release` under the release gate requires the `long.migration` row, which only
+the mid-life migration check (D.LONG.5) can satisfy. A run with `E2E_ENABLE_MIDLIFE_MIGRATION=0`
+cannot pass the gate, so do not start one. CI (`.github/workflows/release-soak.yml`) starts the
+stack on the deployed schema with the pending migrations moved aside, then lets the harness
+apply them with `supabase db push --local` after season 5. Locally, from the repo root with the
+private local env loaded:
+
+```sh
+base=20260823000001   # the deployed schema version: the newest migration on main (the branch adds 20260912000001..3)
+plan=$(node tests/e2e/release-soak-migration-plan.mjs "$base" $(ls supabase/migrations))
+mkdir -p "$TMPDIR/pancake-pending" && for f in $(node -e 'for (const v of JSON.parse(process.argv[1]).pendingFiles) console.log(v)' "$plan"); do mv "supabase/migrations/$f" "$TMPDIR/pancake-pending/"; done
+supabase db reset                                   # stack now sits on the deployed schema
+mv "$TMPDIR/pancake-pending/"*.sql supabase/migrations/
+export E2E_ENABLE_MIDLIFE_MIGRATION=1 E2E_MIDLIFE_MIGRATION_AFTER_SEASON=5
+export E2E_MIDLIFE_EXPECTED_BASE_VERSION="$base"
+export E2E_MIDLIFE_EXPECTED_VERSION=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).repositoryHead)' "$plan")
+export E2E_MIDLIFE_EXPECTED_VERSIONS=$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).pendingVersions))' "$plan")
+npm run e2e:soak:release
+```
+
+The plan script's positional form is `<deployedVersion> <migration filenames...>` (CI uses
+`--history-file <json> <filenames...>` with the production history instead); the harness reads `SUPABASE_DB_URL` for the migration evidence and applies the pending files with
+`supabase db push --local` at the boundary. The run then exercises seasons 1–5 on the deployed schema
+and 6–20 on the repository head, which is what the release gate certifies.
 
 Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
 `npm run perf:budget` validates the ranked top-10 workflow contract and writes

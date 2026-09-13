@@ -5,4 +5,4 @@ cron-dispatch-vs-old-invoke: exit 3 — psql:tests/db/cron-dispatch-catchup.sql:
 live-poll-vs-old-gate: exit 3 — psql:tests/db/live-poll-gate-and-lease.sql:34: ERROR:  a Final game without stats did not wake live-poll (got 0)
 live-poll-vs-stats-ignoring-gate: exit 3 — psql:tests/db/live-poll-gate-and-lease.sql:34: ERROR:  a Final game that has its stats woke live-poll again
 
-# same tests on the new code: all five exit 0
+# same tests on the new code: exit codes captured by the wrapper loop as 0 for each of the five (raw psql outputs were not retained in the repo)

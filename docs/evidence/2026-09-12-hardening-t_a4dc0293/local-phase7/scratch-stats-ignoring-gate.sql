@@ -1,3 +1,7 @@
+-- NEGATIVE-PROOF SCRATCH ONLY. Installed inside a rolled-back test transaction to show that
+-- tests/db/live-poll-gate-and-lease.sql goes red against a gate that ignores whether a Final game
+-- has its box score. It wakes on ANY game on the candidate dates (no status filter at all, which is
+-- broader than 'any Final game'). Never load this outside that test; nothing in the repo does.
 -- a gate that wakes for ANY Final game on the candidate dates, ignoring stats
 CREATE OR REPLACE FUNCTION public.invoke_live_poll_if_due()
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$

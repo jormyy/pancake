@@ -69,13 +69,19 @@ const runAgentBrowser = async ({ cwd, timeout, maxBuffer, session, args }) => {
 export const openCdpClient = async (endpoint) => {
   const socket = new WebSocket(endpoint)
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('CDP connection timed out')), CDP_COMMAND_TIMEOUT_MS)
+    // A socket that never opens is closed here so a failed connect leaves no
+    // handle behind (the probe opens one per launch).
+    const timer = setTimeout(() => {
+      socket.close()
+      reject(new Error('CDP connection timed out'))
+    }, CDP_COMMAND_TIMEOUT_MS)
     socket.addEventListener('open', () => {
       clearTimeout(timer)
       resolve(undefined)
     }, { once: true })
     socket.addEventListener('error', () => {
       clearTimeout(timer)
+      socket.close()
       reject(new Error('CDP connection failed'))
     }, { once: true })
   })

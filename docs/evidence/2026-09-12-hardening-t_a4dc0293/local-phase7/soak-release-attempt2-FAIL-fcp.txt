@@ -1,8 +1,8 @@
-# e2e:soak:release attempt 2 (bound 36000 s, started 2026-09-13T01:34:34Z, agent-browser sessions closed first): exit 1 — FAILED, NOT a pass.
+# e2e:soak:release attempt 2 (bound 36000 s, started 2026-09-13T01:34:34Z, agent-browser sessions closed first, E2E_ENABLE_MIDLIFE_MIGRATION=0 — the release gate's long.migration row therefore could not have been satisfied even on a green run): exit 1 — FAILED, NOT a pass.
 # Where it failed (from artifacts, verified after the fact): seasons 1 and 2 completed all 23 browser scenarios (23 registry entries each; season-1 files to 01:50:32Z, season-2 to 02:06:11Z); season 3 wrote 22 registry entries and failed at its pwa-launch scenario at 02:23:26Z (tests/artifacts/season-3/pwa-launch/summary.json: FAIL, fcp=unknown, paintEntries=[]).
 # The report's 'status ERROR, 0/20, season 0' is the harness's fallback counter on an uncaught scenario error; it is NOT proof that the failure happened before season 1. The declared report totals are left as written.
 # report: status ERROR, 0/20 seasons
-e2e:soak:release attempt 2 exit 1 (124 = 36000 s bound hit)
+e2e:soak:release attempt 2 exit 1   [the '(124 = 36000 s bound hit)' text was the wrapper's legend, not an observed code]
 2026-09-13T02:23:26Z
 report ERROR seasons 0/20 rows 1 started 2026-09-13T01:34:34.799Z
 [
@@ -12,7 +12,7 @@ report ERROR seasons 0/20 rows 1 started 2026-09-13T01:34:34.799Z
   "notes": "PWA launch gate failed: useful chrome is on screen within the launch budget (fcp=unknown (no first-contentful-paint entry) budget=400ms diagnostics={\"paintEntries\":[],\"visibilityState\":\"visible\",\"prerendering\":false,\"hasFocus\":true,\"paintTimingSupported\":true})"
  }
 ]
-[exited with code 0]
+[exited with code 0]   [this line is the background task wrapper's own status, not the soak's exit]
 
 # cause (season-3 pwa-launch): the gate saw no first-contentful-paint entry; new diagnostics: paintEntries=[] visibilityState=visible prerendering=false hasFocus=true paintTimingSupported=true. The same host produced FCP 52 ms (branch) and 48 ms (baseline) earlier in this phase and FCP 40/32 ms in phase 5, attempt 1 passed its season-1 pwa-launch, and attempt 2 passed pwa-launch in seasons 1 and 2 before season 3 returned no paint entries. Closing sessions beforehand does not reliably recover the entry. Material gate red; not retried a third time.
 > pancake-init@1.0.0 e2e:soak:release

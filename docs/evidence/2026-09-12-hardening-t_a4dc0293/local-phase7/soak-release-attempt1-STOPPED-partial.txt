@@ -1,4 +1,4 @@
-# e2e:soak:release attempt 1 (bound 7200 s): STOPPED BY OPERATOR (SIGTERM to the soak process) after season 1 (1128 s) to re-bound — NOT a pass.
+# e2e:soak:release attempt 1 (bound 7200 s, E2E_ENABLE_MIDLIFE_MIGRATION=0): STOPPED BY OPERATOR (SIGTERM to the soak process) after season 1 (1128 s = start line to first season-2 artifact; the log itself spans 1176 s) to re-bound — NOT a pass.
 # Exit status captured by the wrapping shell: 143 (128+SIGTERM), raw line in the background-task output: 'e2e:soak:release exit 143'.
 started 2026-09-13T01:14:44Z, stopped 2026-09-13T01:34:20Z
 season-1 registry entries written:
