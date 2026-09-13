@@ -507,3 +507,18 @@ sampling. Then independent review, then the complete 20-season run under a 36,00
 | Commit | Change | Test / evidence |
 | --- | --- | --- |
 | `<this>` | Probe corrections: (1) no global `agent-browser close --all`; fresh launches use a probe-owned session closed individually, one reused probe-owned session lives across all reused launches and is closed at the end; README/WORKLOG setup no longer close other sessions. (2) The measured navigation is exactly one attempt; sign-in setup may retry and its attempts are recorded per launch (`setupAttempts`, `measuredNavigationAttempts`). (3) `judgeLaunch` treats anything but a finite number ≥ 0 as missing; `parseCount` requires a finite positive integer; `parseWaitMs` a finite number ≥ 0. (4) agent-browser 0.25 has no pre-navigation init script, so both readers are late; an empty result is labelled `no-late-reader-evidence` and no engine-no-data conclusion is drawn (code, report, README, decision rule updated). (5) The probe asserts a loopback Supabase endpoint before signing in, not only the frontend | `tests/e2e-pwa-paint-probe.test.ts` 4 cases incl. NaN/undefined/Infinity/negative timing and 0/-1/1.5/NaN/Infinity counts; lint, `typecheck:e2e`, knip PASS. Not executed here |
+
+### Iteration 16 — 2026-09-13 (LOCAL TEST PHASE 7: paint probe run 1, sandbox temporarily off; evidence only)
+
+Setup on the loopback stack from `cf5cd5b`: `db reset` 307, functions healthy, release build stamped, seed
+PASS, static server up; the one pre-existing browser session on the host was not touched.
+Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase8/`.
+
+| Check | Result |
+| --- | --- |
+| `npm run e2e:pwa-paint-probe -- --launches=20` | **exit 1 after 0.25 s — 0 of 20 launches measured, 20 probe errors**: `Cannot own browser session <name> without an active scenario resource owner`. `createBrowser()` only lends sessions inside `runWithScenarioResourceOwner`, which every scenario wraps around its run and the probe did not. Probe setup defect; **no paint measurement exists from this run and no engine conclusion is drawn** |
+
+Repair for the next implementation phase (sandbox on): wrap the probe's `main()` in
+`runWithScenarioResourceOwner` (as `browser-pwa-launch.mjs` does), keep everything else as corrected in
+`cf5cd5b`, add a unit test that the probe entry point acquires a resource owner, then re-run the same
+20-launch plan. Own processes and the Pancake stack stopped.

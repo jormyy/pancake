@@ -1,0 +1,25 @@
+# setup: supabase start exit 0; db reset exit 0 (307 migrations); functions health 200; export exit 0 (VERSION pancake-cf5cd5b9ab50-0e76c1d8eb75); seed exit 0; frontend 200; one pre-existing agent-browser session left untouched
+# npm run e2e:pwa-paint-probe -- --launches=20: exit 1 in 0.25 s — 0 launches measured, 20 probe errors
+# started 2026-09-13T03:34:47Z
+# cause: tests/e2e/browser-agent.mjs createBrowser() refuses to own a session outside runWithScenarioResourceOwner ('Cannot own browser session ... without an active scenario resource owner'); the probe never wrapped its run in the scenario resource owner. Probe defect (setup path), no paint measurement was taken, no engine conclusion.
+launch  1 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-1 without an active scenario resource owner
+launch  2 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch  3 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-3 without an active scenario resource owner
+launch  4 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch  5 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-5 without an active scenario resource owner
+launch  6 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch  7 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-7 without an active scenario resource owner
+launch  8 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch  9 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-9 without an active scenario resource owner
+launch 10 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch 11 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-11 without an active scenario resource owner
+launch 12 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch 13 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-13 without an active scenario resource owner
+launch 14 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch 15 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-15 without an active scenario resource owner
+launch 16 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch 17 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-17 without an active scenario resource owner
+launch 18 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+launch 19 fresh  FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-fresh-29425-19 without an active scenario resource owner
+launch 20 reused FAIL probe error: setup navigation failed after 3 attempts: Cannot own browser session pwa-paint-probe-reused-29425 without an active scenario resource owner
+FAIL: 0/20 launches recorded a first-contentful-paint within budget; report at tests/artifacts/pwa-paint-probe/report.md
