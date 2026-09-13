@@ -369,3 +369,21 @@ two existing DB tests) for the changed cron gate signatures; (2) `:var` → `cur
 new DB tests; (3) `waiver-claim-projection.sql` fixture vs the create window predicate; (4) apply the
 generated types diff; (5) `check:database-types` and re-run `npm run test:db`. Ambiguous league rules
 unchanged. Local jobs and the Pancake stack stopped; baseline worktree removed.
+
+### Iteration 9 — 2026-09-12 (phase-5 repairs + review round 3, sandbox on)
+
+Review round 3 preserved at `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase5/independent-review-round3.md`
+(33 survivors; item 10 — RLS on the two new tables — deferred as a security item, not addressed here).
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `b59c3e2` | Five DB-suite failures repaired (signature references in two existing suites + security catalog + grants test; `set_config`/`current_setting` in two new suites; waiver fixture vs the 48 h trigger); `cron-dispatch-catchup.sql` now EXECUTEs every scheduled ET-time cron command and adds EDT + rollback-on-raise cases; live-poll test no longer deletes real games and adds a "Final with stats does not wake" case. `types/database.ts` rebuilt from the saved raw output through the repo generator's post-processing (+67/−7). Round-3 items 1–9, 11–17, 19, 23–29, 31–32 applied (see commit body). FCP gate keeps `null` as unknown and records paint diagnostics | vitest 699; lint, typechecks, knip, edge-shared, db-function-sources, catalog order, surface matrix PASS; Deno sandbox run fails only the 8 listen-denied suites. DB suites and `check:database-types` need the next local phase |
+
+Not changed (review notes only): #18 (30 s pg_net timeout may log a failed `cron:` row for a long run),
+#20 (update check can reload mid-task; documented behaviour), #21 (an edge throw plus reconcile can yield two
+failed rows), #22 (`configured-source-health` does not read `cron:*` rows), #30 (some tests are source
+contracts), #33 (pre-existing edit/create lock order). Ambiguous league rules unchanged.
+
+Next local phase: `db reset` (307 migrations), `check:database-types` (expect clean), `npm run test:db`
+(22 suites, chain must complete), negative proofs against old bodies, perpetual x2 + negative control,
+browser chain with the PWA launch diagnostics captured, tick-enabled soak; then round-4 review.
