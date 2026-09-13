@@ -125,27 +125,60 @@ and one screenshot per launch).
 `npm run e2e:soak:release` under the release gate requires the `long.migration` row, which only
 the mid-life migration check (D.LONG.5) can satisfy. A run with `E2E_ENABLE_MIDLIFE_MIGRATION=0`
 cannot pass the gate, so do not start one. CI (`.github/workflows/release-soak.yml`) starts the
-stack on the deployed schema with the pending migrations moved aside, then lets the harness
-apply them with `supabase db push --local` after season 5. Locally, from the repo root with the
-private local env loaded:
+stack on the deployed schema (derived from the linked project's `schema_migrations`), then lets
+the harness apply the pending migrations with `supabase db push --local --yes` after season 5.
+
+Locally, do not move repository migrations. Reset the database from a *copy* of `supabase/` that
+holds only the base schema, then run the soak from the repo root; the harness pushes the real
+`supabase/migrations` at the boundary. Verified 2026-09-13 (phase 10 evidence): base copy
+304 files → head `20260823000001`; push applied exactly `20260912000001..3` → 307 files, head
+`20260912000003`, on an empty and on a seeded database; a second push was a no-op.
 
 ```sh
-base=20260823000001   # the deployed schema version: the newest migration on main (the branch adds 20260912000001..3)
+# from the repo root with the private local env loaded (loopback Supabase only)
+base=20260823000001   # newest migration on main; the branch adds 20260912000001..3.
+                      # This is the LOCAL baseline, not production verification.
 plan=$(node tests/e2e/release-soak-migration-plan.mjs "$base" $(ls supabase/migrations))
-mkdir -p "$TMPDIR/pancake-pending" && for f in $(node -e 'for (const v of JSON.parse(process.argv[1]).pendingFiles) console.log(v)' "$plan"); do mv "supabase/migrations/$f" "$TMPDIR/pancake-pending/"; done
-supabase db reset                                   # stack now sits on the deployed schema
-mv "$TMPDIR/pancake-pending/"*.sql supabase/migrations/
+copy="$TMPDIR/pancake-midlife-base"; rm -rf "$copy"; mkdir -p "$copy"
+rsync -a --exclude .branches --exclude .temp supabase/ "$copy/supabase/"
+for f in $(node -e 'for (const v of JSON.parse(process.argv[1]).pendingFiles) console.log(v)' "$plan"); do rm "$copy/supabase/migrations/$f"; done
+(cd "$copy" && supabase db reset)                   # stack now sits on the base schema (304 migrations)
+psql "$SUPABASE_DB_URL" -tAc 'select max(version) from supabase_migrations.schema_migrations'   # expect $base
+npm run e2e:seed
 export E2E_ENABLE_MIDLIFE_MIGRATION=1 E2E_MIDLIFE_MIGRATION_AFTER_SEASON=5
 export E2E_MIDLIFE_EXPECTED_BASE_VERSION="$base"
 export E2E_MIDLIFE_EXPECTED_VERSION=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).repositoryHead)' "$plan")
 export E2E_MIDLIFE_EXPECTED_VERSIONS=$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).pendingVersions))' "$plan")
-npm run e2e:soak:release
+export AGENT_BROWSER_EXECUTABLE_PATH="$HOME/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell"  # see "Browser engine" below
+timeout -s TERM 36000 npm run e2e:soak:release; echo "release soak exit $?"
 ```
 
 The plan script's positional form is `<deployedVersion> <migration filenames...>` (CI uses
-`--history-file <json> <filenames...>` with the production history instead); the harness reads `SUPABASE_DB_URL` for the migration evidence and applies the pending files with
-`supabase db push --local` at the boundary. The run then exercises seasons 1–5 on the deployed schema
-and 6–20 on the repository head, which is what the release gate certifies.
+`--history-file <json> <filenames...>` with the production history). The harness reads
+`SUPABASE_DB_URL` for the migration evidence. Seasons 1–5 run on the base schema and 6–20 on the
+repository head, which is what the release gate certifies. The bound must cover 20 browser
+seasons (about 19 minutes each on the reference laptop); capture the child's real exit status,
+never call a partial run a pass, and never lower the season count.
+
+#### Browser engine for the launch gate and the paint probe
+
+The launch gate fails on a missing `first-contentful-paint`. On the reference laptop the engine
+agent-browser 0.25.4 launches by default (its bundled Chrome for Testing 147.0.7727.56, also
+.117) emits **no** paint-timing entries: not headless, not `--headed`, not with GPU `--args`, and
+not for a trivial static `<h1>` page, while the page renders for screenshot capture. Two other
+Chromium builds emitted `first-paint`/`first-contentful-paint` on every launch:
+
+| executable (process-local `AGENT_BROWSER_EXECUTABLE_PATH`) | reported version | 20-launch probe |
+| --- | --- | --- |
+| `~/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell` | HeadlessChrome/153.0.8010.12 | 20 passed / 0 failed, FCP 12–24 ms |
+| `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` | HeadlessChrome/152 | entries present on the plain page and `/sign-in` (probe not run) |
+| agent-browser default (bundled Chrome for Testing 147) | HeadlessChrome/147.0.0.0 | 0 passed / 20 failed, no paint entry on any launch |
+
+Set the variable on the command that runs the gate (as in the block above) or on
+`npm run e2e:pwa-paint-probe -- --launches=20`; do not change agent-browser's global config. The
+400 ms budget and the missing-entry failure are unchanged. CI obtains its engine the same way
+(`npm ci`, then agent-browser downloads its own Chrome for Testing), so the repository does not
+pin the gate's engine; pinning in CI is a candidate only once a CI run shows the same defect.
 
 Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
 `npm run perf:budget` validates the ranked top-10 workflow contract and writes
