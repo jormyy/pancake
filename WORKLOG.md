@@ -461,7 +461,7 @@ Verified (real runs, exit codes preserved):
 | Negative proofs (old or broken bodies in the rolled-back txn) | waiver-edit vs main red; cases 3–5 vs main red (re-raised); cron catch-up vs old invoke red; live-poll gate vs old gate red; **live-poll vs a stats-ignoring gate red** ("a Final game that has its stats woke live-poll again"); all green on new code |
 | Runtime scenarios against the live functions | live-poll: Final game without stats → sync attempted, CDN 403 for the synthetic box score → 500, attempt stamped, next tick `idle` (backoff); lease held by another holder → `lease-skip`, expired → proceeds. **Optimizer real partial failure**: one member over the active limit + one healthy → `optimized 1, failed 1`, `sync_runs` row `failed` with "1 of 2 enabled member(s) failed auto-set", healthy lineup written, both settings touched (first attempt with a game outside the seeded week was `dates=0`, recorded as not evidence) |
 | `e2e:perpetual` x2, `--disable-boundary`, run3 | PASS / PASS / red with 4 boundary FAIL rows / PASS |
-| Seed; browser chain (16 scenarios) from a closed browser session; full sweep; `perf:budget` both gates | all exit 0; branch pwa-launch FCP 52 ms, baseline 48 ms (single samples) |
+| Seed; browser chain (15 recorded commands, then the full-sweep smoke) from a closed browser session; full sweep; `perf:budget` both gates | all exit 0; branch pwa-launch FCP 52 ms, baseline 48 ms (single samples) |
 | Baseline vs branch | recorded as single samples with direction only; every metric slower on the branch in this sample; run order (branch first, cold) confounds it; significance unknown (`baseline-vs-branch-performance.txt`) |
 | Tick-enabled soak (3 seasons) | PASS 3/3 |
 | `e2e:soak:release` attempt 1 (bound 7200 s, `E2E_ENABLE_MIDLIFE_MIGRATION=0`) | **STOPPED by me (SIGTERM) after season 1** (1128 s from the start line to the first season-2 artifact; the log spans 1176 s) to re-bound; season-1 scenario summaries all PASS; captured exit 143 (128+SIGTERM); not a pass |
@@ -479,9 +479,9 @@ Local jobs and the Pancake stack stopped; baseline worktree removed. Ambiguous l
 ### Iteration 14 — 2026-09-12 (approved diagnosis cycle, sandbox on; diagnostic code only)
 
 Per `.forge-approved-cycle.md`. Season-3 evidence re-read: shell mark 6.8 ms and app mount 29.8 ms were
-recorded and `relaunch.png` shows the app, while `getEntriesByType('paint')` was empty on a visible,
-focused document with paint timing supported — the paint happened; the engine did not report a
-`first-contentful-paint` entry to that reader.
+recorded, while `getEntriesByType('paint')` was empty on a visible, focused document with paint timing
+supported. The retained `relaunch.png` is a print capture, not proof of an on-screen paint; whether a
+paint happened is unknown from that evidence — only that no `first-contentful-paint` entry reached that reader.
 
 | Commit | Change | Test / evidence |
 | --- | --- | --- |
@@ -555,29 +555,29 @@ Round 6 preserved at `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase9
 | # | Disposition |
 | --- | --- |
 | 1 | **Fixed**: `parseEvalJson` = last non-empty line, parse, parse again if string; `tests/fixtures/agent-browser-eval-sample.txt` is the phase-9 raw bytes and is decoded in a test; the entry test's fake double-encodes every eval |
-| 2 | **Fixed**: `beginEarlyObserver` keeps the CDP client attached through the measured navigation and read; `finish()` removes the script then closes; `earlyObserver.ran` is true only when the page exposed the store; verdict buckets (`BUCKETS`, 8) are exhaustive and exclusive and the summary is derived from them; tests cover attach/remove/close order and ran-vs-registered |
-| 3 | **Fixed**: gate paragraph now says seen on main too, cause unknown (engine or late-reader measurement), probe pending; `relaunch.png` citation dropped |
+| 2 | **Fixed in code, verified on real Chromium by review 7** (registered, ran, script removed after `finish()`). The *order* in `runPaintProbe` (finish after the read, before the close) is not pinned by a test — review-7 item 3, open. Original text: `beginEarlyObserver` keeps the CDP client attached through the measured navigation and read; `finish()` removes the script then closes; `earlyObserver.ran` is true only when the page exposed the store; verdict buckets (`BUCKETS`, 8) are exhaustive and exclusive and the summary is derived from them; tests cover attach/remove/close order and ran-vs-registered |
+| 3 | **Partly fixed** (review-7 item 2): the gate paragraph was corrected, but the `relaunch.png` sentence was not dropped until iteration 22. Original text: gate paragraph now says seen on main too, cause unknown (engine or late-reader measurement), probe pending; `relaunch.png` citation dropped |
 | 4 | **Fixed**: the probe runs the gate's prelude verbatim (signed-out `/`, cleared relaunch, 2500 ms, sign-in, 2000 ms) before the measured `/roster`; reused launches skip it after the first and the record says so |
 | 5 | **Fixed**: setup attempts ride on the thrown error and land in the record; test asserts 3 on a failed setup |
 | 6 | **Fixed**: the fake releases only after a successful close, has a real dispose, and a test makes a fresh close fail (record gets `closeError`, the entry rejects with the owner's cleanup error after the report is on disk) |
-| 7 | **Fixed**: tests now fail on a retried measured open, on a fresh session left open, on `early-none` passing, on a hardcoded "not registered" (the probe must ask for `cdp-url`), on the reused session re-running the prelude, and on shared fresh names; a signed-in entry test exists |
-| 8 | **Fixed in the probe** (`pathToFileURL`); the 27-file sweep is left as a separate tracker |
+| 7 | **Mostly fixed** (review 7: five of six named mutations killed; the reused-prelude mutation survives — review-7 item 5, open). Original text: tests now fail on a retried measured open, on a fresh session left open, on `early-none` passing, on a hardcoded "not registered" (the probe must ask for `cdp-url`), on the reused session re-running the prelude, and on shared fresh names; a signed-in entry test exists |
+| 8 | **Partly fixed**: `pathToFileURL` handles spaces; a symlinked `argv[1]` still skips main and exits 0 (review-7 item 8, open, pre-existing). Original text: fixed in the probe (`pathToFileURL`); the 27-file sweep is left as a separate tracker |
 | 9 | **Fixed** by the exclusive buckets (`early-saw` precedes late-observer checks; nothing counts twice) |
 | 10 | **Fixed**: `store.error` becomes bucket `missing:early-error` |
 | 11 | **Fixed**: "browser CDP endpoint" in code and README |
-| 12 | **Fixed**: header rewritten (own sessions, three readers, counted setup retries) |
+| 12 | **Fixed except** the header sentence that treats the screenshot as proof of paint (review-7 item 26, open). Original text: header rewritten (own sessions, three readers, counted setup retries) |
 | 13 | **Recorded and investigated**: both release attempts ran with `E2E_ENABLE_MIDLIFE_MIGRATION=0` and could not have satisfied `long.migration`; the evidence files and the gate paragraph say so. README now documents the local mid-life procedure (stack on the deployed schema `20260823000001` with the three branch migrations moved aside, `E2E_MIDLIFE_EXPECTED_*` from `release-soak-migration-plan.mjs`, `E2E_ENABLE_MIDLIFE_MIGRATION=1`, push at the season-5 boundary). Not run here |
 | 14 | **Fixed**: `--launches 20` form accepted, bare flag refused, `[::1]`/`::1` loopback accepted (tests) |
 | 15 | **Fixed**: temp dirs removed in `afterEach` |
 | 16 | **Fixed**: WORKLOG and attempt-1 file state 1128 s (start to first season-2 artifact) vs 1176 s log span |
 | 17 | **Fixed**: the two unlabelled lines in the attempt-2 file are labelled as wrapper text |
-| 18 | **Fixed**: "15 recorded commands, then the full-sweep smoke" |
+| 18 | **Not fixed at 24d4768** (the WORKLOG still said "16 scenarios"; the quoted phrase existed nowhere — review-7 item 2). Corrected in iteration 22 |
 | 19 | **Fixed**: budget gates ran on the branch only; stated |
 | 20 | **Fixed**: merged numbers re-laid out |
 | 21 | **Fixed**: README no longer claims the closed-session recovery; it records the intermittent evidence |
-| 22 | **Fixed**: scratch SQL carries a negative-proof header and states it wakes on any game |
-| 23 | **Fixed**: `soak-ticks.txt` and `negative-proofs.txt` say what was captured and what was not retained |
-| 24 | **Fixed**: SIGINT/SIGTERM close the probe-owned sessions before exit (the gate's same gap is a tracker) |
+| 22 | **Partly fixed**: header added, but the file's line 5 still said "ANY Final game" against it (review-7 item 11); corrected in iteration 22. Original text: scratch SQL carries a negative-proof header and states it wakes on any game |
+| 23 | **Partly fixed**: `negative-proofs.txt` was corrected; `soak-ticks.txt` was not touched (review-7 item 2); corrected in iteration 22. Original text: `soak-ticks.txt` and `negative-proofs.txt` say what was captured and what was not retained |
+| 24 | **Not fixed** (review-7 item 1, verified): the handler runs outside the scenario owner, so every close throws and is swallowed; exit 130; no `close` reaches agent-browser. Open. Original claim: SIGINT/SIGTERM close the probe-owned sessions before exit (the gate's same gap is a tracker) |
 | 25 | **Fixed**: `openCdpClient` closes the socket on connect timeout or error |
 | 26 | **Fixed**: fresh session names carry a per-run random tag plus the launch index; test asserts distinct names |
 
@@ -597,7 +597,7 @@ Stack at `24d4768`: `supabase start` + `db reset` (307 migrations), `functions s
 | --- | --- |
 | Probe run 3, `npm run e2e:pwa-paint-probe -- --launches=20` (default agent-browser engine, HeadlessChrome/147.0.0.0), 04:16:01–04:19:56Z | **FAIL: 20 launches failed, 0 passed, exit 1.** Every launch bucket `missing:early-none`: the early observer registered *and ran* on all 20, from document start, and saw no `paint` entry; `getEntriesByType` and the late observer also empty; shell mark 6–11 ms, mount 25–38 ms, document visible and focused. The per-launch screenshots are CDP print captures of the rendered signed-in Roster page: they prove the renderer produced the pixels for capture, not that an on-screen paint (or a paint-timing event) occurred. "setup attempts 3" on fresh rows = the three prelude opens, one attempt each (no retries); the column label is ambiguous and is a doc nit for the next sandbox-on phase. |
 | Browser-mode inspection (session-local flags/env only; `browser-paint-modes.txt`) | Default engine = agent-browser's bundled Chrome for Testing 147.0.7727.56 (also .117 present): **no paint entries** in headless, `--headed`, with GPU/ANGLE `--args`, and even for a trivial static `<h1>` page. Session-local `--executable-path` to system Google Chrome (HeadlessChrome/152) and to Playwright's `chrome-headless-shell` 1243 (HeadlessChrome/153) **both emit first-paint/first-contentful-paint** on the trivial page and on `/sign-in`. No global agent-browser config was changed (none exists). |
-| Probe run 4, same command with `AGENT_BROWSER_EXECUTABLE_PATH=~/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell` (reports HeadlessChrome/153.0.8010.12) for that process only, 04:25:10–04:28:27Z | **PASS 20/20, exit 0.** FCP 12–24 ms on every fresh and reused launch; early observer, byType and late observer all agree (2 entries each); shell 4.6–10 ms, mount 25–38 ms. The 400 ms budget and the missing-timing failure rule were not changed. |
+| Probe run 4 (**display confound, from review 7's coverage caveat**: a reviewer's `caffeinate -u` woke the display 21:24:56–~21:25:26 PDT, covering launch 1; a display-sleep assertion of unknown origin held until 21:28:30, covering launches 2–20 — so this is neither a clean display-off nor display-on sample; the reviewer's own later Chrome 153 sessions with the display off still painted), same command with `AGENT_BROWSER_EXECUTABLE_PATH=~/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell` (reports HeadlessChrome/153.0.8010.12) for that process only, 04:25:10–04:28:27Z | **PASS 20/20, exit 0.** FCP 12–24 ms on every fresh and reused launch; early observer, byType and late observer all agree (2 entries each); shell 4.6–10 ms, mount 25–38 ms. The 400 ms budget and the missing-timing failure rule were not changed. |
 
 Diagnosis: the missing `first-contentful-paint` is a property of the browser engine the harness launches by default (agent-browser's bundled Chrome for Testing 147), not of the app: the same build, same prelude and same route renders for capture (screenshots) but reports no paint-timing entries, while two other Chromium builds report them on every launch. Earlier intermittent passes on this host were therefore engine-version dependent; CI gets its engine the same way (`npm ci`, agent-browser downloads its own Chrome for Testing), so the gate's engine is not pinned by the repository. Not a fix: choosing the engine for the gate is a harness/CI decision for the next sandbox-on phase (candidates: pin `AGENT_BROWSER_EXECUTABLE_PATH` in the release workflow and README, or record the engine in the launch-gate report and fail with an explicit "engine emitted no paint entries" reason). Left unresolved and red until then.
 
@@ -612,3 +612,27 @@ Shutdown: own `functions serve` and static-server pids killed, `supabase stop` e
 - README mid-life section rewritten to the tested route: reset from a base-schema copy (304 files, head `20260823000001`), run the release soak from the repo root, the harness pushes to 307 (`20260912000003`) after season 5. No repository migration is moved. The local base is the newest migration on main; it is not production verification (CI derives the base from the linked project's `schema_migrations`).
 - Probe report column renamed from "setup attempts" to "setup opens (attempts, 3 = one per prelude page)" — label only; the counter is unchanged.
 - Next approved local phase: the full 20-season gate with the mid-life check enabled, exact command in the README section, under a 36000 s bound with the child's real exit status captured; a shorter soak is not a substitute.
+
+### Iteration 22 — 2026-09-13 (review round 7 dispositions; sandbox on; no servers)
+
+Round 7 (APPROVE, 27 survivors: 9 minor, 18 nit, none gating) preserved at
+`docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase10/independent-review-round7.md`. Its central
+finding is that iteration 19's record overclaimed: items 18 and 24 were marked Fixed and were not; items 2, 3, 7, 8,
+12, 22 and 23 were partly true. The iteration-19 rows are now relabelled in place with the original text kept.
+Only the text corrections that those false rows claimed are applied here (no code repair sweep):
+
+- `WORKLOG` phase-7 row: "browser chain (16 scenarios)" → "15 recorded commands, then the full-sweep smoke" (item 2 / round-6 #18).
+- `WORKLOG` season-3 paragraph: `relaunch.png` no longer cited as proof that "the paint happened" (item 2 / round-6 #3; item 26).
+- `local-phase7/soak-ticks.txt`: states what was captured and what was not retained (item 2 / round-6 #23).
+- `local-phase7/scratch-stats-ignoring-gate.sql` line 5 aligned with its header (item 11 / round-6 #22).
+
+All 27 findings are retained as open unless stated: 1 (signal handler closes nothing; exit 130), 3 (finish order
+untested), 4 (README recipe lacked seed/prerequisites — the iteration-21 README block now seeds and names the
+executable; functions serve and the static release build are still prerequisites, added below), 5, 6, 7, 8, 9
+(**display-state lead**: every recorded paint pass fell with the display on and both recorded misses with it off,
+Chrome 147; a correlation, not a proven cause — run the next soak on the named engine under `caffeinate -d` and
+record user agent plus display state), 10, 12–25, 27. Item 9 and the run-4 confound above mean phase 10's
+engine diagnosis rests on the plain-page and executable comparisons, which were run in the same host state; a
+clean display-on vs display-off matrix does not exist yet.
+
+Carried unchanged: round-5 1–10, round-4 10–11, round-3 10 (RLS, security, deferred), 18, 20, 21, 22, 30, 33.

@@ -1,1 +1,4 @@
+# Summary line only. What was captured: the harness's PASS 3/3 summary and exit 0 as seen on the terminal of the
+# scratch log (p7-soak-ticks.log, not retained in the repo). What was not retained: the per-season artifacts and the
+# full stdout. This file is a hand-written summary, not program output.
 # soak.mjs --seasons=3, backend+edge ticks, fake upstream, PLAYER_SYNC_SOURCE=sleeper: exit 0, PASS 3/3

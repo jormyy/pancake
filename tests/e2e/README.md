@@ -146,7 +146,9 @@ for f in $(node -e 'for (const v of JSON.parse(process.argv[1]).pendingFiles) co
 test "$(ls "$copy/supabase/migrations" | wc -l)" -eq 304
 (cd "$copy" && supabase db reset)                   # stack now sits on the base schema (304 migrations)
 test "$(psql "$SUPABASE_DB_URL" -tAc 'select max(version) from supabase_migrations.schema_migrations')" = "$base"
-npm run e2e:seed
+npm run e2e:seed                                    # the reset wiped the seeded league; tests/e2e-state.json must be fresh
+# prerequisites also running: `supabase functions serve --env-file <private env>`, the stamped release build
+# (`npm run build:web:release`) served on E2E_FRONTEND_URL (`node tests/e2e/static-web-server.mjs`), fake upstream on 4555
 export E2E_ENABLE_MIDLIFE_MIGRATION=1 E2E_MIDLIFE_MIGRATION_AFTER_SEASON=5
 export E2E_MIDLIFE_EXPECTED_BASE_VERSION="$base"
 export E2E_MIDLIFE_EXPECTED_VERSION=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).repositoryHead)' "$plan")
