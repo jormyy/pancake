@@ -464,11 +464,12 @@ Verified (real runs, exit codes preserved):
 | Seed; browser chain (16 scenarios) from a closed browser session; full sweep; `perf:budget` both gates | all exit 0; branch pwa-launch FCP 52 ms, baseline 48 ms (single samples) |
 | Baseline vs branch | recorded as single samples with direction only; every metric slower on the branch in this sample; run order (branch first, cold) confounds it; significance unknown (`baseline-vs-branch-performance.txt`) |
 | Tick-enabled soak (3 seasons) | PASS 3/3 |
-| `e2e:soak:release` attempt 1 (bound 7200 s) | **STOPPED by me after season 1 (1128 s)** to re-bound; season-1 scenario summaries all PASS; exit 143; not a pass |
-| `e2e:soak:release` attempt 2 (bound 36000 s, sessions closed first) | **FAIL exit 1 at season 0**: pwa-launch gate `fcp=unknown`, diagnostics `paintEntries=[] visible focused paintTimingSupported=true`. Material gate red; not retried |
+| `e2e:soak:release` attempt 1 (bound 7200 s) | **STOPPED by me (SIGTERM) after season 1 (1128 s)** to re-bound; season-1 scenario summaries all PASS; captured exit 143 (128+SIGTERM); not a pass |
+| `e2e:soak:release` attempt 2 (bound 36000 s, sessions closed first) | **FAIL exit 1**: seasons 1 and 2 completed all 23 browser scenarios (artifacts to 02:06Z); season 3 wrote 22 scenario entries and failed at its pwa-launch (02:23Z) with `fcp=unknown`, diagnostics `paintEntries=[] visible focused paintTimingSupported=true`. The report's `ERROR 0/20, season 0` is the harness fallback counter, not the failure point. Material gate red; not retried |
 
 Release gate status: **unfinished and currently red** on the host's missing paint entry, which has now been
-seen with and without a fresh browser session. The measurement records why (no paint entries at all while
+seen with and without a fresh browser session, and which appears intermittently: the same run passed
+pwa-launch in seasons 1 and 2 and lost every paint entry in season 3. The measurement records why (no paint entries at all while
 the document is visible and focused), which is a host/browser-engine condition this branch neither
 introduced nor can fix. Supervisor decision needed on how to obtain paint evidence for the release run.
 

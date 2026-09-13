@@ -1,4 +1,5 @@
-# e2e:soak:release attempt 1 (bound 7200 s): STOPPED BY OPERATOR after season 1 (1128 s) to re-bound — NOT a pass, no exit code kept
+# e2e:soak:release attempt 1 (bound 7200 s): STOPPED BY OPERATOR (SIGTERM to the soak process) after season 1 (1128 s) to re-bound — NOT a pass.
+# Exit status captured by the wrapping shell: 143 (128+SIGTERM), raw line in the background-task output: 'e2e:soak:release exit 143'.
 started 2026-09-13T01:14:44Z, stopped 2026-09-13T01:34:20Z
 season-1 registry entries written:
 auction-season-1.json auth-season-1.json league-lifecycle-season-1.json lineup-auto-set-season-1.json lineup-locked-season-1.json lineup-season-1.json performance-season-1.json playoffs-season-1.json pwa-launch-season-1.json rookie-draft-season-1.json smoke-season-1.json trade-accept-season-1.json trade-future-pick-accept-season-1.json trade-future-pick-season-1.json trade-multi-team-season-1.json trade-overflow-accept-season-1.json trade-post-deadline-season-1.json trade-proposal-season-1.json trade-terminal-season-1.json trade-veto-season-1.json waiver-drop-season-1.json waiver-ir-block-season-1.json waiver-season-1.json 
