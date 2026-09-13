@@ -136,21 +136,23 @@ holds only the base schema, then run the soak from the repo root; the harness pu
 
 ```sh
 # from the repo root with the private local env loaded (loopback Supabase only)
+set -euo pipefail          # fail closed: any setup error stops before the soak starts
 base=20260823000001   # newest migration on main; the branch adds 20260912000001..3.
                       # This is the LOCAL baseline, not production verification.
 plan=$(node tests/e2e/release-soak-migration-plan.mjs "$base" $(ls supabase/migrations))
-copy="$TMPDIR/pancake-midlife-base"; rm -rf "$copy"; mkdir -p "$copy"
+copy=$(mktemp -d "${TMPDIR:-/tmp}/pancake-midlife-base.XXXXXX")   # fresh private dir; nothing shared is removed
 rsync -a --exclude .branches --exclude .temp supabase/ "$copy/supabase/"
 for f in $(node -e 'for (const v of JSON.parse(process.argv[1]).pendingFiles) console.log(v)' "$plan"); do rm "$copy/supabase/migrations/$f"; done
+test "$(ls "$copy/supabase/migrations" | wc -l)" -eq 304
 (cd "$copy" && supabase db reset)                   # stack now sits on the base schema (304 migrations)
-psql "$SUPABASE_DB_URL" -tAc 'select max(version) from supabase_migrations.schema_migrations'   # expect $base
+test "$(psql "$SUPABASE_DB_URL" -tAc 'select max(version) from supabase_migrations.schema_migrations')" = "$base"
 npm run e2e:seed
 export E2E_ENABLE_MIDLIFE_MIGRATION=1 E2E_MIDLIFE_MIGRATION_AFTER_SEASON=5
 export E2E_MIDLIFE_EXPECTED_BASE_VERSION="$base"
 export E2E_MIDLIFE_EXPECTED_VERSION=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).repositoryHead)' "$plan")
 export E2E_MIDLIFE_EXPECTED_VERSIONS=$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).pendingVersions))' "$plan")
 export AGENT_BROWSER_EXECUTABLE_PATH="$HOME/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell"  # see "Browser engine" below
-timeout -s TERM 36000 npm run e2e:soak:release; echo "release soak exit $?"
+set +e; timeout -s TERM 36000 npm run e2e:soak:release; echo "release soak exit $?"   # the soak's own exit is captured, not masked
 ```
 
 The plan script's positional form is `<deployedVersion> <migration filenames...>` (CI uses
