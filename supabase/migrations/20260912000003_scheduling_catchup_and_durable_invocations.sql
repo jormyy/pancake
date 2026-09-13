@@ -2,9 +2,12 @@
 --
 -- 1. Minute-exact ET gates dropped a whole day (or week) whenever pg_cron ran
 --    late. Gates are now "due from the target time onward" with a once-per-
---    period claim in cron_dispatch_state, so a delayed tick is caught up by the
---    next one and never double-dispatched. The claim rides on the job's
---    transaction: a failed invoke rolls it back.
+--    period claim in cron_dispatch_state, so a late tick still fires and a
+--    later tick in the same period (where the schedule has one: the second
+--    hourly tick in EDT) catches up a missed one, never double-dispatching.
+--    The claim rides on the job's transaction: a synchronous raise inside
+--    invoke_edge_function (missing URL or token) rolls it back; a pg_net
+--    transport failure does not, and is surfaced by (2) instead.
 -- 2. invoke_edge_function was fire-and-forget: a request that never booted the
 --    function left no sync_runs row. Every invocation now records its pg_net
 --    request id in edge_invocations, and reconcile_edge_invocations (cron, every
@@ -143,6 +146,7 @@ BEGIN
 END;
 $$;
 
+
 CREATE OR REPLACE FUNCTION private.reconcile_edge_invocations()
 RETURNS integer
 LANGUAGE plpgsql
@@ -181,7 +185,7 @@ BEGIN
       INSERT INTO public.sync_runs (function_name, started_at, finished_at, status, error)
       VALUES ('cron:' || v_row.function_name, v_row.queued_at, now(), 'failed',
               'no response recorded within 2 hours (request never sent or pg_net purged it)');
-    ELSIF v_row.error_msg IS NOT NULL OR v_row.timed_out IS TRUE OR v_row.status_code >= 400 THEN
+    ELSIF v_row.error_msg IS NOT NULL OR v_row.timed_out IS TRUE OR v_row.status_code NOT BETWEEN 200 AND 299 THEN
       UPDATE public.edge_invocations
          SET status_code = v_row.status_code,
              error_message = COALESCE(v_row.error_msg, CASE WHEN v_row.timed_out THEN 'timed out' END, 'HTTP ' || v_row.status_code || ': ' || COALESCE(v_row.content, '')),
@@ -371,6 +375,35 @@ REVOKE ALL ON FUNCTION public.renew_live_poll_lease(bigint, uuid, integer) FROM 
 REVOKE ALL ON FUNCTION public.renew_live_poll_lease(bigint, uuid, integer) FROM anon;
 REVOKE ALL ON FUNCTION public.renew_live_poll_lease(bigint, uuid, integer) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.renew_live_poll_lease(bigint, uuid, integer) TO service_role;
+
+-- Deploy-day seed: a job the old minute-exact gate already dispatched today
+-- must not fire again at its next tick just because the state table is new.
+-- Claim today's period for every daily job whose target time has passed, and
+-- this ISO week for the weekly ranking sync when its Monday slot has passed.
+DO $$
+DECLARE
+  v_now timestamp := timezone('America/New_York', now());
+  v_day text := to_char(v_now, 'YYYY-MM-DD');
+  v_week text := to_char(v_now, 'IYYY-IW');
+BEGIN
+  INSERT INTO public.cron_dispatch_state (job_key, period_key)
+  SELECT job.key, v_day
+    FROM (VALUES
+      ('et-time:process-waivers', make_time(3, 0, 0)),
+      ('et-time:sync-players',    make_time(6, 0, 0)),
+      ('et-time:sync-schedule',   make_time(6, 5, 0)),
+      ('season-boundary',         make_time(9, 0, 0))
+    ) AS job(key, target)
+   WHERE v_now::time >= job.target
+  ON CONFLICT (job_key) DO NOTHING;
+
+  IF EXTRACT(ISODOW FROM v_now)::int > 1
+     OR (EXTRACT(ISODOW FROM v_now)::int = 1 AND v_now::time >= make_time(7, 0, 0)) THEN
+    INSERT INTO public.cron_dispatch_state (job_key, period_key)
+    VALUES ('et-time:sync-rankings', v_week)
+    ON CONFLICT (job_key) DO NOTHING;
+  END IF;
+END $$;
 
 DO $$
 BEGIN

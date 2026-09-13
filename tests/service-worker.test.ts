@@ -214,7 +214,8 @@ describe('service worker', () => {
             precache: ['/', '/_expo/static/js/web/renamed.js'],
             fetchImpl: async (input) => {
                 const url = typeof input === 'string' ? input : input.url
-                return url.endsWith('renamed.js') ? html() : html()
+                // The shell is a document; the renamed chunk comes back as the 404 rewrite.
+                return url.endsWith('renamed.js') ? html() : new Response('<!doctype html><title>Pancake</title>', { status: 200, headers: { 'content-type': 'text/html' } })
             },
         })
         await worker.install()
@@ -250,5 +251,20 @@ describe('service worker', () => {
 
         const response = await worker.respond(scoped('/manifest.webmanifest'))
         expect(await response.text()).toContain('Pancake')
+    })
+
+    // An install that cannot fetch the shell must not activate: activation
+    // deletes the previous release's shell, and a launch with no shell at all
+    // has nothing to paint offline.
+    it('fails the install when the shell itself is not served', async () => {
+        const worker = await loadWorker({
+            precache: ['/', '/_expo/static/js/web/app.js'],
+            fetchImpl: async (input) => {
+                const url = typeof input === 'string' ? input : input.url
+                return new URL(url).pathname === '/' ? new Response('gone', { status: 503 }) : script()
+            },
+        })
+        await expect(worker.install()).rejects.toThrow(/shell/i)
+        expect(worker.skipWaitingCalls).toBe(0)
     })
 })

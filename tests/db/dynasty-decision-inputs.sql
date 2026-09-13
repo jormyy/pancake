@@ -14,7 +14,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Legacy dynasty ranking rows still exist';
   END IF;
-  SELECT pg_get_functiondef('public.invoke_dynasty_ranking_views_at_et_time(integer,integer)'::regprocedure)
+  SELECT pg_get_functiondef('public.invoke_dynasty_ranking_views_at_et_time(integer,integer,timestamp with time zone)'::regprocedure)
     INTO v_cron_definition;
   IF v_cron_definition LIKE '%"CONTEND"%'
      OR v_cron_definition LIKE '%"REBUILD"%'

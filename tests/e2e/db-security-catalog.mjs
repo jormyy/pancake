@@ -109,9 +109,9 @@ migration AS (
 ),
 cron_wrapper AS (
   SELECT
-    has_function_privilege('anon', 'public.invoke_edge_function_at_et_time(text,int,int)', 'EXECUTE') AS cron_anon_exec,
-    has_function_privilege('authenticated', 'public.invoke_edge_function_at_et_time(text,int,int)', 'EXECUTE') AS cron_auth_exec,
-    has_function_privilege('service_role', 'public.invoke_edge_function_at_et_time(text,int,int)', 'EXECUTE') AS cron_service_exec
+    has_function_privilege('anon', 'public.invoke_edge_function_at_et_time(text,int,int,timestamptz)', 'EXECUTE') AS cron_anon_exec,
+    has_function_privilege('authenticated', 'public.invoke_edge_function_at_et_time(text,int,int,timestamptz)', 'EXECUTE') AS cron_auth_exec,
+    has_function_privilege('service_role', 'public.invoke_edge_function_at_et_time(text,int,int,timestamptz)', 'EXECUTE') AS cron_service_exec
 ),
 auth_trigger AS (
   SELECT

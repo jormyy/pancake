@@ -60,6 +60,9 @@ self.addEventListener('install', (event) => {
       // worker keeps serving in the meantime.
       const shell = await caches.open(SHELL_CACHE)
       await precache(shell, SHELL_URL, { allowDocument: true })
+      // The shell is the one entry that cannot be skipped: without it this
+      // release has nothing to serve offline once the old caches are dropped.
+      if (!(await shell.match(SHELL_URL))) throw new Error('shell precache failed; install aborted')
       const assets = await caches.open(ASSET_CACHE)
       await Promise.all(
         PRECACHE_URLS.filter((url) => url !== SHELL_URL).map((url) => precache(assets, url)),

@@ -164,9 +164,10 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   dates: number
   optimized: number
   skipped: number
+  failed: number
 }> {
   const dateContexts = await loadDateContexts(requestedDate)
-  if (dateContexts.length === 0) return { settings: 0, dates: 0, optimized: 0, skipped: 0 }
+  if (dateContexts.length === 0) return { settings: 0, dates: 0, optimized: 0, skipped: 0, failed: 0 }
 
   const { data: settings, error: settingsError } = await supabase
     .from('lineup_optimizer_settings')
@@ -185,6 +186,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
 
   let optimized = 0
   let skipped = 0
+  let failed = 0
   for (const setting of (settings ?? []) as OptimizerSetting[]) {
     let league = leagues.get(setting.league_id)
     if (league === undefined) {
@@ -202,18 +204,28 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
       continue
     }
 
-    const roster = await loadMemberRoster(setting)
+    // One member's failure must not stall everyone behind it. The setting is
+    // touched on failure too, so a member that keeps throwing moves to the
+    // back of the least-recently-optimized order instead of blocking the head.
     let settingOptimized = 0
-    for (const dateContext of dateContexts) {
-      if (dateContext.seasonYear !== season.season_year) {
-        skipped++
-        continue
+    try {
+      const roster = await loadMemberRoster(setting)
+      for (const dateContext of dateContexts) {
+        if (dateContext.seasonYear !== season.season_year) {
+          skipped++
+          continue
+        }
+        await autoSetMemberDate(setting, dateContext, roster)
+        optimized++
+        settingOptimized++
       }
-      await autoSetMemberDate(setting, dateContext, roster)
-      optimized++
-      settingOptimized++
+    } catch (error) {
+      failed++
+      console.error(`[lineup-optimizer] member ${setting.member_id} in league ${setting.league_id} failed:`, error)
     }
-    if (settingOptimized > 0) await touchOptimizerSetting(setting)
+    if (settingOptimized > 0 || failed > 0) await touchOptimizerSetting(setting).catch((touchError) => {
+      console.error('[lineup-optimizer] could not touch optimizer setting:', touchError)
+    })
   }
 
   return {
@@ -221,6 +233,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
     dates: dateContexts.length,
     optimized,
     skipped,
+    failed,
   }
 }
 

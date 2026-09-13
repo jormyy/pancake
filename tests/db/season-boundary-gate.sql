@@ -9,7 +9,7 @@ DO $$
 DECLARE
   v_definition text;
 BEGIN
-  SELECT pg_get_functiondef('public.invoke_season_boundary_if_due()'::regprocedure)
+  SELECT pg_get_functiondef('public.invoke_season_boundary_if_due(timestamp with time zone)'::regprocedure)
     INTO v_definition;
   IF v_definition !~ 'offseason' THEN
     RAISE EXCEPTION 'season-boundary idle gate does not cover offseason leagues';

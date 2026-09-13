@@ -2,7 +2,8 @@
 // hands out a 90 s lease and a busy night's poll can outrun it, after which a
 // second worker takes the lease and both write (probe P2, 2026-09-12). The
 // heartbeat renews at a third of the TTL; when a renewal reports the lease was
-// lost, `lost` flips so the caller can stop treating itself as the holder.
+// lost, `lost` flips; live-poll checks it before each write phase and bails
+// out with 'lease-lost' instead of writing beside the new holder.
 export type LeaseHeartbeat = {
   stop: () => void
   readonly lost: boolean
@@ -20,9 +21,11 @@ export function startLeaseHeartbeat(
     if (stopped || lost || inFlight) return
     inFlight = renew()
       .then((held) => {
+        if (stopped) return // released on purpose; a late renewal is not a loss
         if (!held && !lost) { lost = true; onLost() }
       })
       .catch((error) => {
+        if (stopped) return
         if (!lost) { lost = true; onLost(error) }
       })
       .finally(() => { inFlight = null; if (lost) clearInterval(timer) })

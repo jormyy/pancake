@@ -14,7 +14,9 @@ function shouldRetry(res: Response): boolean {
   return !res.ok && (res.status >= 500 || res.status === 429)
 }
 
-async function attempt(url: string | URL, init: RequestInit | undefined, timeoutMs: number | undefined): Promise<Response> {
+type Attempt = { response: Response; unlink: () => void }
+
+async function attempt(url: string | URL, init: RequestInit | undefined, timeoutMs: number | undefined): Promise<Attempt> {
   const outer = init?.signal ?? null
   if (outer?.aborted) throw outer.reason ?? new DOMException('The operation was aborted.', 'AbortError')
 
@@ -28,8 +30,8 @@ async function attempt(url: string | URL, init: RequestInit | undefined, timeout
     const response = await fetch(url, { ...init, signal: controller.signal })
     // The per-attempt timer only guards the wait for headers. The caller's own
     // signal stays linked so a later abort (an overall deadline) still cancels
-    // the body stream the caller is reading.
-    return response
+    // the body stream the caller is reading; a discarded attempt unlinks it.
+    return { response, unlink: () => outer?.removeEventListener('abort', onOuterAbort) }
   } catch (error) {
     outer?.removeEventListener('abort', onOuterAbort)
     throw error
@@ -50,9 +52,10 @@ export async function fetchWithRetry(
 
   let firstError: unknown = null
   try {
-    const res = await attempt(url, init, timeoutMs)
-    if (!shouldRetry(res)) return res
-    await res.body?.cancel()
+    const first = await attempt(url, init, timeoutMs)
+    if (!shouldRetry(first.response)) return first.response
+    first.unlink()
+    await first.response.body?.cancel()
   } catch (error) {
     firstError = error
   }
@@ -61,5 +64,5 @@ export async function fetchWithRetry(
   if (init?.signal?.aborted) throw firstError ?? init.signal.reason
 
   await new Promise((resolve) => setTimeout(resolve, delay()))
-  return attempt(url, init, timeoutMs)
+  return (await attempt(url, init, timeoutMs)).response
 }

@@ -210,7 +210,8 @@ export default function HomeScreen() {
                 />
             )}
 
-            {error && <ErrorBanner onRetry={refresh} />}
+            {/* The error card owns the retry when there is no matchup to show; the banner covers a failed refresh over live data. */}
+            {error && homeSurface !== 'error' && <ErrorBanner onRetry={refresh} />}
 
             {matchup ? (
                 <View style={styles.playSurface}>

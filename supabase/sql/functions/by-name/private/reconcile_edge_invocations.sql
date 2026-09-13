@@ -40,7 +40,7 @@ BEGIN
       INSERT INTO public.sync_runs (function_name, started_at, finished_at, status, error)
       VALUES ('cron:' || v_row.function_name, v_row.queued_at, now(), 'failed',
               'no response recorded within 2 hours (request never sent or pg_net purged it)');
-    ELSIF v_row.error_msg IS NOT NULL OR v_row.timed_out IS TRUE OR v_row.status_code >= 400 THEN
+    ELSIF v_row.error_msg IS NOT NULL OR v_row.timed_out IS TRUE OR v_row.status_code NOT BETWEEN 200 AND 299 THEN
       UPDATE public.edge_invocations
          SET status_code = v_row.status_code,
              error_message = COALESCE(v_row.error_msg, CASE WHEN v_row.timed_out THEN 'timed out' END, 'HTTP ' || v_row.status_code || ': ' || COALESCE(v_row.content, '')),

@@ -73,6 +73,7 @@ export default function TradesScreen() {
         loadingMore: offersLoadingMore,
         hasMore: offersHaveMore,
         error: tradesError,
+        loadMoreError: offersLoadMoreError,
         refresh: load,
         loadMore: loadMoreOffers,
     } = useTradesFeed(myMemberId, leagueId)
@@ -96,6 +97,7 @@ export default function TradesScreen() {
         avgStatsMap: blockAvgStatsMap,
         loading: blockLoading,
         error: blockError,
+        actionError: blockActionError,
         busyId: blockBusyId,
         refresh: loadBlock,
         addPlayer: handleListPlayer,
@@ -197,6 +199,11 @@ export default function TradesScreen() {
         : activeResource === 'block' ? blockError
             : activeResource === 'history' ? historyError
                 : tradesError
+    // A failed add/remove or a failed load-more is reported, but it is not a
+    // failed load: the list (and its empty rows) stays as it is.
+    const activeActionError = activeResource === 'block' ? blockActionError
+        : activeResource === 'trades' ? offersLoadMoreError
+            : null
     const retryActiveResource = activeResource === 'picks' ? refreshPicks
         : activeResource === 'block' ? loadBlock
             : activeResource === 'history' ? refreshHistoryFeed
@@ -216,6 +223,8 @@ export default function TradesScreen() {
         <TradeHeader disabled={tradingClosed} onPropose={() => push('/(modals)/propose-trade')} />
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
         {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'}. Tap to retry.`}
+            onRetry={() => { void retryActiveResource() }} /> : null}
+        {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError} Tap to refresh.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
         {tab === 'analyzer' ? (
             <Suspense fallback={<View style={styles.emptyState}><Text style={styles.emptyStateText}>Loading Analyzer…</Text></View>}>

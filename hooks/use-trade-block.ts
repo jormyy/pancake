@@ -32,6 +32,9 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
     const [loading, setLoading] = useState(!cached)
     const [error, setError] = useState<string | null>(null)
+    // A failed add/remove is reported separately from a failed load so the
+    // screen does not hide the (valid) list behind a "failed to load" banner.
+    const [actionError, setActionError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
     const loadSequence = useRef(0)
     const statsLoadSequence = useRef(0)
@@ -129,10 +132,13 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setBusyId(id)
             try {
                 await operation()
-                if (mutationGeneration.current === generation) await refresh()
+                if (mutationGeneration.current === generation) {
+                    setActionError(null)
+                    await refresh()
+                }
             } catch (cause) {
                 if (mutationGeneration.current === generation) {
-                    setError(getErrorMessage(cause) ?? 'Could not update trade block.')
+                    setActionError(getErrorMessage(cause) ?? 'Could not update trade block.')
                 }
             } finally {
                 if (mutationGeneration.current === generation) setBusyId(null)
@@ -169,6 +175,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         avgStatsMap: ownsResource ? avgStatsMap : EMPTY_STATS_MAP,
         loading: ownsResource ? loading : !cached,
         error: ownsResource ? error : null,
+        actionError: ownsResource ? actionError : null,
         busyId: ownsResource ? busyId : null,
         refresh,
         addPlayer,

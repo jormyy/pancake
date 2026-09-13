@@ -140,15 +140,22 @@ describe('harness cleanup table list', () => {
         for (const file of files) {
             const sql = await readFile(`${dir}/${file}`, 'utf8')
             let table: string | null = null
-            for (const raw of sql.split('\n')) {
-                const line = raw.replace(/--.*$/, '')
+            const lines = sql.split('\n').map((raw) => raw.replace(/--.*$/, ''))
+            for (let index = 0; index < lines.length; index += 1) {
+                const line = lines[index]
                 const create = line.match(/CREATE TABLE(?: IF NOT EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
                 const alter = line.match(/ALTER TABLE(?: ONLY)?(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
                 if (create) { table = create[1]; dropped.delete(table) }
                 else if (alter) table = alter[1]
                 const drop = line.match(/DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
                 if (drop) { dropped.add(drop[1]); continue }
-                if (table && /REFERENCES\s+(?:public\.)?players\s*\(\s*id\s*\)/i.test(line) && !/ON DELETE/i.test(line)) referencing.add(table)
+                // "REFERENCES players" with or without "(id)"; the ON DELETE clause may
+                // sit on the next line. Only CASCADE / SET NULL / SET DEFAULT remove the
+                // row automatically; RESTRICT and NO ACTION block the delete like the default.
+                if (table && /REFERENCES\s+(?:public\.)?players\b/i.test(line)) {
+                    const clause = `${line} ${lines[index + 1] ?? ''}`
+                    if (!/ON DELETE\s+(CASCADE|SET\s+NULL|SET\s+DEFAULT)/i.test(clause)) referencing.add(table)
+                }
             }
         }
         for (const t of dropped) referencing.delete(t)

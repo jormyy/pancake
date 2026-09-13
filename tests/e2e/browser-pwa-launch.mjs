@@ -53,7 +53,8 @@ const openPage = async (session, url, label, attempts = 3) => {
 /** Everything the gate asserts on, read in one round trip. */
 const LAUNCH_STATE = `(() => {
   const mark = (name) => performance.getEntriesByName(name)[0]?.startTime ?? null;
-  const paint = performance.getEntriesByType('paint')
+  const paintEntries = performance.getEntriesByType('paint');
+  const paint = paintEntries
     .find((entry) => entry.name === 'first-contentful-paint')?.startTime ?? null;
   const root = document.getElementById('root');
   return JSON.stringify({
@@ -61,6 +62,16 @@ const LAUNCH_STATE = `(() => {
     shellMark: mark(${JSON.stringify(BOOT_SHELL_MARK)}),
     mountMark: mark(${JSON.stringify(APP_MOUNTED_MARK)}),
     firstContentfulPaint: paint,
+    // Diagnostics for a missing FCP: browsers record no paint timing for a
+    // hidden or prerendering document, and some engines expose none at all.
+    // The gate keeps null as "unknown" and fails; this says why.
+    paintDiagnostics: {
+      paintEntries: paintEntries.map((entry) => entry.name),
+      visibilityState: document.visibilityState,
+      prerendering: document.prerendering === true,
+      hasFocus: document.hasFocus(),
+      paintTimingSupported: (PerformanceObserver.supportedEntryTypes || []).includes('paint'),
+    },
     boot: window.__PANCAKE_BOOT__ ?? null,
     shellStillInDom: !!document.getElementById('pancake-boot-shell'),
     navRegions: document.querySelectorAll('nav, [role="navigation"]').length,
@@ -158,7 +169,9 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
       `shell=${relaunch.shellMark}ms mount=${relaunch.mountMark}ms`)
     record('useful chrome is on screen within the launch budget',
       relaunch.firstContentfulPaint !== null && relaunch.firstContentfulPaint <= BUDGETS.launchShellPaintMs,
-      `fcp=${Math.round(relaunch.firstContentfulPaint ?? -1)}ms budget=${BUDGETS.launchShellPaintMs}ms`)
+      relaunch.firstContentfulPaint === null
+        ? `fcp=unknown (no first-contentful-paint entry) budget=${BUDGETS.launchShellPaintMs}ms diagnostics=${JSON.stringify(relaunch.paintDiagnostics ?? null)}`
+        : `fcp=${Math.round(relaunch.firstContentfulPaint)}ms budget=${BUDGETS.launchShellPaintMs}ms`)
     record('the shell paints the cached league, team, and active route',
       !!relaunch.boot?.league && !!relaunch.boot?.team && relaunch.boot?.active === '/roster',
       `boot=${JSON.stringify(relaunch.boot)}`)

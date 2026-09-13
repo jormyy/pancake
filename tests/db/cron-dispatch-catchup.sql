@@ -23,6 +23,31 @@ INSERT INTO dispatch_counts SELECT 'second tick same day', pg_temp.invocations('
 SELECT public.invoke_edge_function_at_et_time('cron-test-fn', 3, 0, '2026-01-15 04:00:00 America/New_York');
 INSERT INTO dispatch_counts SELECT 'next day catch-up', pg_temp.invocations('cron-test-fn');
 
+-- EDT: the same daily job on a summer date (UTC offset differs by an hour)
+SELECT public.invoke_edge_function_at_et_time('cron-test-fn', 3, 0, '2026-07-14 02:59:00 America/New_York');
+INSERT INTO dispatch_counts SELECT 'edt before target', pg_temp.invocations('cron-test-fn');
+SELECT public.invoke_edge_function_at_et_time('cron-test-fn', 3, 0, '2026-07-14 03:00:30 America/New_York');
+INSERT INTO dispatch_counts SELECT 'edt on time', pg_temp.invocations('cron-test-fn');
+SELECT public.invoke_edge_function_at_et_time('cron-test-fn', 3, 0, '2026-07-14 04:00:00 America/New_York');
+INSERT INTO dispatch_counts SELECT 'edt second tick no double', pg_temp.invocations('cron-test-fn');
+
+-- rollback on a synchronous raise: with no URL configured the invoke raises and
+-- the claim must not stick, so the next tick still dispatches.
+SAVEPOINT before_raise;
+SELECT set_config('app.supabase_url', '', true);
+DO $$
+BEGIN
+  PERFORM public.invoke_edge_function_at_et_time('cron-raise-fn', 3, 0, '2026-01-20 03:00:00 America/New_York');
+  RAISE EXCEPTION 'expected the invoke to raise with no URL configured';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLERRM NOT LIKE '%Edge base URL is not configured%' THEN RAISE; END IF;
+  RAISE NOTICE 'ok: invoke raised (%)', SQLERRM;
+END $$;
+ROLLBACK TO SAVEPOINT before_raise;
+INSERT INTO dispatch_counts SELECT 'claim after raise', (SELECT count(*) FROM public.cron_dispatch_state WHERE job_key = 'et-time:cron-raise-fn');
+SELECT public.invoke_edge_function_at_et_time('cron-raise-fn', 3, 0, '2026-01-20 04:00:00 America/New_York');
+INSERT INTO dispatch_counts SELECT 'dispatch after raise', pg_temp.invocations('cron-raise-fn');
+
 -- weekly gate (Monday 07:00 ET): a Tuesday tick catches up once, the next Monday fires again
 SELECT public.invoke_dynasty_ranking_views_at_et_time(7, 0, '2026-01-12 06:59:00 America/New_York');
 INSERT INTO dispatch_counts SELECT 'weekly before target', pg_temp.invocations('sync-rankings');
@@ -45,6 +70,25 @@ INSERT INTO dispatch_counts SELECT 'boundary late tick', pg_temp.invocations('se
 SELECT public.invoke_season_boundary_if_due('2026-01-14 10:00:00 America/New_York');
 INSERT INTO dispatch_counts SELECT 'boundary repeat', pg_temp.invocations('season-boundary');
 
+-- RPC contract: the commands pg_cron actually runs (three-, two- and zero-argument
+-- call forms) must still resolve now that p_now has a default. Executing each
+-- scheduled command here (rolled back) fails loudly if a signature drifts.
+DO $$
+DECLARE v_job record; v_count int := 0;
+BEGIN
+  FOR v_job IN
+    SELECT command FROM cron.job
+     WHERE command ILIKE '%invoke_edge_function_at_et_time%'
+        OR command ILIKE '%invoke_dynasty_ranking_views_at_et_time%'
+        OR command ILIKE '%invoke_season_boundary_if_due%'
+  LOOP
+    EXECUTE v_job.command;
+    v_count := v_count + 1;
+  END LOOP;
+  IF v_count < 3 THEN RAISE EXCEPTION 'expected at least three scheduled ET-time commands, found %', v_count; END IF;
+  RAISE NOTICE 'executed % scheduled ET-time cron commands against the current signatures', v_count;
+END $$;
+
 DO $$
 DECLARE v record;
 BEGIN
@@ -53,6 +97,11 @@ BEGIN
   IF (SELECT n FROM dispatch_counts WHERE label = 'late tick (03:01:07)') <> 1 THEN RAISE EXCEPTION 'late tick did not catch up'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'second tick same day') <> 1 THEN RAISE EXCEPTION 'double dispatch in one day'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'next day catch-up') <> 2 THEN RAISE EXCEPTION 'next day did not dispatch'; END IF;
+  IF (SELECT n FROM dispatch_counts WHERE label = 'edt before target') <> 2 THEN RAISE EXCEPTION 'edt fired before target'; END IF;
+  IF (SELECT n FROM dispatch_counts WHERE label = 'edt on time') <> 3 THEN RAISE EXCEPTION 'edt on-time tick did not dispatch'; END IF;
+  IF (SELECT n FROM dispatch_counts WHERE label = 'edt second tick no double') <> 3 THEN RAISE EXCEPTION 'edt double dispatch'; END IF;
+  IF (SELECT n FROM dispatch_counts WHERE label = 'claim after raise') <> 0 THEN RAISE EXCEPTION 'a raised invoke left its claim behind'; END IF;
+  IF (SELECT n FROM dispatch_counts WHERE label = 'dispatch after raise') <> 1 THEN RAISE EXCEPTION 'the tick after a raise did not dispatch'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly before target') <> 0 THEN RAISE EXCEPTION 'weekly fired before target'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly tuesday catch-up') <> 3 THEN RAISE EXCEPTION 'weekly catch-up did not dispatch three views'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly wednesday no double') <> 3 THEN RAISE EXCEPTION 'weekly double dispatch'; END IF;

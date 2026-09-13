@@ -30,4 +30,12 @@ describe('scheduling wiring', () => {
             expect(source, fn).not.toMatch(/EXTRACT\(MINUTE FROM v_now\)::int = p_minute/)
         }
     })
+
+    it('score sync sends only changed playoff rows back to the finalization RPC', async () => {
+        for (const file of ['supabase/shared-src/sync/scores.ts', 'supabase/functions/_shared/syncScores.ts']) {
+            const source = await readFile(file, 'utf8')
+            expect(source, file).toMatch(/const matchupWrites = matchupResults\.filter\(\(m\) =>\s*!isPlayoffMatchupType\(m\.matchup_type\) \|\| finalizationWriteNeeded\(m\)/)
+            expect(source, file).toContain('p_matchups: matchupWrites.map(')
+        }
+    })
 })

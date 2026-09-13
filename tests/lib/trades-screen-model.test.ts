@@ -77,6 +77,10 @@ describe('trade screen read model', () => {
         expect(block.some((row) => row._type === 'empty')).toBe(false)
         const history = buildTradeList({ ...listBase, tab: 'history', tradesError: true })
         expect(history.some((row) => row._type === 'empty')).toBe(false)
+        // Real rows keep rendering under the banner; only the empty rows go.
+        const withRows = buildTradeList({ ...listBase, tab: 'offers', tradesError: true, incomingTrades: [trade({ id: 'live' })] })
+        expect(withRows.some((row) => row._type === 'trade' && row.trade.id === 'live')).toBe(true)
+        expect(withRows.some((row) => row._type === 'empty')).toBe(false)
         // Without an error the empty rows are back.
         expect(buildTradeList({ ...listBase, tab: 'offers' }).filter((row) => row._type === 'empty')).toHaveLength(2)
     })

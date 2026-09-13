@@ -71,12 +71,18 @@ serveInternal('live-poll', async () => {
       return []
     })
 
+    // A Final game on a candidate date with no box score (the poll was down
+    // when it ended) is why the cron gate woke us; fetch it even with nothing
+    // live, or the game leaves the two-day window and its stats never arrive.
+    const missingFinalStats = await countFinalGamesMissingStats(candidateDates)
+
     if (!cdnGames.length) {
-      if (activeGames && activeGames.length > 0) {
-        console.log(`[live-poll] ${activeGames.length} DB-active games, CDN unavailable — syncing stats + scores`)
+      if ((activeGames && activeGames.length > 0) || missingFinalStats > 0) {
+        console.log(`[live-poll] CDN unavailable or empty; db-active=${activeGames?.length ?? 0} finalMissingStats=${missingFinalStats} — syncing stats + scores`)
+        if (heartbeat.lost) return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
         await syncStatsForDates(candidateDates)
         await syncScores()
-        return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames.length })
+        return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames?.length ?? 0, missingFinalStats })
       }
       return Response.json({ ok: true, action: 'idle' })
     }
@@ -134,8 +140,10 @@ serveInternal('live-poll', async () => {
     const statusUpdates = gameUpdates.length
 
     const shouldSync = nowActive > 0 || allDone || (activeGames?.length ?? 0) > 0
-    if (shouldSync) {
-      console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}`)
+    if (shouldSync || missingFinalStats > 0) {
+      console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}, finalMissingStats=${missingFinalStats}`)
+      // Losing the lease means another poller took over; do not write beside it.
+      if (heartbeat.lost) return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
       await syncStatsForDates(candidateDates)
       await syncScores()
       return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive, allDone })
@@ -152,3 +160,21 @@ serveInternal('live-poll', async () => {
     if (releaseErr) console.error('[live-poll] release lease failed:', releaseErr)
   }
 })
+
+async function countFinalGamesMissingStats(candidateDates: string[]): Promise<number> {
+  const { data: finalGames, error: finalError } = await supabase
+    .from('nba_games')
+    .select('id')
+    .in('game_date', candidateDates)
+    .eq('status', 'Final')
+  if (finalError) throw finalError
+  const ids = (finalGames ?? []).map((game) => game.id)
+  if (ids.length === 0) return 0
+  const { data: withStats, error: statsError } = await supabase
+    .from('player_game_stats')
+    .select('game_id')
+    .in('game_id', ids)
+  if (statsError) throw statsError
+  const covered = new Set((withStats ?? []).map((row) => row.game_id))
+  return ids.filter((id) => !covered.has(id)).length
+}

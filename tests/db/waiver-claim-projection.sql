@@ -21,8 +21,10 @@ INSERT INTO public.players (id, sportsdata_id, first_name, last_name, position, 
 INSERT INTO public.roster_players (id, league_id, league_season_id, member_id, player_id, acquired_via, acquisition_cost)
 VALUES ('00000000-0000-0000-0000-000000071501', '00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071301', '00000000-0000-0000-0000-000000071201', '00000000-0000-0000-0000-000000071401', 'free_agent', 0);
 INSERT INTO public.waiver_wire_log (league_id, league_season_id, player_id, dropped_by_member_id, placed_on_waivers_at, clears_at) VALUES
-  ('00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071301', '00000000-0000-0000-0000-000000071402', NULL, now() - interval '3 days', now() + interval '1 hour'),
-  ('00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071301', '00000000-0000-0000-0000-000000071403', NULL, now() - interval '3 days', now() + interval '1 hour');
+  -- trg_waiver_clears_at overrides clears_at with placed_on_waivers_at + 48h on insert,
+  -- so the hold is placed one hour ago to keep the claim window open at create time.
+  ('00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071301', '00000000-0000-0000-0000-000000071402', NULL, now() - interval '1 hour', now() + interval '47 hours'),
+  ('00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071301', '00000000-0000-0000-0000-000000071403', NULL, now() - interval '1 hour', now() + interval '47 hours');
 
 -- Case A: full roster (1/1), claim with no drop, duplicate claim_order accepted at create time.
 SELECT public.create_waiver_claim_atomic('00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071201', '00000000-0000-0000-0000-000000071402', NULL, '00000000-0000-0000-0000-000000071001', 0, 1);

@@ -30,14 +30,17 @@ E2E_SOURCE_RECOVERY_VERIFIED=1 npm run e2e:source-health
 - ET-time gates (`invoke_edge_function_at_et_time`, the weekly ranking sync, the daily
   season boundary) are due from their target time onward and dispatch once per ET day
   (ISO week for the ranking sync), recorded in `cron_dispatch_state`. A tick that runs
-  late is caught up by the next tick in the same period; nothing double-dispatches.
+  late still fires, and where the schedule has a later tick in the same period (the second
+  hourly tick during EDT) it catches up a missed one; nothing double-dispatches. The
+  ranking sync only ticks on Mondays, so a missed Monday is retried the next Monday.
 - Every `invoke_edge_function` call records its pg_net request id in
   `edge_invocations`. `private.reconcile_edge_invocations()` (cron, every 5 minutes)
   copies the response onto that row and writes a failed `sync_runs` row named
   `cron:<function>` for a transport error, a non-2xx status, or no response within
   2 hours. A function that never booted is therefore visible in `sync_runs`.
-- Live-poll also wakes for a Final game on yesterday/today that has no box score, so
-  a poll outage that spans a game's end is recovered on the next tick.
+- Live-poll also wakes for a Final game on yesterday/today that has no box score and,
+  when it does, fetches those dates' box scores even if no game is live, so a poll
+  outage that spans a game's end is recovered on the next tick.
 - The live-poll lease is renewed every 30 s by the running poll; a poll that loses its
   lease logs `lease lost mid-run`.
 

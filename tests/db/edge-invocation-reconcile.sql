@@ -12,11 +12,12 @@ INSERT INTO net._http_response (id, status_code, content_type, headers, content,
   (990000002, 500, 'application/json', '{}'::jsonb, '{"error":"boom"}', false, NULL, now()),
   (990000003, NULL, NULL, NULL, NULL, false, 'Couldn''t connect to server', now());
 
-SELECT private.reconcile_edge_invocations() AS reconciled \gset
+SELECT set_config('test.reconciled', private.reconcile_edge_invocations()::text, true);
 DO $$
 DECLARE v_failed int; v_ok int; v_fresh int; v_vanished int;
 BEGIN
-  RAISE NOTICE 'reconciled rows: %', :reconciled;
+  RAISE NOTICE 'reconciled rows: %', current_setting('test.reconciled');
+  IF current_setting('test.reconciled')::int < 4 THEN RAISE EXCEPTION 'expected at least four reconciled rows, got %', current_setting('test.reconciled'); END IF;
   SELECT count(*) INTO v_ok FROM public.sync_runs WHERE function_name = 'cron:reconcile-test-ok';
   IF v_ok <> 0 THEN RAISE EXCEPTION 'a 200 must not produce a failed sync run'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.edge_invocations WHERE function_name = 'reconcile-test-ok' AND status_code = 200 AND reconciled_at IS NOT NULL) THEN

@@ -62,6 +62,10 @@ export async function recordSyncRun<T>(
 
   try {
     const { result, rowsAffected, failure } = await run()
+    if (failure && !startedId) {
+      // The run row could not be opened, so the summary has nowhere to land; say so.
+      console.error(`[${functionName}] run finished with failures but no sync_runs row could be recorded: ${failure}`)
+    }
     if (startedId && failure) {
       await finishSyncRun(startedId, { status: 'failed', rows_affected: rowsAffected, error: failure }).catch(
         (updateError) => console.error(`[${functionName}] could not record partially failed sync run:`, updateError),
