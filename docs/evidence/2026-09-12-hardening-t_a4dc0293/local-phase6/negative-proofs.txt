@@ -1,0 +1,8 @@
+# old bodies installed inside the rolled-back test transaction, then the current regression test run against them
+waiver-edit-gates-vs-main: exit 3 — psql:tests/db/waiver-claim-edit-gates.sql:51: ERROR:  Drop player must be on your active roster.
+waiver-edit-cases-3-5-vs-main: exit 3 — edit-gates-cases-3-5.sql:53: ERROR:  expected closed-window edit to be refused
+cron-dispatch-vs-old-fire-and-forget-invoke: exit 3 — psql:tests/db/cron-dispatch-catchup.sql:112: ERROR:  late tick did not catch up
+live-poll-gate-vs-old-gate: exit 3 — psql:tests/db/live-poll-gate-and-lease.sql:32: ERROR:  a Final game without stats did not wake live-poll (got 0)
+reconcile-vs-old-invoke: exit 0 — not a negative case: this test seeds edge_invocations directly and exercises the reconciler itself, which has no old version
+
+# same tests on the new code: waiver-claim-edit-gates 0, cron-dispatch-catchup 0, live-poll-gate-and-lease 0, edge-invocation-reconcile 0, cases-3-5 scratch 0

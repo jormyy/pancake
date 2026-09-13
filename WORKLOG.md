@@ -387,3 +387,28 @@ contracts), #33 (pre-existing edit/create lock order). Ambiguous league rules un
 Next local phase: `db reset` (307 migrations), `check:database-types` (expect clean), `npm run test:db`
 (22 suites, chain must complete), negative proofs against old bodies, perpetual x2 + negative control,
 browser chain with the PWA launch diagnostics captured, tick-enabled soak; then round-4 review.
+
+### Iteration 10 — 2026-09-12 (LOCAL TEST PHASE 5, sandbox temporarily off; evidence only, no code edits)
+
+Stack from `c34c33c`: loopback verified, `db reset` exit 0 (307 migrations), deploy-day
+`cron_dispatch_state` seed rows present. Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase6/`.
+
+Verified this phase:
+| Check | Result |
+| --- | --- |
+| `check:database-types` | **PASS exit 0** (generator parity after the rebuild) |
+| `node scripts/check-edge-functions.mjs` (Deno 2.7.14) / full Deno | **PASS 117/0** both |
+| `check:db-function-catalog` | PASS |
+| `npm run test:db` (22-suite chain) | **exit 3 — 21 pass, the 22nd (`waiver-claim-projection.sql`) fails at its own assertion**: the processor returns `failed_roster` + "Drop player is no longer on this active roster." (exactly the documented behaviour) but the test compares to the literal `failed`, which is not a `waiver_claim_status`. Test defect; **material gate red → release soak not run** |
+| Negative proofs (old bodies in the rolled-back txn) | waiver-edit vs main: red (case 2); cases 3–5 scratch vs main: red with the re-raised "expected closed-window edit to be refused"; cron-dispatch vs old fire-and-forget invoke: red ("late tick did not catch up"); live-poll gate vs old gate: red ("a Final game without stats did not wake live-poll (got 0)"); all four green on the new code. Reconcile vs old invoke is not a negative case (test seeds `edge_invocations` directly) |
+| `cron-dispatch-catchup.sql` | 5 scheduled ET-time cron commands executed against the current signatures; EDT and rollback-on-raise cases green |
+| `e2e:perpetual` x2, `--disable-boundary`, run3 | PASS / PASS / **red with 4 boundary FAIL rows** / PASS |
+| Browser (branch): pwa-launch, smoke, perf, data-latency, lineup, waiver, waiver-drop, trade, full-sweep smoke | all exit 0; `perf:budget` both gates exit 0 |
+| PWA launch FCP | **real paint evidence recovered**: branch FCP 40 ms, baseline 32 ms (both PASS) after starting from a closed browser session; the phase-5 nulls stay recorded as failures |
+| Baseline vs branch | within noise (`baseline-vs-branch-performance.txt`) |
+| Tick-enabled soak (3 seasons, fake upstream, sleeper source) | PASS 3/3 |
+| `e2e:soak:release` (20 seasons) | **NOT RUN** (gate red above); still an unfinished release gate |
+
+Fix queue: (1) `tests/db/waiver-claim-projection.sql` — assert `failed_roster` (enum) instead of `failed`.
+Deferred notes unchanged (round-3 #10 RLS, #18, #20–22, #30, #33). Ambiguous league rules unchanged.
+Local jobs and the Pancake stack stopped; baseline worktree removed.

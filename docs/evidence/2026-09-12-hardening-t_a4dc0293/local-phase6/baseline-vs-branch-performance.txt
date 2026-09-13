@@ -1,0 +1,16 @@
+# like-for-like (same host, seed, stack, back to back): baseline main 2909a0a vs branch c34c33c
+baseline 0                      feedback 4.1 full 439 cached 5 js -
+baseline 1                      feedback 8.1 full 750 cached 7 js 567.7
+branch   0                      feedback 3 full 438 cached 4 js -
+branch   1                      feedback 8.5 full 732 cached 6 js 567.5
+latency home-live-lineup       15.4 -> 11.1
+latency lineup-day-change      9.7 -> 13.1
+latency player-search-filter   12.7 -> 16.9
+latency player-detail-open     22 -> 25
+latency roster-review-manage   14 -> 17.2
+latency waiver-add-claim       12.6 -> 10
+latency trade-review-act       11 -> 11.7
+latency auction-draft-room     14.7 -> 13.5
+latency rookie-draft-room      11.7 -> 8.3
+latency dynasty-hub            12.8 -> 11
+# reading: within noise; no regression.

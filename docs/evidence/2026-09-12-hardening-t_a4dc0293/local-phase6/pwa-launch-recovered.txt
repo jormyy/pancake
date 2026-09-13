@@ -1,0 +1,5 @@
+# PWA launch: real paint evidence recovered this phase after starting from a closed browser session (npx agent-browser close --all before the chain).
+branch  c34c33c: PASS FCP 40 ms, shell paint 11.1 ms, app mounted 36.7 ms
+baseline 2909a0a: PASS FCP 32 ms, shell paint 7.4 ms, app mounted 32.1 ms
+# phase-5 runs on this host had firstContentfulPaintMs=null on both builds; the new diagnostics field records paint entries / visibility / focus on any future null.
+{"shellPaintMs":11.099999904632568,"appMountedMs":36.700000286102295,"firstContentfulPaintMs":40,"shellHeldAloneMs":25.600000381469727}
