@@ -412,3 +412,17 @@ Verified this phase:
 Fix queue: (1) `tests/db/waiver-claim-projection.sql` — assert `failed_roster` (enum) instead of `failed`.
 Deferred notes unchanged (round-3 #10 RLS, #18, #20–22, #30, #33). Ambiguous league rules unchanged.
 Local jobs and the Pancake stack stopped; baseline worktree removed.
+
+### Iteration 11 — 2026-09-12 (narrow fix, sandbox on)
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `<this>` | `tests/db/waiver-claim-projection.sql`: expected status `failed_roster` (the only failure value `process_next_waiver_claim_atomic` writes; `waiver_claim_status` has no `failed`), reason assertion unchanged. `tests/e2e/README.md`: launch runs start from a closed `agent-browser` session; a missing paint entry stays unknown | Static checks only; **the corrected SQL has not been executed** — next local phase must run `npm run test:db` (22/22 expected) and then the 20-season release soak |
+
+Current state at this checkpoint:
+- Verified on the local stack (phase 5, `766d126` evidence): types parity, CI edge 117/0, 21/22 DB suites,
+  negative proofs, perpetual x3 + negative control, browser chain + perf gates with real FCP (40 ms
+  branch / 32 ms baseline, single samples, no speedup claimed), tick-enabled 3-season soak.
+- Not yet verified: this test fix; the full 22/22 chain; `e2e:soak:release` (unfinished release gate).
+- Deferred notes: round-3 #10 (RLS on `cron_dispatch_state`/`edge_invocations`, security), #18, #20–22,
+  #30, #33. Round-4 review pending on `c34c33c`. Ambiguous league rules unchanged.

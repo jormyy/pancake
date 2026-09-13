@@ -57,7 +57,8 @@ BEGIN
   SELECT count(*) INTO v_rows FROM projection_results;
   FOR v IN SELECT * FROM projection_results LOOP RAISE NOTICE 'claim % -> % (%)', v.player_id, v.status, v.failure_reason; END LOOP;
   IF v_rows <> 2 THEN RAISE EXCEPTION 'expected both claims to be processed, got % rows', v_rows; END IF;
-  IF NOT EXISTS (SELECT 1 FROM projection_results WHERE player_id = '00000000-0000-0000-0000-000000071403' AND status = 'failed' AND failure_reason LIKE 'Drop player is no longer%') THEN
+  -- waiver_claim_status has no 'failed' value; the processor records failed_roster.
+  IF NOT EXISTS (SELECT 1 FROM projection_results WHERE player_id = '00000000-0000-0000-0000-000000071403' AND status = 'failed_roster' AND failure_reason LIKE 'Drop player is no longer%') THEN
     RAISE EXCEPTION 'claim B did not fail with the drop-player-gone reason';
   END IF;
   -- Claim A: the roster now has room (the drop freed the only slot), so it is

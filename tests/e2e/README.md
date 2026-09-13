@@ -88,6 +88,14 @@ Snapshots are written under `tests/snapshots/season-<N>/` after the season bound
 
 Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs shorter than 10 seasons record timings and harness memory only. Runs of 10+ seasons fail D.LONG.6 if the latest season runtime is more than `E2E_PERF_DRIFT_LIMIT` above season 1; the default is `1.2` for the requested 20% drift ceiling. Runs of 10+ seasons also fail D.LONG.7 if harness RSS or heap memory exceeds `E2E_MEMORY_DRIFT_LIMIT` above season 1; the default is also `1.2`. The RSS gate has an `E2E_MEMORY_DRIFT_MIN_BYTES` absolute floor, defaulting to 48 MiB, to avoid failing on Node allocator high-water noise while still catching material native growth. The heap gate has a separate `E2E_MEMORY_HEAP_DRIFT_MIN_BYTES` floor, defaulting to 24 MiB, so retained JS object growth remains a stricter leak signal.
 
+Browser launch measurements (`npm run e2e:browser-pwa-launch`) read the document's
+`first-contentful-paint` entry. On 2026-09-12 a host with long-lived `agent-browser`
+sessions reported no paint entry at all on both the baseline and branch builds (the gate
+failed with `fcp=unknown`); starting from a closed session recovered a real value. Run
+`npx agent-browser close --all` before a launch run, and treat a missing entry as unknown,
+never as a pass. The report's `paintDiagnostics` (paint entries, visibility state,
+prerendering, focus, paint-timing support) says why an entry is missing.
+
 Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
 `npm run perf:budget` validates the ranked top-10 workflow contract and writes
 `tests/performance-budget-report.md`. After a browser perf run, use
