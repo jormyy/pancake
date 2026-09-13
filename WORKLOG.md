@@ -491,11 +491,19 @@ Probe run plan for the approved local phase (exact commands, from the repo root 
 2. `supabase functions serve --env-file <scratch>/functions.env --no-verify-jwt &`
 3. `npx expo export --platform web --clear && node scripts/stamp-release-provenance.mjs`
 4. `npm run e2e:seed`; `node tests/e2e/static-web-server.mjs --root=dist --port=8081 &`
-5. `npx agent-browser close --all; npm run e2e:pwa-paint-probe -- --launches=20` (≈ 20 × ~40 s)
+5. `npm run e2e:pwa-paint-probe -- --launches=20` (≈ 20 × ~40 s; the probe owns and closes only its own sessions)
 Sample allocation: 10 fresh + 10 reused, interleaved. Conditions: same host, same build, same seeded user,
-3 s settle after navigation, one screenshot per launch. All 20 results are retained whatever they show.
+3 s settle after navigation, one measured navigation attempt per launch (setup sign-in attempts are
+counted separately), one screenshot per launch. All 20 results are retained whatever they show.
 Decision after the run: if FCP is missing from `getEntriesByType` but present via the buffered observer,
-the repair is measurement-only in the launch scenario; if missing from both while marks and screenshot
-show paint, no code change — the host/engine cannot supply paint timing and the release run needs a
-different engine or host; if present everywhere, the season-3 failure is a rare intermittent to keep
+the repair is measurement-only in the launch scenario; if missing from both late readers while marks and screenshot
+show paint, the result is 'no-late-reader-evidence' — an eviction/buffering cause cannot be excluded
+because agent-browser 0.25 has no pre-navigation init script, so no engine-no-data conclusion is drawn
+and the next step is an early-observer capability (or a different engine/host) decision; if present everywhere, the season-3 failure is a rare intermittent to keep
 sampling. Then independent review, then the complete 20-season run under a 36,000 s bound.
+
+### Iteration 15 — 2026-09-12 (probe corrections per `.forge-probe-corrections.md`, sandbox on)
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `<this>` | Probe corrections: (1) no global `agent-browser close --all`; fresh launches use a probe-owned session closed individually, one reused probe-owned session lives across all reused launches and is closed at the end; README/WORKLOG setup no longer close other sessions. (2) The measured navigation is exactly one attempt; sign-in setup may retry and its attempts are recorded per launch (`setupAttempts`, `measuredNavigationAttempts`). (3) `judgeLaunch` treats anything but a finite number ≥ 0 as missing; `parseCount` requires a finite positive integer; `parseWaitMs` a finite number ≥ 0. (4) agent-browser 0.25 has no pre-navigation init script, so both readers are late; an empty result is labelled `no-late-reader-evidence` and no engine-no-data conclusion is drawn (code, report, README, decision rule updated). (5) The probe asserts a loopback Supabase endpoint before signing in, not only the frontend | `tests/e2e-pwa-paint-probe.test.ts` 4 cases incl. NaN/undefined/Infinity/negative timing and 0/-1/1.5/NaN/Infinity counts; lint, `typecheck:e2e`, knip PASS. Not executed here |

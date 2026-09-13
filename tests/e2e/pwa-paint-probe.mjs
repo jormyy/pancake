@@ -19,6 +19,18 @@ import { captureBrowserScreenshot, createBrowser, fillSignInCredentials } from '
 //   2. new PerformanceObserver(...).observe({ type: 'paint', buffered: true })
 // plus the boot marks, visibility, focus, readiness, navigation type, and the
 // engine's user agent. Every launch is kept; nothing is filtered or retried.
+//
+// KNOWN LIMIT: both readers run AFTER the measured navigation (agent-browser
+// 0.25 has no pre-navigation init script), so an entry that was evicted or
+// never buffered cannot be told apart from one the engine never produced. A
+// launch where both late readers are empty is recorded as
+// 'no-late-reader-evidence', not as proof that the engine produced no paint
+// timing. Only a reader installed before navigation could settle that.
+//
+// Session ownership: the probe touches only sessions it names itself. Fresh
+// launches get a new session each and are closed individually; the single
+// reused session lives across every reused launch and is closed at the end.
+// Nothing else on the host is closed.
 // The gate is the product gate: FCP present AND <= launchShellPaintMs passes;
 // a missing entry is a failure ("unknown"), never a pass; an absent entry says
 // nothing about app speed. Exit status is 1 if any launch fails.
@@ -26,6 +38,7 @@ import { captureBrowserScreenshot, createBrowser, fillSignInCredentials } from '
 // Usage (after `npm run e2e:seed`, with the release build served on the
 // frontend URL, see tests/e2e/README.md):
 //   node tests/e2e/pwa-paint-probe.mjs [--launches=20] [--path=/roster] [--wait-ms=3000] [--signed-out]
+// (no global session close is performed; the probe owns and closes only its own sessions)
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -38,9 +51,17 @@ const arg = (name, fallback) => {
   const match = process.argv.find((value) => value.startsWith(`--${name}=`))
   return match ? match.slice(name.length + 3) : fallback
 }
-const LAUNCHES = Math.max(1, Number(arg('launches', 20)))
+export const parseCount = (value, label = 'launches') => {
+  const count = Number(value)
+  if (!Number.isFinite(count) || !Number.isInteger(count) || count < 1) throw new RangeError(`${label} must be a finite positive integer (got ${String(value)})`)
+  return count
+}
+export const parseWaitMs = (value) => {
+  const wait = Number(value)
+  if (!Number.isFinite(wait) || wait < 0) throw new RangeError(`wait-ms must be a finite number >= 0 (got ${String(value)})`)
+  return wait
+}
 const ROUTE = arg('path', '/roster')
-const WAIT_MS = Math.max(0, Number(arg('wait-ms', 3000)))
 const SIGNED_OUT = process.argv.includes('--signed-out')
 
 const browser = createBrowser({ cwd: ROOT, defaultTimeout: COMMAND_TIMEOUT_MS })
@@ -91,26 +112,34 @@ const PAINT_STATE = `(async () => {
   });
 })()`
 
-const closeEverySession = async () => {
-  await execFileAsync('agent-browser', ['close', '--all'], { cwd: ROOT, timeout: COMMAND_TIMEOUT_MS }).catch(() => {})
+// Close exactly one probe-owned session; never anything else on the host.
+const closeOwnedSession = async (session) => {
+  await browser(session, ['close']).catch(() => {})
 }
 
-const openPage = async (session, url) => {
+// Setup navigation (sign-in page): may retry, and every attempt is counted so
+// the record shows it. Never used for the measured launch.
+const openSetupPage = async (session, url) => {
   let lastError = null
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       await browser(session, ['open', url], { timeout: COMMAND_TIMEOUT_MS })
-      return
+      return attempt
     } catch (error) {
       lastError = error
       await browser(session, ['wait', '1000']).catch(() => {})
     }
   }
-  throw new Error(`navigation failed after 3 attempts: ${lastError instanceof Error ? lastError.message : 'unknown error'}`)
+  throw new Error(`setup navigation failed after 3 attempts: ${lastError instanceof Error ? lastError.message : 'unknown error'}`)
+}
+
+// Measured navigation: exactly one attempt. A failure is a recorded result.
+const openMeasuredPage = async (session, url) => {
+  await browser(session, ['open', url], { timeout: COMMAND_TIMEOUT_MS })
 }
 
 const signIn = async (session, frontendUrl, email, password) => {
-  await openPage(session, joinUrl(frontendUrl, '/sign-in'))
+  const setupAttempts = await openSetupPage(session, joinUrl(frontendUrl, '/sign-in'))
   for (let attempt = 0; attempt < 8; attempt += 1) {
     try { await fillSignInCredentials(browser, session, email, password); break } catch { await browser(session, ['wait', '1000']).catch(() => {}) }
   }
@@ -124,7 +153,7 @@ const signIn = async (session, frontendUrl, email, password) => {
   })
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const state = await evaluate(session, `(() => JSON.stringify({ path: location.pathname, text: (document.getElementById('root')?.innerText || '').length }))()`)
-    if (state.path === '/' && state.text > 0) return
+    if (state.path === '/' && state.text > 0) return { setupAttempts }
     await browser(session, ['wait', '1000']).catch(() => {})
   }
   throw new Error('sign-in did not reach the app')
@@ -133,22 +162,36 @@ const signIn = async (session, frontendUrl, email, password) => {
 // Sample allocation: launches alternate FRESH (odd-numbered) and REUSED
 // (even-numbered) so the two conditions are interleaved in time rather than
 // blocked, and any drift on the host affects both equally.
-export const allocateLaunches = (count) => Array.from({ length: count }, (_, index) => ({
+export const allocateLaunches = (count) => Array.from({ length: parseCount(count) }, (_, index) => ({
   index: index + 1,
   mode: index % 2 === 0 ? 'fresh' : 'reused',
 }))
 
+// The product gate. A timing that is not a finite number >= 0 is treated as
+// missing: undefined, NaN, Infinity or a negative value can never pass.
 export const judgeLaunch = (state, budgetMs) => {
-  if (state.fcpByType === null) return { status: 'FAIL', reason: 'missing-timing: no first-contentful-paint entry' }
-  if (state.fcpByType > budgetMs) return { status: 'FAIL', reason: `budget: fcp ${Math.round(state.fcpByType)}ms > ${budgetMs}ms` }
-  return { status: 'PASS', reason: `fcp ${Math.round(state.fcpByType)}ms <= ${budgetMs}ms` }
+  const fcp = state?.fcpByType
+  const observed = Array.isArray(state?.paintObserved) && state.paintObserved.some((entry) => entry?.name === 'first-contentful-paint')
+  if (typeof fcp !== 'number' || !Number.isFinite(fcp) || fcp < 0) {
+    return {
+      status: 'FAIL',
+      reason: observed
+        ? 'missing-timing: no first-contentful-paint entry via getEntriesByType (present via late buffered observer)'
+        : 'missing-timing: no-late-reader-evidence (neither late reader saw first-contentful-paint; engine output not established)',
+    }
+  }
+  if (fcp > budgetMs) return { status: 'FAIL', reason: `budget: fcp ${Math.round(fcp)}ms > ${budgetMs}ms` }
+  return { status: 'PASS', reason: `fcp ${Math.round(fcp)}ms <= ${budgetMs}ms` }
 }
 
 const main = async () => {
+  const LAUNCHES = parseCount(arg('launches', 20))
+  const WAIT_MS = parseWaitMs(arg('wait-ms', 3000))
   const env = resolvedEnv()
   const frontendUrl = env.frontendUrl
-  const frontendHost = new URL(frontendUrl).hostname
-  if (!['127.0.0.1', 'localhost'].includes(frontendHost)) throw new Error(`probe only runs against a local frontend (got ${frontendHost})`)
+  const isLocal = (url) => ['127.0.0.1', 'localhost'].includes(new URL(url).hostname)
+  if (!isLocal(frontendUrl)) throw new Error(`probe only runs against a local frontend (got ${new URL(frontendUrl).hostname})`)
+  if (!SIGNED_OUT && (!env.supabaseUrl || !isLocal(env.supabaseUrl))) throw new Error(`probe only signs in against a local Supabase endpoint (got ${env.supabaseUrl ? new URL(env.supabaseUrl).hostname : 'none'})`)
   await mkdir(ARTIFACT_DIR, { recursive: true })
 
   let user = null
@@ -173,42 +216,46 @@ const main = async () => {
   for (const launch of launches) {
     const session = launch.mode === 'fresh' ? `pwa-paint-probe-fresh-${process.pid}-${launch.index}` : reusedSession
     /** @type {Record<string, any>} */
-    const record = { ...launch, session, startedAt: new Date().toISOString(), url: joinUrl(frontendUrl, ROUTE) }
+    const record = { ...launch, session, startedAt: new Date().toISOString(), url: joinUrl(frontendUrl, ROUTE), setupAttempts: 0, measuredNavigationAttempts: 0 }
     try {
-      if (launch.mode === 'fresh') {
-        await closeEverySession()
-        reusedSignedIn = false
-        if (!SIGNED_OUT) await signIn(session, frontendUrl, user.email, password)
-      } else if (!SIGNED_OUT && !reusedSignedIn) {
-        await signIn(session, frontendUrl, user.email, password)
+      // Setup (may retry, counted): a fresh session signs in every time; the
+      // reused session signs in once and is then kept alive across launches.
+      if (!SIGNED_OUT && (launch.mode === 'fresh' || !reusedSignedIn)) {
+        const setup = await signIn(session, frontendUrl, user.email, password)
+        record.setupAttempts = setup.setupAttempts
+        if (launch.mode === 'reused') reusedSignedIn = true
       }
-      if (!SIGNED_OUT) reusedSignedIn = launch.mode === 'reused' ? true : reusedSignedIn
-      await openPage(session, record.url)
+      // Measured navigation: one attempt, whatever happens is the result.
+      record.measuredNavigationAttempts = 1
+      await openMeasuredPage(session, record.url)
       await browser(session, ['wait', String(WAIT_MS)])
       const state = await evaluate(session, PAINT_STATE)
       const shot = `launch-${String(launch.index).padStart(2, '0')}-${launch.mode}.png`
       await captureBrowserScreenshot(browser, session, ARTIFACT_DIR, shot).catch(() => {})
       Object.assign(record, { state, screenshot: shot, ...judgeLaunch(state, BUDGETS.launchShellPaintMs) })
-      if (launch.mode === 'fresh') await browser(session, ['close']).catch(() => {})
     } catch (error) {
       Object.assign(record, { status: 'FAIL', reason: `probe error: ${error instanceof Error ? error.message : String(error)}` })
+    } finally {
+      if (launch.mode === 'fresh') await closeOwnedSession(session)
     }
     record.finishedAt = new Date().toISOString()
     results.push(record)
     console.log(`launch ${String(launch.index).padStart(2)} ${launch.mode.padEnd(6)} ${record.status} ${record.reason}` +
       (record.state ? ` | byType=${record.state.paintByType.length} observed=${record.state.paintObserved.length} shell=${record.state.shellMark?.toFixed?.(1)} mount=${record.state.mountMark?.toFixed?.(1)} vis=${record.state.visibilityState} focus=${record.state.hasFocus}` : ''))
   }
-  await browser(reusedSession, ['close']).catch(() => {})
+  await closeOwnedSession(reusedSession)
 
   const summary = {
     fresh: { total: results.filter((r) => r.mode === 'fresh').length, pass: results.filter((r) => r.mode === 'fresh' && r.status === 'PASS').length },
     reused: { total: results.filter((r) => r.mode === 'reused').length, pass: results.filter((r) => r.mode === 'reused' && r.status === 'PASS').length },
     missingByTypeButObserved: results.filter((r) => r.state && r.state.fcpByType === null && r.state.paintObserved.some((e) => e.name === 'first-contentful-paint')).length,
-    missingEverywhere: results.filter((r) => r.state && r.state.fcpByType === null && !r.state.paintObserved.some((e) => e.name === 'first-contentful-paint')).length,
+    noLateReaderEvidence: results.filter((r) => r.state && r.state.fcpByType === null && !r.state.paintObserved.some((e) => e.name === 'first-contentful-paint')).length,
+    probeErrors: results.filter((r) => !r.state).length,
+    readerLimit: 'both readers run after the measured navigation; an empty result cannot distinguish an evicted or unbuffered entry from one the engine never produced',
   }
   const report = {
     startedAt, finishedAt: new Date().toISOString(), frontendUrl, route: ROUTE, waitMs: WAIT_MS, signedIn: !SIGNED_OUT,
-    budgetMs: BUDGETS.launchShellPaintMs, allocation: `${LAUNCHES} launches, alternating fresh (all sessions closed first) / reused`,
+    budgetMs: BUDGETS.launchShellPaintMs, allocation: `${LAUNCHES} launches, alternating fresh (own session, closed after) / reused (one session kept across all reused launches)`,
     agentBrowserVersion: (await execFileAsync('agent-browser', ['--version'], { cwd: ROOT }).then((r) => r.stdout.trim()).catch(() => 'unknown')),
     userAgent: results.find((r) => r.state)?.state.userAgent ?? null,
     summary, results,
@@ -217,9 +264,10 @@ const main = async () => {
   const lines = [
     '# PWA paint probe', '', `- Started: ${report.startedAt}`, `- Frontend: ${frontendUrl} route ${ROUTE}`, `- Allocation: ${report.allocation}`,
     `- Gate: FCP present and <= ${report.budgetMs} ms; a missing entry is a failure and says nothing about speed`, `- agent-browser: ${report.agentBrowserVersion}`, `- User agent: ${report.userAgent ?? 'n/a'}`, '',
-    `Fresh: ${summary.fresh.pass}/${summary.fresh.total} pass. Reused: ${summary.reused.pass}/${summary.reused.total} pass. Missing by getEntriesByType but present via buffered observer: ${summary.missingByTypeButObserved}. Missing in both readers: ${summary.missingEverywhere}.`, '',
-    '| # | mode | status | reason | paint (byType) | paint (observer) | shell ms | mount ms | visible | focus | nav |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
-    ...results.map((r) => `| ${r.index} | ${r.mode} | ${r.status} | ${r.reason} | ${r.state ? r.state.paintByType.map((e) => `${e.name}@${Math.round(e.startTime)}`).join(' ') || 'none' : '-'} | ${r.state ? r.state.paintObserved.map((e) => `${e.name}@${Math.round(e.startTime)}`).join(' ') || 'none' : '-'} | ${r.state?.shellMark?.toFixed?.(1) ?? '-'} | ${r.state?.mountMark?.toFixed?.(1) ?? '-'} | ${r.state?.visibilityState ?? '-'} | ${r.state?.hasFocus ?? '-'} | ${r.state?.navigationType ?? '-'} |`),
+    `Fresh: ${summary.fresh.pass}/${summary.fresh.total} pass. Reused: ${summary.reused.pass}/${summary.reused.total} pass. Missing by getEntriesByType but present via late buffered observer: ${summary.missingByTypeButObserved}. No late-reader evidence at all: ${summary.noLateReaderEvidence}. Probe errors: ${summary.probeErrors}.`, '',
+    `Reader limit: ${summary.readerLimit}.`, '',
+    '| # | mode | status | reason | setup attempts | measured nav attempts | paint (byType) | paint (late observer) | shell ms | mount ms | visible | focus | nav |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...results.map((r) => `| ${r.index} | ${r.mode} | ${r.status} | ${r.reason} | ${r.setupAttempts} | ${r.measuredNavigationAttempts} | ${r.state ? r.state.paintByType.map((e) => `${e.name}@${Math.round(e.startTime)}`).join(' ') || 'none' : '-'} | ${r.state ? r.state.paintObserved.map((e) => `${e.name}@${Math.round(e.startTime)}`).join(' ') || 'none' : '-'} | ${r.state?.shellMark?.toFixed?.(1) ?? '-'} | ${r.state?.mountMark?.toFixed?.(1) ?? '-'} | ${r.state?.visibilityState ?? '-'} | ${r.state?.hasFocus ?? '-'} | ${r.state?.navigationType ?? '-'} |`),
   ]
   await writeFile(path.join(ARTIFACT_DIR, 'report.md'), `${lines.join('\n')}\n`)
   const failed = results.filter((r) => r.status !== 'PASS').length

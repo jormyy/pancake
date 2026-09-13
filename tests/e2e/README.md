@@ -91,18 +91,22 @@ Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs sho
 Browser launch measurements (`npm run e2e:browser-pwa-launch`) read the document's
 `first-contentful-paint` entry. On 2026-09-12 a host with long-lived `agent-browser`
 sessions reported no paint entry at all on both the baseline and branch builds (the gate
-failed with `fcp=unknown`); starting from a closed session recovered a real value. Run
-`npx agent-browser close --all` before a launch run, and treat a missing entry as unknown,
-never as a pass. The report's `paintDiagnostics` (paint entries, visibility state,
+failed with `fcp=unknown`); starting from a closed session recovered a real value. Start
+launch runs from a fresh, probe-owned session (the gate itself starts its own session), and
+treat a missing entry as unknown, never as a pass. The report's `paintDiagnostics` (paint entries, visibility state,
 prerendering, focus, paint-timing support) says why an entry is missing.
 
 `npm run e2e:pwa-paint-probe` is the diagnostic for a missing paint entry. With the seeded
 league and the release build served on `E2E_FRONTEND_URL`, it launches the app 20 times
-(`--launches=N`), alternating a fresh browser session (every `agent-browser` session closed
-first) with a reused one, and records for each launch the paint entries seen by
-`getEntriesByType('paint')` and by a buffered `PerformanceObserver`, the boot marks,
-visibility, focus, navigation type and user agent. Every launch is kept; a missing entry is
-a failure, never a pass, and says nothing about speed. Report:
+(`--launches=N`), alternating a fresh browser session (a new probe-owned session, closed after
+its launch) with one reused probe-owned session kept across every reused launch. It closes
+only sessions it created. For each launch it records the paint entries seen by
+`getEntriesByType('paint')` and by a late buffered `PerformanceObserver`, the boot marks,
+visibility, focus, navigation type and user agent. The measured navigation is one attempt
+(sign-in setup may retry and its attempts are counted in the record). Every launch is kept; a
+missing entry is a failure, never a pass, and says nothing about speed. Both readers run
+after the navigation, so an empty result cannot prove the engine produced no paint timing;
+the report labels that case `no-late-reader-evidence`. Report:
 `tests/artifacts/pwa-paint-probe/report.md` (+ `report.json` and one screenshot per launch).
 
 Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
