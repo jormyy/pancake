@@ -431,8 +431,10 @@ Current state at this checkpoint:
 
 Round 4 preserved at `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase6/independent-review-round4.md`
 (13 survivors). Item 1 (gating, enum literal) was fixed in `c18c6b8`. Items 2–9, 12, 13 applied in
-`<this>` (see commit body). Item 10 (RLS on the two new tables) stays deferred as security; item 11
-(a lost lease also writes a failed `cron:live-poll` row) noted as intended noise.
+`677a866` (see commit body). Round-4 item 10 (the deploy-day seed can skip one catch-up on deploy day
+if the old gate had missed that day; fails safe, runs once, a day late) is noted, not changed. Round-4
+item 11 (a lost lease also writes a failed `cron:live-poll` row) noted as intended noise. RLS on the two
+new tables is round-3 item 10, carried and still deferred as security; it is a different item.
 
 Current state:
 - Verified on a local stack (phase 5, `766d126`): types parity, CI edge 117/0, 21/22 DB suites, four
@@ -441,4 +443,5 @@ Current state:
   (hooks, optimizer sync_runs, live-poll decision/backoff, DB test changes). Next approved phase:
   `db reset`, `check:database-types`, `npm run test:db` (22/22 expected), CI edge checker, perpetual
   x2 + negative, browser chain, tick soak; only then `e2e:soak:release` (still unfinished).
-- Deferred notes: round-3 #10 RLS; #18, #20–22, #30, #33; round-4 #11. Ambiguous league rules unchanged.
+- Deferred notes: round-3 #10 (RLS, security); round-3 #18, #20–22, #30, #33; round-4 #10 (deploy-day seed
+  skip) and #11 (lost-lease failed row). Ambiguous league rules unchanged.
