@@ -96,6 +96,15 @@ failed with `fcp=unknown`); starting from a closed session recovered a real valu
 never as a pass. The report's `paintDiagnostics` (paint entries, visibility state,
 prerendering, focus, paint-timing support) says why an entry is missing.
 
+`npm run e2e:pwa-paint-probe` is the diagnostic for a missing paint entry. With the seeded
+league and the release build served on `E2E_FRONTEND_URL`, it launches the app 20 times
+(`--launches=N`), alternating a fresh browser session (every `agent-browser` session closed
+first) with a reused one, and records for each launch the paint entries seen by
+`getEntriesByType('paint')` and by a buffered `PerformanceObserver`, the boot marks,
+visibility, focus, navigation type and user agent. Every launch is kept; a missing entry is
+a failure, never a pass, and says nothing about speed. Report:
+`tests/artifacts/pwa-paint-probe/report.md` (+ `report.json` and one screenshot per launch).
+
 Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
 `npm run perf:budget` validates the ranked top-10 workflow contract and writes
 `tests/performance-budget-report.md`. After a browser perf run, use

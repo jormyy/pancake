@@ -474,3 +474,28 @@ the document is visible and focused), which is a host/browser-engine condition t
 introduced nor can fix. Supervisor decision needed on how to obtain paint evidence for the release run.
 
 Local jobs and the Pancake stack stopped; baseline worktree removed. Ambiguous league rules unchanged.
+
+### Iteration 14 — 2026-09-12 (approved diagnosis cycle, sandbox on; diagnostic code only)
+
+Per `.forge-approved-cycle.md`. Season-3 evidence re-read: shell mark 6.8 ms and app mount 29.8 ms were
+recorded and `relaunch.png` shows the app, while `getEntriesByType('paint')` was empty on a visible,
+focused document with paint timing supported — the paint happened; the engine did not report a
+`first-contentful-paint` entry to that reader.
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `<this>` | `tests/e2e/pwa-paint-probe.mjs` (+ `npm run e2e:pwa-paint-probe`): 20 launches, alternating FRESH (all sessions closed first) and REUSED sessions, signed-in relaunch of `/roster` like the gate; per launch records paint entries via `getEntriesByType` and via a buffered `PerformanceObserver`, boot marks, visibility, focus, readiness, navigation type, user agent, screenshot. Product gate kept (FCP present and ≤ 400 ms; missing = FAIL); no filtering, no retry; exit 1 on any failure. README documents it | `tests/e2e-pwa-paint-probe.test.ts` (allocation + gate); lint, `typecheck:e2e`, knip PASS. Not executed here (needs the local browser phase) |
+
+Probe run plan for the approved local phase (exact commands, from the repo root with the private local env loaded):
+1. `supabase start` → `node <scratch>/write-local-env.mjs` → `. <scratch>/local.sh` → `supabase db reset`
+2. `supabase functions serve --env-file <scratch>/functions.env --no-verify-jwt &`
+3. `npx expo export --platform web --clear && node scripts/stamp-release-provenance.mjs`
+4. `npm run e2e:seed`; `node tests/e2e/static-web-server.mjs --root=dist --port=8081 &`
+5. `npx agent-browser close --all; npm run e2e:pwa-paint-probe -- --launches=20` (≈ 20 × ~40 s)
+Sample allocation: 10 fresh + 10 reused, interleaved. Conditions: same host, same build, same seeded user,
+3 s settle after navigation, one screenshot per launch. All 20 results are retained whatever they show.
+Decision after the run: if FCP is missing from `getEntriesByType` but present via the buffered observer,
+the repair is measurement-only in the launch scenario; if missing from both while marks and screenshot
+show paint, no code change — the host/engine cannot supply paint timing and the release run needs a
+different engine or host; if present everywhere, the season-3 failure is a rare intermittent to keep
+sampling. Then independent review, then the complete 20-season run under a 36,000 s bound.
