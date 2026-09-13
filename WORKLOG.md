@@ -445,3 +445,31 @@ Current state:
   x2 + negative, browser chain, tick soak; only then `e2e:soak:release` (still unfinished).
 - Deferred notes: round-3 #10 (RLS, security); round-3 #18, #20–22, #30, #33; round-4 #10 (deploy-day seed
   skip) and #11 (lost-lease failed row). Ambiguous league rules unchanged.
+
+### Iteration 13 — 2026-09-12/13 (LOCAL TEST PHASE 6, sandbox temporarily off; evidence only, no code edits)
+
+Stack from `1a98fc2`. Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase7/`. Independent review
+round 5 (APPROVE, 10 residuals) preserved there; none of its residuals were changed in this phase.
+
+Verified (real runs, exit codes preserved):
+| Check | Result |
+| --- | --- |
+| `db reset` 307 migrations; `check:database-types` | PASS exit 0 |
+| `npm run test:db` (22-suite chain) | **PASS exit 0, 22/22** — claim-projection enum fix exercised (`failed_roster` + reason) |
+| `check:db-function-catalog` | PASS |
+| CI edge checker (Deno 2.7.14) / full Deno | **PASS 121/0** both |
+| Negative proofs (old or broken bodies in the rolled-back txn) | waiver-edit vs main red; cases 3–5 vs main red (re-raised); cron catch-up vs old invoke red; live-poll gate vs old gate red; **live-poll vs a stats-ignoring gate red** ("a Final game that has its stats woke live-poll again"); all green on new code |
+| Runtime scenarios against the live functions | live-poll: Final game without stats → sync attempted, CDN 403 for the synthetic box score → 500, attempt stamped, next tick `idle` (backoff); lease held by another holder → `lease-skip`, expired → proceeds. **Optimizer real partial failure**: one member over the active limit + one healthy → `optimized 1, failed 1`, `sync_runs` row `failed` with "1 of 2 enabled member(s) failed auto-set", healthy lineup written, both settings touched (first attempt with a game outside the seeded week was `dates=0`, recorded as not evidence) |
+| `e2e:perpetual` x2, `--disable-boundary`, run3 | PASS / PASS / red with 4 boundary FAIL rows / PASS |
+| Seed; browser chain (16 scenarios) from a closed browser session; full sweep; `perf:budget` both gates | all exit 0; branch pwa-launch FCP 52 ms, baseline 48 ms (single samples) |
+| Baseline vs branch | recorded as single samples with direction only; every metric slower on the branch in this sample; run order (branch first, cold) confounds it; significance unknown (`baseline-vs-branch-performance.txt`) |
+| Tick-enabled soak (3 seasons) | PASS 3/3 |
+| `e2e:soak:release` attempt 1 (bound 7200 s) | **STOPPED by me after season 1 (1128 s)** to re-bound; season-1 scenario summaries all PASS; exit 143; not a pass |
+| `e2e:soak:release` attempt 2 (bound 36000 s, sessions closed first) | **FAIL exit 1 at season 0**: pwa-launch gate `fcp=unknown`, diagnostics `paintEntries=[] visible focused paintTimingSupported=true`. Material gate red; not retried |
+
+Release gate status: **unfinished and currently red** on the host's missing paint entry, which has now been
+seen with and without a fresh browser session. The measurement records why (no paint entries at all while
+the document is visible and focused), which is a host/browser-engine condition this branch neither
+introduced nor can fix. Supervisor decision needed on how to obtain paint evidence for the release run.
+
+Local jobs and the Pancake stack stopped; baseline worktree removed. Ambiguous league rules unchanged.

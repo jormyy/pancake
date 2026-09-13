@@ -1,0 +1,3 @@
+supabase db reset  2.58s user 0.87s system 12% cpu 27.507 total
+schema_migrations: 307
+check:database-types: exit 0

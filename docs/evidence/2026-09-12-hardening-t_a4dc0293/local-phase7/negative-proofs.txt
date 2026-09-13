@@ -1,0 +1,8 @@
+# old or deliberately broken bodies installed inside the rolled-back test transaction, then the current regression test run against them
+waiver-edit-gates-vs-main: exit 3 — psql:tests/db/waiver-claim-edit-gates.sql:51: ERROR:  Drop player must be on your active roster.
+waiver-edit-cases-3-5-vs-main: exit 3 — edit-gates-cases-3-5.sql:53: ERROR:  expected closed-window edit to be refused
+cron-dispatch-vs-old-invoke: exit 3 — psql:tests/db/cron-dispatch-catchup.sql:110: ERROR:  late tick did not catch up
+live-poll-vs-old-gate: exit 3 — psql:tests/db/live-poll-gate-and-lease.sql:34: ERROR:  a Final game without stats did not wake live-poll (got 0)
+live-poll-vs-stats-ignoring-gate: exit 3 — psql:tests/db/live-poll-gate-and-lease.sql:34: ERROR:  a Final game that has its stats woke live-poll again
+
+# same tests on the new code: all five exit 0

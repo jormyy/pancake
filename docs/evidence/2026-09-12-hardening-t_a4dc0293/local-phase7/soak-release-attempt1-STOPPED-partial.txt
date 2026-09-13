@@ -1,0 +1,28 @@
+# e2e:soak:release attempt 1 (bound 7200 s): STOPPED BY OPERATOR after season 1 (1128 s) to re-bound — NOT a pass, no exit code kept
+started 2026-09-13T01:14:44Z, stopped 2026-09-13T01:34:20Z
+season-1 registry entries written:
+auction-season-1.json auth-season-1.json league-lifecycle-season-1.json lineup-auto-set-season-1.json lineup-locked-season-1.json lineup-season-1.json performance-season-1.json playoffs-season-1.json pwa-launch-season-1.json rookie-draft-season-1.json smoke-season-1.json trade-accept-season-1.json trade-future-pick-accept-season-1.json trade-future-pick-season-1.json trade-multi-team-season-1.json trade-overflow-accept-season-1.json trade-post-deadline-season-1.json trade-proposal-season-1.json trade-terminal-season-1.json trade-veto-season-1.json waiver-drop-season-1.json waiver-ir-block-season-1.json waiver-season-1.json 
+season-1 scenario summaries:
+auth: PASS
+browser-gameplay: PASS
+browser-league-lifecycle: PASS
+browser-lineup-auto-set: PASS
+browser-lineup-locked: PASS
+browser-lineup: PASS
+browser-perf: PASS
+browser-playoff: PASS
+browser-rookie-draft: PASS
+browser-trade-accept: PASS
+browser-trade-future-pick-accept: PASS
+browser-trade-future-pick: PASS
+browser-trade-multi-team: PASS
+browser-trade-overflow-accept: PASS
+browser-trade-post-deadline: PASS
+browser-trade-terminal: PASS
+browser-trade-veto: PASS
+browser-trade: PASS
+browser-waiver-drop: PASS
+browser-waiver-ir-block: PASS
+browser-waiver: PASS
+pwa-launch: PASS
+smoke: PASS
