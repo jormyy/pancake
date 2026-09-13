@@ -1,0 +1,1478 @@
+{
+  "startedAt": "2026-09-13T04:25:10.733Z",
+  "finishedAt": "2026-09-13T04:28:27.701Z",
+  "frontendUrl": "http://127.0.0.1:8081",
+  "route": "/roster",
+  "waitMs": 3000,
+  "signedIn": true,
+  "budgetMs": 400,
+  "allocation": "20 launches, alternating fresh (own session, full gate prelude, closed after) / reused (one session kept across all reused launches; prelude once, then measured relaunches only)",
+  "sequence": "gate prelude: open \"/\", clear localStorage, open \"/\", wait 2500 ms, sign in, wait 2000 ms; then early observer, one measured open of the route, wait, read, screenshot",
+  "agentBrowserVersion": "agent-browser 0.25.4",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+  "summary": {
+    "fresh": {
+      "total": 10,
+      "pass": 10
+    },
+    "reused": {
+      "total": 10,
+      "pass": 10
+    },
+    "earlyObserverRegistered": 20,
+    "earlyObserverRan": 20,
+    "buckets": {
+      "pass": 20,
+      "budget": 0,
+      "missing:early-saw": 0,
+      "missing:early-none": 0,
+      "missing:early-error": 0,
+      "missing:late-observer-saw": 0,
+      "missing:no-evidence": 0,
+      "probe-error": 0
+    },
+    "readerLimit": "when the early observer did not run, the remaining readers are post-navigation and an empty result cannot distinguish an evicted or unbuffered entry from one the engine never produced"
+  },
+  "results": [
+    {
+      "index": 1,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-1",
+      "startedAt": "2026-09-13T04:25:10.733Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 20,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 4.899999618530273,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 20
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 20
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 7.5,
+        "mountMark": 36.19999980926514,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 21.399999618530273,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-01-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 20ms <= 400ms",
+      "finishedAt": "2026-09-13T04:25:25.389Z"
+    },
+    {
+      "index": 2,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:25:25.390Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 24,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 24
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 24
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 24
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 24
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 7.099999904632568,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 24
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 24
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 10,
+        "mountMark": 37.200000286102295,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 23,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-02-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 24ms <= 400ms",
+      "finishedAt": "2026-09-13T04:25:39.658Z"
+    },
+    {
+      "index": 3,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-3",
+      "startedAt": "2026-09-13T04:25:39.658Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 20,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 6.300000190734863,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 20
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 20
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 8.800000190734863,
+        "mountMark": 35.09999990463257,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 21.09999990463257,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-03-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 20ms <= 400ms",
+      "finishedAt": "2026-09-13T04:25:54.031Z"
+    },
+    {
+      "index": 4,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:25:54.031Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.6999998092651367,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 5.599999904632568,
+        "mountMark": 28.59999990463257,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 15.900000095367432,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-04-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:25:58.385Z"
+    },
+    {
+      "index": 5,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-5",
+      "startedAt": "2026-09-13T04:25:58.385Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.299999713897705,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 5.099999904632568,
+        "mountMark": 25.40000009536743,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 14.099999904632568,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-05-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:26:12.621Z"
+    },
+    {
+      "index": 6,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:26:12.621Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.0999999046325684,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 4.699999809265137,
+        "mountMark": 28.799999713897705,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 14.699999809265137,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-06-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:26:16.989Z"
+    },
+    {
+      "index": 7,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-7",
+      "startedAt": "2026-09-13T04:26:16.989Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 24,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 24
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 24
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 24
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 24
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 7,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 24
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 24
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 9.800000190734863,
+        "mountMark": 36.60000038146973,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 22.300000190734863,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-07-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 24ms <= 400ms",
+      "finishedAt": "2026-09-13T04:26:31.159Z"
+    },
+    {
+      "index": 8,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:26:31.159Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 4,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 5.900000095367432,
+        "mountMark": 32.30000019073486,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 17.40000009536743,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-08-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:26:35.566Z"
+    },
+    {
+      "index": 9,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-9",
+      "startedAt": "2026-09-13T04:26:35.566Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 20,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 5,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 20
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 20
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 7.299999713897705,
+        "mountMark": 34.5,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 20.40000009536743,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-09-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 20ms <= 400ms",
+      "finishedAt": "2026-09-13T04:26:49.771Z"
+    },
+    {
+      "index": 10,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:26:49.771Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.1000003814697266,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 4.600000381469727,
+        "mountMark": 28.700000286102295,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 15,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-10-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:26:54.161Z"
+    },
+    {
+      "index": 11,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-11",
+      "startedAt": "2026-09-13T04:26:54.161Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 20,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 5.100000381469727,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 20
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 20
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 7.5,
+        "mountMark": 33.700000286102295,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 19.700000286102295,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-11-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 20ms <= 400ms",
+      "finishedAt": "2026-09-13T04:27:08.400Z"
+    },
+    {
+      "index": 12,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:27:08.400Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 20,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 4.200000286102295,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 20
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 20
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 6.200000286102295,
+        "mountMark": 32.200000286102295,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 17.300000190734863,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-12-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 20ms <= 400ms",
+      "finishedAt": "2026-09-13T04:27:12.816Z"
+    },
+    {
+      "index": 13,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-13",
+      "startedAt": "2026-09-13T04:27:12.816Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.1999998092651367,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 5.099999904632568,
+        "mountMark": 25.799999713897705,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 14.199999809265137,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-13-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:27:27.043Z"
+    },
+    {
+      "index": 14,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:27:27.044Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 20,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.9000000953674316,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 20
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 20
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 6.100000381469727,
+        "mountMark": 36.5,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 19.600000381469727,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-14-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 20ms <= 400ms",
+      "finishedAt": "2026-09-13T04:27:31.439Z"
+    },
+    {
+      "index": 15,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-15",
+      "startedAt": "2026-09-13T04:27:31.439Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 4.299999713897705,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 6.400000095367432,
+        "mountMark": 29.40000009536743,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 16.799999713897705,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-15-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:27:45.716Z"
+    },
+    {
+      "index": 16,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:27:45.716Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 20,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 20
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 20
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 6.5,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 20
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 20
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 8.600000381469727,
+        "mountMark": 37.5,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 21.40000009536743,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-16-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 20ms <= 400ms",
+      "finishedAt": "2026-09-13T04:27:50.107Z"
+    },
+    {
+      "index": 17,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-17",
+      "startedAt": "2026-09-13T04:27:50.107Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.1999998092651367,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 4.900000095367432,
+        "mountMark": 25.09999990463257,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 14.400000095367432,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-17-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:28:04.274Z"
+    },
+    {
+      "index": 18,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:28:04.274Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 12,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 12
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 12
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 12
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 12
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.1999998092651367,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 12
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 12
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 4.599999904632568,
+        "mountMark": 28.59999990463257,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 14.599999904632568,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-18-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 12ms <= 400ms",
+      "finishedAt": "2026-09-13T04:28:08.676Z"
+    },
+    {
+      "index": 19,
+      "mode": "fresh",
+      "session": "pwa-paint-probe-fresh-77774-385d8e-19",
+      "startedAt": "2026-09-13T04:28:08.676Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 3,
+      "measuredNavigationAttempts": 1,
+      "prelude": "full gate prelude",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.5,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 5.599999904632568,
+        "mountMark": 25.800000190734863,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 14.700000286102295,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-19-fresh.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:28:22.980Z"
+    },
+    {
+      "index": 20,
+      "mode": "reused",
+      "session": "pwa-paint-probe-reused-77774-385d8e",
+      "startedAt": "2026-09-13T04:28:22.980Z",
+      "url": "http://127.0.0.1:8081/roster",
+      "setupAttempts": 0,
+      "measuredNavigationAttempts": 1,
+      "prelude": "none (session already signed in)",
+      "earlyObserver": {
+        "registered": true,
+        "identifier": "1",
+        "error": null,
+        "endpointHost": "127.0.0.1",
+        "ran": true
+      },
+      "state": {
+        "path": "/roster",
+        "fcpByType": 16,
+        "paintByType": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintObserved": [
+          {
+            "name": "first-paint",
+            "startTime": 16
+          },
+          {
+            "name": "first-contentful-paint",
+            "startTime": 16
+          }
+        ],
+        "paintEarly": {
+          "installedAt": 3.200000286102295,
+          "entries": [
+            {
+              "name": "first-paint",
+              "startTime": 16
+            },
+            {
+              "name": "first-contentful-paint",
+              "startTime": 16
+            }
+          ],
+          "error": null
+        },
+        "shellMark": 4.700000286102295,
+        "mountMark": 25.300000190734863,
+        "visibilityState": "visible",
+        "hasFocus": true,
+        "readyState": "complete",
+        "prerendering": false,
+        "navigationType": "navigate",
+        "navigationDuration": 13.100000381469727,
+        "paintTimingSupported": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "swControlled": true,
+        "rootTextLength": 421
+      },
+      "screenshot": "launch-20-reused.png",
+      "status": "PASS",
+      "bucket": "pass",
+      "reason": "fcp 16ms <= 400ms",
+      "finishedAt": "2026-09-13T04:28:27.325Z"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+
+> pancake-init@1.0.0 e2e:pwa-paint-probe
+> node tests/e2e/pwa-paint-probe.mjs --launches=20
+
+launch  1 fresh  PASS [pass] fcp 20ms <= 400ms | early=2 byType=2 late=2 shell=7.5 mount=36.2 vis=visible focus=true
+launch  2 reused PASS [pass] fcp 24ms <= 400ms | early=2 byType=2 late=2 shell=10.0 mount=37.2 vis=visible focus=true
+launch  3 fresh  PASS [pass] fcp 20ms <= 400ms | early=2 byType=2 late=2 shell=8.8 mount=35.1 vis=visible focus=true
+launch  4 reused PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=5.6 mount=28.6 vis=visible focus=true
+launch  5 fresh  PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=5.1 mount=25.4 vis=visible focus=true
+launch  6 reused PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=4.7 mount=28.8 vis=visible focus=true
+launch  7 fresh  PASS [pass] fcp 24ms <= 400ms | early=2 byType=2 late=2 shell=9.8 mount=36.6 vis=visible focus=true
+launch  8 reused PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=5.9 mount=32.3 vis=visible focus=true
+launch  9 fresh  PASS [pass] fcp 20ms <= 400ms | early=2 byType=2 late=2 shell=7.3 mount=34.5 vis=visible focus=true
+launch 10 reused PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=4.6 mount=28.7 vis=visible focus=true
+launch 11 fresh  PASS [pass] fcp 20ms <= 400ms | early=2 byType=2 late=2 shell=7.5 mount=33.7 vis=visible focus=true
+launch 12 reused PASS [pass] fcp 20ms <= 400ms | early=2 byType=2 late=2 shell=6.2 mount=32.2 vis=visible focus=true
+launch 13 fresh  PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=5.1 mount=25.8 vis=visible focus=true
+launch 14 reused PASS [pass] fcp 20ms <= 400ms | early=2 byType=2 late=2 shell=6.1 mount=36.5 vis=visible focus=true
+launch 15 fresh  PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=6.4 mount=29.4 vis=visible focus=true
+launch 16 reused PASS [pass] fcp 20ms <= 400ms | early=2 byType=2 late=2 shell=8.6 mount=37.5 vis=visible focus=true
+launch 17 fresh  PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=4.9 mount=25.1 vis=visible focus=true
+launch 18 reused PASS [pass] fcp 12ms <= 400ms | early=2 byType=2 late=2 shell=4.6 mount=28.6 vis=visible focus=true
+launch 19 fresh  PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=5.6 mount=25.8 vis=visible focus=true
+launch 20 reused PASS [pass] fcp 16ms <= 400ms | early=2 byType=2 late=2 shell=4.7 mount=25.3 vis=visible focus=true
+
+PASS: 20/20 launches recorded a first-contentful-paint within budget; report at tests/artifacts/pwa-paint-probe/report.md
+probe exit 0
