@@ -522,3 +522,12 @@ Repair for the next implementation phase (sandbox on): wrap the probe's `main()`
 `runWithScenarioResourceOwner` (as `browser-pwa-launch.mjs` does), keep everything else as corrected in
 `cf5cd5b`, add a unit test that the probe entry point acquires a resource owner, then re-run the same
 20-launch plan. Own processes and the Pancake stack stopped.
+
+### Iteration 17 — 2026-09-13 (probe repair after phase-8 run 1, sandbox on)
+
+| Commit | Change | Test / evidence |
+| --- | --- | --- |
+| `<this>` | Probe entry point wrapped in `runWithScenarioResourceOwner` (`runPaintProbeEntry`), browser injected (`browserFactory`) so the ownership contract is exercised in tests; `openCdpClient` exported from `browser-agent.mjs`; early reader registered per session before the measured navigation via `Page.addScriptToEvaluateOnNewDocument` (capability-tested, outcome recorded per launch); `judgeLaunch` distinguishes "early observer saw it / saw none / not installed"; report and README updated. Sessions, single measured navigation, 400 ms gate and missing-timing failure unchanged | `tests/e2e-pwa-paint-probe-entry.test.ts`: the probe fails outside an owner with the phase-8 message and, under the wrapper, measures every launch, owns one reused session, closes exactly its own sessions, never uses `--all`; early observer registration and its no-endpoint path; `tests/e2e-pwa-paint-probe.test.ts` gate/allocation. Not executed against a browser here |
+
+Early-observer support is not asserted from the missing agent-browser init flag: it is tried through CDP on
+every launch and the result is data. Phase-8 run 1 (0/20, probe defect) stays recorded.

@@ -66,7 +66,7 @@ const runAgentBrowser = async ({ cwd, timeout, maxBuffer, session, args }) => {
 }
 
 /** @param {string} endpoint */
-const openCdpClient = async (endpoint) => {
+export const openCdpClient = async (endpoint) => {
   const socket = new WebSocket(endpoint)
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('CDP connection timed out')), CDP_COMMAND_TIMEOUT_MS)

@@ -100,13 +100,17 @@ prerendering, focus, paint-timing support) says why an entry is missing.
 league and the release build served on `E2E_FRONTEND_URL`, it launches the app 20 times
 (`--launches=N`), alternating a fresh browser session (a new probe-owned session, closed after
 its launch) with one reused probe-owned session kept across every reused launch. It closes
-only sessions it created. For each launch it records the paint entries seen by
-`getEntriesByType('paint')` and by a late buffered `PerformanceObserver`, the boot marks,
-visibility, focus, navigation type and user agent. The measured navigation is one attempt
-(sign-in setup may retry and its attempts are counted in the record). Every launch is kept; a
-missing entry is a failure, never a pass, and says nothing about speed. Both readers run
-after the navigation, so an empty result cannot prove the engine produced no paint timing;
-the report labels that case `no-late-reader-evidence`. Report:
+only sessions it created. Before each measured navigation it tries to register a
+document-start `PerformanceObserver` through the page's CDP endpoint
+(`Page.addScriptToEvaluateOnNewDocument`; the same `get cdp-url` route the screenshot path
+uses) and records whether that worked. For each launch it records the paint entries seen by
+that early observer, by `getEntriesByType('paint')` and by a late buffered
+`PerformanceObserver`, plus the boot marks, visibility, focus, navigation type and user
+agent. The measured navigation is one attempt (sign-in setup may retry and its attempts are
+counted in the record). Every launch is kept; a missing entry is a failure, never a pass, and
+says nothing about speed. When the early observer could not be installed, the two remaining
+readers run after the navigation, so an empty result cannot prove the engine produced no paint
+timing; the report labels that case `no-late-reader-evidence`. Report:
 `tests/artifacts/pwa-paint-probe/report.md` (+ `report.json` and one screenshot per launch).
 
 Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
