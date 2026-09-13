@@ -224,7 +224,7 @@ export default function TradesScreen() {
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
         {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'}. Tap to retry.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
-        {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError} Tap to refresh.`}
+        {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError.replace(/[.!]?\s*$/, '.')} Tap to refresh.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
         {tab === 'analyzer' ? (
             <Suspense fallback={<View style={styles.emptyState}><Text style={styles.emptyStateText}>Loading Analyzer…</Text></View>}>

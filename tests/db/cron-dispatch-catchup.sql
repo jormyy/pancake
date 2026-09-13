@@ -31,8 +31,8 @@ INSERT INTO dispatch_counts SELECT 'edt on time', pg_temp.invocations('cron-test
 SELECT public.invoke_edge_function_at_et_time('cron-test-fn', 3, 0, '2026-07-14 04:00:00 America/New_York');
 INSERT INTO dispatch_counts SELECT 'edt second tick no double', pg_temp.invocations('cron-test-fn');
 
--- rollback on a synchronous raise: with no URL configured the invoke raises and
--- the claim must not stick, so the next tick still dispatches.
+-- a synchronous raise: with no URL configured the invoke raises (the statement,
+-- and with it the claim, is aborted).
 SAVEPOINT before_raise;
 SELECT set_config('app.supabase_url', '', true);
 DO $$
@@ -44,9 +44,9 @@ EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'ok: invoke raised (%)', SQLERRM;
 END $$;
 ROLLBACK TO SAVEPOINT before_raise;
-INSERT INTO dispatch_counts SELECT 'claim after raise', (SELECT count(*) FROM public.cron_dispatch_state WHERE job_key = 'et-time:cron-raise-fn');
-SELECT public.invoke_edge_function_at_et_time('cron-raise-fn', 3, 0, '2026-01-20 04:00:00 America/New_York');
-INSERT INTO dispatch_counts SELECT 'dispatch after raise', pg_temp.invocations('cron-raise-fn');
+-- The claim's rollback is statement atomicity (a raised invoke aborts the
+-- statement that made the claim), so counts after the savepoint cannot
+-- distinguish it; only the raise itself is asserted above.
 
 -- weekly gate (Monday 07:00 ET): a Tuesday tick catches up once, the next Monday fires again
 SELECT public.invoke_dynasty_ranking_views_at_et_time(7, 0, '2026-01-12 06:59:00 America/New_York');
@@ -100,8 +100,6 @@ BEGIN
   IF (SELECT n FROM dispatch_counts WHERE label = 'edt before target') <> 2 THEN RAISE EXCEPTION 'edt fired before target'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'edt on time') <> 3 THEN RAISE EXCEPTION 'edt on-time tick did not dispatch'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'edt second tick no double') <> 3 THEN RAISE EXCEPTION 'edt double dispatch'; END IF;
-  IF (SELECT n FROM dispatch_counts WHERE label = 'claim after raise') <> 0 THEN RAISE EXCEPTION 'a raised invoke left its claim behind'; END IF;
-  IF (SELECT n FROM dispatch_counts WHERE label = 'dispatch after raise') <> 1 THEN RAISE EXCEPTION 'the tick after a raise did not dispatch'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly before target') <> 0 THEN RAISE EXCEPTION 'weekly fired before target'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly tuesday catch-up') <> 3 THEN RAISE EXCEPTION 'weekly catch-up did not dispatch three views'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly wednesday no double') <> 3 THEN RAISE EXCEPTION 'weekly double dispatch'; END IF;

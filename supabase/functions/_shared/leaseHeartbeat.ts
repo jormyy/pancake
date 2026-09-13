@@ -2,8 +2,9 @@
 // hands out a 90 s lease and a busy night's poll can outrun it, after which a
 // second worker takes the lease and both write (probe P2, 2026-09-12). The
 // heartbeat renews at a third of the TTL; when a renewal reports the lease was
-// lost, `lost` flips; live-poll checks it before each write phase and bails
-// out with 'lease-lost' instead of writing beside the new holder.
+// lost, `lost` flips; live-poll checks it before the game-status upsert and
+// before each stats/scores sync and bails out with 'lease-lost' instead of
+// writing beside the new holder (writes already in flight are not cancelled).
 export type LeaseHeartbeat = {
   stop: () => void
   readonly lost: boolean

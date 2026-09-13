@@ -15,9 +15,10 @@ DECLARE
   v_claimed boolean := false;
 BEGIN
   -- One dispatch per (job, period). The first tick at or after the target time
-  -- wins; every later tick in the same period is a no-op, so a delayed or
-  -- missed tick is caught up by the next one without double-dispatching. The
-  -- claim rides on the caller's transaction: if the invoke raises, it rolls back.
+  -- wins; every later tick in the same period is a no-op. A late tick still
+  -- fires, and where the schedule has a later tick in the period it catches a
+  -- missed one up without double-dispatching. The claim rides on the caller's
+  -- transaction: a synchronous raise in the invoke rolls it back.
   INSERT INTO public.cron_dispatch_state (job_key, period_key, dispatched_at)
   VALUES (p_job_key, p_period_key, now())
   ON CONFLICT (job_key) DO UPDATE

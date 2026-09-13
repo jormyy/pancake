@@ -1,4 +1,5 @@
 import { serveInternal } from '../_shared/serve.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
 // The app-side constants/slots.ts pulls in @pancake/core, which the Deno
@@ -107,7 +108,19 @@ serveInternal('lineup-optimizer', async (req) => {
     return Response.json({ ok: true, ...await processManualRestOfSeason(manual) })
   }
   const requestedDate = typeof body.date === 'string' ? body.date : null
-  const result = await processEnabledLineupOptimizers(requestedDate)
+  // Per-member failures are isolated (one throwing member must not stall the
+  // rest) but they must still reach monitoring: the run is recorded as failed
+  // in sync_runs with a summary whenever any member failed.
+  const result = await recordSyncRun('lineup-optimizer', async () => {
+    const outcome = await processEnabledLineupOptimizers(requestedDate)
+    return {
+      result: outcome,
+      rowsAffected: outcome.optimized,
+      failure: outcome.failed > 0
+        ? `${outcome.failed} of ${outcome.settings} enabled member(s) failed auto-set (see function logs)`
+        : null,
+    }
+  })
   return Response.json({ ok: true, ...result })
 })
 

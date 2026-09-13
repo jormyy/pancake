@@ -35,6 +35,8 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         nextCursor.current = null
         setLoadingMore(false)
         setHasMore(false)
+        // A refresh replaces the first page, so a failed next page is moot.
+        setLoadMoreError(null)
         if (!memberId || !leagueId) {
             setResource({ key: null, trades: [] })
             setError(null)
@@ -65,6 +67,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         nextCursor.current = null
         setResource({ key: resourceKey, trades: cached ?? [] })
         setError(null)
+        setLoadMoreError(null)
         setLoading(!cached)
         setHasMore((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
         setLoadingMore(false)

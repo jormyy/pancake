@@ -13,8 +13,10 @@ VALUES ('00000000-0000-4000-8000-0000000000e1', 2026, (timezone('America/New_Yor
 SELECT public.invoke_live_poll_if_due();
 SELECT set_config('test.after_final', (SELECT count(*) FROM public.edge_invocations WHERE function_name = 'live-poll' AND queued_at >= now() - interval '1 minute')::text, true);
 -- A Final game that already has its box score must not keep the poll awake.
+INSERT INTO public.players (id, sportsdata_id, first_name, last_name, position, eligible_positions, status, nba_team)
+VALUES ('00000000-0000-4000-8000-0000000000e2', 'live-poll-gate-fixture', 'Gate', 'Fixture', 'PG', ARRAY['PG'], 'Active', 'BOS');
 INSERT INTO public.player_game_stats (player_id, game_id, season_year, week_number, minutes_played, points, rebounds, assists, steals, blocks)
-SELECT id, '00000000-0000-4000-8000-0000000000e1', 2026, 1, 1, 0, 0, 0, 0, 0 FROM public.players LIMIT 1;
+VALUES ('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000000e1', 2026, 1, 1, 0, 0, 0, 0, 0);
 SELECT set_config('test.after_stats', (SELECT count(*) FROM public.edge_invocations WHERE function_name = 'live-poll' AND queued_at >= now() - interval '1 minute')::text, true);
 SELECT public.invoke_live_poll_if_due();
 SELECT set_config('test.after_stats2', (SELECT count(*) FROM public.edge_invocations WHERE function_name = 'live-poll' AND queued_at >= now() - interval '1 minute')::text, true);
@@ -26,7 +28,7 @@ BEGIN
   END IF;
   IF current_setting('test.before_final')::int <> 0 THEN RAISE EXCEPTION 'live-poll fired with no games at all'; END IF;
   IF current_setting('test.after_final')::int <> 1 THEN RAISE EXCEPTION 'a Final game without stats did not wake live-poll (got %)', current_setting('test.after_final'); END IF;
-  IF (SELECT count(*) FROM public.players) > 0 AND current_setting('test.after_stats2')::int <> current_setting('test.after_stats')::int THEN
+  IF current_setting('test.after_stats2')::int <> current_setting('test.after_stats')::int THEN
     RAISE EXCEPTION 'a Final game that has its stats woke live-poll again';
   END IF;
 END $$;

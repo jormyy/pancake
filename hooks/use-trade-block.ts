@@ -50,12 +50,16 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setAvgMap(EMPTY_AVG_MAP)
             setAvgStatsMap(EMPTY_STATS_MAP)
             setError(null)
+            setActionError(null)
             setLoading(false)
             setDataKey(null)
             return
         }
         setLoading(true)
         setError(null)
+        // A refresh is the banner's own recovery action, so a stale add/remove
+        // failure must not outlive it.
+        setActionError(null)
         try {
             const [nextItems, memberRoster] = await Promise.all([
                 getTradeBlockItems(leagueId),
@@ -88,6 +92,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
         setError(null)
+        setActionError(null)
         setBusyId(null)
         setLoading(!cached)
         setDataKey(resourceKey)
