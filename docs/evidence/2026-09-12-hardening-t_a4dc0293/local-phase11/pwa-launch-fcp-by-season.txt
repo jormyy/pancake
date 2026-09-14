@@ -1,0 +1,4 @@
+# per-season pwa-launch: status and firstContentfulPaintMs (budget 400 ms; missing = fail)
+
+NOTE: the pwa-launch artifact records no user agent (review-7 item 9 open); the engine for this run is proven only by run-release-env.txt (AGENT_BROWSER_EXECUTABLE_PATH) and run-conditions.txt (executable --version: Google Chrome for Testing 153.0.8010.12).
+NOTE: display state: 'caffeinate -d -i -w <script pid>' held PreventUserIdleDisplaySleep=1 (checked 04:50Z, pid 90176) for the script's lifetime; ioreg reported no IODisplayWrangler power state on this macOS, so 'display physically on' is not proven, only that idle display sleep was prevented. A 300 s caffeinate from another process (pid 89251) was also present at start and is not mine.

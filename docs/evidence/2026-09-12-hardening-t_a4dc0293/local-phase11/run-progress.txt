@@ -1,0 +1,7 @@
+2026-09-13T04:44:50Z loopback asserted for all E2E endpoints
+2026-09-13T04:44:51Z caffeinate -d -i scoped to this script (pid 90176)
+2026-09-13T04:45:43Z database on base schema (304, head 20260823000001); repo migrations untouched (307)
+2026-09-13T04:46:02Z stack ready: functions (fake upstream env), stamped release build served, seeded
+2026-09-13T04:46:02Z release soak started: timeout -s TERM 36000 npm run e2e:soak:release
+2026-09-13T09:38:25Z release soak finished rc=0 (timeout wrapper passed through the child's exit: 0 (npm returns node's status))
+2026-09-13T09:38:41Z stack stopped

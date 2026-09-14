@@ -1,0 +1,3 @@
+WARN: config section [inbucket] is deprecated. Please use [local_smtp] instead.
+{"project_id_filter":"pancake","backup":true,"message":"Stopped supabase local development setup."}
+stop exit 0

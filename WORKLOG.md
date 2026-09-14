@@ -565,8 +565,8 @@ Round 6 preserved at `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase9
 | 9 | **Fixed** by the exclusive buckets (`early-saw` precedes late-observer checks; nothing counts twice) |
 | 10 | **Fixed**: `store.error` becomes bucket `missing:early-error` |
 | 11 | **Fixed**: "browser CDP endpoint" in code and README |
-| 12 | **Fixed except** the header sentence that treats the screenshot as proof of paint (review-7 item 26, open). Original text: header rewritten (own sessions, three readers, counted setup retries) |
-| 13 | **Recorded and investigated**: both release attempts ran with `E2E_ENABLE_MIDLIFE_MIGRATION=0` and could not have satisfied `long.migration`; the evidence files and the gate paragraph say so. README now documents the local mid-life procedure (stack on the deployed schema `20260823000001` with the three branch migrations moved aside, `E2E_MIDLIFE_EXPECTED_*` from `release-soak-migration-plan.mjs`, `E2E_ENABLE_MIDLIFE_MIGRATION=1`, push at the season-5 boundary). Not run here |
+| 12 | **Fixed** (review 7 final: the screenshot-as-proof header sentence is a separate nit, item 26, open). Original text: header rewritten (own sessions, three readers, counted setup retries) |
+| 13 | **Recorded** (review 7 final: attempt 2's report proves its flag; no retained file shows attempt 1's flag — item 12, open). Investigated: both release attempts ran with `E2E_ENABLE_MIDLIFE_MIGRATION=0` and could not have satisfied `long.migration`; the evidence files and the gate paragraph say so. README now documents the local mid-life procedure (stack on the deployed schema `20260823000001` with the three branch migrations moved aside, `E2E_MIDLIFE_EXPECTED_*` from `release-soak-migration-plan.mjs`, `E2E_ENABLE_MIDLIFE_MIGRATION=1`, push at the season-5 boundary). Not run here |
 | 14 | **Fixed**: `--launches 20` form accepted, bare flag refused, `[::1]`/`::1` loopback accepted (tests) |
 | 15 | **Fixed**: temp dirs removed in `afterEach` |
 | 16 | **Fixed**: WORKLOG and attempt-1 file state 1128 s (start to first season-2 artifact) vs 1176 s log span |
@@ -636,3 +636,34 @@ engine diagnosis rests on the plain-page and executable comparisons, which were 
 clean display-on vs display-off matrix does not exist yet.
 
 Carried unchanged: round-5 1–10, round-4 10–11, round-3 10 (RLS, security, deferred), 18, 20, 21, 22, 30, 33.
+
+### Iteration 23 — 2026-09-13 (review 7 final copy; then LOCAL TEST PHASE 11, the full 20-season release gate)
+
+`.forge-review7-final.md` (APPROVE, exit 0; same 27 findings; an independent judge checked about 70 citations) is
+preserved at `local-phase10/independent-review-round7-final.md`. Changes from the draft, applied to the iteration-19
+rows above: item 12 is fully Fixed (the screenshot sentence is nit 26 on its own); item 13 is "Recorded", not fixed
+(attempt 1's flag has no retained proof, nit 12); item 22 is explicitly among the partly-true rows, so five rows are
+partial (3, 7, 8, 22, 23) and two are false (18, 24). No repair sweep. All 27 findings stay open as listed in
+iteration 22.
+
+### Iteration 24 — 2026-09-13 (LOCAL TEST PHASE 11: the complete 20-season release gate with the mid-life migration enabled; sandbox off for the run, evidence only; committed with sandbox on)
+
+Evidence: `docs/evidence/2026-09-12-hardening-t_a4dc0293/local-phase11/`. Commit under test `9fa03e2`. Every endpoint loopback (asserted by the run script before anything mutating). Stack: `supabase start`; **fresh base-schema copy via `mktemp -d` (304 migrations, head `20260823000001`), `supabase db reset` from that copy, verified count and head, repository `supabase/migrations` untouched (307)**; `functions serve` with the fake-upstream env; stamped `build:web:release`; `e2e:seed`; static server. `E2E_ENABLE_MIDLIFE_MIGRATION=1`, `E2E_MIDLIFE_MIGRATION_AFTER_SEASON=5`, base/head/versions from `release-soak-migration-plan.mjs`. Engine: process-local `AGENT_BROWSER_EXECUTABLE_PATH` = Playwright `chromium_headless_shell-1243` (`--version`: Google Chrome for Testing 153.0.8010.12). `caffeinate -d -i` scoped to the run script's pid. Command: `timeout -s TERM 36000 npm run e2e:soak:release` (the package script fixes `--seasons=20` and every release flag).
+
+| Item | Result |
+| --- | --- |
+| Wall | started 04:46:02Z, finished 09:38:25Z (4 h 52 min, inside the 36000 s bound; bound not hit) |
+| Exit | child (npm → node) **0**; timeout wrapper passed it through (not 124); recorded separately in `run-release-exit.txt` / `run-release-exit-meaning.txt` |
+| Harness report | `release-soak-report.json`: `status: PASS`, `targetSeasons: 20`, `completedSeasons: 20`, 20 season rows all PASS with the full release evidence-id set |
+| Mid-life (D.LONG.5) | `season-6-midlife-migration.json`: `status: APPLIED`, command `supabase db push --local --yes`, before 304 / head `20260823000001`, after 307 / head `20260912000003`, applied exactly `20260912000001, 20260912000002, 20260912000003` at 05:59:15–05:59:16Z; `long.migration` satisfied; `run-schema-after.txt` = `307|20260912000003` |
+| PWA launch gate | present every season: FCP 16–28 ms (per-season list in `pwa-launch-fcp-by-season.txt`); 400 ms budget and missing-entry failure unchanged |
+| Artifacts | 20 season directories, 42 entries each, 2280 screenshots, 341 MB — kept in the session scratch dir, indexed in `artifacts-index.txt`; per-season pwa-launch summaries and the mid-life artifact are in the repo evidence |
+
+No retries, no shortened seasons, no skipped checks. This is the first complete, passing run of the release gate on this branch.
+
+Limits and residuals (not self-approval; independent review decides):
+- The base version `20260823000001` is the newest migration on local `main`, **not** a production schema verification; CI derives the base from the linked project's `schema_migrations`.
+- The engine is not recorded inside the harness's pwa-launch artifact (review-7 item 9 open); it is proven by `run-release-env.txt` and `run-conditions.txt`. The default bundled engine (Chrome for Testing 147) still emits no paint entry (phase 10); the repository does not pin the gate's engine, and CI pinning stays a candidate pending a CI run.
+- Display: idle display sleep was prevented for the run's lifetime (assertion observed at 04:50Z); a physically-on display is not proven (`ioreg` gave no wrangler state). Another process's 300 s caffeinate was present at start.
+- All 27 review-7 findings, round-5 1–10, round-4 10–11, round-3 10 (RLS, deferred security), 18, 20, 21, 22, 30, 33 remain open as recorded.
+- Stopped only own resources: functions serve and static server pids, `supabase stop` exit 0; no global browser close; no production, publication, cleanup helper or settings changes.

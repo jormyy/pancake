@@ -1,0 +1,77 @@
+{
+  "status": "PASS",
+  "season": 4,
+  "artifactDir": "/Users/michaelchen/Projects/Apps/pancake/tests/artifacts/season-4/pwa-launch",
+  "measurements": {
+    "shellPaintMs": 5.099999904632568,
+    "appMountedMs": 25.200000286102295,
+    "firstContentfulPaintMs": 16,
+    "shellHeldAloneMs": 20.100000381469727
+  },
+  "budgets": {
+    "launchShellPaintMs": 400,
+    "launchShellHoldMaxMs": 8000
+  },
+  "checks": [
+    {
+      "name": "signed out never paints the app chrome",
+      "status": "PASS",
+      "detail": "boot=null shellInDom=false"
+    },
+    {
+      "name": "the exported document prerenders no foreign background",
+      "status": "PASS",
+      "detail": "rgba(242,211,182,1.00)"
+    },
+    {
+      "name": "the boot shell paints on a signed-in relaunch",
+      "status": "PASS",
+      "detail": "shellMark=5.099999904632568"
+    },
+    {
+      "name": "the shell paints before the app takes over",
+      "status": "PASS",
+      "detail": "shell=5.099999904632568ms mount=25.200000286102295ms"
+    },
+    {
+      "name": "useful chrome is on screen within the launch budget",
+      "status": "PASS",
+      "detail": "fcp=16ms budget=400ms"
+    },
+    {
+      "name": "the shell paints the cached league, team, and active route",
+      "status": "PASS",
+      "detail": "boot={\"league\":\"Pancake E2E 20260913044557\",\"team\":\"E2E Team 1\",\"initials\":\"ET\",\"active\":\"/roster\"}"
+    },
+    {
+      "name": "the handoff leaves no duplicate chrome",
+      "status": "PASS",
+      "detail": "shellInDom=false navRegions=1"
+    },
+    {
+      "name": "the shell never holds the screen alone past its budget",
+      "status": "PASS",
+      "detail": "held=20ms"
+    },
+    {
+      "name": "returning to the foreground keeps the app on screen",
+      "status": "PASS",
+      "detail": "text=\"Pancake MANAGER CONSOLE E Pancake E2E 20\" shellInDom=false"
+    },
+    {
+      "name": "a week-old cache still paints the shell and refreshes behind it",
+      "status": "PASS",
+      "detail": "shell=5ms text=\"Pancake MANAGER CONSOLE E Pancake E2E 20\""
+    },
+    {
+      "name": "the worker precached every boot asset it declares",
+      "status": "PASS",
+      "detail": "declared=14 missing=none"
+    },
+    {
+      "name": "an offline relaunch still reaches the app",
+      "status": "PASS",
+      "detail": "text=\"Pancake MANAGER CONSOLE E Pancake E2E 20260913044557 E2E Tea\""
+    }
+  ]
+}

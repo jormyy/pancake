@@ -1,0 +1,17 @@
+commit 9fa03e28a654c9522900b087ff505bfe01007b01
+agent-browser agent-browser 0.25.4
+executable /Users/michaelchen/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell
+executable --version: Google Chrome for Testing 153.0.8010.12
+node v26.7.0
+supabase 2.114.0
+# power/display at start 2026-09-13T04:44:51Z
+Now drawing from 'AC Power'
+ -InternalBattery-0 (id=23003235)	80%; AC attached; not charging present: true
+   PreventUserIdleDisplaySleep    0
+   PreventSystemSleep             0
+   PreventUserIdleSystemSleep     1
+   pid 415(runningboardd): [0x0026c16b0001a78e] 00:19:24 PreventUserIdleSystemSleep named: "app<application.com.apple.MobileSMS.1152921500311888383.1152921500311888453(501)>415-55694-1372802:Shared Background Assertion 196 for com.apple.MobileSMS(FinishTask)"  
+   pid 89251(caffeinate): [0x0026c59e0001865d] 00:01:29 PreventUserIdleSystemSleep named: "caffeinate command-line tool"  
+# power/display at end 2026-09-13T09:38:25Z
+Now drawing from 'AC Power'
+ -InternalBattery-0 (id=23003235)	80%; AC attached; not charging present: true
