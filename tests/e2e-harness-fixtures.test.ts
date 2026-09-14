@@ -9,7 +9,7 @@ type Call = { table: string; op: string; args: unknown[] }
 function fakeClient(results: Record<string, unknown> = {}) {
     const calls: Call[] = []
     const from = (table: string) => {
-        const state = { op: 'select', filters: [] as unknown[] }
+        const state = { op: 'select' }
         const builder: Record<string, unknown> = {}
         const chain = (op: string) => (...args: unknown[]) => {
             calls.push({ table, op, args })

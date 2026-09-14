@@ -93,7 +93,7 @@ Browser launch measurements (`npm run e2e:browser-pwa-launch`) read the document
 that entry on both the baseline and branch builds, including a release-soak run that passed
 the gate in seasons 1 and 2 and lost every paint entry in season 3; starting from a fresh
 session does not reliably change that. Treat a missing entry as unknown, never as a pass; the
-paint probe above is the diagnostic. The report's `paintDiagnostics` (paint entries, visibility state,
+paint probe below is the diagnostic. The report's `paintDiagnostics` (paint entries, visibility state,
 prerendering, focus, paint-timing support) says why an entry is missing.
 
 `npm run e2e:pwa-paint-probe` is the diagnostic for a missing paint entry. With the seeded

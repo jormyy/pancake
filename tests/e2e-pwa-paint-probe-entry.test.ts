@@ -95,12 +95,11 @@ describe('pwa paint probe entry point', () => {
     it('runs the signed-in prelude (sign-in page, credentials, 2000 ms settle) before the measured relaunch', async () => {
         const calls: Call[] = []
         const stateFor = (_session: string, _index: number, expression: string) => expression.includes('text: (document') ? { path: '/', text: 42 } : state()
-        const { failed, results } = await runPaintProbeEntry({
+        const { results } = await runPaintProbeEntry({
             ...base(calls, { stateFor }), signedOut: false, launches: 2, artifactDir: await tempDir(),
             readState: async () => ({ users: [{ email: 'e2e@example.com' }], password: 'pw' }),
             env: { ...env, anonKey: 'x' }, verifySignIn: async () => ({ error: null }),
         })
-        void failed
         const opens = calls.filter((c) => c.args[0] === 'open').map((c) => c.args[1])
         expect(opens.slice(0, 4)).toEqual(['http://127.0.0.1:8081/', 'http://127.0.0.1:8081/', 'http://127.0.0.1:8081/sign-in', 'http://127.0.0.1:8081/roster'])
         const waits = calls.filter((c) => c.args[0] === 'wait').map((c) => c.args[1])
