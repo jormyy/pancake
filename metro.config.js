@@ -3,6 +3,8 @@ const { scopeWebModuleIds } = require('./scripts/scope-web-module-ids.js')
 
 const config = getDefaultConfig(__dirname)
 config.transformer.babelTransformerPath = require.resolve('./scripts/stable-css-transformer.js')
-config.serializer.createModuleIdFactory = scopeWebModuleIds(config.serializer.createModuleIdFactory)
+if (process.env.NODE_ENV === 'production') {
+  config.serializer.createModuleIdFactory = scopeWebModuleIds(config.serializer.createModuleIdFactory)
+}
 
 module.exports = config

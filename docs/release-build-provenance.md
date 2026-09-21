@@ -20,10 +20,13 @@ and opposing export orders that differ without the wrapper.
 
 Expo also allocates numeric module IDs through one shared counter. Concurrent
 server and client exports can reach that counter in different orders, even
-with one worker. The configuration gives each web runtime environment its own
+with one worker. Production exports give each web runtime environment its own
 upstream ID factory. Server rendering no longer consumes browser module IDs.
-Modules within each environment retain Expo's allocation rules. Native and
-unscoped calls retain the original shared factory. Worker count stays unchanged.
+Expo sets `NODE_ENV=production` before loading the export configuration.
+Development retains its original factory because Metro's reload server requests
+IDs without the export context. Modules within each production environment retain
+Expo's allocation rules. Native and unscoped calls retain their original factory.
+Worker count stays unchanged.
 
 ## Deployed baseline
 
