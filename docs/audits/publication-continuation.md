@@ -29,3 +29,62 @@ The common ancestor is `2909a0ad669b657390f22c9edc4f3d8d130793d3`.
 Two remote commits change league behavior and security; integration remains required.
 No PR exists for this branch at the initial read-only inspection.
 Fresh checks on this branch do not certify the eventual merge with main.
+
+## Fresh implementation
+
+`public/sw.js` now keeps cache writes within the fetch event lifetime.
+Cached responses still return while background refreshes finish.
+Node 22 exposes two original test failures; both pass after this repair.
+Two added cases protect asset and shell refresh lifetimes.
+Restoring the original worker makes four cases fail; restoring the repair passes all 12.
+
+The dependency audit initially rejects ten high-severity advisories.
+The lockfile updates only three packages: xmldom 0.8.15, js-yaml 4.3.2, and smol-toml 1.8.0.
+The existing audit policy and accepted image-size advisories remain unchanged.
+Deno regenerates its override metadata to match the package manifest.
+Upstream fixes are documented by [xmldom](https://github.com/xmldom/xmldom/security/advisories/GHSA-w2rr-34g9-rvrj),
+[js-yaml](https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh), and
+[smol-toml](https://github.com/squirrelchat/smol-toml/security/advisories/GHSA-7w5x-hrqm-74c2).
+
+## Verification scope
+
+Validation uses Node 22.23.2 and Deno 2.7.14.
+`npm run check:quality`, Edge checks, and the unchanged audit gate pass.
+App tests pass: 123 files, 721 tests. Core tests pass: 112 tests.
+All 22 database suites, generated database types, and the function catalog pass.
+The production web build and core build pass.
+
+A separate local stack uses synthetic users and fresh repository migrations.
+The perpetual-season harness passes two rollovers across four league configurations.
+Its disabled-boundary control fails four assertions, as expected.
+Browser acceptance uses the process-local Chrome 153 executable.
+Fresh PWA launch passes offline and records FCP at 20 ms against the unchanged 400 ms limit.
+This is one observed sample, not a statistical performance claim.
+The runtime copy matches every checked product source hash.
+
+No production data, migration, deployment, remote branch, or PR is changed.
+The final external `handoff.md` records every command, result, limitation, and cleanup proposal.
+
+All 23 registered browser scenarios pass, with no cleanup error.
+They cover auth, create/join, auction, lineup, playoffs, rookie draft, waivers, trades, routes, and PWA launch.
+Data latency and strict workflow performance budgets also pass.
+`fresh-acceptance.tar.gz` preserves the fresh browser and season artifacts.
+
+| Same command | Before cleanup | After artifact deletion | After repairs |
+| --- | --- | --- | --- |
+| `npm test` | 719 tests; 2 failures; 2.405 s | 719 tests; 2 failures; 2.945 s | 721 tests; all pass; 1.832 s |
+| `npm test --workspace core` | 112 pass; 0.468 s | 112 pass; 0.555 s | 112 pass; 0.390 s |
+
+Times are single wall-clock observations, not performance comparisons.
+Zero tests are pruned; two regression cases are added.
+
+Gitleaks scans the publishable working tree and every outgoing commit with redacted output.
+Both scans find zero leaks; a generated invalid canary proves the scanner can fail.
+A supplementary scan records each fixture finding and its specific justification.
+Existing ignored local credentials remain untouched and excluded from the runtime copy.
+
+The merge preview identifies conflicts in five files:
+`app/(tabs)/players.tsx`, `hooks/use-quick-add.ts`, `package.json`,
+`supabase/sql/function-catalog.json`, and `tests/hooks/quick-add-owner-identity.test.ts`.
+No merge is started. Main integration needs verification before publication.
+No cleanup helper, independent reviewer, push, PR, or merge runs in this continuation.
