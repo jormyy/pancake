@@ -1,52 +1,34 @@
-# Cleanup gate — t_a4dc0293 hardening
+# Cleanup Gate
 
-Run ID: 723bc7a3079044d0bb16031fc79b3dec
+Run ID: 7deca9ffff6a4263a702d47e9b2d577a
 Status: complete
-Base: 2909a0ad669b657390f22c9edc4f3d8d130793d3
 
 ## Passes
-
-1 of at most 1 pass: deslop, simplify, conservative test pruning, stale docs.
-Scope: the 89 non-evidence files in the diff were reviewed (app, hooks, lib, public/sw.js, edge functions, SQL, tests, docs).
-Product code, SQL and migrations were not changed. Any behavior change would void the 20-season release proof at 9fa03e2.
-Residual seen, not fixed (implementer's work, not cleanup): `lineup-optimizer/index.ts` touches a member's setting when `failed > 0`. `failed` counts the whole run, so after one member fails, later members with zero optimizations are also touched.
+1 of 1 max. Pass 1 complete: HEAD equals base a6daa1533bc7e6e46234206dbcc8696ceab5ddce. The diff is empty, so deslop, simplify, test pruning, and doc review had nothing to act on.
 
 ## Rebase
-
 Not needed. The coordinator checked ancestry.
 
 ## Removed
-
-- `tests/e2e-harness-fixtures.test.ts`: unused `filters` field in the fake PostgREST builder state.
-- `tests/e2e-pwa-paint-probe-entry.test.ts`: unused `failed` destructure and its `void failed` statement.
+none
 
 ## Tests deleted
-
-None. Every added test can fail. The source-contract tests fail when the wiring they pin changes.
+none
 
 ## Docs updated
-
-- `tests/e2e/README.md`: "the paint probe above" now says "below". The probe section follows that paragraph.
+none (only this CLEANUP.md added)
 
 ## Verified
-
-- `npx vitest run tests/e2e-harness-fixtures.test.ts tests/e2e-pwa-paint-probe-entry.test.ts`: exit 0, 2 files, 21 tests passed (run synchronously after the edit).
+`git diff --stat a6daa15` and `git log a6daa15..HEAD` both empty before this report. No behavior changed, so no direct behavior check applies.
 
 ## Checks
-
-Bounded plan: the coordinator's base/current receipts in `cleanup-gate-01`.
-Coordinator prechecks (before this pass), raw exit codes:
-- base: core 0, dependencies 0, edge-shared 0, function-sources 0, unit 0.
-- current: core 0, dead-code 0, dependencies 0, e2e-types 0, edge-shared 0, function-sources 0, lint 0, test-types 0, unit 0.
-These are bounded checks, not a green full-repository typecheck.
-Coordinator postchecks: not run yet. The coordinator runs them after this gate exits.
-No full-suite, lint or typecheck job was started by this gate.
+Bounded plan: dependencies (npm ci --ignore-scripts), quality (check:quality), core build, core tests, app tests (npm test), security audit, edge functions.
+Coordinator prechecks, current tree, raw exit codes: dependencies 0, quality 0, core-build 0, core-tests 0, app-tests 0, audit 0, edge 0.
+Base receipts exist in the same folder. These are prechecks only, not a full-repository green claim.
+Postchecks: not run yet. The coordinator runs them after this gate exits.
 
 ## Commits
-
-- 951504f chore(cleanup): drop unused test scaffolding; fix e2e README cross-reference
-- this report (CLEANUP.md)
+The commit that adds this CLEANUP.md (docs only).
 
 ## Reverted
-
 none
