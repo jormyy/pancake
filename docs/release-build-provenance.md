@@ -18,11 +18,12 @@ The wrapper uses the existing pinned Expo transformer. Unexpected generated
 map shapes fail the build. The regression tests exercise real compiler output
 and opposing export orders that differ without the wrapper.
 
-Release exports also use one Metro worker. Expo allocates numeric module IDs
-in first-visit order through one shared factory. Concurrent server and client
-builds can reach that factory in different orders. Changing worker count changes
-the resulting IDs and chunk bytes. Pinning this build input removes the host's
-CPU count from the release command. Development builds retain their defaults.
+Expo also allocates numeric module IDs through one shared counter. Concurrent
+server and client exports can reach that counter in different orders, even
+with one worker. The configuration gives each web runtime environment its own
+upstream ID factory. Server rendering no longer consumes browser module IDs.
+Modules within each environment retain Expo's allocation rules. Native and
+unscoped calls retain the original shared factory. Worker count stays unchanged.
 
 ## Deployed baseline
 

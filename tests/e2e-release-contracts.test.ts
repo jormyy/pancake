@@ -62,7 +62,7 @@ describe('release E2E contracts', () => {
   it('clears Metro transforms before stamping a release bundle', async () => {
     const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'))
     expect(packageJson.scripts['build:web:release']).toBe(
-      'expo export --platform web --clear --max-workers 1 && node scripts/stamp-release-provenance.mjs',
+      'expo export --platform web --clear && node scripts/stamp-release-provenance.mjs',
     )
     const vercel = JSON.parse(await readFile(path.join(process.cwd(), 'vercel.json'), 'utf8'))
     expect(vercel.installCommand).toBe('npm ci')
