@@ -161,4 +161,3 @@ BEGIN
   PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT_5"}'::jsonb);
 END;
 $$;
-
