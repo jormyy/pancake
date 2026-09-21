@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Local Python tooling (directory or symlink)
+/.venv
+
 # Expo
 .expo/
 dist/
