@@ -76,7 +76,7 @@ BEGIN
   PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 4);
   RAISE EXCEPTION 'expected ineligible league edit to be refused';
 EXCEPTION WHEN SQLSTATE 'P0001' THEN
-  IF SQLERRM NOT LIKE 'Waiver claims require an active or playoff season%' THEN RAISE; END IF;
+  IF SQLERRM NOT LIKE 'Waiver claims require an active, playoff, or offseason league%' THEN RAISE; END IF;
   RAISE NOTICE 'ok: ineligible league refused';
 END $$;
 UPDATE public.leagues SET status = 'active' WHERE id = '00000000-0000-0000-0000-000000060101';

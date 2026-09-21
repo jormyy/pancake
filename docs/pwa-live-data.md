@@ -148,8 +148,9 @@ A failed refresh stays visible. The error banner shows that cached data can be s
 Lineup and roster writes require the server. Pancake does not queue time-sensitive sports actions offline.
 
 The browser `online` event clears season and week lookup caches. Home then reloads the current matchup.
-Every focus-loaded screen (roster, players, trades, dynasty, league) refetches on `online` and
-re-checks staleness when the page becomes visible again.
+Data loaded through `useFocusAsyncData` (roster, player support data, dynasty data, and trade picks)
+refetches on `online` and re-checks staleness when the page becomes visible again.
+The trades feed, trade block, and league screen do not use that reconnect refetch path.
 
 Realtime subscriptions reconnect separately. Cross-tab events still update active screens.
 

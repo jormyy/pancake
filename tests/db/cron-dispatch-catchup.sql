@@ -48,11 +48,12 @@ ROLLBACK TO SAVEPOINT before_raise;
 -- statement that made the claim), so counts after the savepoint cannot
 -- distinguish it; only the raise itself is asserted above.
 
--- weekly gate (Monday 07:00 ET): a Tuesday tick catches up once, the next Monday fires again
+-- Direct weekly-gate calls (Monday 07:00 ET target): a Tuesday call catches up once.
+-- The installed cron runs only on Mondays; this does not prove an automatic Tuesday retry.
 SELECT public.invoke_dynasty_ranking_views_at_et_time(7, 0, '2026-01-12 06:59:00 America/New_York');
 INSERT INTO dispatch_counts SELECT 'weekly before target', pg_temp.invocations('sync-rankings');
 SELECT public.invoke_dynasty_ranking_views_at_et_time(7, 0, '2026-01-13 08:00:00 America/New_York');
-INSERT INTO dispatch_counts SELECT 'weekly tuesday catch-up', pg_temp.invocations('sync-rankings');
+INSERT INTO dispatch_counts SELECT 'direct tuesday catch-up (not scheduled)', pg_temp.invocations('sync-rankings');
 SELECT public.invoke_dynasty_ranking_views_at_et_time(7, 0, '2026-01-14 08:00:00 America/New_York');
 INSERT INTO dispatch_counts SELECT 'weekly wednesday no double', pg_temp.invocations('sync-rankings');
 SELECT public.invoke_dynasty_ranking_views_at_et_time(7, 0, '2026-01-19 07:00:00 America/New_York');
@@ -101,7 +102,7 @@ BEGIN
   IF (SELECT n FROM dispatch_counts WHERE label = 'edt on time') <> 3 THEN RAISE EXCEPTION 'edt on-time tick did not dispatch'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'edt second tick no double') <> 3 THEN RAISE EXCEPTION 'edt double dispatch'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly before target') <> 0 THEN RAISE EXCEPTION 'weekly fired before target'; END IF;
-  IF (SELECT n FROM dispatch_counts WHERE label = 'weekly tuesday catch-up') <> 3 THEN RAISE EXCEPTION 'weekly catch-up did not dispatch three views'; END IF;
+  IF (SELECT n FROM dispatch_counts WHERE label = 'direct tuesday catch-up (not scheduled)') <> 3 THEN RAISE EXCEPTION 'weekly catch-up did not dispatch three views'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly wednesday no double') <> 3 THEN RAISE EXCEPTION 'weekly double dispatch'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'weekly next monday') <> 6 THEN RAISE EXCEPTION 'next week did not dispatch'; END IF;
   IF (SELECT n FROM dispatch_counts WHERE label = 'boundary before 09:00') <> 0 THEN RAISE EXCEPTION 'boundary fired before 09:00'; END IF;

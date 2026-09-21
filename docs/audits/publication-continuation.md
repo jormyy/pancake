@@ -1,14 +1,13 @@
 # Publication continuation evidence
 
 Implementation starts at `65cb97fcf7fa6e2321f559fc8b31bde6767e96af`.
-Evidence lives outside the shipping tree:
-`/Users/michaelchen/.hermes/kanban/workspaces/t_4e927254/evidence/`.
+Evidence lives outside the shipping tree; the publication handoff records its location.
 
 `parent-artifacts.tar.gz` preserves 5,928 prior files, including the parent worklog,
 all hardening review rounds, raw results, screenshots, and generated reports.
 `deletion-ledger.json` lists every archived/deleted path, reason, size, and SHA-256.
 The archive was reopened and every file hash verified before deletion.
-The original archive on mbp-old remains untouched.
+The original archive remains untouched.
 
 No test is deleted. Prior pruning ledgers report no eligible tests.
 Source-contract, boundary, and incident regression tests remain.

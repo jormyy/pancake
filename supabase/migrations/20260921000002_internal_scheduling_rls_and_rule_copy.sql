@@ -1,7 +1,8 @@
--- Canonical SQL source for public.edit_waiver_claim_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Internal scheduling records have no client policies; existing grants remain unchanged.
+ALTER TABLE public.cron_dispatch_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.edge_invocations ENABLE ROW LEVEL SECURITY;
 
+-- Clarify existing rules and messages without changing dispatch or waiver gates.
 CREATE OR REPLACE FUNCTION public.edit_waiver_claim_atomic(
   p_claim_id uuid,
   p_member_id uuid,
@@ -133,3 +134,31 @@ BEGIN
    WHERE id = p_claim_id;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.invoke_dynasty_ranking_views_at_et_time(
+  p_hour int,
+  p_minute int DEFAULT 0,
+  p_now timestamptz DEFAULT now()
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now timestamp := timezone('America/New_York', p_now);
+BEGIN
+  -- Direct calls later in the week can catch up, once per ISO week.
+  -- The installed cron only calls this on Mondays; it cannot retry on Tuesday.
+  IF EXTRACT(ISODOW FROM v_now)::int = 1 AND v_now::time < make_time(p_hour, p_minute, 0) THEN
+    RETURN;
+  END IF;
+  IF NOT private.claim_cron_dispatch('et-time:sync-rankings', to_char(v_now, 'IYYY-IW')) THEN
+    RETURN;
+  END IF;
+  PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT_3"}'::jsonb);
+  PERFORM public.invoke_edge_function('sync-rankings', '{"view":"ROOKIE"}'::jsonb);
+  PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT_5"}'::jsonb);
+END;
+$$;
+

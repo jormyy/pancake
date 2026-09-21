@@ -48,7 +48,7 @@ commissioner disappears.
 | Frontend | Expo / React Native (TypeScript), Expo Router; web export deployed as a PWA |
 | API | Supabase Edge Functions (`/functions/v1/api` is the single HTTP boundary) |
 | Database | Supabase Postgres — gameplay mutations via `SECURITY DEFINER` RPCs only |
-| Scheduling | Supabase pg_cron + `invoke_edge_function`, ET wall-clock gates with once-per-period catch-up, idle gated, invocations reconciled into `sync_runs` |
+| Scheduling | Supabase pg_cron + `invoke_edge_function`, ET wall-clock gates with once-per-period catch-up, idle gated, responses retained in `edge_invocations`; dispatch failures recorded in `sync_runs` |
 | Realtime | Supabase Realtime (matchups, auction bids) |
 | Auth | Supabase Auth |
 
