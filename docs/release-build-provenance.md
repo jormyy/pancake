@@ -18,6 +18,12 @@ The wrapper uses the existing pinned Expo transformer. Unexpected generated
 map shapes fail the build. The regression tests exercise real compiler output
 and opposing export orders that differ without the wrapper.
 
+Release exports also use one Metro worker. Expo allocates numeric module IDs
+in first-visit order through one shared factory. Concurrent server and client
+builds can reach that factory in different orders. Changing worker count changes
+the resulting IDs and chunk bytes. Pinning this build input removes the host's
+CPU count from the release command. Development builds retain their defaults.
+
 ## Deployed baseline
 
 The release-soak workflow requires an exact production rebuild before it tests
