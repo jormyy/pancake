@@ -1,1 +1,0 @@
-timeout wrapper passed through the child's exit: 0 (npm returns node's status)

@@ -1,3 +1,0 @@
-WARN: config section [inbucket] is deprecated. Please use [local_smtp] instead.
-Stopped services: [supabase_imgproxy_pancake supabase_studio_pancake supabase_analytics_pancake supabase_vector_pancake supabase_pooler_pancake]
-{"DB_URL":"<redacted-db-url>

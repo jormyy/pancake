@@ -1,5 +1,0 @@
-
-> pancake-init@1.0.0 e2e:seed
-> node tests/e2e/seed-league.mjs
-
-npm run e2e:seed  0.23s user 0.04s system 17% cpu 1.551 total

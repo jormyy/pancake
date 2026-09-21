@@ -1,3 +1,0 @@
-> pancake-init@1.0.0 perf:budget
-> node tests/e2e/performance-budgets.mjs --require-report
-FAIL tests/performance-budget-report.md

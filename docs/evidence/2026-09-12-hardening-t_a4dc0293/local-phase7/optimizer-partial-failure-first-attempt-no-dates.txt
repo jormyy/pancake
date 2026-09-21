@@ -1,1 +1,0 @@
-# first attempt (game dated today, outside the seeded synthetic week 2090-01-01..07): settings=0 dates=0 — no failure exercised, fixture mismatch, not evidence

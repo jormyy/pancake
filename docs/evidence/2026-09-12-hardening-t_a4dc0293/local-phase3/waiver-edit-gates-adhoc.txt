@@ -1,7 +1,0 @@
-# ad-hoc verification of edit_waiver_claim_atomic gates (scratchpad copy of tests/db/waiver-claim-edit-gates.sql with two fixture corrections: waiver_priorities row; weekly_add_limit=1 + consume_weekly_add instead of 0)
-psql:/private/tmp/claude-501/-Users-michaelchen-Projects-Apps-pancake/d0fb02a5-fe4b-4066-8a8d-f3caf50ed823/scratchpad/local/waiver-claim-edit-gates-adhoc.sql:46: NOTICE:  ok: self-drop refused
-psql:/private/tmp/claude-501/-Users-michaelchen-Projects-Apps-pancake/d0fb02a5-fe4b-4066-8a8d-f3caf50ed823/scratchpad/local/waiver-claim-edit-gates-adhoc.sql:57: NOTICE:  ok: closed window refused
-psql:/private/tmp/claude-501/-Users-michaelchen-Projects-Apps-pancake/d0fb02a5-fe4b-4066-8a8d-f3caf50ed823/scratchpad/local/waiver-claim-edit-gates-adhoc.sql:69: NOTICE:  ok: ineligible league refused
-psql:/private/tmp/claude-501/-Users-michaelchen-Projects-Apps-pancake/d0fb02a5-fe4b-4066-8a8d-f3caf50ed823/scratchpad/local/waiver-claim-edit-gates-adhoc.sql:81: NOTICE:  ok: add limit refused
-ROLLBACK
-exit 

@@ -1,5 +1,0 @@
-tab-only e2e:browser-smoke (branch, after f619cf3): exit 0 (was exit 1 on both branch and baseline in phase 2)
-npm run $c  6.37s user 0.85s system 22% cpu 31.864 total
-E2E_BROWSER_FULL_SWEEP=1 e2e:browser-smoke: exit 0
-E2E_BROWSER_FULL_SWEEP=1 npm run e2e:browser-smoke  20.31s user 2.04s system 26% cpu 1:24.91 total
-perf:budget --require-report: exit 1 before the full sweep (tab-only report lacks player-detail), exit 0 after; --require-workflow-reports: exit 0 after

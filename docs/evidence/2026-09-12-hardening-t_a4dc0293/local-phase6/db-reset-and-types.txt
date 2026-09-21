@@ -1,3 +1,0 @@
-supabase db reset  2.41s user 0.85s system 11% cpu 28.481 total
-schema_migrations: 307
-check:database-types: exit 0 (types/database.ts matches supabase gen types --local through the generator)

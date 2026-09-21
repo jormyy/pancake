@@ -70,3 +70,6 @@ skills-lock.json
 # editor
 .vscode/
 .windsurf/
+
+# Regenerated soak summary
+tests/e2e-report.json

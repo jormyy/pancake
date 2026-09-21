@@ -1,4 +1,0 @@
-
-> pancake-init@1.0.0 check:db-function-catalog
-> node scripts/check-db-function-sources.mjs --check-catalog
-

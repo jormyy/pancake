@@ -1,3 +1,0 @@
-# soak.mjs --seasons=3, backend+edge ticks, fake upstream (harness-owned), PLAYER_SYNC_SOURCE=sleeper: exit 0, PASS 3/3
-
-# e2e:soak:release (20 seasons): NOT RUN — the test:db chain gate is red (waiver-claim-projection enum literal), per the phase rule to stop for fixes before the release gate.

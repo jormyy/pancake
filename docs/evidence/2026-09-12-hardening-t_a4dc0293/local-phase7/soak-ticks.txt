@@ -1,6 +1,0 @@
-# Summary line only, hand-written. What was captured: the harness's own stdout line "soak PASS seasons 3/3" and the
-# shell's "exit 0" echo, as seen in the session's tool output at the time (the session transcript retains them). What
-# the scratch log file (p7-soak-ticks.log) captured instead is only the shell `time` line: 5.4 s wall, which fits a
-# backend-ticks-only soak with no browser scenarios (the perpetual runs in the same phase took about 21 s). The full
-# harness stdout and per-season artifacts were not retained. This file is therefore a summary, not program output.
-# soak.mjs --seasons=3, backend+edge ticks, fake upstream, PLAYER_SYNC_SOURCE=sleeper: exit 0, PASS 3/3

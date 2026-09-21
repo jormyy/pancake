@@ -1,5 +1,0 @@
-check-edge-functions (CI, deno 2.7.14) exit 0
-ok | 121 passed | 0 failed (4s)
-deno full exit 0
-ok | 121 passed | 0 failed (4s)
-[exited with code 0]
