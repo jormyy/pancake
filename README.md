@@ -204,6 +204,8 @@ the frontend only after hosted readiness verifies both digests. Vercel also
 auto-builds production from `main` (`vercel.json` `deploymentEnabled`), so merges
 ship the frontend directly; the protected workflow remains the verified path for
 coordinated schema + Edge + frontend releases.
+The release history preflight also verifies the narrowly scoped
+[historical migration attestations](./docs/production-migration-history.md).
 
 The web build (`npm run build:web:release` → `dist/`) ships light-only and installable
 as a PWA; `public/manifest.webmanifest` + `public/sw.js` provide install metadata and an

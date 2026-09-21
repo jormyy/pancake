@@ -1,0 +1,352 @@
+{
+  "projectRef": "ceeytbfmwsnzalxlkalc",
+  "auditSourceCommit": "c271b58e7abfcfaccd6d7d47fecb3771c9095c71",
+  "renameCommit": "c083075fe75976852fa2307c54d8fc7b3b33e9a6",
+  "baselineVersion": "20260828000002",
+  "baselineCount": 320,
+  "aliases": [
+    {
+      "version": "20260627000003",
+      "deployedName": "logic_hardening_cycle1",
+      "repositoryName": "scoring_cron_auction_startup",
+      "repositorySha256": "dad6d6b8d5af6513369c4dc23debd50253c9ec2460ce51e9d5b4ae0be1310df2",
+      "statementCount": 22,
+      "statementsSha256": "fef24a376e40b159f423d12f706d7d8666724258d2f8145ed77036db6b2a4ec7",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000004",
+      "deployedName": "logic_hardening_cycle2",
+      "repositoryName": "et_season_year_league_setup",
+      "repositorySha256": "6b3a5aca0b78d744dfd7a5854ad593451e37bae9ba098fe95c7dd660c0aa0eaf",
+      "statementCount": 15,
+      "statementsSha256": "9df2fd7afe16c12783caf288a5b25b182a346ee4be2191e8dc799725a09178fa",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000005",
+      "deployedName": "logic_hardening_cycle3_auction_lifecycle",
+      "repositoryName": "auction_lifecycle",
+      "repositorySha256": "79678c87eca61d4dd756c84ed8230a844814981b84bc0ecdacf5681a66c73ad3",
+      "statementCount": 15,
+      "statementsSha256": "5d3c7743157621b47f43d305c039d685df11e5a4791d086dd00c53baee9c9188",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000006",
+      "deployedName": "logic_hardening_cycle4",
+      "repositoryName": "auction_auth_lock_order",
+      "repositorySha256": "29351abf26c20bf0e276791fa7e1d5e85f35a2118c1723cf773935608e022927",
+      "statementCount": 17,
+      "statementsSha256": "98e7723c292535e791e05c08f8f62466429c6d738bb7061ec147f65cd2590f2e",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000007",
+      "deployedName": "logic_hardening_cycle6_withdraw_auth",
+      "repositoryName": "auction_withdraw_auth",
+      "repositorySha256": "f30ee61d3676a4cef0ecc071106020d83adfb4f430a9e86fcb6b9e5efa7c28a5",
+      "statementCount": 6,
+      "statementsSha256": "0dbc33980e64d437b1d825b073a3dc523defb2bf47069dccc5d4418b93d23d2c",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000008",
+      "deployedName": "logic_hardening_cycle15",
+      "repositoryName": "invite_trade_lineup_guards",
+      "repositorySha256": "17e4ac702bceced42ed37a270676f4c63976d70b924b8bfba673c08838494a73",
+      "statementCount": 8,
+      "statementsSha256": "1b4513322cdc5e6128234d5d1a484c364f2305a2aac7ed42f4fe9746b8dab80d",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000009",
+      "deployedName": "logic_hardening_cycle16_roster_history",
+      "repositoryName": "roster_ownership_history",
+      "repositorySha256": "4af6cfa821f93b5713eebf010ea8c474d53ba3d90a9000849d91f5f5a6dce8d1",
+      "statementCount": 14,
+      "statementsSha256": "b4c44a24534961746712810c3b18aed5e9ccca1e4a8fca396649effd2ed77fc3",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000010",
+      "deployedName": "logic_hardening_cycle17",
+      "repositoryName": "rookie_draft_ledger_budget_caps",
+      "repositorySha256": "02d121be59e6e0c0cf29e44588dd4805acc6dbc956aa3927c1025a4d90262c0a",
+      "statementCount": 19,
+      "statementsSha256": "acaef6aba523be83b9a1a430f88755b59f1eac7caafdbe964da06c08d16779eb",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000011",
+      "deployedName": "logic_hardening_cycle18",
+      "repositoryName": "lineup_current_season_guards",
+      "repositorySha256": "8938218d343eb709577ed57b26301f602e62a711244575bc27e9afaec70ca1e5",
+      "statementCount": 38,
+      "statementsSha256": "53d0ce041ef5938ee2409db2b67abc665865642963dd439a93d491f7919b5fef",
+      "difference": "temporary-helper-identifiers"
+    },
+    {
+      "version": "20260627000012",
+      "deployedName": "logic_hardening_cycle19",
+      "repositoryName": "playoff_waiver_season_guards",
+      "repositorySha256": "7be4b992309aa910de63ee12453f086c5e39b401ce37e1288b892e8c2f564185",
+      "statementCount": 14,
+      "statementsSha256": "57b5bf2dcd8229b3006393b113aa2fc4f353718213f40e9cf98fcba5fc431d41",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000013",
+      "deployedName": "logic_hardening_cycle20",
+      "repositoryName": "playoff_bracket_freeze",
+      "repositorySha256": "88089156df0a424c291d163cbaaf9e307f0126e0424b1a27e74c75d1c78f26e9",
+      "statementCount": 3,
+      "statementsSha256": "c6bb0fb5f9d04742435647d80a8d15557e74cfb78378e5ac5efa5e12227b760e",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000014",
+      "deployedName": "logic_hardening_cycle21",
+      "repositoryName": "playoff_schedule_trade_deadline",
+      "repositorySha256": "15bb76c5d0d47ac3c595731ef440676725dab022850dbd579cdb8b5aa5cb0679",
+      "statementCount": 6,
+      "statementsSha256": "47af39d11797221cd74c0a66891dfc31102d374ddb96b0ddcf3700b8d69b7853",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000016",
+      "deployedName": "security_loop_edge_invites",
+      "repositoryName": "invite_code_security",
+      "repositorySha256": "435939367eabbfee75bd1be5e2fe9aaf6ae71775d5d01bcf6fed1e2ff4276647",
+      "statementCount": 15,
+      "statementsSha256": "851e86072b01916679357fa168533d0bb3da51f0ad35fcb6ee9f70a04b7f92e9",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000017",
+      "deployedName": "security_loop_rpc_array_caps",
+      "repositoryName": "rpc_json_array_caps",
+      "repositorySha256": "82ae8384374b4a3f5726cad6d3a8b1b62f62278b7308d6106ba8a50e2485c407",
+      "statementCount": 17,
+      "statementsSha256": "a25cbda0b8f0e8b83d0938992fdc09abb4a26621a7fd1bd9ea995574259c8dc2",
+      "difference": "temporary-helper-identifiers"
+    },
+    {
+      "version": "20260627000018",
+      "deployedName": "security_loop_waiver_privacy",
+      "repositoryName": "waiver_claim_privacy",
+      "repositorySha256": "33d9ae3c439d0b0c1d66e570ba54bcd3471ccb6647e5a66568aa0a89ad268dd7",
+      "statementCount": 6,
+      "statementsSha256": "2bf188c7c59af752638e9b6407415abc6d631b2324eb38808f1087191852ddad",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000019",
+      "deployedName": "security_loop_profile_join_caps",
+      "repositoryName": "profile_privacy_join_caps",
+      "repositorySha256": "46bf63b112eca5e6e56e1e7d16e691290a7f89df8d9ee6048768e2e0f1625c5c",
+      "statementCount": 14,
+      "statementsSha256": "f3652463f167d24d267859d0ca92d56bb811387e78e54fe9e4029165daa3e6b9",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000020",
+      "deployedName": "security_loop_trade_privacy",
+      "repositoryName": "trade_privacy",
+      "repositorySha256": "c8eb53d71b122faaf950654847b78f667916204d636ba0e285857925e3a3ed9b",
+      "statementCount": 6,
+      "statementsSha256": "2da729421d37cb7ff88be0de44099de2e1dbdb63b1c0e33b63fee30b81326e3c",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000021",
+      "deployedName": "security_loop_oracle_closure",
+      "repositoryName": "oracle_closure_free_agent_privacy",
+      "repositorySha256": "0cc9de2a97d91a4f24af3092ce3a2c7eb48897022305a8ed4836d8e488501f80",
+      "statementCount": 10,
+      "statementsSha256": "e2bed4e3a614bfcd2ccacf65fc79b308ca2423fb7b4b4b6d4fb7cbf57c7623bd",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000022",
+      "deployedName": "security_loop_cron_waiver_privacy",
+      "repositoryName": "cron_waiver_privacy",
+      "repositorySha256": "9df0d186735076b18b30bce2330ab39c4848ad7cdcd58dae18c60342d57566a0",
+      "statementCount": 7,
+      "statementsSha256": "bdb3c14dbe98598a0d73c8d96e7cb796e128ab982ee12ab82a04f16a235db63c",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000023",
+      "deployedName": "security_loop_auth_drop_guard",
+      "repositoryName": "drop_player_auth_guard",
+      "repositorySha256": "d84c2c907f11dad8908b6a06dc58e18e67e4b9ebf81b8cfa75bf7b153319dfcd",
+      "statementCount": 5,
+      "statementsSha256": "a155cccbcfa77a536e2b032b38814fd625cf964ecfa737a82b97d1b9b58e7251",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000024",
+      "deployedName": "security_loop_internal_edge_token",
+      "repositoryName": "internal_edge_token_rookie_commissioner",
+      "repositorySha256": "4797de54894e4406a661008dd3885c8c19f331b39a0ff07d022eaf860b276566",
+      "statementCount": 11,
+      "statementsSha256": "f3f1b7787d3ba89ddcc4a0e17334c443f1f853d4b70b08a29b583eb99bc1cca1",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000025",
+      "deployedName": "quality_loop_neutral_rpc_helpers",
+      "repositoryName": "neutral_rpc_helpers",
+      "repositorySha256": "619cb0c433d9d927daf697d51031ddef42cf27ccf0cf7fc86970f4e951eb1f25",
+      "statementCount": 13,
+      "statementsSha256": "a9e98b59538f314463f88f2e86bc39be9fcb05e0e6abda6ded94a790af3a2256",
+      "difference": "temporary-helper-identifiers"
+    },
+    {
+      "version": "20260627000026",
+      "deployedName": "quality_loop_compound_roster_actions",
+      "repositoryName": "compound_roster_actions",
+      "repositorySha256": "c9250df584b69652a5af660794af4ab83a1dd564abf40892aee2bc6bb04ce286",
+      "statementCount": 6,
+      "statementsSha256": "5f409e5d000e63314d6d165e64373517f0a4dce5c28ed7aa027f679b8d9aee37",
+      "difference": "label-only"
+    },
+    {
+      "version": "20260627000027",
+      "deployedName": "quality_loop_atomic_score_finalization",
+      "repositoryName": "atomic_score_finalization",
+      "repositorySha256": "93faf7e891eb6b33d7b5ef1e759be87cd61b89cf273b45c555962e58e1999709",
+      "statementCount": 3,
+      "statementsSha256": "18ecfb5758de04cbd9b55b87eac0caa89b649deff3f09fb639d1fabcf510811a",
+      "difference": "label-only"
+    }
+  ],
+  "convergence": [
+    {
+      "name": "assert_current_league_season_for_lineup",
+      "identityArguments": "p_league_id uuid, p_league_season_id uuid",
+      "bodySha256": "d448f33311ad9b8db27c8d8429480cd58c5a0200326c068089464da3ea1d9f4a",
+      "securityDefiner": true,
+      "config": [
+        "search_path=public"
+      ],
+      "language": "plpgsql",
+      "publicExecute": false,
+      "anonExecute": false,
+      "authenticatedExecute": false,
+      "serviceRoleExecute": false
+    },
+    {
+      "name": "auto_set_lineup_atomic",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "4d6ffc98a20f7807bfd5beda212643c7b40ed0bc290da40173c577064045ba07",
+      "securityDefiner": true,
+      "config": [
+        "search_path=public"
+      ],
+      "language": "plpgsql",
+      "publicExecute": false,
+      "anonExecute": false,
+      "authenticatedExecute": true,
+      "serviceRoleExecute": true
+    },
+    {
+      "name": "auto_set_lineup_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "35b70ffd39836fddc5e0be77273a6e5fe4a6c34be14efeecb04a49b466a0d80c",
+      "securityDefiner": true,
+      "config": [
+        "search_path=public"
+      ],
+      "language": "plpgsql",
+      "publicExecute": false,
+      "anonExecute": false,
+      "authenticatedExecute": false,
+      "serviceRoleExecute": false
+    },
+    {
+      "name": "set_player_slot_moves_atomic",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_week_number integer, p_moves jsonb",
+      "bodySha256": "0699eae0a97f69411c96ea24193f5d9d9fb84a0474fbb502768ed410854d5023",
+      "securityDefiner": true,
+      "config": [
+        "search_path=public"
+      ],
+      "language": "plpgsql",
+      "publicExecute": false,
+      "anonExecute": false,
+      "authenticatedExecute": true,
+      "serviceRoleExecute": true
+    },
+    {
+      "name": "set_player_slot_moves_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_week_number integer, p_moves jsonb",
+      "bodySha256": "2b9cee7c9fe2b4bccd3d543b01c2a097c2c017cb59d878a3cc9bd4bac70a9025",
+      "securityDefiner": true,
+      "config": [
+        "search_path=public"
+      ],
+      "language": "plpgsql",
+      "publicExecute": false,
+      "anonExecute": false,
+      "authenticatedExecute": false,
+      "serviceRoleExecute": false
+    },
+    {
+      "name": "update_lineup_slots_atomic",
+      "identityArguments": "p_league_id uuid, p_slots jsonb",
+      "bodySha256": "7a1f1477cb81f07b721577124fc37ab6adbc3695cb4ad0f70255da41885ee310",
+      "securityDefiner": true,
+      "config": [
+        "search_path=public"
+      ],
+      "language": "plpgsql",
+      "publicExecute": false,
+      "anonExecute": false,
+      "authenticatedExecute": true,
+      "serviceRoleExecute": true
+    },
+    {
+      "name": "update_lineup_slots_atomic_unchecked",
+      "identityArguments": "p_league_id uuid, p_slots jsonb",
+      "bodySha256": "fe17dba53b4e253a67ca67bcee5b3b0d579651bf8f995e533579454f09a71432",
+      "securityDefiner": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "language": "plpgsql",
+      "publicExecute": false,
+      "anonExecute": false,
+      "authenticatedExecute": false,
+      "serviceRoleExecute": false
+    }
+  ],
+  "approvedMigrations": [
+    {
+      "version": "20260912000001",
+      "name": "retention_and_history_indexes",
+      "sha256": "daf5727315384aed3911052f6d80df0e41ca7ae696c873f243b8351418a837cb"
+    },
+    {
+      "version": "20260912000002",
+      "name": "edit_waiver_claim_gates",
+      "sha256": "6a19baf824fe80a315611d94692ec651aa22cb07e789f7b997645d092825600d"
+    },
+    {
+      "version": "20260912000003",
+      "name": "scheduling_catchup_and_durable_invocations",
+      "sha256": "db1a8084a109c516c3cd1b05c06fdfa6b556c13c8a8e63cb8ae51738eb346b8a"
+    },
+    {
+      "version": "20260921000001",
+      "name": "align_waiver_edit_processing_window",
+      "sha256": "c79b790244f13c7aab757955dafa6a9093512318840229d3f4e599523f08ea2c"
+    },
+    {
+      "version": "20260921000002",
+      "name": "internal_scheduling_rls_and_rule_copy",
+      "sha256": "6f0072fd5d666300dfbdb2efe47c5c39287894c998e5a8678268f8305b74d69e"
+    }
+  ]
+}

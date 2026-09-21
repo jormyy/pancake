@@ -122,8 +122,11 @@ describe('release E2E contracts', () => {
     expect(workflow).toContain('E2E_MIDLIFE_EXPECTED_VERSIONS')
     expect(workflow).toContain('Verify cross-version runtime compatibility against upgraded schema')
     expect(workflow).toContain('release-runtime-compatibility.mjs')
-    expect(workflow).toContain('select version::text, name::text')
+    expect(workflow).toContain('-f tests/e2e/release-schema-history.sql')
+    expect(workflow).toContain('test "$(cat supabase/.temp/project-ref)" = "$SUPABASE_PROJECT_REF"')
+    expect(workflow).toContain('supabase db query --linked --agent=no -o json')
     expect(workflow).toContain('--history-file /tmp/deployed-schema-history.json')
+    expect(workflow).toContain('--project-ref "$SUPABASE_PROJECT_REF" "${migration_names[@]}"')
   })
 
   it('runs the full measured smoke sweep and enforces its workflow budgets in PR CI', async () => {
