@@ -15,8 +15,11 @@ BEGIN
 
   -- Service role / internal SECURITY DEFINER RPCs run with auth.uid() = NULL.
   -- All legitimate status transitions (accept / complete / veto / reject /
-  -- withdraw) flow through service-role paths, so we trust them.
-  IF v_caller IS NULL THEN
+  -- withdraw) flow through service-role paths, so we trust them. Server-owned
+  -- lifecycle code that runs inside an authenticated transaction (the roster
+  -- lifecycle trigger expiring an offer whose asset just left a roster) marks
+  -- itself through private.begin_trade_lifecycle_write().
+  IF v_caller IS NULL OR private.trade_lifecycle_write_active() THEN
     RETURN NEW;
   END IF;
 

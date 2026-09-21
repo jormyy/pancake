@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     getTradesForScreen: vi.fn(async () => ({ trades: [], nextCursor: { id: 'c' }, hasMore: true })),
 }))
 vi.mock('@/lib/trades', () => ({
+    withTradeBlockStats: (items: unknown[]) => items,
     getTradeBlockItems: mocks.getTradeBlockItems,
     addTradeBlockItem: mocks.addTradeBlockItem,
     removeTradeBlockItem: mocks.removeTradeBlockItem,
@@ -20,7 +21,6 @@ vi.mock('@/lib/trades', () => ({
 vi.mock('@/lib/roster', () => ({ getRoster: mocks.getRoster }))
 vi.mock('@/lib/roster-stats', () => ({ EMPTY_AVG_MAP: new Map(), EMPTY_STATS_MAP: new Map(), getRosterStatsMaps: vi.fn(async () => ({ avgMap: new Map(), avgStatsMap: new Map() })) }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
-vi.mock('@/lib/alert', () => ({ getErrorMessage: (e: unknown) => (e instanceof Error ? e.message : String(e)) }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve() }) }

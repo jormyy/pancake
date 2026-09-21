@@ -86,8 +86,7 @@ BEGIN
    WHERE league_id = v_claim.league_id
      AND league_season_id = v_claim.league_season_id
      AND player_id = v_claim.player_id
-     AND cleared_at IS NULL
-     AND clears_at > now();
+     AND cleared_at IS NULL;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'This player is no longer on waivers.'

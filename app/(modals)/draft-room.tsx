@@ -186,7 +186,6 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgSubtle },
-    flex1: { flex: 1 },
     keyboard: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { padding: spacing.xl, paddingBottom: spacing['3xl'], gap: spacing.lg, width: '100%', maxWidth: 760, alignSelf: 'center' },

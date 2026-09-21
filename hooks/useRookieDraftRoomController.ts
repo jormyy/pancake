@@ -14,7 +14,7 @@ import {
     type RookieProspect,
 } from '@/lib/rookieDraft'
 import { dropPlayer, getRoster, toggleTaxi, type RosterPlayer } from '@/lib/roster'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { reportRealtimeCleanup } from '@/lib/realtime'
 

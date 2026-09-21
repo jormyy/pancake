@@ -18,10 +18,10 @@ DECLARE
   v_to_member uuid;
   v_member_lock uuid;
   v_lock_player_id uuid;
-  v_clear_player_id uuid;
   v_rows int;
   v_balance int;
   v_item_faab_amount int;
+  v_previous_flag text;
 BEGIN
   SELECT *
     INTO v_trade
@@ -150,20 +150,6 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOR v_clear_player_id IN
-    SELECT DISTINCT player_id
-      FROM trade_items
-     WHERE trade_id = p_trade_id
-       AND player_id IS NOT NULL
-     ORDER BY player_id
-  LOOP
-    PERFORM private.clear_future_unlocked_lineups(
-      v_trade.league_id,
-      v_trade.league_season_id,
-      v_clear_player_id
-    );
-  END LOOP;
-
   FOR v_from_member, v_item_faab_amount IN
     SELECT
       item.from_member_id,
@@ -188,6 +174,10 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- A reserved pick may only change hands through this completion; the
+  -- draft_picks guard and the trade status guard honour this mark.
+  v_previous_flag := private.begin_trade_lifecycle_write();
+
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
   LOOP
@@ -210,12 +200,6 @@ BEGIN
         RAISE EXCEPTION 'Failed to move player asset atomically'
           USING ERRCODE = 'PT001';
       END IF;
-
-      PERFORM private.clear_trade_block_listing_for_asset(
-        v_trade.league_id,
-        v_from_member,
-        v_item.player_id
-      );
 
       INSERT INTO roster_transactions (
         league_id,
@@ -241,13 +225,6 @@ BEGIN
         RAISE EXCEPTION 'Failed to move draft-pick asset atomically'
           USING ERRCODE = 'PT001';
       END IF;
-
-      PERFORM private.clear_trade_block_listing_for_asset(
-        v_trade.league_id,
-        v_from_member,
-        NULL,
-        v_item.pick_id
-      );
     ELSE
       v_item_faab_amount := COALESCE(v_item.faab_amount, 0);
       IF v_item_faab_amount <= 0 THEN
@@ -284,6 +261,8 @@ BEGIN
   IF v_rows <> 1 THEN
     RAISE EXCEPTION 'Failed to complete trade atomically';
   END IF;
+
+  PERFORM private.end_trade_lifecycle_write(v_previous_flag);
 
   PERFORM private.log_league_activity(
     v_trade.league_id,

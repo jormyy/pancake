@@ -8,6 +8,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import { blockedActionProps } from '@/lib/a11y'
 import {
     formatProjectionGame,
     numberOrDash,
@@ -18,12 +19,13 @@ function PlayerSearchItemImpl({
     currentMemberId,
     ownedMap,
     waiverIds,
-    adding,
+    isAdding,
     gamesLeft,
     showStats = false,
     showCompactStats = true,
     statMode = 'season',
     animate = true,
+    addBlockedReason = null,
     onAdd,
     onPress,
 }: {
@@ -31,12 +33,14 @@ function PlayerSearchItemImpl({
     currentMemberId: string | undefined
     ownedMap: Map<string, OwnedEntry>
     waiverIds: Set<string>
-    adding: string | null
+    isAdding: boolean
     gamesLeft: Map<string, number>
     showStats?: boolean
     showCompactStats?: boolean
     statMode?: 'season' | 'projection'
     animate?: boolean
+    /** Why a free-agent add is unavailable right now (weekly add limit). The button stays pressable so the tap explains it; claims are gated by the claim modal. */
+    addBlockedReason?: string | null
     onAdd: (player: PlayerRow) => void
     onPress: (player: PlayerRow) => void
 }) {
@@ -46,7 +50,7 @@ function PlayerSearchItemImpl({
     const isWaiver = !owned && waiverIds.has(item.id)
     const isFA = !owned && !isWaiver
     const canAdd = currentMemberId && (isFA || isWaiver)
-    const isAdding = adding === item.id
+    const blockedReason = isWaiver ? null : addBlockedReason
     const [headshotError, setHeadshotError] = useState(false)
     const headshotUri = playerHeadshotUrl(item.nba_id)
     const projectionGame = formatProjectionGame({
@@ -96,16 +100,16 @@ function PlayerSearchItemImpl({
             <View style={styles.addCol}>
                 {canAdd ? (
                     <MotionPressable
-                        style={styles.addBtn}
+                        style={[styles.addBtn, blockedReason ? styles.addBtnBlocked : null]}
                         onPress={() => onAdd(item)}
                         disabled={isAdding}
                         accessibilityRole="button"
                         accessibilityLabel={`Add ${item.display_name}`}
-                        accessibilityState={{ disabled: isAdding }}
+                        {...blockedActionProps(blockedReason, isAdding)}
                         hitSlop={8}
                         pressedScale={0.88}
                     >
-                        <Text style={styles.addBtnText}>+</Text>
+                        <Text style={[styles.addBtnText, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
                     </MotionPressable>
                 ) : null}
             </View>
@@ -287,6 +291,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
+    addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
+    addBtnTextBlocked: { color: colors.textPlaceholder },
     playerCard: {
         flex: 1,
         flexDirection: 'row',

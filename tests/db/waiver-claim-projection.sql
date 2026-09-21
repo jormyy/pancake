@@ -1,7 +1,5 @@
--- Records what the claim path does today (probes P5/P6 2026-09-12): a claim
--- with no drop on a full roster, and a claim whose drop player is dropped
--- before processing, are both accepted at create time and fail at processing.
--- This pins current behaviour; whether to refuse earlier is an open rule.
+-- Claims may share an order and omit a drop on a full roster.
+-- Losing a selected drop clears that selection; processing still enforces capacity.
 BEGIN;
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000071001', 'authenticated', 'authenticated', 'claim-projection@example.test', 'x', now(), '{}'::jsonb, '{}'::jsonb, now(), now()) ON CONFLICT (id) DO NOTHING;
@@ -41,8 +39,8 @@ SELECT public.drop_player_atomic('00000000-0000-0000-0000-000000071501');
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.roster_players WHERE id = '00000000-0000-0000-0000-000000071501') THEN RAISE EXCEPTION 'drop did not remove the player'; END IF;
-  IF (SELECT count(*) FROM public.waiver_claims WHERE drop_player_id = '00000000-0000-0000-0000-000000071401' AND status = 'pending') <> 1 THEN
-    RAISE EXCEPTION 'dropping the drop player did not leave the claim pending (no guard exists)';
+  IF (SELECT count(*) FROM public.waiver_claims WHERE player_id = '00000000-0000-0000-0000-000000071403' AND drop_player_id IS NULL AND status = 'pending') <> 1 THEN
+    RAISE EXCEPTION 'dropping the selected player must clear the selection and keep the claim pending';
   END IF;
 END $$;
 
@@ -57,14 +55,15 @@ BEGIN
   SELECT count(*) INTO v_rows FROM projection_results;
   FOR v IN SELECT * FROM projection_results LOOP RAISE NOTICE 'claim % -> % (%)', v.player_id, v.status, v.failure_reason; END LOOP;
   IF v_rows <> 2 THEN RAISE EXCEPTION 'expected both claims to be processed, got % rows', v_rows; END IF;
-  -- waiver_claim_status has no 'failed' value; the processor records failed_roster.
-  IF NOT EXISTS (SELECT 1 FROM projection_results WHERE player_id = '00000000-0000-0000-0000-000000071403' AND status = 'failed_roster' AND failure_reason LIKE 'Drop player is no longer%') THEN
-    RAISE EXCEPTION 'claim B did not fail with the drop-player-gone reason';
+  IF (SELECT count(*) FROM projection_results WHERE status = 'succeeded') <> 1
+     OR (SELECT count(*) FROM projection_results WHERE status = 'failed_roster') <> 1 THEN
+    RAISE EXCEPTION 'the single free slot must allow exactly one claim and refuse the other';
   END IF;
-  -- Claim A: the roster now has room (the drop freed the only slot), so it is
-  -- processed on its merits; either outcome is recorded, never an exception.
-  IF NOT EXISTS (SELECT 1 FROM projection_results WHERE player_id = '00000000-0000-0000-0000-000000071402') THEN
-    RAISE EXCEPTION 'claim A was not processed';
+  IF EXISTS (SELECT 1 FROM projection_results WHERE failure_reason LIKE 'Drop player is no longer%') THEN
+    RAISE EXCEPTION 'a cleared drop selection must not fail as a stale drop';
+  END IF;
+  IF (SELECT count(*) FROM public.roster_players WHERE member_id = '00000000-0000-0000-0000-000000071201') <> 1 THEN
+    RAISE EXCEPTION 'processing must fill, but never exceed, roster capacity';
   END IF;
 END $$;
 ROLLBACK;

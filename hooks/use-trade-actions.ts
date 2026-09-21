@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { acceptTrade, rejectTrade, vetoTrade, withdrawTrade, type Trade } from '@/lib/trades'
-import { confirmAction, getErrorMessage, showAlert } from '@/lib/alert'
+import { confirmAction, showAlert } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 export function useTradeActions({
     memberId,

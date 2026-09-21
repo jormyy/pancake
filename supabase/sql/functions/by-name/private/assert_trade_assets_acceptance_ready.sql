@@ -43,23 +43,10 @@ BEGIN
     RAISE EXCEPTION 'Player asset is no longer owned by the expected active roster side';
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trade_items AS accepted_item
-        ON accepted_item.player_id = item.player_id
-       AND accepted_item.from_member_id = item.from_member_id
-      JOIN trades AS accepted_trade
-        ON accepted_trade.id = accepted_item.trade_id
-       AND accepted_trade.status = 'accepted'::trade_status
-       AND accepted_trade.league_id = p_league_id
-       AND accepted_trade.league_season_id = p_league_season_id
-     WHERE item.trade_id = p_trade_id
-       AND item.player_id IS NOT NULL
-       AND accepted_trade.id <> p_trade_id
-  ) THEN
-    RAISE EXCEPTION 'Player asset is reserved for another accepted trade';
-  END IF;
+  PERFORM private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, item.player_id, NULL, p_trade_id)
+     FROM trade_items AS item
+    WHERE item.trade_id = p_trade_id
+      AND item.player_id IS NOT NULL;
 
   PERFORM 1
     FROM trade_items AS item
@@ -90,22 +77,9 @@ BEGIN
     RAISE EXCEPTION 'Draft-pick asset is no longer owned by the expected trade side';
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trade_items AS accepted_item
-        ON accepted_item.pick_id = item.pick_id
-       AND accepted_item.from_member_id = item.from_member_id
-      JOIN trades AS accepted_trade
-        ON accepted_trade.id = accepted_item.trade_id
-       AND accepted_trade.status = 'accepted'::trade_status
-       AND accepted_trade.league_id = p_league_id
-       AND accepted_trade.league_season_id = p_league_season_id
-     WHERE item.trade_id = p_trade_id
-       AND item.pick_id IS NOT NULL
-       AND accepted_trade.id <> p_trade_id
-  ) THEN
-    RAISE EXCEPTION 'Draft-pick asset is reserved for another accepted trade';
-  END IF;
+  PERFORM private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, NULL, item.pick_id, p_trade_id)
+     FROM trade_items AS item
+    WHERE item.trade_id = p_trade_id
+      AND item.pick_id IS NOT NULL;
 END;
 $$;

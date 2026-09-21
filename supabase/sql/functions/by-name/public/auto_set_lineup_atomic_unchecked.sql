@@ -251,17 +251,11 @@ BEGIN
     INTO v_locked_player
     FROM weekly_lineups wl
     JOIN players p ON p.id = wl.player_id
-    JOIN nba_games g
-      ON g.game_date = wl.game_date
-     AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
    WHERE wl.member_id = p_member_id
      AND wl.league_id = p_league_id
      AND wl.league_season_id = p_league_season_id
      AND wl.game_date = p_game_date
-     AND (
-       g.status IN ('InProgress', 'Final')
-       OR (g.game_time IS NOT NULL AND g.game_time <= now())
-     )
+     AND private.lineup_game_started(wl.player_id, wl.game_date)
      AND NOT EXISTS (
        SELECT 1
          FROM assignments a
@@ -285,9 +279,6 @@ BEGIN
     INTO v_locked_player
     FROM assignments a
     JOIN players p ON p.id = a.player_id
-    JOIN nba_games g
-      ON g.game_date = p_game_date
-     AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
     LEFT JOIN weekly_lineups wl
       ON wl.member_id = p_member_id
      AND wl.league_id = p_league_id
@@ -297,10 +288,7 @@ BEGIN
      AND wl.slot_type = a.slot_type
    WHERE a.slot_type <> 'BE'::roster_slot_type
      AND wl.id IS NULL
-     AND (
-       g.status IN ('InProgress', 'Final')
-       OR (g.game_time IS NOT NULL AND g.game_time <= now())
-     )
+     AND private.lineup_game_started(a.player_id, p_game_date)
    LIMIT 1;
 
   IF v_locked_player IS NOT NULL THEN

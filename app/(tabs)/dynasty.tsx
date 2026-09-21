@@ -505,7 +505,6 @@ const styles = StyleSheet.create({
         gap: spacing.lg,
     },
     contentWrapNarrow: { paddingHorizontal: spacing.md },
-    flex1: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -688,7 +687,6 @@ const styles = StyleSheet.create({
     newsPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     newsPlayer: { flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
     separator: { height: 1, backgroundColor: colors.borderLight },
-    loadMoreSpinner: { paddingVertical: spacing.xl },
     emptyContainer: { flexGrow: 1, justifyContent: 'center' },
     errorState: {
         flex: 1,

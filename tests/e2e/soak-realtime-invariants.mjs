@@ -116,7 +116,7 @@ const insertRealtimeAuctionTarget = async (supabase, leagueId, season) => {
       league_season_id: currentSeason.id,
       draft_type: 'auction',
       status: 'in_progress',
-      // Budget must cover the $1-per-remaining-active-slot reserve rule.
+      // Bids are capped only by the remaining budget.
       budget_per_team: 30,
       started_at: now,
       current_nomination_order: 1,

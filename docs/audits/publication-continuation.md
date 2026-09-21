@@ -26,9 +26,9 @@ Deferred security/RLS work and ambiguous league policy remain unchanged.
 
 Remote main advances to `abc4096c873ca6d57066357929ff92c3529d8fc6`.
 The common ancestor is `2909a0ad669b657390f22c9edc4f3d8d130793d3`.
-Two remote commits change league behavior and security; integration remains required.
+Two remote commits change league behavior and security; the integration below includes both.
 No PR exists for this branch at the initial read-only inspection.
-Fresh checks on this branch do not certify the eventual merge with main.
+The first verification section records pre-integration checks; combined-tree checks follow below.
 
 ## Fresh implementation
 
@@ -46,7 +46,7 @@ Upstream fixes are documented by [xmldom](https://github.com/xmldom/xmldom/secur
 [js-yaml](https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh), and
 [smol-toml](https://github.com/squirrelchat/smol-toml/security/advisories/GHSA-7w5x-hrqm-74c2).
 
-## Verification scope
+## Pre-integration verification scope
 
 Validation uses Node 22.23.2 and Deno 2.7.14.
 `npm run check:quality`, Edge checks, and the unchanged audit gate pass.
@@ -86,5 +86,40 @@ Existing ignored local credentials remain untouched and excluded from the runtim
 The merge preview identifies conflicts in five files:
 `app/(tabs)/players.tsx`, `hooks/use-quick-add.ts`, `package.json`,
 `supabase/sql/function-catalog.json`, and `tests/hooks/quick-add-owner-identity.test.ts`.
-No merge is started. Main integration needs verification before publication.
-No cleanup helper, independent reviewer, push, PR, or merge runs in this continuation.
+The later user-authorized integration resolves these conflicts without history rewriting.
+No cleanup helper, independent reviewer, push, PR, or deployment runs here.
+
+
+## Main integration
+
+The integration preserves main's roster lifecycle, coded pickup errors, full auction budget,
+and anon transaction-state revoke alongside the branch hardening.
+The quick-add hook and its owner-identity test retain main's current API and claim-modal flow.
+The database test command includes all 28 suites from both parents.
+The function catalog is regenerated from the combined local schema.
+
+An additive migration aligns claim edits with main's claim-until-processed rule.
+Expired uncleared entries remain editable; processed entries reject edits.
+Ownership, league, season, add-limit, self-drop, and balance guards remain.
+All published migrations remain byte-for-byte unchanged.
+The local database applies exactly 324 repository migrations.
+
+Tests follow main's lifecycle rule: losing a selected drop clears that selection.
+Processing still fills only one available roster slot and rejects the extra claim.
+Disabling the lifecycle trigger makes that regression test fail.
+The roster-full contract now tests SQLSTATE handling with changed message wording.
+Restoring message matching makes both behavior cases fail.
+No tests are pruned or budgets relaxed.
+
+Combined checks pass: 750 app tests, 112 core tests, 124 Edge tests, quality, and audit.
+All 28 database suites, generated types, and the function catalog pass.
+The production build passes on Node 22.23.2.
+The local season harness passes two rollovers across four league configurations.
+Its disabled-boundary control fails all four configurations.
+Fresh raw results and exact commands live in the external `integration/` evidence directory.
+
+All 23 real-browser scenarios pass on the combined source tree.
+Data latency and strict report/workflow budgets pass unchanged.
+PWA launch reaches the app offline and records FCP at 20 ms against the 400 ms limit.
+The full run precedes the merge commit; source hashes bind it to the combined product tree.
+The external handoff distinguishes this precommit stamp from the postcommit PWA verification.

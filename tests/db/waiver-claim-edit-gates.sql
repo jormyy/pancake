@@ -50,18 +50,23 @@ EXCEPTION WHEN SQLSTATE '22023' THEN
   RAISE NOTICE 'ok: self-drop refused';
 END $$;
 
--- 3. Once the waiver window closes, the edit is refused like a new claim would be.
+-- 3. An expired but unprocessed entry still accepts edits, like a new claim.
 UPDATE public.waiver_wire_log SET clears_at = now() - interval '1 minute'
+ WHERE player_id = '00000000-0000-0000-0000-000000060401';
+SELECT public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', '00000000-0000-0000-0000-000000060402', 0, 3);
+
+-- Processing the entry closes the edit window.
+UPDATE public.waiver_wire_log SET cleared_at = now()
  WHERE player_id = '00000000-0000-0000-0000-000000060401';
 DO $$
 BEGIN
-  PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 3);
-  RAISE EXCEPTION 'expected closed-window edit to be refused';
+  PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 4);
+  RAISE EXCEPTION 'expected processed-entry edit to be refused';
 EXCEPTION WHEN SQLSTATE 'P0001' THEN
   IF SQLERRM NOT LIKE 'This player is no longer on waivers%' THEN RAISE; END IF;
-  RAISE NOTICE 'ok: closed window refused';
+  RAISE NOTICE 'ok: processed entry refused';
 END $$;
-UPDATE public.waiver_wire_log SET clears_at = now() + interval '1 day'
+UPDATE public.waiver_wire_log SET cleared_at = NULL
  WHERE player_id = '00000000-0000-0000-0000-000000060401';
 
 -- 4. A league that is no longer in an eligible state refuses edits.
@@ -79,22 +84,23 @@ UPDATE public.leagues SET status = 'active' WHERE id = '00000000-0000-0000-0000-
 -- 5. The weekly add limit gate applies on edit as on create.
 -- leagues_weekly_add_limit_valid allows NULL or >= 1, so exhaust a limit of 1 with a real consumed add.
 UPDATE public.leagues SET weekly_add_limit = 1 WHERE id = '00000000-0000-0000-0000-000000060101';
+SELECT private.assert_weekly_add_available('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201');
 SELECT private.consume_weekly_add('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201');
 DO $$
 BEGIN
   PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 5);
   RAISE EXCEPTION 'expected exhausted add limit edit to be refused';
-EXCEPTION WHEN SQLSTATE 'P0001' THEN
+EXCEPTION WHEN SQLSTATE 'PA001' THEN
   IF SQLERRM NOT LIKE 'Weekly add limit reached%' THEN RAISE; END IF;
   RAISE NOTICE 'ok: add limit refused';
 END $$;
 
--- The successful edit (1) is the only one that landed.
+-- The unprocessed-entry edit (3) is the last edit that landed.
 DO $$
 DECLARE v_order int; v_drop uuid;
 BEGIN
   SELECT claim_order, drop_player_id INTO v_order, v_drop FROM public.waiver_claims WHERE id = current_setting('test.claim_id')::uuid;
-  IF v_order <> 2 OR v_drop <> '00000000-0000-0000-0000-000000060402' THEN
+  IF v_order <> 3 OR v_drop <> '00000000-0000-0000-0000-000000060402' THEN
     RAISE EXCEPTION 'unexpected claim state after refused edits: order=% drop=%', v_order, v_drop;
   END IF;
 END $$;

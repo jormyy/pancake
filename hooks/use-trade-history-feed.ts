@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getTradeHistoryForScreen, type Trade, type TradePageCursor } from '@/lib/trades'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 
 const PAGE_SIZE = 40
 type HistoryResource = { key: string | null; trades: Trade[] }

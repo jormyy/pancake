@@ -34,19 +34,6 @@ BEGIN
       USING ERRCODE = 'PT001';
   END IF;
 
-  PERFORM private.clear_trade_block_listing_for_asset(
-    p_league_id,
-    p_member_id,
-    p_player_id
-  );
-
-  PERFORM private.clear_future_unlocked_lineups(
-    p_league_id,
-    p_league_season_id,
-    p_player_id,
-    p_member_id
-  );
-
   INSERT INTO waiver_wire_log (
     league_id,
     league_season_id,

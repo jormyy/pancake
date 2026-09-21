@@ -504,22 +504,36 @@ const assertStaleAndUsedPickAcceptanceReject = async (fixture) => {
     notes: 'DB stale and used pick acceptance assertion',
   })
 
+  // A pick that is used or leaves its owner expires every pending offer that
+  // includes it; the reason stays on the trade and acceptance no longer applies.
+  const expectOfferExpired = async (expiredTradeId, reasonPart) => {
+    await expectRpcError(fixture.admin, 'accept_trade_atomic', {
+      p_trade_id: expiredTradeId,
+      p_accepting_member_id: fixture.recipient.id,
+    }, 'no longer pending')
+    const trade = await fetchTrade(fixture, expiredTradeId)
+    assert.equal(trade.status, 'expired')
+    assert.match(trade.completion_failure_reason ?? '', new RegExp(reasonPart, 'i'))
+    const { data: activity, error: activityError } = await fixture.admin.from('league_activity')
+      .select('event_type').eq('related_trade_id', expiredTradeId).eq('event_type', 'trade_expired')
+    if (activityError) throw new Error(`expired offer activity lookup: ${activityError.message}`)
+    assert.equal(activity.length, 1, 'lost pick asset did not record one trade_expired activity row')
+  }
+
   const { error: usedError } = await fixture.admin.from('draft_picks').update({ is_used: true }).eq('id', pick.id)
   if (usedError) throw new Error(`used pick setup: ${usedError.message}`)
-  await expectRpcError(fixture.admin, 'accept_trade_atomic', {
-    p_trade_id: tradeId,
-    p_accepting_member_id: fixture.recipient.id,
-  }, 'Draft-pick asset is no longer owned')
-  assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
+  await expectOfferExpired(tradeId, 'has been used in the draft')
 
+  const { error: unusedError } = await fixture.admin.from('draft_picks').update({ is_used: false }).eq('id', pick.id)
+  if (unusedError) throw new Error(`used pick restore: ${unusedError.message}`)
+  const staleTradeId = await proposeStandardAssetTrade(fixture, {
+    pickId: pick.id,
+    notes: 'DB stale pick acceptance assertion',
+  })
   const { error: staleError } = await fixture.admin.from('draft_picks')
-    .update({ is_used: false, current_owner_id: fixture.recipient.id }).eq('id', pick.id)
+    .update({ current_owner_id: fixture.recipient.id }).eq('id', pick.id)
   if (staleError) throw new Error(`stale pick setup: ${staleError.message}`)
-  await expectRpcError(fixture.admin, 'accept_trade_atomic', {
-    p_trade_id: tradeId,
-    p_accepting_member_id: fixture.recipient.id,
-  }, 'Draft-pick asset is no longer owned')
-  assert.equal((await fetchTrade(fixture, tradeId)).status, 'pending')
+  await expectOfferExpired(staleTradeId, 'is no longer owned by')
 
   const { error: restoreError } = await fixture.admin.from('draft_picks')
     .update({ current_owner_id: fixture.proposer.id }).eq('id', pick.id)

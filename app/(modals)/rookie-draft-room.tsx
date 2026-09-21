@@ -595,7 +595,6 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
     },
     searchInput: { flex: 1, height: 44, fontSize: fontSize.lg, color: colors.textPrimary },
-    searchSpinner: { marginLeft: spacing.md },
 
     emptyProspects: { paddingVertical: 40, alignItems: 'center' },
     pickErrorBanner: {
@@ -622,29 +621,6 @@ const styles = StyleSheet.create({
     resultTeam: { fontSize: fontSize['2sm'], color: colors.textMuted },
     pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
-    draftNumChip: {
-        width: 36,
-        height: 36,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    draftNumText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-
-    posChip: {
-        width: 36,
-        height: 36,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    posChipText: { color: colors.textWhite, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-
     posChipXs: {
         paddingHorizontal: 5,
         paddingVertical: 2,
@@ -652,16 +628,6 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
     },
     posChipXsText: { color: colors.textWhite, fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
-
-    posChipSm: {
-        width: 28,
-        height: 28,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    posChipSmText: { color: colors.textWhite, fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
 
     separator: { height: 1, backgroundColor: colors.separator },
 

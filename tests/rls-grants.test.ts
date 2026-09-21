@@ -227,15 +227,16 @@ describe('waiver intent oracle closure', () => {
         expect(rosterStatusBody).toContain(".gt('clears_at', now)")
     })
 
-    it('does not branch on hidden pending waiver claims inside client-callable free-agent adds', () => {
+    it('lets the uncleared-entry guard own the free-agent add rule without branching on hidden claims', () => {
         const addBody = latestFunctionDefinition('add_free_agent_atomic')
+        const guardBody = latestFunctionDefinition('prevent_uncleared_waiver_free_agent_add', 'private')
 
-        expect(addBody).toContain('IF v_waiver_log_id IS NOT NULL THEN')
-        expect(addBody).toContain('This player is on waivers - submit a waiver claim instead.')
-        expect(addBody).toContain('AND clears_at > now()')
+        expect(addBody).not.toContain('waiver_wire_log')
         expect(addBody).not.toContain('FROM waiver_claims')
-        expect(addBody).not.toContain("wc.status = 'pending'")
         expect(addBody).not.toContain('SET cleared_at = now()')
+        expect(guardBody).toContain('cleared_at IS NULL')
+        expect(guardBody).not.toContain('clears_at')
+        expect(guardBody).toContain("ERRCODE = 'PA002'")
     })
 })
 

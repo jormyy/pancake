@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { getRostersForMembers, type RosterPlayer } from '@/lib/roster'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
 import { getPicksForMembers, type Trade, type TradePickItem } from '@/lib/trades'
-import { getErrorMessage } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import {
     buildMultiTeamTradeItems,
     createMultiTeamTradeState,

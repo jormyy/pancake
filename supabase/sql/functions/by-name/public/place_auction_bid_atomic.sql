@@ -20,7 +20,6 @@ DECLARE
   v_budget draft_budgets%ROWTYPE;
   v_roster_size int;
   v_active_roster_count int;
-  v_required_reserve int := 0;
   v_next_bid int;
   v_can_outbid_exists boolean := true;
 BEGIN
@@ -143,12 +142,6 @@ BEGIN
     IF v_active_roster_count >= v_roster_size THEN
       RAISE EXCEPTION 'Your active roster is full (%)', v_roster_size;
     END IF;
-
-    v_required_reserve := GREATEST(v_roster_size - v_active_roster_count - 1, 0);
-    IF v_budget.remaining < p_amount + v_required_reserve THEN
-      RAISE EXCEPTION 'Bid must leave at least $1 for each remaining active roster slot.'
-        USING ERRCODE = 'P0001';
-    END IF;
   END IF;
 
   UPDATE nominations
@@ -160,6 +153,9 @@ BEGIN
   INSERT INTO bids (nomination_id, member_id, amount)
   VALUES (p_nomination_id, p_member_id, p_amount);
 
+  -- A manager may spend the whole remaining budget and fill open slots later
+  -- through waivers or free agency, so the only bar to outbidding is the next
+  -- dollar and an open active slot.
   IF NOT v_draft.is_mock THEN
     v_next_bid := p_amount + 1;
     SELECT EXISTS (
@@ -180,7 +176,7 @@ BEGIN
        WHERE budget.draft_id = p_draft_id
          AND budget.member_id <> p_member_id
          AND roster.active_count < v_roster_size
-         AND budget.remaining >= v_next_bid + GREATEST(v_roster_size - roster.active_count - 1, 0)
+         AND budget.remaining >= v_next_bid
     )
       INTO v_can_outbid_exists;
 

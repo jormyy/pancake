@@ -50,6 +50,13 @@ once the app is running; the launch budget covers getting there.
   ignored report when present.
 - `npm test` includes static guards for the performance manifest, player-search
   materialization, and first-paint read indexes.
+- `npm test` also freezes two unit-level budgets. `tests/screen-request-counts.test.ts`
+  counts every table read and RPC a screen load issues through a filter-aware fake
+  client (players tab support 4, trade block 5, trade offers 4, trade history 4,
+  player page 2 for a rostered player and 4 for a free agent); lowering a number is
+  an improvement, raising one needs a reason in the same change.
+  `tests/list-render-counts.test.ts` asserts that starting or finishing one add in a
+  20-row player list re-renders exactly one row.
 
 ## Latest Measurements
 

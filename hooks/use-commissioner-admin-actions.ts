@@ -5,7 +5,8 @@ import { advanceSeason } from '@/lib/rookieDraft'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { deleteLeague } from '@/lib/league'
-import { confirmAction, getErrorMessage, showAlert, showSuccess } from '@/lib/alert'
+import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import {
     ARCHIVE_LEAGUE_DESCRIPTION,
     commissionerLifecyclePolicy,

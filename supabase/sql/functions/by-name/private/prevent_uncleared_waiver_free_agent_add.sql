@@ -18,7 +18,7 @@ BEGIN
           AND waiver.cleared_at IS NULL
      ) THEN
     RAISE EXCEPTION 'This player is on waivers - submit a waiver claim instead.'
-      USING ERRCODE = 'P0001';
+      USING ERRCODE = 'PA002';
   END IF;
   RETURN NEW;
 END;

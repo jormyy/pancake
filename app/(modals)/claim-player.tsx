@@ -11,16 +11,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
-import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
+import { type MemberTransactionState } from '@/lib/league'
+import { loadAddLimitState } from '@/lib/roster-add-flow'
+import { addLimitSummary, reportPickupError } from '@/lib/pickup'
+import { blockedActionProps } from '@/lib/a11y'
+import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
-import { showAlert, showSuccess, getErrorMessage } from '@/lib/alert'
+import { showAlert, showSuccess } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
 
 export default function ClaimPlayerScreen() {
@@ -77,7 +81,7 @@ export default function ClaimPlayerScreen() {
                     getPlayer(requestedPlayerId),
                     getRoster(memberId, requestedLeagueId),
                     getMyWaiverPriority(memberId, requestedLeagueId),
-                    getMemberTransactionState(memberId, requestedLeagueId),
+                    loadAddLimitState(memberId, requestedLeagueId),
                 ])
                 if (claimLoadSeqRef.current !== requestId) return
                 setPlayer(p)
@@ -94,14 +98,21 @@ export default function ClaimPlayerScreen() {
         load()
     }, [leagueId, memberId, playerId, userId])
 
+    const refreshTransactionState = useCallback(async () => {
+        if (!memberId || !leagueId) return
+        setTransactionState(await loadAddLimitState(memberId, leagueId))
+    }, [memberId, leagueId])
+
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
     const needsDrop = rosterFull
+    const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
+        if (explainBlock()) return
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
@@ -127,7 +138,7 @@ export default function ClaimPlayerScreen() {
             )
             router.back()
         } catch (e) {
-            showAlert('Error', getErrorMessage(e))
+            reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
             setSubmitting(false)
         }
@@ -144,6 +155,36 @@ export default function ClaimPlayerScreen() {
     const claimReady = !loading && !!player
     const submitDisabled = submitting || !claimReady || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
+
+    function renderAddLimitNotice() {
+        if (!addBlockedReason) return null
+        return (
+            <View
+                style={[styles.limitCard, isCompactLandscape && styles.compactLimitCard]}
+                accessibilityLiveRegion="polite"
+                role="status"
+                testID="add-limit-notice"
+            >
+                <Text style={styles.limitBody}>{addBlockedReason}</Text>
+                <Text style={styles.limitMeta}>{addLimitSummary(transactionState)}</Text>
+            </View>
+        )
+    }
+
+    function renderSubmitButton(compact: boolean) {
+        return (
+            <Pressable
+                style={[styles.submitButton, compact && styles.compactSubmitButton, (submitDisabled || addBlockedReason != null) && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="Submit waiver claim"
+                {...blockedActionProps(addBlockedReason, submitDisabled)}
+                disabled={submitDisabled}
+            >
+                <Text style={styles.submitButtonText}>Submit Claim</Text>
+            </Pressable>
+        )
+    }
 
     function renderScreenHeader() {
         return (
@@ -250,6 +291,7 @@ export default function ClaimPlayerScreen() {
                             contentContainerStyle={[styles.bodyContent, isCompactLandscape && styles.compactBodyContent]}
                             keyboardShouldPersistTaps="handled"
                         >
+                            {renderAddLimitNotice()}
                             {!compactDropMode ? (
                                 <>
                                     <View style={[styles.claimCard, isCompactLandscape && styles.compactClaimCard]}>
@@ -349,27 +391,9 @@ export default function ClaimPlayerScreen() {
                                             accessibilityLabel="FAAB bid amount"
                                         />
                                     </View>
-                                    <Pressable
-                                        style={[styles.submitButton, styles.compactSubmitButton, submitDisabled && styles.submitButtonDisabled]}
-                                        onPress={handleSubmit}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Submit waiver claim"
-                                        disabled={submitDisabled}
-                                    >
-                                        <Text style={styles.submitButtonText}>Submit Claim</Text>
-                                    </Pressable>
+                                    {renderSubmitButton(true)}
                                 </View>
-                            ) : (
-                                <Pressable
-                                    style={[styles.submitButton, submitDisabled && styles.submitButtonDisabled]}
-                                    onPress={handleSubmit}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Submit waiver claim"
-                                    disabled={submitDisabled}
-                                >
-                                    <Text style={styles.submitButtonText}>Submit Claim</Text>
-                                </Pressable>
-                            )}
+                            ) : renderSubmitButton(false)}
                         </View>
                     </>
                 )}
@@ -426,6 +450,24 @@ const styles = StyleSheet.create({
         marginVertical: spacing.md,
         padding: spacing.lg,
     },
+    limitCard: {
+        marginHorizontal: spacing.xl,
+        marginTop: spacing.xl,
+        padding: spacing.lg,
+        backgroundColor: uiColors.brandSurfaceSoft,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: uiColors.brandBorder,
+        gap: spacing.xs,
+    },
+    compactLimitCard: {
+        marginHorizontal: spacing['2xl'],
+        marginTop: spacing.md,
+        padding: spacing.md,
+    },
+    limitBody: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 20 },
+    limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
     claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 0 },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     claimPlayerCopy: { flex: 1, minWidth: 0 },
