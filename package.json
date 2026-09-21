@@ -145,10 +145,10 @@
     "ws": "^8.21.3"
   },
   "overrides": {
-    "@xmldom/xmldom": "0.8.13",
+    "@xmldom/xmldom": "0.8.15",
     "fast-uri": "3.1.2",
     "esbuild": "0.28.1",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "postcss": "8.5.26",
     "uuid": "11.1.1"
   },
