@@ -38,7 +38,8 @@ E2E_SOURCE_RECOVERY_VERIFIED=1 npm run e2e:source-health
   copies the response onto that row and writes a failed `sync_runs` row named
   `cron:<function>` for a transport error, a non-2xx status, or no response within
   2 hours. Successful responses update `edge_invocations` without adding a `sync_runs` row.
-  A `cron:<function>` failure describes the dispatch transport, not an application verdict.
+  Timeout, transport-error, and missing-response records describe transport outcomes, not application verdicts.
+  Non-2xx records carry the function's response status, such as an application 409 or 500.
   pg_net stops waiting after 30 seconds; the Edge function can keep running and finish successfully.
   Long live-poll or optimizer runs can therefore produce expected timeout failure rows.
   A response purged before reconciliation can also produce a missing-response failure.
