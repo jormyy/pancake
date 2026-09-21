@@ -253,6 +253,45 @@ describe('service worker', () => {
         expect(await response.text()).toContain('Pancake')
     })
 
+    it.each(['asset', 'shell'])('keeps the %s refresh alive until its cache write finishes', async (kind) => {
+        const response = new Response('updated')
+        Object.defineProperty(response, 'type', { value: 'basic' })
+        const worker = await loadWorker({ fetchImpl: async () => response })
+        const cache = await worker.caches.open(`pancake-test-1-${kind === 'shell' ? 'shell' : 'assets'}`)
+        const request = kind === 'shell' ? navigation('/') : scoped('/manifest.webmanifest')
+        const key = kind === 'shell' ? '/' : request
+        await cache.put(key, new Response('cached'))
+
+        let releaseWrite!: () => void
+        let writeStarted!: () => void
+        const blocked = new Promise<void>((resolve) => { releaseWrite = resolve })
+        const started = new Promise<void>((resolve) => { writeStarted = resolve })
+        const put = cache.put.bind(cache)
+        vi.spyOn(cache, 'put').mockImplementation(async (...args) => {
+            writeStarted()
+            await blocked
+            await put(...args)
+        })
+        const pending: Promise<unknown>[] = []
+        let result: unknown
+        worker.listeners.get('fetch')!({
+            request,
+            waitUntil: (promise) => { pending.push(promise) },
+            respondWith: (promise) => { result = promise },
+        })
+        const cached = await result as Response
+        expect(await cached.text()).toBe('cached')
+        await started
+        expect(pending).toHaveLength(1)
+        let finished = false
+        const lifetime = Promise.all(pending).then(() => { finished = true })
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        expect(finished).toBe(false)
+        releaseWrite()
+        await lifetime
+        expect(await (await cache.match(key))?.text()).toBe('updated')
+    })
+
     // An install that cannot fetch the shell must not activate: activation
     // deletes the previous release's shell, and a launch with no shell at all
     // has nothing to paint offline.

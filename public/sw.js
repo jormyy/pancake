@@ -89,21 +89,21 @@ self.addEventListener('message', (event) => {
   event.ports?.[0]?.postMessage({ version: VERSION })
 })
 
-async function cacheFirst(request) {
+async function cacheFirst(request, event) {
   const cache = await caches.open(ASSET_CACHE)
   const cached = await cache.match(request)
   if (cached) return cached
   const response = await fetch(request)
-  if (cacheable(response)) cache.put(request, response.clone()).catch(() => {})
+  if (cacheable(response)) event.waitUntil(cache.put(request, response.clone()).catch(() => {}))
   return response
 }
 
-async function staleWhileRevalidate(request) {
+async function staleWhileRevalidate(request, event) {
   const cache = await caches.open(ASSET_CACHE)
   const cached = await cache.match(request)
   const network = fetch(request)
-    .then((response) => {
-      if (cacheable(response)) cache.put(request, response.clone()).catch(() => {})
+    .then(async (response) => {
+      if (cacheable(response)) await cache.put(request, response.clone()).catch(() => {})
       return response
     })
     .catch((error) => {
@@ -112,6 +112,7 @@ async function staleWhileRevalidate(request) {
       if (cached) return cached
       throw error
     })
+  event.waitUntil(network.catch(() => undefined))
   return cached || network
 }
 
@@ -126,7 +127,7 @@ self.addEventListener('fetch', (event) => {
   // background revalidation. Falling back to network when the cache is cold.
   if (request.mode === 'navigate') {
     const refreshShell = () =>
-      fetch(request).then((response) => {
+      fetch(request).then(async (response) => {
         // Only refresh the cached shell from a successful navigation to "/"
         // itself. The web build is a per-route static export and the host
         // rewrites unknown paths to +not-found.html with HTTP 200, so caching
@@ -137,7 +138,7 @@ self.addEventListener('fetch', (event) => {
           new URL(response.url || request.url).pathname === SHELL_URL
         ) {
           const copy = response.clone()
-          caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy)).catch(() => {})
+          await caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy)).catch(() => {})
         }
         return response
       })
@@ -159,7 +160,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    (IMMUTABLE.test(url.pathname) ? cacheFirst(request) : staleWhileRevalidate(request))
+    (IMMUTABLE.test(url.pathname) ? cacheFirst(request, event) : staleWhileRevalidate(request, event))
       // A cache that is evicted, disabled, or corrupt must never break a load.
       .catch(() => fetch(request)),
   )
