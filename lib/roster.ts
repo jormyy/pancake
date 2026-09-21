@@ -207,9 +207,9 @@ export async function dropPlayer(rosterPlayerId: string): Promise<void> {
     }
 }
 
-export type RosterOverflowFreeAction = 'drop' | 'ir' | 'taxi'
-export type RosterActivationSource = 'ir' | 'taxi'
-export type RosterActivationWithLineup = {
+type RosterOverflowFreeAction = 'drop' | 'ir' | 'taxi'
+type RosterActivationSource = 'ir' | 'taxi'
+type RosterActivationWithLineup = {
     activateRosterPlayerId: string
     activateSource: RosterActivationSource
     freeRosterPlayerId?: string | null

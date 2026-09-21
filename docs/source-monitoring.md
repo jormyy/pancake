@@ -25,9 +25,35 @@ deno test --allow-env --allow-net --allow-read \
 E2E_SOURCE_RECOVERY_VERIFIED=1 npm run e2e:source-health
 ```
 
+## Cron dispatch and invocation records
+
+- ET-time gates (`invoke_edge_function_at_et_time`, the weekly ranking sync, the daily
+  season boundary) are due from their target time onward and dispatch once per ET day
+  (ISO week for the ranking sync), recorded in `cron_dispatch_state`. A tick that runs
+  late still fires, and where the schedule has a later tick in the same period (the second
+  hourly tick during EDT) it catches up a missed one; nothing double-dispatches. The
+  ranking sync only ticks on Mondays, so a missed Monday is retried the next Monday.
+- Every `invoke_edge_function` call records its pg_net request id in
+  `edge_invocations`. `private.reconcile_edge_invocations()` (cron, every 5 minutes)
+  copies the response onto that row and writes a failed `sync_runs` row named
+  `cron:<function>` for a transport error, a non-2xx status, or no response within
+  2 hours. Successful responses update `edge_invocations` without adding a `sync_runs` row.
+  Timeout, transport-error, and missing-response records describe transport outcomes, not application verdicts.
+  Non-2xx records carry the function's response status, such as an application 409 or 500.
+  pg_net stops waiting after 30 seconds; the Edge function can keep running and finish successfully.
+  Long live-poll or optimizer runs can therefore produce expected timeout failure rows.
+  A response purged before reconciliation can also produce a missing-response failure.
+  Correlate these rows with the function's own run records, logs, and resulting data before treating the job as failed.
+  Absence of a transport failure does not prove application success.
+- Live-poll also wakes for a Final game on yesterday/today that has no box score and,
+  when it does, fetches those dates' box scores even if no game is live, so a poll
+  outage that spans a game's end is recovered on the next tick.
+- The live-poll lease is renewed every 30 s by the running poll; a poll that loses its
+  lease logs `lease lost mid-run`.
+
 ## Recovery steps
 
-1. Read the newest failed run and its stored error.
+1. Read the newest failed run and its stored error. For `cron:` rows, first apply the transport limits above.
 2. Confirm the upstream shape with a read-only request.
 3. Fix the parser, endpoint, or credentials in development.
 4. Run the degraded test and one healthy local sync.

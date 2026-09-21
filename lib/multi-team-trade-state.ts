@@ -47,12 +47,12 @@ export function canUpdateTradeFaabInput(currentValue: string, nextValue: string)
         isSmallerDecimal(nextDecimal, currentDecimal)
 }
 
-export type MultiTeamTradeState = {
+type MultiTeamTradeState = {
     participantOrder: string[]
     participants: Record<string, ParticipantTradeDraft>
 }
 
-export type MultiTeamTradeAction =
+type MultiTeamTradeAction =
     | { type: 'toggle-participant'; memberId: string; actorMemberId: string; availableMemberIds: string[] }
     | { type: 'set-participants'; actorMemberId: string; participantIds: string[] }
     | { type: 'toggle-asset'; asset: 'player' | 'pick'; memberId: string; assetId: string }

@@ -16,9 +16,16 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     navigator.serviceWorker.register('/sw.js').then(function (registration) {
       // Auto-update: re-check on every foreground so a backgrounded PWA picks
       // up new deploys, and reload once when the new worker takes control.
+      var checkForUpdate = function () { registration.update().catch(function () {}); };
       document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible') registration.update().catch(function () {});
+        if (document.visibilityState === 'visible') checkForUpdate();
       });
+      // An SPA never navigates the document, so a PWA left in the foreground
+      // (live scoring) would otherwise run a superseded bundle for hours.
+      window.addEventListener('online', checkForUpdate);
+      setInterval(function () {
+        if (document.visibilityState === 'visible') checkForUpdate();
+      }, 60 * 60 * 1000);
       // Ask the worker for its release version. A changed version reloads once.
       // A first install stores its version without reloading the fresh page.
       var workerVersionKey = 'pancake-sw-worker-version';
@@ -42,7 +49,9 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
           finish(event.data && event.data.version);
         };
         worker.postMessage({ type: 'PANCAKE_WORKER_VERSION' }, [channel.port2]);
-        setTimeout(function () { finish(null); }, 2000);
+        // A freshly activated worker on a slow phone can take more than a
+        // couple of seconds to answer; giving up early lost the reload.
+        setTimeout(function () { finish(null); }, 10000);
       };
       navigator.serviceWorker.addEventListener('controllerchange', function () {
         observeWorkerVersion(navigator.serviceWorker.controller);

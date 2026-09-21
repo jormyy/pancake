@@ -67,6 +67,24 @@ describe('trade screen read model', () => {
         expect(isTradeVisibleOnScreen(trade(), 'observer', NOW)).toBe(false)
     })
 
+    // Review round 2, S11: a failed load must not render "No incoming offers."
+    // under the error banner; the picks tab already hides its list on error.
+    it('emits no empty rows while the resource is in error', () => {
+        const failed = buildTradeList({ ...listBase, tab: 'offers', tradesError: true })
+        expect(failed.filter((row) => row._type === 'empty')).toEqual([])
+        expect(failed.filter((row) => row._type === 'header').map((row) => row.label)).toEqual(['Incoming', 'Outgoing'])
+        const block = buildTradeList({ ...listBase, tab: 'leagueBlock', blockError: true })
+        expect(block.some((row) => row._type === 'empty')).toBe(false)
+        const history = buildTradeList({ ...listBase, tab: 'history', tradesError: true })
+        expect(history.some((row) => row._type === 'empty')).toBe(false)
+        // Real rows keep rendering under the banner; only the empty rows go.
+        const withRows = buildTradeList({ ...listBase, tab: 'offers', tradesError: true, incomingTrades: [trade({ id: 'live' })] })
+        expect(withRows.some((row) => row._type === 'trade' && row.trade.id === 'live')).toBe(true)
+        expect(withRows.some((row) => row._type === 'empty')).toBe(false)
+        // Without an error the empty rows are back.
+        expect(buildTradeList({ ...listBase, tab: 'offers' }).filter((row) => row._type === 'empty')).toHaveLength(2)
+    })
+
     it('keeps actionable veto trades ahead of incoming and outgoing sections', () => {
         const rows = buildTradeList({
             ...listBase,

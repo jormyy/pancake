@@ -65,7 +65,8 @@ async function syncRankings(body: Record<string, unknown>): Promise<Record<strin
 async function backfillProgress(jobId: string): Promise<unknown> {
   const { data, error } = await supabase
     .from('sync_jobs')
-    .select('*')
+    // The progress poll needs counters and status, not the payload/log jsonb.
+    .select('id, job_type, status, total_items, completed_items, failed_items, created_at, started_at, completed_at, claimed_at')
     .eq('id', jobId)
     .single()
   if (error) throwDb(error)

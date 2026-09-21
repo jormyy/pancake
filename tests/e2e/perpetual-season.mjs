@@ -19,6 +19,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createClient } from '@supabase/supabase-js'
+import { deletePlayersWithReferences } from './harness-cleanup.mjs'
 
 const ROOT = process.cwd()
 const ARTIFACT_DIR = path.join(ROOT, 'tests/artifacts/perpetual-season')
@@ -200,11 +201,10 @@ async function cleanupPreviousRuns() {
       .lte('season_year', HARNESS_YEAR_MAX)
     throwOn(tableError, `cleanup ${table}`)
   }
-  const { error: playerError } = await supabase
-    .from('players')
-    .delete()
-    .like('sportsdata_id', 'perpetual-%')
-  throwOn(playerError, 'cleanup players')
+  // Previous-run players may still be rostered by leagues this harness did not
+  // create (the browser smoke fixture used to pick players globally), so every
+  // referencing row is removed before the player rows.
+  await deletePlayersWithReferences(supabase, { sportsdataIdLike: 'perpetual-%', label: 'cleanup' })
 }
 
 async function createLeague({ name, users, memberCount, playoffStartWeek, baseYear }) {

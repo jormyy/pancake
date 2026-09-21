@@ -62,6 +62,43 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
+  -- Like create_waiver_claim_atomic, edits require eligible league/season state
+  -- and add capacity. An uncleared waiver entry stays editable until processing,
+  -- even after clears_at; a processed entry no longer accepts edits.
+  IF v_league.status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
+    RAISE EXCEPTION 'Waiver claims require an active, playoff, or offseason league.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM 1
+    FROM league_seasons
+   WHERE id = v_claim.league_season_id
+     AND is_current = true;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No active season found.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM private.assert_weekly_add_available(v_claim.league_id, v_claim.league_season_id, p_member_id);
+
+  PERFORM 1
+    FROM waiver_wire_log
+   WHERE league_id = v_claim.league_id
+     AND league_season_id = v_claim.league_season_id
+     AND player_id = v_claim.player_id
+     AND cleared_at IS NULL;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This player is no longer on waivers.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF p_drop_player_id IS NOT NULL AND p_drop_player_id = v_claim.player_id THEN
+    RAISE EXCEPTION 'You cannot drop the player you are claiming.'
+      USING ERRCODE = '22023';
+  END IF;
+
   IF v_league.waiver_mode = 'rolling' THEN
     v_bid_amount := 0;
   ELSE

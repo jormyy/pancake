@@ -13,11 +13,22 @@ DECLARE
 BEGIN
   -- Mirrors livePollCandidateDates() in the edge function: yesterday + today
   -- ET, so late West-coast games that cross ET midnight stay covered.
+  -- A game already marked Final whose box score was never written (the
+  -- function was down when it ended) must also wake the poll, or its stats
+  -- are never fetched.
   IF EXISTS (
     SELECT 1
       FROM public.nba_games
      WHERE game_date IN (v_today - 1, v_today)
        AND status <> 'Final'
+  ) OR EXISTS (
+    SELECT 1
+      FROM public.nba_games AS game
+     WHERE game.game_date IN (v_today - 1, v_today)
+       AND game.status = 'Final'
+       AND NOT EXISTS (
+         SELECT 1 FROM public.player_game_stats AS stat WHERE stat.game_id = game.id
+       )
   ) THEN
     PERFORM public.invoke_edge_function('live-poll');
   END IF;

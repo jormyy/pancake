@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Local Python tooling (directory or symlink)
+/.venv
+
 # Expo
 .expo/
 dist/
@@ -70,3 +73,6 @@ skills-lock.json
 # editor
 .vscode/
 .windsurf/
+
+# Regenerated soak summary
+tests/e2e-report.json

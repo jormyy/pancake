@@ -7,7 +7,7 @@ import { resolvedEnv, requireEnv, describeEndpoint } from './env.mjs'
 import { browserDiagnosticFailures, installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 import { captureBrowserScreenshot, createBrowser, listBrowserSessions } from './browser-agent.mjs'
 import { combineNavigationPhases, measureJavaScriptDelivery, measureNavigationTiming, measureWorkflowFeedback, recordWorkflowMeasurement } from './browser-performance-evidence.mjs'
-import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
+import { ensureRosterFixture, ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 import { resolveReleaseProvenance } from './release-provenance.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
@@ -554,6 +554,35 @@ const ensureSweepDrafts = async (supabase, state, members) => {
   return { auctionDraft, rookieDraft }
 }
 
+const ensureTabSmokeRosterReadiness = async (env, state, user) => {
+  if (!env.serviceRoleKey || !state.leagueId) {
+    return 'Roster fixture skipped: no service role key or seeded league id (roster workflow will not reach its ready state).'
+  }
+  const supabase = createClient(env.supabaseUrl, env.serviceRoleKey, { auth: { persistSession: false } })
+  const { data: member, error: memberError } = await supabase
+    .from('league_members')
+    .select('id')
+    .eq('league_id', state.leagueId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (memberError) throw new Error(`Tab smoke league_members lookup: ${memberError.message}`)
+  if (!member) throw new Error('Tab smoke requires the seeded user to be a league member')
+  const { data: currentSeason, error: seasonError } = await supabase
+    .from('league_seasons')
+    .select('id')
+    .eq('league_id', state.leagueId)
+    .eq('is_current', true)
+    .single()
+  if (seasonError) throw new Error(`Tab smoke current season lookup: ${seasonError.message}`)
+  const roster = await ensureRosterFixture(supabase, {
+    leagueId: state.leagueId,
+    leagueSeasonId: currentSeason.id,
+    memberId: member.id,
+    label: 'Tab smoke roster fixture',
+  })
+  return roster.inserted ? 'Roster fixture inserted for the roster workflow.' : 'Roster fixture already present.'
+}
+
 const fetchSweepContext = async (env, state, user) => {
   if (!env.serviceRoleKey || !state.leagueId) {
     throw new Error('Full sweep requires a service role key and seeded league id')
@@ -588,35 +617,13 @@ const fetchSweepContext = async (env, state, user) => {
     await ensureSyntheticSeasonWeeks(supabase, currentSeason.season_year, 1, 'UI sweep')
   }
 
-  let { data: rosterRow } = myMember
-    ? await supabase
-      .from('roster_players')
-      .select('player_id')
-      .eq('league_id', state.leagueId)
-      .eq('member_id', myMember.id)
-      .limit(1)
-      .maybeSingle()
-    : { data: null }
-
-  const { data: firstPlayer } = await supabase
-    .from('players')
-    .select('id')
-    .order('display_name', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  if (!rosterRow && myMember && firstPlayer) {
-    const { error: rosterInsertError } = await supabase.from('roster_players').insert({
-      league_id: state.leagueId,
-      league_season_id: currentSeason.id,
-      member_id: myMember.id,
-      player_id: firstPlayer.id,
-      acquired_via: 'e2e_ui_sweep',
-      acquisition_cost: 1,
-    })
-    if (rosterInsertError) throw new Error(`UI sweep roster fixture insert: ${rosterInsertError.message}`)
-    rosterRow = { player_id: firstPlayer.id }
-  }
-  const playerId = rosterRow?.player_id ?? firstPlayer?.id ?? null
+  const roster = await ensureRosterFixture(supabase, {
+    leagueId: state.leagueId,
+    leagueSeasonId: currentSeason.id,
+    memberId: myMember.id,
+    label: 'UI sweep roster fixture',
+  })
+  const playerId = roster.playerId
 
   const routes = [
     ['create-league', '/create-league'],
@@ -734,6 +741,10 @@ export async function runBrowserSmoke({
       routes.push(['profile', '/profile'])
       routes.push(...sweep.routes)
       notes.push(...sweep.notes)
+    } else {
+      // Tab smoke measures the roster workflow too, and its ready state needs a
+      // rostered player. The seed leaves rosters empty by design.
+      notes.push(await ensureTabSmokeRosterReadiness(env, state, user))
     }
 
     for (const [label, route] of routes) {

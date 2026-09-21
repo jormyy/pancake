@@ -24,6 +24,15 @@ export type BoundaryLeagueReport = {
   error?: string
 }
 
+// A league that fails every day would otherwise be invisible: runSeasonBoundary
+// catches per league and the invocation used to be recorded as a success.
+export function summarizeBoundaryFailures(reports: BoundaryLeagueReport[]): string | null {
+  const failed = reports.filter((report) => report.error)
+  if (failed.length === 0) return null
+  const sample = failed.slice(0, 5).map((report) => `${report.leagueId}: ${report.error}`).join('; ')
+  return `${failed.length} of ${reports.length} league(s) failed — ${sample}`
+}
+
 function graceElapsed(matchups: BoundaryMatchup[], referenceDate: Date): boolean {
   let latest: number | null = null
   for (const matchup of matchups) {

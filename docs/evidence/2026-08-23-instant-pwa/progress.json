@@ -352,7 +352,7 @@
         "runtimeDrift": { "status": "pass" },
         "harnessMemoryDrift": { "status": "pass" }
       },
-      "evidence": ["soak/expanded-soak-attempt.json", "soak/full-20-season-soak.json", "../../../tests/e2e-report.json"]
+      "evidence": ["soak/expanded-soak-attempt.json", "soak/full-20-season-soak.json", "external archive: parent-artifacts.tar.gz, member tests/e2e-report.json (location in publication handoff)"]
     },
     {
       "id": "expanded-test-pruning",

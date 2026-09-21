@@ -68,7 +68,7 @@
     "browser-perf-capture-window.json"
   ],
   "artifacts": [
-    "../../../../tests/e2e-report.json",
+    "external archive: parent-artifacts.tar.gz, member tests/e2e-report.json (location in publication handoff)",
     "../../../../tests/e2e-coverage.md",
     "../../../../tests/artifacts/perf-metrics.json",
     "../../../../tests/artifacts/season-1",

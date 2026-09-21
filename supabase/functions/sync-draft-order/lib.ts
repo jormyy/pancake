@@ -206,14 +206,10 @@ async function fetchNbaComDraftOrder(seasonYear: number): Promise<NBADraftPick[]
   throw new Error(`Could not load a complete ${seasonYear} NBA draft board from NBA.com. ${errors.join('; ')}`)
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 20_000)
-  try {
-    return await fetchWithRetry(url, { ...init, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
-  }
+function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  // Per-attempt timeout for headers, plus an overall deadline that also covers
+  // the body read (same shape as cdnGet).
+  return fetchWithRetry(url, { ...init, signal: AbortSignal.timeout(45_000) }, { attemptTimeoutMs: 20_000 })
 }
 
 function parseDraftPicksFromNbaComHtml(html: string): NBADraftPick[] {

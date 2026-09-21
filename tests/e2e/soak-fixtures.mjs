@@ -137,3 +137,43 @@ export const ensureSleeperFixturePlayer = async (supabase, input, label) => {
   if (error) throw new Error(`${label}: fixture player write failed for sleeper_id=${sleeperId}: ${error.message}`)
   return data
 }
+
+// The roster workflow's ready state needs at least one rostered player (the
+// roster screen renders "Set lineup automatically" only for a non-empty roster).
+// Picks a player from the seeded E2E fixtures, never a global first-by-name row,
+// so the fixture cannot pin a player another harness expects to delete.
+export const ensureRosterFixture = async (
+  supabase,
+  { leagueId, leagueSeasonId, memberId, playerIdPrefix = 'e2e-player-', label = 'roster fixture' },
+) => {
+  const { data: existing, error: existingError } = await supabase
+    .from('roster_players')
+    .select('player_id')
+    .eq('league_id', leagueId)
+    .eq('member_id', memberId)
+    .limit(1)
+    .maybeSingle()
+  if (existingError) throw new Error(`${label}: roster lookup failed: ${existingError.message}`)
+  if (existing) return { playerId: existing.player_id, inserted: false }
+
+  const { data: player, error: playerError } = await supabase
+    .from('players')
+    .select('id')
+    .like('sportsdata_id', `${playerIdPrefix}%`)
+    .order('sportsdata_id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (playerError) throw new Error(`${label}: player lookup failed: ${playerError.message}`)
+  if (!player) throw new Error(`${label}: no seeded player with sportsdata_id like ${playerIdPrefix}% (run npm run e2e:seed)`)
+
+  const { error: insertError } = await supabase.from('roster_players').insert({
+    league_id: leagueId,
+    league_season_id: leagueSeasonId,
+    member_id: memberId,
+    player_id: player.id,
+    acquired_via: 'e2e_ui_sweep',
+    acquisition_cost: 1,
+  })
+  if (insertError) throw new Error(`${label}: roster insert failed: ${insertError.message}`)
+  return { playerId: player.id, inserted: true }
+}

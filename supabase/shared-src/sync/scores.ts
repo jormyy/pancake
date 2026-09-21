@@ -188,6 +188,30 @@ async function loadLockedPlayoffTypes(
     return locked
 }
 
+// A finalized matchup is only sent back to finalize_score_week_atomic when its
+// decision moved. The RPC re-stamps finalized_at on every playoff row it is
+// handed (so an in-window stat correction re-arms the 48h boundary grace), and
+// the closed week stays inside the sync window for the whole following week,
+// so handing it unchanged rows on every live-poll tick kept resetting the grace
+// clock and the bracket never advanced.
+export type FinalizationCandidate = {
+    is_finalized: boolean | null
+    winner_member_id: string | null
+    home_max_possible_points: number | string | null
+    away_max_possible_points: number | string | null
+    winnerId: string | null
+    homeMaxPossiblePoints: number
+    awayMaxPossiblePoints: number
+}
+
+export function finalizationWriteNeeded(candidate: FinalizationCandidate): boolean {
+    if (!candidate.is_finalized) return true
+    if ((candidate.winner_member_id ?? null) !== (candidate.winnerId ?? null)) return true
+    const storedHomeMax = candidate.home_max_possible_points == null ? null : Number(candidate.home_max_possible_points)
+    const storedAwayMax = candidate.away_max_possible_points == null ? null : Number(candidate.away_max_possible_points)
+    return storedHomeMax !== candidate.homeMaxPossiblePoints || storedAwayMax !== candidate.awayMaxPossiblePoints
+}
+
 export function resolveMatchupWinnerForScore(
     matchup: MatchupWinnerInput,
     homePoints: number,
@@ -503,13 +527,18 @@ async function finalizeWeekIfComplete(
         }
     })
 
+    // Regular-season rows keep going through unchanged (the RPC leaves their
+    // finalized_at alone and the standings upsert rides on the same call).
+    const matchupWrites = matchupResults.filter((m) =>
+        !isPlayoffMatchupType(m.matchup_type) || finalizationWriteNeeded(m)
+    )
     const reconciliationTimestamp = new Date().toISOString()
     const finalizedTimestamp = new Date().toISOString()
     const { data: notificationData, error: finalizeErr } = await supabase.rpc('finalize_score_week_atomic', {
         p_league_id: leagueId,
         p_league_season_id: leagueSeasonId,
         p_week_number: weekNumber,
-        p_matchups: matchupResults.map((m) => ({
+        p_matchups: matchupWrites.map((m) => ({
             id: m.id,
             winner_member_id: m.winnerId,
             home_max_possible_points: m.homeMaxPossiblePoints,

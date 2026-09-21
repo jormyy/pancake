@@ -91,12 +91,13 @@ async function processWaiverClaims(): Promise<number> {
     const batchRows: WaiverProcessRow[] = data ?? []
     rows.push(...batchRows)
     if (batchRows.length === 0) break
+    // Each batch is already committed by the RPC. Notify as soon as it lands so
+    // a worker killed mid-drain leaves at most one batch of applied claims
+    // without their notifications, not the whole run.
+    await notifyClaimResults(batchRows)
   }
 
-  const [, { error: expiredErr }] = await Promise.all([
-    notifyClaimResults(rows),
-    supabase.rpc('expire_waiver_wire_logs'),
-  ])
+  const { error: expiredErr } = await supabase.rpc('expire_waiver_wire_logs')
   if (expiredErr) throw expiredErr
 
   return rows.filter((row) => row.processed).length

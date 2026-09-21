@@ -24,12 +24,29 @@ const SHELL_URL = '/'
 // bundle (/_expo/static) and the fonts and images the bundle asks for (/assets).
 const IMMUTABLE = /^\/(?:_expo\/static|assets)\//
 
-// Fetch one precache entry. A non-ok response is permanent (a stale manifest
-// entry) and is skipped; a rejected fetch is the network being unavailable, and
-// must fail the install rather than half-populate the cache.
-async function precache(cache, url) {
+// Only a same-origin success may enter a cache. The host rewrites every unknown
+// path to +not-found.html with HTTP 200, so after a deploy a request for a
+// previous release's hashed asset comes back as an HTML document with
+// response.ok === true. Storing that under an immutable asset URL would serve a
+// SyntaxError from cache for the life of the release, so anything that looks
+// like a document is refused everywhere except the shell itself.
+function isDocument(response) {
+  const type = response.headers && response.headers.get('content-type')
+  return typeof type === 'string' && /text\/html/i.test(type)
+}
+
+function cacheable(response, { allowDocument = false } = {}) {
+  if (!response || !response.ok) return false
+  if (response.type && response.type !== 'basic' && response.type !== 'default') return false
+  return allowDocument || !isDocument(response)
+}
+
+// Fetch one precache entry. A non-ok (or document-shaped) response is permanent
+// (a stale manifest entry) and is skipped; a rejected fetch is the network being
+// unavailable, and must fail the install rather than half-populate the cache.
+async function precache(cache, url, options) {
   const response = await fetch(new Request(url, { cache: 'reload' }))
-  if (!response || !response.ok) return
+  if (!cacheable(response, options)) return
   await cache.put(url, response)
 }
 
@@ -42,7 +59,10 @@ self.addEventListener('install', (event) => {
       // is discarded and retried on the next update check, and the previous
       // worker keeps serving in the meantime.
       const shell = await caches.open(SHELL_CACHE)
-      await precache(shell, SHELL_URL)
+      await precache(shell, SHELL_URL, { allowDocument: true })
+      // The shell is the one entry that cannot be skipped: without it this
+      // release has nothing to serve offline once the old caches are dropped.
+      if (!(await shell.match(SHELL_URL))) throw new Error('shell precache failed; install aborted')
       const assets = await caches.open(ASSET_CACHE)
       await Promise.all(
         PRECACHE_URLS.filter((url) => url !== SHELL_URL).map((url) => precache(assets, url)),
@@ -69,24 +89,30 @@ self.addEventListener('message', (event) => {
   event.ports?.[0]?.postMessage({ version: VERSION })
 })
 
-async function cacheFirst(request) {
+async function cacheFirst(request, event) {
   const cache = await caches.open(ASSET_CACHE)
   const cached = await cache.match(request)
   if (cached) return cached
   const response = await fetch(request)
-  if (response && response.ok) cache.put(request, response.clone()).catch(() => {})
+  if (cacheable(response)) event.waitUntil(cache.put(request, response.clone()).catch(() => {}))
   return response
 }
 
-async function staleWhileRevalidate(request) {
+async function staleWhileRevalidate(request, event) {
   const cache = await caches.open(ASSET_CACHE)
   const cached = await cache.match(request)
   const network = fetch(request)
-    .then((response) => {
-      if (response && response.ok) cache.put(request, response.clone()).catch(() => {})
+    .then(async (response) => {
+      if (cacheable(response)) await cache.put(request, response.clone()).catch(() => {})
       return response
     })
-    .catch(() => cached)
+    .catch((error) => {
+      // A cold cache plus a dead network must reject, not resolve undefined:
+      // respondWith(undefined) is a hard failure the outer fallback never sees.
+      if (cached) return cached
+      throw error
+    })
+  event.waitUntil(network.catch(() => undefined))
   return cached || network
 }
 
@@ -101,7 +127,7 @@ self.addEventListener('fetch', (event) => {
   // background revalidation. Falling back to network when the cache is cold.
   if (request.mode === 'navigate') {
     const refreshShell = () =>
-      fetch(request).then((response) => {
+      fetch(request).then(async (response) => {
         // Only refresh the cached shell from a successful navigation to "/"
         // itself. The web build is a per-route static export and the host
         // rewrites unknown paths to +not-found.html with HTTP 200, so caching
@@ -112,7 +138,7 @@ self.addEventListener('fetch', (event) => {
           new URL(response.url || request.url).pathname === SHELL_URL
         ) {
           const copy = response.clone()
-          caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy)).catch(() => {})
+          await caches.open(SHELL_CACHE).then((cache) => cache.put(SHELL_URL, copy)).catch(() => {})
         }
         return response
       })
@@ -123,14 +149,18 @@ self.addEventListener('fetch', (event) => {
           event.waitUntil(refreshShell().catch(() => undefined))
           return cached
         }
-        return refreshShell().catch(() => caches.match(request))
+        return refreshShell().catch(async (error) => {
+          const fallback = await caches.match(request)
+          if (fallback) return fallback
+          throw error
+        })
       }).catch(() => fetch(request)),
     )
     return
   }
 
   event.respondWith(
-    (IMMUTABLE.test(url.pathname) ? cacheFirst(request) : staleWhileRevalidate(request))
+    (IMMUTABLE.test(url.pathname) ? cacheFirst(request, event) : staleWhileRevalidate(request, event))
       // A cache that is evicted, disabled, or corrupt must never break a load.
       .catch(() => fetch(request)),
   )

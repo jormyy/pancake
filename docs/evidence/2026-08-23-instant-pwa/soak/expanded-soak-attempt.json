@@ -23,7 +23,7 @@
     "route": "/league",
     "operation": "online route open",
     "result": "the browser command timed out before the online sweep recorded League",
-    "artifact": "tests/e2e-report.json"
+    "artifact": "external archive: parent-artifacts.tar.gz, member tests/e2e-report.json (location in publication handoff)"
   },
   "blockingFailureRecovered": true,
   "recoveryEvidence": "soak/route-open-recovery.json",

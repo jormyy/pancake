@@ -88,6 +88,105 @@ Snapshots are written under `tests/snapshots/season-<N>/` after the season bound
 
 Performance metrics are written to `tests/artifacts/perf-metrics.json`. Runs shorter than 10 seasons record timings and harness memory only. Runs of 10+ seasons fail D.LONG.6 if the latest season runtime is more than `E2E_PERF_DRIFT_LIMIT` above season 1; the default is `1.2` for the requested 20% drift ceiling. Runs of 10+ seasons also fail D.LONG.7 if harness RSS or heap memory exceeds `E2E_MEMORY_DRIFT_LIMIT` above season 1; the default is also `1.2`. The RSS gate has an `E2E_MEMORY_DRIFT_MIN_BYTES` absolute floor, defaulting to 48 MiB, to avoid failing on Node allocator high-water noise while still catching material native growth. The heap gate has a separate `E2E_MEMORY_HEAP_DRIFT_MIN_BYTES` floor, defaulting to 24 MiB, so retained JS object growth remains a stricter leak signal.
 
+Browser launch measurements (`npm run e2e:browser-pwa-launch`) read the document's
+`first-contentful-paint` entry. On 2026-09-12/13 the same host produced runs with and without
+that entry on both the baseline and branch builds, including a release-soak run that passed
+the gate in seasons 1 and 2 and lost every paint entry in season 3; starting from a fresh
+session does not reliably change that. Treat a missing entry as unknown, never as a pass; the
+paint probe below is the diagnostic. The report's `paintDiagnostics` (paint entries, visibility state,
+prerendering, focus, paint-timing support) says why an entry is missing.
+
+`npm run e2e:pwa-paint-probe` is the diagnostic for a missing paint entry. With the seeded
+league and the release build served on `E2E_FRONTEND_URL`, it repeats the launch gate's own
+sequence 20 times (`--launches=N` or `--launches N`): a signed-out launch of `/`, a cleared
+`localStorage` relaunch, a 2500 ms settle, sign-in, a 2000 ms settle, then the measured relaunch
+of `/roster`. Launches alternate a fresh probe-owned session (full prelude, closed after its
+launch) with one reused probe-owned session kept across every reused launch (prelude once,
+then measured relaunches only). It opens and closes only sessions it created. Before each
+measured navigation it attaches to the browser's CDP endpoint (`get cdp-url`, the same route
+the screenshot path uses), registers a document-start `PerformanceObserver` with
+`Page.addScriptToEvaluateOnNewDocument`, keeps that CDP client attached through the
+navigation and the read, then removes the script and closes the client. The record says
+whether the observer was registered and, separately, whether it actually ran (the page
+exposed its store). Three readers are recorded per launch: the early observer,
+`getEntriesByType('paint')` (what the gate reads) and a late buffered `PerformanceObserver`,
+plus the boot marks, visibility, focus, navigation type and user agent. The measured
+navigation is one attempt; the prelude's navigations and sign-in may retry and every attempt
+is counted in the record, including when setup fails. Every launch is kept and lands in
+exactly one bucket (`pass`, `budget`, `missing:early-saw`, `missing:early-none`,
+`missing:early-error`, `missing:late-observer-saw`, `missing:no-evidence`, `probe-error`); a
+missing entry is a failure, never a pass, and says nothing about speed. When the early
+observer did not run, an empty result cannot prove the engine produced no paint timing
+(`missing:no-evidence`). Report: `tests/artifacts/pwa-paint-probe/report.md` (+ `report.json`
+and one screenshot per launch).
+
+### Release soak locally with the mid-life migration gate
+
+`npm run e2e:soak:release` under the release gate requires the `long.migration` row, which only
+the mid-life migration check (D.LONG.5) can satisfy. A run with `E2E_ENABLE_MIDLIFE_MIGRATION=0`
+cannot pass the gate, so do not start one. CI (`.github/workflows/release-soak.yml`) starts the
+stack on the deployed schema (derived from the linked project's `schema_migrations`), then lets
+the harness apply the pending migrations with `supabase db push --local --yes` after season 5.
+
+Locally, do not move repository migrations. Reset the database from a *copy* of `supabase/` that
+holds only the base schema, then run the soak from the repo root; the harness pushes the real
+`supabase/migrations` at the boundary. Historical verification from 2026-09-13 (phase 10 evidence): base copy
+304 files → head `20260823000001`; push applied exactly `20260912000001..3` → 307 files, head
+`20260912000003`, on an empty and on a seeded database; a second push was a no-op.
+
+```sh
+# from the repo root with the private local env loaded (loopback Supabase only)
+set -euo pipefail          # fail closed: any setup error stops before the soak starts
+# Fetch origin/main before preparing this local-only baseline.
+base=$(git ls-tree -r --name-only origin/main supabase/migrations | sed -E 's#^.*/([0-9]+)_.*#\1#' | sort | tail -1)
+base_count=$(node -e 'const fs=require("node:fs"); console.log(fs.readdirSync("supabase/migrations").filter(f => f.endsWith(".sql") && f.split("_")[0] <= process.argv[1]).length)' "$base")
+plan=$(node tests/e2e/release-soak-migration-plan.mjs "$base" $(ls supabase/migrations))
+copy=$(mktemp -d "${TMPDIR:-/tmp}/pancake-midlife-base.XXXXXX")   # fresh private dir; nothing shared is removed
+rsync -a --exclude .branches --exclude .temp supabase/ "$copy/supabase/"
+for f in $(node -e 'for (const v of JSON.parse(process.argv[1]).pendingFiles) console.log(v)' "$plan"); do rm "$copy/supabase/migrations/$f"; done
+test "$(ls "$copy/supabase/migrations" | wc -l)" -eq "$base_count"
+(cd "$copy" && supabase db reset)                   # stack now sits on the selected base schema
+test "$(psql "$SUPABASE_DB_URL" -tAc 'select max(version) from supabase_migrations.schema_migrations')" = "$base"
+npm run e2e:seed                                    # the reset wiped the seeded league; tests/e2e-state.json must be fresh
+# prerequisites also running: `supabase functions serve --env-file <private env>`, the stamped release build
+# (`npm run build:web:release`) served on E2E_FRONTEND_URL (`node tests/e2e/static-web-server.mjs`), fake upstream on 4555
+export E2E_ENABLE_MIDLIFE_MIGRATION=1 E2E_MIDLIFE_MIGRATION_AFTER_SEASON=5
+export E2E_MIDLIFE_EXPECTED_BASE_VERSION="$base"
+export E2E_MIDLIFE_EXPECTED_VERSION=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).repositoryHead)' "$plan")
+export E2E_MIDLIFE_EXPECTED_VERSIONS=$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).pendingVersions))' "$plan")
+# Optional: set AGENT_BROWSER_EXECUTABLE_PATH to an installed browser on this host.
+# The macOS paths below are historical examples, not portable defaults.
+set +e; timeout -s TERM 36000 npm run e2e:soak:release; echo "release soak exit $?"   # the soak's own exit is captured, not masked
+```
+
+The plan script's positional form is `<deployedVersion> <migration filenames...>` (CI uses
+`--history-file <json> <filenames...>` with the production history). The harness reads
+`SUPABASE_DB_URL` for the migration evidence. Seasons 1–5 run on the base schema and 6–20 on the
+repository head, which is what the release gate certifies. The bound must cover 20 browser
+seasons (about 19 minutes each on the reference laptop); capture the child's real exit status,
+never call a partial run a pass, and never lower the season count.
+
+#### Browser engine for the launch gate and the paint probe
+
+The launch gate fails on a missing `first-contentful-paint`. On the reference laptop the engine
+agent-browser 0.25.4 launches by default (its bundled Chrome for Testing 147.0.7727.56, also
+.117) emits **no** paint-timing entries: not headless, not `--headed`, not with GPU `--args`, and
+not for a trivial static `<h1>` page, while the page renders for screenshot capture. Two other
+Chromium builds emitted `first-paint`/`first-contentful-paint` on every launch:
+
+| Historical macOS executable (process-local `AGENT_BROWSER_EXECUTABLE_PATH`) | reported version | 20-launch probe |
+| --- | --- | --- |
+| `~/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell` | HeadlessChrome/153.0.8010.12 | 20 passed / 0 failed, FCP 12–24 ms |
+| `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` | HeadlessChrome/152 | entries present on the plain page and `/sign-in` (probe not run) |
+| agent-browser default (bundled Chrome for Testing 147) | HeadlessChrome/147.0.0.0 | 0 passed / 20 failed, no paint entry on any launch |
+
+Use an executable installed on your operating system; do not copy a macOS path on Linux.
+Set the variable on the command that runs the gate or on
+`npm run e2e:pwa-paint-probe -- --launches=20`; do not change agent-browser's global config. The
+400 ms budget and the missing-entry failure are unchanged. CI obtains its engine the same way
+(`npm ci`, then agent-browser downloads its own Chrome for Testing), so the repository does not
+pin the gate's engine; pinning in CI is a candidate only once a CI run shows the same defect.
+
 Instant-loading budgets live in `tests/e2e/performance-budgets.json`.
 `npm run perf:budget` validates the ranked top-10 workflow contract and writes
 `tests/performance-budget-report.md`. After a browser perf run, use

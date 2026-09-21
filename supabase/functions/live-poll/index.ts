@@ -25,6 +25,8 @@ import {
   LIVE_POLL_LOCK_KEY,
   livePollCandidateDates,
 } from '../_shared/livePoll.ts'
+import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
+import { decideLivePoll, gamesDueForStatsRetry } from '../_shared/livePollDecision.ts'
 
 serveInternal('live-poll', async () => {
   const { data: holderId, error: lockErr } = await supabase.rpc('try_live_poll_lease', {
@@ -33,6 +35,24 @@ serveInternal('live-poll', async () => {
   })
   if (lockErr) throw lockErr
   if (!holderId) return Response.json({ ok: true, action: 'lease-skip' })
+
+  // A busy night outruns the 90 s lease; renew it while the run is alive so a
+  // second worker cannot start writing beside this one. Losing the lease is
+  // logged loudly: the sync itself stays idempotent, but two pollers double
+  // the CDN traffic and race the stat upserts.
+  const heartbeat = startLeaseHeartbeat(
+    async () => {
+      const { data, error } = await supabase.rpc('renew_live_poll_lease', {
+        p_lock_key: LIVE_POLL_LOCK_KEY,
+        p_holder_id: holderId,
+        p_ttl_seconds: LIVE_POLL_LEASE_TTL_SECONDS,
+      })
+      if (error) throw error
+      return data === true
+    },
+    (LIVE_POLL_LEASE_TTL_SECONDS * 1000) / 3,
+    (error) => console.error('[live-poll] lease lost mid-run; another poller may be active', error ?? ''),
+  )
 
   try {
     const candidateDates = livePollCandidateDates()
@@ -52,12 +72,32 @@ serveInternal('live-poll', async () => {
       return []
     })
 
-    if (!cdnGames.length) {
-      if (activeGames && activeGames.length > 0) {
-        console.log(`[live-poll] ${activeGames.length} DB-active games, CDN unavailable — syncing stats + scores`)
+    // A Final game on a candidate date with no box score (the poll was down
+    // when it ended) is why the cron gate woke us; fetch it even with nothing
+    // live, or the game leaves the two-day window and its stats never arrive.
+    // Games attempted recently are skipped so a box score that never arrives
+    // is retried on a backoff instead of every minute.
+    const missingStatGameIds = await finalGamesDueForStatsRetry(candidateDates)
+    const missingFinalStats = missingStatGameIds.length
+
+    const syncForMissingStats = async () => {
+      try {
         await syncStatsForDates(candidateDates)
+      } catch (error) {
+        await touchGames(missingStatGameIds)
+        throw error
+      }
+      await touchGames(missingStatGameIds)
+    }
+
+    if (!cdnGames.length) {
+      const decision = decideLivePoll({ cdnGameCount: 0, dbActiveGames: activeGames?.length ?? 0, nowActive: 0, allDone: false, missingFinalStats, leaseLost: heartbeat.lost })
+      if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
+      if (decision.action === 'synced-db-active') {
+        console.log(`[live-poll] CDN unavailable or empty; db-active=${activeGames?.length ?? 0} finalMissingStats=${missingFinalStats} — syncing stats + scores`)
+        await syncForMissingStats()
         await syncScores()
-        return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames.length })
+        return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames?.length ?? 0, missingFinalStats })
       }
       return Response.json({ ok: true, action: 'idle' })
     }
@@ -106,6 +146,8 @@ serveInternal('live-poll', async () => {
       }
     }
 
+    // Losing the lease means another poller took over; do not write beside it.
+    if (gameUpdates.length > 0 && heartbeat.lost) return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
     if (gameUpdates.length > 0) {
       const { error: updateError } = await supabase
         .from('nba_games')
@@ -114,10 +156,11 @@ serveInternal('live-poll', async () => {
     }
     const statusUpdates = gameUpdates.length
 
-    const shouldSync = nowActive > 0 || allDone || (activeGames?.length ?? 0) > 0
-    if (shouldSync) {
-      console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}`)
-      await syncStatsForDates(candidateDates)
+    const decision = decideLivePoll({ cdnGameCount: cdnGames.length, dbActiveGames: activeGames?.length ?? 0, nowActive, allDone, missingFinalStats, leaseLost: heartbeat.lost })
+    if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
+    if (decision.action === 'synced') {
+      console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}, finalMissingStats=${missingFinalStats}`)
+      await syncForMissingStats()
       await syncScores()
       return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive, allDone })
     }
@@ -125,6 +168,7 @@ serveInternal('live-poll', async () => {
     console.log(`[live-poll] No active games. Updated ${statusUpdates} statuses.`)
     return Response.json({ ok: true, action: 'status-check', statusUpdates })
   } finally {
+    heartbeat.stop()
     const { error: releaseErr } = await supabase.rpc('release_live_poll_lease', {
       p_lock_key: LIVE_POLL_LOCK_KEY,
       p_holder_id: holderId,
@@ -132,3 +176,31 @@ serveInternal('live-poll', async () => {
     if (releaseErr) console.error('[live-poll] release lease failed:', releaseErr)
   }
 })
+
+async function finalGamesDueForStatsRetry(candidateDates: string[]): Promise<string[]> {
+  const { data: finalGames, error: finalError } = await supabase
+    .from('nba_games')
+    .select('id, updated_at')
+    .in('game_date', candidateDates)
+    .eq('status', 'Final')
+  if (finalError) throw finalError
+  const games = (finalGames ?? []) as Array<{ id: string; updated_at: string | null }>
+  if (games.length === 0) return []
+  const { data: withStats, error: statsError } = await supabase
+    .from('player_game_stats')
+    .select('game_id')
+    .in('game_id', games.map((game) => game.id))
+  if (statsError) throw statsError
+  const covered = new Set((withStats ?? []).map((row) => row.game_id))
+  return gamesDueForStatsRetry(games, covered, new Date())
+}
+
+// Stamps the attempt so the backoff in gamesDueForStatsRetry applies.
+async function touchGames(gameIds: string[]): Promise<void> {
+  if (gameIds.length === 0) return
+  const { error } = await supabase
+    .from('nba_games')
+    .update({ updated_at: new Date().toISOString() })
+    .in('id', gameIds)
+  if (error) console.error('[live-poll] could not stamp missing-stats attempt:', error)
+}

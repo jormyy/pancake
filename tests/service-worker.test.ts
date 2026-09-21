@@ -48,6 +48,7 @@ type Harness = {
     claimCalls: number
     install: () => Promise<void>
     activate: () => Promise<void>
+    respond: (request: Request) => Promise<Response>
 }
 
 async function loadWorker(
@@ -97,6 +98,21 @@ async function loadWorker(
     }
     harness.install = drive('install')
     harness.activate = drive('activate')
+    harness.respond = (request) => {
+        const pending: Promise<unknown>[] = []
+        let responded: unknown = new Error('fetch listener did not call respondWith')
+        listeners.get('fetch')?.({
+            request,
+            waitUntil: (p) => pending.push(p),
+            respondWith: (r) => { responded = r },
+        })
+        return Promise.resolve(responded).then(async (value) => {
+            await Promise.allSettled(pending)
+            if (value instanceof Error) throw value
+            if (!(value instanceof Response)) throw new TypeError(`respondWith resolved to ${String(value)}`)
+            return value
+        })
+    }
     return harness
 }
 
@@ -156,5 +172,138 @@ describe('service worker', () => {
             'pancake-test-1-shell',
         ])
         expect(worker.claimCalls).toBe(1)
+    })
+
+    const html = () => new Response('<!doctype html><title>Not found</title>', {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+    })
+    const script = (body = 'console.log(1)') => new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'application/javascript' },
+    })
+    const scoped = (pathname: string) => new Request(`https://app.test${pathname}`)
+    // Node's Request refuses mode 'navigate'; the worker only reads url/method/mode.
+    const navigation = (pathname: string) =>
+        ({ url: `https://app.test${pathname}`, method: 'GET', mode: 'navigate' }) as unknown as Request
+
+    // The host rewrites unknown paths to +not-found.html with HTTP 200. After a
+    // deploy, a still-running old bundle asking for its previous hashed chunk
+    // gets that document back; it must never be stored under the asset URL.
+    it('never caches an HTML rewrite under an immutable asset URL', async () => {
+        const worker = await loadWorker({ fetchImpl: async () => html() })
+        const response = await worker.respond(scoped('/_expo/static/js/web/old-chunk.js'))
+
+        expect(response.status).toBe(200)
+        const assets = await worker.caches.open('pancake-test-1-assets')
+        expect(assets.entries.size).toBe(0)
+    })
+
+    it('caches a real script under an immutable asset URL and serves it cache-first', async () => {
+        const worker = await loadWorker({ fetchImpl: async () => script() })
+        await worker.respond(scoped('/_expo/static/js/web/chunk.js'))
+        await worker.respond(scoped('/_expo/static/js/web/chunk.js'))
+
+        const assets = await worker.caches.open('pancake-test-1-assets')
+        expect(assets.entries.size).toBe(1)
+        expect(worker.fetches.filter((p) => p.endsWith('chunk.js'))).toHaveLength(1)
+    })
+
+    it('skips a precache manifest entry the host rewrites to a document', async () => {
+        const worker = await loadWorker({
+            precache: ['/', '/_expo/static/js/web/renamed.js'],
+            fetchImpl: async (input) => {
+                const url = typeof input === 'string' ? input : input.url
+                // The shell is a document; the renamed chunk comes back as the 404 rewrite.
+                return url.endsWith('renamed.js') ? html() : new Response('<!doctype html><title>Pancake</title>', { status: 200, headers: { 'content-type': 'text/html' } })
+            },
+        })
+        await worker.install()
+
+        const shell = await worker.caches.open('pancake-test-1-shell')
+        expect(shell.entries.size).toBe(1)
+        const assets = await worker.caches.open('pancake-test-1-assets')
+        expect(assets.entries.size).toBe(0)
+    })
+
+    // A cold cache plus a dead network used to resolve respondWith(undefined),
+    // which the browser treats as a hard failure the outer fallback never sees.
+    it('rejects rather than resolving undefined when offline with a cold cache', async () => {
+        const worker = await loadWorker({
+            fetchImpl: async () => { throw new TypeError('Failed to fetch') },
+        })
+
+        await expect(worker.respond(scoped('/manifest.webmanifest'))).rejects.toThrow(/Failed to fetch/)
+        await expect(worker.respond(scoped('/_expo/static/js/web/chunk.js'))).rejects.toThrow(/Failed to fetch/)
+        await expect(worker.respond(navigation('/players'))).rejects.toThrow(/Failed to fetch/)
+    })
+
+    it('serves the cached entry when offline after a warm load', async () => {
+        let online = true
+        const worker = await loadWorker({
+            fetchImpl: async () => {
+                if (!online) throw new TypeError('Failed to fetch')
+                return new Response('{"name":"Pancake"}', { status: 200, headers: { 'content-type': 'application/manifest+json' } })
+            },
+        })
+        await worker.respond(scoped('/manifest.webmanifest'))
+        online = false
+
+        const response = await worker.respond(scoped('/manifest.webmanifest'))
+        expect(await response.text()).toContain('Pancake')
+    })
+
+    it.each(['asset', 'shell'])('keeps the %s refresh alive until its cache write finishes', async (kind) => {
+        const response = new Response('updated')
+        Object.defineProperty(response, 'type', { value: 'basic' })
+        const worker = await loadWorker({ fetchImpl: async () => response })
+        const cache = await worker.caches.open(`pancake-test-1-${kind === 'shell' ? 'shell' : 'assets'}`)
+        const request = kind === 'shell' ? navigation('/') : scoped('/manifest.webmanifest')
+        const key = kind === 'shell' ? '/' : request
+        await cache.put(key, new Response('cached'))
+
+        let releaseWrite!: () => void
+        let writeStarted!: () => void
+        const blocked = new Promise<void>((resolve) => { releaseWrite = resolve })
+        const started = new Promise<void>((resolve) => { writeStarted = resolve })
+        const put = cache.put.bind(cache)
+        vi.spyOn(cache, 'put').mockImplementation(async (...args) => {
+            writeStarted()
+            await blocked
+            await put(...args)
+        })
+        const pending: Promise<unknown>[] = []
+        let result: unknown
+        worker.listeners.get('fetch')!({
+            request,
+            waitUntil: (promise) => { pending.push(promise) },
+            respondWith: (promise) => { result = promise },
+        })
+        const cached = await result as Response
+        expect(await cached.text()).toBe('cached')
+        await started
+        expect(pending).toHaveLength(1)
+        let finished = false
+        const lifetime = Promise.all(pending).then(() => { finished = true })
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        expect(finished).toBe(false)
+        releaseWrite()
+        await lifetime
+        expect(await (await cache.match(key))?.text()).toBe('updated')
+    })
+
+    // An install that cannot fetch the shell must not activate: activation
+    // deletes the previous release's shell, and a launch with no shell at all
+    // has nothing to paint offline.
+    it('fails the install when the shell itself is not served', async () => {
+        const worker = await loadWorker({
+            precache: ['/', '/_expo/static/js/web/app.js'],
+            fetchImpl: async (input) => {
+                const url = typeof input === 'string' ? input : input.url
+                return new URL(url).pathname === '/' ? new Response('gone', { status: 503 }) : script()
+            },
+        })
+        await expect(worker.install()).rejects.toThrow(/shell/i)
+        expect(worker.skipWaitingCalls).toBe(0)
     })
 })

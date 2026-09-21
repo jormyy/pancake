@@ -14,6 +14,7 @@ AS $$
 DECLARE
   _base_url text;
   _internal_token text;
+  _request_id bigint;
 BEGIN
   _base_url := NULLIF(rtrim(current_setting('app.supabase_url', true), '/'), '');
   _internal_token := NULLIF(current_setting('app.edge_internal_token', true), '');
@@ -48,7 +49,7 @@ BEGIN
     RAISE EXCEPTION '[cron] Supabase Edge internal token is not configured.';
   END IF;
 
-  PERFORM net.http_post(
+  SELECT net.http_post(
     _base_url || '/functions/v1/' || function_name,
     body,
     NULL,
@@ -57,6 +58,12 @@ BEGIN
       'Content-Type', 'application/json'
     ),
     30000
-  );
+  ) INTO _request_id;
+
+  -- pg_net is fire-and-forget; the request id is the only handle on the
+  -- outcome. private.reconcile_edge_invocations() turns the response (or its
+  -- absence) into a durable sync_runs failure row.
+  INSERT INTO public.edge_invocations (function_name, request_id)
+  VALUES (function_name, _request_id);
 END;
 $$;

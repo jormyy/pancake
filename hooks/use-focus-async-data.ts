@@ -112,11 +112,34 @@ export function useFocusAsyncData<T>(
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [...deps, staleMs])
 
+    // On web every tab screen stays mounted (hidden with CSS), so a hook
+    // instance must know whether its screen is the focused one before it
+    // reacts to global browser events; otherwise one reconnect fans out to
+    // every tab and a hidden failure surfaces as a banner when the tab is opened.
+    const isFocusedRef = useRef(false)
     useFocusEffect(
         useCallback(() => {
+            isFocusedRef.current = true
             load()
+            return () => { isFocusedRef.current = false }
         }, [load]),
     )
+
+    // On the web, a PWA returning to the foreground or regaining the network
+    // does not re-run useFocusEffect, so the focused screen kept its
+    // pre-sleep data. A reconnect always refetches; a foreground return
+    // goes through the normal staleness gate. Only the focused screen reacts.
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof document === 'undefined') return
+        const onOnline = () => { if (isFocusedRef.current) void load({ force: true }) }
+        const onVisible = () => { if (isFocusedRef.current && document.visibilityState === 'visible') void load() }
+        window.addEventListener('online', onOnline)
+        document.addEventListener('visibilitychange', onVisible)
+        return () => {
+            window.removeEventListener('online', onOnline)
+            document.removeEventListener('visibilitychange', onVisible)
+        }
+    }, [load])
 
     const refresh = useCallback(() => load({ force: true }), [load])
 

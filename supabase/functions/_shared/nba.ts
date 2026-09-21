@@ -54,18 +54,23 @@ type NBAScheduleGamePayload = {
   awayTeam?: { teamTricode?: unknown }
 }
 
+// Two budgets: each attempt gets 20 s to answer with headers (so a hung first
+// attempt leaves the retry a full budget), and the whole call, body read
+// included, must finish within CDN_TOTAL_TIMEOUT_MS. A box score whose body
+// stalls after headers used to hang the run until the platform killed it.
+const CDN_ATTEMPT_TIMEOUT_MS = 20_000
+const CDN_TOTAL_TIMEOUT_MS = 45_000
+
 async function cdnGet(path: string): Promise<unknown> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20_000)
-  try {
-    const res = await fetchWithRetry(`${NBA_CDN}${path}`, { headers: NBA_HEADERS, signal: controller.signal })
-    if (!res.ok) {
-      throw new CdnHttpError(res.status, path)
-    }
-    return await res.json()
-  } finally {
-    clearTimeout(timeout)
+  const res = await fetchWithRetry(
+    `${NBA_CDN}${path}`,
+    { headers: NBA_HEADERS, signal: AbortSignal.timeout(CDN_TOTAL_TIMEOUT_MS) },
+    { attemptTimeoutMs: CDN_ATTEMPT_TIMEOUT_MS },
+  )
+  if (!res.ok) {
+    throw new CdnHttpError(res.status, path)
   }
+  return await res.json()
 }
 
 // Parse NBA ISO duration like "PT35M12.00S" → decimal minutes (e.g. 35.2)

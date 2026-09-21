@@ -23,6 +23,8 @@ export function useTradesFeed(memberId: string, leagueId: string) {
     const [error, setError] = useState<string | null>(null)
     const [hasMore, setHasMore] = useState((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
     const [loadingMore, setLoadingMore] = useState(false)
+    // A failed next page is not a failed load: the pages already shown stay valid.
+    const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
     const loadSequence = useRef(0)
     const paginationRequest = useRef<symbol | null>(null)
     const nextCursor = useRef<TradePageCursor | null>(null)
@@ -33,6 +35,8 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         nextCursor.current = null
         setLoadingMore(false)
         setHasMore(false)
+        // A refresh replaces the first page, so a failed next page is moot.
+        setLoadMoreError(null)
         if (!memberId || !leagueId) {
             setResource({ key: null, trades: [] })
             setError(null)
@@ -63,6 +67,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         nextCursor.current = null
         setResource({ key: resourceKey, trades: cached ?? [] })
         setError(null)
+        setLoadMoreError(null)
         setLoading(!cached)
         setHasMore((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
         setLoadingMore(false)
@@ -98,9 +103,10 @@ export function useTradesFeed(memberId: string, leagueId: string) {
             })
             nextCursor.current = result.nextCursor
             setHasMore(result.hasMore)
+            if (loadSequence.current === requestId) setLoadMoreError(null)
         } catch (cause) {
             if (loadSequence.current === requestId) {
-                setError(getErrorMessage(cause) ?? 'Could not load more trades.')
+                setLoadMoreError(getErrorMessage(cause) ?? 'Could not load more trades.')
             }
         } finally {
             if (paginationRequest.current === paginationToken) {
@@ -117,6 +123,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         loadingMore: ownsResource && loadingMore,
         hasMore: ownsResource ? hasMore : (cached?.length ?? 0) >= TRADES_PAGE_SIZE,
         error: ownsResource ? error : null,
+        loadMoreError: ownsResource ? loadMoreError : null,
         refresh,
         loadMore,
     }

@@ -31,7 +31,8 @@ commissioner disappears.
   and rookie filters
 - **Dynasty Hub** with Hashtag Basketball dynasty rankings, source stat strips, player
   headshots, curated news, and roster-filtered My News
-- **Waiver wire** with weekly add limits, rolling or FAAB claim modes, blind bids,
+- **Waiver wire** with weekly add limits (in the offseason the limit keeps counting in
+  synthetic 7-day weeks anchored to the last regular-season week), rolling or FAAB claim modes, blind bids,
   pending-claim edit/reorder/cancel, and a 48h clearance window
 - **Trades** with active-roster players, future draft picks, tradeable FAAB, multi-team
   offers, expiration, counteroffers, outgoing edits, trade block, and a 24h veto window
@@ -47,7 +48,7 @@ commissioner disappears.
 | Frontend | Expo / React Native (TypeScript), Expo Router; web export deployed as a PWA |
 | API | Supabase Edge Functions (`/functions/v1/api` is the single HTTP boundary) |
 | Database | Supabase Postgres — gameplay mutations via `SECURITY DEFINER` RPCs only |
-| Scheduling | Supabase pg_cron + `invoke_edge_function`, ET wall-clock and idle gated |
+| Scheduling | Supabase pg_cron + `invoke_edge_function`, ET wall-clock gates with once-per-period catch-up, idle gated, responses retained in `edge_invocations`; dispatch failures recorded in `sync_runs` |
 | Realtime | Supabase Realtime (matchups, auction bids) |
 | Auth | Supabase Auth |
 

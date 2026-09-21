@@ -1,4 +1,4 @@
-import { runSeasonBoundary } from '../_shared/seasonBoundary.ts'
+import { runSeasonBoundary, summarizeBoundaryFailures } from '../_shared/seasonBoundary.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 
@@ -11,7 +11,7 @@ serveInternal('season-boundary', async (req) => {
   let reports: Awaited<ReturnType<typeof runSeasonBoundary>> = []
   await recordSyncRun('season-boundary', async () => {
     reports = await runSeasonBoundary(referenceDate, leagueId)
-    return { result: undefined, rowsAffected: reports.length }
+    return { result: undefined, rowsAffected: reports.length, failure: summarizeBoundaryFailures(reports) }
   })
   return Response.json({ ok: true, leagues: reports })
 })

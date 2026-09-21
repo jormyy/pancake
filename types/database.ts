@@ -147,6 +147,24 @@ export type Database = {
           },
         ]
       }
+      cron_dispatch_state: {
+        Row: {
+          dispatched_at: string
+          job_key: string
+          period_key: string
+        }
+        Insert: {
+          dispatched_at?: string
+          job_key: string
+          period_key: string
+        }
+        Update: {
+          dispatched_at?: string
+          job_key?: string
+          period_key?: string
+        }
+        Relationships: []
+      }
       draft_audit_logs: {
         Row: {
           action: string
@@ -621,6 +639,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      edge_invocations: {
+        Row: {
+          error_message: string | null
+          function_name: string
+          id: number
+          queued_at: string
+          reconciled_at: string | null
+          request_id: number | null
+          status_code: number | null
+        }
+        Insert: {
+          error_message?: string | null
+          function_name: string
+          id?: never
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+        }
+        Update: {
+          error_message?: string | null
+          function_name?: string
+          id?: never
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+        }
+        Relationships: []
       }
       faab_balances: {
         Row: {
@@ -4014,7 +4062,7 @@ export type Database = {
         }[]
       }
       invoke_dynasty_ranking_views_at_et_time: {
-        Args: { p_hour: number; p_minute?: number }
+        Args: { p_hour: number; p_minute?: number; p_now?: string }
         Returns: undefined
       }
       invoke_edge_function: {
@@ -4022,13 +4070,21 @@ export type Database = {
         Returns: undefined
       }
       invoke_edge_function_at_et_time: {
-        Args: { p_function_name: string; p_hour: number; p_minute?: number }
+        Args: {
+          p_function_name: string
+          p_hour: number
+          p_minute?: number
+          p_now?: string
+        }
         Returns: undefined
       }
       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
-      invoke_season_boundary_if_due: { Args: never; Returns: undefined }
+      invoke_season_boundary_if_due: {
+        Args: { p_now?: string }
+        Returns: undefined
+      }
       is_regular_season_game_id: {
         Args: { p_game_id: string }
         Returns: boolean
@@ -4219,6 +4275,14 @@ export type Database = {
       remove_trade_block_item_atomic: {
         Args: { p_item_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined
+      }
+      renew_live_poll_lease: {
+        Args: {
+          p_holder_id: string
+          p_lock_key: number
+          p_ttl_seconds?: number
+        }
+        Returns: boolean
       }
       reorder_waiver_claim_atomic: {
         Args: {

@@ -10,21 +10,21 @@ import type { LeagueStatus } from '@/types/database'
 import { isMultiTeamTradeSubmittable, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 
-export type TradeComposerMode = 'propose' | 'edit' | 'counter'
+type TradeComposerMode = 'propose' | 'edit' | 'counter'
 
 type TradeComposerModeInput = {
     editTradeId?: string | null
     counterTradeId?: string | null
 }
 
-export type TradeComposerModeState = {
+type TradeComposerModeState = {
     mode: TradeComposerMode
     editTradeId: string | null
     counterTradeId: string | null
     sourceTradeId: string | null
 }
 
-export type TradeComposerPrefill = {
+type TradeComposerPrefill = {
     selectedRecipientId: string | null
     offerPlayerIds: string[]
     requestPlayerIds: string[]
@@ -49,7 +49,7 @@ type ComposerPayloadInput = {
     tradeDeadline?: string | null
 }
 
-export type ComposerPayloadDraft = {
+type ComposerPayloadDraft = {
     payload: TradeProposalPayload
     hasOffer: boolean
     hasRequest: boolean

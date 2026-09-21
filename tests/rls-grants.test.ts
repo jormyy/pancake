@@ -81,10 +81,10 @@ describe('service-role-only RPCs are never granted to client roles', () => {
     it('locks the ET cron Edge wrapper away from client roles', () => {
         const privileges = functionPrivilegeStatements('invoke_edge_function_at_et_time').join('\n')
 
-        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM PUBLIC')
-        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM anon')
-        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) FROM authenticated')
-        expect(privileges).toContain('GRANT EXECUTE ON FUNCTION public.invoke_edge_function_at_et_time(text, int, int) TO service_role')
+        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, integer, integer, timestamptz) FROM PUBLIC')
+        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, integer, integer, timestamptz) FROM anon')
+        expect(privileges).toContain('REVOKE ALL ON FUNCTION public.invoke_edge_function_at_et_time(text, integer, integer, timestamptz) FROM authenticated')
+        expect(privileges).toContain('GRANT EXECUTE ON FUNCTION public.invoke_edge_function_at_et_time(text, integer, integer, timestamptz) TO service_role')
     })
 })
 
