@@ -7,6 +7,10 @@ on:
         description: Full Git SHA whose readiness harness is executed
         required: true
         type: string
+      database_phase:
+        description: Exact database contract before or after the approved migration phase
+        required: true
+        type: string
       frontend_sha:
         description: Full Git SHA served by the frontend under test
         required: true
@@ -78,6 +82,7 @@ jobs:
     timeout-minutes: 45
     environment: production
     env:
+      E2E_DATABASE_PHASE: ${{ inputs.database_phase || 'post-migration' }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -113,6 +118,15 @@ jobs:
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: 2.109.1
+
+      - name: Resolve exact database phase
+        shell: bash
+        run: |
+          case "$E2E_DATABASE_PHASE" in
+            pre-migration|post-migration) ;;
+            *) echo "Missing or invalid database phase"; exit 1 ;;
+          esac
+          printf 'E2E_DATABASE_PHASE=%s\n' "$E2E_DATABASE_PHASE" >> "$GITHUB_ENV"
 
       - name: Require protected production credentials
         shell: bash
@@ -181,7 +195,7 @@ jobs:
         run: npm run security:edge-auth:linked -- --positive
 
       - name: Verify linked database security catalog
-        run: npm run security:db-catalog -- --linked
+        run: npm run security:db-catalog -- --linked --phase="$E2E_DATABASE_PHASE"
 
       - name: Retain production readiness evidence
         if: always()
