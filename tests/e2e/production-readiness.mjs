@@ -13,7 +13,7 @@ import {
   statusFrom,
   writeReportIfChanged,
 } from './env.mjs'
-import { evaluateLegacyKeyReadiness } from './production-readiness-contract.mjs'
+import { evaluateLegacyKeyReadiness, probeLegacyKeyDisabled } from './production-readiness-contract.mjs'
 
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/production-readiness-report.md')
@@ -382,10 +382,17 @@ SELECT
   }
 
   const legacyState = await legacyApiKeysEnabled(projectRef)
+  const legacyKeyDenials = legacyState.ok && legacyState.enabled === false && Array.isArray(apiKeyRows)
+    ? await Promise.all(apiKeyRows.filter((row) => row?.type === 'legacy').map(async (row) => ({
+        name: row.name ?? row.id ?? 'legacy',
+        disabled: await probeLegacyKeyDisabled({ projectRef: projectRef ?? '', supabaseUrl: supabaseUrl ?? '', apiKey: row.api_key }),
+      })))
+    : []
   const legacyKeysManualVerified = envValue('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED') === '1'
   const legacyReadiness = evaluateLegacyKeyReadiness({
     legacyState,
     legacyKeys,
+    legacyKeyDenials,
     manualVerified: legacyKeysManualVerified,
   })
   rows.push({

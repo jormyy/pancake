@@ -1,16 +1,22 @@
 /**
- * @param {{ legacyState: { ok: boolean, enabled: boolean | null, evidence: string }, legacyKeys: string[] | null, manualVerified: boolean }} input
+ * @param {{ legacyState: { ok: boolean, enabled: boolean | null, evidence: string }, legacyKeys: string[] | null,
+ *   legacyKeyDenials?: { name: string, disabled: boolean }[], manualVerified: boolean }} input
  */
-export const evaluateLegacyKeyReadiness = ({ legacyState, legacyKeys, manualVerified }) => {
+export const evaluateLegacyKeyReadiness = ({ legacyState, legacyKeys, legacyKeyDenials = [], manualVerified }) => {
   const authoritative = []
   if (legacyState.ok && typeof legacyState.enabled === 'boolean') {
     authoritative.push({ pass: legacyState.enabled === false, evidence: legacyState.evidence })
   }
   if (Array.isArray(legacyKeys)) {
+    const retainedKeysDisabled = legacyState.ok && legacyState.enabled === false &&
+      new Set(legacyKeys).size === legacyKeys.length && legacyKeyDenials.length === legacyKeys.length &&
+      legacyKeys.every((name, index) => legacyKeyDenials[index]?.name === name && legacyKeyDenials[index].disabled === true)
     authoritative.push({
-      pass: legacyKeys.length === 0,
+      pass: legacyKeys.length === 0 || retainedKeysDisabled,
       evidence: legacyKeys.length === 0
         ? 'Supabase API-key metadata no longer includes legacy JWT key records.'
+        : retainedKeysDisabled
+          ? `Legacy keys are disabled; all ${legacyKeys.length} retained records return explicit disabled-key denials.`
         : `Supabase API-key metadata includes legacy key record(s): ${legacyKeys.join(', ')}.`,
     })
   }
@@ -26,6 +32,24 @@ export const evaluateLegacyKeyReadiness = ({ legacyState, legacyKeys, manualVeri
     evidence: manualVerified
       ? 'Manual hosted-project legacy-key verification was used because authoritative sources were unavailable.'
       : `Authoritative legacy-key state is unavailable. ${legacyState.evidence}`,
+  }
+}
+
+/**
+ * @param {{ projectRef: string, supabaseUrl: string, apiKey: string,
+ *   fetchImpl?: (url: URL, init: RequestInit) => Promise<Response> }} input
+ */
+export const probeLegacyKeyDisabled = async ({ projectRef, supabaseUrl, apiKey, fetchImpl = fetch }) => {
+  try {
+    if (!/^[a-z0-9]{20}$/.test(projectRef) || !apiKey ||
+        new URL(supabaseUrl).href !== `https://${projectRef}.supabase.co/`) return false
+    const response = await fetchImpl(new URL('/rest/v1/leagues?select=id&limit=0', supabaseUrl), {
+      method: 'GET', headers: { apikey: apiKey }, redirect: 'error', signal: AbortSignal.timeout(20_000),
+    })
+    const body = await response.json()
+    return response.status === 401 && body?.message === 'Legacy API keys are disabled'
+  } catch {
+    return false
   }
 }
 
