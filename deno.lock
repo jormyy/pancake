@@ -23,6 +23,7 @@
     "packageJson": {
       "dependencies": [
         "npm:@expo-google-fonts/outfit@~0.4.3",
+        "npm:@expo/metro-config@54.0.17",
         "npm:@expo/vector-icons@^15.0.3",
         "npm:@react-navigation/native@^7.1.8",
         "npm:@shopify/flash-list@2.0.2",

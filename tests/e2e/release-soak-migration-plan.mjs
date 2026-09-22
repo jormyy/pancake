@@ -1,5 +1,9 @@
 import process from 'node:process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
+
+const attestations = JSON.parse(readFileSync(new URL('./release-history-attestations.json', import.meta.url), 'utf8'))
 
 const migration = (filename) => {
   const match = filename.match(/^(\d+)_.*\.sql$/)
@@ -63,6 +67,78 @@ export const planReleaseMigrationsFromHistory = (filenames, deployedRows) => {
   return { ...plan, deployedHistory: applied }
 }
 
+// The generic planner above stays strict. Only this production entry point
+// accepts the audited aliases, with both recorded SQL and live convergence.
+export const planAttestedProductionMigrations = (repositoryFiles, snapshot, projectRef) => {
+  if (projectRef !== attestations.projectRef) throw new Error('Unattested production project')
+  if (!Array.isArray(snapshot?.history) || !Array.isArray(snapshot?.functions)) {
+    throw new Error('Production history attestation is missing')
+  }
+  const { history } = snapshot
+  const approved = attestations.approvedMigrations
+  const files = repositoryFiles.toSorted((left, right) => left.filename.localeCompare(right.filename))
+  if (files.length !== attestations.baselineCount + approved.length ||
+      history.length < attestations.baselineCount) {
+    throw new Error('Production history is outside the audited migration range')
+  }
+  for (const [index, expected] of approved.entries()) {
+    const file = files[attestations.baselineCount + index]
+    if (file.filename !== `${expected.version}_${expected.name}.sql` || file.sha256 !== expected.sha256) {
+      throw new Error('Unexpected production migration range or SQL')
+    }
+  }
+  if (migration(files[attestations.baselineCount - 1].filename).version !== attestations.baselineVersion) {
+    throw new Error('Unexpected production migration baseline')
+  }
+
+  const aliases = new Map(attestations.aliases.map((entry) => [entry.version, entry]))
+  const approvedByVersion = new Map(approved.map((entry) => [entry.version, entry]))
+  const canonicalRows = history.map((row, index) => {
+    const applied = approvedByVersion.get(row?.version)
+    if (applied && (row.statementCount !== applied.statementCount ||
+        row.statementsSha256 !== applied.statementsSha256)) {
+      throw new Error(`Approved production migration attestation failed at row ${index + 1}`)
+    }
+    const alias = aliases.get(row?.version)
+    if (!alias) return row
+    const file = files[index]
+    if (row.name !== alias.deployedName || row.statementCount !== alias.statementCount ||
+        row.statementsSha256 !== alias.statementsSha256 ||
+        file?.filename !== `${alias.version}_${alias.repositoryName}.sql` ||
+        file.sha256 !== alias.repositorySha256) {
+      throw new Error(`Production migration attestation failed at row ${index + 1}`)
+    }
+    return { version: row.version, name: alias.repositoryName }
+  })
+  const plan = planReleaseMigrationsFromHistory(files.map(({ filename }) => filename), canonicalRows)
+  if (snapshot.oldHelperCount !== 0 || snapshot.oldHelperReferenceCount !== 0 ||
+      snapshot.functions.length !== attestations.convergence.length) {
+    throw new Error('Production helper convergence is incomplete')
+  }
+  for (const [index, expected] of attestations.convergence.entries()) {
+    const actual = snapshot.functions[index]
+    if (Object.entries(expected).some(([key, value]) => JSON.stringify(actual?.[key]) !== JSON.stringify(value))) {
+      throw new Error(`Production helper convergence failed at function ${index + 1}`)
+    }
+  }
+  return {
+    ...plan,
+    // Preserve actual recorded labels in evidence; canonicalization is comparison-only.
+    deployedHistory: history.map(({ version, name }) => ({ version, name })),
+    attestedAliases: attestations.aliases.map(({ version, difference }) => ({ version, difference })),
+    projectRef,
+  }
+}
+
+export const readProductionHistorySnapshot = (payload) => {
+  // Supabase CLI versions emit either an array or a { rows } envelope.
+  const rows = Array.isArray(payload) ? payload : payload?.rows
+  if (!Array.isArray(rows) || rows.length !== 1 || !rows[0]?.snapshot) {
+    throw new Error('Production history query must return one attestation snapshot')
+  }
+  return rows[0].snapshot
+}
+
 export const validateAppliedMigrationDelta = ({ beforeVersions, afterVersions, expectedVersions }) => {
   const appliedVersions = afterVersions.filter((version) => !beforeVersions.includes(version))
   const failures = []
@@ -79,7 +155,27 @@ export const validateAppliedMigrationDelta = ({ beforeVersions, afterVersions, e
 if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv[2] === '--history-file') {
     const payload = JSON.parse(readFileSync(process.argv[3], 'utf8'))
-    process.stdout.write(JSON.stringify(planReleaseMigrationsFromHistory(process.argv.slice(4), payload?.rows)))
+    if (process.argv[4] !== '--project-ref') throw new Error('Production project ref is required')
+    const args = process.argv.slice(6)
+    const comparePlan = args[0] === '--expected-plan-sha256'
+    const expectedDigest = comparePlan ? args.splice(0, 2)[1] : undefined
+    if (comparePlan && !/^[a-f0-9]{64}$/.test(expectedDigest ?? '')) {
+      throw new Error('Expected soaked migration plan SHA-256 is required')
+    }
+    const files = args.map((filename) => {
+      if (path.basename(filename) !== filename) throw new Error('Migration filename must not contain a path')
+      return {
+        filename,
+        sha256: createHash('sha256').update(readFileSync(path.join('supabase/migrations', filename))).digest('hex'),
+      }
+    })
+    const plan = JSON.stringify(planAttestedProductionMigrations(
+      files, readProductionHistorySnapshot(payload), process.argv[5],
+    ))
+    if (comparePlan && createHash('sha256').update(plan).digest('hex') !== expectedDigest) {
+      throw new Error('Production migration plan changed since the successful soak')
+    }
+    process.stdout.write(plan)
   } else {
     process.stdout.write(JSON.stringify(planReleaseMigrations(process.argv.slice(3), process.argv[2] ?? '')))
   }

@@ -145,11 +145,13 @@ jobs:
 
   migrate-production:
     name: Apply compatibility-proven database phase
-    needs: verify-candidate-current-backend
+    needs: [release-soak, verify-candidate-current-backend]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
     env:
+      E2E_RELEASE_SHA: ${{ inputs.release_sha }}
+      SOAKED_MIGRATION_PLAN_SHA256: ${{ needs.release-soak.outputs.migration_plan_sha256 }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -157,14 +159,36 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ inputs.release_sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: 2.109.1
       - name: Apply soaked migration range
         shell: bash
         run: |
+          [[ "$E2E_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$E2E_RELEASE_SHA"
+          [[ "$SOAKED_MIGRATION_PLAN_SHA256" =~ ^[0-9a-f]{64}$ ]]
           test "$SUPABASE_PROJECT_REF" = 'ceeytbfmwsnzalxlkalc'
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          attest_current_plan() {
+            test "$(cat supabase/.temp/project-ref)" = "$SUPABASE_PROJECT_REF"
+            supabase db query --linked --agent=no -o json \
+              -f tests/e2e/release-schema-history.sql \
+              > "$RUNNER_TEMP/pre-migration-$1-history.json"
+            test "$(cat supabase/.temp/project-ref)" = "$SUPABASE_PROJECT_REF"
+            migration_names=()
+            for migration in supabase/migrations/*.sql; do migration_names+=("${migration##*/}"); done
+            node tests/e2e/release-soak-migration-plan.mjs \
+              --history-file "$RUNNER_TEMP/pre-migration-$1-history.json" \
+              --project-ref "$SUPABASE_PROJECT_REF" \
+              --expected-plan-sha256 "$SOAKED_MIGRATION_PLAN_SHA256" \
+              "${migration_names[@]}" > "$RUNNER_TEMP/pre-migration-$1-plan.json"
+            test "$(cat supabase/.temp/project-ref)" = "$SUPABASE_PROJECT_REF"
+          }
+          attest_current_plan before-index
           # A failed concurrent build leaves an invalid same-name index that
           # CREATE INDEX IF NOT EXISTS will not repair. Clear any prior
           # quarantine, quarantine an invalid main index, then drop it online.
@@ -176,7 +200,15 @@ jobs:
             -f supabase/predeploy/20260710130000_profiles_push_token_lookup_drop_invalid.sql
           supabase db query --linked --agent=no \
             -f supabase/predeploy/20260710130000_profiles_push_token_lookup.sql
+          attest_current_plan before-push
           supabase db push --linked --yes
+      - name: Preserve immediate migration attestations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: immediate-migration-attestations
+          path: ${{ runner.temp }}/pre-migration-*.json
+          if-no-files-found: warn
 
   verify-current-after-migration:
     name: Verify current release after database phase

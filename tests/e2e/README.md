@@ -160,7 +160,10 @@ set +e; timeout -s TERM 36000 npm run e2e:soak:release; echo "release soak exit 
 ```
 
 The plan script's positional form is `<deployedVersion> <migration filenames...>` (CI uses
-`--history-file <json> <filenames...>` with the production history). The harness reads
+`--history-file <json> --project-ref <ref> <filenames...>` with the read-only
+`release-schema-history.sql` snapshot). The production planner checks the
+[audited history attestations](../../docs/production-migration-history.md),
+including stored SQL fingerprints and live helper convergence. The harness reads
 `SUPABASE_DB_URL` for the migration evidence. Seasons 1–5 run on the base schema and 6–20 on the
 repository head, which is what the release gate certifies. The bound must cover 20 browser
 seasons (about 19 minutes each on the reference laptop); capture the child's real exit status,

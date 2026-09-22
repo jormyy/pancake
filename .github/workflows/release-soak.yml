@@ -2,6 +2,10 @@ name: Release soak
 
 on:
   workflow_call:
+    outputs:
+      migration_plan_sha256:
+        description: Exact attested history and pending plan exercised by the soak
+        value: ${{ jobs.release-soak.outputs.migration_plan_sha256 }}
     inputs:
       release_sha:
         description: Full main-branch Git SHA to soak
@@ -25,6 +29,8 @@ concurrency:
 
 jobs:
   release-soak:
+    outputs:
+      migration_plan_sha256: ${{ steps.migration-plan.outputs.sha256 }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: production
@@ -70,8 +76,9 @@ jobs:
             if (url.protocol !== "https:" || url.hostname !== expected) process.exit(1)
           ' "$E2E_PRODUCTION_FRONTEND_URL" "$E2E_EXPECTED_FRONTEND_HOST"
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-          supabase db query --linked -o json \
-            'select version::text, name::text from supabase_migrations.schema_migrations order by version' \
+          test "$(cat supabase/.temp/project-ref)" = "$SUPABASE_PROJECT_REF"
+          supabase db query --linked --agent=no -o json \
+            -f tests/e2e/release-schema-history.sql \
             > /tmp/deployed-schema-history.json
           node tests/e2e/release-baseline-provenance.mjs > /tmp/deployed-release.json
           deployed_frontend_sha="$(node -e 'process.stdout.write(require("/tmp/deployed-release.json").frontend.commitSha)')"
@@ -87,10 +94,13 @@ jobs:
           printf 'E2E_DEPLOYED_EDGE_SHA=%s\n' "$deployed_edge_sha" >> "$GITHUB_ENV"
           printf 'E2E_DEPLOYED_EDGE_DIGEST=%s\n' "$deployed_edge_digest" >> "$GITHUB_ENV"
       - name: Start release stack
+        id: migration-plan
         shell: bash
         run: |
           mapfile -t migration_names < <(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort)
-          plan="$(node tests/e2e/release-soak-migration-plan.mjs --history-file /tmp/deployed-schema-history.json "${migration_names[@]}")"
+          plan="$(node tests/e2e/release-soak-migration-plan.mjs --history-file /tmp/deployed-schema-history.json --project-ref "$SUPABASE_PROJECT_REF" "${migration_names[@]}")"
+          plan_sha256="$(printf '%s' "$plan" | node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(require("node:fs").readFileSync(0)).digest("hex"))')"
+          printf 'sha256=%s\n' "$plan_sha256" >> "$GITHUB_OUTPUT"
           deployed_schema_version="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).deployedVersion)' "$plan")"
           mapfile -t pending_names < <(node -e 'for (const value of JSON.parse(process.argv[1]).pendingFiles) console.log(value)' "$plan")
           pending_versions="$(node -e 'process.stdout.write(JSON.stringify(JSON.parse(process.argv[1]).pendingVersions))' "$plan")"
