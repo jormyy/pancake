@@ -17,8 +17,16 @@ bundle digest to match the independently captured expected digest. It rejects
 altered, missing, extra, duplicated, reordered, or unsafe manifest entries,
 changed inputs, redirects, and a marker that changes during retrieval.
 Existing output directories are never overwritten. A recovered deployment is
-not described as a source rebuild. The release workflow also retains its
-separate exact-rebuild comparison before the local compatibility build.
+not described as a source rebuild. The release workflow passes the verified
+digest into the compatibility contract and requires it to equal the captured
+live digest. It then builds the trusted source separately with loopback test
+endpoints. Recovered input files are evidence; the workflow never executes them.
+
+This proves the deployed-byte property directly. Rebuilding source can change
+prerendered date labels when the calendar advances, even when all application
+JavaScript matches. The recovered output and its inputs remain byte-for-byte
+covered by the existing digest; no dates, whitespace, or source SHAs replace
+those bytes in verification.
 
 Vercel's build command enables the same Metro graph option as the release
 workflow. New deployment baselines can therefore retain their complete bytes

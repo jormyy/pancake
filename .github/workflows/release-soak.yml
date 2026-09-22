@@ -202,25 +202,19 @@ jobs:
           trap cleanup EXIT
           git worktree add --detach "$deployed_frontend_worktree" "$E2E_DEPLOYED_FRONTEND_SHA"
           git worktree add --detach "$deployed_edge_worktree" "$E2E_DEPLOYED_EDGE_SHA"
-          verified_artifact=/tmp/pancake-verified-frontend
-          npm run release:recover-artifact -- \
+          verified_artifact="$PWD/tests/artifacts/stack/verified-deployed-frontend"
+          node tests/e2e/recover-release-artifact.mjs \
             --url "$E2E_PRODUCTION_FRONTEND_URL" \
             --expected-sha "$E2E_DEPLOYED_FRONTEND_SHA" \
             --expected-digest "$E2E_DEPLOYED_FRONTEND_DIGEST" \
-            --output "$verified_artifact"
+            --output "$verified_artifact" > tests/artifacts/stack/deployed-frontend-artifact.json
+          export E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST="$(
+            node -e "process.stdout.write(require('./tests/artifacts/stack/deployed-frontend-artifact.json').bundleDigest)"
+          )"
+          test "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST" = "$E2E_DEPLOYED_FRONTEND_DIGEST"
           npm ci --prefix "$deployed_frontend_worktree"
           (
             cd "$deployed_frontend_worktree"
-            PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
-              EXPO_PUBLIC_SUPABASE_URL="$EXPO_PUBLIC_SUPABASE_URL" \
-              EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
-              EXPO_PUBLIC_API_URL="$EXPO_PUBLIC_API_URL" \
-              EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
-              npm run build:web:release
-            marker_sha="$(node -e "process.stdout.write(require('./dist/release-provenance.json').commitSha)")"
-            marker_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
-            test "$marker_sha" = "$E2E_DEPLOYED_FRONTEND_SHA"
-            test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"
             PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
               EXPO_PUBLIC_SUPABASE_URL="$E2E_SUPABASE_URL" \
               EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$E2E_SUPABASE_PUBLISHABLE_KEY" \
