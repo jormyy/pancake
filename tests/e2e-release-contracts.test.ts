@@ -66,7 +66,7 @@ describe('release E2E contracts', () => {
     )
     const vercel = JSON.parse(await readFile(path.join(process.cwd(), 'vercel.json'), 'utf8'))
     expect(vercel.installCommand).toBe('npm ci')
-    expect(vercel.buildCommand).toBe('npm run build:web:release')
+    expect(vercel.buildCommand).toBe('EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release')
     // Production deploys from main were turned on deliberately (#45); this
     // assertion still pins the flag so the change stays a decision, not a drift.
     expect(vercel.git.deploymentEnabled.main).toBe(true)
@@ -288,6 +288,7 @@ describe('release E2E contracts', () => {
       commitSha: 'a'.repeat(40),
       bundleDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
       deploymentInputs: ['app.json', 'package.json', 'package-lock.json', 'vercel.json'],
+      artifact: expect.objectContaining({ version: 1, files: expect.any(Array), inputs: expect.any(Array) }),
     })
     expect(await digestReleaseBundle(root)).toBe(marker.bundleDigest)
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
@@ -431,8 +432,8 @@ describe('release E2E contracts', () => {
       candidateSha,
       deployedFrontendSha,
       deployedEdgeSha,
-      deployedFrontendRebuild: {
-        exactProductionRebuildVerified: true,
+      deployedFrontendArtifact: {
+        verifiedBundleDigest: '1'.repeat(64),
         liveBundleDigest: '1'.repeat(64),
         compatibilityBundleDigest: 'd'.repeat(64),
       },
@@ -463,11 +464,18 @@ describe('release E2E contracts', () => {
     })).toContain('deployed-frontend-deployed-edge mutation contract failed: removed RPC create_league')
     expect(validateReleaseCompatibilityEvidence({
       ...input,
-      deployedFrontendRebuild: { ...input.deployedFrontendRebuild, exactProductionRebuildVerified: false },
-    })).toContain('deployed frontend exact production rebuild was not verified')
+      deployedFrontendArtifact: { ...input.deployedFrontendArtifact, verifiedBundleDigest: '' },
+    })).toContain('deployed frontend complete artifact digest was not verified')
+    expect(validateReleaseCompatibilityEvidence({
+      ...input,
+      deployedFrontendArtifact: { ...input.deployedFrontendArtifact, verifiedBundleDigest: '2'.repeat(64) },
+    })).toContain('deployed frontend complete artifact digest was not verified')
 
     const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
-    expect(soakWorkflow).toContain('test "$marker_digest" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
+    expect(soakWorkflow).toContain('node tests/e2e/recover-release-artifact.mjs')
+    expect(soakWorkflow).toContain('--expected-digest "$E2E_DEPLOYED_FRONTEND_DIGEST"')
+    expect(soakWorkflow).toContain('test "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
+    expect(soakWorkflow.indexOf('recover-release-artifact.mjs')).toBeLessThan(soakWorkflow.indexOf('--pair=deployed-frontend-candidate-edge'))
     expect(soakWorkflow).toContain('export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=')
     expect(soakWorkflow).not.toContain("printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s")
     expect(soakWorkflow.match(/release-mutation-compatibility\.mjs/g)).toHaveLength(3)

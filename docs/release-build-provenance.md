@@ -5,6 +5,33 @@ stamps the complete output with its source commit and SHA-256 digest.
 The digest includes every output file except the marker itself, plus the four
 deployment inputs listed in the marker. It does not normalize output bytes.
 
+The marker also retains a sorted file manifest with sizes and SHA-256 hashes,
+plus the exact four build-input files encoded as base64. It does not include
+`.env` files, credentials, or provider settings. The marker remains the only
+output excluded from the existing bundle digest.
+
+`npm run release:recover-artifact -- --url <deployment> --expected-sha <sha>
+--expected-digest <digest> --output <new-directory>` retrieves each declared
+file and restores those original inputs. It requires the unchanged complete
+bundle digest to match the independently captured expected digest. It rejects
+altered, missing, extra, duplicated, reordered, or unsafe manifest entries,
+changed inputs, redirects, and a marker that changes during retrieval.
+Existing output directories are never overwritten. A recovered deployment is
+not described as a source rebuild. The release workflow passes the verified
+digest into the compatibility contract and requires it to equal the captured
+live digest. It then builds the trusted source separately with loopback test
+endpoints. Recovered input files are evidence; the workflow never executes them.
+
+This proves the deployed-byte property directly. Rebuilding source can change
+prerendered date labels when the calendar advances, even when all application
+JavaScript matches. The recovered output and its inputs remain byte-for-byte
+covered by the existing digest; no dates, whitespace, or source SHAs replace
+those bytes in verification.
+
+Vercel's build command enables the same Metro graph option as the release
+workflow. New deployment baselines can therefore retain their complete bytes
+and original inputs without access to an older provider build archive.
+
 ## Stable CSS exports
 
 Lightning CSS returns CSS module exports in an unspecified key order.

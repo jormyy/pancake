@@ -10,7 +10,7 @@ export const validateReleaseCompatibilityEvidence = ({
   candidateSha,
   deployedFrontendSha,
   deployedEdgeSha,
-  deployedFrontendRebuild,
+  deployedFrontendArtifact,
   pairs,
 }) => {
   const failures = []
@@ -38,13 +38,14 @@ export const validateReleaseCompatibilityEvidence = ({
     if (!fullSha(sha)) failures.push(`${label} SHA is invalid`)
   }
   const deployedPair = pairs?.find((candidate) => candidate?.id === 'deployed-frontend-candidate-edge')
-  if (deployedFrontendRebuild?.exactProductionRebuildVerified !== true) {
-    failures.push('deployed frontend exact production rebuild was not verified')
+  if (!digest(deployedFrontendArtifact?.verifiedBundleDigest) ||
+      deployedFrontendArtifact.verifiedBundleDigest !== deployedFrontendArtifact.liveBundleDigest) {
+    failures.push('deployed frontend complete artifact digest was not verified')
   }
-  if (!digest(deployedFrontendRebuild?.liveBundleDigest)) {
+  if (!digest(deployedFrontendArtifact?.liveBundleDigest)) {
     failures.push('deployed frontend live bundle digest is invalid')
   }
-  if (deployedFrontendRebuild?.compatibilityBundleDigest !== deployedPair?.frontend?.bundleDigest) {
+  if (deployedFrontendArtifact?.compatibilityBundleDigest !== deployedPair?.frontend?.bundleDigest) {
     failures.push('deployed frontend compatibility digest does not identify the browser-tested bundle')
   }
   return failures
@@ -84,10 +85,10 @@ const main = async () => {
   const deployedEdgeDigest = required('E2E_DEPLOYED_EDGE_DIGEST', process.env.E2E_DEPLOYED_EDGE_DIGEST)
   const candidateEdgeDigest = required('E2E_CANDIDATE_EDGE_DIGEST', process.env.E2E_CANDIDATE_EDGE_DIGEST)
   const candidateFrontendDigest = required('E2E_CANDIDATE_FRONTEND_DIGEST', process.env.E2E_CANDIDATE_FRONTEND_DIGEST)
-  const deployedFrontendRebuild = {
+  const deployedFrontendArtifact = {
     commitSha: deployedFrontendSha,
     liveBundleDigest: deployedFrontendDigest,
-    exactProductionRebuildVerified: true,
+    verifiedBundleDigest: required('E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST', process.env.E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST),
     compatibilityBundleDigest: deployedFrontendCompatibilityDigest,
   }
   const pairs = [
@@ -120,13 +121,13 @@ const main = async () => {
     candidateSha,
     deployedFrontendSha,
     deployedEdgeSha,
-    deployedFrontendRebuild,
+    deployedFrontendArtifact,
     pairs,
   })
   const report = {
     status: failures.length === 0 ? 'PASS' : 'FAIL',
     candidateSha,
-    deployedFrontendRebuild,
+    deployedFrontendArtifact,
     pairs,
     failures,
   }
