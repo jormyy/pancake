@@ -203,6 +203,15 @@ workflow-total budgets.
 The release gate requires the browser performance report, a complete data-latency
 report with no skipped steps, and every workflow-specific browser report.
 
+After the full soak, `npm run e2e:data-latency:release` supplies a missing
+current-season matchup in the existing synthetic seed league. The final
+rollover leaves that season without the matchup created by the initial seed.
+The wrapper accepts only a loopback Supabase endpoint and verified seed users.
+It preserves existing matchups and removes only its temporary row, including
+when measurement fails. The benchmark itself remains read-only. The strict
+budget check still rejects missing measurements and skipped steps. This wrapper
+must never run against production.
+
 League lifecycle checks are available with `E2E_ENABLE_LEAGUE_LIFECYCLE=1` or `--league-lifecycle=true`. The runner signs in as the seeded users through Supabase Auth, calls the real authenticated `create_league` RPC for user 1, joins users 2-10 through the real `join_league_by_invite_code` RPC, and verifies the invite code, 10 league members with roles, one current season, default lineup slot templates, and five years of three-round draft picks for every member. Artifacts are written to `tests/artifacts/season-<N>/league-lifecycle.json`. This covers the D.SET.2 create/join/pick-bank slice through real anon clients; browser form entry remains separate.
 
 Future-pick chain checks are available with `E2E_ENABLE_PICK_CHAIN=1` or `--pick-chain=true`. The runner creates three accepted pick-only trades for one five-years-out round-one pick, persists the scenario metadata to `tests/artifacts/future-pick-chain.json`, and checks at every season boundary that the exact `draft_picks.current_owner_id` remains the final multi-hop owner. Once the target pick reaches its draft year during a backend-tick run, the runner starts the real rookie draft and verifies the linked `snake_draft_picks.draft_pick_id` slot belongs to the final traded owner; the slot artifact is written to `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`. This covers D.LONG.1/D.LONG.2 ownership-drift invariants through the real `accept_trade_atomic` and rookie-draft seeding paths; it is not a replacement for the full browser trade or rookie-draft workflow.

@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
 import { digestReleaseBundle, FRONTEND_DEPLOYMENT_INPUTS } from '../tests/e2e/release-provenance.mjs'
+import { createReleaseArtifactManifest } from '../tests/e2e/release-artifact.mjs'
 
 const fullSha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value)
 
@@ -144,6 +145,7 @@ export const stampReleaseProvenance = async ({
     commitSha: commitSha.toLowerCase(),
     bundleDigest: await digestReleaseBundle(root),
     deploymentInputs: FRONTEND_DEPLOYMENT_INPUTS,
+    artifact: await createReleaseArtifactManifest(root),
   }
   await writeFile(path.join(root, 'dist', 'release-provenance.json'), `${JSON.stringify(marker, null, 2)}\n`)
   return marker
@@ -154,5 +156,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.env.GITHUB_OUTPUT) {
     await appendFile(process.env.GITHUB_OUTPUT, `bundle_digest=${marker.bundleDigest}\n`)
   }
-  console.log(JSON.stringify(marker))
+  console.log(JSON.stringify({ commitSha: marker.commitSha, bundleDigest: marker.bundleDigest, deploymentInputs: marker.deploymentInputs }))
 }

@@ -66,7 +66,7 @@ describe('release E2E contracts', () => {
     )
     const vercel = JSON.parse(await readFile(path.join(process.cwd(), 'vercel.json'), 'utf8'))
     expect(vercel.installCommand).toBe('npm ci')
-    expect(vercel.buildCommand).toBe('npm run build:web:release')
+    expect(vercel.buildCommand).toBe('EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release')
     // Production deploys from main were turned on deliberately (#45); this
     // assertion still pins the flag so the change stays a decision, not a drift.
     expect(vercel.git.deploymentEnabled.main).toBe(true)
@@ -288,6 +288,7 @@ describe('release E2E contracts', () => {
       commitSha: 'a'.repeat(40),
       bundleDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
       deploymentInputs: ['app.json', 'package.json', 'package-lock.json', 'vercel.json'],
+      artifact: expect.objectContaining({ version: 1, files: expect.any(Array), inputs: expect.any(Array) }),
     })
     expect(await digestReleaseBundle(root)).toBe(marker.bundleDigest)
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
