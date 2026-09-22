@@ -21,11 +21,12 @@ const fixture = (applied = 0) => ({
     const version = filename.split('_')[0]
     const name = filename.slice(version.length + 1, -4)
     const alias = attestation.aliases.find((entry: { version: string }) => entry.version === version)
+    const fingerprint = alias ?? attestation.approvedMigrations.find((entry: { version: string }) => entry.version === version)
     return {
       version,
       name: alias?.deployedName ?? name,
-      statementCount: alias?.statementCount ?? 0,
-      statementsSha256: alias?.statementsSha256 ?? '',
+      statementCount: fingerprint?.statementCount ?? 0,
+      statementsSha256: fingerprint?.statementsSha256 ?? '',
     }
   }),
   functions: structuredClone(attestation.convergence),
@@ -57,6 +58,27 @@ describe('attested production migration history', () => {
       expect(() => planAttestedProductionMigrations(files, snapshot, attestation.projectRef)).toThrow('attestation failed')
     },
   )
+
+  it('rejects an unaudited baseline even when repository and history agree', () => {
+    const changed = structuredClone(files)
+    const snapshot = fixture()
+    const index = attestation.baselineCount - 1
+    changed[index].filename = changed[index].filename.replace(attestation.baselineVersion, '20260828000003')
+    snapshot.history[index].version = '20260828000003'
+    expect(() => planAttestedProductionMigrations(changed, snapshot, attestation.projectRef))
+      .toThrow('Unexpected production migration baseline')
+  })
+
+  it.each([0, 1, 2, 3, 4])('rejects altered or absent stored SQL for approved migration %i', (index) => {
+    for (const field of ['statementCount', 'statementsSha256'] as const) {
+      for (const value of [undefined, field === 'statementCount' ? -1 : '0'.repeat(64)]) {
+        const snapshot = fixture(index + 1)
+        snapshot.history[attestation.baselineCount + index][field] = value
+        expect(() => planAttestedProductionMigrations(files, snapshot, attestation.projectRef))
+          .toThrow(`Approved production migration attestation failed at row ${attestation.baselineCount + index + 1}`)
+      }
+    }
+  })
 
   it.each(['', 'anotherproject', undefined])('rejects an unbound target %s', (projectRef) => {
     expect(() => planAttestedProductionMigrations(files, fixture(), projectRef)).toThrow('Unattested production project')
@@ -107,8 +129,13 @@ describe('attested production migration history', () => {
     ;[reordered.history[0], reordered.history[1]] = [reordered.history[1], reordered.history[0]]
     const foreign = fixture()
     foreign.history[1].version = '19000101000000'
-    for (const snapshot of [missing, duplicate, reordered, foreign]) {
-      expect(() => planAttestedProductionMigrations(files, snapshot, attestation.projectRef)).toThrow()
+    for (const [snapshot, message] of [
+      [missing, 'Production history is outside the audited migration range'],
+      [duplicate, `Production migration history contains duplicate version ${duplicate.history[0].version}`],
+      [reordered, 'Production migration history diverges at row 1'],
+      [foreign, 'Production migration history diverges at row 2'],
+    ] as const) {
+      expect(() => planAttestedProductionMigrations(files, snapshot, attestation.projectRef)).toThrow(message)
     }
   })
 
@@ -120,6 +147,13 @@ describe('attested production migration history', () => {
       changed[index].sha256 = 'f'.repeat(64)
       expect(() => planAttestedProductionMigrations(changed, fixture(), attestation.projectRef)).toThrow('Unexpected production migration range or SQL')
     }
+  })
+
+  it('rejects deployed history longer than the repository through the strict planner', () => {
+    const snapshot = fixture(5)
+    snapshot.history.push({ version: '20260922000001', name: 'foreign', statementCount: 0, statementsSha256: '' })
+    expect(() => planAttestedProductionMigrations(files, snapshot, attestation.projectRef))
+      .toThrow('Production migration history contains versions not present in the repository')
   })
 
   it('rejects changed helper bodies, signatures, settings and effective grants', () => {

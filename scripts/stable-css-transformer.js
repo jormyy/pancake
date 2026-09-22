@@ -1,4 +1,16 @@
 const upstream = require('@expo/metro-config/babel-transformer')
+const { createHash } = require('node:crypto')
+const { readFileSync } = require('node:fs')
+
+module.exports.getCacheKey = () => {
+  const hash = createHash('sha256')
+  for (const file of [
+    '@expo/metro-config/babel-transformer',
+    '@expo/metro-config/build/babel-transformer',
+    '@expo/metro-config/package.json',
+  ]) hash.update(readFileSync(require.resolve(file))).update('\0')
+  return hash.update(upstream.getCacheKey?.() ?? '').digest('hex')
+}
 
 // Lightning CSS exports an unordered map. Expo serializes its iteration order
 // into JS, so identical CSS can produce different chunk and release digests.

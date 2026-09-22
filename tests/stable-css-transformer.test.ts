@@ -1,5 +1,8 @@
 import { createRequire } from 'node:module'
 import { runInNewContext } from 'node:vm'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
@@ -64,5 +67,47 @@ describe('stable generated CSS exports', () => {
   it('uses the transformer in the real Metro configuration', () => {
     const config = require('../metro.config.js')
     expect(config.transformer.babelTransformerPath).toBe(require.resolve('../scripts/stable-css-transformer.js'))
+  })
+
+  it('keeps the wrapper on the exact Metro instance pinned by Expo', () => {
+    const fromExpo = createRequire(require.resolve('expo/package.json'))
+    const project = JSON.parse(readFileSync('package.json', 'utf8'))
+    const expo = fromExpo('./package.json')
+    expect(project.devDependencies['@expo/metro-config']).toBe(expo.dependencies['@expo/metro-config'])
+    expect(require('@expo/metro-config/package.json').version).toBe(expo.dependencies['@expo/metro-config'])
+    expect(require.resolve('@expo/metro-config/babel-transformer'))
+      .toBe(fromExpo.resolve('@expo/metro-config/babel-transformer'))
+  })
+
+  it('invalidates the cache after upstream-only file or delegated-key changes', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'pancake-transform-cache-'))
+    try {
+      const pkg = path.join(root, 'node_modules/@expo/metro-config')
+      mkdirSync(path.join(pkg, 'babel-transformer'), { recursive: true })
+      mkdirSync(path.join(pkg, 'build'))
+      const entry = path.join(pkg, 'babel-transformer/index.js')
+      const implementation = path.join(pkg, 'build/babel-transformer.js')
+      const metadata = path.join(pkg, 'package.json')
+      writeFileSync(entry, "module.exports = require('../build/babel-transformer')\n")
+      writeFileSync(implementation, 'exports.transform = () => null\n')
+      writeFileSync(metadata, JSON.stringify({ name: '@expo/metro-config', version: '1.0.0' }))
+      const wrapper = path.join(root, 'wrapper.js')
+      writeFileSync(wrapper, readFileSync('scripts/stable-css-transformer.js'))
+      const isolated = createRequire(wrapper)
+      const transform = isolated(wrapper)
+      let key = transform.getCacheKey()
+      expect(transform.getCacheKey()).toBe(key)
+      for (const file of [entry, implementation, metadata]) {
+        writeFileSync(file, readFileSync(file, 'utf8') + '\n')
+        const next = transform.getCacheKey()
+        expect(next).not.toBe(key)
+        key = next
+      }
+      const upstream = isolated('@expo/metro-config/babel-transformer')
+      upstream.getCacheKey = () => 'upstream-option-change'
+      expect(transform.getCacheKey()).not.toBe(key)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

@@ -326,27 +326,37 @@
     {
       "version": "20260912000001",
       "name": "retention_and_history_indexes",
-      "sha256": "daf5727315384aed3911052f6d80df0e41ca7ae696c873f243b8351418a837cb"
+      "sha256": "daf5727315384aed3911052f6d80df0e41ca7ae696c873f243b8351418a837cb",
+      "statementCount": 7,
+      "statementsSha256": "d7b9237dcf94ddb5c0a69c1911e5eec8265a3b5db031db2f914793f4ebe2fd91"
     },
     {
       "version": "20260912000002",
       "name": "edit_waiver_claim_gates",
-      "sha256": "6a19baf824fe80a315611d94692ec651aa22cb07e789f7b997645d092825600d"
+      "sha256": "6a19baf824fe80a315611d94692ec651aa22cb07e789f7b997645d092825600d",
+      "statementCount": 1,
+      "statementsSha256": "0ffa6d2e384d635f0061ce00123c84e7cc9947251e29bbed319409e99902c65e"
     },
     {
       "version": "20260912000003",
       "name": "scheduling_catchup_and_durable_invocations",
-      "sha256": "db1a8084a109c516c3cd1b05c06fdfa6b556c13c8a8e63cb8ae51738eb346b8a"
+      "sha256": "db1a8084a109c516c3cd1b05c06fdfa6b556c13c8a8e63cb8ae51738eb346b8a",
+      "statementCount": 43,
+      "statementsSha256": "5564840338acdf178e743c9c2370bcba75926e70f672cbc8930446dfa7b6f893"
     },
     {
       "version": "20260921000001",
       "name": "align_waiver_edit_processing_window",
-      "sha256": "c79b790244f13c7aab757955dafa6a9093512318840229d3f4e599523f08ea2c"
+      "sha256": "c79b790244f13c7aab757955dafa6a9093512318840229d3f4e599523f08ea2c",
+      "statementCount": 1,
+      "statementsSha256": "181ad56f9b4f24867c41be5c415dd90649b7f6c84295323492fdfeec6179d1c2"
     },
     {
       "version": "20260921000002",
       "name": "internal_scheduling_rls_and_rule_copy",
-      "sha256": "6f0072fd5d666300dfbdb2efe47c5c39287894c998e5a8678268f8305b74d69e"
+      "sha256": "6f0072fd5d666300dfbdb2efe47c5c39287894c998e5a8678268f8305b74d69e",
+      "statementCount": 4,
+      "statementsSha256": "a4552ef8d27813f37cceddfc4d5ed64e053eb22a6e5a5f2fed90ceb07dffab9a"
     }
   ]
 }

@@ -78,7 +78,7 @@ export const planAttestedProductionMigrations = (repositoryFiles, snapshot, proj
   const approved = attestations.approvedMigrations
   const files = repositoryFiles.toSorted((left, right) => left.filename.localeCompare(right.filename))
   if (files.length !== attestations.baselineCount + approved.length ||
-      history.length < attestations.baselineCount || history.length > files.length) {
+      history.length < attestations.baselineCount) {
     throw new Error('Production history is outside the audited migration range')
   }
   for (const [index, expected] of approved.entries()) {
@@ -92,23 +92,25 @@ export const planAttestedProductionMigrations = (repositoryFiles, snapshot, proj
   }
 
   const aliases = new Map(attestations.aliases.map((entry) => [entry.version, entry]))
+  const approvedByVersion = new Map(approved.map((entry) => [entry.version, entry]))
   const canonicalRows = history.map((row, index) => {
+    const applied = approvedByVersion.get(row?.version)
+    if (applied && (row.statementCount !== applied.statementCount ||
+        row.statementsSha256 !== applied.statementsSha256)) {
+      throw new Error(`Approved production migration attestation failed at row ${index + 1}`)
+    }
     const alias = aliases.get(row?.version)
     if (!alias) return row
     const file = files[index]
     if (row.name !== alias.deployedName || row.statementCount !== alias.statementCount ||
         row.statementsSha256 !== alias.statementsSha256 ||
-        file.filename !== `${alias.version}_${alias.repositoryName}.sql` ||
+        file?.filename !== `${alias.version}_${alias.repositoryName}.sql` ||
         file.sha256 !== alias.repositorySha256) {
       throw new Error(`Production migration attestation failed at row ${index + 1}`)
     }
     return { version: row.version, name: alias.repositoryName }
   })
   const plan = planReleaseMigrationsFromHistory(files.map(({ filename }) => filename), canonicalRows)
-  // The complete deployed prefix must contain every audited alias exactly once.
-  if (history.filter((row) => aliases.has(row.version)).length !== aliases.size) {
-    throw new Error('Production history omits an audited alias')
-  }
   if (snapshot.oldHelperCount !== 0 || snapshot.oldHelperReferenceCount !== 0 ||
       snapshot.functions.length !== attestations.convergence.length) {
     throw new Error('Production helper convergence is incomplete')
@@ -154,16 +156,26 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv[2] === '--history-file') {
     const payload = JSON.parse(readFileSync(process.argv[3], 'utf8'))
     if (process.argv[4] !== '--project-ref') throw new Error('Production project ref is required')
-    const files = process.argv.slice(6).map((filename) => {
+    const args = process.argv.slice(6)
+    const comparePlan = args[0] === '--expected-plan-sha256'
+    const expectedDigest = comparePlan ? args.splice(0, 2)[1] : undefined
+    if (comparePlan && !/^[a-f0-9]{64}$/.test(expectedDigest ?? '')) {
+      throw new Error('Expected soaked migration plan SHA-256 is required')
+    }
+    const files = args.map((filename) => {
       if (path.basename(filename) !== filename) throw new Error('Migration filename must not contain a path')
       return {
         filename,
         sha256: createHash('sha256').update(readFileSync(path.join('supabase/migrations', filename))).digest('hex'),
       }
     })
-    process.stdout.write(JSON.stringify(planAttestedProductionMigrations(
+    const plan = JSON.stringify(planAttestedProductionMigrations(
       files, readProductionHistorySnapshot(payload), process.argv[5],
-    )))
+    ))
+    if (comparePlan && createHash('sha256').update(plan).digest('hex') !== expectedDigest) {
+      throw new Error('Production migration plan changed since the successful soak')
+    }
+    process.stdout.write(plan)
   } else {
     process.stdout.write(JSON.stringify(planReleaseMigrations(process.argv.slice(3), process.argv[2] ?? '')))
   }
