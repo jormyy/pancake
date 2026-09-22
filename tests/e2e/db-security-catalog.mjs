@@ -1,30 +1,15 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import {
-  cleanMessage,
-  envValue,
-  localSupabaseStatus,
-  querySupabaseDb,
-  writeMarkdownReport,
-} from './env.mjs'
+import { cleanMessage, envValue, localSupabaseStatus, querySupabaseDb, writeMarkdownReport } from './env.mjs'
+import { parseCatalogOptions, validateCatalogTarget, validateSecurityCatalog } from './db-security-catalog-contract.mjs'
 
 const ROOT = process.cwd()
-const REPORT_PATH = path.join(ROOT, 'tests/db-security-catalog-report.md')
-const MIGRATIONS = path.join(ROOT, 'supabase/migrations')
-const SUPABASE_CONFIG = path.join(ROOT, 'supabase/config.toml')
-
-const args = new Set(process.argv.slice(2))
-const targets = args.has('--both')
-  ? ['local', 'linked']
-  : [args.has('--linked') ? 'linked' : 'local']
-
-const latestMigrationVersion = () => readdirSync(MIGRATIONS)
-  .filter((file) => /^\d+_.+\.sql$/.test(file))
-  .sort()
-  .at(-1)
-  ?.match(/^(\d+)_/)?.[1]
-
+const options = parseCatalogOptions(process.argv.slice(2))
+const REPORT_PATH = path.join(ROOT, options.catalogOnly
+  ? 'tests/db-security-catalog-readonly-report.md' : 'tests/db-security-catalog-report.md')
 const queryDb = querySupabaseDb
 
 const sqlLiteral = (value) => `'${String(value).replaceAll("'", "''")}'`
@@ -89,232 +74,74 @@ const verifyWeakSignupRejected = async (target) => {
   throw new Error(`Auth signup rejected for an unexpected reason: HTTP ${res.status}: ${cleanMessage(bodyText)}`)
 }
 
-const latestVersion = latestMigrationVersion()
-if (!latestVersion) throw new Error('Could not resolve latest Supabase migration version')
-
-const configContents = readFileSync(SUPABASE_CONFIG, 'utf8')
-const passwordLengthMatch = configContents.match(/^\s*minimum_password_length\s*=\s*(\d+)\s*$/m)
-const minimumPasswordLength = passwordLengthMatch ? Number(passwordLengthMatch[1]) : 0
-
-const catalogSql = `
-WITH expected AS (
-  SELECT '${latestVersion}'::text AS latest_version
-),
-migration AS (
-  SELECT EXISTS (
-    SELECT 1
-      FROM supabase_migrations.schema_migrations sm, expected e
-     WHERE sm.version = e.latest_version
-  ) AS latest_migration_applied
-),
-cron_wrapper AS (
-  SELECT
-    has_function_privilege('anon', 'public.invoke_edge_function_at_et_time(text,int,int,timestamptz)', 'EXECUTE') AS cron_anon_exec,
-    has_function_privilege('authenticated', 'public.invoke_edge_function_at_et_time(text,int,int,timestamptz)', 'EXECUTE') AS cron_auth_exec,
-    has_function_privilege('service_role', 'public.invoke_edge_function_at_et_time(text,int,int,timestamptz)', 'EXECUTE') AS cron_service_exec
-),
-auth_trigger AS (
-  SELECT
-    has_function_privilege('anon', 'public.handle_new_auth_user()', 'EXECUTE') AS anon_exec,
-    has_function_privilege('authenticated', 'public.handle_new_auth_user()', 'EXECUTE') AS auth_exec,
-    has_function_privilege('service_role', 'public.handle_new_auth_user()', 'EXECUTE') AS service_exec
-),
-waiver_policy AS (
-  SELECT
-    count(*) FILTER (WHERE policyname = 'waiver_wire_log_select_visible_league_rows') AS waiver_policy_count,
-    coalesce(string_agg(qual, ' | ' ORDER BY policyname), '') AS waiver_policy_qual
-    FROM pg_policies
-   WHERE schemaname = 'public'
-     AND tablename = 'waiver_wire_log'
-),
-drop_player AS (
-  SELECT pg_get_functiondef('public.drop_player_atomic(uuid)'::regprocedure) AS function_def
-),
-edge_invoker AS (
-  SELECT pg_get_functiondef('public.invoke_edge_function(text,jsonb)'::regprocedure) AS function_def
-),
-rookie_activation AS (
-  SELECT pg_get_functiondef('public.activate_rookie_draft_league_atomic(uuid)'::regprocedure) AS function_def
-),
-service_role_reads AS (
-  SELECT count(*) FILTER (
-    WHERE NOT has_table_privilege(
-      'service_role',
-      format('%I.%I', n.nspname, c.relname),
-      'SELECT'
-    )
-  ) AS missing_read_count
-    FROM pg_class c
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-   WHERE n.nspname = 'public'
-     AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
-),
-push_token_index AS (
-  SELECT
-    count(*) = 1 AS exists_once,
-    coalesce(bool_and(index_state.indisvalid), false) AS is_valid,
-    coalesce(bool_and(index_state.indisready), false) AS is_ready,
-    coalesce(
-      bool_and(pg_get_indexdef(index_class.oid) LIKE '%(push_token) WHERE (push_token IS NOT NULL)'),
-      false
-    ) AS is_expected_definition
-    FROM pg_class AS index_class
-    JOIN pg_namespace AS index_namespace
-      ON index_namespace.oid = index_class.relnamespace
-    JOIN pg_index AS index_state
-      ON index_state.indexrelid = index_class.oid
-   WHERE index_namespace.nspname = 'public'
-     AND index_class.relname = 'profiles_push_token_lookup'
-)
-SELECT
-  expected.latest_version,
-  migration.latest_migration_applied,
-  cron_wrapper.cron_anon_exec,
-  cron_wrapper.cron_auth_exec,
-  cron_wrapper.cron_service_exec,
-  auth_trigger.anon_exec AS auth_trigger_anon_exec,
-  auth_trigger.auth_exec AS auth_trigger_auth_exec,
-  auth_trigger.service_exec AS auth_trigger_service_exec,
-  waiver_policy.waiver_policy_count,
-  waiver_policy.waiver_policy_qual,
-  waiver_policy.waiver_policy_qual ILIKE '%cleared_at IS NOT NULL%' AS waiver_policy_allows_cleared,
-  waiver_policy.waiver_policy_qual ILIKE '%clears_at > now()%' AS waiver_policy_allows_future,
-  drop_player.function_def ILIKE '%AND NOT EXISTS%' AS drop_player_has_started_game_guard,
-  drop_player.function_def ILIKE '%InProgress%' AS drop_player_checks_inprogress,
-  drop_player.function_def ILIKE '%Final%' AS drop_player_checks_final,
-  drop_player.function_def ILIKE '%started_at IS NOT NULL%' AS drop_player_checks_started_at,
-  edge_invoker.function_def ILIKE '%app.edge_internal_token%' AS edge_invoker_uses_internal_token,
-  edge_invoker.function_def ILIKE '%vault.decrypted_secrets%' AS edge_invoker_uses_vault_token,
-  edge_invoker.function_def ILIKE '%pancake_edge_internal_token%' AS edge_invoker_uses_named_vault_token,
-  edge_invoker.function_def ILIKE '%x-internal-function-token%' AS edge_invoker_sets_internal_header,
-  edge_invoker.function_def NOT ILIKE '%app.service_role_key%' AS edge_invoker_drops_service_role_key,
-  edge_invoker.function_def NOT ILIKE '%Authorization%' AS edge_invoker_drops_authorization_header,
-  rookie_activation.function_def ILIKE '%private.is_commissioner(v_draft.league_id)%' AS rookie_activation_checks_commissioner,
-  service_role_reads.missing_read_count AS service_role_missing_read_count,
-  push_token_index.exists_once AS push_token_index_exists_once,
-  push_token_index.is_valid AS push_token_index_valid,
-  push_token_index.is_ready AS push_token_index_ready,
-  push_token_index.is_expected_definition AS push_token_index_expected_definition
-FROM expected, migration, cron_wrapper, auth_trigger, waiver_policy, drop_player, edge_invoker, rookie_activation, service_role_reads, push_token_index;
-`
-
+// A leading SQL comment must not look like a CLI option in the positional argument.
+const catalogSql = '\n' + readFileSync(new URL('./db-security-catalog.sql', import.meta.url), 'utf8')
+const historySql = '\n' + readFileSync(new URL('./release-schema-history.sql', import.meta.url), 'utf8')
+const queryCatalog = (target, label, sql) => {
+  if (target === 'linked') return queryDb(target, label, sql)
+  // The local CLI query uses a prepared statement and rejects BEGIN/SELECT/ROLLBACK.
+  // psql preserves the same read-only transaction without changing the linked route.
+  const databaseUrl = localSupabaseStatus().DB_URL
+  if (typeof databaseUrl !== 'string' || !databaseUrl) throw new Error('Local database URL is missing')
+  const url = new URL(databaseUrl)
+  if (!['postgres:', 'postgresql:'].includes(url.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) {
+    throw new Error('Catalog local database must use a loopback URL')
+  }
+  const result = spawnSync('psql', ['--no-psqlrc', '--quiet', '--tuples-only', '--no-align',
+    '--set=ON_ERROR_STOP=1', '--dbname', databaseUrl, '--file', '-'],
+  { input: sql, encoding: 'utf8', timeout: 45000, cwd: ROOT, env: process.env })
+  if (result.status !== 0) throw new Error(`local ${label}: ${cleanMessage(result.stderr || result.error?.message)}`)
+  return [{ snapshot: JSON.parse(result.stdout.trim()) }]
+}
+const repositoryFiles = readdirSync(path.join(ROOT, 'supabase/migrations')).filter((name) => name.endsWith('.sql')).sort()
+  .map((filename) => ({ filename, sha256: createHash('sha256').update(readFileSync(path.join(ROOT, 'supabase/migrations', filename))).digest('hex') }))
+const config = readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8')
+const minimumPasswordLength = Number(config.match(/^\s*minimum_password_length\s*=\s*(\d+)\s*$/m)?.[1] ?? 0)
 const rows = []
 const addRow = (target, requirement, status, evidence) => rows.push({ target, requirement, status, evidence })
-
-addRow(
-  'config',
-  'Supabase Auth minimum password length matches app policy',
-  minimumPasswordLength >= 8 ? 'PASS' : 'BLOCKED',
-  `minimum_password_length=${minimumPasswordLength}; app signup requires at least 8 characters.`,
-)
-
-for (const target of targets) {
-  try {
-    const [catalog] = queryDb(target, 'security catalog', catalogSql)
-    const latestApplied = catalog?.latest_migration_applied === true
-    const cronLocked = catalog?.cron_anon_exec === false &&
-      catalog?.cron_auth_exec === false &&
-      catalog?.cron_service_exec === true
-    const authTriggerLocked = catalog?.auth_trigger_anon_exec === false &&
-      catalog?.auth_trigger_auth_exec === false &&
-      catalog?.auth_trigger_service_exec === false
-    const waiverPolicySafe = Number(catalog?.waiver_policy_count ?? 0) === 1 &&
-      catalog?.waiver_policy_allows_cleared === true &&
-      catalog?.waiver_policy_allows_future === true
-    const dropPlayerGuarded = catalog?.drop_player_has_started_game_guard === true &&
-      catalog?.drop_player_checks_inprogress === true &&
-      catalog?.drop_player_checks_final === true &&
-      catalog?.drop_player_checks_started_at === true
-    const edgeInvokerHardened = catalog?.edge_invoker_uses_internal_token === true &&
-      catalog?.edge_invoker_uses_vault_token === true &&
-      catalog?.edge_invoker_uses_named_vault_token === true &&
-      catalog?.edge_invoker_sets_internal_header === true &&
-      catalog?.edge_invoker_drops_service_role_key === true &&
-      catalog?.edge_invoker_drops_authorization_header === true
-    const rookieActivationGuarded = catalog?.rookie_activation_checks_commissioner === true
-    const serviceRoleReadsPublicRelations = Number(catalog?.service_role_missing_read_count ?? 0) === 0
-    const pushTokenIndexHealthy = catalog?.push_token_index_exists_once === true &&
-      catalog?.push_token_index_valid === true &&
-      catalog?.push_token_index_ready === true &&
-      catalog?.push_token_index_expected_definition === true
-
-    addRow(
-      target,
-      'Latest migration applied',
-      latestApplied ? 'PASS' : 'BLOCKED',
-      `latest=${catalog?.latest_version}; applied=${catalog?.latest_migration_applied}.`,
-    )
-    addRow(
-      target,
-      'ET cron wrapper is service-role-only',
-      cronLocked ? 'PASS' : 'BLOCKED',
-      `anon=${catalog?.cron_anon_exec}; authenticated=${catalog?.cron_auth_exec}; service_role=${catalog?.cron_service_exec}.`,
-    )
-    addRow(
-      target,
-      'Auth profile trigger function is not externally executable',
-      authTriggerLocked ? 'PASS' : 'BLOCKED',
-      `anon=${catalog?.auth_trigger_anon_exec}; authenticated=${catalog?.auth_trigger_auth_exec}; service_role=${catalog?.auth_trigger_service_exec}.`,
-    )
-    addRow(
-      target,
-      'Waiver-wire privacy policy hides expired uncleared rows',
-      waiverPolicySafe ? 'PASS' : 'BLOCKED',
-      `policy_count=${catalog?.waiver_policy_count}; qual=${catalog?.waiver_policy_qual}.`,
-    )
-    addRow(
-      target,
-      'Drop-player RPC preserves started-game lineup rows',
-      dropPlayerGuarded ? 'PASS' : 'BLOCKED',
-      `has_guard=${catalog?.drop_player_has_started_game_guard}; checks_inprogress=${catalog?.drop_player_checks_inprogress}; checks_final=${catalog?.drop_player_checks_final}; checks_started_at=${catalog?.drop_player_checks_started_at}.`,
-    )
-    addRow(
-      target,
-      'Cron Edge invoker uses only the dedicated internal token header',
-      edgeInvokerHardened ? 'PASS' : 'BLOCKED',
-      `uses_internal_token=${catalog?.edge_invoker_uses_internal_token}; uses_vault=${catalog?.edge_invoker_uses_vault_token}; uses_named_vault=${catalog?.edge_invoker_uses_named_vault_token}; sets_header=${catalog?.edge_invoker_sets_internal_header}; drops_service_role_key=${catalog?.edge_invoker_drops_service_role_key}; drops_authorization=${catalog?.edge_invoker_drops_authorization_header}.`,
-    )
-    addRow(
-      target,
-      'Rookie activation RPC requires commissioner authority',
-      rookieActivationGuarded ? 'PASS' : 'BLOCKED',
-      `checks_commissioner=${catalog?.rookie_activation_checks_commissioner}.`,
-    )
-    addRow(
-      target,
-      'Trusted service_role can read public relations',
-      serviceRoleReadsPublicRelations ? 'PASS' : 'BLOCKED',
-      `missing_read_count=${catalog?.service_role_missing_read_count}.`,
-    )
-    addRow(
-      target,
-      'Push-token lookup index is valid, ready, and partial',
-      pushTokenIndexHealthy ? 'PASS' : 'BLOCKED',
-      `exists_once=${catalog?.push_token_index_exists_once}; valid=${catalog?.push_token_index_valid}; ready=${catalog?.push_token_index_ready}; expected_definition=${catalog?.push_token_index_expected_definition}.`,
-    )
-  } catch (error) {
-    addRow(target, 'DB security catalog query', 'BLOCKED', error instanceof Error ? error.message : String(error))
-  }
+const assertTarget = (target) => {
+  const refPath = path.join(ROOT, 'supabase/.temp/project-ref')
+  validateCatalogTarget({ target, linkedRef: existsSync(refPath) ? readFileSync(refPath, 'utf8').trim() : '',
+    projectRef: process.env.SUPABASE_PROJECT_REF })
 }
 
-for (const target of targets) {
+addRow('config', 'Supabase Auth minimum password length matches app policy',
+  minimumPasswordLength >= 8 ? 'PASS' : 'BLOCKED', `minimum_password_length=${minimumPasswordLength}.`)
+
+for (const target of options.targets) {
   try {
-    const evidence = await verifyWeakSignupRejected(target)
-    addRow(target, 'Active Auth rejects passwords shorter than app policy', 'PASS', evidence)
+    assertTarget(target)
+    const historyRows = queryCatalog(target, 'migration history attestation', historySql)
+    assertTarget(target)
+    const catalogRows = queryCatalog(target, 'security catalog metadata', catalogSql)
+    assertTarget(target)
+    if (historyRows.length !== 1 || catalogRows.length !== 1) throw new Error('Expected exactly one history and catalog snapshot')
+    const result = validateSecurityCatalog({ phase: options.phase, target, projectRef: process.env.SUPABASE_PROJECT_REF,
+      repositoryFiles, history: historyRows[0].snapshot, catalog: catalogRows[0].snapshot })
+    addRow(target, 'Exact database phase and security catalog', 'PASS',
+      `${result.phase}: ${result.migrationCount} migrations through ${result.migrationVersion}; ` +
+      `${result.functions} function fingerprints/signatures/grants, ${result.triggers} enabled roster trigger definitions, ` +
+      `${result.policies} waiver policies, ${result.tables} table boundaries, ${result.indexes} valid indexes. ` +
+      'The roster trigger and both lineup helpers match the approved guard chain.')
   } catch (error) {
-    addRow(
-      target,
-      'Active Auth rejects passwords shorter than app policy',
-      'BLOCKED',
-      error instanceof Error ? error.message : String(error),
-    )
+    addRow(target, 'Exact database phase and security catalog', 'BLOCKED', cleanMessage(error instanceof Error ? error.message : String(error)))
+    continue
+  }
+  if (!options.catalogOnly) {
+    try {
+      assertTarget(target)
+      const evidence = await verifyWeakSignupRejected(target)
+      addRow(target, 'Active Auth rejects passwords shorter than app policy', 'PASS', evidence)
+    } catch (error) {
+      addRow(target, 'Active Auth rejects passwords shorter than app policy', 'BLOCKED', cleanMessage(error instanceof Error ? error.message : String(error)))
+    }
   }
 }
 
 const blockers = rows.filter((row) => row.status !== 'PASS')
 await writeMarkdownReport({
   reportPath: REPORT_PATH,
-  title: 'DB Security Catalog',
+  title: options.catalogOnly ? 'Read-only DB Security Catalog (no signup probe)' : 'DB Security Catalog',
   rows,
   columns: [
     { header: 'Target', value: (row) => row.target },

@@ -1,5 +1,8 @@
 # Multi-Season E2E Harness
 
+Database catalog acceptance requires an explicit migration phase. See the
+[catalog contract and commands](../../docs/database-readiness-catalog.md).
+
 ## Perpetual-season harness
 
 `npm run e2e:perpetual` runs the season-autonomy simulation against the LOCAL

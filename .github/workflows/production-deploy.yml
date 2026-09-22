@@ -131,6 +131,7 @@ jobs:
     needs: build-candidate
     uses: ./.github/workflows/production-readiness.yml
     with:
+      database_phase: pre-migration
       release_sha: ${{ inputs.release_sha }}
       frontend_sha: ${{ inputs.release_sha }}
       edge_sha: ${{ needs.build-candidate.outputs.deployed_edge_sha }}
@@ -215,6 +216,7 @@ jobs:
     needs: [build-candidate, migrate-production]
     uses: ./.github/workflows/production-readiness.yml
     with:
+      database_phase: post-migration
       release_sha: ${{ inputs.release_sha }}
       frontend_sha: ${{ needs.build-candidate.outputs.deployed_frontend_sha }}
       edge_sha: ${{ needs.build-candidate.outputs.deployed_edge_sha }}
@@ -258,6 +260,7 @@ jobs:
     needs: [build-candidate, deploy-edge]
     uses: ./.github/workflows/production-readiness.yml
     with:
+      database_phase: post-migration
       release_sha: ${{ inputs.release_sha }}
       frontend_sha: ${{ needs.build-candidate.outputs.deployed_frontend_sha }}
       edge_sha: ${{ inputs.release_sha }}
@@ -273,6 +276,7 @@ jobs:
     needs: [build-candidate, deploy-edge]
     uses: ./.github/workflows/production-readiness.yml
     with:
+      database_phase: post-migration
       release_sha: ${{ inputs.release_sha }}
       frontend_sha: ${{ inputs.release_sha }}
       edge_sha: ${{ inputs.release_sha }}
@@ -345,6 +349,7 @@ jobs:
     needs: [build-candidate, promote]
     uses: ./.github/workflows/production-readiness.yml
     with:
+      database_phase: post-migration
       release_sha: ${{ inputs.release_sha }}
       frontend_sha: ${{ inputs.release_sha }}
       edge_sha: ${{ inputs.release_sha }}
@@ -469,6 +474,7 @@ jobs:
     needs: [build-candidate, rollback-after-promotion]
     uses: ./.github/workflows/production-readiness.yml
     with:
+      database_phase: post-migration
       release_sha: ${{ inputs.release_sha }}
       frontend_sha: ${{ needs.build-candidate.outputs.deployed_frontend_sha }}
       edge_sha: ${{ needs.build-candidate.outputs.deployed_edge_sha }}
