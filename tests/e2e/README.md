@@ -32,6 +32,12 @@ The runner loads `.env` automatically. Existing app variables are accepted as fa
 
 Legacy Supabase service-role and anon JWT keys are disabled in production; use `sb_secret_...` and `sb_publishable_...` keys.
 
+`prod:check` verifies the [Management API's legacy-key enabled state](https://supabase.com/docs/reference/api/v1-get-project-legacy-api-keys).
+Supabase can retain legacy key records after disabling their use. When records remain,
+the check also requires each key to return HTTP 401 with `Legacy API keys are disabled`
+from a zero-row read on the exact linked project. Generic auth errors, missing probes,
+wrong targets, or an enabled state still fail. The probe does not change keys or data.
+
 Explicit E2E overrides are still supported:
 
 ```sh

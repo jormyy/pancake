@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {
     evaluateLegacyKeyReadiness,
+    probeLegacyKeyDisabled,
     validInternalEdgeAuthProbe,
     validateHostedReleaseProvenance,
     validateHostedTargetIdentity,
@@ -11,10 +12,123 @@ import {
 import { probeHostedReleaseProvenance, runHostedReleaseProvenance } from './e2e/hosted-release-provenance.mjs'
 
 describe('production readiness contracts', () => {
+    it('accepts retained legacy records only with disabled state and exact live denials', () => {
+        expect(evaluateLegacyKeyReadiness({
+            legacyState: { ok: true, enabled: false, evidence: 'disabled' },
+            legacyKeys: ['anon', 'service_role'],
+            legacyKeyDenials: [
+                { name: 'anon', disabled: true },
+                { name: 'service_role', disabled: true },
+            ],
+            manualVerified: false,
+        })).toMatchObject({ pass: true, source: 'authoritative' })
+    })
+
+    it.each([
+        ['missing', []],
+        ['partial', [{ name: 'anon', disabled: true }]],
+        ['accepted key', [{ name: 'anon', disabled: true }, { name: 'service_role', disabled: false }]],
+        ['different key', [{ name: 'anon', disabled: true }, { name: 'unknown', disabled: true }]],
+        ['duplicate', [{ name: 'anon', disabled: true }, { name: 'anon', disabled: true }]],
+        ['extra', [{ name: 'anon', disabled: true }, { name: 'service_role', disabled: true }, { name: 'unknown', disabled: true }]],
+    ])('rejects %s live legacy-key denial evidence', (_label, legacyKeyDenials) => {
+        expect(evaluateLegacyKeyReadiness({
+            legacyState: { ok: true, enabled: false, evidence: 'disabled' },
+            legacyKeys: ['anon', 'service_role'],
+            legacyKeyDenials,
+            manualVerified: true,
+        })).toMatchObject({ pass: false, source: 'authoritative' })
+    })
+
+    it('rejects duplicate legacy metadata even when each entry has a denial', () => {
+        expect(evaluateLegacyKeyReadiness({
+            legacyState: { ok: true, enabled: false, evidence: 'disabled' },
+            legacyKeys: ['anon', 'anon'],
+            legacyKeyDenials: [{ name: 'anon', disabled: true }, { name: 'anon', disabled: true }],
+            manualVerified: true,
+        })).toMatchObject({ pass: false, source: 'authoritative' })
+    })
+
+    it.each([true, null])('does not replace management state %s with denial probes', (enabled) => {
+        expect(evaluateLegacyKeyReadiness({
+            legacyState: { ok: enabled !== null, enabled, evidence: 'not verified disabled' },
+            legacyKeys: ['anon'],
+            legacyKeyDenials: [{ name: 'anon', disabled: true }],
+            manualVerified: true,
+        })).toMatchObject({ pass: false, source: 'authoritative' })
+    })
+
+    it('accepts authoritative absence of legacy records', () => {
+        expect(evaluateLegacyKeyReadiness({
+            legacyState: { ok: false, enabled: null, evidence: 'unavailable' },
+            legacyKeys: [],
+            manualVerified: false,
+        })).toMatchObject({ pass: true, source: 'authoritative' })
+    })
+
+    it('uses a read-only, zero-row probe on the exact linked project', async () => {
+        const projectRef = 'a'.repeat(20)
+        const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ message: 'Legacy API keys are disabled' }), { status: 401 }))
+        expect(await probeLegacyKeyDisabled({
+            projectRef, supabaseUrl: `https://${projectRef}.supabase.co`, apiKey: 'fixture-legacy-key', fetchImpl,
+        })).toBe(true)
+        expect(fetchImpl).toHaveBeenCalledOnce()
+        expect(fetchImpl).toHaveBeenCalledWith(new URL(`https://${projectRef}.supabase.co/rest/v1/leagues?select=id&limit=0`), expect.objectContaining({
+            method: 'GET', redirect: 'error', headers: { apikey: 'fixture-legacy-key' }, signal: expect.any(AbortSignal),
+        }))
+    })
+
+    it.each([
+        [200, { message: 'Legacy API keys are disabled' }],
+        [401, { message: 'Invalid API key' }],
+        [403, { message: 'Legacy API keys are disabled' }],
+        [500, { message: 'Legacy API keys are disabled' }],
+        [401, {}],
+    ])('rejects an unrelated legacy-key response: HTTP %s, %j', async (status, body) => {
+        const projectRef = 'a'.repeat(20)
+        expect(await probeLegacyKeyDisabled({
+            projectRef, supabaseUrl: `https://${projectRef}.supabase.co`, apiKey: 'fixture-legacy-key',
+            fetchImpl: async () => new Response(JSON.stringify(body), { status }),
+        })).toBe(false)
+    })
+
+    it.each(['network failure', 'invalid JSON'])('fails closed on %s', async (failure) => {
+        const projectRef = 'a'.repeat(20)
+        expect(await probeLegacyKeyDisabled({
+            projectRef, supabaseUrl: `https://${projectRef}.supabase.co`, apiKey: 'fixture-legacy-key',
+            fetchImpl: async () => {
+                if (failure === 'network failure') throw new Error('synthetic network failure')
+                return new Response('invalid JSON', { status: 401 })
+            },
+        })).toBe(false)
+    })
+
+    it.each([
+        'https://wrong.supabase.co', 'http://aaaaaaaaaaaaaaaaaaaa.supabase.co',
+        'https://aaaaaaaaaaaaaaaaaaaa.supabase.co/unexpected',
+        'https://aaaaaaaaaaaaaaaaaaaa.supabase.co?unexpected=1',
+    ])('does not send credentials to an unexpected target %s', async (supabaseUrl) => {
+        const fetchImpl = vi.fn()
+        expect(await probeLegacyKeyDisabled({ projectRef: 'a'.repeat(20), supabaseUrl, apiKey: 'fixture-legacy-key', fetchImpl })).toBe(false)
+        expect(fetchImpl).not.toHaveBeenCalled()
+    })
+
+    it('does not query with a missing key', async () => {
+        const projectRef = 'a'.repeat(20)
+        const fetchImpl = vi.fn()
+        expect(await probeLegacyKeyDisabled({ projectRef, supabaseUrl: `https://${projectRef}.supabase.co`, apiKey: '', fetchImpl })).toBe(false)
+        expect(fetchImpl).not.toHaveBeenCalled()
+    })
+
     it('never lets manual legacy-key evidence override an authoritative enabled state', () => {
         expect(evaluateLegacyKeyReadiness({
             legacyState: { ok: true, enabled: true, evidence: 'enabled' },
             legacyKeys: ['anon', 'service_role'],
+            manualVerified: true,
+        })).toMatchObject({ pass: false, source: 'authoritative' })
+        expect(evaluateLegacyKeyReadiness({
+            legacyState: { ok: true, enabled: true, evidence: 'enabled' },
+            legacyKeys: [],
             manualVerified: true,
         })).toMatchObject({ pass: false, source: 'authoritative' })
     })
