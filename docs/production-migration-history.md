@@ -6,7 +6,8 @@ history. Unknown differences still stop the release.
 
 The names changed in commit `c083075fe75976852fa2307c54d8fc7b3b33e9a6`.
 A read-only comparison of the stored statements with that commit's
-parent finds all 24 historical SQL sequences. Twenty-one match today's parsed SQL.
+parent finds all 24 historical SQL sequences. Twenty-one match today's parsed SQL
+apart from header comments changed in 17 files.
 Three contain real temporary helper-identifier changes:
 
 | Version | Historical helper spelling | Repository helper spelling |

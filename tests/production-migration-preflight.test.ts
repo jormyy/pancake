@@ -119,6 +119,9 @@ fi
     const mutations = readdirSync(dir).includes('mutations') ? readFileSync(path.join(dir, 'mutations'), 'utf8').trim().split('\n') : []
     expect(mutations.filter((call) => call === 'index')).toHaveLength(indexes)
     expect(mutations.filter((call) => call === 'push')).toHaveLength(pushes)
+    if (mode === 'wrong-link') {
+      expect(readFileSync(path.join(dir, 'calls'), 'utf8')).not.toContain('release-schema-history.sql')
+    }
     if (mode === 'valid') {
       const calls = readFileSync(path.join(dir, 'calls'), 'utf8').trim().split('\n')
       expect(calls).toHaveLength(8)
