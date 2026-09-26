@@ -33,7 +33,7 @@ const fixture = (phase: Phase) => {
 it.each(['pre-migration', 'post-migration'] as const)('accepts the exact %s schema, including its cron contract', (phase) => {
   const input = fixture(phase)
   const result = validateSecurityCatalog(input)
-  expect(result.migrationCount).toBe(phase === 'pre-migration' ? 320 : 325)
+  expect(result.migrationCount).toBe(release.baselineCount + (phase === 'pre-migration' ? 0 : release.approvedMigrations.length))
   const cron = input.catalog.functions.find((row: { name: string }) => row.name === 'invoke_edge_function_at_et_time')
   expect(cron.identityArguments.includes('p_now')).toBe(phase === 'post-migration')
   expect(cron.anonExecute).toBe(false)

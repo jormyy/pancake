@@ -150,8 +150,8 @@ describe('attested production migration history', () => {
   })
 
   it('rejects deployed history longer than the repository through the strict planner', () => {
-    const snapshot = fixture(5)
-    snapshot.history.push({ version: '20260922000001', name: 'foreign', statementCount: 0, statementsSha256: '' })
+    const snapshot = fixture(attestation.approvedMigrations.length)
+    snapshot.history.push({ version: '29990101000001', name: 'foreign', statementCount: 0, statementsSha256: '' })
     expect(() => planAttestedProductionMigrations(files, snapshot, attestation.projectRef))
       .toThrow('Production migration history contains versions not present in the repository')
   })

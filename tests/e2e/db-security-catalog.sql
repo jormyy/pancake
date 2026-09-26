@@ -44,13 +44,14 @@ SELECT jsonb_build_object(
     'serviceRoleSelect', has_table_privilege('service_role', c.oid, 'SELECT')
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_class c
   WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')
-    AND c.relname IN ('waiver_wire_log', 'cron_dispatch_state', 'edge_invocations')),
+    AND c.relname IN ('waiver_wire_log', 'cron_dispatch_state', 'edge_invocations', 'web_push_subscriptions')),
   'indexes', (SELECT coalesce(jsonb_agg(jsonb_build_object(
     'name', c.relname, 'valid', i.indisvalid, 'ready', i.indisready, 'definition', pg_get_indexdef(c.oid)
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
   WHERE c.relnamespace = 'public'::regnamespace AND c.relname IN (
     'profiles_push_token_lookup', 'idx_sync_runs_started_at', 'idx_projection_sync_runs_started_at',
-    'idx_standings_season_member_week', 'idx_edge_invocations_unreconciled', 'idx_edge_invocations_reconciled_at'
+    'idx_standings_season_member_week', 'idx_edge_invocations_unreconciled', 'idx_edge_invocations_reconciled_at',
+    'web_push_subscriptions_user_id_idx'
   )),
   'serviceRoleMissingReads', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')

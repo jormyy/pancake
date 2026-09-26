@@ -1,7 +1,7 @@
 {
   "version": 1,
   "baselineVersion": "20260828000002",
-  "candidateVersion": "20260921000002",
+  "candidateVersion": "20260926000001",
   "common": {
     "functions": [
       {
@@ -519,6 +519,15 @@
           "anonSelect": false,
           "serviceRoleSelect": true,
           "authenticatedSelect": false
+        },
+        {
+          "rls": true,
+          "name": "web_push_subscriptions",
+          "forceRls": false,
+          "policies": 0,
+          "anonSelect": false,
+          "serviceRoleSelect": true,
+          "authenticatedSelect": false
         }
       ],
       "indexes": [
@@ -551,6 +560,12 @@
           "ready": true,
           "valid": true,
           "definition": "CREATE INDEX idx_sync_runs_started_at ON public.sync_runs USING btree (started_at)"
+        },
+        {
+          "name": "web_push_subscriptions_user_id_idx",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX web_push_subscriptions_user_id_idx ON public.web_push_subscriptions USING btree (user_id, updated_at DESC)"
         }
       ]
     }
