@@ -12,6 +12,10 @@ All runtime backend traffic targets the single Edge boundary:
 | --- | --- | --- | --- | --- |
 | `GET /health` | `api/index.ts` | none | none | readiness checks |
 | `GET /games/today` | `api/games.ts` | none | none | app games/today views |
+| `POST /profile/web-push/config` | `api/profile.ts` | none | none (returns VAPID public key or null) | PWA notification settings |
+| `POST /profile/web-push/subscribe` | `api/profile.ts` | Supabase JWT | `web_push_subscriptions` upsert by endpoint (service role) | PWA notification settings / launch re-sync |
+| `POST /profile/web-push/unsubscribe` | `api/profile.ts` | Supabase JWT + own endpoint | `web_push_subscriptions` delete (service role) | PWA settings / sign-out |
+| `POST /profile/web-push/test` | `api/profile.ts` | Supabase JWT | none (sends to caller's own subscriptions) | PWA notification settings |
 | `POST /league/roster/ir` | `api/league.ts` | Supabase JWT + member ownership | `toggle_ir_atomic` RPC | roster UI |
 | `POST /league/roster/taxi` | `api/league.ts` | Supabase JWT + member ownership | `toggle_taxi_atomic` RPC | roster UI |
 | `POST /league/advance-season` | `api/league.ts` | Supabase JWT + commissioner | `advance_season_atomic` RPC | commissioner lifecycle |
@@ -75,6 +79,7 @@ All runtime backend traffic targets the single Edge boundary:
 | `get_member_transaction_state` RPC | Postgres migration `20260701000003_dynasty_transactions_schema.sql` | authenticated league member | Weekly add count, add limit, waiver mode, FAAB balance, and roster-size state for transaction UI |
 | `get_league_activity_feed` RPC | Postgres migration `20260701000003_dynasty_transactions_schema.sql` | authenticated league member | Normalized paginated feed combining release transaction and league activity rows |
 | `notification_preferences` table | app profile/settings surfaces | authenticated own-row read/write | Per-user notification toggles for trade, waiver, draft, and activity events |
+| `web_push_subscriptions` table | `api/profile.ts`, `_shared/notifications.ts` | service-role only (no client grants) | Standards Web Push endpoints for installed PWAs; pruned on 404/410 from the push service |
 
 ## Scheduled Work
 

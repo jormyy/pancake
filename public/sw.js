@@ -165,3 +165,53 @@ self.addEventListener('fetch', (event) => {
       .catch(() => fetch(request)),
   )
 })
+
+// ---------------------------------------------------------------------------
+// Web Push (installed PWA). Payloads come from supabase/functions/_shared/
+// webPushDelivery.ts: { title, body, url, category, data }.
+// Every push must show a notification — Safari revokes push permission from
+// sites that receive pushes silently.
+// ---------------------------------------------------------------------------
+
+// Only same-origin in-app paths may be opened from a notification tap.
+function notificationPath(value) {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return '/'
+  return value
+}
+
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try {
+    payload = event.data ? event.data.json() : {}
+  } catch {
+    payload = { body: event.data ? event.data.text() : '' }
+  }
+  const title = typeof payload.title === 'string' && payload.title ? payload.title : 'Pancake'
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof payload.body === 'string' ? payload.body : '',
+      icon: '/pwa-192.png',
+      badge: '/pwa-192.png',
+      data: { url: notificationPath(payload.url) },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const path = notificationPath(event.notification.data && event.notification.data.url)
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      const client = windows.find((candidate) => new URL(candidate.url).origin === self.location.origin)
+      if (client) {
+        // Route inside the running SPA (hooks/use-web-push-notifications.ts)
+        // rather than reloading it.
+        await client.focus()
+        client.postMessage({ type: 'PANCAKE_NOTIFICATION_CLICK', url: path })
+        return
+      }
+      await self.clients.openWindow(path)
+    })(),
+  )
+})

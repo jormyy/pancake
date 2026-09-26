@@ -357,6 +357,13 @@
       "sha256": "6f0072fd5d666300dfbdb2efe47c5c39287894c998e5a8678268f8305b74d69e",
       "statementCount": 4,
       "statementsSha256": "a4552ef8d27813f37cceddfc4d5ed64e053eb22a6e5a5f2fed90ceb07dffab9a"
+    },
+    {
+      "version": "20260926000001",
+      "name": "web_push_subscriptions",
+      "sha256": "97830625ca24df16ea07ef1c5625314b0e17dff3301afbd847e3690b675e5d3c",
+      "statementCount": 9,
+      "statementsSha256": "3bd3af6f61fce6ec413abbb021878bd64e46492c0d17e2c4643dc97fd929df49"
     }
   ]
 }

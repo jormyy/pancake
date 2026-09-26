@@ -4,8 +4,8 @@ The catalog gate validates the database phase explicitly. It does not apply migr
 
 | Phase | Required applied history | Required cron wrapper |
 | --- | --- | --- |
-| `pre-migration` | Exactly 320 migrations through `20260828000002`; the approved five remain pending | `invoke_edge_function_at_et_time(text, integer, integer)` |
-| `post-migration` | Exactly 325 migrations through `20260921000002`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
+| `pre-migration` | Exactly 320 migrations through `20260828000002`; the approved six remain pending | `invoke_edge_function_at_et_time(text, integer, integer)` |
+| `post-migration` | Exactly 326 migrations through `20260926000001`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
 
 Partial upgrades, reordered history, unknown aliases, changed approved SQL, unexpected overloads and wrong project links fail. The production history planner retains its audited historical-alias checks. Local databases require canonical migration names and no production link.
 
@@ -35,7 +35,7 @@ The candidate/current-backend deployment pairing requests `pre-migration`. All l
 
 ## Attestation maintenance
 
-`tests/e2e/db-security-catalog-attestations.json` contains the reviewed contracts. The initial pre-migration snapshot matches both production metadata and a fresh local baseline. The candidate snapshot comes from applying only the approved five migrations locally. No production rows or credentials enter the manifest.
+`tests/e2e/db-security-catalog-attestations.json` contains the reviewed contracts. The initial pre-migration snapshot matches both production metadata and a fresh local baseline. The candidate snapshot comes from applying only the first five approved migrations locally; the `web_push_subscriptions` table and index entries were captured read-only from production after `20260926000001` was applied. No production rows or credentials enter the manifest.
 
 Pinned source migration hashes bind the function contracts to repository SQL. A regression test also proves every attested body hash occurs in those pinned sources. Future schema changes require reviewed phase and source-pin updates with fresh database evidence; regenerating pins from an unexplained live difference is not an accepted update procedure.
 

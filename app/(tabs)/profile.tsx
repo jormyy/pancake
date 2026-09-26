@@ -26,9 +26,11 @@ import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
+import { WebPushSettings } from '@/components/WebPushSettings'
 import { Button, ErrorBanner } from '@/components/ui'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
+import type { WebPushStatus } from '@/lib/web-push'
 
 export default function ProfileScreen() {
     const { user } = useAuth()
@@ -44,6 +46,8 @@ export default function ProfileScreen() {
     const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
     const [avatarUploading, setAvatarUploading] = useState(false)
+    const [webPushStatus, setWebPushStatus] = useState<WebPushStatus | null>(null)
+    const showPreferenceToggles = Platform.OS !== 'web' || webPushStatus === 'on'
     const preferenceUserId = user?.id
     const activeUserIdRef = useRef(preferenceUserId)
     activeUserIdRef.current = preferenceUserId
@@ -287,11 +291,14 @@ export default function ProfileScreen() {
                     />
                 </View>
 
-                {/* Web has no push transport, so these toggles could never deliver. */}
-                {Platform.OS !== 'web' ? (
-                    <>
-                        <Text style={styles.sectionLabel}>Notifications</Text>
-                        <View style={styles.card}>
+                <Text style={styles.sectionLabel}>Notifications</Text>
+                <View style={styles.card}>
+                    {/* Web delivers through standards Web Push; the category toggles only
+                        matter once this device is subscribed. */}
+                    {Platform.OS === 'web' ? <WebPushSettings onStatusChange={setWebPushStatus} /> : null}
+                    {showPreferenceToggles ? (
+                        <>
+                            {Platform.OS === 'web' ? <View style={styles.divider} /> : null}
                             {([
                                 ['tradeEnabled', 'Trades'],
                                 ['waiverEnabled', 'Waivers'],
@@ -319,9 +326,9 @@ export default function ProfileScreen() {
                                     </View>
                                 )
                             })}
-                        </View>
-                    </>
-                ) : null}
+                        </>
+                    ) : null}
+                </View>
 
                 {editing ? (
                     <View style={styles.actionRow}>

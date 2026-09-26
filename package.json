@@ -21,6 +21,7 @@
     "check:core-cjs": "node scripts/check-core-cjs.mjs",
     "check:dead-code": "knip --no-progress --no-config-hints",
     "generate:edge-shared": "node scripts/generate-edge-shared.mjs",
+    "generate:vapid-keys": "node scripts/generate-vapid-keys.mjs",
     "generate:database-types": "node scripts/generate-database-types.mjs",
     "check:database-types": "node scripts/generate-database-types.mjs --check",
     "check:edge-shared": "node scripts/generate-edge-shared.mjs --check",
