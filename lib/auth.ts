@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
+import { detachWebPushFromAccount } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 export async function signUp(
@@ -29,6 +30,12 @@ export async function signOut() {
         await unregisterCurrentDevicePushToken()
     } catch (error) {
         console.warn('Push-token revocation was queued for retry.', error)
+    }
+    try {
+        await detachWebPushFromAccount()
+    } catch (error) {
+        // Not fatal: the next signed-in sync re-assigns this endpoint to its new owner.
+        console.warn('Web push detach failed.', error)
     }
 
     try {

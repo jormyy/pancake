@@ -11,6 +11,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
+import { useWebPushNotifications } from '@/hooks/use-web-push-notifications'
 import { FeedbackProvider } from '@/components/ui'
 import { WebAppShell } from '@/components/navigation/WebTabShell'
 
@@ -54,6 +55,7 @@ function RootContent() {
     const router = useRouter()
     const segments = useSegments()
     usePushNotifications()
+    useWebPushNotifications()
     const firstSegment = segments[0]
     const inAuthGroup = firstSegment === '(auth)' || firstSegment === 'sign-in' || firstSegment === 'sign-up'
 
