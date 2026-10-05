@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import {
   ARTIFACT_ROOT,
   MEMORY_DRIFT_LIMIT,
@@ -81,6 +82,15 @@ import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { assertDynastyDecisionTools } from './soak-dynasty-decision-tools.mjs'
 import { assertSourceFailureRecovery } from './source-failure-recovery.mjs'
 import { assertSurfaceMatrix, surfaceSoakCoverageFailures } from './surface-matrix.mjs'
+import {
+  CHECKPOINT_SCHEMA_VERSION,
+  checkpointFailures,
+  completedSoakFailures,
+  readCheckpoint,
+  resolveSoakShard,
+  seasonArtifactFailures,
+  writeCheckpoint,
+} from './soak-shards.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -165,8 +175,22 @@ const main = async () => {
     throw new Error(`E2E_ENABLE_MIDLIFE_MIGRATION=1 requires --seasons>${MIDLIFE_MIGRATION_AFTER_SEASON}`)
   }
 
-  const startedAt = timestamp()
-  const rows = []
+  const shard = resolveSoakShard(args.shard, args.seasons)
+  const sharded = shard.shardCount > 1
+  const release = {
+    releaseSha: process.env.E2E_RELEASE_SHA ?? '',
+    planSha256: process.env.E2E_SOAK_MIGRATION_PLAN_SHA256 ?? '',
+    totalSeasons: args.seasons,
+    shard,
+    candidate: {
+      frontendDigest: process.env.E2E_CANDIDATE_FRONTEND_DIGEST ?? '',
+      edgeDigest: process.env.E2E_CANDIDATE_EDGE_DIGEST ?? '',
+    },
+  }
+  const checkpoint = sharded ? await readCheckpoint(ROOT) : null
+  const shardStartedAt = timestamp()
+  const startedAt = checkpoint?.startedAt ?? shardStartedAt
+  const rows = [...(checkpoint?.rows ?? [])]
   const notes = [
     'This harness is integration/E2E only. It does not run unit tests.',
     `Configured API base: ${describeEndpoint(env.apiBaseUrl)}`,
@@ -241,6 +265,11 @@ const main = async () => {
       ? 'Busy-offseason activity scenario enabled through E2E_ENABLE_OFFSEASON_ACTIVITY=1.'
       : 'Busy-offseason activity scenario disabled; set E2E_ENABLE_OFFSEASON_ACTIVITY=1 to exercise the AC-23 add/drop/claim/trade/draft/settings rollover-survival slice.',
   ]
+  const staticNoteCount = notes.length
+  notes.push(...(checkpoint?.notes ?? []))
+  if (sharded) {
+    notes.push(`Shard ${shard.shard}/${shard.shardCount} ran seasons ${shard.firstSeason}-${shard.lastSeason} from ${shardStartedAt}.`)
+  }
 
   try {
     const supabase = createClient(
@@ -248,6 +277,32 @@ const main = async () => {
       env.serviceRoleKey,
       { auth: { persistSession: false } },
     )
+    const resumeFailures = sharded
+      ? [
+          ...['releaseSha', 'planSha256'].filter((key) => !release[key]).map((key) => `sharded soak requires ${key}`),
+          ...(!release.candidate.frontendDigest || !release.candidate.edgeDigest ? ['sharded soak requires candidate digests'] : []),
+          ...checkpointFailures(checkpoint, release),
+          ...(checkpoint && args.pickChain && !checkpoint.scenarios?.futurePickChain ? ['Soak checkpoint is missing the future-pick chain'] : []),
+          ...(checkpoint && args.history && !Array.isArray(checkpoint.scenarios?.historyFixtures) ? ['Soak checkpoint is missing history fixtures'] : []),
+        ]
+      : []
+    if (resumeFailures.length === 0 && checkpoint) {
+      const lastSummary = await readFile(path.join(ROOT, `tests/snapshots/season-${shard.firstSeason - 1}/summary.json`), 'utf8')
+        .then((text) => JSON.parse(text))
+        .catch(() => null)
+      if (JSON.stringify(lastSummary?.counts) !== JSON.stringify(checkpoint.previousSnapshot.counts)) {
+        resumeFailures.push(`Soak checkpoint snapshot does not match tests/snapshots/season-${shard.firstSeason - 1}/summary.json`)
+      }
+    }
+    if (resumeFailures.length > 0) {
+      const blockedRows = [{ season: 0, status: 'BLOCKED', notes: `Shard resume failed: ${resumeFailures.join('; ')}` }]
+      await writeReport({ status: 'BLOCKED', startedAt, finishedAt: timestamp(), seasons: args.seasons, rows: blockedRows, notes })
+      await writeCoverageReport({
+        status: 'BLOCKED', startedAt, finishedAt: timestamp(), seasons: args.seasons, args, env, targetLeagueId, rows: blockedRows, notes,
+      })
+      process.exitCode = 1
+      return
+    }
     const surfaceMatrix = await assertSurfaceMatrix()
     const sourceRecovery = await assertSourceFailureRecovery()
     notes.push(
@@ -285,11 +340,11 @@ const main = async () => {
       return
     }
     notes.push('Schema preflight passed: post-refactor RPCs and required columns are present.')
-    const scenarios = {}
-    if (args.history) {
+    const scenarios = { ...(checkpoint?.scenarios ?? {}) }
+    if (args.history && !scenarios.historyFixtures) {
       scenarios.historyFixtures = []
     }
-    if (args.pickChain) {
+    if (args.pickChain && !scenarios.futurePickChain) {
       scenarios.futurePickChain = await setupFuturePickChain(supabase, targetLeagueId)
       await mkdir(ARTIFACT_ROOT, { recursive: true })
       await writeFile(
@@ -302,6 +357,7 @@ const main = async () => {
     }
 
     const fake = createFakeUpstreamServer()
+    if (checkpoint) fake.restoreState(checkpoint.fakeUpstream)
     await fake.listen(args.fakePort)
 
     try {
@@ -315,9 +371,9 @@ const main = async () => {
         notes.push('Backend EXPO_PUSH_URL points at the fake upstream push intercept.')
       }
 
-      let previousSnapshot = null
-      const perfMetrics = []
-      for (let season = 1; season <= args.seasons; season += 1) {
+      let previousSnapshot = checkpoint?.previousSnapshot ?? null
+      const perfMetrics = [...(checkpoint?.perfMetrics ?? [])]
+      for (let season = shard.firstSeason; season <= shard.lastSeason; season += 1) {
         const upstreamHitsAtSeasonStart = { ...fake.state.hits }
         let midlifeMigrationReport = null
         if (args.midlifeMigration && season === MIDLIFE_MIGRATION_AFTER_SEASON + 1) {
@@ -584,6 +640,41 @@ const main = async () => {
 
         await postJson(`http://127.0.0.1:${args.fakePort}/admin/advance-season`, {})
       }
+
+      if (shard.lastSeason < args.seasons) {
+        // An intermediate shard passes only when every season through its last one passed;
+        // the next shard resumes from exactly this state.
+        const shardFailures = completedSoakFailures(rows, shard.lastSeason)
+        const finishedAt = timestamp()
+        if (shardFailures.length === 0) {
+          await writeCheckpoint(ROOT, {
+            schemaVersion: CHECKPOINT_SCHEMA_VERSION,
+            releaseSha: release.releaseSha,
+            migrationPlanSha256: release.planSha256,
+            totalSeasons: args.seasons,
+            shardCount: shard.shardCount,
+            candidate: release.candidate,
+            startedAt,
+            rows,
+            notes: [...new Set(notes.slice(staticNoteCount))],
+            perfMetrics,
+            previousSnapshot,
+            scenarios,
+            fakeUpstream: fake.exportState(),
+            shards: [...(checkpoint?.shards ?? []), {
+              shard: shard.shard, firstSeason: shard.firstSeason, lastSeason: shard.lastSeason,
+              startedAt: shardStartedAt, finishedAt, status: 'PASS',
+            }],
+          })
+        } else {
+          rows.push({ season: 0, status: 'FAIL', notes: `Shard ${shard.shard}/${shard.shardCount} failed: ${shardFailures.join('; ')}` })
+        }
+        const shardStatus = shardFailures.length === 0 ? 'PARTIAL' : 'FAIL'
+        await writeReport({ status: shardStatus, startedAt, finishedAt, seasons: args.seasons, rows, notes })
+        await writeCoverageReport({ status: shardStatus, startedAt, finishedAt, seasons: args.seasons, args, env, targetLeagueId, rows, notes })
+        if (shardFailures.length > 0) process.exitCode = 1
+        return
+      }
     } finally {
       await fake.close()
     }
@@ -602,6 +693,20 @@ const main = async () => {
         })
       } else {
         notes.push('Every mapped function, failure path, and recovery path has passing soak evidence.')
+      }
+    }
+
+    if (args.releaseGate || sharded) {
+      const aggregateFailures = [
+        ...(rows.some((row) => row.status === 'FAIL') ? [] : completedSoakFailures(rows, args.seasons)),
+        ...seasonArtifactFailures(ROOT, args.seasons, (season) => shouldRunScenario(args, season)
+          ? BROWSER_SCENARIO_MANIFEST.filter((scenario) => args[scenario.flag]).map((scenario) => scenario.id)
+          : []),
+      ]
+      if (aggregateFailures.length > 0) {
+        rows.push({ season: 0, status: 'FAIL', notes: `Season aggregate validation failed: ${aggregateFailures.join('; ')}` })
+      } else {
+        notes.push(`Season aggregate validation passed: seasons 1-${args.seasons} each ran once with their evidence retained.`)
       }
     }
 

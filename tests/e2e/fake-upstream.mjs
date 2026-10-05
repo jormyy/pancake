@@ -22,6 +22,14 @@ const isoDuration = (minutes) => {
   return `PT${whole}M${seconds.toString().padStart(2, '0')}.00S`
 }
 
+/**
+ * @typedef {{
+ *   now: string, seasonYear: number, nextRookieId: number,
+ *   players: [string, any][], games: [string, any][], pushes: any[],
+ *   hits: { nbaCdn: number, sleeper: number, push: number }
+ * }} FakeUpstreamState
+ */
+
 export function createFakeUpstreamServer() {
   /** @type {{ receivedAt: string, body: any }[]} */
   const pushes = []
@@ -275,6 +283,34 @@ export function createFakeUpstreamServer() {
 
   return {
     state,
+    /** Everything the upstream remembers, so a soak shard can hand it to the next one. @returns {FakeUpstreamState} */
+    exportState() {
+      return structuredClone({
+        now: state.now,
+        seasonYear: state.seasonYear,
+        nextRookieId: state.nextRookieId,
+        players: [...state.players.entries()],
+        games: [...state.games.entries()],
+        pushes: state.pushes,
+        hits: state.hits,
+      })
+    },
+    /** @param {FakeUpstreamState} saved */
+    restoreState(saved) {
+      if (!saved || !Array.isArray(saved.players) || !Array.isArray(saved.games) || !Array.isArray(saved.pushes) ||
+          typeof saved.now !== 'string' || !Number.isInteger(saved.seasonYear) || !Number.isInteger(saved.nextRookieId) ||
+          ['nbaCdn', 'sleeper', 'push'].some((key) => !Number.isInteger(saved.hits?.[key]))) {
+        throw new Error('Fake upstream state is incomplete')
+      }
+      const copy = structuredClone(saved)
+      state.now = copy.now
+      state.seasonYear = copy.seasonYear
+      state.nextRookieId = copy.nextRookieId
+      state.players = new Map(copy.players)
+      state.games = new Map(copy.games)
+      state.pushes = copy.pushes
+      Object.assign(state.hits, copy.hits)
+    },
     /** @returns {Promise<http.Server>} */
     listen(port = 4555) {
       return new Promise((resolve) => {

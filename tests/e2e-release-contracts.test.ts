@@ -116,7 +116,8 @@ describe('release E2E contracts', () => {
       { version: '4', name: 'unknown' },
     ])).toThrow('not present in the repository')
 
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    const workflow = (await Promise.all(['.github/workflows/release-soak.yml', '.github/workflows/release-soak-shard.yml']
+      .map((file) => readFile(path.join(process.cwd(), file), 'utf8')))).join('\n')
     expect(workflow).toContain('E2E_DEPLOYED_SCHEMA_VERSION')
     expect(workflow).toContain('release-soak-migration-plan.mjs')
     expect(workflow).toContain('E2E_MIDLIFE_EXPECTED_VERSIONS')
@@ -146,6 +147,7 @@ describe('release E2E contracts', () => {
     const workflowFiles = [
       '.github/workflows/test.yml',
       '.github/workflows/release-soak.yml',
+      '.github/workflows/release-soak-shard.yml',
       '.github/workflows/production-readiness.yml',
       '.github/workflows/production-deploy.yml',
     ]
@@ -164,7 +166,7 @@ describe('release E2E contracts', () => {
     expect(testWorkflow).not.toMatch(/deno-version:\s*v?\d+\.x/)
 
     // The soak runs `deno test` (source-failure-recovery), so it needs the same pinned Deno.
-    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
     const setupDeno = soakWorkflow.indexOf('uses: denoland/setup-deno@')
     expect(setupDeno).toBeGreaterThan(-1)
     expect(setupDeno).toBeLessThan(soakWorkflow.indexOf('Run coverage-enforcing soak'))
@@ -173,7 +175,7 @@ describe('release E2E contracts', () => {
 
   it('points the soak Edge runtime at the host-side fake upstream through the Docker host alias', async () => {
     // supabase functions serve runs Edge in Docker, where 127.0.0.1 is the container itself.
-    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
     for (const name of ['NBA_CDN_BASE_URL', 'SLEEPER_BASE_URL', 'EXPO_PUSH_URL']) {
       expect(soakWorkflow, name).toMatch(new RegExp(`^\\s+${name}=http://host\\.docker\\.internal:4555/`, 'm'))
     }
@@ -501,7 +503,7 @@ describe('release E2E contracts', () => {
       deployedFrontendArtifact: { ...input.deployedFrontendArtifact, verifiedBundleDigest: '2'.repeat(64) },
     })).toContain('deployed frontend complete artifact digest was not verified')
 
-    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
     expect(soakWorkflow).toContain('node tests/e2e/recover-release-artifact.mjs')
     expect(soakWorkflow).toContain('--expected-digest "$E2E_DEPLOYED_FRONTEND_DIGEST"')
     expect(soakWorkflow).toContain('test "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
@@ -934,7 +936,7 @@ describe('release E2E contracts', () => {
   })
 
   it('retains seed and stack diagnostics in browser and release workflows', async () => {
-    for (const file of ['.github/workflows/test.yml', '.github/workflows/release-soak.yml']) {
+    for (const file of ['.github/workflows/test.yml', '.github/workflows/release-soak-shard.yml']) {
       const source = await readFile(path.join(process.cwd(), file), 'utf8')
       expect(source, file).toContain('tests/e2e-seed-report.md')
       expect(source, file).toContain('tests/artifacts/stack/web.log')
@@ -977,7 +979,7 @@ describe('release E2E contracts', () => {
       'data latency report is missing repository schema version',
     ]))
 
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
     expect(workflow.indexOf('Run coverage-enforcing soak')).toBeLessThan(workflow.indexOf('Measure post-migration ranked workflow data latency'))
   })
 
@@ -985,7 +987,7 @@ describe('release E2E contracts', () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
     expect(manifest.globalBudgets.maxInitialWebJsKb).toBe(700)
 
-    for (const file of ['.github/workflows/test.yml', '.github/workflows/release-soak.yml']) {
+    for (const file of ['.github/workflows/test.yml', '.github/workflows/release-soak-shard.yml']) {
       const source = await readFile(path.join(process.cwd(), file), 'utf8')
       expect(source, file).toContain('EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1')
       expect(source, file).not.toContain('EXPO_UNSTABLE_TREE_SHAKING=1')
