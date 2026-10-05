@@ -395,8 +395,13 @@ try {
     '1',
     'durable stats dispatcher cron is not installed',
   )
-  assert.match(
+  assert.equal(
     scalar("SELECT command FROM cron.job WHERE jobname = 'nba-dispatch-stats-sync-jobs';"),
+    'SELECT public.invoke_stats_sync_dispatch_if_due()',
+    'durable stats dispatcher cron does not go through its idle gate',
+  )
+  assert.match(
+    scalar("SELECT pg_get_functiondef('public.invoke_stats_sync_dispatch_if_due()'::regprocedure);"),
     /"dispatch":true,"jobId":"00000000-0000-4000-8000-000000000000"/,
     'dispatcher cron payload is not backward-safe during Edge rollout',
   )

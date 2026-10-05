@@ -4,8 +4,8 @@ The catalog gate validates the database phase explicitly. It does not apply migr
 
 | Phase | Required applied history | Required cron wrapper |
 | --- | --- | --- |
-| `pre-migration` | Exactly 320 migrations through `20260828000002`; the approved six remain pending | `invoke_edge_function_at_et_time(text, integer, integer)` |
-| `post-migration` | Exactly 326 migrations through `20260926000001`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
+| `pre-migration` | Exactly 326 migrations through `20260926000001`; the approved two remain pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
+| `post-migration` | Exactly 328 migrations through `20261005000002`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
 
 Partial upgrades, reordered history, unknown aliases, changed approved SQL, unexpected overloads and wrong project links fail. The production history planner retains its audited historical-alias checks. Local databases require canonical migration names and no production link.
 
@@ -35,7 +35,7 @@ The candidate/current-backend deployment pairing requests `pre-migration`. All l
 
 ## Attestation maintenance
 
-`tests/e2e/db-security-catalog-attestations.json` contains the reviewed contracts. The initial pre-migration snapshot matches both production metadata and a fresh local baseline. The candidate snapshot comes from applying only the first five approved migrations locally; the `web_push_subscriptions` table and index entries were captured read-only from production after `20260926000001` was applied. No production rows or credentials enter the manifest.
+`tests/e2e/db-security-catalog-attestations.json` contains the reviewed contracts. The candidate snapshot comes from applying the first five approved migrations of the earlier range locally; the `web_push_subscriptions` table and index entries were captured read-only from production after `20260926000001` was applied. On 2026-10-05 the baseline moved from `20260828000002` (320) to `20260926000001` (326): production had applied those six migrations outside this workflow, with stored SQL matching their attested fingerprints. The pre-migration contract is therefore the converged schema; read-only production metadata and a fresh local install reset to `20260926000001` both match it. `20261005000001` and `20261005000002` add only cron jobs and two service_role-only cron gate functions outside the attested catalog, so both phases share one object set and differ only in applied history. No production rows or credentials enter the manifest.
 
 Pinned source migration hashes bind the function contracts to repository SQL. A regression test also proves every attested body hash occurs in those pinned sources. Future schema changes require reviewed phase and source-pin updates with fresh database evidence; regenerating pins from an unexplained live difference is not an accepted update procedure.
 

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native'
+import { clearSessionCaches, sessionOwner } from '@/lib/session-cache-registry'
 
 type CacheEnvelope<T> = {
     version: 1
@@ -124,6 +125,9 @@ export function readPersistentCache<T>(key: string): T | null {
 }
 
 export function writePersistentCache<T>(key: string, value: T): void {
+    // Nothing is saved while signed out; a response from a previous session is
+    // already discarded at the request boundary (lib/session-fetch.ts).
+    if (sessionOwner() === null) return
     const envelope: CacheEnvelope<T> = { version: 1, savedAt: Date.now(), value }
     memoryCache.set(key, envelope)
     pruneMemoryCache()
@@ -157,6 +161,7 @@ export function removePersistentCache(key: string): void {
 export function clearPersistentCaches(): void {
     memoryCache.clear()
     savedAtIndex.clear()
+    clearSessionCaches()
     const storage = localStorageForCache()
     if (!storage) return
     try {

@@ -33,6 +33,33 @@ const ACCEPTED = [
     dropWhen: 'image-size publishes a release above 2.0.2 that clears the advisory.',
     reviewed: '2026-08-14',
   },
+  {
+    id: 'GHSA-vfj7-8cjw-p6xm',
+    package: 'braces',
+    reason: 'Stack-exhaustion denial of service from deeply nested brace patterns. '
+      + 'Reached only through micromatch in metro-file-map and Jest 29 internals at '
+      + 'build time, on patterns from repository and toolchain config, never at '
+      + 'runtime. No fixed version is published — the advisory covers every release '
+      + 'up to and including the latest (3.0.3).',
+    dropWhen: 'braces publishes a release above 3.0.3 that clears the advisory. '
+      + 'Temporary exception: re-review by 2026-11-05 or at the next Expo SDK '
+      + 'upgrade, whichever comes first.',
+    reviewed: '2026-10-05',
+  },
+  {
+    id: 'GHSA-86w9-cpqp-85rv',
+    package: 'node-forge',
+    reason: 'RSA PKCS#1 v1.5 signature verification accepts forged signatures for '
+      + 'low-exponent keys. Reached only through @expo/cli code signing (expo start '
+      + 'update manifests, expo run:ios certificates), which verifies signatures it '
+      + 'just created; the app has no expo-updates or updates config, and nothing '
+      + 'ships it at runtime. No fixed version is published — the advisory covers '
+      + 'every release up to and including the latest (1.4.0).',
+    dropWhen: 'node-forge publishes a release above 1.4.0 that clears the advisory. '
+      + 'Temporary exception: re-review by 2026-11-05, at the next Expo SDK upgrade, '
+      + 'or before adopting expo-updates code signing, whichever comes first.',
+    reviewed: '2026-10-05',
+  },
 ]
 
 const GATED_SEVERITIES = new Set(['high', 'critical'])

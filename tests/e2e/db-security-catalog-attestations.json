@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "baselineVersion": "20260828000002",
-  "candidateVersion": "20260926000001",
+  "baselineVersion": "20260926000001",
+  "candidateVersion": "20261005000002",
   "common": {
     "functions": [
       {
@@ -191,130 +191,255 @@
     "pre-migration": {
       "functions": [
         {
-          "anonExecute": false,
-          "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer",
-          "authenticatedExecute": false,
-          "bodySha256": "ce5f34ef14ee2ab4b4692117243037aa4562b30c7dc20cfecab75b4c9c5bfbca",
+          "name": "claim_cron_dispatch",
+          "owner": "postgres",
           "config": [
             "search_path=public"
           ],
-          "identityArguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid, p_bid_amount integer, p_claim_order integer",
+          "result": "boolean",
+          "schema": "private",
+          "strict": false,
           "language": "plpgsql",
+          "arguments": "p_job_key text, p_period_key text",
+          "bodySha256": "857b2b0c95910cad88d640044f4a947c283fb5b3f870df505442c45f939943b6",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_job_key text, p_period_key text",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "reconcile_edge_invocations",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "integer",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "797bbbde1635edd1ebf0080d207a7bfb2e12be2248d8a5c5f103e56dabfce11a",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
           "name": "edit_waiver_claim_atomic",
           "owner": "postgres",
-          "publicExecute": false,
-          "result": "void",
-          "schema": "public",
-          "securityDefiner": true,
-          "serviceRoleExecute": true,
-          "strict": false,
-          "volatility": "v"
-        },
-        {
-          "anonExecute": false,
-          "arguments": "p_hour integer, p_minute integer DEFAULT 0",
-          "authenticatedExecute": false,
-          "bodySha256": "0dfd5cac74acce4dcb2bf92c7089b3ace7ff43b88d1a6819496124782b8e87db",
           "config": [
             "search_path=public"
           ],
-          "identityArguments": "p_hour integer, p_minute integer",
-          "language": "plpgsql",
-          "name": "invoke_dynasty_ranking_views_at_et_time",
-          "owner": "postgres",
-          "publicExecute": false,
           "result": "void",
           "schema": "public",
-          "securityDefiner": true,
-          "serviceRoleExecute": true,
           "strict": false,
-          "volatility": "v"
+          "language": "plpgsql",
+          "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer",
+          "bodySha256": "3be182489098124901ede8b6b978b8b84d3bf2c760e4028de426c87ef45eb901",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid, p_bid_amount integer, p_claim_order integer",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
         },
         {
+          "name": "invoke_dynasty_ranking_views_at_et_time",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "0bb2feaaa5b8b46b5b3f213b2ad1f8c289ad23cb21c338ebb6b6dc7e5aaf61c8",
+          "volatility": "v",
           "anonExecute": false,
-          "arguments": "function_name text, body jsonb DEFAULT '{}'::jsonb",
-          "authenticatedExecute": false,
-          "bodySha256": "c8d05a92b42f658a32c79b734b08c7b7d4690c5f9ca5cedf4dd72053c708d3bd",
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_hour integer, p_minute integer, p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_edge_function",
+          "owner": "postgres",
           "config": [
             "search_path=\"\""
           ],
-          "identityArguments": "function_name text, body jsonb",
-          "language": "plpgsql",
-          "name": "invoke_edge_function",
-          "owner": "postgres",
-          "publicExecute": false,
           "result": "void",
           "schema": "public",
-          "securityDefiner": true,
-          "serviceRoleExecute": true,
           "strict": false,
-          "volatility": "v"
+          "language": "plpgsql",
+          "arguments": "function_name text, body jsonb DEFAULT '{}'::jsonb",
+          "bodySha256": "e437d278d399c274d5676f75bac36c385eaf6aca1998c59c0f62ca279e06e152",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "function_name text, body jsonb",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
         },
         {
-          "anonExecute": false,
-          "arguments": "p_function_name text, p_hour integer, p_minute integer DEFAULT 0",
-          "authenticatedExecute": false,
-          "bodySha256": "99cf12b32dbb6d77a651a27bbc065014eb858bccd647c1806a9029c76a78c650",
-          "config": [
-            "search_path=public"
-          ],
-          "identityArguments": "p_function_name text, p_hour integer, p_minute integer",
-          "language": "plpgsql",
           "name": "invoke_edge_function_at_et_time",
           "owner": "postgres",
-          "publicExecute": false,
-          "result": "void",
-          "schema": "public",
-          "securityDefiner": true,
-          "serviceRoleExecute": true,
-          "strict": false,
-          "volatility": "v"
-        },
-        {
-          "anonExecute": false,
-          "arguments": "",
-          "authenticatedExecute": false,
-          "bodySha256": "db1f4a375d397112c89ff890bae8e2e8704940b0c401c660abe2f51ccbd67e4a",
           "config": [
             "search_path=public"
           ],
-          "identityArguments": "",
+          "result": "void",
+          "schema": "public",
+          "strict": false,
           "language": "plpgsql",
+          "arguments": "p_function_name text, p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "dbd8148c9aa896ec39ab5267c2e38bc2a4bc729cdd17cab7f76b2d38073fab38",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_function_name text, p_hour integer, p_minute integer, p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
           "name": "invoke_live_poll_if_due",
           "owner": "postgres",
-          "publicExecute": false,
-          "result": "void",
-          "schema": "public",
-          "securityDefiner": true,
-          "serviceRoleExecute": true,
-          "strict": false,
-          "volatility": "v"
-        },
-        {
-          "anonExecute": false,
-          "arguments": "",
-          "authenticatedExecute": false,
-          "bodySha256": "d6740048300a3dfa5ed939dd12b943fe47aea04158aff0e4bc110280bed93204",
           "config": [
             "search_path=public"
           ],
-          "identityArguments": "",
-          "language": "plpgsql",
-          "name": "invoke_season_boundary_if_due",
-          "owner": "postgres",
-          "publicExecute": false,
           "result": "void",
           "schema": "public",
-          "securityDefiner": true,
-          "serviceRoleExecute": true,
           "strict": false,
-          "volatility": "v"
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "f72784522bed83276f77eedfc776170d50a3d11ce35abf0d1fd0f314dc1f1577",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_season_boundary_if_due",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "5b9a88dcc47b71a4454fc2b31c2fe73dca6214e2bd25ab9b41f715330fa98140",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "renew_live_poll_lease",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "boolean",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_lock_key bigint, p_holder_id uuid, p_ttl_seconds integer DEFAULT 90",
+          "bodySha256": "720fe54cca73e30e509d12d879096b530d9bb5a51f828a3ded77b26846d1c941",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_lock_key bigint, p_holder_id uuid, p_ttl_seconds integer",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
         }
       ],
       "triggers": [],
       "policies": [],
-      "tables": [],
-      "indexes": []
+      "tables": [
+        {
+          "rls": true,
+          "name": "cron_dispatch_state",
+          "forceRls": false,
+          "policies": 0,
+          "anonSelect": false,
+          "serviceRoleSelect": true,
+          "authenticatedSelect": false
+        },
+        {
+          "rls": true,
+          "name": "edge_invocations",
+          "forceRls": false,
+          "policies": 0,
+          "anonSelect": false,
+          "serviceRoleSelect": true,
+          "authenticatedSelect": false
+        },
+        {
+          "rls": true,
+          "name": "web_push_subscriptions",
+          "forceRls": false,
+          "policies": 0,
+          "anonSelect": false,
+          "serviceRoleSelect": true,
+          "authenticatedSelect": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_edge_invocations_reconciled_at",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_edge_invocations_reconciled_at ON public.edge_invocations USING btree (reconciled_at)"
+        },
+        {
+          "name": "idx_edge_invocations_unreconciled",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_edge_invocations_unreconciled ON public.edge_invocations USING btree (queued_at) WHERE (reconciled_at IS NULL)"
+        },
+        {
+          "name": "idx_projection_sync_runs_started_at",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_projection_sync_runs_started_at ON public.projection_sync_runs USING btree (started_at)"
+        },
+        {
+          "name": "idx_standings_season_member_week",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_standings_season_member_week ON public.standings USING btree (league_season_id, member_id, week_number DESC)"
+        },
+        {
+          "name": "idx_sync_runs_started_at",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_sync_runs_started_at ON public.sync_runs USING btree (started_at)"
+        },
+        {
+          "name": "web_push_subscriptions_user_id_idx",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX web_push_subscriptions_user_id_idx ON public.web_push_subscriptions USING btree (user_id, updated_at DESC)"
+        }
+      ]
     },
     "post-migration": {
       "functions": [

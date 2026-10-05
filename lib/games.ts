@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import { todayET } from '@/lib/shared/dates'
 import { isRegularSeasonGameId } from '@pancake/core'
+import { gameHasStarted } from '@/lib/lineup/read'
 
 export type NBAGameRow = {
     id: string
@@ -68,18 +68,39 @@ export async function getLivePlayerStats(date: string): Promise<Map<string, Live
     return map
 }
 
-export async function getTodaysGames(): Promise<NBAGameRow[]> {
-    // nba_games.game_date is stored in ET (backend livePoller uses todayET());
-    // non-ET clients must align here or they get empty/stale "today" results
-    // during the 0–3h local-vs-ET skew.
-    const today = todayET()
+export type GameDay = {
+    startedTeams: Set<string>
+    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    games: NBAGameRow[]
+}
+
+// One read of a date's slate: the teams whose game has started, each team's
+// opponent, and the regular-season games ordered Final, InProgress, Scheduled.
+// nba_games.game_date is stored in ET, so callers pass an ET date.
+export async function getGameDay(date: string): Promise<GameDay> {
     const { data, error } = await supabase
         .from('nba_games')
-        .select('id, nba_game_id, home_team, away_team, home_score, away_score, status, game_status_text, game_date')
-        .eq('game_date', today)
-        .order('status', { ascending: true }) // Final → InProgress → Scheduled
-        .returns<NBAGameRow[]>()
-
+        .select('id, nba_game_id, home_team, away_team, home_score, away_score, status, game_status_text, game_date, game_time, started_at')
+        .eq('game_date', date)
+        .returns<(NBAGameRow & { game_time: string | null; started_at: string | null })[]>()
     if (error) throw error
-    return (data ?? []).filter((game) => isRegularSeasonGameId(game.nba_game_id))
+
+    const now = new Date().toISOString()
+    const startedTeams = new Set<string>()
+    const teamMatchups = new Map<string, { opponent: string; isHome: boolean }>()
+    for (const game of data ?? []) {
+        if (gameHasStarted(game, now)) {
+            if (game.home_team) startedTeams.add(game.home_team)
+            if (game.away_team) startedTeams.add(game.away_team)
+        }
+        if (game.home_team && game.away_team) {
+            teamMatchups.set(game.home_team, { opponent: game.away_team, isHome: true })
+            teamMatchups.set(game.away_team, { opponent: game.home_team, isHome: false })
+        }
+    }
+    const games = (data ?? [])
+        .filter((game) => isRegularSeasonGameId(game.nba_game_id))
+        .sort((a, b) => (a.status < b.status ? -1 : a.status > b.status ? 1 : 0))
+        .map(({ game_time: _gameTime, started_at: _startedAt, ...game }) => game)
+    return { startedTeams, teamMatchups, games }
 }

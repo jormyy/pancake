@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getTodaysGames, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
+import { AppState, Platform } from 'react-native'
+import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { todayET } from '@/lib/shared/dates'
-import { getStartedTeams, getTeamMatchups } from '@/lib/lineup'
 
 type Snapshot = {
     todaysGames: NBAGameRow[]
     liveStats: Map<string, LiveStatLine>
     startedTeams: Set<string>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    // When every read of the last load succeeded; 0 until then.
+    fetchedAt: number
 }
 
 type Listener = (snapshot: Snapshot) => void
@@ -17,6 +19,7 @@ const EMPTY_SNAPSHOT: Snapshot = {
     liveStats: new Map(),
     startedTeams: new Set(),
     teamMatchups: new Map(),
+    fetchedAt: 0,
 }
 
 const snapshots = new Map<string, Snapshot>()
@@ -25,6 +28,8 @@ const inFlightByDate = new Map<string, Promise<void>>()
 const silentRefreshListenersByDate = new Map<string, Set<() => void>>()
 let todayPoll: ReturnType<typeof setInterval> | null = null
 const MAX_SNAPSHOT_DATES = 14
+const LIVE_POLL_MS = 15_000
+const IDLE_POLL_MS = 60_000
 
 function evictSnapshots() {
     if (snapshots.size <= MAX_SNAPSHOT_DATES) return
@@ -46,19 +51,27 @@ async function loadSnapshot(date: string): Promise<void> {
     const task = (async () => {
         const isToday = date === todayET()
         const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
-        const [liveStats, startedTeams, teamMatchups, todaysGames] = await Promise.all([
-            getLivePlayerStats(date).catch(() => previous.liveStats),
-            getStartedTeams(date).catch(() => previous.startedTeams),
-            getTeamMatchups(date).catch(() => previous.teamMatchups),
-            isToday
-                ? getTodaysGames().then((games) => {
-                    todaysGamesFetchedAt = Date.now()
-                    return games
-                }).catch(() => previous.todaysGames)
-                : Promise.resolve(previous.todaysGames),
+        let failed = false
+        const [liveStats, gameDay] = await Promise.all([
+            getLivePlayerStats(date).catch(() => {
+                failed = true
+                return previous.liveStats
+            }),
+            getGameDay(date).catch(() => {
+                failed = true
+                return null
+            }),
         ])
+        if (isToday && gameDay) todaysGamesFetchedAt = Date.now()
 
-        const snapshot = { todaysGames, liveStats, startedTeams, teamMatchups }
+        const snapshot: Snapshot = {
+            todaysGames: isToday && gameDay ? gameDay.games : previous.todaysGames,
+            liveStats,
+            startedTeams: gameDay?.startedTeams ?? previous.startedTeams,
+            teamMatchups: gameDay?.teamMatchups ?? previous.teamMatchups,
+            // A failed read leaves the snapshot due, so the next mount retries.
+            fetchedAt: failed ? previous.fetchedAt : Date.now(),
+        }
         snapshots.delete(date)
         snapshots.set(date, snapshot)
         evictSnapshots()
@@ -82,8 +95,51 @@ function anyGameInProgress(date: string): boolean {
     return snapshots.get(date)?.todaysGames.some((g) => g.status === 'InProgress') ?? false
 }
 
+// A snapshot younger than the poll cadence is what a mounted screen would show
+// anyway, so a remount or a return to the page reuses it.
+function snapshotFresh(date: string): boolean {
+    const fetchedAt = snapshots.get(date)?.fetchedAt ?? 0
+    const maxAge = date === todayET() && anyGameInProgress(date) ? LIVE_POLL_MS : IDLE_POLL_MS
+    return fetchedAt > 0 && Date.now() - fetchedAt < maxAge
+}
+
+function pageHidden(): boolean {
+    if (Platform.OS === 'web') return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+    return AppState.currentState === 'background'
+}
+
+// Nothing is on screen while the page is hidden, so the poll skips its ticks.
+// On return a snapshot older than the cadence refreshes at once, and live
+// lineups with it.
+function catchUpAfterHidden() {
+    const today = todayET()
+    if ((listenersByDate.get(today)?.size ?? 0) === 0 || snapshotFresh(today)) return
+    const wasLive = anyGameInProgress(today)
+    void loadSnapshot(today).then(() => {
+        if (!wasLive && !anyGameInProgress(today)) return
+        for (const listener of silentRefreshListenersByDate.get(today) ?? []) listener()
+    })
+}
+
+let visibilityWatched = false
+function watchVisibility() {
+    if (visibilityWatched) return
+    visibilityWatched = true
+    if (Platform.OS === 'web') {
+        if (typeof document === 'undefined') return
+        document.addEventListener('visibilitychange', () => {
+            if (!pageHidden()) catchUpAfterHidden()
+        })
+    } else {
+        AppState.addEventListener('change', (state) => {
+            if (state === 'active') catchUpAfterHidden()
+        })
+    }
+}
+
 function ensureTodayPoll() {
     if (todayPoll) return
+    watchVisibility()
     todayPoll = setInterval(async () => {
         const today = todayET()
         if ((listenersByDate.get(today)?.size ?? 0) === 0) {
@@ -91,20 +147,21 @@ function ensureTodayPoll() {
             todayPoll = null
             return
         }
+        if (pageHidden()) return
 
         // With no game in progress nothing is changing — back the poll off to
         // one snapshot per minute and skip the silent-refresh fan-out (which
         // reloads both visible lineups) entirely until play resumes.
         pollTick += 1
         const wasLive = anyGameInProgress(today)
-        if (!wasLive && pollTick % 4 !== 0) return
+        if (!wasLive && pollTick % (IDLE_POLL_MS / LIVE_POLL_MS) !== 0) return
 
         await loadSnapshot(today)
         // Fan out while games are live AND on the tick where the last game
         // flips to Final, so closing box scores still reach the lineups.
         if (!wasLive && !anyGameInProgress(today)) return
         for (const listener of silentRefreshListenersByDate.get(today) ?? []) listener()
-    }, 15_000)
+    }, LIVE_POLL_MS)
 }
 
 export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void) {
@@ -152,7 +209,7 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
         const listener: Listener = (nextSnapshot) => setResource({ date: selectedDate, snapshot: nextSnapshot })
         listeners.add(listener)
 
-        loadSnapshot(selectedDate)
+        if (!snapshotFresh(selectedDate)) loadSnapshot(selectedDate)
         if (selectedDate === todayET()) ensureTodayPoll()
 
         return () => {

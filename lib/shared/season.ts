@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 export { currentSeasonYear } from '@pancake/core'
 
 type SeasonInfo = { id: string; seasonYear: number } | null
@@ -38,6 +39,8 @@ export function invalidateSeasonCache(leagueId?: string) {
         latestSeasonCache.clear()
     }
 }
+
+onSessionCachesCleared(() => invalidateSeasonCache())
 
 /**
  * Fetches the current league season (id + season_year).

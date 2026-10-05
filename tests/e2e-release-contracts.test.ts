@@ -162,6 +162,13 @@ describe('release E2E contracts', () => {
     expect(testWorkflow.match(/^\s{4}timeout-minutes:/gm)).toHaveLength(5)
     expect(testWorkflow).toContain('deno-version: 2.7.14')
     expect(testWorkflow).not.toMatch(/deno-version:\s*v?\d+\.x/)
+
+    // The soak runs `deno test` (source-failure-recovery), so it needs the same pinned Deno.
+    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    const setupDeno = soakWorkflow.indexOf('uses: denoland/setup-deno@')
+    expect(setupDeno).toBeGreaterThan(-1)
+    expect(setupDeno).toBeLessThan(soakWorkflow.indexOf('Run coverage-enforcing soak'))
+    expect(soakWorkflow).toContain('deno-version: 2.7.14')
   })
 
   it('provides a protected fail-closed hosted production gate', async () => {
