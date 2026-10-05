@@ -364,6 +364,13 @@
       "sha256": "97830625ca24df16ea07ef1c5625314b0e17dff3301afbd847e3690b675e5d3c",
       "statementCount": 9,
       "statementsSha256": "3bd3af6f61fce6ec413abbb021878bd64e46492c0d17e2c4643dc97fd929df49"
+    },
+    {
+      "version": "20261005000001",
+      "name": "vacuum_pg_net_responses",
+      "sha256": "75f8fc87a3f51f15337e11e18e909a944ef91092e882a5a63780c2779c49f0f7",
+      "statementCount": 1,
+      "statementsSha256": "a81562aa569e5f7ac8fd34dc36a0fa4465267260dbd4fa069a219f5f5b53b076"
     }
   ]
 }

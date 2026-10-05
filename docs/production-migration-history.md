@@ -22,7 +22,7 @@ seven live function bodies, signatures, settings, and effective grants. It also
 rejects old helper objects or remaining calls to their old names.
 
 The exact project, versions, old/current names, fingerprints, classifications,
-and approved six-migration range live in
+and approved seven-migration range live in
 [`release-history-attestations.json`](../tests/e2e/release-history-attestations.json).
 Repository file fingerprints use SHA-256 over file bytes. Stored SQL fingerprints
 use SHA-256 over the concatenated lowercase SHA-256 hex strings of each statement,
@@ -41,13 +41,15 @@ the original labels in its result. Missing, duplicate, reordered, or foreign
 versions fail. Changed attested SQL or source files fail. Changed helper bodies
 or grants fail. Unapproved pending files fail.
 
-The approved range ends at `20260926000001`. A partially applied approved range
-plans only its remaining suffix. Every applied member of that six-migration
+The approved range ends at `20261005000001`. A partially applied approved range
+plans only its remaining suffix. Every applied member of that seven-migration
 range must also match its statement count and stored-SQL fingerprint. The first
 five fingerprints come from a fresh local install using the pinned CLI 2.109.1 and
 the exact reviewed migration files. The sixth (`20260926000001_web_push_subscriptions`)
 was captured read-only from production history after it was applied with CLI
-2.109.0; it has not yet been reproduced from a fresh local install. Later schema releases must extend the reviewed
+2.109.0. On 2026-10-05 a fresh local install with CLI 2.114.0 reproduced all six
+fingerprints and produced the seventh (`20261005000001_vacuum_pg_net_responses`).
+Later schema releases must extend the reviewed
 range and update any changed convergence expectations. Unrelated applied rows
 retain the ordered version/name check; their SQL is not covered by this audit.
 

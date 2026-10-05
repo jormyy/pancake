@@ -45,6 +45,10 @@ E2E_SOURCE_RECOVERY_VERIFIED=1 npm run e2e:source-health
   A response purged before reconciliation can also produce a missing-response failure.
   Correlate these rows with the function's own run records, logs, and resulting data before treating the job as failed.
   Absence of a transport failure does not prove application success.
+- The reconciler joins `net._http_response` on request id, which pg_net does not index, so
+  its cost tracks that table's size. Production's pg_net (0.19.5) never triggers autovacuum, so the hourly
+  `pg-net-response-vacuum` job keeps it compact. If `pg_relation_size('net._http_response')`
+  is far above a few MB, run `VACUUM (FULL, ANALYZE) net._http_response` once.
 - Live-poll also wakes for a Final game on yesterday/today that has no box score and,
   when it does, fetches those dates' box scores even if no game is live, so a poll
   outage that spans a game's end is recovered on the next tick.

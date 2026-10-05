@@ -102,6 +102,8 @@ nothing to do). Canonical definitions live in `supabase/migrations/`.
 | `season-boundary` | `season-boundary` | daily 9:00 ET | only when a league is active/playoffs/offseason |
 | `retention-prune` | `prune_unbounded_history()` (SQL) | Sundays 10:00 UTC | deletes only rows the product never reads (incl. news older than 60 days) |
 | `mock-room-expiry` | `expire_mock_draft_rooms()` (SQL) | daily 09:30 UTC | deletes mock rooms 24h after completion, missed schedule, or abandonment |
+| `edge-invocation-reconcile` | `private.reconcile_edge_invocations()` (SQL) | every 5 min | records failed `sync_runs` rows for transport errors, non-2xx, or no response |
+| `pg-net-response-vacuum` | `VACUUM (ANALYZE, INDEX_CLEANUP ON) net._http_response` | hourly at :17 | keeps pg_net's response table compact; production's pg_net never triggers autovacuum on it |
 
 The `season-boundary` internal function owns the automated season lifecycle:
 bracket generation and advancement (48h stat-correction grace), season rollover,
