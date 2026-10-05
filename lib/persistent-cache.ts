@@ -1,5 +1,5 @@
 import { Platform } from 'react-native'
-import { clearSessionCaches } from '@/lib/session-cache-registry'
+import { clearSessionCaches, sessionOwner } from '@/lib/session-cache-registry'
 
 type CacheEnvelope<T> = {
     version: 1
@@ -24,15 +24,6 @@ const PREFIX_LIMITS = [
 ] as const
 
 const memoryCache = new Map<string, CacheEnvelope<unknown>>()
-
-// Unknown until the auth layer reports one; null once signed out. A request that
-// was in flight at sign-out resolves into a write, and that write must not
-// re-save the previous user's data after the caches were cleared.
-let cacheOwner: string | null | undefined
-
-export function setPersistentCacheOwner(ownerId: string | null): void {
-    cacheOwner = ownerId
-}
 
 function localStorageForCache(): Storage | null {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return null
@@ -134,7 +125,9 @@ export function readPersistentCache<T>(key: string): T | null {
 }
 
 export function writePersistentCache<T>(key: string, value: T): void {
-    if (cacheOwner === null) return
+    // Nothing is saved while signed out; a response from a previous session is
+    // already discarded at the request boundary (lib/session-fetch.ts).
+    if (sessionOwner() === null) return
     const envelope: CacheEnvelope<T> = { version: 1, savedAt: Date.now(), value }
     memoryCache.set(key, envelope)
     pruneMemoryCache()

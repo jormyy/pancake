@@ -3,6 +3,7 @@ import { createClient, type Session } from '@supabase/supabase-js'
 import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
 import { Database } from '@/types/database'
+import { fenceDataRequests } from '@/lib/session-fetch'
 
 // SecureStore is native-only — fall back to undefined (default storage) on web/SSR
 const ExpoSecureStoreAdapter =
@@ -74,5 +75,6 @@ export const supabase = createClient<Database>(
             persistSession: true,
             detectSessionInUrl: false,
         },
+        global: { fetch: fenceDataRequests((input, init) => fetch(input, init)) },
     },
 )

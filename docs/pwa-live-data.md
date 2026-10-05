@@ -139,7 +139,10 @@ decision. The app still validates the session before anything acts on it.
 
 Sign-out and a change of user both clear the persistent caches and the in-memory
 league lookups, so the next launch paints the new user's identity or none. A
-response that lands between sign-out and the next sign-in is not saved.
+database response that arrives after the signed-in user changed (sign-out, a
+switch to another account, or signing in again) is discarded before it reaches
+any cache; its caller gets an error instead of the data. The web sign-in reloads its tab, but another open tab of the
+same session stays live, so this matters on web as well as native.
 
 ## Offline and reconnect behavior
 
