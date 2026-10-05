@@ -32,7 +32,10 @@ jobs:
       - name: Run two shards with a fresh-runner handoff between them
         shell: bash
         run: |
-          set -uo pipefail
+          # Outcomes are recorded and judged in the next step, so a failing soak must not end this one.
+          set +e -uo pipefail
+          # npm run puts node_modules/.bin (agent-browser) on PATH for the release scripts; match it.
+          export PATH="$PWD/node_modules/.bin:$PATH"
           proof="$RUNNER_TEMP/proof"; state="$RUNNER_TEMP/soak-state"; mkdir -p "$proof"
           sha="$(git rev-parse HEAD)"
           pending=(20261005000001_vacuum_pg_net_responses.sql 20261005000002_gate_per_minute_cron_work.sql)
