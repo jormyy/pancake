@@ -35,7 +35,8 @@ it.each(['pre-migration', 'post-migration'] as const)('accepts the exact %s sche
   const result = validateSecurityCatalog(input)
   expect(result.migrationCount).toBe(release.baselineCount + (phase === 'pre-migration' ? 0 : release.approvedMigrations.length))
   const cron = input.catalog.functions.find((row: { name: string }) => row.name === 'invoke_edge_function_at_et_time')
-  expect(cron.identityArguments.includes('p_now')).toBe(phase === 'post-migration')
+  // Production converged on the p_now helper before this baseline, so both phases carry it.
+  expect(cron.identityArguments.includes('p_now')).toBe(true)
   expect(cron.anonExecute).toBe(false)
   expect(cron.authenticatedExecute).toBe(false)
   expect(cron.serviceRoleExecute).toBe(true)
@@ -57,7 +58,7 @@ it('rejects a partial approved upgrade in either phase', () => {
   for (const phase of ['pre-migration', 'post-migration'] as const) {
     const input = fixture('post-migration')
     input.phase = phase
-    input.history.history.splice(322)
+    input.history.history.splice(release.baselineCount + 1)
     expect(() => validateSecurityCatalog(input)).toThrow(`exact ${phase} contract`)
   }
 })
@@ -85,8 +86,8 @@ it('binds every attested function body to pinned migration SQL', () => {
 
 it.each([
   ['unknown target', (x: ReturnType<typeof fixture>) => { x.projectRef = 'wrong-project' }, 'Unattested production project'],
-  ['changed SQL of an applied migration', (x: ReturnType<typeof fixture>) => { x.history.history[320].statementsSha256 = '0'.repeat(64) }, 'Approved production migration attestation failed'],
-  ['changed migration file', (x: ReturnType<typeof fixture>) => { x.repositoryFiles[320].sha256 = '0'.repeat(64) }, 'Unexpected production migration range or SQL'],
+  ['changed SQL of an applied migration', (x: ReturnType<typeof fixture>) => { x.history.history[release.baselineCount].statementsSha256 = '0'.repeat(64) }, 'Approved production migration attestation failed'],
+  ['changed migration file', (x: ReturnType<typeof fixture>) => { x.repositoryFiles[release.baselineCount].sha256 = '0'.repeat(64) }, 'Unexpected production migration range or SQL'],
   ['unknown alias', (x: ReturnType<typeof fixture>) => { x.history.history[0].name = 'unreviewed' }, 'Production migration history diverges'],
   ['reordered history', (x: ReturnType<typeof fixture>) => { x.history.history.reverse() }, 'Production migration attestation failed'],
   ['missing history row', (x: ReturnType<typeof fixture>) => { x.history.history.splice(3, 1) }, 'Production migration attestation failed'],

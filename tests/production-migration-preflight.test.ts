@@ -59,7 +59,7 @@ it.each([
   ['missing-soak-digest', 1, 0, 0, ''],
   ['changed-history', 1, 0, 0, 'Production migration plan changed since the successful soak'],
   ['history-changes-before-push', 1, 4, 0, 'Production migration plan changed since the successful soak'],
-  ['changed-approved-sql', 1, 0, 0, 'Approved production migration attestation failed at row 321'],
+  ['changed-approved-sql', 1, 0, 0, `Approved production migration attestation failed at row ${attestation.baselineCount + 1}`],
   ['changed-helper', 1, 0, 0, 'Production helper convergence failed at function 1'],
   ['unexpected-pending-file', 1, 0, 0, 'Production history is outside the audited migration range'],
 ] as const)('executes the production mutation guard: %s', (mode, status, indexes, pushes, message) => {
@@ -97,7 +97,7 @@ fi
     execFileSync('git', ['-c', 'commit.gpgsign=false', 'commit', '--quiet', '--allow-empty', '-m', 'fixture'], { cwd: dir, env: gitEnv })
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim()
     const first = snapshot(mode === 'changed-history' || mode === 'changed-approved-sql' ? 1 : 0)
-    if (mode === 'changed-approved-sql') first.history[320].statementsSha256 = '0'.repeat(64)
+    if (mode === 'changed-approved-sql') first.history[attestation.baselineCount].statementsSha256 = '0'.repeat(64)
     if (mode === 'changed-helper') first.functions[0].bodySha256 = '0'.repeat(64)
     const second = mode === 'history-changes-before-push' ? snapshot(1) : first
     writeFileSync(path.join(dir, 'first.json'), JSON.stringify([{ snapshot: first }]))

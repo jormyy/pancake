@@ -69,7 +69,7 @@ describe('attested production migration history', () => {
       .toThrow('Unexpected production migration baseline')
   })
 
-  it.each([0, 1, 2, 3, 4])('rejects altered or absent stored SQL for approved migration %i', (index) => {
+  it.each([...attestation.approvedMigrations.keys()])('rejects altered or absent stored SQL for approved migration %i', (index) => {
     for (const field of ['statementCount', 'statementsSha256'] as const) {
       for (const value of [undefined, field === 'statementCount' ? -1 : '0'.repeat(64)]) {
         const snapshot = fixture(index + 1)
