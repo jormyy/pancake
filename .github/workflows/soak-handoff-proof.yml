@@ -68,7 +68,10 @@ jobs:
             echo $! > /tmp/web.pid
             for attempt in {1..90}; do
               health="$(curl -fs "$API_URL/functions/v1/api/health" 2>/dev/null || true)"
-              if curl -fs http://127.0.0.1:8082 >/dev/null && grep -q "$E2E_CANDIDATE_EDGE_DIGEST" <<<"$health"; then return 0; fi
+              if curl -fs http://127.0.0.1:8082 >/dev/null && grep -q "$E2E_CANDIDATE_EDGE_DIGEST" <<<"$health"; then
+                npm run e2e:web-hydration > "$proof/$1-hydration.log" 2>&1
+                return $?
+              fi
               sleep 2
             done
             return 1
@@ -144,6 +147,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: soak-handoff-proof
-          path: ${{ runner.temp }}/proof
+          path: |
+            ${{ runner.temp }}/proof
+            tests/artifacts/
+            tests/e2e-*.md
           if-no-files-found: warn
           retention-days: 7
