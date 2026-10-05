@@ -98,7 +98,8 @@ nothing to do). Canonical definitions live in `supabase/migrations/`.
 | `nba-lineup-optimizer` | `lineup-optimizer` | every 10 min | only when games exist in the next 7 days |
 | `nba-process-waivers` | `process-waivers` | daily 3:00 ET | drains every due claim in one run |
 | `nba-process-trades` | `process-trades` | every 5 min | — |
-| `nba-close-expired-nominations` | `close-expired-nominations` | every minute | — |
+| `nba-close-expired-nominations` | `close-expired-nominations` | every minute | only when an open nomination or snake pick timer in an in-progress draft expires within the next minute |
+| `nba-dispatch-stats-sync-jobs` | `sync-stats` (dispatch) | every minute | only when a stats range job is pending, retryable within the next minute, or holds a stale lease |
 | `season-boundary` | `season-boundary` | daily 9:00 ET | only when a league is active/playoffs/offseason |
 | `retention-prune` | `prune_unbounded_history()` (SQL) | Sundays 10:00 UTC | deletes only rows the product never reads (incl. news older than 60 days) |
 | `mock-room-expiry` | `expire_mock_draft_rooms()` (SQL) | daily 09:30 UTC | deletes mock rooms 24h after completion, missed schedule, or abandonment |

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "baselineVersion": "20260828000002",
-  "candidateVersion": "20261005000001",
+  "candidateVersion": "20261005000002",
   "common": {
     "functions": [
       {

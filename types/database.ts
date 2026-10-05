@@ -4099,6 +4099,10 @@ export type Database = {
           trade_id: string
         }[]
       }
+      invoke_close_expired_nominations_if_due: {
+        Args: never
+        Returns: undefined
+      }
       invoke_dynasty_ranking_views_at_et_time: {
         Args: { p_hour: number; p_minute?: number; p_now?: string }
         Returns: undefined
@@ -4123,6 +4127,7 @@ export type Database = {
         Args: { p_now?: string }
         Returns: undefined
       }
+      invoke_stats_sync_dispatch_if_due: { Args: never; Returns: undefined }
       is_regular_season_game_id: {
         Args: { p_game_id: string }
         Returns: boolean

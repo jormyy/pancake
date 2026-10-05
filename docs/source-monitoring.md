@@ -45,6 +45,10 @@ E2E_SOURCE_RECOVERY_VERIFIED=1 npm run e2e:source-health
   A response purged before reconciliation can also produce a missing-response failure.
   Correlate these rows with the function's own run records, logs, and resulting data before treating the job as failed.
   Absence of a transport failure does not prove application success.
+- The per-minute nomination closer and stats dispatcher run through SQL idle gates, like
+  live-poll and the lineup optimizer. An idle tick calls no Edge function, writes no
+  `edge_invocations` row, and cannot fail on a missing Edge URL or token. That
+  misconfiguration surfaces on the first tick with due work, or on any ungated job.
 - The reconciler joins `net._http_response` on request id, which pg_net does not index, so
   its cost tracks that table's size. Production's pg_net (0.19.5) never triggers autovacuum, so the hourly
   `pg-net-response-vacuum` job keeps it compact. If `pg_relation_size('net._http_response')`

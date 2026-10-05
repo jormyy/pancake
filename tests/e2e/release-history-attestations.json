@@ -371,6 +371,13 @@
       "sha256": "75f8fc87a3f51f15337e11e18e909a944ef91092e882a5a63780c2779c49f0f7",
       "statementCount": 1,
       "statementsSha256": "a81562aa569e5f7ac8fd34dc36a0fa4465267260dbd4fa069a219f5f5b53b076"
+    },
+    {
+      "version": "20261005000002",
+      "name": "gate_per_minute_cron_work",
+      "sha256": "117d5493fcc3c690cbdd7c6c1d083241b8cc57c54948ea8fc419e1b30df7aa63",
+      "statementCount": 11,
+      "statementsSha256": "7a5063f8d2ade81775ae99d60a93a00d1f43427b6ee1bdd56ad17d74150aa7e9"
     }
   ]
 }
