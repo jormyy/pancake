@@ -141,10 +141,10 @@ jobs:
           printf 'FAKE_UPSTREAM_PORT=4555\n' >> "$GITHUB_ENV"
           cat > /tmp/pancake-edge.env <<'EOF'
           E2E_ADMIN_SECRET=local-release-soak-secret
-          NBA_CDN_BASE_URL=http://127.0.0.1:4555/static/json
-          SLEEPER_BASE_URL=http://127.0.0.1:4555/v1
+          NBA_CDN_BASE_URL=http://host.docker.internal:4555/static/json
+          SLEEPER_BASE_URL=http://host.docker.internal:4555/v1
           PLAYER_SYNC_SOURCE=sleeper
-          EXPO_PUSH_URL=http://127.0.0.1:4555/--/api/v2/push/send
+          EXPO_PUSH_URL=http://host.docker.internal:4555/--/api/v2/push/send
           EOF
           candidate_edge="$(PANCAKE_RELEASE_SHA="$E2E_RELEASE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
           candidate_edge_digest="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$candidate_edge")"

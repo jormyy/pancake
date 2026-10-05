@@ -171,6 +171,15 @@ describe('release E2E contracts', () => {
     expect(soakWorkflow).toContain('deno-version: 2.7.14')
   })
 
+  it('points the soak Edge runtime at the host-side fake upstream through the Docker host alias', async () => {
+    // supabase functions serve runs Edge in Docker, where 127.0.0.1 is the container itself.
+    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak.yml'), 'utf8')
+    for (const name of ['NBA_CDN_BASE_URL', 'SLEEPER_BASE_URL', 'EXPO_PUSH_URL']) {
+      expect(soakWorkflow, name).toMatch(new RegExp(`^\\s+${name}=http://host\\.docker\\.internal:4555/`, 'm'))
+    }
+    expect(soakWorkflow).not.toContain('=http://127.0.0.1:4555/')
+  })
+
   it('installs dependencies before any deploy job stamps Edge provenance', async () => {
     // stamp-edge-release-provenance.mjs imports typescript, so a job without npm ci cannot deploy or restore Edge.
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
