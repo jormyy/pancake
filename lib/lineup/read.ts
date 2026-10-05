@@ -1,9 +1,10 @@
 import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason } from '@/lib/shared/season'
-import { getCurrentWeekNumber } from '@/lib/shared/week'
+import { getCurrentWeekNumber, getSeasonWeekStart } from '@/lib/shared/week'
 import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
+import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
 type PlayerRow = Database['public']['Tables']['players']['Row']
 
@@ -78,26 +79,6 @@ export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
     return teams
 }
 
-// Returns a map of team abbreviation → { opponent, isHome } for all games on the given date.
-export async function getTeamMatchups(gameDate: string): Promise<Map<string, { opponent: string; isHome: boolean }>> {
-    const { data, error } = await supabase
-        .from('nba_games')
-        .select('home_team, away_team')
-        .eq('game_date', gameDate)
-    if (error) throw error
-
-    const map = new Map<string, { opponent: string; isHome: boolean }>()
-    for (const g of data ?? []) {
-        const home = g.home_team
-        const away = g.away_team
-        if (home && away) {
-            map.set(home, { opponent: away, isHome: true })
-            map.set(away, { opponent: home, isHome: false })
-        }
-    }
-    return map
-}
-
 export async function getLineupContext(leagueId: string): Promise<LineupContext | null> {
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
@@ -114,13 +95,7 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
     // Fetch week boundaries first, then query games by date range.
     // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect
     // week_number values if the schedule was synced out of order or re-seeded.
-    const { data: weekData, error: weekError } = await supabase
-        .from('season_weeks')
-        .select('week_start')
-        .eq('season_year', seasonYear)
-        .eq('week_number', weekNumber)
-        .maybeSingle()
-    if (weekError) throw weekError
+    const weekStart = await getSeasonWeekStart(seasonYear, weekNumber)
 
     const today = todayET()
     const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
@@ -128,8 +103,8 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
 
     const dateTeams = new Map<string, string[]>()
 
-    if (weekData?.week_start) {
-        const start = new Date(weekData.week_start + 'T12:00:00Z')
+    if (weekStart) {
+        const start = new Date(weekStart + 'T12:00:00Z')
         const dow = start.getUTCDay()
         start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
         const end = new Date(start)
@@ -226,8 +201,13 @@ async function fetchRosterPlayers(memberId: string, leagueId: string, seasonId: 
     return data ?? []
 }
 
-const templateCache = new Map<string, { at: number; promise: ReturnType<typeof fetchSlotTemplates> }>()
-const rosterCache = new Map<string, { at: number; promise: ReturnType<typeof fetchRosterPlayers> }>()
+type CachedRead<T> = { at: number; promise: Promise<T>; settled: boolean }
+const templateCache = new Map<string, CachedRead<Awaited<ReturnType<typeof fetchSlotTemplates>>>>()
+const rosterCache = new Map<string, CachedRead<Awaited<ReturnType<typeof fetchRosterPlayers>>>>()
+onSessionCachesCleared(() => {
+    templateCache.clear()
+    rosterCache.clear()
+})
 
 // A realtime lineup event can follow a roster change (add then slot) inside the
 // TTL; dropping the member's cached roster keeps the next silent refresh honest.
@@ -236,7 +216,7 @@ export function invalidateCachedRoster(memberId: string, leagueId: string, seaso
 }
 
 function ttlCached<T>(
-    cache: Map<string, { at: number; promise: Promise<T> }>,
+    cache: Map<string, CachedRead<T>>,
     key: string,
     ttlMs: number,
     allowCached: boolean,
@@ -244,13 +224,19 @@ function ttlCached<T>(
 ): Promise<T> {
     const now = Date.now()
     const hit = cache.get(key)
-    if (allowCached && hit && now - hit.at < ttlMs) return hit.promise
-    const promise = fetcher()
-    cache.set(key, { at: now, promise })
-    promise.catch(() => {
-        if (cache.get(key)?.promise === promise) cache.delete(key)
-    })
-    return promise
+    // A read still in flight is as fresh as a new one, so the two lineups of a
+    // full matchup load share one slot-template request.
+    if (hit && (!hit.settled || (allowCached && now - hit.at < ttlMs))) return hit.promise
+    const entry: CachedRead<T> = { at: now, promise: fetcher(), settled: false }
+    cache.set(key, entry)
+    entry.promise.then(
+        () => { entry.settled = true },
+        () => {
+            entry.settled = true
+            if (cache.get(key) === entry) cache.delete(key)
+        },
+    )
+    return entry.promise
 }
 
 export async function getWeeklyLineup(

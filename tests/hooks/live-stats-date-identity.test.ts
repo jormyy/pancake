@@ -10,14 +10,18 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/games', () => ({
-    // An in-progress game keeps the poll in live mode: silent-refresh listeners
-    // only fire while at least one game is being played.
-    getTodaysGames: vi.fn(async () => [{ status: 'InProgress', home_team: 'LAL', away_team: 'BOS' }]),
+    // One slate read per date. An in-progress game keeps the poll in live mode:
+    // silent-refresh listeners only fire while at least one game is being played.
+    getGameDay: vi.fn(async (date: string) => ({
+        startedTeams: await mocks.getStartedTeams(date),
+        teamMatchups: await mocks.getTeamMatchups(date),
+        games: [{ status: 'InProgress', home_team: 'LAL', away_team: 'BOS' }],
+    })),
     getLivePlayerStats: mocks.getLivePlayerStats,
 }))
-vi.mock('@/lib/lineup', () => ({
-    getStartedTeams: mocks.getStartedTeams,
-    getTeamMatchups: mocks.getTeamMatchups,
+vi.mock('react-native', () => ({
+    Platform: { OS: 'ios' },
+    AppState: { currentState: 'active', addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => 'today' }))
 

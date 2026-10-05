@@ -9,6 +9,7 @@ vi.mock('@/lib/shared/season', () => ({
 }))
 vi.mock('@/lib/shared/week', () => ({
     getCurrentWeekNumber: vi.fn(),
+    getSeasonWeekStart: vi.fn(),
     calculateWeekNumberFromDate: vi.fn(),
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayDateString: vi.fn(), todayET: vi.fn() }))
@@ -18,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { todayDateString, todayET } from '@/lib/shared/dates'
 import { autoSetLineup } from '@/lib/lineup'
 import { apiPost } from '@/lib/shared/api'
+import { getSeasonWeekStart } from '@/lib/shared/week'
 
 const mockFrom = vi.mocked(supabase.from)
 const mockRpc = vi.mocked(supabase.rpc)
@@ -147,6 +149,7 @@ function setupMocks(opts: MockOpts) {
         seasonWeeks = null,
         weekGames = null,
     } = opts
+    vi.mocked(getSeasonWeekStart).mockResolvedValue((seasonWeeks as { week_start?: string } | null)?.week_start ?? null)
 
     const insertSpy = vi.fn().mockResolvedValue({ data: null, error: null })
     const tableIdx: Record<string, number> = {}

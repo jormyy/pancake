@@ -31,7 +31,7 @@ vi.mock('@/lib/supabase', () => ({
         },
     },
 }))
-vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: mocks.clearPersistentCaches }))
+vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: mocks.clearPersistentCaches, setPersistentCacheOwner: vi.fn() }))
 
 type Snapshot = { userId: string | null; loading: boolean }
 

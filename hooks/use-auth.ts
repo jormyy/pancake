@@ -2,7 +2,7 @@ import { createContext, createElement, ReactNode, useContext, useEffect, useMemo
 import { AppState, AppStateStatus } from 'react-native'
 import { Session } from '@supabase/supabase-js'
 import { readStoredSessionSync, supabase } from '@/lib/supabase'
-import { clearPersistentCaches } from '@/lib/persistent-cache'
+import { clearPersistentCaches, setPersistentCacheOwner } from '@/lib/persistent-cache'
 
 type AuthContextValue = {
     session: Session | null
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 clearPersistentCaches()
             }
             cacheOwnerId = nextOwnerId
+            setPersistentCacheOwner(nextOwnerId)
             setSession(nextSession)
             setLoading(false)
         }

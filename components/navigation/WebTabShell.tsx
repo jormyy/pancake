@@ -289,10 +289,13 @@ function WebSidebar() {
     const pendingTradeCount = usePendingTradeCount()
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
+    // Keyed on the id: sign-in and token refreshes replace the user object
+    // several times, and each replacement re-read the same profile.
+    const userId = user?.id
     useEffect(() => {
-        if (!user) return
+        if (!userId) return
         let cancelled = false
-        getProfile(user.id)
+        getProfile(userId)
             .then((profile) => {
                 if (!cancelled) setAvatarUrl(profile.avatar_url ?? null)
             })
@@ -302,7 +305,7 @@ function WebSidebar() {
         return () => {
             cancelled = true
         }
-    }, [user])
+    }, [userId])
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">

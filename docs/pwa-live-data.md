@@ -77,6 +77,7 @@ Every failure path renders plain chrome rather than breaking the launch:
 | Supabase API | Never intercepted | Each request reaches Supabase. |
 | Realtime | Never intercepted | The socket reconnects to Supabase. |
 | Matchup data | Same-day, user-scoped local cache | Focus, realtime, or reconnect refreshes it. |
+| Live box scores and today's slate | Shared in memory per date | Polled every 15 s while a game is live, otherwise every 60 s. A remount reuses a snapshot younger than that. No polling while the page is hidden; a return refreshes at once when a tick was missed. |
 | Other screen data | User, league, and resource scoped | TTL, focus, mutation, or sign-out clears it. |
 
 The release cache version contains the commit and a build fingerprint. A same-commit rebuild still creates a new version.
@@ -136,8 +137,9 @@ session, and writes none. It renders a league name, a team name, and initials â€
 nothing whose staleness could mislead a roster decision, and no authorization
 decision. The app still validates the session before anything acts on it.
 
-Sign-out and a change of user both clear the persistent caches, so the next
-launch paints the new user's identity or none.
+Sign-out and a change of user both clear the persistent caches and the in-memory
+league lookups, so the next launch paints the new user's identity or none. A
+response that lands between sign-out and the next sign-in is not saved.
 
 ## Offline and reconnect behavior
 

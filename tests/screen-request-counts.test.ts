@@ -6,6 +6,8 @@ import { loadPlayerSupport } from '@/lib/player-availability'
 import { loadPickupState } from '@/lib/roster-add-flow'
 import { getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
 import { invalidateSeasonCache } from '@/lib/shared/season'
+import { getWeekDays, getWeeklyLineup } from '@/lib/lineup'
+import { getCurrentWeekNumber, invalidateWeekNumberCache } from '@/lib/shared/week'
 
 // Request budget per screen load: every Supabase table read or RPC the data
 // layer issues for a workflow, counted through a filter-aware fake client.
@@ -90,6 +92,34 @@ describe('screen request budgets', () => {
         expect(result).toEqual({
             requests: 5,
             byTarget: { league_seasons: 1, mv_player_season_averages: 1, roster_players: 1, trade_block_items: 1, v_player_avg_fantasy_points: 1 },
+        })
+    })
+
+    it('home matchup lineups: both sides share one slot-template read', async () => {
+        fixtures.lineup_slot_templates = [{ league_id: 'league', slot_type: 'PG', slot_count: 1 }]
+        fixtures.weekly_lineups = []
+        const result = await measure(() => Promise.all([
+            getWeeklyLineup('member', 'league', 'season', 3, '2099-01-01'),
+            getWeeklyLineup('other', 'league', 'season', 3, '2099-01-01'),
+        ]))
+        expect(result).toEqual({
+            requests: 5,
+            byTarget: { lineup_slot_templates: 1, roster_players: 2, weekly_lineups: 2 },
+        })
+    })
+
+    it('home week metadata: the week strip reuses the season weeks the week lookup read', async () => {
+        invalidateWeekNumberCache()
+        fixtures.season_weeks = [{ season_year: 2098, week_number: 3, week_start: '2099-01-05', week_end: '2099-01-11' }]
+        fixtures.nba_games = []
+        const result = await measure(async () => {
+            const week = await getCurrentWeekNumber(2098)
+            const days = await getWeekDays(week ?? 1, 2098)
+            expect(days[0].date).toBe('2099-01-05')
+        })
+        expect(result).toEqual({
+            requests: 2,
+            byTarget: { nba_games: 1, season_weeks: 1 },
         })
     })
 
