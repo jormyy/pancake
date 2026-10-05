@@ -171,6 +171,20 @@ describe('release E2E contracts', () => {
     expect(soakWorkflow).toContain('deno-version: 2.7.14')
   })
 
+  it('installs dependencies before any deploy job stamps Edge provenance', async () => {
+    // stamp-edge-release-provenance.mjs imports typescript, so a job without npm ci cannot deploy or restore Edge.
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
+    const jobs = workflow.split(/^jobs:\n/m)[1].split(/^(?= {2}[a-z0-9-]+:\n)/m)
+    const stampingJobs = jobs.filter((job) => job.includes('stamp-edge-release-provenance.mjs'))
+    expect(stampingJobs.map((job) => job.split(':')[0].trim()))
+      .toEqual(expect.arrayContaining(['build-candidate', 'deploy-edge', 'rollback-edge', 'rollback-after-promotion']))
+    for (const job of stampingJobs) {
+      const install = job.indexOf('npm ci')
+      expect(install, job.split(':')[0].trim()).toBeGreaterThan(-1)
+      expect(install, job.split(':')[0].trim()).toBeLessThan(job.indexOf('stamp-edge-release-provenance.mjs'))
+    }
+  })
+
   it('provides a protected fail-closed hosted production gate', async () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-readiness.yml'), 'utf8')
     expect(workflow).toContain('environment: production')
