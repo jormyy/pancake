@@ -10,6 +10,7 @@ export const parseArgs = () => {
   const releaseGate = args.get('release-gate') === 'true' || process.env.E2E_RELEASE_GATE === '1'
   return {
     seasons: Number(args.get('seasons') ?? process.env.E2E_SEASONS ?? 10),
+    shard: args.get('shard') ?? process.env.E2E_SOAK_SHARD ?? '',
     keepGoing: args.get('keep-going') === 'true' || process.env.E2E_KEEP_GOING === '1',
     repeatScenariosEverySeason: args.get('repeat-scenarios-every-season') === 'true' || process.env.E2E_REPEAT_SCENARIOS_EVERY_SEASON === '1',
     fakePort: Number(args.get('fake-port') ?? process.env.FAKE_UPSTREAM_PORT ?? 4555),

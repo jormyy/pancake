@@ -332,3 +332,25 @@ auditing rather than treated as checked-in source of truth:
 - `tests/artifacts/season-<N>/rookie-draft-pick-chain.json`
 
 The runner fails closed when the real test Supabase API/frontend environment is missing or when the linked Supabase project is missing required post-refactor RPCs/columns. A `PARTIAL` report means only the enabled subset passed, usually fake-upstream/database boundary checks without the full browser scenario set. For release evidence, run the relevant scripts and keep the generated reports from that run; stale reports are intentionally not committed.
+
+### Release soak shards
+
+The 20-season release soak takes about six hours, which is longer than one hosted job may run.
+`.github/workflows/release-soak.yml` attests the production plan once, then calls
+`release-soak-shard.yml` four times in sequence. Each shard runs a contiguous block of the same
+simulated seasons (`--shard=K/N`, planned by `tests/e2e/soak-shards.mjs`: 1–5, 6–10, 11–15, 16–20):
+
+- Shard 1 starts the stack on the deployed schema and seeds the league.
+- Each later shard restores the previous shard's database and storage volumes and its workspace
+  evidence with `tests/e2e/soak-state.sh`, then resumes from `tests/artifacts/soak-checkpoint.json`.
+  The checkpoint carries the season rows, per-season perf metrics, the last snapshot, the history and
+  future-pick fixtures, and the fake upstream's state. A shard refuses a checkpoint from another
+  release, plan or candidate build, or one that skips or repeats a season or shard.
+- The midlife migration still applies before season 6, on a database with five seasons of data.
+- The final shard runs seasons 16–20, rejects missing or duplicate seasons and per-season
+  artifacts, and writes the full 20-season report. It then re-attests the production plan and
+  deployed release, and runs the cross-version compatibility, data-latency and performance-budget
+  steps.
+
+Every cross-season check sees one continuous league. The harness process restarts with each shard,
+so `D.LONG.7` (harness memory drift) compares seasons 1–3 with 18–20 across processes.

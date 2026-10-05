@@ -100,7 +100,7 @@ describe('instant-loading performance budget contract', () => {
         const e2eReadme = read('tests/e2e/README.md')
         const productionReadiness = read('tests/e2e/production-readiness.mjs')
         const seedLeague = read('tests/e2e/seed-league.mjs')
-        const releaseWorkflow = read('.github/workflows/release-soak.yml')
+        const releaseWorkflow = read('.github/workflows/release-soak-shard.yml')
         const testWorkflow = read('.github/workflows/test.yml')
 
         expect(packageJson.scripts['perf:budget']).toBe('node tests/e2e/performance-budgets.mjs')
