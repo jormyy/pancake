@@ -61,8 +61,9 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
     }
     if (failures.length > 0) throw new AggregateError(failures, 'injury fixture restore failed')
   })
-  // The edge runtime reaches the host-side fake upstream as 127.0.0.1 on
-  // Linux CI and as host.docker.internal on macOS Docker.
+  // supabase functions serve runs Edge in Docker, which reaches the host-side fake
+  // upstream as host.docker.internal (the CLI maps it to the host gateway on Linux).
+  // 127.0.0.1 only works when the Edge runtime runs on the host itself.
   const expectedSleeperBaseUrls = ['127.0.0.1', 'host.docker.internal']
     .map((host) => `http://${host}:${fakePort}/v1`)
   const backendStatus = await backendGetJson(env, '/e2e/status')
