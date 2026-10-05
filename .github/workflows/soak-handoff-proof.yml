@@ -1,0 +1,146 @@
+name: Soak handoff proof (temporary, removed before merge)
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soak-handoff-proof-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  handoff:
+    name: Two-shard soak through a volume and checkpoint handoff
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.1
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.7.14
+      - run: npm ci
+      - name: Run two shards with a fresh-runner handoff between them
+        shell: bash
+        run: |
+          set -uo pipefail
+          proof="$RUNNER_TEMP/proof"; state="$RUNNER_TEMP/soak-state"; mkdir -p "$proof"
+          sha="$(git rev-parse HEAD)"
+          pending=(20261005000001_vacuum_pg_net_responses.sql 20261005000002_gate_per_minute_cron_work.sql)
+          export E2E_RELEASE_SHA="$sha"
+          export E2E_SOAK_MIGRATION_PLAN_SHA256="$(printf 'handoff-proof' | sha256sum | cut -d' ' -f1)"
+          export E2E_MIDLIFE_EXPECTED_VERSION=20261005000002 E2E_MIDLIFE_EXPECTED_BASE_VERSION=20260926000001
+          export E2E_MIDLIFE_EXPECTED_VERSIONS='["20261005000001","20261005000002"]'
+          export E2E_ENABLE_MIDLIFE_MIGRATION=1 E2E_MIDLIFE_MIGRATION_AFTER_SEASON=1 FAKE_UPSTREAM_PORT=4555
+          export E2E_ADMIN_SECRET=local-release-soak-secret E2E_FRONTEND_URL=http://127.0.0.1:8082
+          start_stack() {
+            mkdir -p /tmp/pending
+            for name in "${pending[@]}"; do mv "supabase/migrations/$name" /tmp/pending/; done
+            supabase start > "$proof/$1-start.log" 2>&1; rc=$?
+            for name in "${pending[@]}"; do mv "/tmp/pending/$name" supabase/migrations/; done
+            test "$rc" -eq 0 || return 1
+            source <(supabase status -o env)
+            export E2E_SUPABASE_URL="$API_URL" E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+            export SUPABASE_DB_URL="$DB_URL" E2E_API_BASE_URL="$API_URL/functions/v1/api"
+            printf 'E2E_ADMIN_SECRET=local-release-soak-secret\nNBA_CDN_BASE_URL=http://host.docker.internal:4555/static/json\nSLEEPER_BASE_URL=http://host.docker.internal:4555/v1\nPLAYER_SYNC_SOURCE=sleeper\nEXPO_PUSH_URL=http://host.docker.internal:4555/--/api/v2/push/send\n' > /tmp/edge.env
+            E2E_CANDIDATE_EDGE_DIGEST="$(PANCAKE_RELEASE_SHA="$sha" node scripts/stamp-edge-release-provenance.mjs | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).edgeArtifactDigest))')"
+            export E2E_CANDIDATE_EDGE_DIGEST
+            supabase functions serve --env-file /tmp/edge.env > "$proof/$1-edge.log" 2>&1 &
+            echo $! > /tmp/edge.pid
+            PANCAKE_RELEASE_SHA="$sha" EXPO_PUBLIC_SUPABASE_URL="$API_URL" EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+              EXPO_PUBLIC_API_URL="$API_URL/functions/v1/api" EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+              npm run build:web:release > "$proof/$1-web-build.log" 2>&1 || return 1
+            E2E_CANDIDATE_FRONTEND_DIGEST="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
+            export E2E_CANDIDATE_FRONTEND_DIGEST
+            node tests/e2e/static-web-server.mjs --root=dist --port=8082 > "$proof/$1-web.log" 2>&1 &
+            echo $! > /tmp/web.pid
+            for attempt in {1..90}; do
+              health="$(curl -fs "$API_URL/functions/v1/api/health" 2>/dev/null || true)"
+              if curl -fs http://127.0.0.1:8082 >/dev/null && grep -q "$E2E_CANDIDATE_EDGE_DIGEST" <<<"$health"; then return 0; fi
+              sleep 2
+            done
+            return 1
+          }
+          soak() {
+            E2E_RELEASE_GATE=1 E2E_REPEAT_SCENARIOS_EVERY_SEASON=1 E2E_ENABLE_BACKEND_TICKS=1 E2E_BROWSER_FULL_SWEEP=1 \
+              E2E_ENABLE_PICK_CHAIN=1 E2E_ENABLE_PUSH=1 E2E_ENABLE_HISTORY=1 E2E_ENABLE_REALTIME=1 \
+              node tests/e2e/soak.mjs --seasons=2 --shard="$1"
+          }
+          start_stack shard1 || { echo "shard 1 stack failed"; exit 1; }
+          npm run e2e:seed > "$proof/shard1-seed.log" 2>&1 || { echo "seed failed"; exit 1; }
+          soak 1/2 > "$proof/shard1-soak.log" 2>&1; echo "shard1_exit=$?" | tee "$proof/exits.txt"
+          cp tests/e2e-report.json "$proof/shard1-report.json"; cp tests/artifacts/soak-checkpoint.json "$proof/shard1-checkpoint.json" || true
+          kill "$(cat /tmp/edge.pid)" "$(cat /tmp/web.pid)" 2>/dev/null; sleep 2
+          supabase stop > "$proof/shard1-stop.log" 2>&1
+          bash tests/e2e/soak-state.sh save "$state" > "$proof/save.log" 2>&1; echo "save_exit=$?" | tee -a "$proof/exits.txt"
+          ls -la "$state" >> "$proof/save.log"
+          # Fresh-runner simulation: no volumes, no evidence, no build.
+          docker volume rm supabase_db_pancake supabase_storage_pancake > /dev/null
+          rm -rf tests/artifacts tests/snapshots tests/e2e-state.json tests/e2e-seed-report.md tests/e2e-report.* tests/e2e-coverage.md dist
+          bash tests/e2e/soak-state.sh restore "$state" > "$proof/restore.log" 2>&1; echo "restore_exit=$?" | tee -a "$proof/exits.txt"
+          start_stack shard2 || { echo "shard 2 stack failed"; exit 1; }
+          grep -c "Starting database from backup" "$proof/shard2-start.log" | sed 's/^/restored_volume_start=/' | tee -a "$proof/exits.txt"
+          cp tests/artifacts/soak-checkpoint.json "$proof/checkpoint-in.json"
+          # Red cases first: they fail before any season runs.
+          node -e 'const f="tests/artifacts/soak-checkpoint.json";const c=require("./"+f);c.releaseSha="0".repeat(40);require("fs").writeFileSync(f,JSON.stringify(c))'
+          soak 2/2 > "$proof/red-release.log" 2>&1; echo "red_release_exit=$?" | tee -a "$proof/exits.txt"
+          cp tests/e2e-report.json "$proof/red-release-report.json"
+          rm tests/artifacts/soak-checkpoint.json
+          soak 2/2 > "$proof/red-missing.log" 2>&1; echo "red_missing_exit=$?" | tee -a "$proof/exits.txt"
+          cp tests/e2e-report.json "$proof/red-missing-report.json"
+          cp "$proof/checkpoint-in.json" tests/artifacts/soak-checkpoint.json
+          soak 2/2 > "$proof/shard2-soak.log" 2>&1; echo "shard2_exit=$?" | tee -a "$proof/exits.txt"
+          cp tests/e2e-report.json "$proof/shard2-report.json"; cp tests/e2e-coverage.md "$proof/shard2-coverage.md"
+          cp tests/artifacts/perf-metrics.json "$proof/perf-metrics.json"; cp -R tests/artifacts/season-2 "$proof/season-2" || true
+          psql "$SUPABASE_DB_URL" -tAc "select count(*), max(version) from supabase_migrations.schema_migrations" | sed 's/^/schema=/' | tee -a "$proof/exits.txt"
+          exit 0
+      - name: Judge the handoff
+        shell: bash
+        run: |
+          proof="$RUNNER_TEMP/proof"
+          cat "$proof/exits.txt"
+          node -e '
+            const fs = require("fs"); const dir = process.argv[1]
+            const read = (name) => JSON.parse(fs.readFileSync(`${dir}/${name}`, "utf8"))
+            const exits = Object.fromEntries(fs.readFileSync(`${dir}/exits.txt`, "utf8").trim().split("\n").map((line) => line.split("=")))
+            const failures = []
+            const expect = (ok, message) => { if (!ok) failures.push(message) }
+            expect(exits.shard1_exit === "0", "shard 1 must pass and write its checkpoint")
+            const checkpoint = read("shard1-checkpoint.json")
+            expect(JSON.stringify(checkpoint.rows.map((r) => [r.season, r.status])) === JSON.stringify([[1, "PASS"]]), "checkpoint rows")
+            expect(checkpoint.shards.length === 1 && checkpoint.shards[0].lastSeason === 1, "checkpoint shard record")
+            expect(exits.save_exit === "0" && exits.restore_exit === "0", "state save and restore")
+            expect(exits.restored_volume_start === "1", "shard 2 must start from the restored volume")
+            expect(exits.red_release_exit === "1", "a checkpoint from another release must be refused")
+            expect(JSON.stringify(read("red-release-report.json")).includes("different release SHA"), "release refusal reason")
+            expect(exits.red_missing_exit === "1", "a missing checkpoint must be refused")
+            expect(JSON.stringify(read("red-missing-report.json")).includes("requires the checkpoint from shard 1"), "missing checkpoint reason")
+            const report = read("shard2-report.json")
+            const seasons = report.rows.filter((r) => r.season !== 0)
+            expect(JSON.stringify(seasons.map((r) => [r.season, r.status])) === JSON.stringify([[1, "PASS"], [2, "PASS"]]), `final season rows ${JSON.stringify(seasons.map((r) => [r.season, r.status]))}`)
+            const season2 = seasons.find((r) => r.season === 2)?.evidenceIds ?? []
+            for (const id of ["migration.midlife", "snapshots.no_shrink", "history.retained", "environment.fake_upstream"]) expect(season2.includes(id), `season 2 evidence ${id}`)
+            expect(report.notes.some((n) => n.includes("Season aggregate validation passed")), "aggregate validation note")
+            expect(JSON.stringify(read("perf-metrics.json").metrics.map((m) => m.season)) === "[1,2]", "perf metrics carried across shards")
+            expect(exits.schema === "328|20261005000002", "midlife migration applied on the restored database")
+            console.log(JSON.stringify({ status: report.status, seasonZero: report.rows.filter((r) => r.season === 0).map((r) => r.notes.slice(0, 300)) }, null, 2))
+            if (failures.length) { console.error(failures.join("\n")); process.exit(1) }
+            console.log("handoff proof passed")
+          ' "$proof"
+      - name: Retain handoff evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: soak-handoff-proof
+          path: ${{ runner.temp }}/proof
+          if-no-files-found: warn
+          retention-days: 7
