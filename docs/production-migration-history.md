@@ -41,12 +41,17 @@ the original labels in its result. Missing, duplicate, reordered, or foreign
 versions fail. Changed attested SQL or source files fail. Changed helper bodies
 or grants fail. Unapproved pending files fail.
 
-The baseline is `20260926000001` (326 rows) and the approved range is
-`20261005000001_vacuum_pg_net_responses` and `20261005000002_gate_per_minute_cron_work`.
+The baseline is `20261005000002` (328 rows) and the approved range is
+`20261005000003_league_season_rules`.
 A partially applied approved range plans only its remaining suffix. Every applied
 member of the range must also match its statement count and stored-SQL fingerprint.
 Both fingerprints come from fresh local installs with CLI 2.114.0, which also
 reproduced every earlier attested fingerprint.
+
+Until 2026-10-06 the baseline was `20260926000001` (326 rows) and the range held
+`20261005000001` and `20261005000002`. Production applied both with an owner-approved
+`supabase db push` on 2026-10-06. A read-only `release-schema-history.sql` snapshot
+showed their stored SQL matched the recorded fingerprints, so they became baseline rows.
 
 Until 2026-10-05 the baseline was `20260828000002` (320 rows) and the range held six
 more migrations (`20260912000001` through `20260926000001`). Production applied those

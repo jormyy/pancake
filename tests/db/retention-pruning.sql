@@ -1,7 +1,7 @@
 -- prune_unbounded_history: deletes only out-of-window rows and keeps
 -- everything the product reads (current+previous season lineups, every
 -- season's final standings snapshot, three seasons of transactions, recent
--- ops telemetry).
+-- ops telemetry, 30 days of pg_cron run history).
 BEGIN;
 
 INSERT INTO auth.users (
@@ -95,6 +95,11 @@ FROM unnest(ARRAY[
   '00000000-0000-0000-0000-000000098502'
 ]::uuid[]) AS run_id;
 
+INSERT INTO cron.job_run_details (jobid, runid, command, status, return_message, start_time, end_time)
+VALUES
+  (98601, 9860100001, 'SELECT 1', 'succeeded', 'retention-old', now() - interval '31 days', now() - interval '31 days'),
+  (98601, 9860100002, 'SELECT 1', 'succeeded', 'retention-new', now() - interval '29 days', now() - interval '29 days');
+
 SELECT public.prune_unbounded_history() AS prune_result \gset
 
 DO $$
@@ -117,6 +122,14 @@ BEGIN
   SELECT count(*) INTO v_count FROM public.fantasypros_projection_rows
    WHERE run_id = '00000000-0000-0000-0000-000000098502';
   IF v_count <> 1 THEN RAISE EXCEPTION 'in-window projection rows were pruned'; END IF;
+
+  -- pg_cron run history: 30 days kept.
+  IF EXISTS (SELECT 1 FROM cron.job_run_details WHERE jobid = 98601 AND return_message = 'retention-old') THEN
+    RAISE EXCEPTION 'cron run older than 30 days was kept';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM cron.job_run_details WHERE jobid = 98601 AND return_message = 'retention-new') THEN
+    RAISE EXCEPTION 'in-window cron run was pruned';
+  END IF;
 
   -- Lineups: current + previous season kept, older pruned.
   SELECT count(*) INTO v_count FROM public.weekly_lineups

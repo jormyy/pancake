@@ -11,6 +11,7 @@ DECLARE
   v_standings bigint;
   v_roster_transactions bigint;
   v_dynasty_news bigint;
+  v_cron_runs bigint := 0;
 BEGIN
   DELETE FROM public.sync_runs
    WHERE started_at < now() - interval '90 days';
@@ -65,13 +66,22 @@ BEGIN
 
   DROP TABLE IF EXISTS pruning_season_ranks;
 
+  -- pg_cron logs every run and never prunes it; the per-minute jobs add
+  -- about 4,400 rows a day. Keep 30 days for debugging.
+  IF to_regclass('cron.job_run_details') IS NOT NULL THEN
+    DELETE FROM cron.job_run_details
+     WHERE start_time < now() - interval '30 days';
+    GET DIAGNOSTICS v_cron_runs = ROW_COUNT;
+  END IF;
+
   RETURN jsonb_build_object(
     'sync_runs', v_sync_runs,
     'projection_sync_runs', v_projection_runs,
     'weekly_lineups', v_weekly_lineups,
     'standings', v_standings,
     'roster_transactions', v_roster_transactions,
-    'dynasty_news', v_dynasty_news
+    'dynasty_news', v_dynasty_news,
+    'cron_job_run_details', v_cron_runs
   );
 END;
 $$;

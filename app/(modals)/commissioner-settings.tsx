@@ -40,7 +40,7 @@ export default function CommissionerSettingsScreen() {
     const {
         scoring, slots, rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek,
         weeklyAddLimit, waiverMode, faabBudget, tradeVetoMode, tradeVetoWindowHours,
-        tradeVetoThresholdPercent,
+        tradeVetoThresholdPercent, tradeDeadline,
     } = draft
 
     const screenHeader = (
@@ -238,6 +238,25 @@ export default function CommissionerSettingsScreen() {
                                 })}
                             </View>
                         </View>
+                    </View>
+
+                    <Text style={styles.sectionTitle}>TRADE DEADLINE</Text>
+                    <View style={styles.card}>
+                        <View style={[styles.row, styles.rowBorder]}>
+                            <Text style={styles.rowLabel}>Deadline (month/day)</Text>
+                            <TextInput
+                                style={styles.scoreInput}
+                                value={tradeDeadline}
+                                onChangeText={(value) => updateField('tradeDeadline', value)}
+                                placeholder="None"
+                                placeholderTextColor={colors.textPlaceholder}
+                                accessibilityLabel="Trade deadline, month and day"
+                                selectTextOnFocus
+                            />
+                        </View>
+                        <Text style={styles.settingHint}>
+                            Repeats every season. Trades lock after this day and reopen once a champion is crowned. Leave blank for no deadline.
+                        </Text>
                     </View>
 
                     <Text style={styles.sectionTitle}>TRADE VETO</Text>

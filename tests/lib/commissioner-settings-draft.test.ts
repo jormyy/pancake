@@ -3,6 +3,7 @@ import {
     EMPTY_COMMISSIONER_SETTINGS_DRAFT,
     buildCommissionerSettingsChange,
     commissionerHydrationDecision,
+    tradeDeadlineDraftValue,
     tradeVetoModeFromValue,
     waiverModeFromValue,
     type CommissionerSettingsDraft,
@@ -49,6 +50,30 @@ describe('commissioner settings draft', () => {
             slotsChanged: false,
             slotUpdates: null,
         })
+    })
+
+    it('edits the trade deadline as a month and day that repeats every season', () => {
+        expect(tradeDeadlineDraftValue('2027-02-11')).toBe('02/11')
+        expect(tradeDeadlineDraftValue(null)).toBe('')
+
+        const baseline = draft()
+        expect(buildCommissionerSettingsChange(
+            draft({ tradeDeadline: '2/11' }), baseline, 'active', ['points'], ['PG'],
+        )).toMatchObject({ updates: { trade_deadline: '02-11' } })
+        expect(buildCommissionerSettingsChange(
+            draft({ tradeDeadline: '2/29' }), baseline, 'active', ['points'], ['PG'],
+        )).toMatchObject({ updates: { trade_deadline: '02-29' } })
+        expect(buildCommissionerSettingsChange(
+            draft({ tradeDeadline: ' ' }), draft({ tradeDeadline: '02/11' }), 'active', ['points'], ['PG'],
+        )).toMatchObject({ updates: { trade_deadline: null } })
+        expect(buildCommissionerSettingsChange(
+            draft({ tradeDeadline: '02/11' }), draft({ tradeDeadline: '02/11' }), 'active', ['points'], ['PG'],
+        )).toEqual({ updates: {}, slotsChanged: false, slotUpdates: null })
+        for (const invalid of ['2/30', '13/1', 'Feb 11', '2-11']) {
+            expect(buildCommissionerSettingsChange(
+                draft({ tradeDeadline: invalid }), baseline, 'active', ['points'], ['PG'],
+            )).toEqual({ error: 'Trade deadline must be a month and day, like 2/11.' })
+        }
     })
 
     it('rejects invalid values and lineup changes outside setup', () => {

@@ -20,6 +20,8 @@ export type LeagueSettingsUpdate = {
     trade_veto_mode?: TradeVetoMode
     trade_veto_window_hours?: number
     trade_veto_threshold_percent?: number
+    /** "MM-DD", repeated every season; null removes the deadline. */
+    trade_deadline?: string | null
 }
 
 type LineupSlotUpdate = {
@@ -54,6 +56,7 @@ function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     if (updates.trade_veto_mode != null) payload.trade_veto_mode = updates.trade_veto_mode
     if (updates.trade_veto_window_hours != null) payload.trade_veto_window_hours = updates.trade_veto_window_hours
     if (updates.trade_veto_threshold_percent != null) payload.trade_veto_threshold_percent = updates.trade_veto_threshold_percent
+    if (updates.trade_deadline !== undefined) payload.trade_deadline = updates.trade_deadline
     return payload
 }
 

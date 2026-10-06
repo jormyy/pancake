@@ -18,6 +18,7 @@ DECLARE
   v_invite_code  text;
   v_league_id    uuid;
   v_member_id    uuid;
+  v_season_id    uuid;
   v_season_year  int;
   v_email_prefix text;
   v_username     text;
@@ -53,7 +54,7 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
   END IF;
 
-  v_season_year := public.current_season_year_et();
+  v_season_year := private.setup_season_year_et();
   v_slug := regexp_replace(lower(trim(p_name)), '[^a-z0-9]+', '-', 'g')
             || '-' || substring(gen_random_uuid()::text, 1, 4);
   v_invite_code := public.generate_invite_code();
@@ -67,7 +68,13 @@ BEGIN
   RETURNING id INTO v_member_id;
 
   INSERT INTO public.league_seasons (league_id, season_year, is_current)
-  VALUES (v_league_id, v_season_year, true);
+  VALUES (v_league_id, v_season_year, true)
+  RETURNING id INTO v_season_id;
+
+  -- Waiver claims process only for members with a waiver spot; joiners line
+  -- up behind the commissioner.
+  INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, priority)
+  VALUES (v_league_id, v_season_id, v_member_id, 1);
 
   INSERT INTO public.draft_picks (league_id, season_year, round, original_owner_id, current_owner_id)
   SELECT v_league_id, year_value, round_value, v_member_id, v_member_id

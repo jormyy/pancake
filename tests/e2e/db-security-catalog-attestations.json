@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "baselineVersion": "20260926000001",
-  "candidateVersion": "20261005000002",
+  "baselineVersion": "20261005000002",
+  "candidateVersion": "20261005000003",
   "common": {
     "functions": [
       {
@@ -594,7 +594,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "5b9a88dcc47b71a4454fc2b31c2fe73dca6214e2bd25ab9b41f715330fa98140",
+          "bodySha256": "185968c67ef8b59eaf5a99734e34de7d1ce8483dce7c0b48a7bd8f0b5a007452",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -743,6 +743,10 @@
     {
       "filename": "20260921000002_internal_scheduling_rls_and_rule_copy.sql",
       "sha256": "6f0072fd5d666300dfbdb2efe47c5c39287894c998e5a8678268f8305b74d69e"
+    },
+    {
+      "filename": "20261005000003_league_season_rules.sql",
+      "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d"
     }
   ]
 }

@@ -54,7 +54,8 @@ it.each(['pre-migration', 'post-migration'] as const)('requires every existing %
   expect(() => validateSecurityCatalog(input)).toThrow('Catalog functions: missing or unexpected objects')
 })
 
-it('rejects a partial approved upgrade in either phase', () => {
+// A one-migration range has no partial state; the exact-phase tests above cover it.
+it.skipIf(release.approvedMigrations.length < 2)('rejects a partial approved upgrade in either phase', () => {
   for (const phase of ['pre-migration', 'post-migration'] as const) {
     const input = fixture('post-migration')
     input.phase = phase
@@ -87,7 +88,8 @@ it('binds every attested function body to pinned migration SQL', () => {
 it.each([
   ['unknown target', (x: ReturnType<typeof fixture>) => { x.projectRef = 'wrong-project' }, 'Unattested production project'],
   ['changed SQL of an applied migration', (x: ReturnType<typeof fixture>) => { x.history.history[release.baselineCount].statementsSha256 = '0'.repeat(64) }, 'Approved production migration attestation failed'],
-  ['changed migration file', (x: ReturnType<typeof fixture>) => { x.repositoryFiles[release.baselineCount].sha256 = '0'.repeat(64) }, 'Unexpected production migration range or SQL'],
+  // An approved migration that is also a pinned catalog source fails the source pin first.
+  ['changed migration file', (x: ReturnType<typeof fixture>) => { x.repositoryFiles[release.baselineCount].sha256 = '0'.repeat(64) }, /Unexpected production migration range or SQL|Catalog source migration changed/],
   ['unknown alias', (x: ReturnType<typeof fixture>) => { x.history.history[0].name = 'unreviewed' }, 'Production migration history diverges'],
   ['reordered history', (x: ReturnType<typeof fixture>) => { x.history.history.reverse() }, 'Production migration attestation failed'],
   ['missing history row', (x: ReturnType<typeof fixture>) => { x.history.history.splice(3, 1) }, 'Production migration attestation failed'],

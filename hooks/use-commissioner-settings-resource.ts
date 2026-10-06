@@ -9,6 +9,7 @@ import {
     EMPTY_COMMISSIONER_SETTINGS_DRAFT,
     buildCommissionerSettingsChange,
     commissionerHydrationDecision,
+    tradeDeadlineDraftValue,
     tradeVetoModeFromValue,
     waiverModeFromValue,
     type CommissionerSettingsDraft,
@@ -35,6 +36,7 @@ function remoteDraft(
         tradeVetoMode: tradeVetoModeFromValue(league.trade_veto_mode),
         tradeVetoWindowHours: String(league.trade_veto_window_hours ?? 24),
         tradeVetoThresholdPercent: String(league.trade_veto_threshold_percent ?? 50),
+        tradeDeadline: tradeDeadlineDraftValue(league.trade_deadline),
         scoring: Object.fromEntries(COMMISSIONER_SCORING_FIELDS.map(({ key }) => [
             key,
             source[key] != null ? String(source[key]) : '0',
