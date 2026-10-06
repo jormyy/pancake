@@ -183,7 +183,13 @@ export default function LeagueScreen() {
                     aria-labelledby={activeTabId}
                     accessibilityLabel={`${activeTabLabel} league section`}
                 >
-                    {screen.tabErr && !screen.isTabLoading ? (
+                    {screen.tab !== 'auctions' && screen.isTabLoaded && (!screen.isOnline || screen.isTabRefreshing) ? (
+                        <Text style={styles.freshness} accessibilityLiveRegion="polite">
+                            {!screen.isOnline
+                                ? `Offline. Showing saved ${activeTabLabel} data.`
+                                : `Refreshing ${activeTabLabel}. Showing saved data.`}
+                        </Text>
+                    ) : screen.tabErr && !screen.isTabLoading ? (
                         <ErrorBanner
                             message={screen.isTabLoaded
                                 ? `${activeTabLabel} refresh failed. Showing saved data. Select to retry.`
@@ -202,6 +208,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
     contentScroll: { flex: 1 },
+    freshness: { color: colors.textSecondary, fontSize: fontSize.sm, padding: spacing.md },
     header: {
         paddingTop: spacing.lg,
         paddingBottom: spacing.md,
