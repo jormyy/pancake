@@ -13,6 +13,7 @@ const SHELL_ROUTES = ['/']
 const SHELL_CACHE = `${VERSION}-public-v1-shell`
 const ASSET_CACHE = `${VERSION}-public-v1-assets`
 const SHELL_URL = '/'
+const BOOT_TIMEOUT_MS = 30000
 const PUBLIC_ASSETS = new Set(PUBLIC_ASSET_URLS)
 const IMMUTABLE = /^\/(?:_expo\/static|assets)\//
 const PRIVATE_DIRECTIVES = /(?:^|,)\s*(?:private|no-store|no-cache)\b/i
@@ -46,8 +47,16 @@ function shellRoute(pathname) {
 // Strip identity and bypass the HTTP cache: a legacy authenticated response
 // can live there even after the old worker's Cache Storage is removed.
 // Only this worker's validated public cache may supply a shared hit.
-const publicFetch = (url) =>
-  fetch(new Request(url, { credentials: 'omit', redirect: 'error', cache: 'no-store' }))
+const publicFetch = (url, signal) =>
+  fetch(new Request(url, { credentials: 'omit', redirect: 'error', cache: 'no-store', signal }))
+
+async function matchesBuild(response, digest) {
+  if (!digest) return false
+  const bytes = await response.clone().arrayBuffer()
+  const actual = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
+    .map((byte) => byte.toString(16).padStart(2, '0')).join('')
+  return actual === digest
+}
 
 async function publicAssetFetch(url) {
   try {
@@ -62,10 +71,7 @@ async function publicAssetFetch(url) {
       credentials: 'omit', redirect: 'error', mode: 'same-origin', cache: 'only-if-cached',
     }))
     if (!cacheable(response)) throw error
-    const bytes = await response.clone().arrayBuffer()
-    const actual = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
-      .map((byte) => byte.toString(16).padStart(2, '0')).join('')
-    if (actual !== digest) throw error
+    if (!(await matchesBuild(response, digest))) throw error
     return response
   }
 }
@@ -78,23 +84,51 @@ async function safeMatch(cache, key, options) {
   return undefined
 }
 
-async function precache(cache, url, options) {
-  const response = await publicFetch(url)
-  if (!cacheable(response, options)) return
-  await cache.put(url, response)
+async function bootResponse(url, signal) {
+  const response = await publicFetch(url, signal)
+  const shell = url === SHELL_URL
+  if (!cacheable(response, { allowDocument: shell }) ||
+      (shell && !/text\/html/i.test(response.headers.get('content-type') || '')) ||
+      !(await matchesBuild(response, PUBLIC_ASSET_HASHES[url]))) {
+    throw new Error(`${shell ? 'shell' : 'asset'} precache rejected: ${url}`)
+  }
+  return response
 }
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
-    const shell = await caches.open(SHELL_CACHE)
-    await precache(shell, SHELL_URL, { allowDocument: true })
-    if (!(await safeMatch(shell, SHELL_URL, { allowDocument: true }))) {
-      throw new Error('shell precache failed; install aborted')
+    // A release is usable only when every required URL belongs to its build.
+    // Never downgrade an unknown or unsafe boot file to an optional download.
+    if (!PRECACHE_URLS.includes(SHELL_URL) || PRECACHE_URLS.some((url) =>
+      (url !== SHELL_URL && !PUBLIC_ASSETS.has(url)) || !PUBLIC_ASSET_HASHES[url])) {
+      throw new Error('invalid required boot manifest')
     }
-    const assets = await caches.open(ASSET_CACHE)
-    await Promise.all(PRECACHE_URLS.filter((url) => PUBLIC_ASSETS.has(url))
-      .map((url) => precache(assets, url)))
-    await self.skipWaiting()
+    const controller = new AbortController()
+    let timer
+    try {
+      const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort()
+          reject(new Error('required boot precache timed out'))
+        }, BOOT_TIMEOUT_MS)
+      })
+      // Hold verified responses until the whole set succeeds. A failed fetch
+      // cannot write a new shell over a usable release, even on a same-version retry.
+      const responses = await Promise.race([
+        Promise.all(PRECACHE_URLS.map((url) => bootResponse(url, controller.signal))),
+        deadline,
+      ])
+      const shell = await caches.open(SHELL_CACHE)
+      const assets = await caches.open(ASSET_CACHE)
+      // A killed worker can leave partial versioned caches. Always refill the
+      // entire verified set on retry; activation, not cache existence, commits it.
+      await Promise.all(PRECACHE_URLS.map((url, index) =>
+        (url === SHELL_URL ? shell : assets).put(url, responses[index])))
+      await self.skipWaiting()
+    } finally {
+      clearTimeout(timer)
+      controller.abort()
+    }
   })())
 })
 
@@ -128,10 +162,8 @@ async function assetResponse(request, event, immutable) {
 async function shellResponse(event) {
   const cache = await caches.open(SHELL_CACHE)
   const cached = await safeMatch(cache, SHELL_URL, { allowDocument: true })
-  const network = publicFetch(SHELL_URL).then(async (response) => {
-    if (cacheable(response, { allowDocument: true })) {
-      await cache.put(SHELL_URL, response.clone()).catch(() => {})
-    } else if (response && response.ok) await cache.delete(SHELL_URL).catch(() => {})
+  const network = bootResponse(SHELL_URL).then(async (response) => {
+    await cache.put(SHELL_URL, response.clone()).catch(() => {})
     return response
   })
   event.waitUntil(network.catch(() => undefined))
@@ -145,7 +177,7 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
   if (request.mode === 'navigate') {
     if (!shellRoute(url.pathname)) return
-    event.respondWith(shellResponse(event).catch(() => publicFetch(SHELL_URL)))
+    event.respondWith(shellResponse(event).catch(() => bootResponse(SHELL_URL)))
   } else if (!url.search && PUBLIC_ASSETS.has(url.pathname)) {
     event.respondWith(assetResponse(request, event, IMMUTABLE.test(url.pathname))
       .catch(() => publicFetch(request.url)))

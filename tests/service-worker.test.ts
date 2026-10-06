@@ -58,17 +58,17 @@ type Harness = {
 }
 
 async function loadWorker(
-    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {} }:
-    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string> } = {},
+    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {}, allowed }:
+    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string>; allowed?: string[] } = {},
 ): Promise<Harness> {
     let source = await readFile(path.join(process.cwd(), 'public/sw.js'), 'utf8')
     source = source
         .replace(/const VERSION = '[^']*'/, `const VERSION = '${version}'`)
         .replace(/const PRECACHE_URLS = \[[^\]]*\]/, `const PRECACHE_URLS = ${JSON.stringify(precache)}`)
-        .replace(/const PUBLIC_ASSET_URLS = \[[^\n]*\]/, `const PUBLIC_ASSET_URLS = ${JSON.stringify([...precache.filter(p => p !== '/'), '/_expo/static/js/web/chunk.js', '/_expo/static/js/web/old-chunk.js', '/manifest.webmanifest'])}`)
+        .replace(/const PUBLIC_ASSET_URLS = \[[^\n]*\]/, `const PUBLIC_ASSET_URLS = ${JSON.stringify(allowed ?? [...precache.filter(p => p !== '/'), '/_expo/static/js/web/chunk.js', '/_expo/static/js/web/old-chunk.js', '/manifest.webmanifest'])}`)
         .replace(/const SHELL_ROUTES = \[[^\n]*\]/, "const SHELL_ROUTES = ['/', '/players', '/player/[id]']")
 
-    source = source.replace(/const PUBLIC_ASSET_HASHES = \{[^\n]*\}/, `const PUBLIC_ASSET_HASHES = ${JSON.stringify(hashes)}`)
+    source = source.replace(/const PUBLIC_ASSET_HASHES = \{[^\n]*\}/, `const PUBLIC_ASSET_HASHES = ${JSON.stringify({ ...Object.fromEntries(precache.map(url => [url, createHash('sha256').update(`body:https://app.test${url}`).digest('hex')])), ...hashes })}`)
 
     const listeners = new Map<string, Listener>()
     const cacheStorage = new FakeCaches()
@@ -79,7 +79,7 @@ async function loadWorker(
         const url = typeof input === 'string' ? input : input.url
         fetches.push(new URL(url, 'https://app.test').pathname)
         if (fetchImpl) return fetchImpl(input)
-        return new Response(`body:${url}`, { status: 200 })
+        return new Response(`body:${url}`, { status: 200, headers: { 'content-type': new URL(url).pathname === '/' ? 'text/html' : 'application/javascript' } })
     }
 
     const self = {
@@ -146,7 +146,7 @@ describe('service worker', () => {
         expect(worker.skipWaitingCalls).toBe(1)
     })
 
-    it('skips a manifest entry the host no longer serves', async () => {
+    it('rejects a required manifest entry the host no longer serves', async () => {
         const worker = await loadWorker({
             precache: ['/', '/_expo/static/js/web/gone.js'],
             fetchImpl: async (input) => {
@@ -157,10 +157,10 @@ describe('service worker', () => {
             },
         })
 
-        await expect(worker.install()).resolves.toBeUndefined()
+        await expect(worker.install()).rejects.toThrow()
         const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(0)
-        expect(worker.skipWaitingCalls).toBe(1)
+        expect(worker.skipWaitingCalls).toBe(0)
     })
 
     // Activation deletes the previous release's caches. Installing on a dead
@@ -226,7 +226,7 @@ describe('service worker', () => {
         expect(worker.fetches.filter((p) => p.endsWith('chunk.js'))).toHaveLength(1)
     })
 
-    it('skips a precache manifest entry the host rewrites to a document', async () => {
+    it('rejects a required precache entry the host rewrites to a document', async () => {
         const worker = await loadWorker({
             precache: ['/', '/_expo/static/js/web/renamed.js'],
             fetchImpl: async (input) => {
@@ -235,10 +235,11 @@ describe('service worker', () => {
                 return url.endsWith('renamed.js') ? html() : new Response('<!doctype html><title>Pancake</title>', { status: 200, headers: { 'content-type': 'text/html' } })
             },
         })
-        await worker.install()
+        await expect(worker.install()).rejects.toThrow()
+        expect(worker.skipWaitingCalls).toBe(0)
 
         const shell = await worker.caches.open('pancake-test-1-public-v1-shell')
-        expect(shell.entries.size).toBe(1)
+        expect(shell.entries.size).toBe(0)
         const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(0)
     })
@@ -271,9 +272,9 @@ describe('service worker', () => {
     })
 
     it.each(['asset', 'shell'])('keeps the %s refresh alive until its cache write finishes', async (kind) => {
-        const response = new Response('updated')
+        const response = new Response('updated', { headers: { 'content-type': kind === 'shell' ? 'text/html' : 'application/manifest+json' } })
         Object.defineProperty(response, 'type', { value: 'basic' })
-        const worker = await loadWorker({ fetchImpl: async () => response })
+        const worker = await loadWorker({ fetchImpl: async () => response, hashes: { '/': createHash('sha256').update('updated').digest('hex') } })
         const cache = await worker.caches.open(`pancake-test-1-public-v1-${kind === 'shell' ? 'shell' : 'assets'}`)
         const request = kind === 'shell' ? navigation('/') : scoped('/manifest.webmanifest')
         const key = kind === 'shell' ? '/' : request
@@ -386,7 +387,7 @@ describe('service worker', () => {
     })
 
     it('cannot read a poisoned matching URL from the legacy cache before or after activation', async () => {
-        const worker = await loadWorker({ fetchImpl: async () => script('public') })
+        const worker = await loadWorker({ fetchImpl: async input => new URL((input as Request).url).pathname === '/' ? new Response('public', { headers: { 'content-type': 'text/html' } }) : script('public'), hashes: { '/': createHash('sha256').update('public').digest('hex') } })
         const legacy = await worker.caches.open('pancake-test-1-assets')
         await legacy.put('/_expo/static/js/web/chunk.js', new Response('account A'))
         const oldShell = await worker.caches.open('pancake-test-1-shell')
@@ -444,6 +445,91 @@ describe('service worker', () => {
         const worker = await loadWorker({ fetchImpl: async () => script('public') })
         vi.spyOn(worker.caches, 'open').mockRejectedValue(new Error('denied'))
         expect(await (await worker.respond(scoped('/_expo/static/js/web/chunk.js'))).text()).toBe('public')
+    })
+
+    it.each<ResponseInit>([
+        { status: 503 }, { headers: { 'cache-control': 'private' } },
+        { headers: { 'cache-control': 'no-store' } }, { headers: { vary: 'Cookie' } },
+        { headers: { vary: '*' } }, { headers: { 'content-type': 'text/html' } },
+    ])('rejects an unsafe required asset without writing a shell: %j', async init => {
+        const worker = await loadWorker({ fetchImpl: async input => {
+            const url = (input as Request).url
+            return new URL(url).pathname === '/'
+                ? new Response(`body:${url}`, { headers: { 'content-type': 'text/html' } })
+                : new Response(`body:${url}`, init)
+        } })
+        await expect(worker.install()).rejects.toThrow()
+        expect(worker.skipWaitingCalls).toBe(0)
+        expect((await worker.caches.open('pancake-test-1-public-v1-shell')).entries.size).toBe(0)
+    })
+
+    it('rejects correct headers with bytes from the wrong release', async () => {
+        const worker = await loadWorker({ fetchImpl: async input => new Response(
+            new URL((input as Request).url).pathname === '/' ? `body:${(input as Request).url}` : 'wrong release',
+            { headers: { 'content-type': new URL((input as Request).url).pathname === '/' ? 'text/html' : 'application/javascript' } },
+        ) })
+        await expect(worker.install()).rejects.toThrow(/asset precache rejected/)
+        expect(worker.skipWaitingCalls).toBe(0)
+    })
+
+    it('rejects an undeclared required path before it can activate', async () => {
+        const worker = await loadWorker({ precache: ['/', '/api/private'], allowed: [] })
+        await expect(worker.install()).rejects.toThrow(/invalid required boot manifest/)
+        expect(worker.fetches).toHaveLength(0)
+    })
+
+    it('bounds a stalled required download and aborts its request', async () => {
+        vi.useFakeTimers()
+        try {
+            const requests: Request[] = []
+            const worker = await loadWorker({ fetchImpl: async input => {
+                requests.push(input as Request)
+                return new Promise<Response>(() => {})
+            } })
+            const result = expect(worker.install()).rejects.toThrow(/timed out/)
+            await vi.advanceTimersByTimeAsync(30000)
+            await result
+            expect(requests.every(request => request.signal.aborted)).toBe(true)
+            expect(worker.skipWaitingCalls).toBe(0)
+        } finally { vi.useRealTimers() }
+    })
+
+    it('refills an orphan partial cache instead of trusting its shell or asset bytes', async () => {
+        const worker = await loadWorker()
+        const shell = await worker.caches.open('pancake-test-1-public-v1-shell')
+        const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
+        await shell.put('/', new Response('orphan'))
+        await assets.put('/_expo/static/js/web/app.js', new Response('partial'))
+        await worker.install()
+        expect(await (await shell.match('/'))?.text()).toBe('body:https://app.test/')
+        expect(await (await assets.match('/_expo/static/js/web/app.js'))?.text()).toBe('body:https://app.test/_expo/static/js/web/app.js')
+        expect(worker.fetches).toHaveLength(2)
+        expect(worker.skipWaitingCalls).toBe(1)
+    })
+
+    it('cannot activate after a required cache write rejects, and retries the full set', async () => {
+        const worker = await loadWorker()
+        const old = await worker.caches.open('pancake-old-public-v1-shell')
+        await old.put('/', new Response('usable old release'))
+        const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
+        const put = vi.spyOn(assets, 'put').mockRejectedValueOnce(new Error('quota'))
+        await expect(worker.install()).rejects.toThrow('quota')
+        expect(worker.skipWaitingCalls).toBe(0)
+        expect(await (await old.match('/'))?.text()).toBe('usable old release')
+        put.mockRestore()
+        await worker.install()
+        expect(worker.fetches).toHaveLength(4)
+        expect(worker.skipWaitingCalls).toBe(1)
+    })
+
+    it('keeps a usable release shell when the host serves a different release', async () => {
+        const worker = await loadWorker({ fetchImpl: async () => new Response('new shell missing its chunk', { headers: { 'content-type': 'text/html' } }) })
+        const shell = await worker.caches.open('pancake-test-1-public-v1-shell')
+        await shell.put('/', new Response('old shell', { headers: { 'content-type': 'text/html' } }))
+        expect(await (await worker.respond(navigation('/'))).text()).toBe('old shell')
+        expect(await (await shell.match('/'))?.text()).toBe('old shell')
+        await shell.delete('/')
+        await expect(worker.respond(navigation('/'))).rejects.toThrow(/shell precache rejected/)
     })
 
 })

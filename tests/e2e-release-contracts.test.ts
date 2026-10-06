@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -305,6 +306,15 @@ describe('release E2E contracts', () => {
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
     await writeFile(path.join(root, 'dist', 'sw.js'), WORKER_TEMPLATE)
     await writeFile(path.join(root, 'dist', 'index.html'), SHELL_HTML)
+    for (const [file, body] of Object.entries({
+      '_expo/static/js/web/entry-abc.js': 'console.log("boot")',
+      '_expo/static/css/app.css': 'body{margin:0}',
+      'manifest.webmanifest': '{}',
+      'pwa-192.png': 'fixture image',
+    })) {
+      await mkdir(path.dirname(path.join(root, 'dist', file)), { recursive: true })
+      await writeFile(path.join(root, 'dist', file), body)
+    }
     await mkdir(path.join(root, 'dist', 'assets', 'fonts'), { recursive: true })
     await writeFile(path.join(root, 'dist', 'assets', 'fonts', 'MaterialIcons.abc123.ttf'), 'font')
     // A font the app never names must stay out, even though it is in the build.
@@ -331,12 +341,17 @@ describe('release E2E contracts', () => {
     const firstWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
     const publicAssets = JSON.parse(/const PUBLIC_ASSET_URLS = (\[[^\n]*\])/.exec(firstWorker)![1])
     expect(publicAssets).toEqual([
+      '/_expo/static/css/app.css',
+      '/_expo/static/js/web/entry-abc.js',
       '/assets/fonts/MaterialIcons.abc123.ttf',
       '/assets/fonts/Outfit_900Black.def456.ttf',
+      '/manifest.webmanifest',
+      '/pwa-192.png',
     ])
     const publicHashes = JSON.parse(/const PUBLIC_ASSET_HASHES = (\{[^\n]*\})/.exec(firstWorker)![1])
-    expect(Object.keys(publicHashes)).toEqual(publicAssets)
-    expect(Object.values(publicHashes)).toEqual([expect.stringMatching(/^[a-f0-9]{64}$/), expect.stringMatching(/^[a-f0-9]{64}$/)])
+    expect(Object.keys(publicHashes)).toEqual(['/', ...publicAssets])
+    expect(Object.values(publicHashes)).toEqual(Array.from({ length: publicAssets.length + 1 }, () => expect.stringMatching(/^[a-f0-9]{64}$/)))
+    expect(publicHashes['/']).toBe(createHash('sha256').update(SHELL_HTML).digest('hex'))
     expect(publicAssets).not.toContain('/app.js')
     expect(firstWorker).toContain('const SHELL_ROUTES = ["/","/index.html"]')
 
@@ -367,6 +382,8 @@ describe('release E2E contracts', () => {
     expect(routingDigest).not.toBe(rebuiltMarker.bundleDigest)
     await writeFile(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n')
     expect(await digestReleaseBundle(root)).not.toBe(routingDigest)
+    await rm(path.join(root, 'dist', '_expo/static/js/web/entry-abc.js'))
+    await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(/Required boot asset is missing/)
   })
 
   it('rejects release provenance for a SHA other than the checked-out commit', () => {

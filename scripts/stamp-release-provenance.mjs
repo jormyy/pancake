@@ -60,8 +60,8 @@ const publicDelivery = async (root) => {
   const assets = files.filter((url) => url.startsWith('/assets/') || url.startsWith('/_expo/static/') || fixed.has(url)).sort()
   return {
     assets,
-    hashes: Object.fromEntries(await Promise.all(assets.map(async (url) => [
-      url, createHash('sha256').update(await readFile(path.join(root, 'dist', url))).digest('hex'),
+    hashes: Object.fromEntries(await Promise.all(['/', ...assets].map(async (url) => [
+      url, createHash('sha256').update(await readFile(path.join(root, 'dist', url === '/' ? 'index.html' : url))).digest('hex'),
     ]))),
     routes: [...new Set(files.filter((url) => url.endsWith('.html') && !url.includes('+not-found'))
       .flatMap((url) => [url, url.replace(/\/index\.html$/, '/').replace(/\.html$/, '')]))].sort(),
@@ -133,6 +133,9 @@ const setServiceWorkerPrecache = async (root) => {
   const assets = await assetUrls(root)
   const urls = bootAssets(html, { fonts: await referencedFonts(root, assets) })
   const delivery = await publicDelivery(root)
+  if (urls.some((url) => !delivery.hashes[url] || (url !== '/' && !delivery.assets.includes(url)))) {
+    throw new Error('Required boot asset is missing from the public build')
+  }
   if (urls.length < 3) {
     throw new Error('Release build produced no boot assets to precache; the shell HTML is probably malformed')
   }
