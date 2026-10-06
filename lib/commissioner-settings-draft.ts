@@ -16,6 +16,7 @@ export type CommissionerSettingsDraft = {
     tradeVetoMode: TradeVetoMode
     tradeVetoWindowHours: string
     tradeVetoThresholdPercent: string
+    tradeDeadline: string
 }
 
 export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
@@ -32,6 +33,7 @@ export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
     tradeVetoMode: 'member_vote',
     tradeVetoWindowHours: '',
     tradeVetoThresholdPercent: '',
+    tradeDeadline: '',
 }
 
 const DRAFT_SCALAR_FIELDS = [
@@ -46,6 +48,7 @@ const DRAFT_SCALAR_FIELDS = [
     'tradeVetoMode',
     'tradeVetoWindowHours',
     'tradeVetoThresholdPercent',
+    'tradeDeadline',
 ] as const
 
 function sameRecord<Value>(left: Record<string, Value>, right: Record<string, Value>): boolean {
@@ -69,6 +72,24 @@ export function waiverModeFromValue(value: string | null | undefined): WaiverMod
 export function tradeVetoModeFromValue(value: string | null | undefined): TradeVetoMode {
     if (value === 'disabled' || value === 'commissioner') return value
     return 'member_vote'
+}
+
+/** The stored deadline is a date in the current season; commissioners edit its month and day. */
+export function tradeDeadlineDraftValue(value: string | null | undefined): string {
+    const match = /^\d{4}-(\d{2})-(\d{2})/.exec(value ?? '')
+    return match ? `${match[1]}/${match[2]}` : ''
+}
+
+/** Parses "M/D" or "MM/DD" into the "MM-DD" payload; null when the date cannot exist. */
+function parseTradeDeadline(value: string): string | null {
+    const match = /^(\d{1,2})\/(\d{1,2})$/.exec(value.trim())
+    if (!match) return null
+    const month = Number(match[1])
+    const day = Number(match[2])
+    // 2000 is a leap year, so Feb 29 is accepted; off-years fall back to Feb 28.
+    const date = new Date(Date.UTC(2000, month - 1, day))
+    if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null
+    return `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 type CommissionerHydrationInput = {
@@ -173,6 +194,15 @@ export function buildCommissionerSettingsChange(
     }
     if (draft.tradeVetoThresholdPercent !== baseline.tradeVetoThresholdPercent) {
         updates.trade_veto_threshold_percent = integerValue('tradeVetoThresholdPercent')
+    }
+    if (draft.tradeDeadline.trim() !== baseline.tradeDeadline.trim()) {
+        if (draft.tradeDeadline.trim() === '') {
+            updates.trade_deadline = null
+        } else {
+            const tradeDeadline = parseTradeDeadline(draft.tradeDeadline)
+            if (tradeDeadline == null) return { error: 'Trade deadline must be a month and day, like 2/11.' }
+            updates.trade_deadline = tradeDeadline
+        }
     }
     return {
         updates,

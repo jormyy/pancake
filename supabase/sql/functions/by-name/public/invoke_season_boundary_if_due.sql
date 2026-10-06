@@ -19,6 +19,10 @@ BEGIN
     RETURN;
   END IF;
 
+  -- Setup leagues have no bracket work, but one whose season ended before it
+  -- drafted moves to the next season.
+  PERFORM private.roll_setup_league_seasons(p_now);
+
   IF NOT EXISTS (
     SELECT 1
       FROM public.leagues

@@ -183,8 +183,10 @@ BEGIN
   SELECT p_league_id, v_new_season_id, member_id, priority
   FROM ordered_members;
 
+  -- The trade deadline repeats every season.
   UPDATE leagues
-     SET status = 'offseason'
+     SET status = 'offseason',
+         trade_deadline = private.trade_deadline_for_season(trade_deadline, v_new_year)
    WHERE id = p_league_id;
 
   new_season_id := v_new_season_id;

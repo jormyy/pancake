@@ -21,7 +21,10 @@ DECLARE
   v_taxi_slots int;
   v_auction_budget int;
   v_playoff_start_week int;
-  v_trade_deadline timestamptz;
+  v_trade_deadline date;
+  v_trade_deadline_set boolean := false;
+  v_trade_deadline_text text;
+  v_season_year int;
   v_weekly_add_limit int;
   v_weekly_add_unlimited boolean;
   v_waiver_mode text;
@@ -100,12 +103,41 @@ BEGIN
     END IF;
   END IF;
 
-  IF p_settings ? 'trade_deadline' AND p_settings -> 'trade_deadline' IS NOT NULL THEN
-    IF jsonb_typeof(p_settings -> 'trade_deadline') <> 'string' THEN
-      RAISE EXCEPTION 'trade_deadline must be an ISO 8601 timestamp string.'
+  -- The deadline is a month and day ("MM-DD") that repeats every season; a
+  -- full date keeps only its month and day. It is stored as the date inside
+  -- the league's current season. JSON null removes it.
+  IF p_settings ? 'trade_deadline' THEN
+    v_trade_deadline_set := true;
+    IF jsonb_typeof(p_settings -> 'trade_deadline') = 'string' THEN
+      v_trade_deadline_text := trim(p_settings ->> 'trade_deadline');
+      BEGIN
+        IF v_trade_deadline_text ~ '^[0-9]{1,2}-[0-9]{1,2}$' THEN
+          v_trade_deadline := make_date(
+            2000,
+            split_part(v_trade_deadline_text, '-', 1)::int,
+            split_part(v_trade_deadline_text, '-', 2)::int
+          );
+        ELSE
+          v_trade_deadline := v_trade_deadline_text::date;
+        END IF;
+      EXCEPTION WHEN data_exception THEN
+        RAISE EXCEPTION 'trade_deadline must be a month and day such as 02-11.'
+          USING ERRCODE = '22023';
+      END;
+
+      SELECT season.season_year
+        INTO v_season_year
+        FROM public.league_seasons AS season
+       WHERE season.league_id = p_league_id
+         AND season.is_current;
+      v_trade_deadline := private.trade_deadline_for_season(
+        v_trade_deadline,
+        COALESCE(v_season_year, private.setup_season_year_et())
+      );
+    ELSIF jsonb_typeof(p_settings -> 'trade_deadline') <> 'null' THEN
+      RAISE EXCEPTION 'trade_deadline must be a month and day such as 02-11, or null.'
         USING ERRCODE = '22023';
     END IF;
-    v_trade_deadline := (p_settings ->> 'trade_deadline')::timestamptz;
   END IF;
 
   IF p_settings ? 'weekly_add_unlimited' THEN
@@ -186,7 +218,7 @@ BEGIN
          taxi_slots = COALESCE(v_taxi_slots, taxi_slots),
          auction_budget = COALESCE(v_auction_budget, auction_budget),
          playoff_start_week = COALESCE(v_playoff_start_week, playoff_start_week),
-         trade_deadline = COALESCE(v_trade_deadline, trade_deadline),
+         trade_deadline = CASE WHEN v_trade_deadline_set THEN v_trade_deadline ELSE trade_deadline END,
          weekly_add_limit = CASE
            WHEN v_weekly_add_unlimited IS TRUE THEN NULL
            WHEN v_weekly_add_limit IS NOT NULL THEN v_weekly_add_limit

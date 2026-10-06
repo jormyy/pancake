@@ -2,8 +2,8 @@
   "projectRef": "ceeytbfmwsnzalxlkalc",
   "auditSourceCommit": "c271b58e7abfcfaccd6d7d47fecb3771c9095c71",
   "renameCommit": "c083075fe75976852fa2307c54d8fc7b3b33e9a6",
-  "baselineVersion": "20260926000001",
-  "baselineCount": 326,
+  "baselineVersion": "20261005000002",
+  "baselineCount": 328,
   "aliases": [
     {
       "version": "20260627000003",
@@ -324,18 +324,11 @@
   ],
   "approvedMigrations": [
     {
-      "version": "20261005000001",
-      "name": "vacuum_pg_net_responses",
-      "sha256": "75f8fc87a3f51f15337e11e18e909a944ef91092e882a5a63780c2779c49f0f7",
-      "statementCount": 1,
-      "statementsSha256": "a81562aa569e5f7ac8fd34dc36a0fa4465267260dbd4fa069a219f5f5b53b076"
-    },
-    {
-      "version": "20261005000002",
-      "name": "gate_per_minute_cron_work",
-      "sha256": "117d5493fcc3c690cbdd7c6c1d083241b8cc57c54948ea8fc419e1b30df7aa63",
-      "statementCount": 11,
-      "statementsSha256": "7a5063f8d2ade81775ae99d60a93a00d1f43427b6ee1bdd56ad17d74150aa7e9"
+      "version": "20261005000003",
+      "name": "league_season_rules",
+      "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d",
+      "statementCount": 14,
+      "statementsSha256": "78bd410df2613e4bb3eb6747943d1e05ecfbec5372e36315429fc3e71dfad797"
     }
   ]
 }
