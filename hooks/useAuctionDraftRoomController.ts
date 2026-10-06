@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AppState } from 'react-native'
 import {
     closeExpiredNominations,
     getDraftPollRevision,
@@ -71,7 +72,6 @@ export function useAuctionDraftRoomController({
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
     const pollRevisionRef = useRef<string | null>(null)
-    const pollInFlightRef = useRef(false)
 
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
@@ -101,7 +101,6 @@ export function useAuctionDraftRoomController({
         lastNomIdRef.current = null
         closeTriggeredForNomRef.current = null
         pollRevisionRef.current = null
-        pollInFlightRef.current = false
         return () => {
             loadSeqRef.current += 1
             searchSeqRef.current += 1
@@ -175,24 +174,46 @@ export function useAuctionDraftRoomController({
     // reloads history/ages when their revision actually changes.
     useEffect(() => {
         if (!draftId) return
-        const poll = setInterval(async () => {
-            if (pollInFlightRef.current) return
-            pollInFlightRef.current = true
+        let active = true
+        let appState = AppState.currentState
+        let inFlight = false
+        let resumePending = false
+        const pollRevision = async () => {
+            if (!active || appState !== 'active' || inFlight) return
+            inFlight = true
+            resumePending = false
             try {
                 const revision = await getDraftPollRevision(draftId)
-                if (activeDraftIdRef.current !== draftId) return
+                if (!active || appState !== 'active' || activeDraftIdRef.current !== draftId) return
                 if (pollRevisionRef.current === revision) return
                 pollRevisionRef.current = revision
                 await load()
             } catch (error) {
-                if (activeDraftIdRef.current === draftId) {
+                if (active && activeDraftIdRef.current === draftId) {
                     console.error('Could not poll the live draft revision.', error)
                 }
             } finally {
-                pollInFlightRef.current = false
+                inFlight = false
+                if (active && resumePending && appState === 'active') {
+                    resumePending = false
+                    void pollRevision()
+                }
             }
-        }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
-        return () => clearInterval(poll)
+        }
+        const poll = setInterval(() => { void pollRevision() }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            const becameActive = appState !== 'active' && nextState === 'active'
+            appState = nextState
+            if (!becameActive) return
+            // A probe started before sleep may miss changes made while asleep.
+            if (inFlight) resumePending = true
+            else void pollRevision()
+        })
+        return () => {
+            active = false
+            clearInterval(poll)
+            subscription.remove()
+        }
     }, [draftId, load, realtimeStatus])
 
     // Countdown tick
