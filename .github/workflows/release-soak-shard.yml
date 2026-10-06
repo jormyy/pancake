@@ -252,6 +252,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          # The mutation runners drive agent-browser; npm run would put node_modules/.bin on PATH.
+          export PATH="$PWD/node_modules/.bin:$PATH"
           deployed_frontend_worktree=/tmp/pancake-deployed-frontend
           deployed_edge_worktree=/tmp/pancake-deployed-edge
           stop_edge() {
@@ -319,6 +321,8 @@ jobs:
               --pair=deployed-frontend-candidate-edge
 
           stop_edge
+          # The deployed release's stamp script needs its own dependencies (it imports typescript).
+          npm ci --prefix "$deployed_edge_worktree" > tests/artifacts/stack/deployed-edge-install.log 2>&1
           (
             cd "$deployed_edge_worktree"
             stamped="$(PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_EDGE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
