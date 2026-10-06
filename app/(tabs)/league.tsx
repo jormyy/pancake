@@ -37,15 +37,6 @@ export default function LeagueScreen() {
     }
 
     function renderTabContent() {
-        if (screen.tabErr && !screen.isTabLoading) {
-            return (
-                <ErrorBanner
-                    message={`${activeTabLabel} could not load. Select to retry.`}
-                    onRetry={screen.retryCurrentTab}
-                />
-            )
-        }
-
         // Tab panels render only once their data is known, so content appears
         // fully formed instead of loading in pieces that shift the layout.
         if (!screen.isTabLoaded) return null
@@ -192,6 +183,14 @@ export default function LeagueScreen() {
                     aria-labelledby={activeTabId}
                     accessibilityLabel={`${activeTabLabel} league section`}
                 >
+                    {screen.tabErr && !screen.isTabLoading ? (
+                        <ErrorBanner
+                            message={screen.isTabLoaded
+                                ? `${activeTabLabel} refresh failed. Showing saved data. Select to retry.`
+                                : `${activeTabLabel} could not load. Select to retry.`}
+                            onRetry={screen.retryCurrentTab}
+                        />
+                    ) : null}
                     {renderTabContent()}
                 </View>
             </View>
