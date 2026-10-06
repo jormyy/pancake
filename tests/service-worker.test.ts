@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,14 +10,18 @@ type Listener = (event: WorkerEvent) => void
 type WorkerEvent = { request?: Request; waitUntil: (p: Promise<unknown>) => void; respondWith: (r: unknown) => void }
 
 class FakeCache {
-    entries = new Map<string, string>()
+    entries = new Map<string, Response>()
     async put(request: Request | string, response: Response) {
-        this.entries.set(typeof request === 'string' ? request : request.url, await response.text())
+        this.entries.set(typeof request === 'string' ? request : request.url, response.clone())
     }
     async match(request: Request | string) {
         const key = typeof request === 'string' ? request : request.url
         const body = this.entries.get(key) ?? this.entries.get(new URL(key, 'https://app.test').pathname)
-        return body === undefined ? undefined : new Response(body)
+        return body === undefined ? undefined : body.clone()
+    }
+    async delete(request: Request | string) {
+        const key = typeof request === 'string' ? request : request.url
+        return this.entries.delete(key) || this.entries.delete(new URL(key, 'https://app.test').pathname)
     }
     async keys() {
         return [...this.entries.keys()].map((url) => new Request(new URL(url, 'https://app.test')))
@@ -49,16 +54,21 @@ type Harness = {
     install: () => Promise<void>
     activate: () => Promise<void>
     respond: (request: Request) => Promise<Response>
+    intercepts: (request: Request) => boolean
 }
 
 async function loadWorker(
-    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'] }:
-    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[] } = {},
+    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {} }:
+    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string> } = {},
 ): Promise<Harness> {
     let source = await readFile(path.join(process.cwd(), 'public/sw.js'), 'utf8')
     source = source
         .replace(/const VERSION = '[^']*'/, `const VERSION = '${version}'`)
         .replace(/const PRECACHE_URLS = \[[^\]]*\]/, `const PRECACHE_URLS = ${JSON.stringify(precache)}`)
+        .replace(/const PUBLIC_ASSET_URLS = \[[^\n]*\]/, `const PUBLIC_ASSET_URLS = ${JSON.stringify([...precache.filter(p => p !== '/'), '/_expo/static/js/web/chunk.js', '/_expo/static/js/web/old-chunk.js', '/manifest.webmanifest'])}`)
+        .replace(/const SHELL_ROUTES = \[[^\n]*\]/, "const SHELL_ROUTES = ['/', '/players', '/player/[id]']")
+
+    source = source.replace(/const PUBLIC_ASSET_HASHES = \{[^\n]*\}/, `const PUBLIC_ASSET_HASHES = ${JSON.stringify(hashes)}`)
 
     const listeners = new Map<string, Listener>()
     const cacheStorage = new FakeCaches()
@@ -96,6 +106,11 @@ async function loadWorker(
         listeners.get(type)?.({ waitUntil: (p) => pending.push(p), respondWith: () => {} })
         await Promise.all(pending)
     }
+    harness.intercepts = (request) => {
+        let intercepted = false
+        listeners.get('fetch')?.({ request, waitUntil: () => {}, respondWith: () => { intercepted = true } })
+        return intercepted
+    }
     harness.install = drive('install')
     harness.activate = drive('activate')
     harness.respond = (request) => {
@@ -124,9 +139,9 @@ describe('service worker', () => {
         await worker.install()
 
         expect(worker.fetches).toEqual(expect.arrayContaining(['/', '/_expo/static/js/web/app.js']))
-        const assets = await worker.caches.open('pancake-test-1-assets')
+        const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(1)
-        const shell = await worker.caches.open('pancake-test-1-shell')
+        const shell = await worker.caches.open('pancake-test-1-public-v1-shell')
         expect(shell.entries.size).toBe(1)
         expect(worker.skipWaitingCalls).toBe(1)
     })
@@ -143,7 +158,7 @@ describe('service worker', () => {
         })
 
         await expect(worker.install()).resolves.toBeUndefined()
-        const assets = await worker.caches.open('pancake-test-1-assets')
+        const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(0)
         expect(worker.skipWaitingCalls).toBe(1)
     })
@@ -163,13 +178,15 @@ describe('service worker', () => {
         const worker = await loadWorker()
         await worker.caches.open('pancake-old-1-assets')
         await worker.caches.open('pancake-old-1-shell')
+        await worker.caches.open('unrelated-cache')
         await worker.install()
 
         await worker.activate()
 
         expect((await worker.caches.keys()).sort()).toEqual([
-            'pancake-test-1-assets',
-            'pancake-test-1-shell',
+            'pancake-test-1-public-v1-assets',
+            'pancake-test-1-public-v1-shell',
+            'unrelated-cache',
         ])
         expect(worker.claimCalls).toBe(1)
     })
@@ -185,7 +202,7 @@ describe('service worker', () => {
     const scoped = (pathname: string) => new Request(`https://app.test${pathname}`)
     // Node's Request refuses mode 'navigate'; the worker only reads url/method/mode.
     const navigation = (pathname: string) =>
-        ({ url: `https://app.test${pathname}`, method: 'GET', mode: 'navigate' }) as unknown as Request
+        ({ url: `https://app.test${pathname}`, method: 'GET', mode: 'navigate', headers: new Headers() }) as unknown as Request
 
     // The host rewrites unknown paths to +not-found.html with HTTP 200. After a
     // deploy, a still-running old bundle asking for its previous hashed chunk
@@ -195,7 +212,7 @@ describe('service worker', () => {
         const response = await worker.respond(scoped('/_expo/static/js/web/old-chunk.js'))
 
         expect(response.status).toBe(200)
-        const assets = await worker.caches.open('pancake-test-1-assets')
+        const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(0)
     })
 
@@ -204,7 +221,7 @@ describe('service worker', () => {
         await worker.respond(scoped('/_expo/static/js/web/chunk.js'))
         await worker.respond(scoped('/_expo/static/js/web/chunk.js'))
 
-        const assets = await worker.caches.open('pancake-test-1-assets')
+        const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(1)
         expect(worker.fetches.filter((p) => p.endsWith('chunk.js'))).toHaveLength(1)
     })
@@ -220,9 +237,9 @@ describe('service worker', () => {
         })
         await worker.install()
 
-        const shell = await worker.caches.open('pancake-test-1-shell')
+        const shell = await worker.caches.open('pancake-test-1-public-v1-shell')
         expect(shell.entries.size).toBe(1)
-        const assets = await worker.caches.open('pancake-test-1-assets')
+        const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(0)
     })
 
@@ -257,7 +274,7 @@ describe('service worker', () => {
         const response = new Response('updated')
         Object.defineProperty(response, 'type', { value: 'basic' })
         const worker = await loadWorker({ fetchImpl: async () => response })
-        const cache = await worker.caches.open(`pancake-test-1-${kind === 'shell' ? 'shell' : 'assets'}`)
+        const cache = await worker.caches.open(`pancake-test-1-public-v1-${kind === 'shell' ? 'shell' : 'assets'}`)
         const request = kind === 'shell' ? navigation('/') : scoped('/manifest.webmanifest')
         const key = kind === 'shell' ? '/' : request
         await cache.put(key, new Response('cached'))
@@ -306,4 +323,127 @@ describe('service worker', () => {
         await expect(worker.install()).rejects.toThrow(/shell/i)
         expect(worker.skipWaitingCalls).toBe(0)
     })
+
+    it.each([
+        ['/api/profile', {}], ['/auth/token', {}], ['/private.json', {}],
+        ['/assets/unknown.js', {}], ['/_expo/static/js/web/chunk.js?account=A', {}],
+        ['/_expo/static/js/web/chunk.js', { headers: { Authorization: 'Bearer fixture' } }],
+        ['/_expo/static/js/web/chunk.js', { headers: { apikey: 'fixture' } }],
+        ['/_expo/static/js/web/chunk.js', { headers: { 'x-api-key': 'fixture' } }],
+        ['/_expo/static/js/web/chunk.js', { headers: { 'Cache-Control': 'no-store' } }],
+        ['/_expo/static/js/web/chunk.js', { cache: 'no-store' }],
+        ['/_expo/static/js/web/chunk.js', { method: 'POST' }],
+        ['/_expo/static/js/web/chunk.js', { headers: { Range: 'bytes=0-10' } }],
+    ] as [string, RequestInit][])('bypasses non-public request %s %j', async (url, init) => {
+        const worker = await loadWorker()
+        expect(worker.intercepts(new Request(`https://app.test${url}`, init))).toBe(false)
+        expect(worker.fetches).toHaveLength(0)
+    })
+
+    it('bypasses cross-origin assets and unknown navigations', async () => {
+        const worker = await loadWorker()
+        expect(worker.intercepts(new Request('https://other.test/_expo/static/js/web/chunk.js'))).toBe(false)
+        expect(worker.intercepts(navigation('/api/private'))).toBe(false)
+    })
+
+    it.each([
+        { 'cache-control': 'private, max-age=60' }, { 'cache-control': 'public, no-store' },
+        { 'cache-control': 'no-cache' }, { vary: 'Cookie' }, { vary: 'Authorization' },
+        { vary: '*' }, { vary: 'Accept-Encoding, X-Account' },
+    ] as Record<string, string>[])('never persists or serves a disallowed response: %j', async (headers) => {
+        let owner = 'A'
+        const worker = await loadWorker({ fetchImpl: async () => new Response(owner, { headers }) })
+        const request = scoped('/_expo/static/js/web/chunk.js')
+        const cache = await worker.caches.open('pancake-test-1-public-v1-assets')
+        await cache.put(request, new Response('poison', { headers }))
+        expect(await (await worker.respond(request)).text()).toBe('A')
+        owner = 'B'
+        expect(await (await worker.respond(request)).text()).toBe('B')
+        expect(cache.entries.size).toBe(0)
+    })
+
+    it('uses anonymous fills and accepts only harmless response variation', async () => {
+        const observed: Request[] = []
+        const worker = await loadWorker({ fetchImpl: async input => {
+            observed.push(input as Request)
+            return new Response('public', { headers: { vary: 'Accept-Encoding' } })
+        } })
+        await worker.respond(new Request('https://app.test/_expo/static/js/web/chunk.js', {
+            headers: { 'X-Account': 'fixture' }, credentials: 'include',
+        }))
+        expect(observed[0].credentials).toBe('omit')
+        expect(observed[0].redirect).toBe('error')
+        expect(observed[0].cache).toBe('no-store')
+        expect([...observed[0].headers]).toEqual([])
+    })
+
+    it('keeps declared public shell routes offline with route parameters and trailing slashes', async () => {
+        const worker = await loadWorker({ fetchImpl: async () => { throw new TypeError('offline') } })
+        await (await worker.caches.open('pancake-test-1-public-v1-shell')).put('/', html())
+        for (const route of ['/players/?tab=saved', '/player/fixture-player?view=stats']) {
+            expect(await (await worker.respond(navigation(route))).text()).toContain('Not found')
+        }
+    })
+
+    it('cannot read a poisoned matching URL from the legacy cache before or after activation', async () => {
+        const worker = await loadWorker({ fetchImpl: async () => script('public') })
+        const legacy = await worker.caches.open('pancake-test-1-assets')
+        await legacy.put('/_expo/static/js/web/chunk.js', new Response('account A'))
+        const oldShell = await worker.caches.open('pancake-test-1-shell')
+        await oldShell.put('/', new Response('account A'))
+        expect(await (await worker.respond(scoped('/_expo/static/js/web/chunk.js'))).text()).toBe('public')
+        expect(await (await worker.respond(navigation('/'))).text()).toBe('public')
+        await worker.activate()
+        expect(await worker.caches.keys()).not.toContain('pancake-test-1-assets')
+        expect(await worker.caches.keys()).not.toContain('pancake-test-1-shell')
+    })
+
+    it('never stores a redirected or opaque response', async () => {
+        for (const property of [{ redirected: true }, { type: 'opaque' }]) {
+            const response = script('private redirect')
+            for (const [key, value] of Object.entries(property)) Object.defineProperty(response, key, { value })
+            const worker = await loadWorker({ fetchImpl: async () => response })
+            await worker.respond(scoped('/_expo/static/js/web/chunk.js'))
+            expect((await worker.caches.open('pancake-test-1-public-v1-assets')).entries.size).toBe(0)
+        }
+    })
+
+    it.each(['public', 'private-header', 'poison-public-header'])(
+        'validates offline HTTP-cache bytes against the build: %s', async (kind) => {
+            const body = 'public build chunk'
+            const worker = await loadWorker({
+                hashes: { '/_expo/static/js/web/chunk.js': createHash('sha256').update(body).digest('hex') },
+                fetchImpl: async input => {
+                    const request = input as Request
+                    if (request.cache !== 'only-if-cached') throw new TypeError('offline')
+                    expect(request.credentials).toBe('omit')
+                    return new Response(kind === 'poison-public-header' ? 'account A' : body, {
+                        headers: { 'cache-control': kind === 'private-header' ? 'private' : 'public' },
+                    })
+                },
+            })
+            const result = worker.respond(scoped('/_expo/static/js/web/chunk.js'))
+            if (kind === 'public') expect(await (await result).text()).toBe(body)
+            else await expect(result).rejects.toThrow('offline')
+        },
+    )
+
+    it.each([['shell', 503], ['shell', 404], ['asset', 503], ['asset', 404]] as const)(
+        'retains a valid public %s after a %s background refresh', async (kind, status) => {
+            const worker = await loadWorker({ fetchImpl: async () => new Response('unavailable', { status }) })
+            const cache = await worker.caches.open(`pancake-test-1-public-v1-${kind === 'shell' ? 'shell' : 'assets'}`)
+            const request = kind === 'shell' ? navigation('/') : scoped('/manifest.webmanifest')
+            const key = kind === 'shell' ? '/' : request
+            await cache.put(key, new Response('public cached content'))
+            expect(await (await worker.respond(request)).text()).toBe('public cached content')
+            expect(await (await cache.match(key))?.text()).toBe('public cached content')
+        },
+    )
+
+    it('falls back to network when cache storage is denied', async () => {
+        const worker = await loadWorker({ fetchImpl: async () => script('public') })
+        vi.spyOn(worker.caches, 'open').mockRejectedValue(new Error('denied'))
+        expect(await (await worker.respond(scoped('/_expo/static/js/web/chunk.js'))).text()).toBe('public')
+    })
+
 })

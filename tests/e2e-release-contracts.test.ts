@@ -32,6 +32,9 @@ afterEach(async () => {
 const WORKER_TEMPLATE = [
   "const VERSION = 'pancake-dev'",
   "const PRECACHE_URLS = ['/']",
+  "const PUBLIC_ASSET_URLS = []",
+  "const PUBLIC_ASSET_HASHES = {}",
+  "const SHELL_ROUTES = ['/']",
   '',
 ].join('\n')
 
@@ -326,6 +329,17 @@ describe('release E2E contracts', () => {
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
 
     const firstWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
+    const publicAssets = JSON.parse(/const PUBLIC_ASSET_URLS = (\[[^\n]*\])/.exec(firstWorker)![1])
+    expect(publicAssets).toEqual([
+      '/assets/fonts/MaterialIcons.abc123.ttf',
+      '/assets/fonts/Outfit_900Black.def456.ttf',
+    ])
+    const publicHashes = JSON.parse(/const PUBLIC_ASSET_HASHES = (\{[^\n]*\})/.exec(firstWorker)![1])
+    expect(Object.keys(publicHashes)).toEqual(publicAssets)
+    expect(Object.values(publicHashes)).toEqual([expect.stringMatching(/^[a-f0-9]{64}$/), expect.stringMatching(/^[a-f0-9]{64}$/)])
+    expect(publicAssets).not.toContain('/app.js')
+    expect(firstWorker).toContain('const SHELL_ROUTES = ["/","/index.html"]')
+
     expect(firstWorker).toMatch(/pancake-aaaaaaaaaaaa-[a-f0-9]{12}/)
     // The worker must precache what the shell boots from, or the reload that
     // follows an update re-downloads the whole bundle over the network.

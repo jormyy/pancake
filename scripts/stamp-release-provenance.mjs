@@ -1,5 +1,6 @@
 import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 import process from 'node:process'
 import { digestReleaseBundle, FRONTEND_DEPLOYMENT_INPUTS } from '../tests/e2e/release-provenance.mjs'
@@ -15,6 +16,9 @@ const repositoryCommit = (root) => execFileSync('git', ['rev-parse', 'HEAD'], {
 
 const SERVICE_WORKER_VERSION = /const VERSION = '[^']*'/
 const SERVICE_WORKER_PRECACHE = /const PRECACHE_URLS = \[[^\]]*\]/
+const SERVICE_WORKER_PUBLIC_ASSETS = /const PUBLIC_ASSET_URLS = \[[^\n]*\]/
+const SERVICE_WORKER_PUBLIC_HASHES = /const PUBLIC_ASSET_HASHES = \{[^\n]*\}/
+const SERVICE_WORKER_SHELL_ROUTES = /const SHELL_ROUTES = \[[^\n]*\]/
 
 // Everything the shell HTML boots from. Precaching exactly this set means the
 // reload that follows a service-worker update paints from disk instead of
@@ -38,6 +42,31 @@ const assetUrls = async (root) => {
 // resolves off-origin, and the worker must never precache something it does not
 // serve.
 const isSameOriginPath = (url) => url.startsWith('/') && !url.startsWith('//')
+
+// Only files produced in the static export may authorize a shared cache fill.
+// Keep this separate from precaching: route chunks and unused fonts stay lazy.
+const publicDelivery = async (root) => {
+  const files = []
+  const walk = async (dir, prefix = '') => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const url = `${prefix}/${entry.name}`
+      if (entry.isDirectory()) await walk(path.join(dir, entry.name), url)
+      else if (entry.isFile()) files.push(url)
+    }
+  }
+  await walk(path.join(root, 'dist'))
+  const fixed = new Set(['/manifest.webmanifest', '/favicon.ico', '/apple-touch-icon.png',
+    '/pwa-192.png', '/pwa-512.png', '/pwa-512-maskable.png'])
+  const assets = files.filter((url) => url.startsWith('/assets/') || url.startsWith('/_expo/static/') || fixed.has(url)).sort()
+  return {
+    assets,
+    hashes: Object.fromEntries(await Promise.all(assets.map(async (url) => [
+      url, createHash('sha256').update(await readFile(path.join(root, 'dist', url))).digest('hex'),
+    ]))),
+    routes: [...new Set(files.filter((url) => url.endsWith('.html') && !url.includes('+not-found'))
+      .flatMap((url) => [url, url.replace(/\/index\.html$/, '/').replace(/\.html$/, '')]))].sort(),
+  }
+}
 
 const bootAssets = (html, assets) => {
   const urls = new Set(['/'])
@@ -97,15 +126,22 @@ const setServiceWorkerPrecache = async (root) => {
   if (!SERVICE_WORKER_PRECACHE.test(source)) {
     throw new Error('Service worker is missing its PRECACHE_URLS declaration; deploys would launch with a cold bundle')
   }
+  if (!SERVICE_WORKER_PUBLIC_ASSETS.test(source) || !SERVICE_WORKER_PUBLIC_HASHES.test(source) || !SERVICE_WORKER_SHELL_ROUTES.test(source)) {
+    throw new Error('Service worker is missing its public delivery allowlists')
+  }
   const html = await readFile(path.join(root, 'dist', 'index.html'), 'utf8')
   const assets = await assetUrls(root)
   const urls = bootAssets(html, { fonts: await referencedFonts(root, assets) })
+  const delivery = await publicDelivery(root)
   if (urls.length < 3) {
     throw new Error('Release build produced no boot assets to precache; the shell HTML is probably malformed')
   }
   await writeFile(
     workerPath,
-    source.replace(SERVICE_WORKER_PRECACHE, `const PRECACHE_URLS = ${JSON.stringify(urls)}`),
+    source.replace(SERVICE_WORKER_PRECACHE, `const PRECACHE_URLS = ${JSON.stringify(urls)}`)
+      .replace(SERVICE_WORKER_PUBLIC_ASSETS, `const PUBLIC_ASSET_URLS = ${JSON.stringify(delivery.assets)}`)
+      .replace(SERVICE_WORKER_PUBLIC_HASHES, `const PUBLIC_ASSET_HASHES = ${JSON.stringify(delivery.hashes)}`)
+      .replace(SERVICE_WORKER_SHELL_ROUTES, `const SHELL_ROUTES = ${JSON.stringify(delivery.routes)}`),
   )
 }
 
