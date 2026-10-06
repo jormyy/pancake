@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -226,6 +226,39 @@ describe('release soak shard workflows', () => {
     expect(Math.max(...planSoakShards(seasons, shardCount).map(({ firstSeason, lastSeason }) => lastSeason - firstSeason + 1))).toBeLessThanOrEqual(5)
     expect([...`${plan}\n${shard}`.matchAll(/timeout-minutes: (\d+)/g)].every((match) => Number(match[1]) <= 180)).toBe(true)
     expect(shard).toContain(`--require-season-reports=${seasons}`)
+  })
+
+  it('runs browser-driving release scripts with the package binaries on PATH', () => {
+    // Plain `node` (unlike npm run/exec) does not see node_modules/.bin, so a step that starts
+    // a script which spawns agent-browser must put the package binaries on PATH first.
+    const spawnsBrowser = (file: string, seen = new Set<string>()): boolean => {
+      if (seen.has(file) || !existsSync(file)) return false
+      seen.add(file)
+      const source = readFileSync(file, 'utf8')
+      if (/execFile(?:Async)?\(\s*['"]agent-browser['"]/.test(source)) return true
+      return [...source.matchAll(/(?:from\s+|import\()\s*['"](\.[^'"]+)['"]/g)]
+        .some((match) => spawnsBrowser(path.resolve(path.dirname(file), match[1]), seen))
+    }
+    let browserSteps = 0
+    for (const workflow of [plan, shard]) {
+      for (const block of workflow.split('\n      - ')) {
+        const scripts = [...block.matchAll(/^\s+node ((?:tests\/e2e|scripts)\/[\w./-]+\.mjs)/gm)]
+          .map((match) => match[1]).filter((script) => spawnsBrowser(script))
+        if (scripts.length === 0) continue
+        browserSteps += 1
+        const pathAt = block.indexOf('export PATH="$PWD/node_modules/.bin:$PATH"')
+        expect(pathAt, scripts.join(', ')).toBeGreaterThan(-1)
+        for (const script of scripts) expect(pathAt, script).toBeLessThan(block.indexOf(`node ${script}`))
+      }
+    }
+    expect(browserSteps).toBeGreaterThan(0)
+  })
+
+  it('installs the deployed Edge worktree before stamping its provenance', () => {
+    const compat = shard.split('      - name: Verify cross-version runtime compatibility against upgraded schema\n')[1].split('\n      - ')[0]
+    const install = compat.indexOf('npm ci --prefix "$deployed_edge_worktree"')
+    expect(install).toBeGreaterThan(-1)
+    expect(install).toBeLessThan(compat.indexOf('node scripts/stamp-edge-release-provenance.mjs'))
   })
 
   it('hands state forward and runs release-wide checks only in the final shard', () => {
