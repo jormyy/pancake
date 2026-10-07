@@ -336,6 +336,13 @@
       "statementCount": 12,
       "statementsSha256": "b04e7678f3fb87c19998f56d092bddc709b0441405cf73c4e78765b3d10ed6bd",
       "sha256": "673b9ded8f58df587525711dae2c38b3f5377a000d5a32e43f3632c41346f9df"
+    },
+    {
+      "name": "extract_scoring_cache_coefficients",
+      "version": "20261007000001",
+      "statementCount": 12,
+      "statementsSha256": "349d743dd5daee87ac6263328f9d13ac16ed53eb5fed88f71895d1bf738b8a34",
+      "sha256": "58392a7d21db63246dd9cf929ee76961ff01255411b4909ab80a983f813f560b"
     }
   ]
 }

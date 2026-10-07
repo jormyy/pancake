@@ -43,7 +43,8 @@ or grants fail. Unapproved pending files fail.
 
 The baseline is `20261005000002` (328 rows) and the approved range is
 `20261005000003_league_season_rules`, followed by
-`20261006000001_share_scoring_cache_aggregation`.
+`20261006000001_share_scoring_cache_aggregation`, then
+`20261007000001_extract_scoring_cache_coefficients`.
 A partially applied approved range plans only its remaining suffix. Every applied
 member of the range must also match its statement count and stored-SQL fingerprint.
 The league-season fingerprint comes from a fresh local install with CLI 2.114.0,
@@ -89,3 +90,24 @@ migration planner compares versions and does not enforce these extra checks.
 A successful CLI dry run does not replace release-soak or compatibility gates.
 The coordinated deployment workflow also deploys frontend and Edge artifacts;
 running this read-only check does not authorize those actions or apply migrations.
+
+The scoring coefficient migration `20261007000001` follows `20261006000001`.
+It extracts JSON coefficient text once per league during the derived-cache build.
+Numeric casts stay inside the original scoring expression, including bonus guards.
+JSONB equality still selects one representative for each shared settings group.
+No source stats, settings, grants, RLS rules, or refresh scheduling change.
+The database scoring test compares every refreshed row with `v_fantasy_points`,
+including changed settings, corrected scores, DNP, deletion and game eligibility.
+
+This migration takes the same replacement locks as the previous cache migration.
+Its transaction has a three-second lock timeout and a 120-second statement timeout.
+Check current readers and rebuild time before production application. A timeout or
+interruption rolls back the replacement. Do not remove either timeout to force it.
+A frontend rollback keeps this compatible derived-cache migration applied.
+For database recovery, add a new forward migration containing the unchanged body
+of `20261006000001_share_scoring_cache_aggregation.sql`. It rebuilds the previous
+cache definition with current source data and preserves the public view and ACL.
+Use the same transaction and lock limits. Do not delete migration history or
+restore stale materialized rows. Verify the definition, indexes, ACL, RLS and
+canonical score equality after recovery. Local recovery proof does not establish
+production lock availability or device performance.

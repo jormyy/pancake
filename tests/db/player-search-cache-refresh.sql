@@ -129,4 +129,49 @@ DO $$ BEGIN
     RAISE EXCEPTION 'Full refresh leaves redundant fresh rows';
   END IF;
 END $$;
+-- Refreshes must retain canonical scores after source and settings mutations.
+-- Each case also proves its mutation changes real output, rather than empty work.
+CREATE FUNCTION pg_temp.refresh_changed_cache(p_case text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE before_digest text; after_digest text;
+BEGIN
+  SELECT md5(string_agg(row_to_json(fp)::text, '|' ORDER BY league_id,player_id,season_year))
+    INTO before_digest FROM analytics.mv_player_avg_fantasy_points fp;
+  TRUNCATE expected_cache;
+  INSERT INTO expected_cache
+  SELECT fp.league_id,fp.player_id,fp.season_year,ROUND(AVG(fp.fantasy_points)::numeric,2)
+  FROM public.v_fantasy_points fp
+  JOIN public.player_game_stats s ON s.id=fp.stat_id AND NOT s.did_not_play
+  GROUP BY fp.league_id,fp.player_id,fp.season_year;
+  UPDATE analytics.search_cache_refresh_state SET refreshed_at=now()-interval '8 days';
+  PERFORM public.refresh_player_search_caches();
+  PERFORM pg_temp.assert_cache_equal();
+  SELECT md5(string_agg(row_to_json(fp)::text, '|' ORDER BY league_id,player_id,season_year))
+    INTO after_digest FROM analytics.mv_player_avg_fantasy_points fp;
+  IF before_digest IS NOT DISTINCT FROM after_digest THEN
+    RAISE EXCEPTION 'Cache mutation case did no observable work: %', p_case;
+  END IF;
+END $$;
+
+UPDATE public.player_game_stats SET points=37
+WHERE player_id='00000000-0000-4000-8000-0000000c0401'
+  AND game_id='00000000-0000-4000-8000-000000122002';
+SELECT pg_temp.refresh_changed_cache('correct missing points');
+UPDATE public.leagues SET scoring_settings=jsonb_set(scoring_settings,'{points}','1.125')
+WHERE id='00000000-0000-4000-8000-000000120001';
+SELECT pg_temp.refresh_changed_cache('change scoring settings');
+UPDATE public.player_game_stats SET did_not_play=true
+WHERE game_id='00000000-0000-4000-8000-000000122001';
+SELECT pg_temp.refresh_changed_cache('correct DNP');
+DELETE FROM public.player_game_stats WHERE game_id='00000000-0000-4000-8000-000000122003';
+SELECT pg_temp.refresh_changed_cache('delete incorrect game stats');
+UPDATE public.nba_games SET nba_game_id='003cache-excluded'
+WHERE id='00000000-0000-4000-8000-000000122002';
+SELECT pg_temp.refresh_changed_cache('exclude nonregular game');
+UPDATE public.nba_games SET nba_game_id='002cache-restored'
+WHERE id='00000000-0000-4000-8000-000000122002';
+SELECT pg_temp.refresh_changed_cache('restore eligible game');
+UPDATE public.player_game_stats SET did_not_play=true
+WHERE game_id='00000000-0000-4000-8000-000000122002';
+SELECT pg_temp.refresh_changed_cache('all eligible stats DNP');
+
 ROLLBACK;
