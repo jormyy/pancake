@@ -1,9 +1,11 @@
-import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-native'
-import { colors, fontSize, fontWeight, scrim, tints, uiColors } from '@/constants/tokens'
+import { View, Text, StyleSheet } from 'react-native'
+import { colors, spacing, textStyles } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
 import { playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
+import { Button } from '@/components/ui/Button'
+import { Sheet } from '@/components/ui/Sheet'
 
 export type ActivationOverflowPending = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType?: string | null } | null
 
@@ -37,78 +39,75 @@ export function ActivationOverflowModal({
     const taxiAvailable = leagueTaxiSlots > myLineup.taxi.length
 
     return (
-        <Modal visible transparent animationType="slide" onRequestClose={onCancel}>
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalSheet}>
-                    <Text style={styles.modalTitle}>Active Roster Full</Text>
-                    <Text style={styles.modalSub}>
-                        Drop a player, move one to IR, or move one to Taxi Squad to make room.
-                    </Text>
-                    <ScrollView style={{ maxHeight: 360 }}>
-                        {activePlayers.map((p) => (
-                            <View key={p.rosterPlayerId} style={styles.overflowRow}>
-                                <Avatar
-                                    name={p.displayName}
-                                    uri={playerHeadshotUrl(p.nbaId) ?? undefined}
-                                    color={colors.bgMuted}
-                                    size={34}
-                                />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.overflowName} numberOfLines={1}>
-                                        {p.displayName}
-                                    </Text>
-                                    <Text style={styles.overflowMeta}>
-                                        {p.nbaTeam ?? 'FA'}
-                                        {p.position ? ` · ${p.position}` : ''}
-                                    </Text>
-                                </View>
-                                {isIREligible(p.injuryStatus) && (
-                                    <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: tints.dangerActionStrong, marginRight: 6 }]}
-                                        onPress={() => onMoveToIR(p.rosterPlayerId)}
-                                        disabled={saving}
-                                    >
-                                        <Text style={[styles.overflowBtnText, { color: uiColors.dangerText }]}>→ IR</Text>
-                                    </Pressable>
-                                )}
-                                {taxiAvailable && (
-                                    <Pressable
-                                        style={[styles.overflowBtn, { backgroundColor: tints.neutralAction, marginRight: 6 }]}
-                                        onPress={() => onMoveToTaxi(p.rosterPlayerId)}
-                                        disabled={saving}
-                                    >
-                                        <Text style={[styles.overflowBtnText, { color: colors.textMuted }]}>→ TX</Text>
-                                    </Pressable>
-                                )}
-                                <Pressable
-                                    style={[styles.overflowBtn, { backgroundColor: tints.dangerAction }]}
-                                    onPress={() => onDrop(p.rosterPlayerId)}
+        <Sheet visible onClose={onCancel} title="Active roster full">
+            <Text style={styles.sub}>Drop a player, or move one to IR or the taxi squad, to make room.</Text>
+            <View style={styles.list}>
+                {activePlayers.map((p) => (
+                    <View key={p.rosterPlayerId} style={styles.row}>
+                        <Avatar
+                            name={p.displayName}
+                            uri={playerHeadshotUrl(p.nbaId) ?? undefined}
+                            color={colors.bgMuted}
+                            size={36}
+                        />
+                        <View style={styles.info}>
+                            <Text style={textStyles.rowTitle} numberOfLines={1}>{p.displayName}</Text>
+                            <Text style={textStyles.meta}>
+                                {p.nbaTeam ?? 'FA'}
+                                {p.position ? ` · ${p.position}` : ''}
+                            </Text>
+                        </View>
+                        <View style={styles.actions}>
+                            {isIREligible(p.injuryStatus) ? (
+                                <Button
+                                    title="IR"
+                                    size="sm"
+                                    variant="secondary"
+                                    onPress={() => onMoveToIR(p.rosterPlayerId)}
                                     disabled={saving}
-                                >
-                                    <Text style={[styles.overflowBtnText, { color: colors.danger }]}>Drop</Text>
-                                </Pressable>
-                            </View>
-                        ))}
-                    </ScrollView>
-                    <Pressable style={styles.modalCancel} onPress={onCancel}>
-                        <Text style={styles.modalCancelText}>Cancel</Text>
-                    </Pressable>
-                </View>
+                                    accessibilityLabel={`Move ${p.displayName} to IR`}
+                                />
+                            ) : null}
+                            {taxiAvailable ? (
+                                <Button
+                                    title="Taxi"
+                                    size="sm"
+                                    variant="secondary"
+                                    onPress={() => onMoveToTaxi(p.rosterPlayerId)}
+                                    disabled={saving}
+                                    accessibilityLabel={`Move ${p.displayName} to taxi squad`}
+                                />
+                            ) : null}
+                            <Button
+                                title="Drop"
+                                size="sm"
+                                variant="danger"
+                                onPress={() => onDrop(p.rosterPlayerId)}
+                                disabled={saving}
+                                accessibilityLabel={`Drop ${p.displayName}`}
+                            />
+                        </View>
+                    </View>
+                ))}
             </View>
-        </Modal>
+            <Button title="Cancel" variant="ghost" onPress={onCancel} fullWidth style={styles.cancel} />
+        </Sheet>
     )
 }
 
 const styles = StyleSheet.create({
-    modalOverlay: { flex: 1, backgroundColor: scrim, justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: colors.bgScreen, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 12 },
-    modalTitle: { fontSize: 17, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    modalSub: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: 4 },
-    overflowRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.separator, gap: 8 },
-    overflowName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    overflowMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
-    overflowBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-    overflowBtnText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold },
-    modalCancel: { paddingVertical: 14, alignItems: 'center' },
-    modalCancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    sub: { ...textStyles.body, marginBottom: spacing.md },
+    list: { borderTopWidth: 1, borderTopColor: colors.separator },
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: 56,
+        paddingVertical: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
+        gap: spacing.md,
+    },
+    info: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    actions: { flexDirection: 'row', gap: spacing.xs },
+    cancel: { marginTop: spacing.md },
 })
