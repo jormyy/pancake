@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, scrim, spacing, textStyles } from '@/constants/tokens'
+import { usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
@@ -24,6 +25,8 @@ import { saveTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
 import type { Trade } from '@/lib/trades'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
 
+const BUILDER_WIDTH = 900
+
 type Snapshot = {
     analysis: DynastyTradeAnalysis
     participantNames: Record<string, string>
@@ -35,6 +38,10 @@ type Snapshot = {
 export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade | null }) {
     const { push } = useRouter()
     const { user } = useAuth()
+    const { usableWidth } = usePageMetrics()
+    // The builder keeps its 2-column team layout; the verdict joins it on the
+    // right only when both fit.
+    const sideBySide = usableWidth >= BUILDER_WIDTH + spacing['3xl'] + layout.railWidth
     const { current, currentLeague } = useLeagueContext()
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
@@ -211,45 +218,55 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         onExpirationDaysChange: setExpirationDays,
     }
 
-    return (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <View style={styles.intro}>
-                <Text style={styles.title}>Trade Analyzer</Text>
-                <Text style={styles.copy}>Run private experiments with the 5-year dynasty outlook.</Text>
-                {!networkAvailable ? <Text style={styles.offline}>Offline: the last safe result stays visible. Offer creation is disabled.</Text> : null}
-            </View>
-            <View style={styles.modeRow}>
-                <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
-                <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />
-            </View>
-            <Text style={styles.sectionLabel}>TEAMS</Text>
-            <View style={styles.teamChips}>
-                {members.map((member) => {
-                    const active = composer.selectedParticipantIds.has(member.id)
-                    return <Pressable key={member.id} style={[styles.teamChip, active && styles.teamChipActive]}
-                        onPress={() => selectTeam(member.id)} accessibilityRole="button"
-                        accessibilityState={{ selected: active }} accessibilityLabel={`${active ? 'Remove' : 'Analyze with'} ${member.team_name ?? 'Unnamed team'}`}>
-                        <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>{member.team_name ?? 'Unnamed'}</Text>
-                    </Pressable>
-                })}
-            </View>
-            {composer.participantViews.length >= 2 ? <MultiTeamTradeBuilder {...builderProps} /> : (
-                <View style={styles.empty}><Text style={styles.copy}>Choose a team. Then add players, picks, or FAAB.</Text></View>
-            )}
+    const verdict = (
+        <View style={styles.verdict}>
             <TradeAnalysisSummary analysis={shownAnalysis} participantName={analysisParticipantName}
-                loading={loading && !shownAnalysis} cached={!analysis && Boolean(shownAnalysis)} />
-            <Pressable style={[styles.makeOffer, !canMakeOffer && styles.disabled]} disabled={!canMakeOffer}
-                onPress={() => setConfirming(true)} accessibilityRole="button" accessibilityState={{ disabled: !canMakeOffer }}
-                accessibilityLabel={networkAvailable ? 'Make Offer from this analysis' : 'Make Offer unavailable offline'} id="analyzer-make-offer">
-                <Text style={styles.makeOfferText}>Make Offer</Text>
-            </Pressable>
-            {offerHelp ? <Text style={styles.offerHelp} id="analyzer-offer-help">{offerHelp}</Text> : null}
+                loading={loading && !shownAnalysis} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
+            <View style={[styles.offerBlock, !sideBySide && styles.offerBlockInset]}>
+                <Pressable style={[styles.makeOffer, !canMakeOffer && styles.disabled]} disabled={!canMakeOffer}
+                    onPress={() => setConfirming(true)} accessibilityRole="button" accessibilityState={{ disabled: !canMakeOffer }}
+                    accessibilityLabel={networkAvailable ? 'Make Offer from this analysis' : 'Make Offer unavailable offline'} id="analyzer-make-offer">
+                    <Text style={styles.makeOfferText}>Make Offer</Text>
+                </Pressable>
+                {offerHelp ? <Text style={styles.offerHelp} id="analyzer-offer-help">{offerHelp}</Text> : null}
+            </View>
+        </View>
+    )
+
+    return (
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, sideBySide && styles.contentWide]} keyboardShouldPersistTaps="handled">
+            <View style={[styles.main, sideBySide && styles.mainWide]}>
+                <View style={styles.intro}>
+                    <Text style={styles.copy}>Private experiments with the 5-year dynasty outlook. Nothing is sent.</Text>
+                    {!networkAvailable ? <Text style={styles.offline}>Offline: the last safe result stays visible. Offer creation is disabled.</Text> : null}
+                </View>
+                <View style={styles.modeRow}>
+                    <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
+                    <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />
+                </View>
+                <Text style={styles.sectionLabel}>Teams</Text>
+                <View style={styles.teamChips}>
+                    {members.map((member) => {
+                        const active = composer.selectedParticipantIds.has(member.id)
+                        return <Pressable key={member.id} style={[styles.teamChip, active && styles.teamChipActive]}
+                            onPress={() => selectTeam(member.id)} accessibilityRole="button"
+                            accessibilityState={{ selected: active }} accessibilityLabel={`${active ? 'Remove' : 'Analyze with'} ${member.team_name ?? 'Unnamed team'}`}>
+                            <Text style={[styles.teamChipText, active && styles.teamChipTextActive]}>{member.team_name ?? 'Unnamed'}</Text>
+                        </Pressable>
+                    })}
+                </View>
+                {composer.participantViews.length >= 2 ? <MultiTeamTradeBuilder {...builderProps} /> : (
+                    <View style={styles.empty}><Text style={styles.copy}>Choose a team. Then add players, picks, or FAAB.</Text></View>
+                )}
+                {sideBySide ? null : verdict}
+            </View>
+            {sideBySide ? <View style={[styles.rail, Platform.OS === 'web' && styles.railSticky]}>{verdict}</View> : null}
             <Modal visible={confirming} transparent animationType="fade" onRequestClose={() => setConfirming(false)}>
                 <View style={styles.modalBackdrop}><View style={styles.modalCard}>
                     <Text style={styles.title}>Use this experiment?</Text>
                     <Text style={styles.copy}>The offer editor will keep these teams and assets. You can review them before sending.</Text>
                     <View style={styles.modalActions}>
-                        <Pressable style={styles.cancel} onPress={() => setConfirming(false)} accessibilityRole="button"><Text>Cancel</Text></Pressable>
+                        <Pressable style={styles.cancel} onPress={() => setConfirming(false)} accessibilityRole="button"><Text style={styles.cancelText}>Cancel</Text></Pressable>
                         <Pressable style={[styles.makeOffer, !canMakeOffer && styles.disabled]} onPress={makeOffer}
                             disabled={!canMakeOffer} accessibilityRole="button" accessibilityState={{ disabled: !canMakeOffer }}
                             accessibilityLabel={canMakeOffer ? 'Continue to offer editor' : 'Continue unavailable offline'}
@@ -268,27 +285,37 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
 
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
-    content: { width: '100%', maxWidth: 900, alignSelf: 'center', paddingBottom: spacing['4xl'] },
-    intro: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl, gap: spacing.xs },
-    title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    copy: { fontSize: fontSize.sm, color: colors.textSecondary },
+    content: { paddingBottom: spacing['4xl'] },
+    contentWide: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: spacing['3xl'] },
+    main: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center' },
+    mainWide: { flexShrink: 0, alignSelf: 'flex-start' },
+    rail: { width: layout.railWidth, paddingTop: spacing.xl },
+    // Keeps the verdict in view while the builder scrolls (web only).
+    railSticky: { position: 'sticky', top: 0 } as unknown as ViewStyle,
+    verdict: { gap: spacing.md },
+    intro: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.xs },
+    title: { ...textStyles.pageTitle },
+    copy: { ...textStyles.body },
     offline: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.warningDark },
     modeRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-    modeButton: { minHeight: 44, minWidth: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderLight },
+    modeButton: { minHeight: 44, minWidth: 96, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderLight },
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    sectionLabel: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl, fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
-    teamChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, padding: spacing.xl },
-    teamChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, backgroundColor: colors.bgMuted, borderRadius: radii['3xl'] },
+    sectionLabel: { ...textStyles.sectionLabel, paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
+    teamChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingTop: spacing.md },
+    teamChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, backgroundColor: colors.bgMuted, borderRadius: radii.full },
     teamChipActive: { backgroundColor: colors.primary },
     teamChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
     teamChipTextActive: { color: colors.textWhite },
-    empty: { margin: spacing.xl, padding: spacing.xl, backgroundColor: colors.bgMuted, borderRadius: radii.lg },
-    makeOffer: { minHeight: 48, marginHorizontal: spacing.xl, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radii.md },
+    empty: { margin: spacing.xl, padding: spacing.xl, backgroundColor: colors.bgSubtle, borderRadius: radii.lg },
+    offerBlock: { gap: spacing.sm },
+    offerBlockInset: { marginHorizontal: spacing.xl },
+    makeOffer: { minHeight: 48, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radii.md },
     makeOfferText: { color: colors.textWhite, fontSize: fontSize.md, fontWeight: fontWeight.bold },
     disabled: { opacity: 0.45 },
-    offerHelp: { marginTop: spacing.sm, paddingHorizontal: spacing.xl, textAlign: 'center', fontSize: fontSize.xs, color: colors.textMuted },
+    offerHelp: { ...textStyles.meta, textAlign: 'center' },
     modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, backgroundColor: scrim },
     modalCard: { width: '100%', maxWidth: 480, gap: spacing.lg, padding: spacing.xl, backgroundColor: colors.bgCard, borderRadius: radii.xl },
     modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.md },
     cancel: { minHeight: 48, minWidth: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md },
+    cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors, INJURY_COLORS } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors, INJURY_COLORS } from '@/constants/tokens'
 import { getPositionColor } from '@/constants/positions'
 import { playerHeadshotUrl, yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
@@ -50,7 +50,8 @@ function PlayerRow({
                 name={p.display_name}
                 uri={playerHeadshotUrl(p.nba_id) ?? undefined}
                 color={selected ? colors.primary : getPositionColor(positions[0] ?? p.position, colors.primaryDark)}
-                size={40}
+                textColor={colors.textWhite}
+                size={36}
             />
             <View style={styles.playerInfo}>
                 <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.md,
     },
     flex1: { flex: 1, minWidth: 0 },
-    columnTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textPrimary, letterSpacing: 0 },
+    columnTitle: { ...textStyles.sectionLabel, color: colors.textPrimary },
     columnTitleReceive: { color: colors.primaryDark },
     columnSubtitle: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xxs, fontWeight: fontWeight.semibold },
     columnCount: {
@@ -248,10 +249,7 @@ const styles = StyleSheet.create({
     columnCountReceive: { backgroundColor: colors.primary },
     columnCountText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
     subSectionLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        color: colors.textSecondary,
-        letterSpacing: 0,
+        ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.lg,
         paddingBottom: spacing.sm,
@@ -260,34 +258,34 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
+        paddingVertical: spacing.md,
         gap: spacing.lg,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
     playerRowSelected: { backgroundColor: colors.primaryLight },
     pickCircle: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 36,
+        height: 36,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: uiColors.accentPick,
         justifyContent: 'center',
         alignItems: 'center',
     },
     pickCircleSelected: { backgroundColor: colors.primary },
-    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 12 },
-    playerInfo: { flex: 1, minWidth: 0, gap: 2 },
-    playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
+    playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    playerName: { ...textStyles.rowTitle },
     playerNameSelected: { color: colors.primaryDark },
-    playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
-    playerMeta: { fontSize: 12, color: colors.textMuted },
-    playerContext: { fontSize: 11, color: colors.primaryDark, fontWeight: fontWeight.bold },
-    routeMeta: { fontSize: 11, color: colors.textSecondary, fontWeight: fontWeight.semibold },
+    playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
+    playerMeta: { ...textStyles.meta },
+    playerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    routeMeta: { fontSize: fontSize.xs, color: colors.textSecondary, fontWeight: fontWeight.semibold },
     removeBadge: {
         width: 24,
         height: 24,
-        borderRadius: 12,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primary,
         justifyContent: 'center',
