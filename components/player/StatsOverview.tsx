@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { View, Text, StyleSheet } from 'react-native'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import type { PlayerSeasonAverages } from '@/lib/players'
 
 function pct(made: number, attempted: number): string {
@@ -11,124 +11,79 @@ function seasonLabel(year: number): string {
     return `${year - 1}–${String(year).slice(2)}`
 }
 
+function countLabel(count: number, noun: string): string {
+    return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
 type Props = {
     averages: PlayerSeasonAverages
     seasonYear: number
+    /** League fantasy points per game; shown first when the league scores this season. */
+    avgFantasyPoints?: number | null
+    /** Cells per row: 4 in a side column or on phones, 6 in a wide single column. */
+    columns: number
 }
 
-export function StatsOverview({ averages, seasonYear }: Props) {
-    // 2-col on very narrow screens so hyphenated range values (e.g. 9.9-17.4)
-    // never break mid-number in a too-narrow cell.
-    const { width } = useWindowDimensions()
-    const cellMinWidth = (width < 400 ? '46%' : '22%') as `${number}%`
+/** Season averages as one stat strip, fantasy points first. */
+export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, columns }: Props) {
+    const cells = [
+        avgFantasyPoints != null ? { label: 'FP/G', value: avgFantasyPoints.toFixed(1), lead: true } : null,
+        { label: 'MIN', value: averages.avgMinutesPlayed.toFixed(1) },
+        { label: 'PTS', value: averages.avgPoints.toFixed(1) },
+        { label: 'REB', value: averages.avgRebounds.toFixed(1) },
+        { label: 'AST', value: averages.avgAssists.toFixed(1) },
+        { label: 'STL', value: averages.avgSteals.toFixed(1) },
+        { label: 'BLK', value: averages.avgBlocks.toFixed(1) },
+        { label: '3PM', value: averages.avgThreePointersMade.toFixed(1) },
+        { label: 'TO', value: averages.avgTurnovers.toFixed(1) },
+        { label: 'FG%', value: pct(averages.avgFieldGoalsMade, averages.avgFieldGoalsAttempted) },
+        { label: 'FT%', value: pct(averages.avgFreeThrowsMade, averages.avgFreeThrowsAttempted) },
+        { label: 'GP', value: String(averages.gamesPlayed) },
+    ].filter((cell): cell is { label: string; value: string; lead?: boolean } => cell != null)
+    const basis = `${100 / columns}%` as `${number}%`
+    const details = [
+        `FG ${averages.avgFieldGoalsMade.toFixed(1)}-${averages.avgFieldGoalsAttempted.toFixed(1)}`,
+        `FT ${averages.avgFreeThrowsMade.toFixed(1)}-${averages.avgFreeThrowsAttempted.toFixed(1)}`,
+        countLabel(averages.doubleDoubles, 'double-double'),
+        countLabel(averages.tripleDoubles, 'triple-double'),
+    ].join(' · ')
+
     return (
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{seasonLabel(seasonYear)} Averages</Text>
-
-            {/* Primary stats */}
+            <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>{seasonLabel(seasonYear)} Averages</Text>
             <View style={styles.grid}>
-                {[
-                    { label: 'MIN', value: averages.avgMinutesPlayed.toFixed(1) },
-                    { label: 'PTS', value: averages.avgPoints.toFixed(1) },
-                    { label: 'REB', value: averages.avgRebounds.toFixed(1) },
-                    { label: 'AST', value: averages.avgAssists.toFixed(1) },
-                    { label: 'STL', value: averages.avgSteals.toFixed(1) },
-                    { label: 'BLK', value: averages.avgBlocks.toFixed(1) },
-                    { label: '3PM', value: averages.avgThreePointersMade.toFixed(1) },
-                    { label: 'TO', value: averages.avgTurnovers.toFixed(1) },
-                ].map(({ label, value }) => (
-                    <View key={label} style={[styles.cell, { minWidth: cellMinWidth }]}>
-                        <Text style={styles.cellValue}>{value}</Text>
-                        <Text style={styles.cellLabel}>{label}</Text>
+                {cells.map(({ label, value, lead }) => (
+                    <View key={label} style={[styles.cell, { flexBasis: basis, maxWidth: basis }]}>
+                        <Text style={[styles.cellValue, lead && styles.cellValueLead]} numberOfLines={1}>{value}</Text>
+                        <Text style={[styles.cellLabel, lead && styles.cellLabelLead]}>{label}</Text>
                     </View>
                 ))}
             </View>
-
-            {/* Shooting splits */}
-            <Text style={styles.subTitle}>Shooting</Text>
-            <View style={styles.grid}>
-                {[
-                    {
-                        label: 'FG%',
-                        value: pct(averages.avgFieldGoalsMade, averages.avgFieldGoalsAttempted),
-                    },
-                    {
-                        label: 'FT%',
-                        value: pct(averages.avgFreeThrowsMade, averages.avgFreeThrowsAttempted),
-                    },
-                    {
-                        label: 'FGM-A',
-                        value: `${averages.avgFieldGoalsMade.toFixed(1)}-${averages.avgFieldGoalsAttempted.toFixed(1)}`,
-                    },
-                    {
-                        label: 'FTM-A',
-                        value: `${averages.avgFreeThrowsMade.toFixed(1)}-${averages.avgFreeThrowsAttempted.toFixed(1)}`,
-                    },
-                ].map(({ label, value }) => (
-                    <View key={label} style={[styles.cell, { minWidth: cellMinWidth }]}>
-                        <Text style={styles.cellValue}>{value}</Text>
-                        <Text style={styles.cellLabel}>{label}</Text>
-                    </View>
-                ))}
-            </View>
-
-            {/* Production totals (games played, double/triple-doubles) */}
-            <Text style={styles.subTitle}>Production</Text>
-            <View style={styles.extrasRow}>
-                {[
-                    { label: 'GP', value: String(averages.gamesPlayed) },
-                    { label: 'Double-Doubles', value: String(averages.doubleDoubles) },
-                    { label: 'Triple-Doubles', value: String(averages.tripleDoubles) },
-                ].map(({ label, value }) => (
-                    <View key={label} style={styles.extraCell}>
-                        <Text style={styles.extraValue}>{value}</Text>
-                        <Text style={styles.cellLabel} numberOfLines={1}>{label}</Text>
-                    </View>
-                ))}
-            </View>
+            <Text style={textStyles.meta}>{details}</Text>
         </View>
     )
 }
 
 const styles = StyleSheet.create({
-    section: { gap: 10 },
-    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    subTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted, marginTop: 2 },
-
+    section: { gap: spacing.md },
     grid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 1,
-        backgroundColor: colors.borderLight,
-        borderRadius: radii.xl,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgCard,
         overflow: 'hidden',
+        paddingVertical: spacing.xs,
     },
     cell: {
-        flex: 1,
-        minWidth: '22%',
-        backgroundColor: colors.bgScreen,
         alignItems: 'center',
-        paddingVertical: radii.xl,
-        gap: spacing.xs,
+        paddingVertical: spacing.sm,
+        gap: spacing.xxs,
     },
-    cellValue: { fontSize: 18, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    cellLabel: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.semibold },
-
-    extrasRow: {
-        flexDirection: 'row',
-        gap: 1,
-        backgroundColor: colors.borderLight,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        overflow: 'hidden',
-    },
-    extraCell: {
-        flex: 1,
-        backgroundColor: colors.bgSubtle,
-        alignItems: 'center',
-        paddingVertical: 10,
-        gap: spacing.xs,
-    },
-    extraValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    cellValue: { fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    cellValueLead: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
+    cellLabel: { ...textStyles.tableHeader },
+    cellLabelLead: { color: colors.primaryDark },
 })
