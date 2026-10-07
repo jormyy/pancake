@@ -12,11 +12,11 @@ export function AuthBrandMark({ compact = false }: { compact?: boolean }) {
 
 const styles = StyleSheet.create({
     mark: {
-        width: 150,
-        height: 150,
+        width: 96,
+        height: 96,
     },
     markCompact: {
-        width: 150,
-        height: 150,
+        width: 72,
+        height: 72,
     },
 })
