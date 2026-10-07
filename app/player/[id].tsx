@@ -7,7 +7,7 @@ import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
-import { Page, usePageMetrics } from '@/components/ui'
+import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
@@ -19,9 +19,7 @@ import { addLimitSummary } from '@/lib/pickup'
 import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import {
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -296,14 +294,6 @@ export default function PlayerDetailScreen() {
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
-function BackButton({ onPress }: { onPress: () => void }) {
-    return (
-        <Pressable onPress={onPress} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
-            <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-        </Pressable>
-    )
-}
-
 const styles = StyleSheet.create({
     scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing['2xl'] },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
@@ -314,15 +304,6 @@ const styles = StyleSheet.create({
     missingHeader: { paddingTop: spacing.lg },
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
     headerMain: { flex: 1, minWidth: 0 },
-    back: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
     warningBanner: {
         backgroundColor: colors.dangerLight,

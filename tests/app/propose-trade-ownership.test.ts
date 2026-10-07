@@ -138,6 +138,7 @@ vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuil
 vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'TradeAnalysisSummary' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
 vi.mock('@/components/ui', () => ({ ErrorBanner: () => null }))
+vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: () => null }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

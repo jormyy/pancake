@@ -1,7 +1,8 @@
 import { ReactNode } from 'react'
-import { Platform, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { breakpoints, colors, layout, spacing, srOnly, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, layout, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
 
 type PageWidth = 'content' | 'form' | 'full'
 
@@ -58,23 +59,58 @@ export function Page({
 }
 
 /**
- * One row at the top of a page: section tabs or a title on the left, the
- * page's main action on the right.
+ * The back control for screens opened on top of a tab. The installed iPhone
+ * app has no back swipe, so every such screen shows one in the same place.
+ */
+export function BackButton({ onPress, label = 'Back' }: { onPress: () => void; label?: string }) {
+    return (
+        <Pressable
+            onPress={onPress}
+            style={({ pressed }: { pressed?: boolean }) => [styles.back, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+        >
+            <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+        </Pressable>
+    )
+}
+
+/**
+ * One row at the top of a page: an optional back control, then section tabs
+ * or a title (with an optional meta line), then the page's main action.
  */
 export function PageHeader({
     title,
+    meta,
     tabs,
     actions,
+    onBack,
+    backLabel,
+    titleIsPageHeading = false,
 }: {
     title?: string
+    meta?: string
     tabs?: ReactNode
     actions?: ReactNode
+    onBack?: () => void
+    backLabel?: string
+    /** Make the visible title the page's h1 (screens not wrapped in Page). */
+    titleIsPageHeading?: boolean
 }) {
     const { padX } = usePageMetrics()
+    const headingProps = titleIsPageHeading
+        ? ({ role: 'heading', 'aria-level': 1, accessibilityRole: 'header' } as const)
+        : {}
     return (
-        <View style={[styles.header, { paddingHorizontal: padX }]}>
+        <View style={[styles.header, !tabs && styles.headerCentered, { paddingHorizontal: padX }]}>
+            {onBack ? <View style={styles.headerBack}><BackButton onPress={onBack} label={backLabel} /></View> : null}
             <View style={styles.headerMain}>
-                {tabs ?? (title ? <Text style={textStyles.pageTitle} numberOfLines={1}>{title}</Text> : null)}
+                {tabs ?? (title ? (
+                    <>
+                        <Text style={textStyles.pageTitle} numberOfLines={1} {...headingProps}>{title}</Text>
+                        {meta ? <Text style={textStyles.meta} numberOfLines={1}>{meta}</Text> : null}
+                    </>
+                ) : null)}
             </View>
             {actions ? <View style={styles.headerActions}>{actions}</View> : null}
         </View>
@@ -92,6 +128,19 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
+    // Tabs sit on the bottom border; titles and back controls center in the row.
+    headerCentered: { alignItems: 'center', minHeight: 56, paddingVertical: spacing.xs },
+    headerBack: { alignSelf: 'center' },
     headerMain: { flex: 1, minWidth: 0 },
+    back: {
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous',
+        backgroundColor: colors.bgMuted,
+    },
+    pressed: { opacity: 0.76 },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0, alignSelf: 'center' },
 })

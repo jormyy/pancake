@@ -1,7 +1,6 @@
 import {
     View,
     Text,
-    Pressable,
     ScrollView,
     StyleSheet,
 } from 'react-native'
@@ -14,7 +13,7 @@ import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
 import { Button, Page, PageHeader, usePageMetrics } from '@/components/ui'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, layout, radii, spacing, textStyles } from '@/constants/tokens'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 
@@ -110,28 +109,12 @@ export default function TeamRosterScreen() {
     return (
         <Page title={teamName ?? 'Team roster'} width="form">
             <PageHeader
-                tabs={(
-                    <View style={styles.headerLead}>
-                        <Pressable
-                            onPress={() => back()}
-                            style={styles.closeButton}
-                            accessibilityRole="button"
-                            accessibilityLabel="Close team roster"
-                        >
-                            <Text style={styles.closeText}>Done</Text>
-                        </Pressable>
-                        <View style={styles.headerText}>
-                            <Text style={styles.headerTitle} numberOfLines={1}>{teamName ?? 'Roster'}</Text>
-                            {roster.length > 0 ? (
-                                <Text style={textStyles.meta}>
-                                    {active.length} active
-                                    {ir.length > 0 ? ` · ${ir.length} IR` : ''}
-                                    {taxi.length > 0 ? ` · ${taxi.length} taxi` : ''}
-                                </Text>
-                            ) : null}
-                        </View>
-                    </View>
-                )}
+                title={teamName ?? 'Roster'}
+                meta={roster.length > 0
+                    ? `${active.length} active${ir.length > 0 ? ` · ${ir.length} IR` : ''}${taxi.length > 0 ? ` · ${taxi.length} taxi` : ''}`
+                    : undefined}
+                onBack={() => back()}
+                backLabel="Close team roster"
                 actions={canProposeTrade ? (
                     <Button
                         title={compact ? 'Trade' : 'Propose trade'}
@@ -173,11 +156,6 @@ export default function TeamRosterScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    headerLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56 },
-    headerText: { flex: 1, minWidth: 0 },
-    closeButton: { minWidth: 44, minHeight: 44, paddingHorizontal: spacing.xs, alignItems: 'flex-start', justifyContent: 'center' },
-    closeText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    headerTitle: { ...textStyles.pageTitle },
 
     list: { flex: 1 },
     listContent: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingVertical: spacing.md, gap: spacing.md },

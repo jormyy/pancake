@@ -483,28 +483,9 @@ export default function LineupScreen() {
     return (
         <Page title="Lineup">
             <PageHeader
-                tabs={(
-                    <View style={styles.headerLead}>
-                        <MotionPressable
-                            onPress={() => back()}
-                            style={styles.closeButton}
-                            accessibilityRole="button"
-                            accessibilityLabel="Close lineup"
-                            pressedScale={0.92}
-                        >
-                            <Text style={styles.closeText}>Done</Text>
-                        </MotionPressable>
-                        <Text
-                            style={styles.headerTitle}
-                            role="heading"
-                            aria-level={2}
-                            accessibilityRole="header"
-                            numberOfLines={1}
-                        >
-                            Week {visibleCtx.weekNumber} lineup
-                        </Text>
-                    </View>
-                )}
+                title={`Week ${visibleCtx.weekNumber} lineup`}
+                onBack={() => back()}
+                backLabel="Close lineup"
                 actions={(
                     <Button
                         title="Auto-set"
@@ -645,10 +626,6 @@ export default function LineupScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    headerLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48 },
-    closeButton: { minWidth: 44, minHeight: 44, paddingHorizontal: spacing.xs, alignItems: 'flex-start', justifyContent: 'center' },
-    closeText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    headerTitle: { ...textStyles.pageTitle, flexShrink: 1 },
     preDraftHint: {
         padding: spacing.lg,
         borderRadius: radii.lg,

@@ -14,7 +14,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { joinLeague } from '@/lib/league'
 import { colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
 import { Button, Input, usePageMetrics } from '@/components/ui'
-import { ModalScreen } from '@/components/league/ModalScreen'
+import { ModalScreen } from '@/components/ui/ModalScreen'
 import { getErrorMessage } from '@/lib/shared/errors'
 
 export default function JoinLeagueScreen() {

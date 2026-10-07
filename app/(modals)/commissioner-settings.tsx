@@ -17,7 +17,7 @@ import {
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import { styles } from '@/components/commissioner/settings-styles'
 import { EmptyState } from '@/components/EmptyState'
-import { ModalScreen } from '@/components/league/ModalScreen'
+import { ModalScreen } from '@/components/ui/ModalScreen'
 import { ErrorBanner, usePageMetrics } from '@/components/ui'
 import {
     useCommissionerSettingsController,

@@ -25,7 +25,7 @@ import { addLimitSummary, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
-import { usePageMetrics } from '@/components/ui'
+import { PageHeader, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
 
@@ -202,23 +202,7 @@ export default function ClaimPlayerScreen() {
     }
 
     function renderScreenHeader() {
-        return (
-            <View style={[styles.screenHeader, { paddingHorizontal: padX }]}>
-                <Pressable
-                    onPress={() => router.back()}
-                    style={styles.headerBack}
-                    role="link"
-                    aria-label="Back to player"
-                    accessibilityRole="link"
-                    accessibilityLabel="Back to player"
-                >
-                    <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-                </Pressable>
-                <Text style={styles.screenTitle} numberOfLines={1}>
-                    Waiver Claim
-                </Text>
-            </View>
-        )
+        return <PageHeader title="Waiver Claim" onBack={() => router.back()} backLabel="Back to player" />
     }
 
     function renderClaimSummary() {
@@ -427,25 +411,6 @@ const TWO_COLUMN_MIN = 900
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    screenHeader: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgScreen,
-    },
-    headerBack: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    screenTitle: { ...textStyles.pageTitle, flex: 1 },
     bodyScroll: { flex: 1 },
     bodyContent: {
         width: '100%',
