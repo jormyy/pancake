@@ -1,6 +1,6 @@
-import { Link, useRouter } from 'expo-router'
+import { Link } from 'expo-router'
 import { useState } from 'react'
-import { Platform, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { AuthScaffold } from '@/components/auth/AuthScaffold'
 import type { AuthHeroContent } from '@/components/auth/AuthHero'
 import { Button, Input } from '@/components/ui'
@@ -33,7 +33,6 @@ export default function SignInScreen() {
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const router = useRouter()
     const { restorationStatus, loading: authLoading } = useAuth()
     const restorationNotice = authLoading ? null : restorationStatus === 'expired'
         ? 'Your session expired. Reconnect or sign in to continue.'
@@ -50,11 +49,6 @@ export default function SignInScreen() {
         setError(null)
         try {
             await signIn(email.trim(), password)
-            if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                window.location.assign('/')
-            } else {
-                router.replace('/')
-            }
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
