@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { canUpdateTradeFaabInput, MAX_TRADE_FAAB_DIGITS, validateTradeFaabInput } from '@/lib/multi-team-trade-state'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     panelColumn: { flexGrow: 1, flexShrink: 0, flexBasis: 260, minWidth: 260, maxWidth: 320 },
     panelStacked: { width: '100%' },
     routePicker: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.xs },
-    routePickerLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
+    routePickerLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
     routeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
     routeOption: {
         minHeight: 44,
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     selectedRouteName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     faabRow: { marginHorizontal: spacing.xl, marginBottom: spacing.lg, gap: spacing.sm },
     faabDestinationRow: { gap: spacing.xs, maxWidth: 220 },
-    termLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
+    termLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
     termInput: {
         minHeight: 44,
         borderWidth: 1,
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,
-        fontSize: fontSize.md,
+        fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },

@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 
 type TradeFlowParticipant = {
     memberId: string
@@ -123,12 +123,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: spacing.md,
     },
-    heading: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-    },
+    heading: { ...textStyles.sectionLabel },
     teamCount: {
         fontSize: fontSize.sm,
         fontWeight: fontWeight.semibold,
@@ -178,7 +173,7 @@ const styles = StyleSheet.create({
     teamInitial: {
         width: 32,
         height: 32,
-        borderRadius: 16,
+        borderRadius: radii.full,
         backgroundColor: colors.bgMuted,
         alignItems: 'center',
         justifyContent: 'center',
@@ -194,17 +189,11 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
-    receivesLabel: {
-        marginTop: 2,
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        letterSpacing: 0,
-    },
+    receivesLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], marginTop: spacing.xxs },
     status: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: spacing.xs,
         minHeight: 28,
         paddingHorizontal: spacing.sm,
         borderRadius: radii.md,
@@ -223,7 +212,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-start',
         gap: spacing.sm,
-        paddingVertical: 3,
+        paddingVertical: spacing.xxs,
     },
     assetCopy: { minWidth: 0, flex: 1 },
     assetLabel: {
@@ -232,7 +221,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
     },
     assetSource: {
-        marginTop: 2,
+        marginTop: spacing.xxs,
         fontSize: fontSize.xs,
         color: colors.textMuted,
     },
@@ -242,12 +231,10 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     sendsLabel: {
+        ...textStyles.sectionLabel,
+        fontSize: fontSize['2xs'],
         paddingTop: spacing.sm,
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        letterSpacing: 0,
     },
 })

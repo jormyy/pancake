@@ -39,6 +39,7 @@ vi.mock('react-native', () => ({
     StyleSheet: { create: <Value,>(value: Value) => value },
     Text: 'Text',
     View: 'View',
+    useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
 vi.mock('expo-router', () => ({

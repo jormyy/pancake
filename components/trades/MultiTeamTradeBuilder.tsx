@@ -4,7 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindow
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, type WebOnlyViewStyle, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, textStyles, type WebOnlyViewStyle, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -319,12 +319,7 @@ const styles = StyleSheet.create({
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
     reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing['4xl'] },
     reviewHeading: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
-    reviewEyebrow: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-    },
+    reviewEyebrow: { ...textStyles.sectionLabel },
     reviewTitle: {
         marginTop: spacing.xs,
         fontSize: fontSize.xl,
@@ -339,12 +334,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: uiColors.borderNeutral,
     },
-    reviewTermsLabel: {
-        marginTop: spacing.sm,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-    },
+    reviewTermsLabel: { ...textStyles.sectionLabel, marginTop: spacing.sm },
     reviewTermsValue: {
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
@@ -370,23 +360,15 @@ const styles = StyleSheet.create({
         zIndex: 10,
     } as unknown as WebOnlyViewStyle,
     compactSummaryCopy: { minWidth: 0, flex: 1 },
-    compactSummaryTitle: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-    },
+    compactSummaryTitle: { ...textStyles.sectionLabel },
     compactSummaryMeta: {
-        marginTop: 2,
+        marginTop: spacing.xxs,
         fontSize: fontSize.sm,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
     sectionLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
+        ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
@@ -422,9 +404,9 @@ const styles = StyleSheet.create({
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        fontSize: fontSize.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        fontSize: fontSize.lg,
         color: colors.textPrimary,
         minHeight: 80,
         textAlignVertical: 'top',
@@ -444,7 +426,7 @@ const styles = StyleSheet.create({
     notesCountInvalid: { color: colors.dangerDark },
     termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.xl },
     termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
-    termLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
+    termLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
     termInput: {
         minHeight: 44,
         borderWidth: 1,
@@ -452,7 +434,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,
-        fontSize: fontSize.md,
+        fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },

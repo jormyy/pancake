@@ -7,7 +7,8 @@ import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
@@ -39,8 +40,14 @@ import {
 } from '@/lib/trades'
 import { takeTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
 
+// The builder needs this width to show team columns side by side.
+const BUILDER_WIDTH = 900
+
 export default function ProposeTradeScreen() {
     const { current, currentLeague } = useLeagueContext()
+    const { usableWidth } = usePageMetrics()
+    // The verdict moves beside the builder only when the builder keeps its columns.
+    const sideBySide = usableWidth >= BUILDER_WIDTH + layout.railWidth
     const params = useLocalSearchParams<{
         recipientMemberId?: string
         editTradeId?: string
@@ -352,10 +359,15 @@ export default function ProposeTradeScreen() {
         )
     }
 
+    const verdict = (
+        <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+            loading={tradeAnalysis.loading} inset={!sideBySide} />
+    )
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <View style={styles.headerInner}>
+                <View style={[styles.headerInner, sideBySide && styles.headerInnerWide]}>
                     <Pressable onPress={back} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="Cancel trade proposal">
                         <Text style={styles.cancelText}>Cancel</Text>
                     </Pressable>
@@ -375,7 +387,8 @@ export default function ProposeTradeScreen() {
                     </Pressable>
                 </View>
             </View>
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.main, sideBySide && styles.mainWide]}>
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>
                         <Text style={styles.lockBannerText}>Trades are locked only from the trade deadline until the champion is finalized.</Text>
@@ -401,7 +414,7 @@ export default function ProposeTradeScreen() {
                         <Text style={styles.lockBannerText}>{participantLimitMessage}</Text>
                     </View>
                 ) : null}
-                <Text style={styles.sectionLabel}>TRADE WITH</Text>
+                <Text style={styles.sectionLabel}>Trade with</Text>
                 {canUseMultiTeamMode ? (
                     <View style={styles.modeSwitch}>
                         <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
@@ -456,9 +469,10 @@ export default function ProposeTradeScreen() {
                         framed
                     />
                 ) : null}
-                <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
-                    loading={tradeAnalysis.loading} />
+                {sideBySide ? null : verdict}
                 <View style={styles.bottomSpace} />
+              </View>
+              {sideBySide ? <View style={styles.rail}>{verdict}</View> : null}
             </ScrollView>
             {reviewing ? (
                 <Modal
@@ -525,7 +539,16 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
-    scrollContent: { width: '100%', maxWidth: 900, minWidth: 0, alignSelf: 'center' },
+    scrollContent: { width: '100%', maxWidth: BUILDER_WIDTH, minWidth: 0, alignSelf: 'center' },
+    scrollContentWide: {
+        maxWidth: BUILDER_WIDTH + spacing['3xl'] + layout.railWidth,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing['3xl'],
+    },
+    main: { width: '100%', minWidth: 0 },
+    mainWide: { width: BUILDER_WIDTH, flexShrink: 0 },
+    rail: { width: layout.railWidth, paddingTop: spacing.xl },
     header: { paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     headerInner: {
         flexDirection: 'row',
@@ -533,13 +556,14 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: spacing.xl,
         width: '100%',
-        maxWidth: 900,
+        maxWidth: BUILDER_WIDTH,
         alignSelf: 'center',
     },
+    headerInnerWide: { maxWidth: BUILDER_WIDTH + spacing['3xl'] + layout.railWidth },
     headerTitle: {
         flex: 1,
         marginHorizontal: spacing.md,
-        fontSize: 17,
+        fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
         textAlign: 'center',
@@ -566,13 +590,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     submitButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
-    submitText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    submitText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     submitTextDisabled: { color: colors.textPlaceholder },
     sectionLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
+        ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
@@ -594,7 +615,7 @@ const styles = StyleSheet.create({
     modeButtonTextActive: { color: colors.textWhite },
     teamChips: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xs, gap: spacing.md, flexDirection: 'row', flexWrap: 'wrap' },
     teamChip: {
-        paddingHorizontal: 14,
+        paddingHorizontal: spacing.lg,
         minHeight: 44,
         maxWidth: '100%',
         flexShrink: 1,
@@ -620,5 +641,5 @@ const styles = StyleSheet.create({
     lockBannerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.warningDark, textAlign: 'center' },
     emptyCenter: { alignItems: 'center', padding: spacing['5xl'] },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
-    bottomSpace: { height: 40 },
+    bottomSpace: { height: spacing['5xl'] },
 })

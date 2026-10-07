@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Trade, TradeItem, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
@@ -8,7 +8,7 @@ import { playerHeadshotUrl } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
-import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
+import { type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { tradeDisplayPerspective } from '@/lib/trade-perspective'
 import type { TradeVetoMode } from '@/types/app'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
@@ -25,7 +25,76 @@ const STATUS_LABELS: Record<string, string> = {
     edited: 'Edited',
 }
 
-const STATUS_COLORS = TRADE_STATUS_COLORS
+const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+
+export type TradeCardActions = {
+    acting: boolean
+    onAccept: () => void
+    onReject: () => void
+    onVeto: () => void
+    onWithdraw: () => void
+}
+
+export type TradeCardContext = {
+    trade: Trade
+    myMemberId: string
+    tab: TradeTabKey
+    tradeVetoMode?: TradeVetoMode
+    isCommissioner?: boolean
+}
+
+/** Everything a card or detail view needs to describe a trade and its actions. */
+export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member_vote', isCommissioner = false }: TradeCardContext) {
+    const isProposer = trade.proposerMemberId === myMemberId
+    const isRecipient = trade.recipientMemberId === myMemberId
+    const participants = trade.participants
+    const isMultiParticipant = participants.some((participant) => participant.memberId === myMemberId)
+    const isTradeParty = isProposer || isRecipient || isMultiParticipant
+    const opponentName = trade.isMultiTeam && participants.length > 0
+        ? `${participants.length}-team trade`
+        : isProposer
+            ? trade.recipientTeamName
+            : isRecipient
+                ? trade.proposerTeamName
+                : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
+    const perspective = tradeDisplayPerspective(trade, myMemberId)
+    const canVetoBySettings = tradeVetoMode === 'member_vote' || (tradeVetoMode === 'commissioner' && isCommissioner)
+    const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
+    const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
+    const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
+    const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
+    const canEdit = tab === 'offers' && isProposer && trade.status === 'pending'
+    const meta = [
+        trade.status === 'accepted' && trade.vetoWindowExpiresAt
+            ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], SHORT_DATE)}`
+            : null,
+        trade.status === 'pending' && trade.expiresAt
+            ? `Expires ${new Date(trade.expiresAt).toLocaleString([], SHORT_DATE)}`
+            : null,
+        trade.isMultiTeam
+            ? `${participants.filter((participant) => participant.acceptedAt != null).length}/${participants.length} teams accepted`
+            : null,
+        trade.version > 1 ? `Version ${trade.version}` : null,
+        alreadyVetoed ? 'Your veto is recorded' : null,
+    ].filter((part): part is string => part != null)
+    return {
+        opponentName,
+        receives: perspective.receives,
+        gives: perspective.gives,
+        receiveLabel: perspective.receiveLabel.replace(/:\s*$/, ''),
+        giveLabel: perspective.giveLabel.replace(/:\s*$/, ''),
+        status: STATUS_LABELS[trade.status] ?? trade.status,
+        statusColors: TRADE_STATUS_COLORS[trade.status] ?? TRADE_STATUS_COLORS.pending,
+        meta,
+        canRespond,
+        canReject,
+        canEdit,
+        canVeto,
+        isProposer,
+    }
+}
+
+export type TradeCardModel = ReturnType<typeof tradeCardModel>
 
 function tradeItemKey(item: TradeItem, index: number) {
     if (item.kind === 'player') return `player:${item.playerId}:${index}`
@@ -33,22 +102,22 @@ function tradeItemKey(item: TradeItem, index: number) {
     return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
 }
 
-function TradeItemLine({ item }: { item: TradeItem }) {
+function TradeItemLine({ item, showContext = true }: { item: TradeItem; showContext?: boolean }) {
     if (item.kind === 'player') {
         const positions = playerEligiblePositions(item)
         return (
-            <View style={styles.assetPlayerRow}>
+            <View style={styles.assetRow}>
                 <Avatar
                     name={item.playerName}
                     uri={playerHeadshotUrl(item.nbaId) ?? undefined}
                     color={colors.bgMuted}
                     textColor={colors.textSecondary}
-                    size={26}
+                    size={28}
                 />
-                <View style={styles.assetPlayerCopy}>
-                    <Text style={styles.assetPlayer} numberOfLines={1}>{item.playerName}</Text>
-                    <View style={styles.assetPlayerMetaRow}>
-                        {item.nbaTeam ? <Text style={styles.assetPlayerMeta}>{item.nbaTeam}</Text> : null}
+                <View style={styles.assetCopy}>
+                    <Text style={styles.assetName} numberOfLines={1}>{item.playerName}</Text>
+                    <View style={styles.assetMetaRow}>
+                        {item.nbaTeam ? <Text style={styles.assetMeta}>{item.nbaTeam}</Text> : null}
                         {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                         {item.injuryStatus ? (
                             <Badge
@@ -58,43 +127,48 @@ function TradeItemLine({ item }: { item: TradeItem }) {
                             />
                         ) : null}
                     </View>
-                    <Text style={styles.assetPlayerContext} numberOfLines={1}>
-                        {playerSeasonContextText(item)}
-                    </Text>
+                    {showContext ? (
+                        <Text style={styles.assetContext} numberOfLines={1}>{playerSeasonContextText(item)}</Text>
+                    ) : null}
                 </View>
             </View>
         )
     }
     if (item.kind === 'faab') {
-        return <Text style={styles.assetPlayer}>FAAB ${item.amount}</Text>
+        return (
+            <View style={styles.assetRow}>
+                <View style={styles.assetIcon}><Text style={styles.assetIconText}>$</Text></View>
+                <Text style={styles.assetName}>${item.amount} FAAB</Text>
+            </View>
+        )
     }
     return (
-        <Text style={styles.assetPick}>
-            {item.seasonYear} Rd {item.round}{' '}
-            <Text style={styles.assetPickVia}>(via {item.originalTeamName})</Text>
-        </Text>
+        <View style={styles.assetRow}>
+            <View style={styles.assetIcon}><Text style={styles.assetIconText}>R{item.round}</Text></View>
+            <View style={styles.assetCopy}>
+                <Text style={styles.assetName}>{item.seasonYear} Round {item.round}</Text>
+                <Text style={styles.assetMeta} numberOfLines={1}>via {item.originalTeamName}</Text>
+            </View>
+        </View>
     )
 }
 
-function AssetList({ items, label }: { items: TradeItem[]; label: string }) {
+export function AssetList({ items, label, showContext = true }: { items: TradeItem[]; label: string; showContext?: boolean }) {
     return (
         <View style={styles.assetBlock}>
-            <Text style={styles.assetLabel}>{label}</Text>
+            <Text style={styles.assetLabel} numberOfLines={1}>{label}</Text>
             {items.length === 0 ? (
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
                 items.map((item, index) => (
-                    <TradeItemLine
-                        key={tradeItemKey(item, index)}
-                        item={item}
-                    />
+                    <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} />
                 ))
             )}
         </View>
     )
 }
 
-function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | null {
+export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | null {
     if (!item.fromMemberId || !item.toMemberId) return null
     if (item.kind === 'player') {
         return {
@@ -122,6 +196,87 @@ function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | null {
     }
 }
 
+export function StatusChip({ model }: { model: Pick<TradeCardModel, 'status' | 'statusColors'> }) {
+    return (
+        <View style={[styles.statusChip, { backgroundColor: model.statusColors.bg }]}>
+            <Text style={[styles.statusText, { color: model.statusColors.text }]}>{model.status}</Text>
+        </View>
+    )
+}
+
+/**
+ * The trade's response buttons. List cards pass `withTestIds` so browser tests
+ * find exactly one control per trade; the detail view repeats them without ids.
+ */
+export function TradeActionButtons({
+    trade,
+    model,
+    actions,
+    withTestIds = false,
+}: {
+    trade: Trade
+    model: TradeCardModel
+    actions: TradeCardActions
+    withTestIds?: boolean
+}) {
+    const { push } = useRouter()
+    const ids = (name: string) => (withTestIds ? { testID: `trade-${name}-${trade.id}`, id: `trade-${name}-${trade.id}` } : {})
+    const opponent = model.opponentName
+    const buttons: { key: string; label: string; primary?: boolean; a11y: string; onPress: () => void }[] = []
+    if (model.canRespond) {
+        buttons.push({ key: 'accept', label: 'Accept', primary: true, a11y: `Accept trade with ${opponent}`, onPress: actions.onAccept })
+        if (model.canReject) buttons.push({ key: 'reject', label: 'Reject', a11y: `Reject trade with ${opponent}`, onPress: actions.onReject })
+        buttons.push({
+            key: 'counter',
+            label: 'Counter',
+            a11y: `Counter trade with ${opponent}`,
+            onPress: () => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } }),
+        })
+    }
+    if (model.canEdit) {
+        buttons.push({
+            key: 'edit',
+            label: 'Edit',
+            primary: true,
+            a11y: `Edit trade with ${opponent}`,
+            onPress: () => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } }),
+        })
+        buttons.push({ key: 'withdraw', label: 'Withdraw', a11y: `Withdraw trade with ${opponent}`, onPress: actions.onWithdraw })
+    }
+    if (model.canVeto) {
+        buttons.push({
+            key: 'veto',
+            label: 'Veto',
+            a11y: `Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`,
+            onPress: actions.onVeto,
+        })
+    }
+    if (buttons.length === 0) return null
+    return (
+        <View style={styles.actions}>
+            {buttons.map((button) => (
+                <MotionPressable
+                    key={button.key}
+                    style={[styles.actionBtn, button.primary ? styles.actionBtnPrimary : styles.actionBtnSecondary]}
+                    onPress={button.onPress}
+                    disabled={actions.acting}
+                    accessibilityRole="button"
+                    accessibilityLabel={button.a11y}
+                    accessibilityState={{ disabled: actions.acting }}
+                    pressedScale={0.94}
+                    {...ids(button.key)}
+                >
+                    <Text style={button.primary ? styles.actionTextPrimary : styles.actionTextSecondary}>{button.label}</Text>
+                </MotionPressable>
+            ))}
+        </View>
+    )
+}
+
+/**
+ * One trade in a list: who it is with, its status, what each side gets, and
+ * the response that matters now. Pressing the card opens its full details.
+ */
 export function TradeCard({
     trade,
     myMemberId,
@@ -129,11 +284,14 @@ export function TradeCard({
     tradeVetoMode = 'member_vote',
     isCommissioner = false,
     acting,
+    selected = false,
+    brief = false,
     onAccept,
     onReject,
     onVeto,
     onWithdraw,
     onAnalyze,
+    onOpen,
 }: {
     trade: Trade
     myMemberId: string
@@ -141,65 +299,37 @@ export function TradeCard({
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
     acting: boolean
+    selected?: boolean
+    /** Beside an open detail pane: names only, the pane shows season context and notes. */
+    brief?: boolean
     onAccept: () => void
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
     /** Opens the Trade Analyzer prefilled with this trade; rendered in the card header. */
     onAnalyze: () => void
+    /** Shows the full trade: a side pane on wide screens, a sheet on phones. */
+    onOpen?: () => void
 }) {
-    const { push } = useRouter()
-    const isProposer = trade.proposerMemberId === myMemberId
-    const isRecipient = trade.recipientMemberId === myMemberId
-    const participants = trade.participants
-    const isMultiParticipant = participants.some((participant) => participant.memberId === myMemberId)
-    const isTradeParty = isProposer || isRecipient || isMultiParticipant
-    const opponentName = trade.isMultiTeam && participants.length > 0
-        ? `${participants.length}-team trade`
-        : isProposer
-        ? trade.recipientTeamName
-        : isRecipient
-            ? trade.proposerTeamName
-            : `${trade.proposerTeamName} vs ${trade.recipientTeamName}`
+    const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner })
 
-    const perspective = tradeDisplayPerspective(trade, myMemberId)
-    const iReceive = perspective.receives
-    const iGive = perspective.gives
-    const receiveLabel = perspective.receiveLabel
-    const giveLabel = perspective.giveLabel
-
-    const statusStyle = STATUS_COLORS[trade.status] ?? STATUS_COLORS.pending
-    const canVetoBySettings =
-        tradeVetoMode === 'member_vote' ||
-        (tradeVetoMode === 'commissioner' && isCommissioner)
-    const canVeto = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && !trade.myVetoed && canVetoBySettings
-    const alreadyVetoed = tab === 'offers' && !isTradeParty && trade.status === 'accepted' && trade.myVetoed && canVetoBySettings
-    const canRespond = tab === 'offers' && needsMemberAcceptance(trade, myMemberId)
-    const canReject = canRespond && (!trade.isMultiTeam || !isProposer)
-    const participantAcceptanceText = trade.isMultiTeam
-        ? `${participants.filter((participant) => participant.acceptedAt != null).length}/${participants.length} teams accepted`
-        : null
-    const vetoWindowText = trade.status === 'accepted' && trade.vetoWindowExpiresAt
-        ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-        })}`
-        : null
-    const expiresText = trade.status === 'pending' && trade.expiresAt
-        ? `Expires ${new Date(trade.expiresAt).toLocaleString([], {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-        })}`
-        : null
+    // The summary is the press target, not the whole card, so the header and
+    // action buttons never sit inside another button.
+    const summary = (
+        <>
+            {model.meta.length > 0 ? <Text style={styles.meta} numberOfLines={2}>{model.meta.join(' · ')}</Text> : null}
+            <View style={styles.sides}>
+                <AssetList items={model.receives} label={model.receiveLabel} showContext={!brief && !trade.isMultiTeam} />
+                <AssetList items={model.gives} label={model.giveLabel} showContext={!brief && !trade.isMultiTeam} />
+            </View>
+            {trade.notes && !brief ? <Text style={styles.notes} numberOfLines={2}>“{trade.notes}”</Text> : null}
+        </>
+    )
 
     return (
-        <MotionView style={styles.card} preset="rise">
+        <MotionView style={[styles.card, selected && styles.cardSelected]} preset="rise">
             <View style={styles.cardHeader}>
-                <Text style={styles.cardOpponent} numberOfLines={1}>{opponentName}</Text>
+                <Text style={styles.cardOpponent} numberOfLines={1}>{model.opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
                     <MotionPressable
                         style={[styles.analyzeBtn, acting && styles.analyzeBtnDisabled]}
@@ -214,127 +344,29 @@ export function TradeCard({
                     >
                         <Text style={styles.analyzeBtnText}>Analyze</Text>
                     </MotionPressable>
-                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                        <Text style={[styles.statusText, { color: statusStyle.text }]}>
-                            {STATUS_LABELS[trade.status] ?? trade.status}
-                        </Text>
-                    </View>
+                    <StatusChip model={model} />
                 </View>
             </View>
 
-            {vetoWindowText ? <Text style={styles.vetoWindowText}>{vetoWindowText}</Text> : null}
-            {expiresText ? <Text style={styles.vetoWindowText}>{expiresText}</Text> : null}
-            {trade.version > 1 ? <Text style={styles.vetoWindowText}>Version {trade.version}</Text> : null}
-            {participantAcceptanceText ? <Text style={styles.vetoWindowText}>{participantAcceptanceText}</Text> : null}
-            {alreadyVetoed ? <Text style={styles.vetoWindowText}>Your veto has been recorded.</Text> : null}
+            {onOpen ? (
+                <MotionPressable
+                    style={styles.summary}
+                    onPress={onOpen}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Show details of trade with ${model.opponentName}`}
+                    accessibilityState={{ selected }}
+                    pressedScale={0.99}
+                >
+                    {summary}
+                </MotionPressable>
+            ) : <View style={styles.summary}>{summary}</View>}
 
-            {canRespond && (
-                <View style={styles.cardActions}>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnAccept]}
-                        onPress={onAccept}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Accept trade with ${opponentName}`}
-                        testID={`trade-accept-${trade.id}`}
-                        id={`trade-accept-${trade.id}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnAcceptText}>Accept</Text>
-                    </MotionPressable>
-                    {canReject ? (
-                        <MotionPressable
-                            style={[styles.actionBtn, styles.actionBtnReject]}
-                            onPress={onReject}
-                            disabled={acting}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Reject trade with ${opponentName}`}
-                            testID={`trade-reject-${trade.id}`}
-                            id={`trade-reject-${trade.id}`}
-                            pressedScale={0.94}
-                        >
-                            <Text style={styles.actionBtnRejectText}>Reject</Text>
-                        </MotionPressable>
-                    ) : null}
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Counter trade with ${opponentName}`}
-                        testID={`trade-counter-${trade.id}`}
-                        id={`trade-counter-${trade.id}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnRejectText}>Counter</Text>
-                    </MotionPressable>
-                </View>
-            )}
-            {tab === 'offers' && isProposer && trade.status === 'pending' && (
-                <View style={styles.cardActions}>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnAccept]}
-                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Edit trade with ${opponentName}`}
-                        testID={`trade-edit-${trade.id}`}
-                        id={`trade-edit-${trade.id}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnAcceptText}>Edit</Text>
-                    </MotionPressable>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={onWithdraw}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Withdraw trade with ${opponentName}`}
-                        testID={`trade-withdraw-${trade.id}`}
-                        id={`trade-withdraw-${trade.id}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnRejectText}>Withdraw</Text>
-                    </MotionPressable>
-                </View>
-            )}
-            {canVeto && (
-                <View style={styles.cardActions}>
-                    <MotionPressable
-                        style={[styles.actionBtn, styles.actionBtnReject]}
-                        onPress={onVeto}
-                        disabled={acting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`}
-                        testID={`trade-veto-${trade.id}`}
-                        id={`trade-veto-${trade.id}`}
-                        pressedScale={0.94}
-                    >
-                        <Text style={styles.actionBtnRejectText}>Veto</Text>
-                    </MotionPressable>
-                </View>
-            )}
-
-            {trade.isMultiTeam ? (
-                <MultiTeamTradeOverview
-                    compact
-                    participants={participants.map((participant) => ({
-                        memberId: participant.memberId,
-                        label: participant.memberId === myMemberId ? 'You' : participant.teamName,
-                        statusLabel: participant.acceptedAt ? 'Accepted' : 'Waiting',
-                        statusComplete: participant.acceptedAt != null,
-                    }))}
-                    items={trade.routedItems.flatMap((item, index) => tradeFlowItem(item, index) ?? [])}
-                />
-            ) : (
-                <>
-                    <AssetList items={iReceive} label={receiveLabel} />
-                    <AssetList items={iGive} label={giveLabel} />
-                </>
-            )}
-
-            {trade.notes ? <Text style={styles.cardNotes}>{trade.notes}</Text> : null}
-
+            <TradeActionButtons
+                trade={trade}
+                model={model}
+                actions={{ acting, onAccept, onReject, onVeto, onWithdraw }}
+                withTestIds
+            />
         </MotionView>
     )
 }
@@ -342,77 +374,72 @@ export function TradeCard({
 const styles = StyleSheet.create({
     card: {
         borderWidth: 1,
-        borderColor: uiColors.borderNeutral,
+        borderColor: colors.borderLight,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
-        padding: 14,
-        backgroundColor: uiColors.surfaceAlt,
-        gap: spacing.xs,
-        marginHorizontal: spacing.xl,
-        marginTop: spacing.md,
-        marginBottom: spacing.md,
+        padding: spacing.lg,
+        backgroundColor: colors.bgCard,
+        gap: spacing.md,
     },
+    cardSelected: { borderColor: colors.primary, borderWidth: 1.5 },
     cardHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: spacing.sm,
+        gap: spacing.md,
     },
-    cardOpponent: { fontSize: 15, fontWeight: fontWeight.bold, color: colors.textPrimary, flex: 1, minWidth: 0 },
+    cardOpponent: { ...textStyles.rowTitle, fontSize: fontSize.lg, lineHeight: 22, flex: 1, minWidth: 0 },
     cardHeaderControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
     analyzeBtn: {
         minHeight: 44,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
     analyzeBtnDisabled: { opacity: 0.5 },
     analyzeBtnText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    statusBadge: {
+    statusChip: {
         paddingHorizontal: spacing.md,
-        paddingVertical: 3,
-        borderRadius: radii.sm,
+        paddingVertical: spacing.xxs,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
     },
     statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-
-    assetBlock: { marginBottom: spacing.xs },
-    assetLabel: { fontSize: 12, fontWeight: fontWeight.semibold, color: colors.textPrimary, marginBottom: spacing.xxs },
-    assetEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder },
-    assetPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
-    assetPlayerCopy: { flex: 1, minWidth: 0 },
-    assetPlayer: { fontSize: fontSize.sm, color: colors.textSecondary },
-    assetPlayerMeta: { fontSize: fontSize.xs, color: colors.textMuted },
-    assetPlayerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 1 },
-    assetPlayerContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.bold, marginTop: 1 },
-    assetPick: { fontSize: fontSize.sm, color: colors.textSecondary, fontStyle: 'italic' },
-    assetPickVia: { fontSize: 12, color: colors.textMuted },
-    vetoWindowText: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-    cardNotes: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
-
-    cardActions: {
-        flexDirection: 'row',
-        gap: 10,
-        marginTop: 10,
-        // On wide cards keep the button group at a tappable-but-sane width
-        // instead of stretching each button across the whole card.
-        maxWidth: 480,
+    summary: { gap: spacing.md },
+    meta: { ...textStyles.meta },
+    sides: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
+    assetBlock: { flexGrow: 1, flexBasis: 200, minWidth: 0, gap: spacing.xs },
+    assetLabel: { ...textStyles.sectionLabel },
+    assetEmpty: { ...textStyles.meta, color: colors.textPlaceholder },
+    assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 32 },
+    assetCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    assetName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    assetMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
+    assetMeta: { fontSize: fontSize.xs, color: colors.textMuted },
+    assetContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    assetIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: radii.full,
+        backgroundColor: colors.bgMuted,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
+    assetIconText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, color: colors.textSecondary },
+    notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     actionBtn: {
-        flex: 1,
         minHeight: 44,
-        paddingVertical: 9,
+        minWidth: 96,
+        paddingHorizontal: spacing.xl,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    actionBtnAccept: { backgroundColor: colors.primary },
-    actionBtnReject: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: uiColors.borderNeutral },
-    actionBtnAcceptText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-    actionBtnRejectText: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
+    actionBtnPrimary: { backgroundColor: colors.primary },
+    actionBtnSecondary: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border },
+    actionTextPrimary: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    actionTextSecondary: { color: colors.textSecondary, fontWeight: fontWeight.semibold, fontSize: fontSize.md },
 })
