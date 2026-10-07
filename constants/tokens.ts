@@ -461,6 +461,8 @@ export const layout = {
     lineupMaxWidth: 680,
     // Side column on two-pane screens (other matchups, scoreboard, details).
     railWidth: 320,
+    // Web app shell sidebar shown at breakpoints.compact and wider.
+    sidebarWidth: 264,
     pagePadX: { compact: spacing.lg, regular: spacing['3xl'] },
 } as const
 
@@ -487,7 +489,6 @@ export const breakpoints = {
     statTable: 920, // players: stacked stats ↔ full stat columns
     desktop: 1000, // draft room: single column ↔ two-column auction floor
     wide: 1200,    // extra breathing room
-    twoPane: 1360, // main column + side rail instead of one stretched column
 } as const
 
 // ── Web theme CSS variables ─────────────────────────────────────

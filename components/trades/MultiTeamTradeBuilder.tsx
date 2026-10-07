@@ -4,7 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindow
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors, type WebOnlyViewStyle } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, type WebOnlyViewStyle, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -61,7 +61,7 @@ export function MultiTeamTradeBuilder({
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
     const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
-    const shellContentWidth = width >= breakpoints.compact ? width - 264 : width
+    const shellContentWidth = width >= breakpoints.compact ? width - layout.sidebarWidth : width
     const useColumns = Math.min(contentWidth, shellContentWidth) >= 880
     const [activeParticipantId, setActiveParticipantId] = useState(participants[0]?.memberId ?? '')
     const [overviewExpanded, setOverviewExpanded] = useState(false)

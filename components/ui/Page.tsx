@@ -15,10 +15,13 @@ const MAX_WIDTH: Record<PageWidth, number | undefined> = {
 export function usePageMetrics() {
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
+    const padX = compact ? layout.pagePadX.compact : layout.pagePadX.regular
+    const shellInset = Platform.OS === 'web' && !compact ? layout.sidebarWidth : 0
     return {
         compact,
-        padX: compact ? layout.pagePadX.compact : layout.pagePadX.regular,
-        twoPane: width >= breakpoints.twoPane,
+        padX,
+        /** Width left for page content after the web sidebar and page padding. */
+        usableWidth: width - shellInset - 2 * padX,
     }
 }
 

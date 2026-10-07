@@ -1,20 +1,35 @@
-import { memo, useState, type ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, fontSize, fontWeight, INJURY_COLORS, spacing, uiColors } from '@/constants/tokens'
+import { alpha, colors, fontSize, fontWeight, INJURY_COLORS, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
+import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 
 type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
+const FPTS_W = 64
+const STAT_COL_W = 34
+const STAT_COL_WIDE_W = 46
+const NAME_MIN_W = 140
 const STABLE_PLACEHOLDER = '—'
+
+function statColumnsWidth(columns: StatColumn[]): number {
+    return columns.reduce((total, column) => total + (column.wide ? STAT_COL_WIDE_W : STAT_COL_W), 0)
+}
+
+/** Narrowest lineup that fits box-score columns on both sides of every row. */
+export function statLineupWidth(columns: StatColumn[]): number {
+    const side = FPTS_W + spacing.sm + statColumnsWidth(columns) + NAME_MIN_W + spacing.sm
+    return 2 * side + SLOT_W + 2 * spacing.md
+}
 
 function emptySlotLabel(slotType: string): string {
     if (slotType === 'BE') return 'Empty bench slot'
@@ -79,10 +94,11 @@ function detailLine(
     stats: LiveStatLine | undefined,
     compact: boolean,
     compactWithBadge: boolean,
+    includeStats: boolean,
 ): string {
     const game = matchupLine(team, matchup, compact, compactWithBadge)
     if (stats?.didNotPlay) return compact ? 'DNP' : `${game} · DNP`
-    const parts = stats ? statParts(stats) : []
+    const parts = stats && includeStats ? statParts(stats) : []
     if (parts.length === 0) return game
     return compact ? parts.slice(0, 2).join(' ') : `${game} · ${parts.join(', ')}`
 }
@@ -110,12 +126,14 @@ function LiveTag() {
 function FantasyScore({
     value,
     isLive,
+    leading,
     side,
     compact = false,
     dense = false,
 }: {
     value: number | null
     isLive: boolean
+    leading: boolean
     side: 'left' | 'right'
     compact?: boolean
     dense?: boolean
@@ -131,6 +149,7 @@ function FantasyScore({
                 side === 'left' && compact && styles.fptsLeftCompact,
                 side === 'right' && compact && styles.fptsRightCompact,
                 value == null && styles.fptsPlaceholder,
+                value != null && leading && styles.fptsLeading,
                 value != null && isLive && styles.fptsLive,
             ]}
             numberOfLines={1}
@@ -143,59 +162,52 @@ function FantasyScore({
     )
 }
 
-function shootingLine(made: number | undefined, attempted: number | undefined): string {
-    return attempted ? `${made ?? 0}/${attempted}` : '—'
+function StatCells({ columns, stats, isLive }: { columns: StatColumn[]; stats?: LiveStatLine; isLive: boolean }) {
+    const played = stats != null && !stats.didNotPlay
+    return (
+        <View style={styles.statCells}>
+            {columns.map((column) => (
+                <Text
+                    key={column.key}
+                    style={[
+                        styles.statCell,
+                        { width: column.wide ? STAT_COL_WIDE_W : STAT_COL_W },
+                        !played && styles.statCellEmpty,
+                        played && isLive && styles.statCellLive,
+                    ]}
+                    numberOfLines={1}
+                >
+                    {played ? column.value(stats) : '–'}
+                </Text>
+            ))}
+        </View>
+    )
 }
 
-function ExpandedStats({ label, player, stats, fpts, isLive }: {
-    label: string
-    player: LineupPlayer | null
-    stats?: LiveStatLine
-    fpts: number | null
-    isLive: boolean
-}) {
-    if (!player) {
-        return (
-            <View style={styles.expandedSide}>
-                <Text style={styles.expandedLabel}>{label}</Text>
-                <Text style={styles.expandedEmpty}>Empty slot</Text>
-            </View>
-        )
-    }
-
-    const items = stats
-        ? [
-              ['FP', fpts ?? '—'],
-              ['MIN', stats.minutesPlayed ?? 0],
-              ['PTS', stats.points ?? 0],
-              ['REB', stats.rebounds ?? 0],
-              ['AST', stats.assists ?? 0],
-              ['STL', stats.steals ?? 0],
-              ['BLK', stats.blocks ?? 0],
-              ['3PM', stats.threeMade ?? 0],
-              ['TO', stats.turnovers ?? 0],
-              ['FG', shootingLine(stats.fgMade, stats.fgAttempted)],
-              ['FT', shootingLine(stats.ftMade, stats.ftAttempted)],
-          ]
-        : ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'FG', 'FT'].map((statLabel) => [statLabel, '—'])
-
+/** Column labels that line up with the stat cells of the rows below. */
+export function MatchupColumnHeader({ columns }: { columns: StatColumn[] }) {
+    const labels = (
+        <View style={styles.statCells}>
+            {columns.map((column) => (
+                <Text key={column.key} style={[styles.columnLabel, { width: column.wide ? STAT_COL_WIDE_W : STAT_COL_W }]}>
+                    {column.label}
+                </Text>
+            ))}
+        </View>
+    )
     return (
-        <View style={styles.expandedSide}>
-            <Text style={styles.expandedLabel}>{label}</Text>
-            <View style={styles.expandedNameRow}>
-                <LineupAvatar player={player} dense />
-                <Text style={styles.expandedName} numberOfLines={1}>{player.displayName}</Text>
-                {isLive ? <LivePulse color={uiColors.successTextLive} size={5} /> : null}
+        <View style={[styles.matchupRow, styles.columnHeader]} aria-hidden>
+            <View style={styles.rowSideLeft}>
+                <Text style={[styles.columnLabel, styles.columnLabelFpts]}>FP</Text>
+                {labels}
+                <View style={styles.playerBlockSpacer} />
             </View>
-            <View style={styles.expandedGrid}>
-                {items.map(([statLabel, value]) => (
-                    <View key={statLabel} style={styles.expandedStat}>
-                        <Text style={styles.expandedStatValue}>{value}</Text>
-                        <Text style={styles.expandedStatLabel}>{statLabel}</Text>
-                    </View>
-                ))}
+            <View style={{ width: SLOT_W }} />
+            <View style={styles.rowSideRight}>
+                <View style={styles.playerBlockSpacer} />
+                {labels}
+                <Text style={[styles.columnLabel, styles.columnLabelFpts, styles.columnLabelRight]}>FP</Text>
             </View>
-            {stats?.didNotPlay ? <Text style={styles.expandedNote}>Did not play</Text> : null}
         </View>
     )
 }
@@ -211,9 +223,11 @@ function PlayerSide({
     isLive,
     stats,
     fpts,
+    leading,
     matchup,
     compact,
     dense,
+    statColumns,
 }: {
     side: 'left' | 'right'
     player: LineupPlayer | null
@@ -223,9 +237,11 @@ function PlayerSide({
     isLive: boolean
     stats?: LiveStatLine
     fpts: number | null
+    leading: boolean
     matchup?: { opponent: string; isHome: boolean }
     compact: boolean
     dense: boolean
+    statColumns: StatColumn[] | null
 }) {
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
@@ -281,7 +297,7 @@ function PlayerSide({
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
-                                {detailLine(player.nbaTeam, matchup, stats, compact, compactBadge)}
+                                {detailLine(player.nbaTeam, matchup, stats, compact, compactBadge, statColumns == null)}
                             </Text>,
                         ])}
                     </View>
@@ -291,14 +307,15 @@ function PlayerSide({
     }
 
     const score = (
-        <FantasyScore key="score" value={player ? fpts : null} isLive={isLive} side={side} compact={compact} dense={dense} />
+        <FantasyScore key="score" value={player ? fpts : null} isLive={isLive} leading={leading} side={side} compact={compact} dense={dense} />
     )
     const body = (
         <View key="body" style={[styles.playerBlock, compact && styles.playerBlockCompact, dense && styles.playerBlockDense, { alignItems: align }]}>
             {block}
         </View>
     )
-    return <>{left ? [score, body] : [body, score]}</>
+    const cells = statColumns ? <StatCells key="cells" columns={statColumns} stats={player ? stats : undefined} isLive={isLive} /> : null
+    return <>{left ? [score, cells, body] : [body, cells, score]}</>
 }
 
 type MatchupRowProps = {
@@ -320,6 +337,8 @@ type MatchupRowProps = {
     dense?: boolean
     motionDelay?: number
     targetState?: LineupMoveTargetState
+    statColumns?: StatColumn[] | null
+    onOpenDetails?: (row: { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }) => void
 }
 
 function MatchupRowImpl({
@@ -341,8 +360,9 @@ function MatchupRowImpl({
     dense = false,
     motionDelay = 0,
     targetState = null,
+    statColumns = null,
+    onOpenDetails,
 }: MatchupRowProps) {
-    const [expanded, setExpanded] = useState(false)
     const isSel = isSelected
     const slotColor = slotType === 'IR'
         ? uiColors.accentDanger
@@ -355,7 +375,9 @@ function MatchupRowImpl({
     const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
-    const toggleExpanded = myPlayer || oppPlayer ? () => setExpanded((value) => !value) : undefined
+    const openDetails = onOpenDetails && (myPlayer || oppPlayer)
+        ? () => onOpenDetails({ myPlayer, oppPlayer, slotType })
+        : undefined
 
     return (
         <MotionView style={styles.matchupRowWrap} preset="fade" delay={motionDelay}>
@@ -368,11 +390,10 @@ function MatchupRowImpl({
             >
             <MotionPressable
                 style={[styles.rowSideLeft, compact && styles.rowSideCompact]}
-                onPress={toggleExpanded}
+                onPress={openDetails}
                 disabled={!myPlayer}
                 accessibilityRole="button"
-                accessibilityLabel={myPlayer ? `Stat details for ${myPlayer.displayName}` : 'Toggle matchup stat details'}
-                accessibilityState={{ expanded }}
+                accessibilityLabel={myPlayer ? `Score breakdown for ${myPlayer.displayName}` : 'Score breakdown'}
                 pressedScale={0.985}
             >
                 <PlayerSide
@@ -384,9 +405,11 @@ function MatchupRowImpl({
                     isLive={myIsLive}
                     stats={myStats}
                     fpts={myFpts}
+                    leading={myFpts != null && (oppFpts == null || myFpts > oppFpts)}
                     matchup={myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined}
                     compact={compact}
                     dense={dense}
+                    statColumns={statColumns}
                 />
             </MotionPressable>
 
@@ -419,11 +442,10 @@ function MatchupRowImpl({
 
             <MotionPressable
                 style={[styles.rowSideRight, compact && styles.rowSideCompact]}
-                onPress={toggleExpanded}
+                onPress={openDetails}
                 disabled={!oppPlayer}
                 accessibilityRole="button"
-                accessibilityLabel={oppPlayer ? `Stat details for ${oppPlayer.displayName}` : 'Toggle matchup stat details'}
-                accessibilityState={{ expanded }}
+                accessibilityLabel={oppPlayer ? `Score breakdown for ${oppPlayer.displayName}` : 'Score breakdown'}
                 pressedScale={0.985}
             >
                 <PlayerSide
@@ -435,19 +457,14 @@ function MatchupRowImpl({
                     isLive={oppIsLive}
                     stats={oppStats}
                     fpts={oppFpts}
+                    leading={oppFpts != null && (myFpts == null || oppFpts > myFpts)}
                     matchup={oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam) : undefined}
                     compact={compact}
                     dense={dense}
+                    statColumns={statColumns}
                 />
             </MotionPressable>
             </View>
-            {expanded ? (
-                <View style={styles.expandedPanel}>
-                    <ExpandedStats label="You" player={myPlayer} stats={myStats} fpts={myFpts} isLive={myIsLive} />
-                    <View style={styles.expandedDivider} />
-                    <ExpandedStats label="Opponent" player={oppPlayer} stats={oppStats} fpts={oppFpts} isLive={oppIsLive} />
-                </View>
-            ) : null}
         </MotionView>
     )
 }
@@ -502,6 +519,7 @@ const styles = StyleSheet.create({
     fptsLeftCompact: { marginRight: spacing.xs },
     fptsRightCompact: { marginLeft: spacing.xs },
     fptsPlaceholder: { color: colors.textPlaceholder },
+    fptsLeading: { color: colors.textPrimary },
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
     emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
@@ -538,72 +556,19 @@ const styles = StyleSheet.create({
     slotChipTarget: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successLight },
     slotChipUnavailable: { opacity: 0.25 },
     slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
-    expandedPanel: {
-        flexDirection: 'row',
-        gap: 10,
-        paddingHorizontal: 8,
-        paddingTop: 2,
-        paddingBottom: 10,
-        backgroundColor: colors.bgSubtle,
-    },
-    expandedSide: {
-        flex: 1,
-        minWidth: 0,
-        gap: 5,
-    },
-    expandedDivider: {
-        width: 1,
-        backgroundColor: colors.borderLight,
-    },
-    expandedLabel: {
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
-    },
-    expandedNameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-    },
-    expandedName: {
-        flex: 1,
-        fontSize: fontSize['2sm'],
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
-    expandedGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 5,
-    },
-    expandedStat: {
-        width: 42,
-        paddingVertical: 5,
-        borderRadius: 7,
-        backgroundColor: colors.bgCard,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    expandedStatValue: {
-        fontSize: fontSize['2sm'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
-    expandedStatLabel: {
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-    },
-    expandedEmpty: {
-        fontSize: fontSize['2sm'],
-        color: colors.textPlaceholder,
-    },
-    expandedNote: {
-        fontSize: fontSize.xs,
+    statCells: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
+    statCell: {
+        fontSize: fontSize.sm,
         fontWeight: fontWeight.semibold,
-        color: colors.textMuted,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        fontVariant: ['tabular-nums'] as const,
     },
+    statCellEmpty: { color: colors.textDisabled, fontWeight: fontWeight.regular },
+    statCellLive: { color: colors.primaryDark },
+    columnHeader: { paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.separator },
+    columnLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], textAlign: 'center' },
+    columnLabelFpts: { width: FPTS_W, marginRight: spacing.sm, textAlign: 'left' },
+    columnLabelRight: { marginRight: 0, marginLeft: spacing.sm, textAlign: 'right' },
+    playerBlockSpacer: { flex: 1, minWidth: NAME_MIN_W },
 })

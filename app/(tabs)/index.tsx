@@ -10,7 +10,7 @@ import {
     type ViewStyle,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ReactNode, useCallback, useEffect, useMemo } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -24,7 +24,9 @@ import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { AutoSetModal } from '@/components/AutoSetModal'
-import { MatchupRow } from '@/components/MatchupRow'
+import { MatchupColumnHeader, MatchupRow, statLineupWidth } from '@/components/MatchupRow'
+import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
+import { lineupStatColumns, type StatColumn } from '@/lib/score-breakdown'
 import { LeagueSwitcher } from '@/components/LeagueSwitcher'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
@@ -41,6 +43,7 @@ function shouldShowScoreboard(selectedDate: string, today: string): boolean {
 }
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
 
 // Mirrors the loaded lineup chrome exactly (header, AUTO control, day
@@ -77,7 +80,7 @@ export default function HomeScreen() {
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
     const { width, height } = useWindowDimensions()
-    const { padX, twoPane } = usePageMetrics()
+    const { padX, usableWidth } = usePageMetrics()
     // Short screens tighten vertical spacing; only narrow screens shorten names.
     const narrow = width < breakpoints.phone
     const compact = narrow || height < 840
@@ -181,6 +184,15 @@ export default function HomeScreen() {
         [league?.scoring_settings],
     )
 
+    // Wide screens show a box score per row; the side column only joins when
+    // the lineup still fits next to it.
+    const statColumns = useMemo(() => lineupStatColumns(scoringSettings), [scoringSettings])
+    const showStatColumns = !narrow && usableWidth >= statLineupWidth(statColumns)
+    const lineupWidth = showStatColumns ? statLineupWidth(statColumns) : layout.lineupMaxWidth
+    const twoPane = !narrow && usableWidth >= lineupWidth + spacing['3xl'] + layout.railWidth
+
+    const [detailsRow, setDetailsRow] = useState<DetailsRow | null>(null)
+
     const today = todayET()
 
     // Stay blank while auth/league context loads — flashing the NoLeagueState
@@ -224,7 +236,7 @@ export default function HomeScreen() {
 
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
-                    <View style={[styles.mainColumn, twoPane && styles.mainColumnTwoPane]}>
+                    <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>
                     <ScoreCard matchup={matchup} compact={compact} />
 
                     {myLineup && oppLineup ? (
@@ -240,6 +252,8 @@ export default function HomeScreen() {
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
+                            statColumns={showStatColumns ? statColumns : null}
+                            onOpenDetails={setDetailsRow}
                             compact={narrow}
                             dense={dense}
                             daySelector={weekDays.length > 0 ? (
@@ -356,6 +370,15 @@ export default function HomeScreen() {
                 onCancel={() => setActivationOverflowPending(null)}
             />
 
+            <ScoreBreakdownSheet
+                visible={detailsRow != null}
+                onClose={() => setDetailsRow(null)}
+                slotType={detailsRow?.slotType ?? ''}
+                mine={{ player: detailsRow?.myPlayer ?? null, stats: detailsRow?.myPlayer ? liveStats.get(detailsRow.myPlayer.playerId) : undefined }}
+                theirs={{ player: detailsRow?.oppPlayer ?? null, stats: detailsRow?.oppPlayer ? liveStats.get(detailsRow.oppPlayer.playerId) : undefined }}
+                settings={scoringSettings}
+            />
+
             <AutoSetModal
                 visible={autoSetModalVisible}
                 onClose={() => setAutoSetModalVisible(false)}
@@ -455,6 +478,8 @@ function MatchupLineupView({
     liveTeams,
     scoringSettings,
     teamMatchups,
+    statColumns,
+    onOpenDetails,
     compact,
     dense,
     daySelector,
@@ -473,6 +498,8 @@ function MatchupLineupView({
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    statColumns: StatColumn[] | null
+    onOpenDetails: (row: DetailsRow) => void
     compact: boolean
     dense: boolean
     daySelector?: ReactNode
@@ -576,6 +603,7 @@ function MatchupLineupView({
                                 <Text style={styles.lineupSectionCount}>{section.count}</Text>
                             )}
                         </View>
+                        {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
                         {section.rows.map((row, i) => (
                             <MatchupRow
                                 key={row.key}
@@ -597,6 +625,8 @@ function MatchupLineupView({
                                 dense={dense}
                                 motionDelay={i * 18}
                                 targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
+                                statColumns={statColumns}
+                                onOpenDetails={onOpenDetails}
                             />
                         ))}
                     </View>
@@ -619,7 +649,6 @@ const styles = StyleSheet.create({
         flex: 1,
         minHeight: 0,
         width: '100%',
-        maxWidth: layout.lineupMaxWidth,
         alignSelf: 'center',
     },
     mainColumnTwoPane: { alignSelf: 'stretch' },

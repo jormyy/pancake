@@ -1,7 +1,6 @@
 import { StyleSheet } from 'react-native'
-import { brand, colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
+import { brand, colors, fontFamily, fontSize, fontWeight, layout, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
 
-const SIDEBAR_WIDTH = 264
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
 
@@ -24,7 +23,7 @@ export const styles = StyleSheet.create({
     },
 
     sidebar: {
-        width: SIDEBAR_WIDTH,
+        width: layout.sidebarWidth,
         flexShrink: 0,
         // Pin to the viewport height so the nav ScrollView scrolls on short
         // screens (landscape phones) instead of clipping the lower items when

@@ -2,6 +2,7 @@ import {
     brand,
     breakpoints,
     fontSize,
+    layout,
     palette,
     radii,
     spacing,
@@ -34,7 +35,7 @@ export const BOOT_SHELL_READY_ATTR = 'data-pancake-shell'
 export const BOOT_SHELL_MARK = 'pancake-boot-shell'
 export const APP_MOUNTED_MARK = 'pancake-app-mounted'
 
-const SIDEBAR_WIDTH = 264
+const SIDEBAR_WIDTH = layout.sidebarWidth
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
 const SANS = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
