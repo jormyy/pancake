@@ -1,5 +1,6 @@
 import { fetchUserLeagues } from '@/lib/league'
 import { useAuth } from '@/hooks/use-auth'
+import { useOnlineStatus } from '@/hooks/use-online-status'
 import type { LeagueMembership } from '@/types/app'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
@@ -18,6 +19,8 @@ type LeagueResource = {
 export function useLeagues() {
     const { user } = useAuth()
     const userId = user?.id ?? null
+    const online = useOnlineStatus()
+    const wasOnlineRef = useRef(online)
     const cachedMemberships = useMemo(
         () => userId ? readPersistentCache<LeagueMembership[]>(cacheKeyForUser(userId)) ?? [] : [],
         [userId],
@@ -84,6 +87,12 @@ export function useLeagues() {
     }, [load])
 
     const refresh = useCallback(() => load({ force: true }), [load])
+
+    useEffect(() => {
+        const wasOnline = wasOnlineRef.current
+        wasOnlineRef.current = online
+        if (!wasOnline && online && userId) void refresh()
+    }, [online, refresh, userId])
 
     const leagueRealtimeKey = useMemo(
         () => memberships.map((membership) => membership.leagues.id).sort().join(':'),
