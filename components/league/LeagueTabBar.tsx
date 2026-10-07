@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { useWebViewport } from '@/hooks/use-web-viewport'
+import { colors, fontSize, fontWeight, motion, spacing } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
 import { LEAGUE_TABS, type LeagueTab } from '@/lib/league/tabs'
@@ -9,8 +8,9 @@ import { LEAGUE_TABS, type LeagueTab } from '@/lib/league/tabs'
 type LeagueTabBarProps = {
     activeTab: LeagueTab
     onTabChange: (tab: LeagueTab) => void
-    compact?: boolean
 }
+
+type PressableState = { hovered?: boolean; pressed?: boolean }
 
 const TAB_LABELS = Object.fromEntries(
     LEAGUE_TABS.map((tab) => [tab.key, tab.label]),
@@ -39,10 +39,11 @@ function focusLeagueTab(tab: LeagueTab, shouldFocus: () => boolean): (() => void
     return scheduleWebFocusRecovery(focus)
 }
 
+/**
+ * League section tabs. Same look as the shared underline tabs, plus it keeps
+ * the active tab scrolled into view when a deep link opens a far-right tab.
+ */
 export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
-    const { viewportWidth, viewportHeight, compactLandscape } = useWebViewport()
-    const compactShortPortrait = viewportWidth < 380 && viewportHeight < 760
-    const compactTabs = compactLandscape || compactShortPortrait
     const scrollRef = useRef<ScrollView>(null)
     const tabLayouts = useRef<Partial<Record<LeagueTab, { x: number; width: number }>>>({})
     const scrollViewportWidth = useRef(0)
@@ -59,7 +60,7 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
 
     useEffect(() => () => cancelFocusRecovery.current?.(), [])
 
-    // Keep the active pill in view. Without this the ScrollView's offset is
+    // Keep the active tab in view. Without this the ScrollView's offset is
     // uncontrolled, so any re-layout (param round-trip, viewport sync) snaps
     // the bar back to the start even when a far-right tab is selected.
     const scrollActiveTabIntoView = useCallback((tab: LeagueTab) => {
@@ -115,7 +116,7 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
             onScroll={(e) => { scrollOffsetX.current = e.nativeEvent.contentOffset.x }}
             scrollEventThrottle={16}
             style={styles.tabScroll}
-            contentContainerStyle={[styles.tabRow, compactTabs && styles.tabRowCompact]}
+            contentContainerStyle={styles.tabRow}
             role="tablist"
             aria-label={tabBarAccessibilityLabel}
             aria-orientation="horizontal"
@@ -140,7 +141,12 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
                             }
                             if (active) scrollActiveTabIntoView(tab.key)
                         }}
-                        style={[styles.tabChip, compactTabs && styles.tabChipCompact, active && styles.tabChipActive]}
+                        style={({ hovered, pressed }: PressableState) => [
+                            styles.tab,
+                            active && styles.tabActive,
+                            hovered && !active && styles.tabHover,
+                            pressed && styles.pressed,
+                        ]}
                         onPress={() => selectTab(tab.key)}
                         role="tab"
                         aria-label={tab.label}
@@ -152,10 +158,7 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
                         accessibilityLabel={tab.label}
                         {...webKeyProps}
                     >
-                        <Text
-                            style={[styles.tabChipText, compactTabs && styles.tabChipTextCompact, active && styles.tabChipTextActive]}
-                            numberOfLines={1}
-                        >
+                        <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>
                             {tab.label}
                         </Text>
                     </Pressable>
@@ -165,38 +168,21 @@ export function LeagueTabBar({ activeTab, onTabChange }: LeagueTabBarProps) {
     )
 }
 
+// Matches SegmentedControl's `tabs` variant so every page's section tabs look alike.
 const styles = StyleSheet.create({
-    tabScroll: {
-        flexGrow: 0,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    tabRow: {
-        flexDirection: 'row',
-        gap: spacing.sm,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-    },
-    tabRowCompact: {
-        gap: spacing.xs,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-    },
-    tabChip: {
+    tabScroll: { flexGrow: 0 },
+    tabRow: { flexDirection: 'row', gap: spacing.xs },
+    tab: {
         minHeight: 44,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
+        paddingHorizontal: spacing.lg,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    tabChipCompact: {
-        paddingHorizontal: spacing.md,
-    },
-    tabChipActive: { backgroundColor: colors.primary },
-    tabChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    tabChipTextCompact: { fontSize: fontSize.xs },
-    tabChipTextActive: { color: colors.textWhite },
+    tabActive: { borderBottomColor: colors.primary },
+    tabHover: { borderBottomColor: colors.borderLight },
+    pressed: { opacity: motion.pressedOpacity },
+    tabLabel: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    tabLabelActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 })

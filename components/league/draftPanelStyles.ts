@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 
 // Buttons, cards, and scroll containers shared across the league draft panels.
 export const panelStyles = StyleSheet.create({
@@ -11,7 +11,7 @@ export const panelStyles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    draftButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     secondaryDraftButton: {
         backgroundColor: colors.bgSubtle,
         borderRadius: radii.lg,
@@ -22,16 +22,17 @@ export const panelStyles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    secondaryDraftButtonText: { color: colors.textSecondary, fontWeight: fontWeight.bold, fontSize: 15 },
+    secondaryDraftButtonText: { color: colors.textSecondary, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    // Left-aligned readable column under the page tabs. Panels add the page's
+    // side padding from usePageMetrics().
     panelScroll: {
-        padding: spacing.xl,
-        gap: spacing.lg,
-        width: '100%',
-        maxWidth: 760,
-        alignSelf: 'center',
+        paddingTop: spacing.lg,
         paddingBottom: spacing['3xl'],
+        gap: spacing.xl,
+        width: '100%',
+        maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
     },
-    panelScrollCompactLandscape: { paddingBottom: 96 },
+    panelScrollCompactLandscape: { paddingBottom: spacing['6xl'] },
     panelCard: {
         backgroundColor: colors.bgCard,
         borderWidth: 1,
@@ -47,15 +48,11 @@ export const panelStyles = StyleSheet.create({
     },
     panelTitle: {
         fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
+        fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
     nominationModeLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        textTransform: 'uppercase',
-        letterSpacing: 0,
+        ...textStyles.sectionLabel,
         marginBottom: spacing.xs,
     },
 })

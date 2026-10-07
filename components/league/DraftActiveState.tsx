@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import type { Draft } from '@/lib/draft'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 import type { LeagueStatus } from '@/types/database'
 
@@ -101,7 +101,7 @@ export function ActiveDraftEntry({
             {showSyncPicks ? (
                 <View style={styles.syncWrap}>
                     {syncButton}
-                    <Text style={styles.syncHint}>Commissioner only - pull in picks acquired via trade so the draft board is current.</Text>
+                    <Text style={styles.syncHint}>Adds picks traded since the last sync.</Text>
                 </View>
             ) : null}
         </View>
@@ -145,27 +145,27 @@ export function DraftPrepNotice({
     const body = (() => {
         if (status === 'drafting') {
             return kind === 'auction'
-                ? 'The league is drafting now. If the room is missing, refresh the active draft card above.'
-                : 'A draft is in progress. Pick ownership below remains available while rosters update.'
+                ? 'Drafting now. Join from the live draft card.'
+                : 'Draft in progress. Pick ownership is below.'
         }
         if (status === 'active' || status === 'playoffs') {
             return kind === 'auction'
-                ? "The startup auction finished before the season. Draft results live on each team's roster."
-                : 'Future rookie picks remain visible during the live season for trades and long-term planning.'
+                ? "Results are on each team's roster."
+                : 'Future picks stay tradable all season.'
         }
         if (status === 'offseason') {
             return kind === 'auction'
-                ? 'The league is past the startup auction.'
-                : 'Pick ownership below is the source of truth before the rookie draft clock starts.'
+                ? 'The startup auction is done.'
+                : 'Pick ownership below sets the draft order.'
         }
         if (status === 'archived') {
             return kind === 'auction'
-                ? 'This league is archived, so the startup auction is preserved as league history.'
-                : 'Future pick ownership is preserved with league history, including traded picks.'
+                ? 'Kept as league history.'
+                : 'Pick ownership is kept as league history.'
         }
         return kind === 'auction'
-            ? 'Commissioners can start the auction from setup; managers can still review league state before the clock starts.'
-            : 'Future pick ownership is visible before the draft room opens, including traded picks.'
+            ? 'The commissioner starts the auction.'
+            : 'Pick ownership, including traded picks.'
     })()
     const accessibilityLabel = `${title}. ${body}`
     const showDraftBoardAction = auctionFinished && !compact && Boolean(onOpenDraftBoard)
@@ -253,11 +253,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.xs,
         gap: spacing.sm,
     },
-    prepNoticeTitle: {
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
+    prepNoticeTitle: { ...textStyles.rowTitle },
     prepNoticeTitleCompact: {
         flexShrink: 0,
         fontSize: fontSize.sm,
@@ -280,5 +276,5 @@ const styles = StyleSheet.create({
         marginTop: spacing.sm,
     },
     syncWrap: { gap: spacing.xs, marginTop: spacing.md },
-    syncHint: { fontSize: fontSize.xs, color: colors.textMuted, paddingHorizontal: spacing.xs, lineHeight: 15 },
+    syncHint: { ...textStyles.meta, paddingHorizontal: spacing.xs },
 })

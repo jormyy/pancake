@@ -1,40 +1,33 @@
 import { StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 
 export const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
-    scroll: { padding: spacing['2xl'], gap: spacing.md, paddingBottom: 96, width: '100%', maxWidth: 760, alignSelf: 'center' },
-    scrollCompact: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
-
-    screenHeader: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgCard,
+    // Screens add the page's side padding from usePageMetrics().
+    scroll: {
+        paddingTop: spacing.xl,
+        paddingBottom: spacing['6xl'],
+        gap: spacing.sm,
+        width: '100%',
+        maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
+        alignSelf: 'center',
     },
-    headerBack: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
+    scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
+
+    headerSave: {
+        minHeight: 36,
+        paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
+        backgroundColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    screenTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-    },
+    headerSaveDisabled: { opacity: 0.5 },
+    headerSaveText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     lifecycleCard: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.md,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
@@ -50,17 +43,14 @@ export const styles = StyleSheet.create({
     },
     lifecycleTitle: {
         fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
+        fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
-    lifecycleDetail: {
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textSecondary,
-    },
+    lifecycleDetail: { ...textStyles.meta },
     lifecycleActions: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        alignItems: 'flex-start',
         gap: spacing.md,
     },
     lifecycleActionsCompact: {
@@ -68,42 +58,37 @@ export const styles = StyleSheet.create({
     },
 
     sectionTitle: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
+        ...textStyles.sectionLabel,
         marginTop: spacing.lg,
-        marginBottom: spacing.xs,
         marginLeft: spacing.xs,
     },
 
     card: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.md,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
         overflow: 'hidden',
     },
-    row: { minHeight: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
+    row: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs },
     rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.sm },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.separator },
-    rowLabel: { flex: 1, fontSize: 15, color: colors.textPrimary },
+    rowLabel: { flex: 1, fontSize: fontSize.md, color: colors.textPrimary },
     settingHint: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
+        ...textStyles.meta,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textMuted,
     },
 
+    // 16px keeps iOS Safari from zooming the page when a field is focused.
     scoreInput: {
         width: 72,
-        minHeight: 44,
+        minHeight: 40,
         textAlign: 'right',
-        fontSize: 15,
+        fontSize: fontSize.lg,
         fontWeight: fontWeight.semibold,
         color: colors.primaryDark,
         padding: 0,
@@ -165,7 +150,7 @@ export const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,
-        fontSize: fontSize.md,
+        fontSize: fontSize.lg,
         color: colors.textPrimary,
     },
     overrideButton: {
@@ -190,7 +175,7 @@ export const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    stepBtnText: { fontSize: 20, color: colors.textPrimary, lineHeight: 24 },
+    stepBtnText: { fontSize: fontSize.xl, color: colors.textPrimary, lineHeight: 24 },
     stepValue: {
         fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
@@ -199,25 +184,13 @@ export const styles = StyleSheet.create({
         textAlign: 'center',
     },
 
-    saveButton: {
-        marginTop: spacing.xl,
-        backgroundColor: colors.primary,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        height: 52,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    saveButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
-
     actionButton: {
-        backgroundColor: colors.bgScreen,
+        backgroundColor: colors.bgCard,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: colors.primary,
         minHeight: 44,
-        height: 52,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: spacing.lg,
@@ -226,12 +199,7 @@ export const styles = StyleSheet.create({
         flexGrow: 1,
         flexBasis: 184,
     },
-    actionButtonText: { color: colors.primaryDark, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    actionButtonText: { color: colors.primaryDark, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     actionWrap: { gap: spacing.xs },
-    actionDescription: {
-        fontSize: fontSize.xs,
-        lineHeight: 16,
-        color: colors.textMuted,
-        paddingHorizontal: spacing.xs,
-    },
+    actionDescription: { ...textStyles.meta, paddingHorizontal: spacing.xs },
 })

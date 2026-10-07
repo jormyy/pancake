@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgCard,
         paddingHorizontal: spacing.sm,
-        paddingVertical: 4,
+        paddingVertical: spacing.xs,
         justifyContent: 'center',
     },
     customTimerFieldActive: {
@@ -317,16 +317,16 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primaryLight,
     },
     customTimerLabel: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: colors.textMuted,
-        letterSpacing: 0,
     },
     customTimerLabelActive: { color: colors.primaryDark },
     customTimerInput: {
         minHeight: 22,
         padding: 0,
-        fontSize: fontSize.sm,
+        // 16px keeps iOS Safari from zooming the page when the field is focused.
+        fontSize: fontSize.lg,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },

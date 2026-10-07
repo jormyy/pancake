@@ -2,29 +2,30 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
-import { colors, fontSize, fontWeight, spacing, srOnly, TX_COLORS } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
 import { playerHeadshotUrl, timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
-import { useWebViewport } from '@/hooks/use-web-viewport'
+import { usePageMetrics } from '@/components/ui'
 
-function ActivityRow({ item, isMe, compact }: { item: TransactionRow; isMe: boolean; compact?: boolean }) {
+/** One league transaction. `compact` drops position tags for narrow side columns. */
+export function ActivityRow({ item, isMe, compact = false, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; compact?: boolean; padX?: number }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
-    const avatarSize = compact ? 32 : 40
+    const avatarSize = 32
     if (item.isSystem) {
         return (
-            <View style={[styles.txRow, compact && styles.txRowCompact, isMe && styles.txRowMe]}>
+            <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
                 <Avatar
                     name={item.title ?? item.playerName}
                     color={color}
                     size={avatarSize}
                 />
                 <View style={styles.txInfo}>
-                    <Text style={[styles.txPlayer, compact && styles.txPlayerCompact]} numberOfLines={1}>{item.title ?? item.playerName}</Text>
+                    <Text style={styles.txPlayer} numberOfLines={1}>{item.title ?? item.playerName}</Text>
                     <Text style={styles.txTeam} numberOfLines={compact ? 1 : 2}>
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
@@ -39,7 +40,7 @@ function ActivityRow({ item, isMe, compact }: { item: TransactionRow; isMe: bool
     }
 
     return (
-        <View style={[styles.txRow, compact && styles.txRowCompact, isMe && styles.txRowMe]}>
+        <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
             <Avatar
                 name={item.playerName}
                 color={colors.bgMuted}
@@ -48,8 +49,8 @@ function ActivityRow({ item, isMe, compact }: { item: TransactionRow; isMe: bool
             />
             <View style={styles.txInfo}>
                 <View style={styles.txNameRow}>
-                    <Text style={[styles.txPlayer, compact && styles.txPlayerCompact]} numberOfLines={1}>{item.playerName}</Text>
-                    {item.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    <Text style={styles.txPlayer} numberOfLines={1}>{item.playerName}</Text>
+                    {compact ? null : item.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                 </View>
                 <Text style={styles.txTeam} numberOfLines={1}>
                     {item.teamName}
@@ -81,11 +82,11 @@ export function ActivityFeed({
     loadingMore?: boolean
     loadMoreError?: string | null
 }) {
-    const { compactLandscape } = useWebViewport()
+    const { padX } = usePageMetrics()
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
-        <ActivityRow item={item} isMe={item.memberId === myMemberId} compact={compactLandscape} />
-    ), [compactLandscape, myMemberId])
+        <ActivityRow item={item} isMe={item.memberId === myMemberId} padX={padX} />
+    ), [myMemberId, padX])
     const footerRetryMessage = 'League activity could not load more. Select to retry.'
 
     const ListFooter = loadMoreError ? (
@@ -99,7 +100,7 @@ export function ActivityFeed({
             accessibilityLiveRegion="polite"
             style={styles.activityFooterAction}
         >
-            <Text style={{ fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.semibold }}>
+            <Text style={[styles.footerText, styles.footerTextDanger]}>
                 {footerRetryMessage}
             </Text>
         </Pressable>
@@ -115,7 +116,7 @@ export function ActivityFeed({
             accessibilityState={{ disabled: loadingMore }}
             style={styles.activityFooterAction}
         >
-            <Text style={{ fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold }}>
+            <Text style={styles.footerText}>
                 {loadingMore ? 'Loading...' : 'Load More'}
             </Text>
         </Pressable>
@@ -146,56 +147,55 @@ export function ActivityFeed({
     )
 
     // Visually hidden section heading so the feed lands in the page outline
-    // (League name is the screen's h1).
+    // under the League h1.
     const ActivityHeading = (
         <Text style={styles.activityHiddenHeading} role="heading" aria-level={2} accessibilityRole="header">
             Activity
         </Text>
     )
 
+    // A readable column on wide screens instead of rows stretched edge to edge.
     return (
-        <FlashList
-            key={compactLandscape ? 'compact-activity' : 'activity'}
-            data={transactions}
-            keyExtractor={(t) => t.id}
-            ItemSeparatorComponent={ItemSeparator}
-            renderItem={renderItem}
-            ListHeaderComponent={ActivityHeading}
-            ListFooterComponent={ListFooter}
-            ListEmptyComponent={ListEmpty}
-            extraData={compactLandscape}
-        />
+        <View style={styles.column}>
+            <FlashList
+                data={transactions}
+                keyExtractor={(t) => t.id}
+                ItemSeparatorComponent={ItemSeparator}
+                renderItem={renderItem}
+                ListHeaderComponent={ActivityHeading}
+                ListFooterComponent={ListFooter}
+                ListEmptyComponent={ListEmpty}
+                extraData={padX}
+            />
+        </View>
     )
 }
 
 const styles = StyleSheet.create({
+    column: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular },
     txRow: {
+        minHeight: table.rowHeight,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-    },
-    txRowCompact: {
-        minHeight: 52,
-        paddingVertical: spacing.xs,
+        paddingVertical: spacing.sm,
         gap: spacing.md,
     },
     txRowMe: { backgroundColor: colors.primaryLight },
-    txInfo: { flex: 1, gap: spacing.xxs },
-    txNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-    txPlayer: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    txPlayerCompact: { fontSize: fontSize.sm },
-    txTeam: { fontSize: 12, color: colors.textMuted },
-    txRight: { alignItems: 'flex-end', gap: spacing.xs },
-    txTime: { fontSize: fontSize.xs, color: colors.textPlaceholder },
-    meTag: { color: colors.textPlaceholder, fontWeight: fontWeight.regular, fontSize: fontSize.sm },
+    txInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    txNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
+    txPlayer: { ...textStyles.rowTitle, flexShrink: 1 },
+    txTeam: { ...textStyles.meta },
+    txRight: { alignItems: 'flex-end', gap: spacing.xxs },
+    txTime: { fontSize: fontSize.xs, color: colors.textMuted },
+    meTag: { color: colors.textMuted, fontWeight: fontWeight.regular },
     activityFooterAction: {
         minHeight: 44,
         padding: spacing['2xl'],
         alignItems: 'center',
         justifyContent: 'center',
     },
+    footerText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    footerTextDanger: { color: colors.dangerDark },
     activityHiddenHeading: {
         ...srOnly,
     },
