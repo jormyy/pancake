@@ -1,66 +1,122 @@
 import { useState } from 'react'
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { colors, fontSize, fontWeight, radii, shadows, spacing, tints } from '@/constants/tokens'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { Sheet } from './Sheet'
 
 export type FilterOption<T extends string> = { key: T; label: string }
 
-/** Labeled dropdown filter — opens a centered option sheet. */
+type Variant = 'field' | 'chip'
+
+type PressableState = { hovered?: boolean; pressed?: boolean }
+
+/**
+ * The control that opens a filter. `field` is a labeled select for stacked
+ * forms; `chip` is a compact pill for toolbars. A chip names the filter while
+ * it is at its first ("All") option and names the choice once one is set.
+ */
+function FilterTrigger({
+    variant,
+    label,
+    summary,
+    active,
+    onPress,
+}: {
+    variant: Variant
+    label: string
+    summary: string
+    active: boolean
+    onPress: () => void
+}) {
+    if (variant === 'chip') {
+        return (
+            <Pressable
+                style={({ hovered, pressed }: PressableState) => [
+                    styles.chip,
+                    active && styles.chipActive,
+                    hovered && !active && styles.chipHover,
+                    pressed && styles.pressed,
+                ]}
+                onPress={onPress}
+                accessibilityRole="button"
+                accessibilityLabel={`${label}: ${summary}`}
+            >
+                <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                    {active ? summary : label}
+                </Text>
+                <Text style={[styles.caret, active && styles.chipTextActive]}>▾</Text>
+            </Pressable>
+        )
+    }
+    return (
+        <View style={styles.fieldWrap}>
+            <Text style={textStyles.sectionLabel}>{label}</Text>
+            <Pressable
+                style={styles.fieldButton}
+                onPress={onPress}
+                accessibilityRole="button"
+                accessibilityLabel={`${label}: ${summary}`}
+            >
+                <Text style={styles.fieldValue} numberOfLines={1}>{summary}</Text>
+                <Text style={styles.caret}>▾</Text>
+            </Pressable>
+        </View>
+    )
+}
+
+/** Single-choice filter. Options open in the shared Sheet. */
 export function FilterSelect<T extends string>({
     label,
     value,
     options,
     onChange,
+    variant = 'field',
 }: {
     label: string
     value: T
     options: readonly FilterOption<T>[]
     onChange: (value: T) => void
+    variant?: Variant
 }) {
     const [open, setOpen] = useState(false)
     const current = options.find((option) => option.key === value) ?? options[0]
 
     return (
-        <View style={styles.filterSelectWrap}>
-            <Text style={styles.filterSelectLabel}>{label}</Text>
-            <Pressable
-                style={styles.filterSelectButton}
+        <>
+            <FilterTrigger
+                variant={variant}
+                label={label}
+                summary={current.label}
+                active={current.key !== options[0].key}
                 onPress={() => setOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`${label}: ${current.label}`}
-            >
-                <Text style={styles.filterSelectValue} numberOfLines={1}>{current.label}</Text>
-                <Text style={styles.filterSelectCaret}>▾</Text>
-            </Pressable>
-            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-                <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-                    <View style={styles.selectSheet} onStartShouldSetResponder={() => true}>
-                        <Text style={styles.selectTitle}>{label}</Text>
-                        <ScrollView>
-                            {options.map((option) => {
-                                const active = option.key === value
-                                return (
-                                    <Pressable
-                                        key={option.key}
-                                        style={[styles.selectOption, active && styles.selectOptionActive]}
-                                        onPress={() => {
-                                            onChange(option.key)
-                                            setOpen(false)
-                                        }}
-                                    >
-                                        <Text style={[styles.selectOptionText, active && styles.selectOptionTextActive]}>
-                                            {option.label}
-                                        </Text>
-                                    </Pressable>
-                                )
-                            })}
-                        </ScrollView>
-                    </View>
-                </Pressable>
-            </Modal>
-        </View>
+            />
+            <Sheet visible={open} title={label} onClose={() => setOpen(false)}>
+                <View style={styles.optionList}>
+                    {options.map((option) => {
+                        const selected = option.key === value
+                        return (
+                            <Pressable
+                                key={option.key}
+                                style={[styles.option, selected && styles.optionSelected]}
+                                onPress={() => {
+                                    onChange(option.key)
+                                    setOpen(false)
+                                }}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected }}
+                            >
+                                <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+                                    {option.label}
+                                </Text>
+                            </Pressable>
+                        )
+                    })}
+                </View>
+            </Sheet>
+        </>
     )
 }
 
+/** Multi-choice filter. Options open in the shared Sheet as toggle chips. */
 export function MultiSelect<T extends string>({
     label,
     options,
@@ -68,6 +124,7 @@ export function MultiSelect<T extends string>({
     onChange,
     pluralLabel = 'selected',
     clearAccessibilityLabel,
+    variant = 'field',
 }: {
     label: string
     options: readonly FilterOption<T>[]
@@ -75,6 +132,7 @@ export function MultiSelect<T extends string>({
     onChange: (values: T[]) => void
     pluralLabel?: string
     clearAccessibilityLabel?: string
+    variant?: Variant
 }) {
     const [open, setOpen] = useState(false)
     const selectedLabels = options.filter((option) => selected.includes(option.key)).map((option) => option.label)
@@ -87,159 +145,118 @@ export function MultiSelect<T extends string>({
         onChange(selected.includes(key) ? selected.filter((value) => value !== key) : [...selected, key])
 
     return (
-        <View style={styles.filterSelectWrap}>
-            <Text style={styles.filterSelectLabel}>{label}</Text>
-            <Pressable
-                style={styles.filterSelectButton}
+        <>
+            <FilterTrigger
+                variant={variant}
+                label={label}
+                summary={summary}
+                active={selected.length > 0}
                 onPress={() => setOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`${label}: ${summary}`}
-            >
-                <Text style={styles.filterSelectValue} numberOfLines={1}>{summary}</Text>
-                <Text style={styles.filterSelectCaret}>▾</Text>
-            </Pressable>
-            <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-                <Pressable style={styles.selectBackdrop} onPress={() => setOpen(false)}>
-                    <View style={styles.selectSheet} onStartShouldSetResponder={() => true}>
-                        <View style={styles.multiHeader}>
-                            <Text style={styles.selectTitle}>{label}</Text>
-                            {selected.length > 0 ? (
-                                <Pressable
-                                    onPress={() => onChange([])}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={clearAccessibilityLabel ?? `Clear ${label}`}
-                                >
-                                    <Text style={styles.multiClear}>Clear</Text>
-                                </Pressable>
-                            ) : null}
-                        </View>
-                        <ScrollView>
-                            <View style={styles.multiGrid}>
-                                {options.map((option) => {
-                                    const active = selected.includes(option.key)
-                                    return (
-                                        <Pressable
-                                            key={option.key}
-                                            style={[styles.multiChip, active && styles.multiChipActive]}
-                                            onPress={() => toggle(option.key)}
-                                            accessibilityRole="checkbox"
-                                            accessibilityState={{ checked: active }}
-                                            accessibilityLabel={option.label}
-                                        >
-                                            <Text style={[styles.multiChipText, active && styles.multiChipTextActive]}>{option.label}</Text>
-                                        </Pressable>
-                                    )
-                                })}
-                            </View>
-                        </ScrollView>
-                        <Pressable style={styles.multiDone} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Done">
-                            <Text style={styles.multiDoneText}>Done</Text>
+            />
+            <Sheet visible={open} title={label} onClose={() => setOpen(false)}>
+                <View style={styles.multiGrid}>
+                    {options.map((option) => {
+                        const active = selected.includes(option.key)
+                        return (
+                            <Pressable
+                                key={option.key}
+                                style={[styles.multiChip, active && styles.chipActive]}
+                                onPress={() => toggle(option.key)}
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: active }}
+                                accessibilityLabel={option.label}
+                            >
+                                <Text style={[styles.chipText, active && styles.chipTextActive]}>{option.label}</Text>
+                            </Pressable>
+                        )
+                    })}
+                </View>
+                <View style={styles.multiActions}>
+                    {selected.length > 0 ? (
+                        <Pressable
+                            style={styles.multiClear}
+                            onPress={() => onChange([])}
+                            accessibilityRole="button"
+                            accessibilityLabel={clearAccessibilityLabel ?? `Clear ${label}`}
+                        >
+                            <Text style={styles.multiClearText}>Clear</Text>
                         </Pressable>
-                    </View>
-                </Pressable>
-            </Modal>
-        </View>
+                    ) : null}
+                    <Pressable style={styles.multiDone} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Done">
+                        <Text style={styles.multiDoneText}>Done</Text>
+                    </Pressable>
+                </View>
+            </Sheet>
+        </>
     )
 }
 
 const styles = StyleSheet.create({
-    filterSelectWrap: {
-        minWidth: 142,
-        flexGrow: 1,
-        flexBasis: 142,
-        gap: spacing.xs,
-    },
-    filterSelectLabel: {
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
-    },
-    filterSelectButton: {
-        minHeight: 38,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.md,
-        backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.md,
-    },
-    filterSelectValue: {
-        flex: 1,
-        minWidth: 0,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
-    filterSelectCaret: {
-        flexShrink: 0,
-        fontSize: fontSize.xs,
-        color: colors.textMuted,
-    },
-    selectBackdrop: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: spacing.xl,
-        backgroundColor: tints.selectBackdrop,
-    },
-    selectSheet: {
-        width: '100%',
-        maxWidth: 360,
-        maxHeight: 460,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: radii.lg,
-        backgroundColor: colors.bgCard,
-        padding: spacing.md,
-        ...(Platform.OS === 'web' ? { boxShadow: shadows.lg } : {}),
-    },
-    selectTitle: {
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.sm,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
-    multiHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    multiClear: {
-        paddingHorizontal: spacing.sm,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.danger,
-    },
-    multiGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-        padding: spacing.sm,
-    },
-    multiChip: {
-        minWidth: 52,
+    pressed: { opacity: 0.76 },
+    chip: {
         minHeight: 36,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.full,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
+    },
+    chipHover: { backgroundColor: colors.bgSubtle },
+    chipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
+    chipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    chipTextActive: { color: colors.primaryDark },
+    caret: { flexShrink: 0, fontSize: fontSize.xs, color: colors.textMuted },
+    fieldWrap: { minWidth: 142, flexGrow: 1, flexBasis: 142, gap: spacing.xs },
+    fieldButton: {
+        minHeight: 44,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.md,
+        backgroundColor: colors.bgCard,
+        paddingHorizontal: spacing.md,
+    },
+    fieldValue: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    optionList: { gap: spacing.xxs },
+    option: {
+        minHeight: 44,
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        paddingHorizontal: spacing.md,
+    },
+    optionSelected: { backgroundColor: colors.primaryLight },
+    optionText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    optionTextSelected: { color: colors.primaryDark, fontWeight: fontWeight.bold },
+    multiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    multiChip: {
+        minWidth: 56,
+        minHeight: 40,
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         borderWidth: 1,
         borderColor: colors.borderLight,
-        backgroundColor: colors.bgMuted,
+        backgroundColor: colors.bgCard,
     },
-    multiChipActive: {
-        backgroundColor: colors.primaryLight,
-        borderColor: colors.primaryBorder,
+    multiActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
+    multiClear: {
+        minHeight: 44,
+        paddingHorizontal: spacing.xl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
     },
-    multiChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    multiChipTextActive: { color: colors.primaryDark },
+    multiClearText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.dangerDark },
     multiDone: {
-        marginTop: spacing.sm,
+        flex: 1,
         minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
@@ -247,21 +264,4 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primary,
     },
     multiDoneText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textWhite },
-    selectOption: {
-        minHeight: 42,
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        paddingHorizontal: spacing.md,
-    },
-    selectOptionActive: {
-        backgroundColor: colors.primaryLight,
-    },
-    selectOptionText: {
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
-    },
-    selectOptionTextActive: {
-        color: colors.primaryDark,
-    },
 })

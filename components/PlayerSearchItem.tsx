@@ -3,7 +3,7 @@ import { memo, useState } from 'react'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -100,7 +100,7 @@ function PlayerSearchItemImpl({
             <View style={styles.addCol}>
                 {canAdd ? (
                     <MotionPressable
-                        style={[styles.addBtn, blockedReason ? styles.addBtnBlocked : null]}
+                        style={styles.addTarget}
                         onPress={() => onAdd(item)}
                         disabled={isAdding}
                         accessibilityRole="button"
@@ -109,7 +109,9 @@ function PlayerSearchItemImpl({
                         hitSlop={8}
                         pressedScale={0.88}
                     >
-                        <Text style={[styles.addBtnText, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
+                        <View style={[styles.addBtn, blockedReason ? styles.addBtnBlocked : null]}>
+                            <Text style={[styles.addBtnText, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
+                        </View>
                     </MotionPressable>
                 ) : null}
             </View>
@@ -131,7 +133,7 @@ function PlayerSearchItemImpl({
                         <Avatar
                             name={item.display_name}
                             color={colors.bgMuted}
-                            size={denseProjectionRow ? 36 : 44}
+                            size={36}
                         />
                     </View>
                 )}
@@ -188,7 +190,15 @@ function PlayerSearchItemImpl({
                     ) : null}
                 </View>
 
-                {denseProjectionRow ? null : statusBadge}
+                {denseProjectionRow || !showStats ? null : statusBadge}
+
+                {!showStats && !denseProjectionRow ? (
+                    <View style={styles.fpCol}>
+                        <Text style={styles.fpValue} numberOfLines={1}>{formatPoints(stats[0]?.value)}</Text>
+                        <Text style={styles.fpLabel}>FP</Text>
+                        {statusBadge}
+                    </View>
+                ) : null}
 
                 {showStats ? (
                     <View style={styles.statsGrid}>
@@ -268,21 +278,31 @@ function StatCell({
     )
 }
 
+const ADD_COL_W = 44
+const HEADSHOT = 36
+
+/** Geometry the stat-table header mirrors so its columns line up with rows. */
+export const playerRowGeometry = {
+    addColWidth: ADD_COL_W,
+    headshot: HEADSHOT,
+    statusWidth: 90,
+    statCount: 10,
+} as const
+
 const styles = StyleSheet.create({
     playerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingLeft: spacing.lg,
-        gap: 0,
+        paddingLeft: spacing.sm,
+        minHeight: table.rowHeight,
     },
-    addCol: { width: 52, alignItems: 'center' },
-    // MotionPressable's touch surface is an absoluteFill overlay inside the
-    // border, so the outer circle is padded to 48 to keep the measurable
-    // target >= 44px.
+    addCol: { width: ADD_COL_W, alignItems: 'center' },
+    // The 44px target wraps a smaller circle so rows stay short.
+    addTarget: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     addBtn: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 32,
+        height: 32,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
         borderWidth: 1.5,
@@ -290,37 +310,32 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.light, lineHeight: 24, marginTop: -1 },
+    addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.medium, lineHeight: 22 },
     addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
     addBtnTextBlocked: { color: colors.textPlaceholder },
     playerCard: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingRight: spacing['4xl'],
-        paddingVertical: spacing.lg,
-        paddingLeft: spacing.md,
-        gap: spacing.lg,
+        paddingRight: spacing.lg,
+        paddingVertical: spacing.sm,
+        paddingLeft: spacing.sm,
+        gap: spacing.md,
     },
-    // On narrow viewports top-align the row content and tighten the right
-    // padding; the leading headshot still centers itself (alignSelf below) so
-    // the icon column stays on one vertical midline row after row.
-    playerCardNarrow: { alignItems: 'flex-start', paddingRight: spacing.lg },
-    playerCardDense: { paddingVertical: spacing.md, gap: spacing.md },
+    playerCardNarrow: { paddingRight: spacing.lg },
+    playerCardDense: { paddingVertical: spacing.sm, gap: spacing.md },
     headshot: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: HEADSHOT,
+        height: HEADSHOT,
+        borderRadius: HEADSHOT / 2,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
-        // Rows that top-align for wrapped stat strips still center the
-        // leading headshot so the icon column lines up row after row.
         alignSelf: 'center',
     },
     leadingCenter: { alignSelf: 'center' },
-    headshotDense: { width: 36, height: 36, borderRadius: 18 },
+    headshotDense: { width: HEADSHOT, height: HEADSHOT, borderRadius: HEADSHOT / 2 },
     playerInfo: { flex: 1, minWidth: 0 },
-    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    playerName: { ...textStyles.rowTitle },
     playerNameDense: { flexShrink: 1 },
     nameScoreRow: {
         flexDirection: 'row',
@@ -335,12 +350,12 @@ const styles = StyleSheet.create({
         color: colors.primaryDark,
         fontVariant: ['tabular-nums'],
     },
-    playerMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: spacing.xxs },
-    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-    compactStats: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.sm + spacing.xxs, rowGap: spacing.xs, marginTop: spacing.sm },
+    playerMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs },
+    playerMeta: { fontSize: fontSize['2sm'], color: colors.textMuted },
+    compactStats: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xs, marginTop: spacing.sm },
     compactStat: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
     compactStatLabel: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
         letterSpacing: 0.4,
@@ -353,34 +368,36 @@ const styles = StyleSheet.create({
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    fpCol: { alignItems: 'flex-end', minWidth: 52, gap: spacing.xxs },
+    fpValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
+    fpLabel: { ...textStyles.tableHeader, marginTop: -spacing.xxs },
     statsGrid: {
-        width: 10 * 54,
+        width: 10 * table.statColWidth,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
         flexShrink: 0,
     },
     statCell: {
-        width: 54,
+        width: table.statColWidth,
         textAlign: 'right',
-        fontSize: fontSize.sm,
+        ...textStyles.tableCell,
         fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
     },
     statCellPrimary: {
         color: colors.primaryDark,
         fontWeight: fontWeight.extrabold,
     },
     statusBadge: {
-        paddingHorizontal: 7,
-        paddingVertical: 3,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xxs,
         borderRadius: radii.sm,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
         width: 90,
         alignItems: 'center',
     },
-    statusBadgeNarrow: { width: 'auto', minWidth: 40, alignSelf: 'flex-start', marginTop: 2 },
+    statusBadgeNarrow: { width: 'auto', minWidth: 40 },
     statusBadgeMe: { backgroundColor: colors.successLight },
     statusBadgeWaiver: { backgroundColor: colors.infoLight },
     statusBadgeFA: { backgroundColor: colors.bgMuted },
