@@ -52,7 +52,13 @@ UPDATE analytics.search_cache_refresh_state SET refreshed_at=now()-interval '8 d
 SELECT public.refresh_player_search_caches();
 SELECT pg_temp.assert_cache_equal();
 DO $$ BEGIN
-  IF (SELECT count(*) FROM analytics.mv_player_avg_fantasy_points WHERE player_id='00000000-0000-4000-8000-0000000c0401') <> 4 THEN
+  -- Existing leagues also receive this player's scores; count only our four fixtures.
+  IF (SELECT count(*) FROM analytics.mv_player_avg_fantasy_points
+      WHERE player_id='00000000-0000-4000-8000-0000000c0401'
+        AND league_id IN (
+          SELECT ('00000000-0000-4000-8000-' || lpad((120000+n)::text,12,'0'))::uuid
+          FROM generate_series(1,4)n
+        )) <> 4 THEN
     RAISE EXCEPTION 'Expected one cached result for each fixture league';
   END IF;
 END $$;
