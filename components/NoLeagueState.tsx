@@ -1,7 +1,7 @@
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
-import { colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
+import { colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 
@@ -22,11 +22,8 @@ export function NoLeagueState() {
             <View style={styles.brandMark}>
                 <Text style={styles.brandMarkText}>P</Text>
             </View>
-            <Text style={styles.eyebrow}>Dynasty Hoops</Text>
             <Text style={styles.title}>Welcome to Pancake</Text>
-            <Text style={styles.sub}>
-                You&apos;re not in a league yet. Create your own dynasty room, or join an existing one with an invite code.
-            </Text>
+            <Text style={styles.sub}>Create a league, or join one with an invite code.</Text>
 
             <View style={styles.features}>
                 {FEATURES.map((f) => (
@@ -64,20 +61,11 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
         ...(elevation('brandGlow') as object),
     },
-    brandMarkText: { color: colors.textWhite, fontSize: 28, fontFamily: fontFamily.display, fontWeight: fontWeight.extrabold },
-    eyebrow: {
-        color: colors.primaryDark,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 1,
-        textTransform: 'uppercase',
-    },
+    brandMarkText: { color: colors.textWhite, fontSize: fontSize['3xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.extrabold },
     title: { fontSize: fontSize['4xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.black, color: colors.textPrimary, textAlign: 'center' },
     sub: {
-        fontSize: fontSize.md,
-        color: colors.textMuted,
+        ...textStyles.body,
         textAlign: 'center',
-        lineHeight: 21,
         marginBottom: spacing.md,
     },
     features: {

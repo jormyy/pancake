@@ -1,18 +1,18 @@
 import {
     View,
-    Text,
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { Stack, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { changePassword } from '@/lib/auth'
-import { Input, Button } from '@/components/ui'
+import { Input, Button, usePageMetrics } from '@/components/ui'
+import { ModalScreen } from '@/components/league/ModalScreen'
 import { showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { layout, spacing } from '@/constants/tokens'
 
 const MIN_PASSWORD_LENGTH = 8
 
@@ -23,6 +23,7 @@ export default function ChangePasswordScreen() {
     const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
+    const { padX } = usePageMetrics()
 
     async function handleSave() {
         const current = currentPassword
@@ -57,14 +58,14 @@ export default function ChangePasswordScreen() {
     }
 
     return (
+        <>
+        <Stack.Screen options={{ title: 'Change Password', headerShown: false }} />
+        <ModalScreen title="Change Password" onBack={() => back()}>
         <KeyboardAvoidingView
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-                <Text style={styles.intro}>
-                    Enter your current password, then choose a new one (at least {MIN_PASSWORD_LENGTH} characters).
-                </Text>
+            <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]} keyboardShouldPersistTaps="handled">
 
                 <Input
                     label="Current password"
@@ -85,6 +86,7 @@ export default function ChangePasswordScreen() {
                     textContentType="newPassword"
                     leftIcon="lock"
                     returnKeyType="next"
+                    hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
                 />
                 <Input
                     label="Confirm new password"
@@ -105,19 +107,21 @@ export default function ChangePasswordScreen() {
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
+        </ModalScreen>
+        </>
     )
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
+    container: { flex: 1 },
     content: {
-        padding: spacing['3xl'],
+        paddingTop: spacing.xl,
+        paddingBottom: spacing['4xl'],
         gap: spacing.xl,
         width: '100%',
-        maxWidth: 520,
+        maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
         alignSelf: 'center',
     },
-    intro: { fontSize: fontSize.md, color: colors.textSecondary, lineHeight: 21, fontWeight: fontWeight.medium },
     actions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.md },
     flexBtn: { flex: 1 },
 })
