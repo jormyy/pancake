@@ -118,5 +118,10 @@ export function useLeagues() {
         return () => reportRealtimeCleanup('league context', unsubscribeFromTableChanges(channel))
     }, [leagueRealtimeKey, refresh, user?.id])
 
-    return { memberships, loading, error, refresh }
+    const membershipStatus = !userId ? 'signed-out'
+        : memberships.length > 0 ? 'available'
+            : loading ? 'loading'
+                : error ? 'unavailable' : 'empty'
+
+    return { memberships, loading, error, refresh, membershipStatus, online }
 }

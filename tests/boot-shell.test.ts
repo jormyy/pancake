@@ -146,16 +146,16 @@ describe('boot shell', () => {
         }
     })
 
-    // LeagueSwitcher renders "No league" / "Create or join from League" when the
-    // user has joined none. The shell must ship the same words, or a signed-in
-    // user without a league is shown a league that does not exist.
-    it('leaves the no-league wording LeagueSwitcher uses when there is no league', () => {
+    // Missing cached membership data cannot establish an authoritative empty league list.
+    it('keeps boot membership state unknown until the app checks league access', () => {
         const component = readFileSync(path.join(process.cwd(), 'components/navigation/WebTabShell.tsx'), 'utf8')
-        expect(component).toContain('>No league<')
-        expect(component).toContain('>Create or join from League<')
-        expect(BOOT_SHELL_HTML).toContain('data-pbs="league">No league<')
-        expect(BOOT_SHELL_HTML).toContain('data-pbs="league-compact">No league<')
-        expect(BOOT_SHELL_HTML).toContain('data-pbs="team">Create or join from League<')
+        expect(component).toContain("membershipStatus === 'empty' ? 'No league' : 'League unavailable'")
+        expect(component).toContain("membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'")
+        expect(BOOT_SHELL_HTML).toContain('data-pbs="league">League unavailable<')
+        expect(BOOT_SHELL_HTML).toContain('data-pbs="league-compact">League unavailable<')
+        expect(BOOT_SHELL_HTML).toContain('data-pbs="team">Waiting for league access<')
+        expect(BOOT_SHELL_HTML).not.toContain('>No league<')
+        expect(BOOT_SHELL_HTML).not.toContain('>Create or join from League<')
         expect(BOOT_SHELL_HTML).toContain('data-pbs="profile">Profile<')
 
         // With a session but no membership, the script must not overwrite them.

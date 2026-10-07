@@ -137,7 +137,7 @@ function compactHeaderLabel(label: string): string {
 }
 
 function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
-    const { memberships, current, setCurrent } = useLeagueContext()
+    const { memberships, current, setCurrent, membershipStatus } = useLeagueContext()
     const [open, setOpen] = useState(false)
     const light = tone === 'light'
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
@@ -150,9 +150,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
             <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
                 <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
                 <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">No league</Text>
+                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
                     {light ? null : (
-                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">Create or join from League</Text>
+                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
                     )}
                 </View>
             </View>

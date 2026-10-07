@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     userId: 'user-a' as string | null,
     memberships: [] as LeagueMembership[],
     loading: false,
+    error: null as Error | null,
     cache: new Map<string, unknown>(),
 }))
 
@@ -18,6 +19,7 @@ vi.mock('@/hooks/use-leagues', () => ({
     useLeagues: () => ({
         memberships: mocks.memberships,
         loading: mocks.loading,
+        error: mocks.error,
         refresh: vi.fn(),
     }),
 }))
@@ -69,6 +71,7 @@ describe('LeagueProvider selection ownership', () => {
         mocks.userId = 'user-a'
         mocks.memberships = []
         mocks.loading = false
+        mocks.error = null
         mocks.cache.clear()
     })
 
@@ -116,6 +119,28 @@ describe('LeagueProvider selection ownership', () => {
 
         expect(latest.current?.id).toBe(available.id)
         expect(mocks.cache.get(selectionKey('user-a'))).toBe(available.id)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('keeps the selected league while memberships are unavailable, then validates a confirmed empty result', async () => {
+        const first = membership('member-a1')
+        const selected = membership('member-a2')
+        mocks.cache.set(selectionKey('user-a'), selected.id)
+        mocks.error = new Error('offline')
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(tree()) })
+        expect(latest.current).toBeNull()
+        expect(mocks.cache.get(selectionKey('user-a'))).toBe(selected.id)
+
+        mocks.memberships = [first, selected]
+        mocks.error = null
+        await act(async () => { renderer.update(tree()) })
+        expect(latest.current?.id).toBe(selected.id)
+
+        mocks.memberships = []
+        await act(async () => { renderer.update(tree()) })
+        expect(latest.current).toBeNull()
+        expect(mocks.cache.has(selectionKey('user-a'))).toBe(false)
         await act(async () => { renderer.unmount() })
     })
 

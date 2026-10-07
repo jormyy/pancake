@@ -21,6 +21,7 @@ import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } fro
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
+import { NoLeagueState } from '@/components/NoLeagueState'
 import { ErrorBanner } from '@/components/ui'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -230,7 +231,7 @@ export default function RosterScreen() {
     const { push } = useRouter()
     const { width } = useWindowDimensions()
     const { user } = useAuth()
-    const { current, currentLeague, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, loading: leagueLoading, membershipStatus } = useLeagueContext()
     const leagueId = currentLeague?.id
     const cachedRosterData = useMemo(
         () => readRosterCache(current?.id, leagueId),
@@ -726,7 +727,7 @@ export default function RosterScreen() {
         if (leagueLoading) {
             return <View style={styles.container} />
         }
-        return <EmptyState message="Join or create a league first." />
+        return membershipStatus === 'empty' ? <EmptyState message="Join or create a league first." /> : <NoLeagueState />
     }
 
     return (

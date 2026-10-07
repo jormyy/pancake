@@ -87,9 +87,11 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
     try {
         await act(async () => { renderer = create(React.createElement(Probe)) })
         expect(latest.memberships).toEqual([])
+        expect(latest.membershipStatus).toBe('unavailable')
         mocks.online = true
         await act(async () => { renderer.update(React.createElement(Probe)) })
         expect(latest.memberships).toEqual(rows)
+        expect(latest.membershipStatus).toBe('available')
         expect(latest.error).toBeNull()
         await act(async () => { renderer.update(React.createElement(Probe)) })
         expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(2)
@@ -99,6 +101,7 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
         mocks.online = true
         await act(async () => { renderer.update(React.createElement(Probe)) })
         expect(latest.memberships).toEqual([])
+        expect(latest.membershipStatus).toBe('empty')
         expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(3)
     } finally {
         await act(async () => { renderer.unmount() })
@@ -135,6 +138,7 @@ it('rejects late reconnect results after account switch and logout', async () =>
     await act(async () => { renderer.update(React.createElement(Probe)) })
     await act(async () => { finishNew([{ id: 'new-member', leagues: { id: 'new-league' } }]) })
     expect(latest.memberships).toEqual([])
+    expect(latest.membershipStatus).toBe('signed-out')
     expect(mocks.fetchUserLeagues.mock.calls.map(([id]) => id)).toEqual(['user-a', 'user-a', 'user-b', 'user-b'])
     await act(async () => { renderer.unmount() })
 })
