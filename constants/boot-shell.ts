@@ -51,8 +51,6 @@ const ICONS: Record<string, string> = {
     groups:
         'M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58C.48 14.9 0 15.62 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85-.85-.37-1.79-.58-2.78-.58-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z',
     'swap-horiz': 'M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z',
-    'auto-awesome':
-        'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
     'flash-on': 'M7 2v11h3v9l7-12h-4l4-8z',
     'account-tree':
         'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z',
@@ -64,11 +62,10 @@ const ICONS: Record<string, string> = {
 
 // Mirrors PRIMARY_NAV in WebTabShell; the sidebar groups these together.
 const PRIMARY_NAV: BootNavItem[] = [
-    { label: 'Matchup', mobileLabel: 'Match', href: '/', icon: 'home' },
+    { label: 'Matchup', mobileLabel: 'Matchup', href: '/', icon: 'home' },
     { label: 'Roster', mobileLabel: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Players', mobileLabel: 'Players', href: '/players', icon: 'groups' },
     { label: 'Trades', mobileLabel: 'Trades', href: '/trades', icon: 'swap-horiz' },
-    { label: 'Dynasty', mobileLabel: 'Dyn', href: '/dynasty', icon: 'auto-awesome' },
 ]
 
 // League sits in its own sidebar group, and joins the primary items on mobile.
@@ -96,8 +93,6 @@ html,body{background-color:${palette.cream100};}
 .pbs-brand{display:flex;align-items:center;gap:11px;padding:6px 10px 16px;}
 .pbs-brand img{width:42px;height:42px;object-fit:contain;}
 .pbs-brand-title{font-size:21px;font-weight:800;color:${brand.on};line-height:1.15;}
-.pbs-brand-sub{margin-top:-2px;font-size:${fontSize['2xs']}px;font-weight:700;letter-spacing:1.1px;
-  text-transform:uppercase;color:${brand.onSubtle};}
 .pbs-league{min-height:58px;display:flex;align-items:center;gap:${spacing.lg}px;
   padding:${spacing.md}px ${spacing.lg}px;border-radius:${radii.lg}px;
   background:${brand.overlay};border:1px solid ${brand.borderSubtle};margin-bottom:${spacing.md}px;}
@@ -116,8 +111,7 @@ html,body{background-color:${palette.cream100};}
 .pbs-navitem svg{width:19px;height:19px;flex-shrink:0;fill:${brand.onStrong};}
 .pbs-navitem[aria-current="page"]{background:${palette.maple500};color:${brand.on};}
 .pbs-navitem[aria-current="page"] svg{fill:${palette.white};}
-.pbs-section{padding:14px ${spacing.lg}px ${spacing.sm}px;color:${brand.onSubtle};
-  font-size:${fontSize['2xs']}px;font-weight:800;letter-spacing:1px;text-transform:uppercase;}
+.pbs-section{height:1px;margin:${spacing.sm}px ${spacing.lg}px;background:${brand.borderSubtle};}
 .pbs-side-foot{flex-shrink:0;padding:${spacing.md}px 14px 0;border-top:1px solid ${brand.borderSubtle};}
 .pbs-userchip{min-height:50px;display:flex;align-items:center;gap:${spacing.lg}px;
   padding:0 ${spacing.md}px;border-radius:${radii.md}px;}
@@ -183,7 +177,7 @@ export const BOOT_SHELL_HTML = `
     <div class="pbs-side-scroll">
       <div class="pbs-brand">
         <img src="/pwa-192.png" alt="" />
-        <div><div class="pbs-brand-title">Pancake</div><div class="pbs-brand-sub">Manager Console</div></div>
+        <div class="pbs-brand-title">Pancake</div>
       </div>
       <div class="pbs-league">
         <div class="pbs-crest" data-pbs="crest">P</div>
@@ -194,7 +188,7 @@ export const BOOT_SHELL_HTML = `
       </div>
       <div class="pbs-navgroup">${PRIMARY_NAV.map(sideItem).join('')}</div>
       <div class="pbs-navgroup">${sideItem(LEAGUE_NAV)}</div>
-      <div class="pbs-section">Season tools</div>
+      <div class="pbs-section" aria-hidden="true"></div>
       <div class="pbs-navgroup">
         <div class="pbs-navitem">${icon('flash-on')}<span>Draft Room</span></div>
         <div class="pbs-navitem">${icon('account-tree')}<span>Playoffs</span></div>

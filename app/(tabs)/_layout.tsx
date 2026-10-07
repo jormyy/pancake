@@ -22,10 +22,6 @@ export default function TabLayout() {
                 <Label>Trades</Label>
                 <Icon sf="arrow.left.arrow.right" />
             </NativeTabs.Trigger>
-            <NativeTabs.Trigger name="dynasty">
-                <Label>Dynasty</Label>
-                <Icon sf="sparkles" />
-            </NativeTabs.Trigger>
             <NativeTabs.Trigger name="league">
                 <Label>League</Label>
                 <Icon sf="trophy.fill" />

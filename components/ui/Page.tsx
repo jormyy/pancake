@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { Platform, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { breakpoints, colors, layout, srOnly } from '@/constants/tokens'
+import { breakpoints, colors, layout, spacing, srOnly, textStyles } from '@/constants/tokens'
 
 type PageWidth = 'content' | 'form' | 'full'
 
@@ -57,7 +57,41 @@ export function Page({
     )
 }
 
+/**
+ * One row at the top of a page: section tabs or a title on the left, the
+ * page's main action on the right.
+ */
+export function PageHeader({
+    title,
+    tabs,
+    actions,
+}: {
+    title?: string
+    tabs?: ReactNode
+    actions?: ReactNode
+}) {
+    const { padX } = usePageMetrics()
+    return (
+        <View style={[styles.header, { paddingHorizontal: padX }]}>
+            <View style={styles.headerMain}>
+                {tabs ?? (title ? <Text style={textStyles.pageTitle} numberOfLines={1}>{title}</Text> : null)}
+            </View>
+            {actions ? <View style={styles.headerActions}>{actions}</View> : null}
+        </View>
+    )
+}
+
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bgScreen },
     column: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'center' },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: spacing.md,
+        minHeight: 48,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
+    headerMain: { flex: 1, minWidth: 0 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0, alignSelf: 'center' },
 })

@@ -21,7 +21,7 @@ const {
 
 type Storage = Record<string, string>
 
-const NAV_HREFS = ['/', '/roster', '/players', '/trades', '/dynasty', '/league']
+const NAV_HREFS = ['/', '/roster', '/players', '/trades', '/league']
 
 /** Minimal DOM stand-in: the shell script only reads storage and one element. */
 function runBootScript(pathname: string, storage: Storage) {
@@ -295,7 +295,7 @@ describe('boot shell', () => {
         }
         const sidebar = region('pbs-side')
         const bottomNav = region('pbs-bottomnav')
-        for (const href of ['/', '/roster', '/players', '/trades', '/dynasty', '/league']) {
+        for (const href of ['/', '/roster', '/players', '/trades', '/league']) {
             expect(sidebar, `sidebar ${href}`).toContain(`data-href="${href}"`)
             expect(bottomNav, `bottom nav ${href}`).toContain(`data-href="${href}"`)
             expect(sidebar, `sidebar href ${href}`).toContain(`href="${href}"`)

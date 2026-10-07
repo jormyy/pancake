@@ -733,7 +733,7 @@ export async function runBrowserSmoke({
       ['roster', '/roster'],
       ['trades', '/trades'],
       ['league', '/league'],
-      ['dynasty', '/dynasty'],
+      ['dynasty', '/players?section=rankings'],
     ]
 
     if (fullSweep) {

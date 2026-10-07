@@ -70,14 +70,6 @@ export const styles = StyleSheet.create({
         color: brand.on,
         letterSpacing: 0,
     },
-    brandSubtitle: {
-        marginTop: -2,
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.bold,
-        letterSpacing: 1.1,
-        textTransform: 'uppercase',
-        color: brand.onSubtle,
-    },
 
     leagueSwitchWrap: {
         position: 'relative',
@@ -198,15 +190,11 @@ export const styles = StyleSheet.create({
     navGroup: {
         gap: spacing.xs,
     },
-    navSectionLabel: {
-        paddingTop: 14,
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.sm,
-        color: brand.onSubtle,
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 1,
-        textTransform: 'uppercase',
+    navDivider: {
+        height: 1,
+        marginVertical: spacing.sm,
+        marginHorizontal: spacing.lg,
+        backgroundColor: brand.borderSubtle,
     },
     sideNavItem: {
         display: 'flex',

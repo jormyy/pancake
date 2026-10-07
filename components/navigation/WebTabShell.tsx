@@ -14,14 +14,13 @@ import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
-type RouteHref = '/' | '/players' | '/dynasty' | '/roster' | '/trades' | '/league' | '/profile'
+type RouteHref = '/' | '/players' | '/roster' | '/trades' | '/league' | '/profile'
 
 const PRIMARY_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
     { label: 'Matchup', href: '/', icon: 'home' },
     { label: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Players', href: '/players', icon: 'groups' },
     { label: 'Trades', href: '/trades', icon: 'swap-horiz' },
-    { label: 'Dynasty', href: '/dynasty', icon: 'auto-awesome' },
 ]
 
 const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
@@ -30,9 +29,8 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
 ]
 
 const MOBILE_LABELS: Record<RouteHref, string> = {
-    '/': 'Match',
+    '/': 'Matchup',
     '/players': 'Players',
-    '/dynasty': 'Dyn',
     '/roster': 'Roster',
     '/trades': 'Trades',
     '/league': 'League',
@@ -312,10 +310,7 @@ function WebSidebar() {
             <ScrollView style={styles.sidebarScroll} contentContainerStyle={styles.sidebarScrollContent}>
                 <View style={styles.brandRow}>
                     <BrandMark />
-                    <View>
-                        <Text style={styles.brandTitle}>Pancake</Text>
-                        <Text style={styles.brandSubtitle}>Manager Console</Text>
-                    </View>
+                    <Text style={styles.brandTitle}>Pancake</Text>
                 </View>
 
                 <LeagueSwitcher />
@@ -346,7 +341,7 @@ function WebSidebar() {
                     />
                 </View>
 
-                <Text style={styles.navSectionLabel}>Season tools</Text>
+                <View style={styles.navDivider} aria-hidden />
                 <View style={styles.navGroup}>
                     <SidebarNavButton label="Draft Room" icon="flash-on" onPress={openDraftRoom} loading={draftLoading} />
                     <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} />

@@ -18,7 +18,7 @@ const readyPredicates = {
     : document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Trades' && document.querySelector('[role="tablist"]') && !body.includes('Loading trades')`,
   'auction-draft-room': `body.includes('Auction Draft') && (document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]') || document.querySelector('[aria-label="Pause draft"]') || (label === 'draft-room-initial' && document.querySelector('[aria-label="Resume draft"]')))`,
   'rookie-draft-room': `document.querySelector('[aria-label="Show prospects"]') && document.querySelector('[aria-label="Show pick board"]') && !body.includes('Loading prospects')`,
-  'dynasty-hub': `document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Dynasty Hub' && /\\d+ rows? loaded/.test(body)`,
+  'dynasty-hub': `document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Players' && document.querySelector('#players-section-rankings[aria-selected="true"]') && document.querySelector('[aria-label="Search dynasty rankings"]') && /Updated |Not synced yet/.test(body)`,
 }
 export const WORKFLOW_READY_IDS = Object.freeze(Object.keys(readyPredicates))
 export const WORKFLOW_FEEDBACK_IDS = Object.freeze([

@@ -8,8 +8,7 @@ import {
     Animated,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
@@ -19,7 +18,8 @@ import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { NoLeagueState } from '@/components/NoLeagueState'
-import { FilterSelect, MultiSelect } from '@/components/ui'
+import { FilterSelect, MultiSelect, Page, PageHeader, SegmentedControl } from '@/components/ui'
+import { DynastyHub } from '@/components/dynasty/DynastyHub'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
 import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -142,7 +142,7 @@ function PlayerTableHeader({
     )
 }
 
-export default function PlayersScreen() {
+function PlayerSearchSection() {
     const { push } = useRouter()
     const { user, loading: authLoading } = useAuth()
     const { memberships, current, currentLeague, loading: leagueLoading } = useLeagueContext()
@@ -303,19 +303,14 @@ export default function PlayersScreen() {
     // No placeholder shell while auth/league context loads — the screen stays
     // blank and the real UI appears fully formed, with no reflow.
     if (showInitialShell) {
-        return <SafeAreaView style={styles.container} />
+        return <View style={styles.container} />
     }
     if (!user) return <NoLeagueState />
     if (memberships.length === 0 || !current || !leagueId) return <NoLeagueState />
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
           <View style={styles.contentWrap}>
-            {/* Visually hidden h1: the screen has no visible title, but web
-                a11y still needs a page heading anchoring the outline. */}
-            <Text style={styles.hiddenHeading} role="heading" aria-level={1} accessibilityRole="header">
-                Players
-            </Text>
             <View style={[styles.filterCard, collapsibleFilters && localStyles.filterCardCompact, { gap: 0 }]}>
                 <View style={styles.filterCardTop}>
                     <TextInput
@@ -504,11 +499,86 @@ export default function PlayersScreen() {
                 onDropAndActivate={quickAdd.handleDropAndIRActivate}
                 onCancel={() => quickAdd.setIrModal(null)}
             />
-        </SafeAreaView>
+        </View>
+    )
+}
+
+type PlayersSection = 'players' | 'rankings' | 'news'
+const SECTIONS: PlayersSection[] = ['players', 'rankings', 'news']
+
+function initialSection(value: string | string[] | undefined): PlayersSection {
+    return SECTIONS.find((section) => section === value) ?? 'players'
+}
+
+/**
+ * Everything about players in one place: the searchable pool, dynasty
+ * rankings, and news. A section mounts the first time it is opened and stays
+ * mounted, so switching back keeps its search, filters, and scroll.
+ */
+export default function PlayersScreen() {
+    const params = useLocalSearchParams<{ section?: string }>()
+    const { user, loading: authLoading } = useAuth()
+    const { memberships, loading: leagueLoading } = useLeagueContext()
+    const [section, setSection] = useState<PlayersSection>(() => initialSection(params.section))
+    const [opened, setOpened] = useState<Set<PlayersSection>>(() => new Set([initialSection(params.section)]))
+
+    useEffect(() => {
+        if (!params.section) return
+        const next = initialSection(params.section)
+        setSection(next)
+        setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
+    }, [params.section])
+
+    const [lastDynasty, setLastDynasty] = useState<'rankings' | 'news'>('rankings')
+    const openSection = useCallback((next: PlayersSection) => {
+        if (next !== 'players') setLastDynasty(next)
+        setSection(next)
+        setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
+    }, [])
+
+    if (authLoading || (leagueLoading && memberships.length === 0)) return <View style={styles.container} />
+    if (!user || memberships.length === 0) return <NoLeagueState />
+
+    return (
+        <Page title="Players">
+            <PageHeader
+                tabs={(
+                    <SegmentedControl<PlayersSection>
+                        variant="tabs"
+                        value={section}
+                        onChange={openSection}
+                        options={[
+                            { label: 'Players', value: 'players' },
+                            { label: 'Rankings', value: 'rankings' },
+                            { label: 'News', value: 'news' },
+                        ]}
+                        accessibilityLabel="Players sections"
+                        idBase="players-section"
+                        controlledPanelId="players-section-panel"
+                        scrollable
+                    />
+                )}
+            />
+            <View style={localStyles.panel} nativeID="players-section-panel" role="tabpanel">
+                {opened.has('players') ? (
+                    <View style={[localStyles.panel, section !== 'players' && localStyles.hidden]}>
+                        <PlayerSearchSection />
+                    </View>
+                ) : null}
+                {/* Rankings and News share one instance, so each loads its data once. */}
+                {opened.has('rankings') || opened.has('news') ? (
+                    <View style={[localStyles.panel, section === 'players' && localStyles.hidden]}>
+                        <DynastyHub section={section === 'news' || (section === 'players' && lastDynasty === 'news') ? 'news' : 'rankings'} />
+                    </View>
+                ) : null}
+            </View>
+        </Page>
     )
 }
 
 const localStyles = StyleSheet.create({
+    panel: { flex: 1, minHeight: 0 },
+    hidden: { display: 'none' },
     filterCardCompact: {
         marginTop: spacing.md,
         marginHorizontal: spacing.sm,
