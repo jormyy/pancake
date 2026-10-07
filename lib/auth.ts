@@ -82,6 +82,8 @@ export async function updateProfile(userId: string, updates: { display_name?: st
 
 type AvatarAsset = {
     uri: string
+    width: number
+    height: number
     mimeType?: string | null
     fileSize?: number | null
 }
@@ -94,6 +96,11 @@ const AVATAR_TYPES = new Map([
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024
 
 export async function uploadAvatar(userId: string, asset: AvatarAsset): Promise<string> {
+    // The web picker returns zero dimensions when the browser cannot decode the file.
+    if (!Number.isFinite(asset.width) || asset.width <= 0
+        || !Number.isFinite(asset.height) || asset.height <= 0) {
+        throw new Error('Could not read the selected image. Choose another photo.')
+    }
     const response = await fetch(asset.uri)
     if (!response.ok) throw new Error('Could not read the selected image.')
     const blob = await response.blob()
