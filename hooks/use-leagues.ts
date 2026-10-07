@@ -1,8 +1,6 @@
 import { fetchUserLeagues } from '@/lib/league'
 import { useAuth } from '@/hooks/use-auth'
 import { useOnlineStatus } from '@/hooks/use-online-status'
-import { useNativeResourceResume } from '@/hooks/use-native-resource-resume'
-import { Platform } from 'react-native'
 import type { LeagueMembership } from '@/types/app'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
@@ -91,13 +89,10 @@ export function useLeagues() {
     const refresh = useCallback(() => load({ force: true }), [load])
 
     useEffect(() => {
-        if (Platform.OS !== 'web') return
         const wasOnline = wasOnlineRef.current
         wasOnlineRef.current = online
         if (!wasOnline && online && userId) void refresh()
     }, [online, refresh, userId])
-
-    useNativeResourceResume(online, Boolean(userId), () => { void refresh() })
 
     const leagueRealtimeKey = useMemo(
         () => memberships.map((membership) => membership.leagues.id).sort().join(':'),

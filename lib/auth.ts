@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
-import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
 import { detachWebPushFromAccount } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 
@@ -26,11 +25,6 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-    try {
-        await unregisterCurrentDevicePushToken()
-    } catch (error) {
-        console.warn('Push-token revocation was queued for retry.', error)
-    }
     try {
         await detachWebPushFromAccount()
     } catch (error) {

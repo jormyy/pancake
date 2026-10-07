@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, Platform } from 'react-native'
 import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { todayET } from '@/lib/shared/dates'
 
@@ -104,8 +103,7 @@ function snapshotFresh(date: string): boolean {
 }
 
 function pageHidden(): boolean {
-    if (Platform.OS === 'web') return typeof document !== 'undefined' && document.visibilityState === 'hidden'
-    return AppState.currentState === 'background'
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden'
 }
 
 // Nothing is on screen while the page is hidden, so the poll skips its ticks.
@@ -125,16 +123,10 @@ let visibilityWatched = false
 function watchVisibility() {
     if (visibilityWatched) return
     visibilityWatched = true
-    if (Platform.OS === 'web') {
-        if (typeof document === 'undefined') return
-        document.addEventListener('visibilitychange', () => {
-            if (!pageHidden()) catchUpAfterHidden()
-        })
-    } else {
-        AppState.addEventListener('change', (state) => {
-            if (state === 'active') catchUpAfterHidden()
-        })
-    }
+    if (typeof document === 'undefined') return
+    document.addEventListener('visibilitychange', () => {
+        if (!pageHidden()) catchUpAfterHidden()
+    })
 }
 
 function ensureTodayPoll() {

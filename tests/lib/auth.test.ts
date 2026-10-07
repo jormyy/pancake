@@ -9,12 +9,12 @@ vi.mock('@/lib/supabase', () => ({
         from: vi.fn(),
     },
 }))
-vi.mock('@/lib/push-token', () => ({ unregisterCurrentDevicePushToken: vi.fn() }))
+vi.mock('@/lib/web-push', () => ({ detachWebPushFromAccount: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: vi.fn() }))
 
 import { signOut, signUp } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
-import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
+import { detachWebPushFromAccount } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 const mockAuth = vi.mocked(supabase.auth)
@@ -34,7 +34,7 @@ describe('signOut', () => {
 
         expect(mockAuth.signOut).toHaveBeenNthCalledWith(1)
         expect(mockAuth.signOut).toHaveBeenNthCalledWith(2, { scope: 'local' })
-        expect(unregisterCurrentDevicePushToken).toHaveBeenCalledOnce()
+        expect(detachWebPushFromAccount).toHaveBeenCalledOnce()
     })
 
     it('does not run the local fallback after a successful server sign-out', async () => {
@@ -43,11 +43,11 @@ describe('signOut', () => {
         await signOut()
 
         expect(mockAuth.signOut).toHaveBeenCalledOnce()
-        expect(unregisterCurrentDevicePushToken).toHaveBeenCalledOnce()
+        expect(detachWebPushFromAccount).toHaveBeenCalledOnce()
     })
 
-    it('clears the authenticated session and caches when push-token cleanup fails', async () => {
-        vi.mocked(unregisterCurrentDevicePushToken).mockRejectedValueOnce(new Error('offline'))
+    it('clears the authenticated session and caches when web push cleanup fails', async () => {
+        vi.mocked(detachWebPushFromAccount).mockRejectedValueOnce(new Error('offline'))
         mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
         vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 

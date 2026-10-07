@@ -11,7 +11,7 @@ function expectInOrder(source: string, labels: string[]) {
 }
 
 describe('primary navigation order', () => {
-    it('keeps daily gameplay before analysis on web and native', async () => {
+    it('keeps daily gameplay before analysis on Safari and the PWA', async () => {
         const [nativeSource, webSource] = await Promise.all([
             readFile(path.join(ROOT, 'app/(tabs)/_layout.tsx'), 'utf8'),
             readFile(path.join(ROOT, 'components/navigation/WebTabShell.tsx'), 'utf8'),
@@ -26,11 +26,9 @@ describe('primary navigation order', () => {
             webSource.indexOf('const MOBILE_LABELS'),
         )
 
-        expectInOrder(nativeSource, labels)
+        expect(nativeSource).toContain('export default WebTabShell')
         expectInOrder(webPrimary, labels.slice(0, -1))
         expect(webMobile).toContain("{ label: 'League', href: '/league'")
-        expect(nativeSource).not.toContain('NativeTabs.Trigger name="draft-room"')
-        expect(nativeSource).not.toContain('NativeTabs.Trigger name="profile"')
     })
 
     it('keeps profile access in league settings', async () => {

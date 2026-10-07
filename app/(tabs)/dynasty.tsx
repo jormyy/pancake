@@ -315,7 +315,7 @@ function NewsRow({ item }: { item: DynastyNewsItem }) {
 export default function DynastyScreen() {
     const router = useRouter()
     const { user } = useAuth()
-    const { current, currentLeague, online } = useLeagueContext()
+    const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
     const showStats = width >= WIDE_BREAKPOINT
     const narrowSearch = width < 440
@@ -324,7 +324,7 @@ export default function DynastyScreen() {
     const { data: decisionMembers } = useFocusAsyncData(
         () => currentLeague ? getLeagueMembers(currentLeague.id) : Promise.resolve([]),
         [currentLeague?.id],
-        { staleMs: 5 * 60_000, online },
+        { staleMs: 5 * 60_000 },
     )
     const rankings = useDynastyRankings({
         userId: user?.id ?? '',
@@ -356,7 +356,7 @@ export default function DynastyScreen() {
             return result
         },
         [current?.id, currentLeague?.id, user?.id],
-        { staleMs: 5 * 60_000, initialData: cachedNews, online },
+        { staleMs: 5 * 60_000, initialData: cachedNews },
     )
     const news = newsData?.news ?? EMPTY_NEWS
     const myNews = newsData?.myNews ?? EMPTY_NEWS

@@ -142,7 +142,7 @@ league lookups, so the next launch paints the new user's identity or none. A
 database response that arrives after the signed-in user changed (sign-out, a
 switch to another account, or signing in again) is discarded before it reaches
 any cache; its caller gets an error instead of the data. The web sign-in reloads its tab, but another open tab of the
-same session stays live, so this matters on web as well as native.
+same browser session stays live, so identity changes must fence pending responses.
 
 ## Offline and reconnect behavior
 
@@ -233,3 +233,7 @@ Browser background limits can delay sockets on an idle home-screen app. Foregrou
 Offline data is a last known snapshot. The error banner marks its uncertain freshness.
 
 Offline writes remain disabled. This avoids invalid moves after a game lock or roster change.
+
+## Supported client target
+
+Pancake supports iPhone Safari and the installed iPhone PWA. Android and native iOS app builds are excluded. Expo, React Native Web, routing, touch input, deep links, browser permissions, icons and service-worker infrastructure remain shared web dependencies. Desktop browsers and WebKit simulations provide development evidence; they do not prove real-iPhone or installed-iPhone-PWA behavior.

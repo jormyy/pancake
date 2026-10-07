@@ -19,7 +19,6 @@ vi.mock('@/lib/supabase', () => ({
         },
     },
 }))
-vi.mock('@/lib/push-token', () => ({ unregisterCurrentDevicePushToken: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: vi.fn() }))
 
 import { uploadAvatar } from '@/lib/auth'
