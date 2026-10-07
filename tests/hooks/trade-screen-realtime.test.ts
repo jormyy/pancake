@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
 import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
 
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active' } }))
+
 const mocks = vi.hoisted(() => ({
     callbacks: null as null | {
         trades: () => void

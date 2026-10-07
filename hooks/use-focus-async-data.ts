@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
+import { Platform } from 'react-native'
+import { useNativeResourceResume } from '@/hooks/use-native-resource-resume'
 
 function dependenciesEqual(previous: React.DependencyList, next: React.DependencyList) {
     return previous.length === next.length && previous.every((value, index) => Object.is(value, next[index]))
@@ -16,7 +18,7 @@ function dependenciesEqual(previous: React.DependencyList, next: React.Dependenc
 export function useFocusAsyncData<T>(
     fetcher: () => Promise<T>,
     deps: React.DependencyList = [],
-    options: { staleMs?: number; initialData?: T } = {},
+    options: { staleMs?: number; initialData?: T; online?: boolean } = {},
 ) {
     const hasInitialData = options.initialData !== undefined
     const [data, setData] = useState<T | null>(hasInitialData ? options.initialData as T : null)
@@ -32,6 +34,16 @@ export function useFocusAsyncData<T>(
     const forceQueuedRef = useRef(false)
     const queuedRefreshRef = useRef<Promise<void> | null>(null)
     const staleMs = options.staleMs ?? 30_000
+    const networkEpochRef = useRef(0)
+    const renderedOnlineRef = useRef(options.online)
+    if (Platform.OS !== 'web' && renderedOnlineRef.current !== options.online) {
+        renderedOnlineRef.current = options.online
+        networkEpochRef.current += 1
+        lastLoadedAtRef.current = 0
+        inFlightRef.current = null
+        queuedRefreshRef.current = null
+        forceQueuedRef.current = false
+    }
 
     // Effects run after a render. Advance ownership during render so consumers
     // never observe the previous identity's data for one committed frame.
@@ -67,14 +79,15 @@ export function useFocusAsyncData<T>(
             forceQueuedRef.current = true
             if (!queuedRefreshRef.current) {
                 const queuedGeneration = genRef.current
+                const queuedEpoch = networkEpochRef.current
                 queuedRefreshRef.current = inFlightRef.current
                     .then(async () => {
-                        if (queuedGeneration !== genRef.current || !forceQueuedRef.current) return
+                        if (queuedGeneration !== genRef.current || queuedEpoch !== networkEpochRef.current || !forceQueuedRef.current) return
                         forceQueuedRef.current = false
                         await load({ force: true })
                     })
                     .finally(() => {
-                        if (queuedGeneration === genRef.current) queuedRefreshRef.current = null
+                        if (queuedGeneration === genRef.current && queuedEpoch === networkEpochRef.current) queuedRefreshRef.current = null
                     })
             }
             return queuedRefreshRef.current
@@ -87,20 +100,21 @@ export function useFocusAsyncData<T>(
         else setLoading(true)
         setError(null)
         const gen = genRef.current
+        const networkEpoch = networkEpochRef.current
         const task = (async () => {
             try {
                 const result = await fetcher()
-                if (gen !== genRef.current) return // deps changed mid-fetch — drop stale result
+                if (gen !== genRef.current || networkEpoch !== networkEpochRef.current) return // deps changed mid-fetch — drop stale result
                 setData(result)
                 stateGenerationRef.current = gen
                 hasDataRef.current = true
                 lastLoadedAtRef.current = Date.now()
             } catch (e) {
-                if (gen !== genRef.current) return
+                if (gen !== genRef.current || networkEpoch !== networkEpochRef.current) return
                 setError(e instanceof Error ? e : new Error(String(e)))
                 console.error(e)
             } finally {
-                if (gen === genRef.current) {
+                if (gen === genRef.current && networkEpoch === networkEpochRef.current) {
                     setLoading(false)
                     setRefreshing(false)
                     inFlightRef.current = null
@@ -117,11 +131,13 @@ export function useFocusAsyncData<T>(
     // reacts to global browser events; otherwise one reconnect fans out to
     // every tab and a hidden failure surfaces as a banner when the tab is opened.
     const isFocusedRef = useRef(false)
+    const [focused, setFocused] = useState(false)
     useFocusEffect(
         useCallback(() => {
             isFocusedRef.current = true
+            setFocused(true)
             load()
-            return () => { isFocusedRef.current = false }
+            return () => { isFocusedRef.current = false; setFocused(false) }
         }, [load]),
     )
 
@@ -140,6 +156,10 @@ export function useFocusAsyncData<T>(
             document.removeEventListener('visibilitychange', onVisible)
         }
     }, [load])
+
+    useNativeResourceResume(options.online ?? true, focused, () => {
+        void load()
+    })
 
     const refresh = useCallback(() => load({ force: true }), [load])
 

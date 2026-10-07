@@ -3,6 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active' } }))
+
 const focusCallbacks: (() => void)[] = []
 vi.mock('@react-navigation/native', () => ({
     useFocusEffect: (callback: () => void) => { focusCallbacks.push(callback) },

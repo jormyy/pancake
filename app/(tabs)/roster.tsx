@@ -231,7 +231,7 @@ export default function RosterScreen() {
     const { push } = useRouter()
     const { width } = useWindowDimensions()
     const { user } = useAuth()
-    const { current, currentLeague, loading: leagueLoading, membershipStatus } = useLeagueContext()
+    const { current, currentLeague, loading: leagueLoading, membershipStatus, online } = useLeagueContext()
     const leagueId = currentLeague?.id
     const cachedRosterData = useMemo(
         () => readRosterCache(current?.id, leagueId),
@@ -290,7 +290,7 @@ export default function RosterScreen() {
         const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority }
         writeRosterCache(current.id, leagueId, result)
         return result
-    }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined, staleMs: 300_000 })
+    }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined, staleMs: 300_000, online })
 
     useEffect(() => {
         if (!current?.id || !leagueId) return

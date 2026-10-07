@@ -3,6 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagues } from '@/hooks/use-leagues'
 
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active' } }))
+
 const mocks = vi.hoisted(() => ({
     fetchUserLeagues: vi.fn(),
     userId: 'user' as string | null,

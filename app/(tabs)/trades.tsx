@@ -79,7 +79,7 @@ export default function TradesScreen() {
         loadMoreError: offersLoadMoreError,
         refresh: load,
         loadMore: loadMoreOffers,
-    } = useTradesFeed(myMemberId, leagueId)
+    } = useTradesFeed(myMemberId, leagueId, online)
     const {
         trades: historyTrades,
         loading: historyLoading,
@@ -120,7 +120,7 @@ export default function TradesScreen() {
         const result = await getPicksForMember(current.id, leagueId)
         if (user?.id) writePersistentCache(picksCacheKey(user.id, current.id, leagueId), result)
         return result
-    }, [current?.id, leagueId, user?.id], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
+    }, [current?.id, leagueId, user?.id], { initialData: cachedPicks ?? undefined, staleMs: 300_000, online })
 
     useTradeScreenRealtime({
         online,

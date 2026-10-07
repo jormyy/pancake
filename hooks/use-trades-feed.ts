@@ -8,7 +8,7 @@ const TRADES_PAGE_SIZE = 40
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 type TradesResource = { key: string | null; trades: Trade[] }
 
-export function useTradesFeed(memberId: string, leagueId: string) {
+export function useTradesFeed(memberId: string, leagueId: string, online = true) {
     const resourceKey = memberId && leagueId ? tradesCacheKey(memberId, leagueId) : null
     const cached = useMemo(
         () => memberId && leagueId ? readPersistentCache<Trade[]>(tradesCacheKey(memberId, leagueId)) : null,
@@ -76,6 +76,11 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         setHasMore((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
         setLoadingMore(false)
     }, [cached, resourceKey])
+
+    useEffect(() => {
+        loadSequence.current += 1
+        setValidatedKey(null)
+    }, [online])
 
     useEffect(() => {
         void refresh()

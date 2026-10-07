@@ -145,7 +145,7 @@ function PlayerTableHeader({
 export default function PlayersScreen() {
     const { push } = useRouter()
     const { user, loading: authLoading } = useAuth()
-    const { memberships, current, currentLeague, loading: leagueLoading } = useLeagueContext()
+    const { memberships, current, currentLeague, loading: leagueLoading, online } = useLeagueContext()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
     const searchEnabled = !!user && !!current?.id && !!leagueId
@@ -207,7 +207,7 @@ export default function PlayersScreen() {
             })
         }
         return support
-    }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
+    }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000, online })
 
     useEffect(() => {
         if (!leagueId) return

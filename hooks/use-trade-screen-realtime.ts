@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { Platform } from 'react-native'
+import { useNativeResourceResume } from '@/hooks/use-native-resource-resume'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
 import {
     debounceRealtimeRefresh,
@@ -36,6 +38,7 @@ export function useTradeScreenRealtime({
     const reconnectPending = useRef(false)
 
     useEffect(() => {
+        if (Platform.OS !== 'web') return
         if (!online) {
             reconnectPending.current = true
             return
@@ -46,6 +49,12 @@ export function useTradeScreenRealtime({
         if (activeTabRef.current === 'history') void refreshHistory()
         if (activeTabRef.current === 'block' || activeTabRef.current === 'leagueBlock') void refreshTradeBlock()
     }, [focused, leagueId, memberId, online, refreshHistory, refreshTradeBlock, refreshTrades])
+
+    useNativeResourceResume(online, focused && Boolean(memberId && leagueId), () => {
+        void refreshTrades()
+        if (activeTabRef.current === 'history') void refreshHistory()
+        if (activeTabRef.current === 'block' || activeTabRef.current === 'leagueBlock') void refreshTradeBlock()
+    })
 
     useEffect(() => {
         if (!memberId || !leagueId) return
