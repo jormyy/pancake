@@ -1,14 +1,14 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import {
     View,
     Text,
     Pressable,
+    ScrollView,
     StyleSheet,
-    useWindowDimensions,
 } from 'react-native'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { FlashList, FlashListRef } from '@shopify/flash-list'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import * as Haptics from 'expo-haptics'
@@ -18,14 +18,13 @@ import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligib
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-import { ItemSeparator } from '@/components/ItemSeparator'
+import { colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
-import { ErrorBanner } from '@/components/ui'
-import { SectionHeader } from '@/components/SectionHeader'
+import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
-import { RosterClaimItem, RosterPickItem, RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
+import { RosterClaimItem, RosterPickItem, RosterPlayerItem, RosterSectionBand, TaxiPlayerItem } from '@/components/roster/RosterItems'
+import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { Avatar } from '@/components/Avatar'
@@ -34,14 +33,32 @@ import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 import { AutoSetModal } from '@/components/AutoSetModal'
 import { autoSetLineup, getLineupContext } from '@/lib/lineup'
+import { isTradingClosed } from '@/lib/league'
+import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
-type RosterListItem =
+type RosterListItem = (
     | { _isHeader: true; _section: string }
     | { _isHeader: false; _isEmpty: true; _section: 'taxi' }
     | { _isHeader: false; _isEmpty: true; _section: 'active'; _emptyIndex: number }
     | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: 'active' | 'ir' | 'taxi' })
     | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
+) & { _sectionEnd?: boolean }
+
+// Each roster section renders as one card: the header opens it, the last row
+// closes it. Marks the closing item so the flat list can draw the card edges.
+function closeSection(items: RosterListItem[]): RosterListItem[] {
+    if (items.length === 0) return items
+    const last = items[items.length - 1]
+    return [...items.slice(0, -1), { ...last, _sectionEnd: true }]
+}
+
+const TABLE_STATS = ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP'] as const
+const TABLE_SLOT_W = 44
+const TABLE_PLAYER_MIN_W = 220
+const TABLE_ACTIONS_W = 104
+// Narrowest width that fits every stat column; below it rows stay two-line.
+const TABLE_MIN_WIDTH = TABLE_SLOT_W + TABLE_PLAYER_MIN_W + TABLE_STATS.length * table.statColWidth + TABLE_ACTIONS_W + 2 * spacing.lg
 
 const EMPTY_ROSTER: RosterPlayer[] = []
 const EMPTY_PICKS: TradePickItem[] = []
@@ -118,13 +135,13 @@ function fmtStat(value?: number | null, integer = false): string {
 
 function RosterTableHeader() {
     return (
-        <View style={styles.rosterTableHeader}>
-            <Text style={styles.rosterTableSlot}>Slot</Text>
-            <Text style={styles.rosterTablePlayer}>Player</Text>
-            {['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP'].map((label) => (
-                <Text key={label} style={styles.rosterTableStat}>{label}</Text>
+        <View style={styles.rosterTableHeader} aria-hidden>
+            <Text style={[styles.headerCell, styles.rosterTableSlot]}>Slot</Text>
+            <Text style={[styles.headerCell, styles.rosterTablePlayer]}>Player</Text>
+            {TABLE_STATS.map((label) => (
+                <Text key={label} style={[styles.headerCell, styles.rosterTableStat]}>{label}</Text>
             ))}
-            <Text style={styles.rosterTableAction}>Action</Text>
+            <View style={styles.rosterTableActions} />
         </View>
     )
 }
@@ -220,6 +237,16 @@ function RosterTablePlayerItem({
                         <Text style={styles.tableActionText}>Taxi</Text>
                     </Pressable>
                 ) : null}
+                <Pressable
+                    style={styles.moreButton}
+                    onPress={() => onPress(item)}
+                    disabled={isBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel={`More actions for ${item.players.display_name}`}
+                    accessibilityState={{ disabled: isBusy }}
+                >
+                    <MaterialIcons name="more-horiz" size={20} color={colors.textSecondary} />
+                </Pressable>
             </View>
         </View>
     )
@@ -228,7 +255,7 @@ function RosterTablePlayerItem({
 
 export default function RosterScreen() {
     const { push } = useRouter()
-    const { width } = useWindowDimensions()
+    const { padX, usableWidth } = usePageMetrics()
     const { user } = useAuth()
     const { current, currentLeague, loading: leagueLoading } = useLeagueContext()
     const leagueId = currentLeague?.id
@@ -241,6 +268,7 @@ export default function RosterScreen() {
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
     const [droppingId, setDroppingId] = useState<string | null>(null)
+    const [sheetPlayerRaw, setSheetPlayer] = useState<RosterPlayer | null>(null)
     const [autoSetVisibleRaw, setAutoSetVisible] = useState(false)
     const [autoSettingRaw, setAutoSetting] = useState(false)
     const autoSetRunningRef = useRef(false)
@@ -262,6 +290,7 @@ export default function RosterScreen() {
     const [stateOwnerIdentity, setStateOwnerIdentity] = useState(ownerIdentity)
     const ownsActionState = stateOwnerIdentity === ownerIdentity
     const autoSetVisible = ownsActionState && autoSetVisibleRaw
+    const sheetPlayer = ownsActionState ? sheetPlayerRaw : null
     const autoSetting = ownsActionState && autoSettingRaw
 
     useEffect(() => {
@@ -270,6 +299,7 @@ export default function RosterScreen() {
         setTaxiingId(null)
         setCancellingId(null)
         setDroppingId(null)
+        setSheetPlayer(null)
         setAutoSetVisible(false)
         setAutoSetting(false)
         autoSetRunningRef.current = false
@@ -321,7 +351,12 @@ export default function RosterScreen() {
     const avgStatsMap = useMemo(() => data?.avgStatsMap ?? EMPTY_STATS_MAP, [data?.avgStatsMap])
     const waiverPriority = data?.waiverPriority ?? null
     const load = refresh
-    const showRosterTable = width >= 760
+    // Inner width of the capped page column: the stat table needs every
+    // column; the side column joins only when the table still fits beside it.
+    const columnWidth = Math.min(usableWidth + 2 * padX, layout.contentMaxWidth) - 2 * padX
+    const showRosterTable = columnWidth >= TABLE_MIN_WIDTH
+    const twoPane = columnWidth >= TABLE_MIN_WIDTH + spacing['3xl'] + layout.railWidth
+    const { openDraftRoom } = useDraftRoomLauncher(leagueId, { notifyOnError: true })
 
     const active = useMemo(() => {
         return roster
@@ -334,30 +369,39 @@ export default function RosterScreen() {
     const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
 
     const listData = useMemo<RosterListItem[]>(() => {
-        const result: RosterListItem[] = []
-        result.push({ _isHeader: true, _section: 'active' })
-        for (const p of active) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
+        const activeItems: RosterListItem[] = [{ _isHeader: true, _section: 'active' }]
+        for (const p of active) activeItems.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
         for (let i = active.length; i < rosterSize; i++) {
-            result.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })
+            activeItems.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })
         }
+        const result = closeSection(activeItems)
         if (ir.length > 0) {
-            result.push({ _isHeader: true, _section: 'ir' })
-            for (const p of ir) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'ir' as const })
+            result.push(...closeSection([
+                { _isHeader: true, _section: 'ir' },
+                ...ir.map((p) => ({ ...p, _isHeader: false as const, _isEmpty: false as const, _section: 'ir' as const })),
+            ]))
         }
-        result.push({ _isHeader: true, _section: 'taxi' })
-        if (taxi.length === 0) {
-            result.push({ _isHeader: false, _isEmpty: true, _section: 'taxi' })
-        } else {
-            for (const p of taxi) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'taxi' as const })
-        }
-        result.push({ _isHeader: true, _section: 'picks' })
-        for (const p of picks) result.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'picks' as const })
-        if (claims.length > 0) {
-            result.push({ _isHeader: true, _section: 'claims' })
-            for (const c of claims) result.push({ ...c, _isHeader: false, _isEmpty: false, _section: 'claims' as const })
+        result.push(...closeSection([
+            { _isHeader: true, _section: 'taxi' },
+            ...(taxi.length === 0
+                ? [{ _isHeader: false as const, _isEmpty: true as const, _section: 'taxi' as const }]
+                : taxi.map((p) => ({ ...p, _isHeader: false as const, _isEmpty: false as const, _section: 'taxi' as const }))),
+        ]))
+        // Wide screens show picks and claims in the side column instead.
+        if (!twoPane) {
+            result.push(...closeSection([
+                { _isHeader: true, _section: 'picks' },
+                ...picks.map((p) => ({ ...p, _isHeader: false as const, _isEmpty: false as const, _section: 'picks' as const })),
+            ]))
+            if (claims.length > 0) {
+                result.push(...closeSection([
+                    { _isHeader: true, _section: 'claims' },
+                    ...claims.map((c) => ({ ...c, _isHeader: false as const, _isEmpty: false as const, _section: 'claims' as const })),
+                ]))
+            }
         }
         return result
-    }, [active, ir, taxi, picks, claims, rosterSize])
+    }, [active, ir, taxi, picks, claims, rosterSize, twoPane])
 
     const claimsHeaderIndex = useMemo(
         () => listData.findIndex((item) => item._isHeader && item._section === 'claims'),
@@ -595,27 +639,81 @@ export default function RosterScreen() {
     const trimBusyId = droppingId ?? togglingId ?? taxiingId
 
     const handleOpenRosterPlayer = useCallback((item: RosterPlayer) => {
-        push(`/player/${item.players.id}`)
-    }, [push])
+        setSheetPlayer(item)
+    }, [])
 
-    const renderRosterItem = useCallback(({ item }: { item: RosterListItem }) => {
+    const sheetActions = useMemo<RosterSheetAction[]>(() => {
+        if (!sheetPlayer) return []
+        const item = sheetPlayer
+        const name = item.players.display_name
+        // Close the sheet first so any confirmation opens over the roster.
+        const run = (action: () => void) => () => {
+            setSheetPlayer(null)
+            action()
+        }
+        const actions: RosterSheetAction[] = [{
+            key: 'page',
+            label: 'Player page',
+            icon: 'person',
+            accessibilityLabel: `View ${name} player page`,
+            onPress: run(() => push(`/player/${item.players.id}`)),
+        }]
+        if (!item.is_on_ir && !item.is_on_taxi && rosterOverflow === 0) {
+            actions.push({
+                key: 'lineup',
+                label: 'Move in lineup',
+                icon: 'swap-vert',
+                accessibilityLabel: `Move ${name} in lineup`,
+                onPress: run(() => push(`/(modals)/lineup?playerId=${encodeURIComponent(item.players.id)}`)),
+            })
+        }
+        if (item.is_on_taxi) {
+            actions.push({ key: 'taxi', label: 'Activate from taxi squad', icon: 'arrow-upward', onPress: run(() => { void handleToggleTaxi(item) }) })
+        } else {
+            if (item.is_on_ir || isIREligible(item.players.injury_status)) {
+                actions.push({
+                    key: 'ir',
+                    label: item.is_on_ir ? 'Activate from IR' : 'Move to IR',
+                    icon: 'local-hospital',
+                    onPress: run(() => { void handleToggleIR(item) }),
+                })
+            }
+            if (!item.is_on_ir && taxi.length < taxiSlots && isTaxiEligible(item.players)) {
+                actions.push({ key: 'taxi', label: 'Move to taxi squad', icon: 'airport-shuttle', onPress: run(() => { void handleToggleTaxi(item) }) })
+            }
+        }
+        if (!isTradingClosed(currentLeague)) {
+            actions.push({ key: 'trade', label: 'Propose a trade', icon: 'swap-horiz', onPress: run(() => push('/(modals)/propose-trade')) })
+        }
+        actions.push({
+            key: 'drop',
+            label: 'Drop player',
+            icon: 'person-remove',
+            tone: 'danger',
+            accessibilityLabel: `Drop ${name}`,
+            onPress: run(() => handleDropPrompt(item)),
+        })
+        return actions
+    }, [sheetPlayer, push, rosterOverflow, taxi.length, taxiSlots, currentLeague, handleToggleIR, handleToggleTaxi, handleDropPrompt])
+
+    const renderRosterContent = useCallback((item: RosterListItem) => {
         if (item._isHeader) {
             if (item._section === 'active') {
-                return <SectionHeader label="Starters & Bench · slot order" />
-            }
-            if (item._section === 'taxi') {
                 return (
-                    <View style={styles.taxiHeader}>
-                        <Text style={styles.taxiHeaderText}>Taxi Squad</Text>
-                        <Text style={styles.taxiHeaderSub}>Exempt from roster limits · Cannot play in lineups</Text>
-                    </View>
+                    <>
+                        <RosterSectionBand label="Active roster" />
+                        {showRosterTable ? <RosterTableHeader /> : null}
+                    </>
                 )
             }
+            if (item._section === 'taxi') {
+                return <RosterSectionBand label="Taxi squad" tone="taxi" detail={<Text style={styles.bandHint}>Off your roster limit</Text>} />
+            }
             const label =
-                item._section === 'picks' ? 'Draft Picks'
-                : item._section === 'claims' ? 'Waiver Claims'
-                : 'IR'
-            return <SectionHeader label={label} />
+                item._section === 'picks' ? 'Draft picks'
+                : item._section === 'claims' ? 'Waiver claims'
+                : 'Injured reserve'
+            return <RosterSectionBand label={label} />
         }
         if (item._section === 'active' && item._isEmpty) {
             return (
@@ -720,6 +818,18 @@ export default function RosterScreen() {
         handleToggleIR, handleToggleTaxi, handleDropPrompt,
     ])
 
+    const renderRosterItem = useCallback(({ item }: { item: RosterListItem }) => (
+        <View
+            style={[
+                styles.cardSlice,
+                item._isHeader && styles.cardTop,
+                item._sectionEnd ? styles.cardBottom : !item._isHeader && styles.rowDivider,
+            ]}
+        >
+            {renderRosterContent(item)}
+        </View>
+    ), [renderRosterContent])
+
     if (!current) {
         // No loading placeholder — stay blank until the league context is
         // known so the real screen appears fully formed without reflow.
@@ -729,53 +839,81 @@ export default function RosterScreen() {
         return <EmptyState message="Join or create a league first." />
     }
 
-    return (
-        <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.flex1}>
-                    <Text
-                        style={styles.leagueName}
-                        role="heading"
-                        aria-level={2}
-                        accessibilityRole="header"
-                    >
-                        {league?.name}
-                    </Text>
-                    <Text style={styles.teamName}>{current.team_name}</Text>
-                    <Text style={styles.rosterCount}>
-                        {active.length}/{rosterSize} active · {ir.length}/{league?.ir_slots ?? 2} IR · {taxi.length}/{taxiSlots} taxi
-                    </Text>
-                    {claims.length > 0 ? (
-                        <Pressable
-                            style={styles.claimsChip}
-                            onPress={scrollToClaims}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${claims.length} waiver claim${claims.length === 1 ? '' : 's'} pending, jump to claims`}
-                        >
-                            <Text style={styles.claimsChipText}>
-                                {claims.length} claim{claims.length === 1 ? '' : 's'} pending
-                            </Text>
-                        </Pressable>
-                    ) : null}
-                </View>
-                {roster.length > 0 ? (
-                    <Pressable
-                        style={[styles.lineupButton, (rosterOverflow > 0 || autoSetting) && styles.lineupButtonDisabled]}
-                        onPress={rosterOverflow > 0 || autoSetting ? undefined : () => setAutoSetVisible(true)}
-                        disabled={rosterOverflow > 0 || autoSetting}
-                        accessibilityRole="button"
-                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Set lineup automatically'}
-                        accessibilityState={{ disabled: rosterOverflow > 0 || autoSetting }}
-                    >
-                        <Text style={[styles.lineupButtonText, (rosterOverflow > 0 || autoSetting) && styles.lineupButtonTextDisabled]}>
-                            {rosterOverflow > 0 ? 'Trim Roster First' : autoSetting ? 'Setting…' : 'Set Lineup'}
-                        </Text>
-                    </Pressable>
-                ) : null}
+    const irSlots = league?.ir_slots ?? 2
+    const lineupLocked = rosterOverflow > 0 || autoSetting
+    const sideCards = (
+        <>
+            <View style={[styles.cardSlice, styles.cardTop, picks.length === 0 && styles.cardBottom]}>
+                <RosterSectionBand label="Draft picks" />
             </View>
+            {picks.map((pick, index) => (
+                <View
+                    key={pick.pickId}
+                    style={[styles.cardSlice, index === picks.length - 1 ? styles.cardBottom : styles.rowDivider]}
+                >
+                    <RosterPickItem pick={pick} myTeamName={current.team_name ?? ''} />
+                </View>
+            ))}
+            {claims.length > 0 ? (
+                <>
+                    <View style={[styles.cardSlice, styles.cardTop]}>
+                        <RosterSectionBand label="Waiver claims" />
+                    </View>
+                    {claims.map((claim, index) => (
+                        <View
+                            key={claim.id}
+                            style={[styles.cardSlice, index === claims.length - 1 ? styles.cardBottom : styles.rowDivider]}
+                        >
+                            <RosterClaimItem
+                                claim={claim}
+                                cancellingId={cancellingId}
+                                waiverPriority={waiverPriority}
+                                waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
+                                onCancel={handleCancelClaim}
+                                onEditBid={handleEditClaimBid}
+                                onReorder={handleReorderClaim}
+                            />
+                        </View>
+                    ))}
+                </>
+            ) : null}
+        </>
+    )
 
-            {/* Error banner */}
+    return (
+        <Page title="Roster">
+            <PageHeader
+                tabs={(
+                    <View style={styles.summary}>
+                        <Text style={styles.summaryText}>
+                            {active.length}/{rosterSize} active · {ir.length}/{irSlots} IR · {taxi.length}/{taxiSlots} taxi
+                        </Text>
+                        {claims.length > 0 && !twoPane ? (
+                            <Pressable
+                                style={styles.claimsChip}
+                                onPress={scrollToClaims}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${claims.length} waiver claim${claims.length === 1 ? '' : 's'} pending, jump to claims`}
+                            >
+                                <Text style={styles.claimsChipText}>
+                                    {claims.length} claim{claims.length === 1 ? '' : 's'} pending
+                                </Text>
+                            </Pressable>
+                        ) : null}
+                    </View>
+                )}
+                actions={roster.length > 0 ? (
+                    <Button
+                        size="sm"
+                        variant={lineupLocked ? 'secondary' : 'primary'}
+                        title={rosterOverflow > 0 ? 'Trim Roster First' : autoSetting ? 'Setting…' : 'Set Lineup'}
+                        onPress={() => setAutoSetVisible(true)}
+                        disabled={rosterOverflow > 0 || autoSetting}
+                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Set lineup automatically'}
+                    />
+                ) : null}
+            />
+
             {error ? (
                 <ErrorBanner message="Failed to load roster. Tap to retry." onRetry={refresh} />
             ) : null}
@@ -783,7 +921,7 @@ export default function RosterScreen() {
             <RosterTrimBanner
                 players={active}
                 excess={rosterOverflow}
-                irAvailable={ir.length < (league?.ir_slots ?? 2)}
+                irAvailable={ir.length < irSlots}
                 taxiAvailable={taxi.length < taxiSlots}
                 busyId={trimBusyId}
                 onDrop={handleDropPrompt}
@@ -799,27 +937,46 @@ export default function RosterScreen() {
                         icon="groups"
                         message="Your roster is empty"
                         description={currentLeague?.status === 'drafting'
-                            ? 'Your roster fills up as you draft — the auction is live now.'
-                            : 'Players you draft, add, or acquire in a trade will show up here. Browse the player pool to get started.'}
+                            ? 'Your roster fills up as you draft. The auction is live now.'
+                            : 'Players you draft, add, or trade for show up here.'}
                         actionLabel={currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players'}
-                        onAction={() => push(currentLeague?.status === 'drafting' ? '/league' : '/players')}
+                        onAction={() => {
+                            if (currentLeague?.status === 'drafting') void openDraftRoom()
+                            else push('/players')
+                        }}
                     />
                 )
             ) : (
-                <FlashList
-                    ref={listRef}
-                    data={listData}
-                    keyExtractor={(item) =>
-                        item._isHeader ? `header-${item._section}`
-                        : item._isEmpty ? `empty-${item._section}-${'_emptyIndex' in item ? item._emptyIndex : 0}`
-                        : ('pickId' in item ? item.pickId : item.id)
-                    }
-                    ItemSeparatorComponent={ItemSeparator}
-                    ListHeaderComponent={showRosterTable ? <RosterTableHeader /> : null}
-                    getItemType={(item) => item._isHeader ? 'header' : item._section}
-                    renderItem={renderRosterItem}
-                />
+                <View style={[styles.body, twoPane && styles.bodyTwoPane, { paddingHorizontal: twoPane ? padX : 0 }]}>
+                    <View style={styles.main}>
+                        <FlashList
+                            ref={listRef}
+                            data={listData}
+                            keyExtractor={(item) =>
+                                item._isHeader ? `header-${item._section}`
+                                : item._isEmpty ? `empty-${item._section}-${'_emptyIndex' in item ? item._emptyIndex : 0}`
+                                : ('pickId' in item ? item.pickId : item.id)
+                            }
+                            contentContainerStyle={{ ...styles.listContent, paddingHorizontal: twoPane ? 0 : padX }}
+                            getItemType={(item) => item._isHeader ? 'header' : item._section}
+                            renderItem={renderRosterItem}
+                        />
+                    </View>
+                    {twoPane ? (
+                        <ScrollView style={styles.rail} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+                            {sideCards}
+                        </ScrollView>
+                    ) : null}
+                </View>
             )}
+
+            <RosterPlayerSheet
+                player={sheetPlayer}
+                avgFpts={sheetPlayer ? avgMap.get(sheetPlayer.players.id) : undefined}
+                stats={sheetPlayer ? avgStatsMap.get(sheetPlayer.players.id) : undefined}
+                actions={sheetActions}
+                onClose={() => setSheetPlayer(null)}
+            />
 
             <AutoSetModal
                 visible={autoSetVisible}
@@ -829,197 +986,148 @@ export default function RosterScreen() {
                 onRestOfSeason={() => { void runAutoSet('season') }}
                 onEditManually={() => { setAutoSetVisible(false); push('/(modals)/lineup') }}
             />
-        </SafeAreaView>
+        </Page>
     )
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    flex1: { flex: 1 },
-    rosterTableHeader: {
-        minHeight: 34,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
-    },
-    rosterTableRow: {
-        minHeight: 58,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        backgroundColor: colors.bgScreen,
-    },
-    rosterTableOpen: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    rosterTableSlot: {
-        width: 46,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        color: colors.primaryDark,
-        textTransform: 'uppercase' as const,
-    },
-    rosterTablePlayer: {
-        flex: 1,
-        minWidth: 220,
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
-    },
-    rosterTablePlayerCell: {
-        flex: 1,
-        minWidth: 220,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-    },
-    rosterTablePlayerInfo: {
-        flex: 1,
-        minWidth: 0,
-        gap: 2,
-    },
-    rosterTableName: {
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
-    rosterTableMeta: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.semibold,
-        color: colors.textMuted,
-    },
-    rosterTableStat: {
-        width: 50,
-        textAlign: 'right',
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
-    },
-    rosterTableFp: {
-        color: colors.primaryDark,
-        fontWeight: fontWeight.extrabold,
-    },
-    rosterTableAction: {
-        width: 86,
-        textAlign: 'right',
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.7,
-        textTransform: 'uppercase' as const,
-    },
-    rosterTableActions: {
-        width: 86,
-        alignItems: 'flex-end',
-    },
-    tableActionButton: {
-        minWidth: 56,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.primary,
-        borderRadius: radii.md,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        backgroundColor: colors.primaryLight,
-    },
-    tableActionText: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.primaryDark,
-    },
 
-    header: {
-        padding: spacing['2xl'],
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        gap: 2,
+    summary: {
+        minHeight: 48,
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
+        alignContent: 'center',
+        gap: spacing.md,
+        paddingVertical: spacing.sm,
     },
-    lineupButton: {
-        paddingHorizontal: 14,
-        paddingVertical: spacing.md,
-        backgroundColor: colors.primary,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        marginLeft: spacing.lg,
-    },
-    lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-    lineupButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
-    lineupButtonTextDisabled: { color: colors.textMuted },
-    leagueName: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    teamName: { fontSize: fontSize.md, color: colors.textSecondary },
-    rosterCount: { fontSize: fontSize['2sm'], color: colors.textPlaceholder, marginTop: spacing.xs },
+    summaryText: { ...textStyles.meta, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
     claimsChip: {
-        alignSelf: 'flex-start',
-        marginTop: spacing.sm,
+        minHeight: 32,
+        justifyContent: 'center',
         paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
         borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.primaryBorder,
         backgroundColor: colors.primaryLight,
     },
-    claimsChipText: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.primaryDark,
-    },
+    claimsChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
-    taxiHeader: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        backgroundColor: colors.infoLight,
-        borderLeftWidth: 3,
-        borderLeftColor: colors.info,
-        gap: 2,
+    body: { flex: 1, minHeight: 0 },
+    bodyTwoPane: { flexDirection: 'row', gap: spacing['3xl'] },
+    main: { flex: 1, minWidth: 0, minHeight: 0 },
+    rail: { width: layout.railWidth, flexGrow: 0, flexShrink: 0 },
+    listContent: { paddingTop: spacing.md, paddingBottom: spacing['3xl'] },
+
+    // One card per roster section, drawn across the flat list's items.
+    cardSlice: {
+        backgroundColor: colors.bgCard,
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: colors.borderLight,
     },
-    taxiHeaderText: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.info,
-        letterSpacing: 0.5,
+    cardTop: {
+        borderTopWidth: 1,
+        borderTopLeftRadius: radii.xl,
+        borderTopRightRadius: radii.xl,
+        overflow: 'hidden',
+    },
+    cardBottom: {
+        borderBottomWidth: 1,
+        borderBottomLeftRadius: radii.xl,
+        borderBottomRightRadius: radii.xl,
+        marginBottom: spacing.md,
+        overflow: 'hidden',
+    },
+    rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
+    bandHint: { ...textStyles.meta, color: colors.info },
+
+    rosterTableHeader: {
+        minHeight: table.headerHeight,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.lg,
+        borderBottomWidth: 1,
+        borderColor: colors.separator,
+    },
+    headerCell: { ...textStyles.tableHeader },
+    rosterTableRow: {
+        minHeight: table.rowHeight,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.lg,
+    },
+    rosterTableOpen: {
+        flex: 1,
+        minHeight: table.rowHeight,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    rosterTableSlot: {
+        width: TABLE_SLOT_W,
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.extrabold,
+        color: colors.primaryDark,
         textTransform: 'uppercase' as const,
     },
-    emptySlot: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
+    rosterTablePlayer: { flex: 1, minWidth: TABLE_PLAYER_MIN_W },
+    rosterTablePlayerCell: {
+        flex: 1,
+        minWidth: TABLE_PLAYER_MIN_W,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+    },
+    rosterTablePlayerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    rosterTableName: { ...textStyles.rowTitle },
+    rosterTableMeta: { ...textStyles.meta },
+    rosterTableStat: {
+        ...textStyles.tableCell,
+        width: table.statColWidth,
+        textAlign: 'right',
+    },
+    rosterTableFp: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
+    rosterTableActions: {
+        width: TABLE_ACTIONS_W,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: spacing.xs,
+    },
+    tableActionButton: {
+        minWidth: 52,
+        minHeight: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1,
-        borderStyle: 'dashed',
-        borderColor: colors.border,
+        borderColor: colors.primaryBorder,
         borderRadius: radii.md,
-        marginHorizontal: spacing.md,
-        marginVertical: spacing.xs,
+        paddingHorizontal: spacing.md,
+        backgroundColor: colors.primaryLight,
     },
-    emptySlotText: {
-        fontSize: fontSize.sm,
-        color: colors.textPlaceholder,
-        fontStyle: 'italic',
-    },
-    taxiEmpty: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-    },
-    taxiEmptyText: {
-        fontSize: fontSize.sm,
-        color: colors.textPlaceholder,
-        fontStyle: 'italic',
-    },
-    taxiHeaderSub: {
-        fontSize: fontSize.xs,
-        color: colors.info,
-        opacity: 0.7,
+    tableActionText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    moreButton: {
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
     },
 
+    emptySlot: {
+        minHeight: 44,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.lg,
+    },
+    emptySlotText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
+    taxiEmpty: {
+        minHeight: 44,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.lg,
+    },
+    taxiEmptyText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
