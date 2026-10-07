@@ -2,7 +2,7 @@ import { FlashList } from '@shopify/flash-list'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { MotionPressable } from '@/components/Motion'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { draftAgeLabel, draftPlayerMeta } from '@/lib/draft-display'
 import { NOMINATION_ORDER_MODE_LABELS } from '@/lib/draft'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -27,7 +27,15 @@ export function AuctionIdlePanel({
     const currentNominatorTeam = order.find((item) => item.memberId === currentNominatorMemberId)?.teamName ?? 'Unknown'
 
     let content
-    if (isPaused) {
+    if (draft.status === 'pending') {
+        // Before the start, no one holds the nomination yet.
+        content = <View style={styles.waitingRow}>
+            <Text style={styles.waitingTeam}>Draft hasn&apos;t started</Text>
+            <Text style={styles.waitingText}>{draft.scheduledAt ? `Starts ${new Date(draft.scheduledAt).toLocaleString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            })}` : 'The commissioner starts the draft.'}</Text>
+        </View>
+    } else if (isPaused) {
         content = <View style={styles.waitingRow}>
             <Text style={styles.waitingTeam}>Draft paused</Text>
             <Text style={styles.waitingText}>Commissioner will resume the clock.</Text>
@@ -41,11 +49,11 @@ export function AuctionIdlePanel({
         content = <View style={styles.waitingRow}>
             <Text style={styles.waitingText}>Waiting for</Text>
             <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
-            <Text style={styles.waitingText}>to nominate...</Text>
+            <Text style={styles.waitingText}>to nominate</Text>
         </View>
     } else {
         content = <>
-            <Text style={styles.yourTurnBanner}>Your turn to nominate!</Text>
+            <Text style={styles.yourTurnBanner}>Your turn to nominate</Text>
             <Text style={styles.nominationModeHint}>
                 Nomination order: {NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}
             </Text>
@@ -60,7 +68,7 @@ export function AuctionIdlePanel({
                             pressedScale={0.975} accessibilityRole="button"
                             accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}>
                             <Avatar name={item.display_name ?? 'Player'} color={colors.bgMuted}
-                                uri={playerHeadshotUrl(item.nba_id)} size={36} />
+                                uri={playerHeadshotUrl(item.nba_id)} size={32} />
                             <View style={styles.playerCopy}>
                                 <Text style={styles.playerResultName}>{item.display_name}</Text>
                                 <Text style={styles.playerResultMeta}>{draftPlayerMeta([
@@ -89,26 +97,27 @@ export function AuctionIdlePanel({
 }
 
 const styles = StyleSheet.create({
-    card: { backgroundColor: colors.bgScreen, borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1,
+    card: { backgroundColor: colors.bgCard, borderRadius: radii.lg, borderCurve: 'continuous', borderWidth: 1,
         borderColor: colors.borderLight, padding: spacing.xl, gap: spacing.md },
     cardCompact: { padding: spacing.md, gap: spacing.sm },
     waitingRow: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
-    waitingText: { fontSize: fontSize.md, color: colors.textMuted },
+    waitingText: { ...textStyles.body, color: colors.textMuted },
     waitingTeam: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     yourTurnBanner: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textAlign: 'center' },
-    nominationModeHint: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xs },
-    nominateButton: { marginTop: spacing.xs, height: 48, backgroundColor: colors.primary, borderRadius: radii.md,
+    nominationModeHint: { ...textStyles.meta, textAlign: 'center' },
+    nominateButton: { marginTop: spacing.xs, height: controlSize.button.md.height, backgroundColor: colors.primary, borderRadius: radii.lg,
         borderCurve: 'continuous', justifyContent: 'center', alignItems: 'center' },
     nominateButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-    searchInput: { height: 44, backgroundColor: colors.bgMuted, borderRadius: radii.md, borderCurve: 'continuous',
-        paddingHorizontal: 14, fontSize: fontSize.lg, marginTop: spacing.xs },
-    playerResult: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm,
+    // 16px keeps iOS Safari from zooming into the field.
+    searchInput: { height: controlSize.field.md, backgroundColor: colors.bgInput, borderRadius: radii.md, borderCurve: 'continuous',
+        borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, fontSize: fontSize.lg, marginTop: spacing.xs },
+    playerResult: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center',
         borderTopWidth: 1, borderTopColor: colors.separator, gap: spacing.md },
-    playerCopy: { flex: 1 },
-    playerResultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold },
-    playerResultMeta: { fontSize: fontSize['2sm'], color: colors.textMuted, marginTop: 1 },
+    playerCopy: { flex: 1, minWidth: 0 },
+    playerResultName: { ...textStyles.rowTitle },
+    playerResultMeta: { ...textStyles.meta },
     nominateLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    emptySearch: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
-    cancelButton: { minHeight: 44, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center' },
+    emptySearch: { ...textStyles.meta, color: colors.textPlaceholder, textAlign: 'center', marginTop: spacing.md },
+    cancelButton: { minHeight: controlSize.minTouch, marginTop: spacing.sm, alignItems: 'center', justifyContent: 'center' },
     cancelText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
 })

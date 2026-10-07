@@ -1,7 +1,7 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { MotionPressable } from '@/components/Motion'
-import { colors, fontFamily, fontSize, fontWeight, radii, spacing, tints } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, tints } from '@/constants/tokens'
 import { draftAgeLabel, draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
 import { playerHeadshotUrl } from '@/lib/format'
 import type { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
@@ -44,7 +44,7 @@ export function AuctionLivePanel({
         <View style={[styles.card, compact && styles.cardCompact, urgent && styles.cardUrgent]}>
             <View style={[styles.liveLayout, compact && styles.liveLayoutCompact]}>
                 <View style={styles.playerInfo}>
-                    <Text style={styles.cardLabel}>ON THE BLOCK</Text>
+                    <Text style={styles.cardLabel}>On the block</Text>
                     <View style={styles.playerRow}>
                         <Avatar name={nomination.player?.displayName ?? 'Unknown Player'} color={colors.bgMuted}
                             uri={playerHeadshotUrl(nomination.player?.nbaId)} size={compact ? 44 : 64} />
@@ -137,11 +137,11 @@ export function AuctionLivePanel({
 }
 
 const styles = StyleSheet.create({
-    card: { backgroundColor: colors.bgScreen, borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1,
+    card: { backgroundColor: colors.bgCard, borderRadius: radii.lg, borderCurve: 'continuous', borderWidth: 1,
         borderColor: colors.borderLight, padding: spacing.xl, gap: spacing.md },
     cardCompact: { padding: spacing.md, gap: spacing.sm },
     cardUrgent: { borderColor: colors.danger, borderWidth: 1.5, boxShadow: `0 0 0 3px ${tints.dangerFocusRing}` },
-    cardLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0 },
+    cardLabel: { ...textStyles.sectionLabel },
     liveLayout: { gap: spacing.md },
     liveLayoutCompact: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
     playerInfo: { flex: 1, minWidth: 0, gap: spacing.xs },
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     bidAmountLeading: { color: colors.successDark },
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
     bidLeaderLeading: { color: colors.successDark, fontWeight: fontWeight.bold, backgroundColor: colors.successLight,
-        paddingHorizontal: spacing.md, paddingVertical: 2, borderRadius: radii.full, overflow: 'hidden', alignSelf: 'flex-start' },
+        paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.full, overflow: 'hidden', alignSelf: 'flex-start' },
     countdown: { width: 60, height: 60, borderRadius: 30, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
         justifyContent: 'center', alignItems: 'center' },
     countdownUrgent: { backgroundColor: colors.dangerLight, borderWidth: 2, borderColor: colors.danger },
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center' },
     bidStepText: { fontSize: fontSize.xl, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     bidAmountInput: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, width: 84, height: 44,
-        textAlign: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderCurve: 'continuous', paddingHorizontal: 10 },
+        textAlign: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderCurve: 'continuous', paddingHorizontal: spacing.md },
     bidAmountInputCompact: { width: 70, minWidth: 70 },
     bidButton: { flex: 1, minWidth: 112, height: 44, backgroundColor: colors.primary, borderRadius: radii.md,
         borderCurve: 'continuous', justifyContent: 'center', alignItems: 'center' },
@@ -179,14 +179,13 @@ const styles = StyleSheet.create({
     bidButtonDisabled: { opacity: 0.5 },
     bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     presencePending: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center' },
-    withdrawButton: { minHeight: 46, marginTop: spacing.md, alignItems: 'center', justifyContent: 'center',
+    withdrawButton: { minHeight: controlSize.minTouch, marginTop: spacing.md, alignItems: 'center', justifyContent: 'center',
         paddingVertical: spacing.sm, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border },
     withdrawButtonText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
-    historyPanel: { gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-        borderRadius: radii.md, borderCurve: 'continuous', backgroundColor: colors.bgMuted },
+    historyPanel: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+        borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.borderLight },
     historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
-    historyLabel: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, letterSpacing: 0,
-        textTransform: 'uppercase', color: colors.textMuted },
+    historyLabel: { ...textStyles.sectionLabel },
     historyCount: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
     historyEmpty: { fontSize: fontSize.sm, color: colors.textSecondary },
     historyItems: { gap: spacing.xs },
@@ -198,7 +197,7 @@ const styles = StyleSheet.create({
     orderTextHigh: { color: colors.successDark },
     historyInfo: { flex: 1, minWidth: 0 },
     historyTeam: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    historyMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
+    historyMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: spacing.xxs },
     historyAmount: { fontSize: fontSize.sm, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.primaryDark },
     historyAmountHigh: { color: colors.successDark },
 })

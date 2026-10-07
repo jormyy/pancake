@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, radii, spacing, textStyles } from '@/constants/tokens'
 
 export function DraftScreenHeader({
     title,
@@ -27,7 +27,7 @@ export function DraftScreenHeader({
             <Text style={styles.screenTitle} numberOfLines={1}>
                 {title}
             </Text>
-            {children}
+            {children ? <View style={styles.actions}>{children}</View> : null}
         </View>
     )
 }
@@ -52,11 +52,6 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },
-    screenTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.bold,
-    },
+    screenTitle: { ...textStyles.pageTitle, flex: 1 },
+    actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
 })
