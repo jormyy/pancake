@@ -329,6 +329,13 @@
       "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d",
       "statementCount": 14,
       "statementsSha256": "78bd410df2613e4bb3eb6747943d1e05ecfbec5372e36315429fc3e71dfad797"
+    },
+    {
+      "name": "share_scoring_cache_aggregation",
+      "version": "20261006000001",
+      "statementCount": 12,
+      "statementsSha256": "b04e7678f3fb87c19998f56d092bddc709b0441405cf73c4e78765b3d10ed6bd",
+      "sha256": "673b9ded8f58df587525711dae2c38b3f5377a000d5a32e43f3632c41346f9df"
     }
   ]
 }

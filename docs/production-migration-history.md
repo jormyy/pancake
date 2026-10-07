@@ -42,11 +42,21 @@ versions fail. Changed attested SQL or source files fail. Changed helper bodies
 or grants fail. Unapproved pending files fail.
 
 The baseline is `20261005000002` (328 rows) and the approved range is
-`20261005000003_league_season_rules`.
+`20261005000003_league_season_rules`, followed by
+`20261006000001_share_scoring_cache_aggregation`.
 A partially applied approved range plans only its remaining suffix. Every applied
 member of the range must also match its statement count and stored-SQL fingerprint.
-Both fingerprints come from fresh local installs with CLI 2.114.0, which also
-reproduced every earlier attested fingerprint.
+The league-season fingerprint comes from a fresh local install with CLI 2.114.0,
+which also reproduced every earlier attested fingerprint. The integrated range
+was then applied in order to the isolated 328-migration local database with that
+CLI. Its recorded 14- and 12-statement fingerprints match the approved range.
+The before/after catalog checks and five affected SQL suites pass. This is local
+compatibility evidence; production still requires its own current history check.
+The scoring migration replaces a derived materialized cache and its public view.
+Apply it after the league-season migration. Its transaction protects against
+partial application; a frontend rollback leaves both migrations applied. Before
+production application, check view readers, lock contention and cache rebuild
+time, and prepare the previous view definition as a forward recovery migration.
 
 Until 2026-10-06 the baseline was `20260926000001` (326 rows) and the range held
 `20261005000001` and `20261005000002`. Production applied both with an owner-approved
