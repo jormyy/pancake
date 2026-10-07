@@ -1,3 +1,4 @@
+import { useIsFocused } from '@react-navigation/native'
 import {
     View,
     Text,
@@ -145,7 +146,8 @@ function PlayerTableHeader({
 export default function PlayersScreen() {
     const { push } = useRouter()
     const { user, loading: authLoading } = useAuth()
-    const { memberships, current, currentLeague, loading: leagueLoading } = useLeagueContext()
+    const { memberships, current, currentLeague, loading: leagueLoading, online } = useLeagueContext()
+    const focused = useIsFocused()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
     const searchEnabled = !!user && !!current?.id && !!leagueId
@@ -188,6 +190,7 @@ export default function PlayersScreen() {
         data: playerSupport,
         loading: playerSupportFetchLoading,
         error: playerSupportError,
+        isSnapshot: playerSupportSnapshot,
         refresh: refreshPlayerSupport,
     } = useFocusAsyncData<PlayerSupport>(async () => {
         if (!leagueId) {
@@ -209,10 +212,25 @@ export default function PlayersScreen() {
         return support
     }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
 
+
+    const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
+    const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
+    const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
+    const playerSupportReady = !leagueId || playerSupportForLeague != null
+    const transactionState = playerSupportForLeague?.transactionState ?? null
+
+    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, online, focused, ownerId: user?.id })
+    const retrySearch = search.results.retry
+    const refreshPlayers = useCallback(() => {
+        retrySearch()
+        return refreshPlayerSupport()
+    }, [retrySearch, refreshPlayerSupport])
+
     useEffect(() => {
         if (!leagueId) return
 
-        const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayerSupport() })
+        const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayers() })
         const channel = subscribeToTableChanges(
             `players-screen:${leagueId}`,
             { mode: 'fallback', watches: [
@@ -228,16 +246,8 @@ export default function PlayersScreen() {
             refreshSupport.cancel()
             reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }
-    }, [leagueId, refreshPlayerSupport])
+    }, [leagueId, refreshPlayers])
 
-    const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
-    const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
-    const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
-    const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
-    const playerSupportReady = !leagueId || playerSupportForLeague != null
-    const transactionState = playerSupportForLeague?.transactionState ?? null
-
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady })
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
     // descending (best first).
@@ -255,7 +265,7 @@ export default function PlayersScreen() {
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
-        onChanged: refreshPlayerSupport,
+        onChanged: refreshPlayers,
         transactionState,
         onClaimInstead: openClaim,
     })
@@ -266,9 +276,10 @@ export default function PlayersScreen() {
         .join(','), [search.availability.gamesLeft])
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
+        if (!online) return
         if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
         else void quickAddHandleAdd(player)
-    }, [waiverIds, quickAddHandleClaim, quickAddHandleAdd])
+    }, [online, waiverIds, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])
@@ -279,6 +290,7 @@ export default function PlayersScreen() {
             ownedMap={ownedMap}
             waiverIds={waiverIds}
             isAdding={quickAdd.adding === item.id}
+            addDisabled={!online}
             gamesLeft={search.availability.gamesLeft}
             showStats={showStatTable}
             showCompactStats={false}
@@ -287,7 +299,7 @@ export default function PlayersScreen() {
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, online, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -456,6 +468,20 @@ export default function PlayersScreen() {
                 </Animated.View>
             </View>
 
+            {search.results.players.length > 0 && (!online || search.results.isSnapshot || playerSupportSnapshot || playerSupportError) && <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Refresh player data"
+                disabled={!online || search.results.refreshing}
+                onPress={() => { void refreshPlayers() }}
+                style={localStyles.freshness}
+            >
+                <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">
+                    {!online ? 'Offline. Saved player results may be out of date.'
+                        : search.results.error || playerSupportError ? 'Player refresh failed. Saved results may be out of date. Tap to retry.'
+                        : 'Saved player results. Updating…'}
+                </Text>
+            </Pressable>}
+
             <FlashList
                     ref={search.results.listRef}
                     data={search.results.players}
@@ -470,7 +496,9 @@ export default function PlayersScreen() {
                     ) : null}
                     renderItem={renderPlayerItem}
                     ListEmptyComponent={
-                        listIsInitialLoading
+                        !online
+                            ? <EmptyState message="Offline. No saved player results." description="Reconnect to load this search." fullScreen={false} />
+                            : listIsInitialLoading
                             ? null
                             : search.results.error
                               ? <EmptyState message="Players could not load." description={search.results.error.message} actionLabel="Retry" onAction={search.results.retry} fullScreen={false} />
@@ -509,6 +537,8 @@ export default function PlayersScreen() {
 }
 
 const localStyles = StyleSheet.create({
+    freshness: { paddingVertical: spacing.sm },
+    freshnessText: { fontSize: fontSize.sm, color: colors.textSecondary },
     filterCardCompact: {
         marginTop: spacing.md,
         marginHorizontal: spacing.sm,
