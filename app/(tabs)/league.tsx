@@ -1,13 +1,12 @@
 import { View, StyleSheet } from 'react-native'
 import { colors } from '@/constants/tokens'
-import { ErrorBanner, Page, PageHeader } from '@/components/ui'
+import { ErrorBanner, Page, PageHeader, SegmentedControl } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 import { AuctionPanel, DraftBoardPanel } from '@/components/league/DraftSetupPanels'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
 import { SettingsPanel } from '@/components/league/SettingsPanel'
-import { LeagueTabBar } from '@/components/league/LeagueTabBar'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
 import { LEAGUE_TABS } from '@/lib/league/tabs'
 
@@ -173,7 +172,20 @@ export default function LeagueScreen() {
     // leads with its sections.
     return (
         <Page title="League">
-            <PageHeader tabs={<LeagueTabBar activeTab={screen.tab} onTabChange={screen.handleTabChange} />} />
+            <PageHeader
+                tabs={(
+                    <SegmentedControl
+                        variant="tabs"
+                        value={screen.tab}
+                        onChange={screen.handleTabChange}
+                        options={LEAGUE_TABS.map((tab) => ({ label: tab.label, value: tab.key }))}
+                        accessibilityLabel="League sections"
+                        idBase="league-tab"
+                        controlledPanelId={activePanelId}
+                        scrollable
+                    />
+                )}
+            />
             <View
                 nativeID={activePanelId}
                 style={styles.panel}

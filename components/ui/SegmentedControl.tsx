@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef } from 'react'
-import { Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
+import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
 import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
@@ -71,6 +71,25 @@ export function SegmentedControl<T extends string>({
 
     useEffect(() => () => cancelFocusRecovery.current?.(), [])
 
+    // Scrollable tracks keep the selected tab in view, so a deep link to a
+    // far-right section never opens with its tab hidden off screen.
+    const scrollRef = useRef<ScrollView>(null)
+    const segmentLayouts = useRef<Record<string, { x: number; width: number }>>({})
+    const viewportWidth = useRef(0)
+    const scrollX = useRef(0)
+    const scrollIntoView = useCallback((target: T) => {
+        const box = segmentLayouts.current[target]
+        const viewport = viewportWidth.current
+        if (!scrollable || !box || viewport <= 0) return
+        const pad = spacing.xl
+        if (box.x < scrollX.current + pad) {
+            scrollRef.current?.scrollTo({ x: Math.max(0, box.x - pad), animated: false })
+        } else if (box.x + box.width > scrollX.current + viewport - pad) {
+            scrollRef.current?.scrollTo({ x: box.x + box.width - viewport + pad, animated: false })
+        }
+    }, [scrollable])
+    useEffect(() => { scrollIntoView(value) }, [scrollIntoView, value])
+
     useEffect(() => {
         if (pendingFocusValue.current !== value) return
         pendingFocusValue.current = null
@@ -115,6 +134,10 @@ export function SegmentedControl<T extends string>({
                 accessibilityLabel={segmentLabel}
                 accessibilityState={{ selected: active }}
                 {...webKeyProps}
+                onLayout={scrollable ? (event: LayoutChangeEvent) => {
+                    segmentLayouts.current[opt.value] = { x: event.nativeEvent.layout.x, width: event.nativeEvent.layout.width }
+                    if (opt.value === value) scrollIntoView(value)
+                } : undefined}
                 style={({ hovered, pressed }: PressableState) => tabs
                     ? [styles.tab, active && styles.tabActive, hovered && !active && styles.tabHover, pressed && styles.pressed]
                     : [styles.segment, active && styles.segmentActive, hovered && !active && styles.segmentHover, pressed && styles.pressed]}
@@ -134,8 +157,15 @@ export function SegmentedControl<T extends string>({
     if (scrollable) {
         return (
             <ScrollView
+                ref={scrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                onLayout={(event) => {
+                    viewportWidth.current = event.nativeEvent.layout.width
+                    scrollIntoView(value)
+                }}
+                onScroll={(event) => { scrollX.current = event.nativeEvent.contentOffset.x }}
+                scrollEventThrottle={32}
                 role="tablist"
                 aria-label={accessibilityLabel}
                 aria-orientation="horizontal"
