@@ -19,8 +19,7 @@ export default function DraftRoomTab() {
         return (
             <EmptyState
                 icon="flash-on"
-                message="Checking draft room"
-                description="The active auction or rookie draft opens automatically when one is ready."
+                message="Checking for a live draft"
             />
         )
     }
@@ -41,7 +40,7 @@ export default function DraftRoomTab() {
         <EmptyState
             icon="flash-on"
             message="No active draft"
-            description="Start an auction or rookie draft from the League screen to open the draft room."
+            description="Drafts start from League."
             actionLabel="Go to League"
             onAction={() => router.push('/league?tab=auctions')}
         />

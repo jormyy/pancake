@@ -15,7 +15,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
 import { getPositionColor } from "@/constants/positions"
-import { colors, fontSize, fontWeight, radii, scrim, spacing, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
 import { countLabel, playerHeadshotUrl } from '@/lib/format'
@@ -31,6 +31,8 @@ export default function RookieDraftRoomScreen() {
     const router = useRouter()
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
+    // Wide screens keep one readable column and move admin controls into the header.
+    const isDesktop = width >= breakpoints.desktop && !compactLandscape
     const myMemberId = current?.id
 
     const {
@@ -158,7 +160,7 @@ export default function RookieDraftRoomScreen() {
                                                 uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
                                                 color={colors.bgMuted}
                                                 textColor={colors.textSecondary}
-                                                size={34}
+                                                size={32}
                                             />
                                             <View style={styles.overflowDropInfo}>
                                                 <Text style={styles.overflowDropName} numberOfLines={1}>
@@ -202,7 +204,7 @@ export default function RookieDraftRoomScreen() {
                                         uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
                                         color={colors.bgMuted}
                                         textColor={colors.textSecondary}
-                                        size={34}
+                                        size={32}
                                     />
                                     <View style={styles.overflowDropInfo}>
                                         <Text style={styles.overflowDropName} numberOfLines={1}>
@@ -220,9 +222,22 @@ export default function RookieDraftRoomScreen() {
             </Modal>
 
             <SafeAreaView style={styles.container} edges={['bottom']}>
-                <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)} />
+                <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
+                    {isCommissioner && !isDone && isDesktop ? (
+                        <DraftAdminBar
+                            inline
+                            showLabel={false}
+                            isPaused={isPaused}
+                            showPause={canUsePauseControl}
+                            onPause={handlePauseDraft}
+                            onResume={handleResumeDraft}
+                            onReset={handleResetDraft}
+                            onStop={handleStopDraft}
+                        />
+                    ) : null}
+                </DraftScreenHeader>
                 <KeyboardAvoidingView
-                    style={{ flex: 1 }}
+                    style={[styles.body, isDesktop && styles.bodyDesktop]}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 >
                     <View style={[styles.topDraftPanel, compactLandscape && styles.topDraftPanelCompact]}>
@@ -289,7 +304,7 @@ export default function RookieDraftRoomScreen() {
                             )}
                         </View>
 
-                        {isCommissioner && !isDone ? (
+                        {isCommissioner && !isDone && !isDesktop ? (
                             <DraftAdminBar
                                 isPaused={isPaused}
                                 showPause={canUsePauseControl}
@@ -424,10 +439,10 @@ function ProspectRow({
                 uri={playerHeadshotUrl(player.nba_id) ?? undefined}
                 color={colors.bgMuted}
                 textColor={colors.textSecondary}
-                size={38}
+                size={32}
             />
             <View style={styles.resultInfo}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={styles.resultNameRow}>
                     <Text style={styles.resultName} numberOfLines={1}>{player.display_name}</Text>
                     {player.nba_draft_number != null && (
                         <View style={[styles.posChipXs, { backgroundColor: getPositionColor(player.position) }]}>
@@ -470,12 +485,14 @@ function PickRow({
             <Text style={[styles.pickNum, isMe && styles.meText]}>
                 {item.overallPick}
             </Text>
-            <Text style={[styles.pickTeam, isMe && styles.meText]} numberOfLines={1}>
-                {item.teamName}
-                {item.round > 1 && item.pickInRound === 1
-                    ? `\nRd ${item.round}`
-                    : ''}
-            </Text>
+            <View style={styles.pickTeam}>
+                <Text style={[styles.pickTeamName, isMe && styles.meText]} numberOfLines={1}>
+                    {item.teamName}
+                </Text>
+                {item.round > 1 && item.pickInRound === 1 ? (
+                    <Text style={styles.pickRoundStart}>Round {item.round}</Text>
+                ) : null}
+            </View>
             {item.player ? (
                 <View style={styles.pickPlayerCell}>
                     <Avatar
@@ -507,8 +524,18 @@ const ItemSeparator = () => <View style={styles.separator} />
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
+    body: { flex: 1 },
+    bodyDesktop: {
+        width: '100%',
+        maxWidth: layout.formMaxWidth,
+        alignSelf: 'center',
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
+    },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyText: { color: colors.textPlaceholder, fontSize: fontSize.md },
+    emptyText: { ...textStyles.body, color: colors.textPlaceholder },
 
     topDraftPanel: {},
     topDraftPanelCompact: {
@@ -523,8 +550,8 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
         borderBottomColor: uiColors.brandBorderSoft,
-        paddingHorizontal: spacing['2xl'],
-        paddingVertical: 14,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.lg,
         gap: spacing.xs,
     },
     bannerCompact: {
@@ -538,7 +565,7 @@ const styles = StyleSheet.create({
     },
     bannerDone: { backgroundColor: uiColors.successSurface, borderBottomColor: uiColors.successBorder },
     bannerPaused: { backgroundColor: colors.bgSubtle, borderBottomColor: colors.border },
-    adminBarWide: { paddingHorizontal: spacing['2xl'] },
+    adminBarWide: { paddingHorizontal: spacing.xl },
     adminBarCompact: {
         width: 252,
         minHeight: 54,
@@ -551,7 +578,7 @@ const styles = StyleSheet.create({
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
-    bannerClockUrgent: { color: colors.danger },
+    bannerClockUrgent: { color: colors.dangerDark },
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
@@ -562,7 +589,7 @@ const styles = StyleSheet.create({
     },
     tab: {
         flex: 1,
-        minHeight: 46,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -570,21 +597,20 @@ const styles = StyleSheet.create({
         borderBottomWidth: 2,
         borderBottomColor: colors.primary,
     },
-    tabText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    tabTextActive: { color: colors.primaryDark },
+    tabText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    tabTextActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         margin: spacing.lg,
         marginBottom: spacing.md,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        backgroundColor: colors.bgSubtle,
-        borderRadius: radii.xl,
+        paddingHorizontal: spacing.lg,
+        backgroundColor: colors.bgInput,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        borderWidth: 1.5,
-        borderColor: colors.primary,
+        borderWidth: 1,
+        borderColor: colors.border,
     },
     searchContainerCompact: {
         minHeight: 44,
@@ -594,9 +620,10 @@ const styles = StyleSheet.create({
         paddingVertical: 0,
         borderRadius: radii.md,
     },
-    searchInput: { flex: 1, height: 44, fontSize: fontSize.lg, color: colors.textPrimary },
+    // 16px keeps iOS Safari from zooming into the field.
+    searchInput: { flex: 1, height: controlSize.field.md, fontSize: fontSize.lg, color: colors.textPrimary },
 
-    emptyProspects: { paddingVertical: 40, alignItems: 'center' },
+    emptyProspects: { paddingVertical: spacing['5xl'], alignItems: 'center' },
     pickErrorBanner: {
         marginHorizontal: spacing.lg,
         marginBottom: spacing.sm,
@@ -606,24 +633,24 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: uiColors.dangerBorder,
     },
-    pickErrorText: { color: colors.danger, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+    pickErrorText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 
     resultRow: {
-        minHeight: 48,
+        minHeight: table.rowHeight,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.xs,
-        gap: 10,
+        gap: spacing.md,
     },
-    resultInfo: { flex: 1 },
-    resultName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    resultTeam: { fontSize: fontSize['2sm'], color: colors.textMuted },
+    resultInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    resultNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    resultName: { ...textStyles.rowTitle, flexShrink: 1 },
+    resultTeam: { ...textStyles.meta },
     pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     posChipXs: {
-        paddingHorizontal: 5,
-        paddingVertical: 2,
+        paddingHorizontal: spacing.xs,
+        paddingVertical: spacing.xxs,
         borderRadius: radii.xs,
         borderCurve: 'continuous' as const,
     },
@@ -631,21 +658,23 @@ const styles = StyleSheet.create({
 
     separator: { height: 1, backgroundColor: colors.separator },
 
-    pickHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
-    headerText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
+    pickHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, minHeight: table.headerHeight, backgroundColor: colors.bgSubtle },
+    headerText: { ...textStyles.tableHeader },
 
     pickRow: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        minHeight: table.rowHeight,
         gap: spacing.md,
     },
     pickRowMe: { backgroundColor: colors.primaryLight },
     pickRowOnClock: { backgroundColor: uiColors.successSurface },
 
     pickNum: { width: 28, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
-    pickTeam: { width: 100, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickTeam: { width: 140, gap: spacing.xxs },
+    pickTeamName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickRoundStart: { ...textStyles.tableHeader },
     pickPlayer: { flex: 1, fontSize: fontSize.sm, color: colors.textPlaceholder },
     pickSkipped: { flex: 1, fontSize: fontSize.sm, color: colors.textMuted, fontWeight: fontWeight.semibold },
 
@@ -660,8 +689,12 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: scrim,
         justifyContent: 'flex-end',
+        alignItems: 'center',
     },
+    // Width-capped so the sheet does not span a wide monitor.
     overflowCard: {
+        width: '100%',
+        maxWidth: 560,
         backgroundColor: colors.bgCard,
         borderTopLeftRadius: radii['2xl'],
         borderTopRightRadius: radii['2xl'],
@@ -680,7 +713,7 @@ const styles = StyleSheet.create({
         lineHeight: 22,
     },
     overflowBtn: {
-        minHeight: 46,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         borderRadius: radii.md,
         alignItems: 'center',
@@ -704,11 +737,10 @@ const styles = StyleSheet.create({
         maxHeight: 220,
     },
     overflowDropRow: {
-        minHeight: 48,
+        minHeight: table.rowHeight,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },

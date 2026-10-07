@@ -1,11 +1,12 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { MotionPressable } from '@/components/Motion'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 
 export function DraftAdminBar({
     isPaused,
     showPause = true,
     showLabel = true,
+    inline = false,
     onPause,
     onResume,
     onReset,
@@ -15,6 +16,8 @@ export function DraftAdminBar({
     isPaused: boolean
     showPause?: boolean
     showLabel?: boolean
+    /** Sit inside a header row instead of drawing its own bar. */
+    inline?: boolean
     onPause: () => void
     onResume: () => void
     onReset: () => void
@@ -22,7 +25,7 @@ export function DraftAdminBar({
     style?: StyleProp<ViewStyle>
 }) {
     return (
-        <View style={[styles.adminBar, style]}>
+        <View style={[inline ? styles.adminInline : styles.adminBar, style]}>
             {showLabel ? <Text style={styles.adminBarLabel}>Commissioner</Text> : null}
             <View style={styles.adminBarBtns}>
                 {showPause ? (
@@ -66,22 +69,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: spacing.sm,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.xs,
         backgroundColor: colors.bgSubtle,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
-    adminBarLabel: {
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 0,
-        textTransform: 'uppercase' as const,
-        color: colors.textMuted,
-    },
+    adminInline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    adminBarLabel: { ...textStyles.sectionLabel },
     adminBarBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     adminBtn: {
-        minHeight: 46,
+        minHeight: controlSize.button.sm.height,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: spacing.lg,

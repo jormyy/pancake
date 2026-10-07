@@ -1,13 +1,13 @@
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
-import { FantasyCard } from '@/components/player/FantasyCard'
 import { GameLogTable } from '@/components/player/GameLogTable'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
@@ -19,18 +19,31 @@ import { addLimitSummary } from '@/lib/pickup'
 import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import {
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
     View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+
+// Wide enough for a side column of profile stats next to a full game log.
+const TWO_COLUMN_MIN = 1000
+const SIDE_COLUMN_WIDTH = 400
 
 export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
     const { current, currentLeague } = useLeagueContext()
-    const { push } = useRouter()
+    const router = useRouter()
+    const { push } = router
+    const { padX, usableWidth } = usePageMetrics()
+    const twoColumn = usableWidth >= TWO_COLUMN_MIN
+    // The installed iPhone app has no back swipe, and a deep link has no history.
+    const goBack = useCallback(() => {
+        if (router.canGoBack()) router.back()
+        else router.replace('/players')
+    }, [router])
 
     const leagueId = currentLeague?.id ?? null
     const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}:${id}` : null
@@ -137,10 +150,13 @@ export default function PlayerDetailScreen() {
 
     if (!player) {
         return (
-            <SafeAreaView style={styles.container}>
-                <Stack.Screen options={{ title: 'Player', headerBackTitle: 'Back' }} />
+            <Page title="Player">
+                <Stack.Screen options={{ title: 'Player', headerShown: false }} />
+                <View style={[styles.missingHeader, { paddingHorizontal: padX }]}>
+                    <BackButton onPress={goBack} />
+                </View>
                 {!loading ? <Text style={styles.errorText}>{playerError ?? 'Player not found.'}</Text> : null}
-            </SafeAreaView>
+            </Page>
         )
     }
 
@@ -158,13 +174,57 @@ export default function PlayerDetailScreen() {
         transactionsError ? 'Transaction history could not refresh.' : null,
     ].filter((message): message is string => message != null)
 
+    const statColumns = twoColumn || usableWidth < 700 ? 4 : 6
+    const profile = (
+        <>
+            {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
+            <SeasonSelector
+                seasons={availableSeasons}
+                selectedSeason={selectedSeason}
+                onSelect={handleSeasonSelect}
+            />
+            {seasonAverages ? (
+                <StatsOverview
+                    averages={seasonAverages}
+                    seasonYear={selectedSeason}
+                    avgFantasyPoints={showFantasy ? avgFantasyPoints : null}
+                    columns={statColumns}
+                />
+            ) : (
+                <View style={styles.section}>
+                    <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>
+                        {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
+                    </Text>
+                    <Text style={styles.noData}>No stats available.</Text>
+                </View>
+            )}
+        </>
+    )
+    const gameLogSection = (
+        <GameLogTable
+            games={gameLog}
+            fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
+            hasMore={hasMoreGames}
+            loadingMore={gameLogLoading}
+            onLoadMore={loadMoreGames}
+        />
+    )
+    const historySection = showTransactions ? (
+        <TransactionHistory
+            playerId={id}
+            leagueId={leagueId!}
+            transactions={transactions}
+        />
+    ) : null
+
     return (
         <>
-            <Stack.Screen options={{ title: player.display_name, headerBackTitle: 'Back' }} />
-            <SafeAreaView style={styles.container} edges={['bottom']}>
-                <ScrollView contentContainerStyle={styles.scroll}>
-
-                    {/* Header */}
+            <Stack.Screen options={{ title: player.display_name, headerShown: false }} />
+            <Page title={player.display_name}>
+                <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
+                    <View style={styles.headerRow}>
+                    <BackButton onPress={goBack} />
+                    <View style={styles.headerMain}>
                     <PlayerHeader
                         player={player}
                         rosterStatus={rosterStatus}
@@ -177,7 +237,10 @@ export default function PlayerDetailScreen() {
                         onDrop={handleDrop}
                         onClaim={() => quickAdd.handleClaim({ id, display_name: player.display_name })}
                         onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
+                        compact={usableWidth < 600}
                     />
+                    </View>
+                    </View>
 
                     {contentReady ? (
                         <>
@@ -187,59 +250,25 @@ export default function PlayerDetailScreen() {
                                 </View>
                             ))}
 
-                            {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
-
-                            {/* Season selector */}
-                            <SeasonSelector
-                                seasons={availableSeasons}
-                                selectedSeason={selectedSeason}
-                                onSelect={handleSeasonSelect}
-                            />
-                            {/* Season averages */}
-                            {seasonAverages ? (
-                                <StatsOverview
-                                    averages={seasonAverages}
-                                    seasonYear={selectedSeason}
-                                />
-                            ) : (
-                                <View style={styles.section}>
-                                    <Text style={styles.sectionTitle}>
-                                        {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
-                                    </Text>
-                                    <Text style={styles.noData}>No stats available.</Text>
+                            {twoColumn ? (
+                                <View style={styles.columns}>
+                                    <View style={styles.sideColumn}>
+                                        {profile}
+                                        {historySection}
+                                    </View>
+                                    <View style={styles.mainColumn}>{gameLogSection}</View>
                                 </View>
-                            )}
-
-                            {/* Fantasy context */}
-                            {showFantasy && (
-                                <FantasyCard
-                                    avgFantasyPoints={avgFantasyPoints}
-                                    gamesCount={fantasyPointsMap!.size}
-                                />
-                            )}
-
-                            {/* Game log */}
-                            <GameLogTable
-                                games={gameLog}
-                                fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
-                                hasMore={hasMoreGames}
-                                loadingMore={gameLogLoading}
-                                onLoadMore={loadMoreGames}
-                            />
-
-                            {/* Transaction history — always shown regardless of season */}
-                            {showTransactions && (
-                                <TransactionHistory
-                                    playerId={id}
-                                    leagueId={leagueId!}
-                                    transactions={transactions}
-                                />
+                            ) : (
+                                <>
+                                    {profile}
+                                    {gameLogSection}
+                                    {historySection}
+                                </>
                             )}
                         </>
                     ) : null}
-
                 </ScrollView>
-            </SafeAreaView>
+            </Page>
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
@@ -267,13 +296,34 @@ export default function PlayerDetailScreen() {
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
+function BackButton({ onPress }: { onPress: () => void }) {
+    return (
+        <Pressable onPress={onPress} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
+            <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+        </Pressable>
+    )
+}
+
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
-    scroll: { padding: spacing['2xl'], gap: spacing['3xl'], width: '100%', maxWidth: 900, alignSelf: 'center' },
-    section: { gap: spacing.lg },
-    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
-    errorText: { textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
+    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing['2xl'] },
+    columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
+    sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing['2xl'] },
+    mainColumn: { flex: 1, minWidth: 0, gap: spacing['2xl'] },
+    section: { gap: spacing.md },
+    noData: { ...textStyles.body, color: colors.textPlaceholder },
+    missingHeader: { paddingTop: spacing.lg },
+    headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+    headerMain: { flex: 1, minWidth: 0 },
+    back: {
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgMuted,
+    },
+    errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
     warningBanner: {
         backgroundColor: colors.dangerLight,
         borderWidth: 1,
@@ -283,6 +333,4 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
     },
     warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
-
-    // Drop picker modal
 })
