@@ -1,13 +1,14 @@
 import { useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
+import DraftRoomScreen from '@/app/(modals)/draft-room'
 import { EmptyState } from '@/components/EmptyState'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 export default function DraftRoomTab() {
     const router = useRouter()
-    const { currentLeague } = useLeagueContext()
-    const { openDraftRoom, draftLoading, draftError, draftChecked } = useDraftRoomLauncher(currentLeague?.id)
+    const { currentLeague, current } = useLeagueContext()
+    const { openDraftRoom, draft, draftLoading, draftError, draftChecked } = useDraftRoomLauncher(currentLeague?.id, { renderAuctionInline: true, scopeKey: current?.id })
 
     useFocusEffect(
         useCallback(() => {
@@ -15,7 +16,7 @@ export default function DraftRoomTab() {
         }, [openDraftRoom]),
     )
 
-    if ((currentLeague?.id && !draftChecked) || draftLoading) {
+    if ((currentLeague?.id && !draftChecked) || draftLoading || draft?.draftType === 'snake') {
         return (
             <EmptyState
                 icon="flash-on"
@@ -35,6 +36,10 @@ export default function DraftRoomTab() {
                 onAction={() => { void openDraftRoom({ fallbackOnMissing: false }) }}
             />
         )
+    }
+
+    if (draft) {
+        return <DraftRoomScreen key={draft.id} resolvedDraftId={draft.id} />
     }
 
     return (

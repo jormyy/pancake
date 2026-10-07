@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
-import { getJoinableDraft } from '@/lib/draft'
+import { getJoinableDraft, type Draft } from '@/lib/draft'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 
@@ -8,10 +8,10 @@ type LaunchResult = 'opened' | 'missing' | 'error' | 'stale'
 
 export function useDraftRoomLauncher(
     leagueId: string | undefined,
-    options: { notifyOnError?: boolean } = {},
+    options: { notifyOnError?: boolean; renderAuctionInline?: boolean; scopeKey?: string } = {},
 ) {
     const router = useRouter()
-    const resourceKey = leagueId ?? null
+    const resourceKey = leagueId ? JSON.stringify([leagueId, options.scopeKey ?? null]) : null
     const activeResourceKeyRef = useRef(resourceKey)
     activeResourceKeyRef.current = resourceKey
     const generationRef = useRef(0)
@@ -20,40 +20,44 @@ export function useDraftRoomLauncher(
         key: string
         loading: boolean
         error: string | null
+        draft: Draft | null
     } | null>(null)
+
+    useEffect(() => () => { generationRef.current += 1 }, [])
 
     const openDraftRoom = useCallback((launchOptions: { fallbackOnMissing?: boolean } = {}) => {
         const fallbackOnMissing = launchOptions.fallbackOnMissing ?? true
-        const capturedKey = leagueId
-        if (!capturedKey) {
-            if (fallbackOnMissing) router.push('/draft-room')
+        const capturedKey = resourceKey
+        if (!capturedKey || !leagueId) {
+            if (fallbackOnMissing && !options.renderAuctionInline) router.push('/draft-room')
             return Promise.resolve<LaunchResult>('missing')
         }
         if (inFlightRef.current?.key === capturedKey) return inFlightRef.current.promise
 
         const generation = ++generationRef.current
-        setRequest({ key: capturedKey, loading: true, error: null })
+        setRequest({ key: capturedKey, loading: true, error: null, draft: null })
         const ownsRequest = () => (
             activeResourceKeyRef.current === capturedKey
             && generationRef.current === generation
         )
         const promise = (async (): Promise<LaunchResult> => {
             try {
-                const draft = await getJoinableDraft(capturedKey, { includeCompletedRookie: true })
+                const draft = await getJoinableDraft(leagueId, { includeCompletedRookie: true })
                 if (!ownsRequest()) return 'stale'
                 if (!draft) {
-                    if (fallbackOnMissing) router.push('/draft-room')
+                    if (fallbackOnMissing && !options.renderAuctionInline) router.push('/draft-room')
                     return 'missing'
                 }
                 const pathname = draft.draftType === 'snake'
                     ? '/(modals)/rookie-draft-room'
                     : '/(modals)/draft-room'
-                router.push({ pathname, params: { draftId: draft.id } })
+                setRequest({ key: capturedKey, loading: false, error: null, draft })
+                if (!options.renderAuctionInline || draft.draftType === 'snake') router.push({ pathname, params: { draftId: draft.id } })
                 return 'opened'
             } catch (error) {
                 if (!ownsRequest()) return 'stale'
                 const message = getErrorMessage(error)
-                setRequest({ key: capturedKey, loading: false, error: message })
+                setRequest({ key: capturedKey, loading: false, error: message, draft: null })
                 if (options.notifyOnError) showAlert('Could not open draft room', message)
                 return 'error'
             } finally {
@@ -67,11 +71,12 @@ export function useDraftRoomLauncher(
         })()
         inFlightRef.current = { key: capturedKey, promise }
         return promise
-    }, [leagueId, options.notifyOnError, router])
+    }, [leagueId, resourceKey, options.renderAuctionInline, options.notifyOnError, router])
 
     const ownsState = request?.key === resourceKey
     return {
         openDraftRoom,
+        draft: ownsState ? request.draft : null,
         draftLoading: ownsState ? request.loading : false,
         draftError: ownsState ? request.error : null,
         draftChecked: Boolean(ownsState && !request.loading),
