@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, fontFamily, fontWeight, radii, scoreboardColors, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, radii, scoreboardColors, spacing } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 import { LivePulse, MotionView } from '@/components/Motion'
 
@@ -20,10 +20,13 @@ export function Scoreboard({
     games,
     myTeamSet,
     compact = false,
+    wrap = false,
 }: {
     games: NBAGameRow[]
     myTeamSet: Set<string>
     compact?: boolean
+    /** Lay games out in rows (side column) instead of one sideways strip. */
+    wrap?: boolean
 }) {
     if (games.length === 0) return null
 
@@ -32,9 +35,10 @@ export function Scoreboard({
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>
             <ScrollView
-                horizontal
+                horizontal={!wrap}
+                scrollEnabled={!wrap}
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
+                contentContainerStyle={[styles.scroll, compact && styles.scrollCompact, wrap && styles.scrollWrap]}
             >
                 {sorted.map((g, index) => {
                     const isLive = g.status === 'InProgress'
@@ -110,12 +114,17 @@ const styles = StyleSheet.create({
     },
     scroll: {
         paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        paddingVertical: spacing.md,
         gap: spacing.md,
+    },
+    scrollWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        paddingHorizontal: spacing.lg,
     },
     scrollCompact: {
         paddingHorizontal: spacing.lg,
-        paddingVertical: 6,
+        paddingVertical: spacing.sm,
         gap: spacing.sm,
     },
     card: {
@@ -158,7 +167,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     tricode: {
-        fontSize: 11,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: scoreboardColors.textMuted,
         letterSpacing: 0.4,
@@ -168,7 +177,7 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
     },
     score: {
-        fontSize: 13,
+        fontSize: fontSize.sm,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
         color: scoreboardColors.accent,
@@ -177,7 +186,7 @@ const styles = StyleSheet.create({
     },
     scoreHidden: {
         color: scoreboardColors.hidden,
-        fontSize: 11,
+        fontSize: fontSize.xs,
     },
     scoreHighlight: {
         color: scoreboardColors.accentSoft,
@@ -190,7 +199,7 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     status: {
-        fontSize: 9,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: scoreboardColors.statusMuted,
         textAlign: 'center',

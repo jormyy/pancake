@@ -1,4 +1,4 @@
-import { Platform, type ViewStyle } from 'react-native'
+import { Platform, type TextStyle, type ViewStyle } from 'react-native'
 
 // ── Raw palette ─────────────────────────────────────────────────
 // Every color in the app lives here. Components import semantic
@@ -262,6 +262,20 @@ export const fontWeight = {
     black: '900' as const,
 }
 
+const tabularNums: TextStyle['fontVariant'] = ['tabular-nums']
+
+// Text roles. Screens pick a role instead of a raw size so the hierarchy reads
+// the same everywhere: hero number > page title > row title > body > meta > label.
+export const textStyles = {
+    hero: { fontFamily: fontFamily.display, fontSize: fontSize['5xl'], lineHeight: 40, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    pageTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, lineHeight: 26, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    rowTitle: { fontSize: fontSize.md, lineHeight: 18, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    body: { fontSize: fontSize.md, lineHeight: 20, color: colors.textSecondary },
+    meta: { fontSize: fontSize['2sm'], lineHeight: 16, color: colors.textMuted },
+    sectionLabel: { fontSize: fontSize.xs, lineHeight: 14, fontWeight: fontWeight.extrabold, letterSpacing: 0.8, textTransform: 'uppercase' as const, color: colors.textMuted },
+    stat: { fontSize: fontSize['2sm'], fontVariant: tabularNums, color: colors.textSecondary },
+} satisfies Record<string, TextStyle>
+
 export const controlSize = {
     minTouch: foundation.minTouch,
     button: {
@@ -442,6 +456,12 @@ export const layout = {
     contentMaxWidth: 1280,
     // Readable form/settings column on wide screens (was inlined as 640/720/760).
     formMaxWidth: 720,
+    // Head-to-head lineup column. Wider than this, a player's name drifts away
+    // from the points at the row's outer edge.
+    lineupMaxWidth: 680,
+    // Side column on two-pane screens (other matchups, scoreboard, details).
+    railWidth: 320,
+    pagePadX: { compact: spacing.lg, regular: spacing['3xl'] },
 } as const
 
 // Visually-hidden but screen-reader-available. Use for headings/labels that
@@ -467,6 +487,7 @@ export const breakpoints = {
     statTable: 920, // players: stacked stats ↔ full stat columns
     desktop: 1000, // draft room: single column ↔ two-column auction floor
     wide: 1200,    // extra breathing room
+    twoPane: 1360, // main column + side rail instead of one stretched column
 } as const
 
 // ── Web theme CSS variables ─────────────────────────────────────

@@ -76,12 +76,12 @@ export function DaySelector({
 
 const styles = StyleSheet.create({
     row: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.lg - spacing.xxs, gap: spacing.sm },
-    contentCompact: { paddingVertical: spacing.xs - 1, gap: spacing.xs - 1 },
+    content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
+    contentCompact: { paddingVertical: spacing.xs, gap: spacing.xs },
     cell: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous' as const, gap: spacing.xxs },
     // flexBasis + shrink (not a fixed width) so all 7 cells fit 320px screens.
     // Height stays at the 44px touch target; only the width flexes for 320px screens.
-    cellCompact: { flexGrow: 0, flexShrink: 1, flexBasis: 40, minWidth: 34, minHeight: 44, paddingVertical: spacing.xs - 1, gap: 0, borderRadius: radii.md + 1 },
+    cellCompact: { flexGrow: 0, flexShrink: 1, flexBasis: 40, minWidth: 34, minHeight: 44, paddingVertical: spacing.xxs, gap: 0, borderRadius: radii.lg },
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },
@@ -89,13 +89,13 @@ const styles = StyleSheet.create({
     labelCompact: { fontSize: fontSize['2xs'], lineHeight: fontSize.xs },
     labelSelected: { color: colors.textWhite },
     labelFaint: { color: uiColors.textFaint },
-    num: { fontSize: fontSize.md + 1, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    num: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
     numCompact: { fontSize: fontSize.md, lineHeight: fontSize.lg },
     numSelected: { color: colors.textWhite },
     numFaint: { color: uiColors.textFaint },
     dot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous' as const, backgroundColor: colors.primary, marginTop: 1 },
     dotSelected: { backgroundColor: tints.selectedIndicatorStrong },
-    dash: { width: spacing.lg, height: spacing.xxs, borderRadius: 1, backgroundColor: colors.border, marginTop: spacing.xs - 1 },
+    dash: { width: spacing.lg, height: spacing.xxs, borderRadius: 1, backgroundColor: colors.border, marginTop: spacing.xxs },
     dashSelected: { backgroundColor: tints.selectedIndicatorMuted },
     indicatorSpacer: { height: 5, marginTop: 1 },
 })

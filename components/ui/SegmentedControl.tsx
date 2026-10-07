@@ -20,6 +20,8 @@ type Props<T extends string> = {
     idBase?: string
     controlledPanelId?: string
     scrollable?: boolean
+    /** `pills` filter a list; `tabs` switch between a page's sections. */
+    variant?: 'pills' | 'tabs'
     style?: StyleProp<ViewStyle>
 }
 
@@ -51,8 +53,10 @@ export function SegmentedControl<T extends string>({
     idBase,
     controlledPanelId,
     scrollable = false,
+    variant = 'pills',
     style,
 }: Props<T>) {
+    const tabs = variant === 'tabs'
     const generatedId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
     const effectiveIdBase = idBase ?? `segmented-${generatedId}`
     const pendingFocusValue = useRef<T | null>(null)
@@ -111,14 +115,11 @@ export function SegmentedControl<T extends string>({
                 accessibilityLabel={segmentLabel}
                 accessibilityState={{ selected: active }}
                 {...webKeyProps}
-                style={({ hovered, pressed }: PressableState) => [
-                    styles.segment,
-                    active && styles.segmentActive,
-                    hovered && !active && styles.segmentHover,
-                    pressed && styles.pressed,
-                ]}
+                style={({ hovered, pressed }: PressableState) => tabs
+                    ? [styles.tab, active && styles.tabActive, hovered && !active && styles.tabHover, pressed && styles.pressed]
+                    : [styles.segment, active && styles.segmentActive, hovered && !active && styles.segmentHover, pressed && styles.pressed]}
             >
-                <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+                <Text style={tabs ? [styles.tabLabel, active && styles.tabLabelActive] : [styles.label, active && styles.labelActive]} numberOfLines={1}>
                     {opt.label}
                 </Text>
                 {typeof opt.badge === 'number' && opt.badge > 0 ? (
@@ -140,7 +141,7 @@ export function SegmentedControl<T extends string>({
                 aria-orientation="horizontal"
                 accessibilityRole="tablist"
                 accessibilityLabel={accessibilityLabel}
-                contentContainerStyle={[styles.track, styles.trackScrollable, style]}
+                contentContainerStyle={[styles.track, tabs && styles.tabTrack, styles.trackScrollable, style]}
             >
                 {segments}
             </ScrollView>
@@ -149,7 +150,7 @@ export function SegmentedControl<T extends string>({
 
     return (
         <View
-            style={[styles.track, style]}
+            style={[styles.track, tabs && styles.tabTrack, style]}
             role="tablist"
             aria-label={accessibilityLabel}
             aria-orientation="horizontal"
@@ -194,6 +195,25 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
     },
     labelActive: { color: colors.textWhite },
+    tabTrack: { gap: spacing.xs },
+    tab: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        minHeight: 44,
+        paddingHorizontal: spacing.lg,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    tabActive: { borderBottomColor: colors.primary },
+    tabHover: { borderBottomColor: colors.borderLight },
+    tabLabel: {
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.semibold,
+        color: colors.textMuted,
+    },
+    tabLabelActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
     badge: {
         minWidth: 18,
         height: 18,
