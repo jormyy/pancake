@@ -41,16 +41,16 @@ export function Sheet({
     const keyProps: WebKeyDownProps = Platform.OS === 'web'
         ? { onKeyDown: (event) => trapDialogTabFocus(dialogId, event) }
         : {}
+    // React Native Web's Modal is already the dialog element (role and
+    // aria-modal); naming it here avoids a second, nested dialog.
+    const modalLabel = Platform.OS === 'web' ? ({ 'aria-labelledby': titleId } as object) : {}
 
     return (
-        <Modal visible={visible} transparent animationType={bottomSheet ? 'slide' : 'fade'} onRequestClose={onClose}>
+        <Modal visible={visible} transparent animationType={bottomSheet ? 'slide' : 'fade'} onRequestClose={onClose} {...modalLabel}>
             <View style={[styles.scrim, bottomSheet ? styles.scrimBottom : styles.scrimCenter]}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
                 <View
                     nativeID={dialogId}
-                    role="dialog"
-                    aria-modal
-                    aria-labelledby={titleId}
                     tabIndex={-1}
                     accessibilityViewIsModal
                     style={[

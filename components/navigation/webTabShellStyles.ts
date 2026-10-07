@@ -219,10 +219,10 @@ export const styles = StyleSheet.create({
     sideNavItemHover: {
         backgroundColor: brand.overlay,
     },
+    // No glow: matches the boot shell's active item, so nothing shifts on mount.
     sideNavItemActive: {
         backgroundColor: colors.primary,
-        boxShadow: shadows.brandGlow,
-    } as WebOnlyViewStyle,
+    },
     sideNavItemDisabled: {
         opacity: 0.64,
     },

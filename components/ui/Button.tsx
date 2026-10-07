@@ -80,7 +80,7 @@ export function Button({
                     borderWidth: variant === 'outline' || variant === 'secondary' ? 1 : 0,
                 },
                 fullWidth && styles.fullWidth,
-                raised && !isDisabled && (elevation('brandGlow') as ViewStyle),
+                raised && !isDisabled && (elevation('sm') as ViewStyle),
                 pressed && !isDisabled && styles.pressed,
                 isDisabled && styles.disabled,
                 style,

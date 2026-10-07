@@ -123,8 +123,8 @@ export function SegmentedControl<T extends string>({
                     {opt.label}
                 </Text>
                 {typeof opt.badge === 'number' && opt.badge > 0 ? (
-                    <View style={[styles.badge, active && styles.badgeActive]}>
-                        <Text style={[styles.badgeText, active && styles.badgeTextActive]}>{opt.badge}</Text>
+                    <View style={tabs ? styles.tabBadge : [styles.badge, active && styles.badgeActive]}>
+                        <Text style={tabs ? styles.tabBadgeText : [styles.badgeText, active && styles.badgeTextActive]}>{opt.badge}</Text>
                     </View>
                 ) : null}
             </Pressable>
@@ -214,6 +214,18 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     tabLabelActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
+    // Underline tabs have no filled background, so the count keeps one solid
+    // style whether or not its tab is selected.
+    tabBadge: {
+        minWidth: 18,
+        height: 18,
+        paddingHorizontal: spacing.xs,
+        borderRadius: radii.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.primary,
+    },
+    tabBadgeText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: colors.textWhite },
     badge: {
         minWidth: 18,
         height: 18,
