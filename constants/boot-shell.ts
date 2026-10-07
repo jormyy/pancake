@@ -8,7 +8,7 @@ import {
     spacing,
     webBackgrounds,
     webOverlays,
-    WEB_THEME_VARS,
+    themeVariablesCss,
 } from './tokens'
 
 // The instant boot shell.
@@ -72,15 +72,12 @@ const PRIMARY_NAV: BootNavItem[] = [
 const LEAGUE_NAV: BootNavItem = { label: 'League', mobileLabel: 'League', href: '/league', icon: 'emoji-events' }
 const NAV: BootNavItem[] = [...PRIMARY_NAV, LEAGUE_NAV]
 
-const themeVars = Object.entries(WEB_THEME_VARS)
-    .map(([name, value]) => `--pancake-${name}:${value};`)
-    .join('')
 
 export const BOOT_SHELL_CSS = `
-:root{${themeVars}}
-html,body{background-color:${palette.cream100};}
+${themeVariablesCss()}
+html,body{background-color:var(--pancake-bg-screen);}
 #${BOOT_SHELL_ID}{position:fixed;inset:0;z-index:1;display:none;font-family:${SANS};
-  background-color:${palette.cream100};background-image:${webBackgrounds.appRoot};}
+  background-color:var(--pancake-bg-screen);background-image:${webBackgrounds.appRoot};}
 #${BOOT_SHELL_ID}[data-visible="1"]{display:block;}
 #${BOOT_SHELL_ID} *{box-sizing:border-box;}
 #${BOOT_SHELL_ID} a{text-decoration:none;-webkit-tap-highlight-color:transparent;}
@@ -132,26 +129,26 @@ html,body{background-color:${palette.cream100};}
     height:calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top,0px));
     padding-top:env(safe-area-inset-top,0px);background:${webOverlays.mobileTopbar};
     -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
-    border-bottom:1px solid ${palette.cream300};}
+    border-bottom:1px solid var(--pancake-border-light);}
   .pbs-topbar img{width:34px;height:44px;object-fit:contain;}
   .pbs-topbar-league{flex:1;min-width:0;height:44px;display:flex;align-items:center;
     gap:${spacing.md}px;padding:0 ${spacing.md}px;border-radius:${radii.lg}px;
-    background:${palette.cream200};border:1px solid ${palette.cream300};}
-  .pbs-topbar-league .pbs-league-name{color:${palette.espresso};font-size:${fontSize.sm}px;}
-  .pbs-chevron{width:18px;height:18px;flex-shrink:0;fill:${palette.latte};}
-  .pbs-menu{width:44px;height:44px;border-radius:${radii.lg}px;background:${palette.cream200};
+    background:var(--pancake-bg-muted);border:1px solid var(--pancake-border-light);}
+  .pbs-topbar-league .pbs-league-name{color:var(--pancake-text-primary);font-size:${fontSize.sm}px;}
+  .pbs-chevron{width:18px;height:18px;flex-shrink:0;fill:var(--pancake-text-muted);}
+  .pbs-menu{width:44px;height:44px;border-radius:${radii.lg}px;background:var(--pancake-bg-muted);
     display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .pbs-menu svg{width:22px;height:22px;fill:${palette.espresso};}
+  .pbs-menu svg{width:22px;height:22px;fill:var(--pancake-text-primary);}
   .pbs-bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;
     align-items:center;justify-content:space-around;
     height:calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom,0px));
     padding-bottom:calc(${spacing.xs}px + env(safe-area-inset-bottom,0px));
-    background:${webOverlays.mobileBottomNav};border-top:1px solid ${palette.cream300};}
+    background:${webOverlays.mobileBottomNav};border-top:1px solid var(--pancake-border-light);}
   .pbs-bottomitem{flex:1;min-height:44px;height:54px;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:${spacing.xs}px;color:${palette.latte};}
-  .pbs-bottomitem svg{width:22px;height:22px;fill:${palette.latte};}
-  .pbs-bottomitem[aria-current="page"]{color:${palette.maple600};}
-  .pbs-bottomitem[aria-current="page"] svg{fill:${palette.maple600};}
+    align-items:center;justify-content:center;gap:${spacing.xs}px;color:var(--pancake-text-muted);}
+  .pbs-bottomitem svg{width:22px;height:22px;fill:var(--pancake-text-muted);}
+  .pbs-bottomitem[aria-current="page"]{color:var(--pancake-primary-dark);}
+  .pbs-bottomitem[aria-current="page"] svg{fill:var(--pancake-primary-dark);}
   .pbs-bottomlabel{width:100%;text-align:center;font-size:${fontSize['2xs']}px;font-weight:700;}
 }
 `.trim()

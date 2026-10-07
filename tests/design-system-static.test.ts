@@ -70,3 +70,21 @@ describe('design system source guards', () => {
         expect(read('components/ui/Input.tsx')).toContain('controlSize.field.md')
     })
 })
+
+describe('theme variables', () => {
+    it('gives every themed light color a dark value, and nothing extra', async () => {
+        const { WEB_THEME_VARS, WEB_THEME_VARS_DARK } = await import('../constants/tokens')
+
+        expect(Object.keys(WEB_THEME_VARS_DARK).sort()).toEqual(Object.keys(WEB_THEME_VARS).sort())
+    })
+
+    it('emits the dark values only under the system dark preference', async () => {
+        const { themeVariablesCss } = await import('../constants/tokens')
+        const css = themeVariablesCss()
+        const darkStart = css.indexOf('@media (prefers-color-scheme: dark)')
+
+        expect(darkStart).toBeGreaterThan(0)
+        expect(css.slice(0, darkStart)).toContain('--pancake-bg-screen:#F7F1E8;')
+        expect(css.slice(darkStart)).toContain('--pancake-bg-screen:#121614;')
+    })
+})

@@ -93,11 +93,13 @@ export default function Root({ children }: PropsWithChildren) {
                     content="Dynasty fantasy basketball — drafts, lineups, trades, waivers, and live scoring."
                 />
 
-                {/* PWA — theme-color matches the cream app surface so the installed
-                    status bar blends with the header instead of an orange strip;
-                    the body background prevents a white flash before first paint. */}
+                {/* PWA — theme-color matches the app surface in each theme so the
+                    installed status bar blends with the header; the body background
+                    prevents a white flash before first paint. */}
                 <link rel="manifest" href="/manifest.webmanifest" />
-                <meta name="theme-color" content={webChrome.themeColor} />
+                <meta name="color-scheme" content="light dark" />
+                <meta name="theme-color" media="(prefers-color-scheme: light)" content={webChrome.themeColor} />
+                <meta name="theme-color" media="(prefers-color-scheme: dark)" content={webChrome.themeColorDark} />
                 <style dangerouslySetInnerHTML={{ __html: webChrome.rootBackgroundCss }} />
                 {/* Paints the real app chrome from static HTML, before the JS
                     bundle mounts React. Removed by WebAppShell on mount. */}

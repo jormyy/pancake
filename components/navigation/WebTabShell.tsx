@@ -10,7 +10,7 @@ import { getProfile } from '@/lib/auth'
 import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
-import { brand, breakpoints, colors, WEB_THEME_VARS } from '@/constants/tokens'
+import { brand, breakpoints, colors, themeVariablesCss } from '@/constants/tokens'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
@@ -77,28 +77,17 @@ function isRouteActive(pathname: string, href: RouteHref) {
 function injectThemeVariables() {
     if (typeof document === 'undefined' || document.getElementById('pancake-web-theme-vars')) return
 
-    // Generated from the single token source (WEB_THEME_VARS) so the web CSS
-    // variables can never drift from constants/tokens.ts. Web is light-only.
-    const declarations = Object.entries(WEB_THEME_VARS)
-        .map(([name, value]) => `            --pancake-${name}: ${value};`)
-        .join('\n')
-
+    // Generated from the single token source so the web CSS variables can never
+    // drift from constants/tokens.ts. Dark values apply when the system asks.
     const style = document.createElement('style')
     style.id = 'pancake-web-theme-vars'
-    style.textContent = `
-        :root,
-        :root[data-pancake-theme="light"] {
-${declarations}
-        }
-    `
+    style.textContent = themeVariablesCss()
     document.head.appendChild(style)
 }
 
 function usePancakeWebTheme() {
     useEffect(() => {
         injectThemeVariables()
-        if (typeof document === 'undefined') return
-        document.documentElement.setAttribute('data-pancake-theme', 'light')
     }, [])
 }
 
