@@ -94,7 +94,8 @@ export function SettingsPanel({
             <SettingsGroup title="League">
                 <SettingsRow
                     label="Invite code"
-                    value={inviteCode ?? '—'}
+                    // Under the label, so Copy and Share keep their room on small phones.
+                    detail={inviteCode ?? '—'}
                     onPress={onShareInviteCode}
                     accessibilityLabel={shareInviteAccessibilityLabel}
                     accessory={(
