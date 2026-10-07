@@ -99,7 +99,7 @@ export function RosterPlayerSheet({
                     </View>
 
                     <View style={styles.actions}>
-                        {actions.map((action) => (
+                        {actions.map((action, index) => (
                             <Pressable
                                 key={action.key}
                                 onPress={action.onPress}
@@ -107,6 +107,7 @@ export function RosterPlayerSheet({
                                 accessibilityLabel={action.accessibilityLabel ?? action.label}
                                 style={({ hovered, pressed }: PressableState) => [
                                     styles.action,
+                                    index < actions.length - 1 && styles.actionDivider,
                                     hovered && styles.actionHover,
                                     pressed && styles.actionPressed,
                                 ]}
@@ -166,10 +167,9 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         minHeight: 48,
         paddingHorizontal: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
         backgroundColor: colors.bgCard,
     },
+    actionDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     actionHover: { backgroundColor: colors.bgSubtle },
     actionPressed: { backgroundColor: colors.bgMuted },
     actionLabel: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },

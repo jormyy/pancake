@@ -5,7 +5,6 @@ import {
     ScrollView,
     StyleSheet,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -13,9 +12,9 @@ import { isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
-import { SectionHeader } from '@/components/SectionHeader'
-import { ReadOnlyRosterPlayerItem } from '@/components/roster/RosterItems'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
+import { Button, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 
@@ -37,6 +36,7 @@ function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
 
 export default function TeamRosterScreen() {
     const { back, push } = useRouter()
+    const { padX } = usePageMetrics()
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
@@ -87,49 +87,64 @@ export default function TeamRosterScreen() {
         [roster],
     )
 
-    const renderRosterRows = (items: RosterPlayer[]) => items.map((item, index) => (
-        <View key={item.id}>
-            <ReadOnlyRosterPlayerItem
-                item={item}
-                avgFpts={avgMap.get(item.players.id)}
-                avgMinutes={avgStatsMap.get(item.players.id)?.avg_minutes_played}
-                onPress={() => push({ pathname: '/player/[id]', params: { id: item.players.id } })}
-            />
-            {index < items.length - 1 ? <View style={styles.separator} /> : null}
+    const renderSection = (label: string, items: RosterPlayer[], empty?: string, tone?: 'taxi') => (
+        <View style={styles.card}>
+            <RosterSectionBand label={label} tone={tone} />
+            {items.length === 0 && empty ? (
+                <View style={styles.taxiEmpty}>
+                    <Text style={styles.taxiEmptyText}>{empty}</Text>
+                </View>
+            ) : items.map((item, index) => (
+                <View key={item.id} style={index < items.length - 1 ? styles.rowDivider : undefined}>
+                    <ReadOnlyRosterPlayerItem
+                        item={item}
+                        avgFpts={avgMap.get(item.players.id)}
+                        avgMinutes={avgStatsMap.get(item.players.id)?.avg_minutes_played}
+                        onPress={() => push({ pathname: '/player/[id]', params: { id: item.players.id } })}
+                    />
+                </View>
+            ))}
         </View>
-    ))
+    )
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            <View style={styles.header}>
-                <View style={styles.headerInner}>
-                    <Pressable
-                        onPress={() => back()}
-                        style={styles.closeButton}
-                        accessibilityRole="button"
-                        accessibilityLabel="Close team roster"
-                    >
-                        <Text style={styles.closeText}>Done</Text>
-                    </Pressable>
-                    <Text style={styles.headerTitle} numberOfLines={1}>{teamName ?? 'Roster'}</Text>
-                    {canProposeTrade ? (
+        <Page title={teamName ?? 'Team roster'} width="form">
+            <PageHeader
+                tabs={(
+                    <View style={styles.headerLead}>
                         <Pressable
-                            onPress={() => push({ pathname: '/(modals)/propose-trade', params: { recipientMemberId: memberId } })}
+                            onPress={() => back()}
                             style={styles.closeButton}
                             accessibilityRole="button"
-                            accessibilityLabel={`Propose trade with ${teamName ?? 'this team'}`}
+                            accessibilityLabel="Close team roster"
                         >
-                            <Text style={styles.closeText}>Trade</Text>
+                            <Text style={styles.closeText}>Done</Text>
                         </Pressable>
-                    ) : (
-                        <View style={styles.closeButton} />
-                    )}
-                </View>
-            </View>
+                        <View style={styles.headerText}>
+                            <Text style={styles.headerTitle} numberOfLines={1}>{teamName ?? 'Roster'}</Text>
+                            {roster.length > 0 ? (
+                                <Text style={textStyles.meta}>
+                                    {active.length} active
+                                    {ir.length > 0 ? ` · ${ir.length} IR` : ''}
+                                    {taxi.length > 0 ? ` · ${taxi.length} taxi` : ''}
+                                </Text>
+                            ) : null}
+                        </View>
+                    </View>
+                )}
+                actions={canProposeTrade ? (
+                    <Button
+                        title="Propose trade"
+                        size="sm"
+                        onPress={() => push({ pathname: '/(modals)/propose-trade', params: { recipientMemberId: memberId } })}
+                        accessibilityLabel={`Propose trade with ${teamName ?? 'this team'}`}
+                    />
+                ) : null}
+            />
 
             <ScrollView
                 style={styles.list}
-                contentContainerStyle={styles.listContent}
+                contentContainerStyle={[styles.listContent, { paddingHorizontal: padX }]}
             >
                 {loading && roster.length === 0 ? (
                     // Blank while loading — content appears fully formed
@@ -139,87 +154,46 @@ export default function TeamRosterScreen() {
                     <EmptyState
                         icon="sports-basketball"
                         message="No players yet"
-                        description="This team's roster fills as the draft and season unfold. Check back once the draft is underway."
+                        description="This roster fills as the draft and season go on."
                         fullScreen={false}
                         framed
                     />
                 ) : (
                     <>
-                        <View style={styles.countRow}>
-                            <Text style={styles.countText}>
-                                {active.length} active
-                                {ir.length > 0 ? ` · ${ir.length} IR` : ''}
-                                {taxi.length > 0 ? ` · ${taxi.length} Taxi` : ''}
-                            </Text>
-                        </View>
-
-                        <SectionHeader label="Starters & Bench · slot order" />
-                        {renderRosterRows(active)}
-                        {ir.length > 0 ? (
-                            <>
-                                <SectionHeader label="IR" />
-                                {renderRosterRows(ir)}
-                            </>
-                        ) : null}
-                        <SectionHeader label="Taxi Squad" />
-                        {taxi.length > 0 ? renderRosterRows(taxi) : (
-                            <View style={styles.taxiEmpty}>
-                                <Text style={styles.taxiEmptyText}>No players on taxi squad</Text>
-                            </View>
-                        )}
+                        {renderSection('Active roster', active)}
+                        {ir.length > 0 ? renderSection('Injured reserve', ir) : null}
+                        {renderSection('Taxi squad', taxi, 'No players on taxi squad', 'taxi')}
                     </>
                 )}
             </ScrollView>
-        </SafeAreaView>
+        </Page>
     )
 }
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
-
-    header: {
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    // Header actions align with the centered roster column below instead of
-    // pinning to the far edges of a wide canvas.
-    headerInner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        width: '100%',
-        maxWidth: 680,
-        alignSelf: 'center',
-    },
-    closeButton: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-    closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    headerTitle: { flex: 1, fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, textAlign: 'center' },
+    headerLead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 56 },
+    headerText: { flex: 1, minWidth: 0 },
+    closeButton: { minWidth: 44, minHeight: 44, paddingHorizontal: spacing.xs, alignItems: 'flex-start', justifyContent: 'center' },
+    closeText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+    headerTitle: { ...textStyles.pageTitle },
 
     list: { flex: 1 },
-    listContent: { width: '100%', maxWidth: 680, alignSelf: 'center' },
-
-    countRow: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
+    listContent: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingVertical: spacing.md, gap: spacing.md },
+    card: {
+        backgroundColor: colors.bgCard,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.xl,
+        borderCurve: 'continuous' as const,
+        overflow: 'hidden',
     },
-    countText: { fontSize: fontSize.sm, color: colors.textMuted },
-    separator: {
-        height: 1,
-        marginLeft: spacing.xl + 44 + spacing.lg,
-        backgroundColor: colors.separator,
-    },
+    rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     taxiEmpty: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
+        minHeight: 44,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.lg,
     },
-    taxiEmptyText: {
-        fontSize: fontSize.sm,
-        color: colors.textPlaceholder,
-        fontStyle: 'italic',
-    },
+    taxiEmptyText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
 })
