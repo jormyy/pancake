@@ -36,7 +36,7 @@ function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
 
 export default function TeamRosterScreen() {
     const { back, push } = useRouter()
-    const { padX } = usePageMetrics()
+    const { padX, compact } = usePageMetrics()
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague } = useLeagueContext()
     const [roster, setRoster] = useState<RosterPlayer[]>([])
@@ -134,7 +134,7 @@ export default function TeamRosterScreen() {
                 )}
                 actions={canProposeTrade ? (
                     <Button
-                        title="Propose trade"
+                        title={compact ? 'Trade' : 'Propose trade'}
                         size="sm"
                         onPress={() => push({ pathname: '/(modals)/propose-trade', params: { recipientMemberId: memberId } })}
                         accessibilityLabel={`Propose trade with ${teamName ?? 'this team'}`}
