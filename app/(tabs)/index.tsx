@@ -254,6 +254,11 @@ export default function HomeScreen() {
                             teamMatchups={teamMatchups}
                             statColumns={showStatColumns ? statColumns : null}
                             onOpenDetails={setDetailsRow}
+                            capacity={{
+                                bench: Math.max(0, (league?.roster_size ?? 20) - myLineup.starters.length),
+                                ir: league?.ir_slots ?? 2,
+                                taxi: league?.taxi_slots ?? 3,
+                            }}
                             compact={narrow}
                             dense={dense}
                             daySelector={weekDays.length > 0 ? (
@@ -480,6 +485,7 @@ function MatchupLineupView({
     teamMatchups,
     statColumns,
     onOpenDetails,
+    capacity,
     compact,
     dense,
     daySelector,
@@ -500,6 +506,8 @@ function MatchupLineupView({
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     statColumns: StatColumn[] | null
     onOpenDetails: (row: DetailsRow) => void
+    /** League slot counts; every slot shows, filled or empty, so open room is visible. */
+    capacity: { bench: number; ir: number; taxi: number }
     compact: boolean
     dense: boolean
     daySelector?: ReactNode
@@ -507,15 +515,16 @@ function MatchupLineupView({
     hint?: ReactNode
     footer?: ReactNode
 }) {
-    const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
-    const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
-    const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length)
+    const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
+    const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length, capacity.ir)
+    const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length, capacity.taxi)
     const sections = useMemo(
         () => [
             {
                 key: 'starters' as const,
                 label: 'Starters',
                 count: myLineup.starters.length,
+                used: `${myLineup.starters.filter((slot) => slot.player).length}/${myLineup.starters.length}`,
                 color: colors.primaryDark,
                 rows: myLineup.starters.map((slot, i) => ({
                     key: `s${i}`,
@@ -531,6 +540,7 @@ function MatchupLineupView({
                 key: 'bench' as const,
                 label: 'Bench',
                 count: maxBench,
+                used: `${myLineup.bench.length}/${capacity.bench}`,
                 color: colors.textMuted,
                 rows: Array.from({ length: maxBench }, (_, i) => ({
                     key: `b${i}`,
@@ -539,13 +549,16 @@ function MatchupLineupView({
                     slotType: 'BE',
                     selKind: 'bench' as const,
                     selIndex: i,
-                    isExtraOppRow: i >= myLineup.bench.length,
+                    // Rows past my bench size are open slots I can move a starter into;
+                    // only rows past the league's bench size belong to the opponent alone.
+                    isExtraOppRow: i >= Math.max(myLineup.bench.length, capacity.bench),
                 })),
             },
             {
                 key: 'ir' as const,
                 label: 'Injured Reserve',
                 count: maxIR,
+                used: `${myLineup.ir.length}/${capacity.ir}`,
                 color: colors.danger,
                 rows: Array.from({ length: maxIR }, (_, i) => ({
                     key: `ir${i}`,
@@ -561,6 +574,7 @@ function MatchupLineupView({
                 key: 'taxi' as const,
                 label: 'Taxi Squad',
                 count: maxTaxi,
+                used: `${myLineup.taxi.length}/${capacity.taxi}`,
                 color: colors.textMuted,
                 rows: Array.from({ length: maxTaxi }, (_, i) => ({
                     key: `tx${i}`,
@@ -573,7 +587,7 @@ function MatchupLineupView({
                 })),
             },
         ].filter((section) => section.key === 'starters' || section.count > 0),
-        [maxBench, maxIR, maxTaxi, myLineup, oppLineup],
+        [capacity.bench, capacity.ir, capacity.taxi, maxBench, maxIR, maxTaxi, myLineup, oppLineup],
     )
 
     return (
@@ -600,7 +614,7 @@ function MatchupLineupView({
                                 {section.label}
                             </Text>
                             {section.key === 'starters' && autoSetControl ? autoSetControl : (
-                                <Text style={styles.lineupSectionCount}>{section.count}</Text>
+                                <Text style={styles.lineupSectionCount}>{section.used}</Text>
                             )}
                         </View>
                         {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}

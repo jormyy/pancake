@@ -38,8 +38,7 @@ import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 type RosterListItem = (
     | { _isHeader: true; _section: string }
-    | { _isHeader: false; _isEmpty: true; _section: 'taxi' }
-    | { _isHeader: false; _isEmpty: true; _section: 'active'; _emptyIndex: number }
+    | { _isHeader: false; _isEmpty: true; _section: 'active' | 'ir' | 'taxi'; _emptyIndex: number }
     | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: 'active' | 'ir' | 'taxi' })
     | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
@@ -366,6 +365,8 @@ export default function RosterScreen() {
     const ir = useMemo(() => [...roster.filter((p) => p.is_on_ir)].sort(compareRosterBySlot), [roster])
     const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(compareRosterBySlot), [roster])
     const rosterSize = currentLeague?.roster_size ?? 20
+    const irSlots = currentLeague?.ir_slots ?? 2
+    const taxiSlots = currentLeague?.taxi_slots ?? 3
     const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
 
     const listData = useMemo<RosterListItem[]>(() => {
@@ -375,18 +376,17 @@ export default function RosterScreen() {
             activeItems.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })
         }
         const result = closeSection(activeItems)
-        if (ir.length > 0) {
-            result.push(...closeSection([
-                { _isHeader: true, _section: 'ir' },
-                ...ir.map((p) => ({ ...p, _isHeader: false as const, _isEmpty: false as const, _section: 'ir' as const })),
-            ]))
+        // IR and taxi always list every slot, filled or empty, so the manager
+        // can see how much room is left before an injury or a stash decision.
+        const reserveSection = (section: 'ir' | 'taxi', players: RosterPlayer[], slots: number) => {
+            if (slots === 0 && players.length === 0) return
+            const items: RosterListItem[] = [{ _isHeader: true, _section: section }]
+            for (const p of players) items.push({ ...p, _isHeader: false, _isEmpty: false, _section: section })
+            for (let i = players.length; i < slots; i++) items.push({ _isHeader: false, _isEmpty: true, _section: section, _emptyIndex: i })
+            result.push(...closeSection(items))
         }
-        result.push(...closeSection([
-            { _isHeader: true, _section: 'taxi' },
-            ...(taxi.length === 0
-                ? [{ _isHeader: false as const, _isEmpty: true as const, _section: 'taxi' as const }]
-                : taxi.map((p) => ({ ...p, _isHeader: false as const, _isEmpty: false as const, _section: 'taxi' as const }))),
-        ]))
+        reserveSection('ir', ir, irSlots)
+        reserveSection('taxi', taxi, taxiSlots)
         // Wide screens show picks and claims in the side column instead.
         if (!twoPane) {
             result.push(...closeSection([
@@ -401,7 +401,7 @@ export default function RosterScreen() {
             }
         }
         return result
-    }, [active, ir, taxi, picks, claims, rosterSize, twoPane])
+    }, [active, ir, taxi, picks, claims, rosterSize, irSlots, taxiSlots, twoPane])
 
     const claimsHeaderIndex = useMemo(
         () => listData.findIndex((item) => item._isHeader && item._section === 'claims'),
@@ -634,8 +634,6 @@ export default function RosterScreen() {
         }
     }, [current, ownerIdentity, load, isCurrentAction])
 
-    const league = currentLeague
-    const taxiSlots = league?.taxi_slots ?? 3
     const trimBusyId = droppingId ?? togglingId ?? taxiingId
 
     const handleOpenRosterPlayer = useCallback((item: RosterPlayer) => {
@@ -707,18 +705,20 @@ export default function RosterScreen() {
                 )
             }
             if (item._section === 'taxi') {
-                return <RosterSectionBand label="Taxi squad" tone="taxi" detail={<Text style={styles.bandHint}>Off your roster limit</Text>} />
+                return <RosterSectionBand label="Taxi squad" tone="taxi" detail={<Text style={styles.bandHint}>{taxi.length}/{taxiSlots} · off roster limit</Text>} />
             }
-            const label =
-                item._section === 'picks' ? 'Draft picks'
-                : item._section === 'claims' ? 'Waiver claims'
-                : 'Injured reserve'
+            if (item._section === 'ir') {
+                return <RosterSectionBand label="Injured reserve" detail={<Text style={styles.bandHint}>{ir.length}/{irSlots}</Text>} />
+            }
+            const label = item._section === 'picks' ? 'Draft picks' : 'Waiver claims'
             return <RosterSectionBand label={label} />
         }
-        if (item._section === 'active' && item._isEmpty) {
+        if (item._isEmpty) {
             return (
                 <View style={styles.emptySlot}>
-                    <Text style={styles.emptySlotText}>Empty roster slot</Text>
+                    <Text style={styles.emptySlotText}>
+                        {item._section === 'ir' ? 'Empty IR slot' : item._section === 'taxi' ? 'Empty taxi slot' : 'Empty roster slot'}
+                    </Text>
                 </View>
             )
         }
@@ -741,13 +741,6 @@ export default function RosterScreen() {
                     pick={item as TradePickItem}
                     myTeamName={current?.team_name ?? ''}
                 />
-            )
-        }
-        if (item._section === 'taxi' && item._isEmpty) {
-            return (
-                <View style={styles.taxiEmpty}>
-                    <Text style={styles.taxiEmptyText}>No players on taxi squad</Text>
-                </View>
             )
         }
         if (item._section === 'taxi') {
@@ -811,7 +804,7 @@ export default function RosterScreen() {
             />
         )
     }, [
-        showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots,
+        showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots, ir.length, irSlots,
         togglingId, taxiingId, droppingId, cancellingId, waiverPriority,
         currentLeague?.waiver_mode, current?.team_name, handleOpenRosterPlayer,
         handleCancelClaim, handleEditClaimBid, handleReorderClaim,
@@ -839,7 +832,6 @@ export default function RosterScreen() {
         return <EmptyState message="Join or create a league first." />
     }
 
-    const irSlots = league?.ir_slots ?? 2
     const lineupLocked = rosterOverflow > 0 || autoSetting
     const sideCards = (
         <>

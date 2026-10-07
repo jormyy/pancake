@@ -56,8 +56,6 @@ export default function LeagueScreen() {
                     myMemberId={screen.current?.id}
                     onSelectTeam={screen.openTeamRoster}
                     onOpenBracket={screen.openBracket}
-                    recentActivity={screen.transactions}
-                    onOpenActivity={() => screen.handleTabChange('history')}
                 />
             )
         }

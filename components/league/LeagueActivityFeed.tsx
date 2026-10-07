@@ -11,8 +11,8 @@ import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { usePageMetrics } from '@/components/ui'
 
-/** One league transaction. `compact` drops position tags for narrow side columns. */
-export function ActivityRow({ item, isMe, compact = false, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; compact?: boolean; padX?: number }) {
+/** One league transaction. */
+function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; padX?: number }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
     const avatarSize = 32
@@ -26,7 +26,7 @@ export function ActivityRow({ item, isMe, compact = false, padX = spacing.lg }: 
                 />
                 <View style={styles.txInfo}>
                     <Text style={styles.txPlayer} numberOfLines={1}>{item.title ?? item.playerName}</Text>
-                    <Text style={styles.txTeam} numberOfLines={compact ? 1 : 2}>
+                    <Text style={styles.txTeam} numberOfLines={2}>
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
@@ -50,7 +50,7 @@ export function ActivityRow({ item, isMe, compact = false, padX = spacing.lg }: 
             <View style={styles.txInfo}>
                 <View style={styles.txNameRow}>
                     <Text style={styles.txPlayer} numberOfLines={1}>{item.playerName}</Text>
-                    {compact ? null : item.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                    {item.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                 </View>
                 <Text style={styles.txTeam} numberOfLines={1}>
                     {item.teamName}

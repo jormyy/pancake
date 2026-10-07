@@ -1,12 +1,10 @@
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
-import type { TransactionRow } from '@/lib/transactions'
 import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
-import { ActivityRow } from '@/components/league/LeagueActivityFeed'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { usePageMetrics } from '@/components/ui'
 import type { LeagueStatus } from '@/types/database'
@@ -15,7 +13,6 @@ type StandingsSortKey = 'wins' | 'pf' | 'maxPf' | 'pa'
 type PressableState = { hovered?: boolean; pressed?: boolean }
 
 const STANDINGS_LIST_ID = 'league-standings-results'
-const RECENT_ACTIVITY_COUNT = 6
 const RANK_W = 28
 const RECORD_W = 64
 const POINTS_W = 64
@@ -254,48 +251,12 @@ function PlayoffCutLine({ teamCount, padX }: { teamCount: number; padX: number }
     )
 }
 
-function RecentActivity({
-    transactions,
-    myMemberId,
-    onOpenActivity,
-}: {
-    transactions: TransactionRow[]
-    myMemberId?: string
-    onOpenActivity: () => void
-}) {
-    const recent = transactions.slice(0, RECENT_ACTIVITY_COUNT)
-    return (
-        <View style={styles.rail}>
-            <View style={styles.railHeader}>
-                <Text style={textStyles.sectionLabel} role="heading" aria-level={2} accessibilityRole="header">
-                    Recent activity
-                </Text>
-                <Pressable onPress={onOpenActivity} hitSlop={8} accessibilityRole="button" accessibilityLabel="See all league activity">
-                    <Text style={styles.railLink}>See all</Text>
-                </Pressable>
-            </View>
-            <View style={styles.railCard}>
-                {recent.length === 0 ? (
-                    <Text style={[textStyles.meta, styles.railEmpty]}>No transactions yet.</Text>
-                ) : recent.map((item, index) => (
-                    <Fragment key={item.id}>
-                        {index > 0 ? <ItemSeparator /> : null}
-                        <ActivityRow item={item} isMe={item.memberId === myMemberId} compact />
-                    </Fragment>
-                ))}
-            </View>
-        </View>
-    )
-}
-
 export function StandingsTable({
     standings,
     leagueStatus,
     loading = false,
     myMemberId,
     onSelectTeam,
-    recentActivity,
-    onOpenActivity,
 }: {
     standings: StandingRow[]
     leagueStatus?: LeagueStatus
@@ -303,8 +264,6 @@ export function StandingsTable({
     myMemberId?: string
     onSelectTeam: (memberId: string, teamName: string) => void
     onOpenBracket?: () => void
-    recentActivity: TransactionRow[]
-    onOpenActivity: () => void
 }) {
     const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -315,8 +274,6 @@ export function StandingsTable({
     const narrow = usableWidth < 440
     const showPa = usableWidth >= 340
     const showTies = standings.some((row) => row.ties > 0)
-    // Wide screens put recent activity beside the table instead of stretching it.
-    const showRail = usableWidth >= layout.formMaxWidth + spacing['3xl'] + layout.railWidth
 
     useEffect(() => {
         if ((sortBy !== 'maxPf' || showMaxPf) && (sortBy !== 'pa' || showPa)) return
@@ -416,15 +373,10 @@ export function StandingsTable({
     )
 
     return (
-        <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, showRail && { paddingRight: padX }]}>
-            <View style={[styles.columns, showRail && styles.columnsWide]}>
-                <View style={styles.tableColumn}>
-                    {header}
-                    {tableBody}
-                </View>
-                {showRail ? (
-                    <RecentActivity transactions={recentActivity} myMemberId={myMemberId} onOpenActivity={onOpenActivity} />
-                ) : null}
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+            <View style={styles.tableColumn}>
+                {header}
+                {tableBody}
             </View>
         </ScrollView>
     )
@@ -433,9 +385,7 @@ export function StandingsTable({
 const styles = StyleSheet.create({
     scroll: { flex: 1 },
     content: { paddingBottom: spacing['3xl'] },
-    columns: { width: '100%' },
-    columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
-    tableColumn: { flex: 1, minWidth: 0, maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular },
+    tableColumn: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
     header: {
         minHeight: table.headerHeight,
         flexDirection: 'row',
@@ -475,16 +425,4 @@ const styles = StyleSheet.create({
     },
     playoffCutRule: { flex: 1, height: 1, backgroundColor: colors.border },
     playoffCutLabel: { ...textStyles.tableHeader },
-    rail: { width: layout.railWidth, flexShrink: 0, paddingTop: spacing.md, gap: spacing.sm },
-    railHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    railLink: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    railCard: {
-        backgroundColor: colors.bgCard,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        overflow: 'hidden',
-    },
-    railEmpty: { padding: spacing.lg },
 })
