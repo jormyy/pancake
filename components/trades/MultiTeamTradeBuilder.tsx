@@ -375,7 +375,9 @@ const styles = StyleSheet.create({
     },
     stack: { gap: spacing.lg, marginBottom: spacing.lg },
     scroller: { marginBottom: spacing.lg },
-    columns: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+    // flexGrow lets team panels share the full builder width instead of
+    // sitting at their minimum width inside the sideways scroller.
+    columns: { flexGrow: 1, flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
     senderTabs: {
         flexDirection: 'row',
         flexWrap: 'wrap',

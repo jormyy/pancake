@@ -50,6 +50,7 @@ function PlayerRow({
                 name={p.display_name}
                 uri={playerHeadshotUrl(p.nba_id) ?? undefined}
                 color={selected ? colors.primary : getPositionColor(positions[0] ?? p.position, colors.primaryDark)}
+                textColor={colors.textWhite}
                 size={36}
             />
             <View style={styles.playerInfo}>

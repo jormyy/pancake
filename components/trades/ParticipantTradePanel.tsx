@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
         backgroundColor: uiColors.surfaceAlt,
         overflow: 'hidden',
     },
-    panelColumn: { flexGrow: 1, flexShrink: 0, flexBasis: 260, minWidth: 260, maxWidth: 320 },
+    panelColumn: { flexGrow: 1, flexShrink: 0, flexBasis: 260, minWidth: 260, maxWidth: 440 },
     panelStacked: { width: '100%' },
     routePicker: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.xs },
     routePickerLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },

@@ -252,7 +252,8 @@ export default function TradesScreen() {
             tabs={<TradeTabs options={tabOptions} tab={tab} setTab={changeTab} />}
             actions={(
                 <Button
-                    title={disabled ? 'Locked' : 'Propose'}
+                    // The smallest phones keep the tabs readable with an icon-only button.
+                    title={usableWidth < 340 ? undefined : disabled ? 'Locked' : 'Propose'}
                     icon={disabled ? 'lock' : 'add'}
                     size="sm"
                     onPress={onPropose}

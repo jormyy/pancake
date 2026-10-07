@@ -507,9 +507,9 @@ export default function ProposeTradeScreen() {
                             </View>
                         </View>
                         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                            <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
                             <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
                                 loading={tradeAnalysis.loading} />
-                            <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
                         </ScrollView>
                     </SafeAreaView>
                 </Modal>
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },
-    cancelText: { fontSize: fontSize.lg, color: colors.textSecondary },
+    cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     submitButton: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.xl,
