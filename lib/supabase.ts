@@ -5,6 +5,7 @@ import { Database } from '@/types/database'
 import { fenceDataRequests } from '@/lib/session-fetch'
 import { authStorageKey, inspectSession, readStoredAuth, type StoredAuthState } from '@/lib/auth-session'
 import { createAuthStorage } from '@/lib/auth-storage'
+import { authNavigatorLock } from '@/lib/auth-lock'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const supabasePublicKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -60,6 +61,7 @@ export const supabase = createClient<Database>(
             autoRefreshToken: true,
             persistSession: true,
             detectSessionInUrl: false,
+            ...(typeof navigator !== 'undefined' && navigator.locks ? { lock: authNavigatorLock } : {}),
         },
         global: { fetch: fenceDataRequests((input, init) => fetch(input, init)) },
     },
