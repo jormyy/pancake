@@ -7,6 +7,7 @@ import { Button, Input } from '@/components/ui'
 import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { signIn } from '@/lib/auth'
+import { useAuth } from '@/hooks/use-auth'
 
 const SIGN_IN_HERO: AuthHeroContent = {
     kicker: 'Dynasty basketball operations',
@@ -33,6 +34,12 @@ export default function SignInScreen() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const router = useRouter()
+    const { restorationStatus, loading: authLoading } = useAuth()
+    const restorationNotice = authLoading ? null : restorationStatus === 'expired'
+        ? 'Your session expired. Reconnect or sign in to continue.'
+        : restorationStatus === 'unavailable'
+            ? 'Your session cannot be checked. Reconnect or sign in to continue.'
+            : restorationStatus === 'invalid' ? 'Sign in again to restore your session.' : null
 
     async function handleSignIn() {
         if (!email || !password) {
@@ -67,6 +74,7 @@ export default function SignInScreen() {
                 </Link>
             )}
         >
+            {!error && restorationNotice ? <Text style={styles.error} accessibilityLiveRegion="polite">{restorationNotice}</Text> : null}
             {error ? <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
 
             <View style={styles.formBlock}>

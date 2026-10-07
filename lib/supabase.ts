@@ -1,8 +1,10 @@
 import 'react-native-url-polyfill/auto'
-import { createClient, type Session } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import { Platform } from 'react-native'
 import { Database } from '@/types/database'
 import { fenceDataRequests } from '@/lib/session-fetch'
+import { authStorageKey, inspectSession, readStoredAuth, type StoredAuthState } from '@/lib/auth-session'
+import { createAuthStorage } from '@/lib/auth-storage'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const supabasePublicKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -32,33 +34,29 @@ function runtimeSupabaseOverride(key: string): string | null {
     }
 }
 
-// Synchronously read the session supabase-js persisted to localStorage so the
-// first render already knows who is signed in. Without this, every screen
-// waits for the async getSession() round-trip on each refresh, which defeats
-// the persistent per-user caches (their keys need user.id). The token may be
-// expired — that's fine: it's only used to seed UI state; supabase-js still
-// validates/refreshes it through the normal async path.
-export function readStoredSessionSync(): Session | null {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return null
-    try {
-        const storage = window.localStorage
-        for (let index = 0; index < storage.length; index += 1) {
-            const key = storage.key(index)
-            if (!key || !key.startsWith('sb-') || !key.endsWith('-auth-token')) continue
-            const parsed = JSON.parse(storage.getItem(key) ?? '') as Session
-            if (parsed && typeof parsed === 'object' && parsed.access_token && parsed.user?.id) return parsed
-        }
-    } catch {
-        // Private mode / corrupt entry — fall back to the async path.
-    }
-    return null
+const resolvedSupabaseUrl = runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl
+export const supabaseAuthStorageKey = authStorageKey(resolvedSupabaseUrl)
+const authStorage = createAuthStorage(() => typeof window === 'undefined' ? null : window.localStorage)
+
+export function inspectAuthSession(value: unknown): StoredAuthState {
+    return inspectSession(value, resolvedSupabaseUrl)
+}
+
+export function readStoredAuthState(): StoredAuthState {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return { session: null, status: 'missing' }
+    const stored = authStorage.read(supabaseAuthStorageKey)
+    return stored.available
+        ? readStoredAuth({ getItem: () => stored.value }, resolvedSupabaseUrl)
+        : { session: null, status: 'unavailable' }
 }
 
 export const supabase = createClient<Database>(
-    runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl,
+    resolvedSupabaseUrl,
     runtimeSupabaseOverride(SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) ?? supabasePublicKey,
     {
         auth: {
+            storageKey: supabaseAuthStorageKey,
+            storage: authStorage,
             autoRefreshToken: true,
             persistSession: true,
             detectSessionInUrl: false,

@@ -1,7 +1,7 @@
 import { createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, AppStateStatus } from 'react-native'
 import { Session } from '@supabase/supabase-js'
-import { readStoredSessionSync, supabase } from '@/lib/supabase'
+import { inspectAuthSession, readStoredAuthState, supabase, supabaseAuthStorageKey } from '@/lib/supabase'
+import type { StoredAuthState } from '@/lib/auth-session'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 
@@ -9,88 +9,129 @@ type AuthContextValue = {
     session: Session | null
     user: Session['user'] | null
     loading: boolean
+    restorationStatus: StoredAuthState['status']
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    // Seed from the persisted session (web localStorage) so the first render
-    // already has user.id — persistent caches key on it, and without this every
-    // refresh blanks the app until the async getSession() resolves.
-    const [session, setSession] = useState<Session | null>(() => readStoredSessionSync())
-    const [loading, setLoading] = useState(session === null)
-    const seededUserId = useRef(session?.user.id ?? null)
+    const [restored, setRestored] = useState(readStoredAuthState)
+    const initial = useRef(restored)
+    const [loading, setLoading] = useState(restored.session === null)
 
     useEffect(() => {
         let active = true
-        let authEventSequence = 0
-        let cacheOwnerId: string | null = seededUserId.current
+        let sequence = 0
+        let current = initial.current
+        let cacheOwnerId = current.session?.user.id ?? null
+        let expiryTimer: ReturnType<typeof setTimeout> | undefined
+        let restoring = false
+        const online = () => typeof navigator === 'undefined' || navigator.onLine !== false
+        const visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
 
-        const commitSession = (nextSession: Session | null, forceCacheClear = false) => {
+        const commit = (next: StoredAuthState, forceClear = false) => {
             if (!active) return
-            const nextOwnerId = nextSession?.user.id ?? null
-            if (forceCacheClear || (cacheOwnerId !== null && cacheOwnerId !== nextOwnerId)) {
-                clearPersistentCaches()
-            }
-            cacheOwnerId = nextOwnerId
-            setSessionOwner(nextOwnerId)
-            setSession(nextSession)
+            const stored = readStoredAuthState()
+            if (stored.status === 'unavailable') next = stored
+            else if (next.session && stored.session?.access_token !== next.session.access_token) next = stored
+            else if (!next.session && next.status === 'missing' && ['expired', 'invalid'].includes(stored.status)) next = stored
+            clearTimeout(expiryTimer)
+            const nextOwner = next.session?.user.id ?? null
+            if (forceClear || (cacheOwnerId !== null && cacheOwnerId !== nextOwner)) clearPersistentCaches()
+            cacheOwnerId = nextOwner
+            setSessionOwner(nextOwner)
+            current = next
+            setRestored(next)
             setLoading(false)
+            if (next.session?.expires_at) {
+                expiryTimer = setTimeout(() => {
+                    const checked = inspectAuthSession(current.session)
+                    if (!checked.session) sequence += 1
+                    commit(checked)
+                    if (!checked.session) void restore()
+                }, Math.min(2_147_483_647, Math.max(0, next.session.expires_at * 1000 - Date.now())))
+            }
         }
 
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((event, session) => {
-            authEventSequence += 1
-            commitSession(session, event === 'SIGNED_OUT')
+        const restore = async () => {
+            if (!active || restoring || !online() || !visible()) return
+            restoring = true
+            const started = sequence
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession()
+                if (error) throw error
+                if (active && sequence === started) commit(inspectAuthSession(session))
+            } catch (error) {
+                if (!active || sequence !== started) return
+                console.error('Could not restore the authenticated session.', error)
+                const checked = inspectAuthSession(current.session)
+                commit(checked.session ? checked : { session: null, status: current.status === 'expired' ? 'expired' : 'unavailable' })
+            } finally {
+                restoring = false
+            }
+        }
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            sequence += 1
+            const next = inspectAuthSession(session)
+            // A late initial/refresh event cannot restore another stored owner.
+            const stored = readStoredAuthState()
+            if (next.session && stored.status !== 'unavailable'
+                && stored.session?.access_token !== next.session.access_token) return
+            commit(next, event === 'SIGNED_OUT')
         })
 
-        const bootstrapSequence = authEventSequence
-        void supabase.auth.getSession()
-            .then(({ data: { session }, error }) => {
-                if (error) throw error
-                if (authEventSequence === bootstrapSequence) commitSession(session)
-            })
-            .catch((error) => {
-                if (!active || authEventSequence !== bootstrapSequence) return
-                console.error('Could not restore the authenticated session.', error)
-                // A transient failure (offline boot, slow network) must not log
-                // the user out of the seeded session — keep it and let the next
-                // successful refresh or an explicit SIGNED_OUT settle the truth.
-                if (seededUserId.current === null) commitSession(null)
-                else setLoading(false)
-            })
+        commit(current)
+        void restore()
 
-        // Restart auto-refresh when the app returns from background so the
-        // JWT is always valid when the user resumes the app.
-        const appStateSub = AppState.addEventListener('change', (state: AppStateStatus) => {
-            if (state === 'active') {
+        const resume = () => {
+            sequence += 1
+            const stored = readStoredAuthState()
+            commit(stored)
+            if (visible()) {
                 supabase.auth.startAutoRefresh()
+                void restore()
             } else {
                 supabase.auth.stopAutoRefresh()
             }
-        })
-
+        }
+        const storageChanged = (event: StorageEvent) => {
+            if (event.key === null || event.key === supabaseAuthStorageKey) resume()
+        }
+        if (typeof window !== 'undefined') {
+            window.addEventListener('online', resume)
+            window.addEventListener('pageshow', resume)
+            window.addEventListener('focus', resume)
+            window.addEventListener('storage', storageChanged)
+            document.addEventListener('visibilitychange', resume)
+        }
         return () => {
             active = false
+            sequence += 1
+            clearTimeout(expiryTimer)
             subscription.unsubscribe()
-            appStateSub.remove()
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('online', resume)
+                window.removeEventListener('pageshow', resume)
+                window.removeEventListener('focus', resume)
+                window.removeEventListener('storage', storageChanged)
+                document.removeEventListener('visibilitychange', resume)
+            }
         }
     }, [])
 
     const value = useMemo(() => ({
-        session,
-        user: session?.user ?? null,
+        session: restored.session,
+        user: restored.session?.user ?? null,
         loading,
-    }), [session, loading])
+        restorationStatus: restored.status,
+    }), [restored, loading])
 
     return createElement(AuthContext.Provider, { value }, children)
 }
 
 export function useAuth() {
     const ctx = useContext(AuthContext)
-    if (!ctx) {
-        throw new Error('useAuth must be used within AuthProvider')
-    }
+    if (!ctx) throw new Error('useAuth must be used within AuthProvider')
     return ctx
 }

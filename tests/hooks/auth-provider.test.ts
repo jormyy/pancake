@@ -1,3 +1,4 @@
+import { authSession, inspectFixtureSession } from '../helpers/auth-session'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     readStoredSessionSync: vi.fn<() => unknown>(() => null),
     removeAppState: vi.fn(),
     clearPersistentCaches: vi.fn(),
+    storageAvailable: true,
 }))
 
 vi.mock('react-native', () => ({
@@ -18,7 +20,11 @@ vi.mock('react-native', () => ({
     },
 }))
 vi.mock('@/lib/supabase', () => ({
-    readStoredSessionSync: mocks.readStoredSessionSync,
+    readStoredAuthState: () => mocks.storageAvailable
+        ? inspectFixtureSession(mocks.readStoredSessionSync())
+        : { session: null, status: 'unavailable' },
+    inspectAuthSession: (value: unknown) => inspectFixtureSession(value),
+    supabaseAuthStorageKey: 'sb-auth-fixture-auth-token',
     supabase: {
         auth: {
             getSession: mocks.getSession,
@@ -48,6 +54,8 @@ describe('AuthProvider bootstrap ownership', () => {
     beforeEach(() => {
         snapshots = []
         vi.clearAllMocks()
+        mocks.readStoredSessionSync.mockReturnValue(null)
+        mocks.storageAvailable = true
         mocks.authCallback = null
     })
 
@@ -70,7 +78,7 @@ describe('AuthProvider bootstrap ownership', () => {
         })
 
         await act(async () => {
-            mocks.authCallback?.('SIGNED_IN', { user: { id: 'user-new' } })
+            mocks.readStoredSessionSync.mockReturnValue(authSession('user-new')); mocks.authCallback?.('SIGNED_IN', authSession('user-new'))
         })
         await act(async () => {
             bootstrap.resolve({ data: { session: null }, error: null })
@@ -100,7 +108,7 @@ describe('AuthProvider bootstrap ownership', () => {
     })
 
     it('seeds the stored session synchronously and keeps it when bootstrap rejects', async () => {
-        mocks.readStoredSessionSync.mockReturnValue({ user: { id: 'user-seeded' }, access_token: 'stale' })
+        mocks.readStoredSessionSync.mockReturnValue(authSession('user-seeded'))
         const bootstrap = deferred<{ data: { session: unknown }; error: null }>()
         mocks.getSession.mockReturnValue(bootstrap.promise)
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -123,8 +131,9 @@ describe('AuthProvider bootstrap ownership', () => {
     })
 
     it('purges private caches on sign-out and cross-user transitions', async () => {
+        mocks.readStoredSessionSync.mockReturnValue(authSession('user-a'))
         mocks.getSession.mockResolvedValue({
-            data: { session: { user: { id: 'user-a' } } },
+            data: { session: authSession('user-a') },
             error: null,
         })
         let renderer!: ReactTestRenderer
@@ -133,12 +142,65 @@ describe('AuthProvider bootstrap ownership', () => {
             await Promise.resolve()
         })
 
-        await act(async () => { mocks.authCallback?.('TOKEN_REFRESHED', { user: { id: 'user-a' } }) })
+        await act(async () => { mocks.authCallback?.('TOKEN_REFRESHED', authSession('user-a')) })
         expect(mocks.clearPersistentCaches).not.toHaveBeenCalled()
-        await act(async () => { mocks.authCallback?.('SIGNED_IN', { user: { id: 'user-b' } }) })
+        await act(async () => { mocks.readStoredSessionSync.mockReturnValue(authSession('user-b')); mocks.authCallback?.('SIGNED_IN', authSession('user-b')) })
         expect(mocks.clearPersistentCaches).toHaveBeenCalledOnce()
         await act(async () => { mocks.authCallback?.('SIGNED_OUT', null) })
         expect(mocks.clearPersistentCaches).toHaveBeenCalledTimes(2)
         await act(async () => { renderer.unmount() })
     })
+    it('does not infer identity from an async session when storage is unavailable', async () => {
+        mocks.storageAvailable = false
+        mocks.readStoredSessionSync.mockReturnValue(authSession('user-a'))
+        mocks.getSession.mockResolvedValue({ data: { session: authSession('user-a') }, error: null })
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(AuthProvider, null, React.createElement(Probe)))
+        })
+        expect(snapshots.every((value) => value.userId === null)).toBe(true)
+        await act(async () => { mocks.authCallback?.('SIGNED_IN', authSession('user-a')) })
+        expect(snapshots.at(-1)).toEqual({ userId: null, loading: false })
+        await act(async () => { renderer.unmount() })
+    })
+    it('expires an offline identity and rejects late expired auth events', async () => {
+        vi.useFakeTimers()
+        vi.stubGlobal('navigator', { onLine: false })
+        vi.setSystemTime(new Date('2026-10-07T00:00:00Z'))
+        const stored = authSession('owner', Math.floor(Date.now() / 1000) + 2)
+        mocks.readStoredSessionSync.mockReturnValue(stored)
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(AuthProvider, null, React.createElement(Probe))) })
+            expect(snapshots.at(-1)?.userId).toBe('owner')
+            await act(async () => { await vi.advanceTimersByTimeAsync(1999) })
+            expect(snapshots.at(-1)?.userId).toBe('owner')
+            await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+            expect(snapshots.at(-1)).toEqual({ userId: null, loading: false })
+            expect(mocks.clearPersistentCaches).toHaveBeenCalledOnce()
+            await act(async () => { mocks.authCallback?.('INITIAL_SESSION', stored) })
+            expect(snapshots.at(-1)?.userId).toBeNull()
+            expect(mocks.getSession).not.toHaveBeenCalled()
+        } finally {
+            await act(async () => { renderer.unmount() })
+            vi.unstubAllGlobals()
+            vi.useRealTimers()
+        }
+    })
+
+    it('rejects a valid but removed session from a late auth event after logout', async () => {
+        const stored = authSession('owner')
+        mocks.readStoredSessionSync.mockReturnValue(stored)
+        mocks.getSession.mockReturnValue(new Promise(() => {}))
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(AuthProvider, null, React.createElement(Probe))) })
+        await act(async () => {
+            mocks.readStoredSessionSync.mockReturnValue(null)
+            mocks.authCallback?.('SIGNED_OUT', null)
+            mocks.authCallback?.('INITIAL_SESSION', stored)
+        })
+        expect(snapshots.at(-1)?.userId).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
 })
