@@ -274,7 +274,19 @@ export const textStyles = {
     meta: { fontSize: fontSize['2sm'], lineHeight: 16, color: colors.textMuted },
     sectionLabel: { fontSize: fontSize.xs, lineHeight: 14, fontWeight: fontWeight.extrabold, letterSpacing: 0.8, textTransform: 'uppercase' as const, color: colors.textMuted },
     stat: { fontSize: fontSize['2sm'], fontVariant: tabularNums, color: colors.textSecondary },
+    tableHeader: { fontSize: fontSize['2xs'], lineHeight: 12, fontWeight: fontWeight.extrabold, letterSpacing: 0.6, textTransform: 'uppercase' as const, color: colors.textMuted },
+    tableCell: { fontSize: fontSize.sm, fontVariant: tabularNums, color: colors.textSecondary },
 } satisfies Record<string, TextStyle>
+
+// Data tables (roster, players, standings, rankings, trades). One spec so
+// every table has the same header, row height, and column rhythm.
+export const table = {
+    headerHeight: 32,
+    rowHeight: 52,
+    rowHeightCompact: 44,
+    statColWidth: 44,
+    cellPadX: spacing.sm,
+} as const
 
 export const controlSize = {
     minTouch: foundation.minTouch,

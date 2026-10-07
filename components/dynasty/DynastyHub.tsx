@@ -26,7 +26,7 @@ import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { getLeagueMembers } from '@/lib/league'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 type NewsFeed = 'news' | 'my-news'
@@ -508,8 +508,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
+        minHeight: table.headerHeight,
         paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.sm,
         borderBottomWidth: 1,
         borderColor: colors.borderLight,
     },
