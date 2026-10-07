@@ -129,6 +129,7 @@ export function TradeCard({
     tradeVetoMode = 'member_vote',
     isCommissioner = false,
     acting,
+    decisionsDisabled = false,
     onAccept,
     onReject,
     onVeto,
@@ -141,6 +142,7 @@ export function TradeCard({
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
     acting: boolean
+    decisionsDisabled?: boolean
     onAccept: () => void
     onReject: () => void
     onVeto: () => void
@@ -233,7 +235,7 @@ export function TradeCard({
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}
                         onPress={onAccept}
-                        disabled={acting}
+                        disabled={acting || decisionsDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`Accept trade with ${opponentName}`}
                         testID={`trade-accept-${trade.id}`}
@@ -246,7 +248,7 @@ export function TradeCard({
                         <MotionPressable
                             style={[styles.actionBtn, styles.actionBtnReject]}
                             onPress={onReject}
-                            disabled={acting}
+                            disabled={acting || decisionsDisabled}
                             accessibilityRole="button"
                             accessibilityLabel={`Reject trade with ${opponentName}`}
                             testID={`trade-reject-${trade.id}`}
@@ -259,7 +261,7 @@ export function TradeCard({
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
                         onPress={() => push({ pathname: '/(modals)/propose-trade', params: { counterTradeId: trade.id } })}
-                        disabled={acting}
+                        disabled={acting || decisionsDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`Counter trade with ${opponentName}`}
                         testID={`trade-counter-${trade.id}`}
@@ -275,7 +277,7 @@ export function TradeCard({
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnAccept]}
                         onPress={() => push({ pathname: '/(modals)/propose-trade', params: { editTradeId: trade.id } })}
-                        disabled={acting}
+                        disabled={acting || decisionsDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`Edit trade with ${opponentName}`}
                         testID={`trade-edit-${trade.id}`}
@@ -287,7 +289,7 @@ export function TradeCard({
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
                         onPress={onWithdraw}
-                        disabled={acting}
+                        disabled={acting || decisionsDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`Withdraw trade with ${opponentName}`}
                         testID={`trade-withdraw-${trade.id}`}
@@ -303,7 +305,7 @@ export function TradeCard({
                     <MotionPressable
                         style={[styles.actionBtn, styles.actionBtnReject]}
                         onPress={onVeto}
-                        disabled={acting}
+                        disabled={acting || decisionsDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`Veto trade between ${trade.proposerTeamName} and ${trade.recipientTeamName}`}
                         testID={`trade-veto-${trade.id}`}

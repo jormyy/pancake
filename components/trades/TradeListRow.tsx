@@ -52,11 +52,13 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     myMemberId,
     tab,
     blockBusyId,
+    disabled = false,
     onRemove,
 }: {
     item: ItemOf<'blockItem'>
     myMemberId: string
     tab: TradeTabKey
+    disabled?: boolean
     blockBusyId: string | null
     onRemove: (item: TradeBlockItem) => void | Promise<void>
 }) {
@@ -97,7 +99,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
                 </View>
             ) : mine ? (
                 <Pressable style={styles.blockAction} onPress={() => onRemove(block)}
-                    disabled={blockBusyId === block.id} accessibilityRole="button"
+                    disabled={disabled || blockBusyId === block.id} accessibilityRole="button"
                     accessibilityLabel={`Remove ${label} from trade block`}>
                     <Text style={styles.blockActionText}>Remove</Text>
                 </Pressable>
@@ -197,6 +199,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     tradeVetoMode,
     isCommissioner,
     acting,
+    decisionsDisabled,
     onAccept,
     onReject,
     onVeto,
@@ -209,6 +212,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     tradeVetoMode: TradeVetoMode
     isCommissioner: boolean
     acting: boolean
+    decisionsDisabled?: boolean
     onAccept: (trade: ItemOf<'trade'>['trade']) => void
     onReject: (tradeId: string) => void
     onVeto: (tradeId: string) => void
@@ -217,7 +221,7 @@ export const TradeOfferRow = memo(function TradeOfferRow({
 }) {
     return <TradeCard trade={item.trade} myMemberId={myMemberId}
         tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner}
-        acting={acting} onAccept={() => onAccept(item.trade)}
+        acting={acting} decisionsDisabled={decisionsDisabled} onAccept={() => onAccept(item.trade)}
         onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
         onWithdraw={() => onWithdraw(item.trade.id)} onAnalyze={() => onAnalyze(item.trade)} />
 })

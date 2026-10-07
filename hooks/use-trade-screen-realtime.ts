@@ -16,6 +16,8 @@ type TradeScreenRealtimeOptions = {
     refreshHistory: () => void | Promise<void>
     refreshTradeBlock: () => void | Promise<void>
     refreshDraftPicks: () => void | Promise<void>
+    online?: boolean
+    focused?: boolean
 }
 
 export function useTradeScreenRealtime({
@@ -26,9 +28,24 @@ export function useTradeScreenRealtime({
     refreshHistory,
     refreshTradeBlock,
     refreshDraftPicks,
+    online = true,
+    focused = true,
 }: TradeScreenRealtimeOptions) {
     const activeTabRef = useRef(activeTab)
     activeTabRef.current = activeTab
+    const reconnectPending = useRef(false)
+
+    useEffect(() => {
+        if (!online) {
+            reconnectPending.current = true
+            return
+        }
+        if (!focused || !reconnectPending.current || !memberId || !leagueId) return
+        reconnectPending.current = false
+        void refreshTrades()
+        if (activeTabRef.current === 'history') void refreshHistory()
+        if (activeTabRef.current === 'block' || activeTabRef.current === 'leagueBlock') void refreshTradeBlock()
+    }, [focused, leagueId, memberId, online, refreshHistory, refreshTradeBlock, refreshTrades])
 
     useEffect(() => {
         if (!memberId || !leagueId) return

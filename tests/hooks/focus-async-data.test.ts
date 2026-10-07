@@ -17,6 +17,31 @@ const deferred = <Value,>() => {
 }
 
 describe('useFocusAsyncData', () => {
+    it('keeps saved content as a snapshot through a failed refresh, then replaces it with confirmed empty', async () => {
+        const fetcher = vi.fn<() => Promise<string[]>>()
+            .mockRejectedValueOnce(new Error('offline'))
+            .mockResolvedValueOnce([])
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useFocusAsyncData<string[]>>
+        const Probe = () => {
+            latest = useFocusAsyncData(fetcher, ['owner-a'], { initialData: ['saved'] })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.isSnapshot).toBe(true)
+        await act(async () => { await latest.refresh() })
+        expect(latest.data).toEqual(['saved'])
+        expect(latest.error?.message).toBe('offline')
+        expect(latest.isSnapshot).toBe(true)
+        await act(async () => { await latest.refresh() })
+        expect(latest.data).toEqual([])
+        expect(latest.error).toBeNull()
+        expect(latest.isSnapshot).toBe(false)
+        await act(async () => { renderer.unmount() })
+        log.mockRestore()
+    })
+
     it('does not expose data from the previous dependency identity during the switch render', async () => {
         let latest!: ReturnType<typeof useFocusAsyncData<string>>
         const snapshots: { resourceKey: string; data: string | null; loading: boolean }[] = []

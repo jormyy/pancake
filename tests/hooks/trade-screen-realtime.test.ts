@@ -36,6 +36,29 @@ beforeEach(() => {
 })
 
 describe('trade screen realtime ownership', () => {
+    it('revalidates one feed after reconnect when visible and does not refetch idle hidden tabs', async () => {
+        const refreshTrades = vi.fn()
+        const refreshHistory = vi.fn()
+        const refreshTradeBlock = vi.fn()
+        const refreshDraftPicks = vi.fn()
+        const Probe = ({ online, focused }: { online: boolean; focused: boolean }) => {
+            useTradeScreenRealtime({ leagueId: 'league-a', memberId: 'member-a', activeTab: 'offers',
+                online, focused, refreshTrades, refreshHistory, refreshTradeBlock, refreshDraftPicks })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { online: true, focused: false })) })
+        await act(async () => { renderer.update(React.createElement(Probe, { online: false, focused: false })) })
+        await act(async () => { renderer.update(React.createElement(Probe, { online: true, focused: false })) })
+        expect(refreshTrades).not.toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { online: true, focused: true })) })
+        expect(refreshTrades).toHaveBeenCalledTimes(1)
+        expect(refreshHistory).not.toHaveBeenCalled()
+        expect(refreshTradeBlock).not.toHaveBeenCalled()
+        expect(refreshDraftPicks).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+
     it('keeps one owner channel across tabs and refreshes history only while visible', async () => {
         const refreshTrades = vi.fn()
         const refreshHistory = vi.fn()

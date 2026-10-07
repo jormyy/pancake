@@ -24,7 +24,9 @@ const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v2:'
 const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
     `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
-export function useTradeBlock(memberId: string, leagueId: string) {
+export function useTradeBlock(memberId: string, leagueId: string, canMutate = true) {
+    const canMutateRef = useRef(canMutate)
+    canMutateRef.current = canMutate
     const resourceKey = memberId && leagueId ? tradeBlockCacheKey(memberId, leagueId) : null
     const cached = useMemo(
         () => memberId && leagueId
@@ -151,9 +153,10 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     }, [])
 
     const mutate = useCallback(async (id: string, operation: () => Promise<unknown>) => {
+        if (!canMutateRef.current) return
         const generation = mutationGeneration.current
         const task = mutationQueue.current.then(async () => {
-            if (mutationGeneration.current !== generation) return
+            if (mutationGeneration.current !== generation || !canMutateRef.current) return
             setBusyId(id)
             try {
                 await operation()

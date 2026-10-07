@@ -148,6 +148,7 @@ export function useFocusAsyncData<T>(
         loading: ownsState ? loading : !hasInitialData,
         refreshing: ownsState ? refreshing : false,
         error: ownsState ? error : null,
+        isSnapshot: !ownsState || lastLoadedAtRef.current === 0 || refreshing || Boolean(error),
         refresh,
     }
 }

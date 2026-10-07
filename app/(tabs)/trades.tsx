@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { useIsFocused } from '@react-navigation/native'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
@@ -50,7 +51,8 @@ const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
 export default function TradesScreen() {
     const { push } = useRouter()
     const { user } = useAuth()
-    const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner } = useLeagueContext()
+    const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner, online } = useLeagueContext()
+    const focused = useIsFocused()
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
     const myTeamName = current?.team_name ?? ''
@@ -73,6 +75,7 @@ export default function TradesScreen() {
         loadingMore: offersLoadingMore,
         hasMore: offersHaveMore,
         error: tradesError,
+        isSnapshot: tradesSnapshot,
         loadMoreError: offersLoadMoreError,
         refresh: load,
         loadMore: loadMoreOffers,
@@ -85,10 +88,12 @@ export default function TradesScreen() {
         refresh: refreshHistoryFeed,
         loadMore: loadMoreHistory,
     } = useTradeHistoryFeed(myMemberId, leagueId, tab === 'history')
+    const decisionsDisabled = !online || tradesSnapshot || Boolean(tradesError)
     const tradeActions = useTradeActions({
         memberId: myMemberId,
         leagueId,
         onAction: load,
+        enabled: !decisionsDisabled,
     })
     const {
         items: blockItems,
@@ -103,14 +108,14 @@ export default function TradesScreen() {
         addPlayer: handleListPlayer,
         addPick: handleListPick,
         removeItem: handleRemoveBlockItem,
-    } = useTradeBlock(myMemberId, leagueId)
+    } = useTradeBlock(myMemberId, leagueId, online)
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])
     const listedPickIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'pick' ? [block.asset.pickId] : [],
     )), [blockItems, myMemberId])
-    const { data: picks, loading: picksLoading, error: picksError, refresh: refreshPicks } = useFocusAsyncData(async () => {
+    const { data: picks, loading: picksLoading, error: picksError, isSnapshot: picksSnapshot, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
         const result = await getPicksForMember(current.id, leagueId)
         if (user?.id) writePersistentCache(picksCacheKey(user.id, current.id, leagueId), result)
@@ -118,6 +123,8 @@ export default function TradesScreen() {
     }, [current?.id, leagueId, user?.id], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
 
     useTradeScreenRealtime({
+        online,
+        focused,
         leagueId,
         memberId: myMemberId,
         activeTab: tab,
@@ -157,25 +164,25 @@ export default function TradesScreen() {
                 return <TradePickRow item={item} myTeamName={myTeamName} />
             case 'blockItem':
                 return <TradeBlockListingRow item={item} myMemberId={myMemberId} tab={tab}
-                    blockBusyId={blockBusyId} onRemove={handleRemoveBlockItem} />
+                    blockBusyId={blockBusyId} disabled={!online} onRemove={handleRemoveBlockItem} />
             case 'blockPlayer': {
                 const playerId = item.player.players.id
                 return <TradeBlockPlayerRow item={item} listed={listedPlayerIds.has(playerId)}
-                    busy={blockBusyId === playerId} blockAvgMap={blockAvgMap}
+                    busy={!online || blockBusyId === playerId} blockAvgMap={blockAvgMap}
                     blockAvgStatsMap={blockAvgStatsMap} onList={handleListPlayer} />
             }
             case 'blockPick':
                 return <TradeBlockPickRow item={item} listed={listedPickIds.has(item.pick.pickId)}
-                    busy={blockBusyId === item.pick.pickId} onList={handleListPick} />
+                    busy={!online || blockBusyId === item.pick.pickId} onList={handleListPick} />
             case 'trade':
                 return <TradeOfferRow item={item} myMemberId={myMemberId} tab={tab}
                     tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
-                    isCommissioner={isCommissioner} acting={tradeActions.busyTradeId !== null}
+                    isCommissioner={isCommissioner} acting={tradeActions.busyTradeId !== null} decisionsDisabled={decisionsDisabled}
                     onAccept={tradeActions.accept} onReject={tradeActions.reject}
                     onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw}
                     onAnalyze={openAnalyzer} />
         }
-    }, [blockAvgMap, blockAvgStatsMap, blockBusyId, currentLeague?.trade_veto_mode, handleListPick, handleListPlayer,
+    }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, online, currentLeague?.trade_veto_mode, handleListPick, handleListPlayer,
         handleRemoveBlockItem, isCommissioner, listedPickIds, listedPlayerIds, myMemberId,
         myTeamName, openAnalyzer, tab, tradeActions.accept, tradeActions.busyTradeId, tradeActions.reject,
         tradeActions.veto, tradeActions.withdraw])
@@ -204,6 +211,12 @@ export default function TradesScreen() {
     const activeActionError = activeResource === 'block' ? blockActionError
         : activeResource === 'trades' ? offersLoadMoreError
             : null
+    const resourceLabel = activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'
+    const hasSavedData = activeResource === 'picks' ? picks !== null
+        : activeResource === 'block' ? blockItems.length > 0 || blockRoster.length > 0 || picksList.length > 0
+            : activeResource === 'history' ? historyTrades.length > 0 : trades.length > 0
+    const isSnapshot = !online || Boolean(activeError) || (activeResource === 'picks' ? picksSnapshot
+        : activeResource === 'block' ? blockLoading : activeResource === 'history' ? historyLoading : tradesSnapshot)
     const retryActiveResource = activeResource === 'picks' ? refreshPicks
         : activeResource === 'block' ? loadBlock
             : activeResource === 'history' ? refreshHistoryFeed
@@ -220,10 +233,15 @@ export default function TradesScreen() {
     }
     if (memberships.length === 0) return <NoLeagueState />
     return <SafeAreaView style={styles.container}><View style={styles.content}>
-        <TradeHeader disabled={tradingClosed} onPropose={() => push('/(modals)/propose-trade')} />
+        <TradeHeader offline={!online} disabled={!online || tradingClosed} onPropose={() => push('/(modals)/propose-trade')} />
         <TradeTabs options={tabOptions} tab={tab} setTab={setTab} />
-        {activeError ? <ErrorBanner message={`Failed to load ${activeResource === 'picks' ? 'draft picks' : activeResource === 'block' ? 'trade block' : activeResource === 'history' ? 'trade history' : 'trades'}. Tap to retry.`}
-            onRetry={() => { void retryActiveResource() }} /> : null}
+        {activeError ? <ErrorBanner message={hasSavedData
+            ? `${resourceLabel[0].toUpperCase() + resourceLabel.slice(1)} refresh failed. Showing a saved snapshot.${online ? ' Tap to retry.' : ' Reconnect to update.'}`
+            : `${online ? 'Could not load' : 'Offline. No saved'} ${resourceLabel}.${online ? ' Tap to retry.' : ' Reconnect to load.'}`}
+            onRetry={() => { if (online) void retryActiveResource() }} />
+            : hasSavedData && isSnapshot ? <Text style={styles.freshness} accessibilityLiveRegion="polite">
+                {online ? `Refreshing ${resourceLabel}. Showing a saved snapshot.` : `Offline. Showing a saved ${resourceLabel} snapshot.`}
+            </Text> : null}
         {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError.replace(/[.!]?\s*$/, '.')} Tap to refresh.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
         {tab === 'analyzer' ? (
@@ -231,7 +249,7 @@ export default function TradesScreen() {
                 <TradeAnalyzer prefillTrade={analyzerTrade} />
             </Suspense>
         ) : activeTabLoading ? null
-            : tab === 'picks' && picksError ? null
+            : tab === 'picks' && picksError && picks === null ? null
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
                         ItemSeparatorComponent={ItemSeparator} renderItem={renderItem}
@@ -242,13 +260,13 @@ export default function TradesScreen() {
     </View></SafeAreaView>
 }
 
-function TradeHeader({ disabled, onPropose }: { disabled: boolean; onPropose: () => void }) {
+function TradeHeader({ disabled, offline = false, onPropose }: { disabled: boolean; offline?: boolean; onPropose: () => void }) {
     return <View style={styles.header}>
         <Text style={styles.headerTitle} role="heading" aria-level={1}>Trades</Text>
         <Pressable style={[styles.proposeBtn, disabled && styles.proposeBtnDisabled]} onPress={onPropose}
-            disabled={disabled} accessibilityRole="button" accessibilityLabel={disabled ? 'Trades unavailable' : 'Propose trade'}
+            disabled={disabled} accessibilityRole="button" accessibilityLabel={offline ? 'Reconnect to propose a trade' : disabled ? 'Trades unavailable' : 'Propose trade'}
             accessibilityState={{ disabled }}>
-            <Text style={[styles.proposeBtnText, disabled && styles.proposeBtnTextDisabled]}>{disabled ? 'Locked' : '+ Propose'}</Text>
+            <Text style={[styles.proposeBtnText, disabled && styles.proposeBtnTextDisabled]}>{offline ? 'Offline' : disabled ? 'Locked' : '+ Propose'}</Text>
         </Pressable>
     </View>
 }
@@ -268,6 +286,7 @@ const styles = StyleSheet.create({
     proposeBtnDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     proposeBtnTextDisabled: { color: colors.textPlaceholder },
     tabRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    freshness: { color: colors.textSecondary, fontSize: fontSize.sm, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
     emptyStateText: { fontSize: fontSize.md, color: colors.textPlaceholder },
 })
