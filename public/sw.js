@@ -14,6 +14,8 @@ const SHELL_CACHE = `${VERSION}-public-v1-shell`
 const ASSET_CACHE = `${VERSION}-public-v1-assets`
 const SHELL_URL = '/'
 const BOOT_TIMEOUT_MS = 30000
+const CARRY_BYTES_LIMIT = 64 * 1024 * 1024
+const CARRY_GENERATION_LIMIT = 8
 const PUBLIC_ASSETS = new Set(PUBLIC_ASSET_URLS)
 const IMMUTABLE = /^\/(?:_expo\/static|assets)\//
 const PRIVATE_DIRECTIVES = /(?:^|,)\s*(?:private|no-store|no-cache)\b/i
@@ -53,6 +55,10 @@ const publicFetch = (url, signal) =>
 async function matchesBuild(response, digest) {
   if (!digest) return false
   const bytes = await response.clone().arrayBuffer()
+  return matchesDigest(bytes, digest)
+}
+
+async function matchesDigest(bytes, digest) {
   const actual = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
     .map((byte) => byte.toString(16).padStart(2, '0')).join('')
   return actual === digest
@@ -95,6 +101,44 @@ async function bootResponse(url, signal) {
   return response
 }
 
+async function carryPublicAssets(assets) {
+  const names = (await caches.keys()).filter((name) => name.startsWith('pancake-') &&
+    name.endsWith('-public-v1-assets') && name !== ASSET_CACHE)
+  if (names.length > CARRY_GENERATION_LIMIT) throw new Error('too many prior public caches')
+  const previous = await Promise.all(names.reverse().map((name) => caches.open(name)))
+  let remaining = CARRY_BYTES_LIMIT
+  // Only current manifest entries can cross a release boundary. Revalidate
+  // headers and bytes, including orphan entries from an interrupted install.
+  for (const url of PUBLIC_ASSETS) {
+    if (PRECACHE_URLS.includes(url) || !PUBLIC_ASSET_HASHES[url]) continue
+    for (const cache of [assets, ...previous]) {
+      const response = await cache.match(url)
+      if (response && cache === assets) await assets.delete(url)
+      if (!cacheable(response) || !response.body) continue
+      const reader = response.body.getReader()
+      const chunks = []
+      let size = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        size += value.byteLength
+        if (size > remaining) {
+          void reader.cancel()
+          throw new Error('public asset carryover exceeds byte limit')
+        }
+        chunks.push(value)
+      }
+      const bytes = new Uint8Array(size)
+      let offset = 0
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+      if (!(await matchesDigest(bytes, PUBLIC_ASSET_HASHES[url]))) continue
+      await assets.put(url, new Response(bytes, { headers: response.headers }))
+      remaining -= size
+      break
+    }
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     // A release is usable only when every required URL belongs to its build.
@@ -122,8 +166,14 @@ self.addEventListener('install', (event) => {
       const assets = await caches.open(ASSET_CACHE)
       // A killed worker can leave partial versioned caches. Always refill the
       // entire verified set on retry; activation, not cache existence, commits it.
-      await Promise.all(PRECACHE_URLS.map((url, index) =>
-        (url === SHELL_URL ? shell : assets).put(url, responses[index])))
+      await Promise.race([
+        (async () => {
+          await Promise.all(PRECACHE_URLS.map((url, index) =>
+            (url === SHELL_URL ? shell : assets).put(url, responses[index])))
+          await carryPublicAssets(assets)
+        })(),
+        deadline,
+      ])
       await self.skipWaiting()
     } finally {
       clearTimeout(timer)

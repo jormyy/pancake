@@ -532,4 +532,127 @@ describe('service worker', () => {
         await expect(worker.respond(navigation('/'))).rejects.toThrow(/shell precache rejected/)
     })
 
+    it('carries only current verified public lazy bytes before discarding a warmed release', async () => {
+        const body = 'verified lazy module'
+        const url = '/_expo/static/js/web/chunk.js'
+        const worker = await loadWorker({ hashes: { [url]: createHash('sha256').update(body).digest('hex') } })
+        const old = await worker.caches.open('pancake-old-public-v1-assets')
+        await old.put(url, script(body))
+        await old.put('/private.json', new Response('account A'))
+        await worker.install()
+        const current = await worker.caches.open('pancake-test-1-public-v1-assets')
+        expect(await (await current.match(url))?.text()).toBe(body)
+        expect(await current.match('/private.json')).toBeUndefined()
+        await worker.activate()
+        expect(await worker.caches.keys()).not.toContain('pancake-old-public-v1-assets')
+        expect(await (await worker.respond(scoped(url))).text()).toBe(body)
+    })
+
+    it('does not commit an upgrade until the carried lazy asset write is durable', async () => {
+        const body = 'verified lazy module'
+        const url = '/_expo/static/js/web/chunk.js'
+        const worker = await loadWorker({ hashes: { [url]: createHash('sha256').update(body).digest('hex') } })
+        const old = await worker.caches.open('pancake-old-public-v1-assets')
+        await old.put(url, script(body))
+        const current = await worker.caches.open('pancake-test-1-public-v1-assets')
+        const original = current.put.bind(current)
+        const put = vi.spyOn(current, 'put').mockImplementation(async (key, value) => {
+            if (key === url) throw new Error('quota')
+            return original(key, value)
+        })
+        await expect(worker.install()).rejects.toThrow('quota')
+        expect(worker.skipWaitingCalls).toBe(0)
+        expect(await (await old.match(url))?.text()).toBe(body)
+        put.mockRestore()
+        await worker.install()
+        expect(await (await current.match(url))?.text()).toBe(body)
+        expect(worker.skipWaitingCalls).toBe(1)
+    })
+
+    it.each(['private', 'no-store', 'vary-cookie', 'html', 'wrong-bytes', 'unknown', 'legacy'])(
+        'does not carry unsafe or unattributed old delivery: %s', async (kind) => {
+            const url = '/_expo/static/js/web/chunk.js'
+            const body = 'verified lazy module'
+            const worker = await loadWorker({ hashes: { [url]: createHash('sha256').update(body).digest('hex') } })
+            const old = await worker.caches.open(kind === 'legacy' ? 'pancake-old-assets' : 'pancake-old-public-v1-assets')
+            const headers: Record<string, string> = { 'content-type': 'application/javascript' }
+            if (kind === 'private' || kind === 'no-store') headers['cache-control'] = kind
+            if (kind === 'vary-cookie') headers.vary = 'Cookie'
+            if (kind === 'html') headers['content-type'] = 'text/html'
+            await old.put(kind === 'unknown' ? '/private.json' : url, new Response(kind === 'wrong-bytes' ? 'account A' : body, { headers }))
+            await worker.install()
+            const current = await worker.caches.open('pancake-test-1-public-v1-assets')
+            expect(await current.match(url)).toBeUndefined()
+            expect(await current.match('/private.json')).toBeUndefined()
+        },
+    )
+
+    it('removes poisoned orphan lazy entries and refills only verified old bytes', async () => {
+        const url = '/_expo/static/js/web/chunk.js'
+        const body = 'verified lazy module'
+        const worker = await loadWorker({ hashes: { [url]: createHash('sha256').update(body).digest('hex') } })
+        const current = await worker.caches.open('pancake-test-1-public-v1-assets')
+        await current.put(url, script('private poison'))
+        await worker.install()
+        expect(await current.match(url)).toBeUndefined()
+        const old = await worker.caches.open('pancake-old-public-v1-assets')
+        await old.put(url, script(body))
+        await worker.install()
+        expect(await (await current.match(url))?.text()).toBe(body)
+    })
+
+    it('keeps the old release when carryover exceeds its generation bound', async () => {
+        const worker = await loadWorker()
+        for (let i = 0; i < 9; i++) await worker.caches.open(`pancake-old-${i}-public-v1-assets`)
+        await expect(worker.install()).rejects.toThrow('too many prior public caches')
+        expect(worker.skipWaitingCalls).toBe(0)
+        expect((await worker.caches.keys()).filter(name => name.startsWith('pancake-old-'))).toHaveLength(9)
+    })
+
+    it('waits for a pending carry write before requesting activation', async () => {
+        const url = '/_expo/static/js/web/chunk.js'
+        const body = 'verified lazy module'
+        const worker = await loadWorker({ hashes: { [url]: createHash('sha256').update(body).digest('hex') } })
+        const old = await worker.caches.open('pancake-old-public-v1-assets')
+        await old.put(url, script(body))
+        const current = await worker.caches.open('pancake-test-1-public-v1-assets')
+        const original = current.put.bind(current)
+        let release!: () => void
+        const barrier = new Promise<void>(resolve => { release = resolve })
+        let entered = false
+        vi.spyOn(current, 'put').mockImplementation(async (key, value) => {
+            if (key === url) { entered = true; await barrier }
+            return original(key, value)
+        })
+        const installing = worker.install()
+        await vi.waitFor(() => expect(entered).toBe(true))
+        expect(worker.skipWaitingCalls).toBe(0)
+        expect(await (await old.match(url))?.text()).toBe(body)
+        expect(await current.match(url)).toBeUndefined()
+        release()
+        await installing
+        expect(await (await current.match(url))?.text()).toBe(body)
+        expect(worker.skipWaitingCalls).toBe(1)
+    })
+
+    it('rejects oversized untrusted carry bytes without discarding the old cache', async () => {
+        const url = '/_expo/static/js/web/chunk.js'
+        const worker = await loadWorker({ hashes: { [url]: 'not-the-build-digest' } })
+        const old = await worker.caches.open('pancake-old-public-v1-assets')
+        await old.put(url, new Response(new Uint8Array(64 * 1024 * 1024 + 1)))
+        await expect(worker.install()).rejects.toThrow('byte limit')
+        expect(worker.skipWaitingCalls).toBe(0)
+        expect(await worker.caches.keys()).toContain('pancake-old-public-v1-assets')
+    })
+
+    it('preserves the old release when cache storage cannot be read for carryover', async () => {
+        const worker = await loadWorker()
+        const old = await worker.caches.open('pancake-old-public-v1-assets')
+        await old.put('/_expo/static/js/web/chunk.js', script('saved'))
+        vi.spyOn(worker.caches, 'keys').mockRejectedValue(new Error('storage denied'))
+        await expect(worker.install()).rejects.toThrow('storage denied')
+        expect(worker.skipWaitingCalls).toBe(0)
+        expect(await (await old.match('/_expo/static/js/web/chunk.js'))?.text()).toBe('saved')
+    })
+
 })
