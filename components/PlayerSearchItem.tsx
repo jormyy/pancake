@@ -71,7 +71,8 @@ function PlayerSearchItemImpl({
     // screen instead of one tall card.
     const denseProjectionRow = statMode === 'projection' && !showStats
 
-    const statusBadge = currentMemberId && !isFA ? (
+    // The wide table has an Ownership column, so free agents say "FA" there too.
+    const statusBadge = currentMemberId && (!isFA || showStats) ? (
         <View style={[
             styles.statusBadge,
             !showStats && styles.statusBadgeNarrow,
@@ -161,7 +162,7 @@ function PlayerSearchItemImpl({
                         )}
                         {item.nba_team != null && (gamesLeft.get(item.nba_team) ?? 0) > 0 && (
                             <Text style={styles.gamesLeftText}>
-                                {countLabel(gamesLeft.get(item.nba_team) ?? 0, 'game')} left
+                                · {countLabel(gamesLeft.get(item.nba_team) ?? 0, 'game')} left
                             </Text>
                         )}
                         {item.injury_status ? (

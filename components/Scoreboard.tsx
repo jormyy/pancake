@@ -68,7 +68,7 @@ export function Scoreboard({
                                     !isFinal && !isLive && styles.scoreHidden,
                                     myAway && (isFinal || isLive) && styles.scoreHighlight,
                                 ]}>
-                                    {isFinal || isLive ? g.away_score : '·'}
+                                    {isFinal || isLive ? g.away_score : ''}
                                 </Text>
                             </View>
                             {/* Home */}
@@ -81,13 +81,13 @@ export function Scoreboard({
                                     !isFinal && !isLive && styles.scoreHidden,
                                     myHome && (isFinal || isLive) && styles.scoreHighlight,
                                 ]}>
-                                    {isFinal || isLive ? g.home_score : '·'}
+                                    {isFinal || isLive ? g.home_score : ''}
                                 </Text>
                             </View>
                             {/* Status */}
                             <View style={styles.statusRow}>
                                 {isLive && <LivePulse color={colors.primary} size={5} />}
-                                <Text style={[
+                                <Text numberOfLines={1} style={[
                                     styles.status,
                                     isLive && styles.statusLive,
                                     isFinal && styles.statusFinal,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     card: {
-        width: 90,
+        width: 96,
         backgroundColor: scoreboardColors.card,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     status: {
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
-        color: scoreboardColors.statusMuted,
+        color: scoreboardColors.textMuted,
         textAlign: 'center',
         letterSpacing: 0.3,
     },

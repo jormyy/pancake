@@ -378,6 +378,7 @@ const styles = StyleSheet.create({
         gap: spacing.lg,
         width: '100%',
         maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
+        alignSelf: 'center',
     },
     boardTopConstrained: {
         paddingTop: spacing.md,

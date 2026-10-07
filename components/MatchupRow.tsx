@@ -103,6 +103,13 @@ function detailLine(
     return compact ? parts.slice(0, 2).join(' ') : `${game} · ${parts.join(', ')}`
 }
 
+// G and F only restate PG/SG and SF/PF; rows keep the space for the game line.
+function specificPositions(positions: string[] | null | undefined): string[] {
+    const list = positions ?? []
+    const specific = list.filter((pos) => pos !== 'G' && pos !== 'F' && pos !== 'UTIL')
+    return specific.length > 0 ? specific : list
+}
+
 function InjuryStatusBadge({ status }: { status: string | null }) {
     if (!status) return null
     return (
@@ -290,7 +297,7 @@ function PlayerSide({
                         {mirror([
                             isLive ? <LiveTag key="live" /> : null,
                             compactBadge ? <InjuryStatusBadge key="injury" status={injury} /> : null,
-                            ...(!compact ? (player.eligiblePositions ?? []).map((pos) => <PosTag key={pos} position={pos} />) : []),
+                            ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text
                                 key="detail"
                                 style={[styles.sideMeta, styles.detailText, playedToday && styles.detailTextStats, isLive && styles.statLineLive]}
@@ -499,7 +506,7 @@ const styles = StyleSheet.create({
     },
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
-    rowSideCompact: { paddingLeft: 0, paddingRight: 0 },
+    rowSideCompact: { paddingLeft: spacing.xs, paddingRight: spacing.xs },
     playerBlock: { flex: 1, minWidth: 0, minHeight: 48, justifyContent: 'center', gap: spacing.xxs },
     playerBlockCompact: { minHeight: 44 },
     playerBlockDense: { minHeight: 28 },

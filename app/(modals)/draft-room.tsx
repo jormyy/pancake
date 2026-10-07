@@ -216,7 +216,7 @@ export default function DraftRoomScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     keyboard: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { paddingTop: spacing.lg, paddingBottom: spacing['3xl'], gap: spacing.lg, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },

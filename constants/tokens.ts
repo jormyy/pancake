@@ -28,6 +28,8 @@ export const palette = {
     latte:      '#627068',
     cappuccino: '#6D6155',
     oatmilk:    '#A99379',
+    // Input hint text: lighter than typed values so a hint never reads as an answer.
+    hint:       '#9A8B78',
 
     // ── Red ──
     red50:    '#FEF2F2',
@@ -197,6 +199,7 @@ export const colors = {
     textMuted:       webColor('text-muted', palette.latte),
     textPlaceholder: webColor('text-placeholder', palette.cappuccino),
     textDisabled:    webColor('text-disabled', palette.oatmilk),
+    inputPlaceholder: webColor('input-placeholder', palette.hint),
     textWhite:       palette.white,
 
     // Backgrounds
@@ -448,6 +451,11 @@ export const webOverlays = {
     liveGlow: '0 0 14px rgba(166, 83, 23, 0.35)',
 } as const
 
+// Fades the right edge of a scroll strip so more items read as "swipe for more".
+export const webMasks = {
+    fadeRight: 'linear-gradient(to right, black calc(100% - 40px), transparent)',
+} as const
+
 export const webChrome = {
     themeColor: palette.cream100,
     themeColorDark: night.bgScreen,
@@ -624,6 +632,7 @@ export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'text-muted': night.textMuted,
     'text-placeholder': night.textPlaceholder,
     'text-disabled': night.textDisabled,
+    'input-placeholder': '#7A827B',
     'bg-screen': night.bgScreen,
     'bg-card': night.bgCard,
     'bg-muted': night.bgMuted,

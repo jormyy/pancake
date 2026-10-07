@@ -357,7 +357,7 @@ function PlayerSearchSection() {
                     <TextInput
                         style={[styles.searchInput, !compactToolbar && localStyles.searchWide]}
                         placeholder="Search players..."
-                        placeholderTextColor={colors.textPlaceholder}
+                        placeholderTextColor={colors.inputPlaceholder}
                         value={search.search.query}
                         onChangeText={search.search.setQuery}
                         autoCorrect={false}

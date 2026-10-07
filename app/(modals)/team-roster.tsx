@@ -107,9 +107,9 @@ export default function TeamRosterScreen() {
     )
 
     return (
-        <Page title={teamName ?? 'Team roster'} width="form">
+        <Page title={teamName ?? 'Team roster'}>
             <PageHeader
-                title={teamName ?? 'Roster'}
+                title={teamName ?? 'Team roster'}
                 meta={roster.length > 0
                     ? `${active.length} active${ir.length > 0 ? ` · ${ir.length} IR` : ''}${taxi.length > 0 ? ` · ${taxi.length} taxi` : ''}`
                     : undefined}

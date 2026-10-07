@@ -82,9 +82,9 @@ export default function CommissionerSettingsScreen() {
     }
 
     function renderAction(action: CommissionerAction, grid = false) {
-        const color = action.intent === 'danger'
-            ? colors.danger
-            : action.intent === 'primary' ? colors.primaryDark : colors.primary
+        // primaryDark is the accent text color in both themes; primary is a
+        // fill color and drops to about 3:1 as text on dark surfaces.
+        const color = action.intent === 'danger' ? colors.danger : colors.primaryDark
         const accessibilityLabel = action.description ? `${action.label}. ${action.description}` : action.label
         const button = (
             <Pressable
@@ -259,7 +259,7 @@ export default function CommissionerSettingsScreen() {
                                 value={tradeDeadline}
                                 onChangeText={(value) => updateField('tradeDeadline', value)}
                                 placeholder="None"
-                                placeholderTextColor={colors.textPlaceholder}
+                                placeholderTextColor={colors.inputPlaceholder}
                                 accessibilityLabel="Trade deadline, month and day"
                                 selectTextOnFocus
                             />
@@ -342,7 +342,7 @@ export default function CommissionerSettingsScreen() {
                                 onChangeText={setOverrideFaab}
                                 keyboardType="numeric"
                                 placeholder="FAAB balance"
-                                placeholderTextColor={colors.textPlaceholder}
+                                placeholderTextColor={colors.inputPlaceholder}
                             />
                             <Pressable style={styles.overrideButton} onPress={handleFaabOverride} disabled={overrideSaving}>
                                 <Text style={styles.overrideButtonText}>Set FAAB</Text>
@@ -355,7 +355,7 @@ export default function CommissionerSettingsScreen() {
                                 onChangeText={setOverrideAdds}
                                 keyboardType="numeric"
                                 placeholder="Weekly adds used"
-                                placeholderTextColor={colors.textPlaceholder}
+                                placeholderTextColor={colors.inputPlaceholder}
                             />
                             <Pressable style={styles.overrideButton} onPress={handleAddCountOverride} disabled={overrideSaving}>
                                 <Text style={styles.overrideButtonText}>Set Adds</Text>

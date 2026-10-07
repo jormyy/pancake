@@ -332,10 +332,21 @@ function WebSidebar() {
 
                 <View style={styles.navDivider} aria-hidden />
                 <View style={styles.navGroup}>
-                    <SidebarNavButton label="Draft Room" icon="flash-on" onPress={openDraftRoom} loading={draftLoading} />
-                    <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} />
+                    <SidebarNavButton
+                        label="Draft Room"
+                        icon="flash-on"
+                        onPress={openDraftRoom}
+                        loading={draftLoading}
+                        active={pathname.startsWith('/draft-room') || pathname.startsWith('/rookie-draft-room')}
+                    />
+                    <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} active={pathname.startsWith('/bracket')} />
                     {isCommissioner ? (
-                        <SidebarNavButton label="Commissioner" icon="admin-panel-settings" onPress={() => router.push('/(modals)/commissioner-settings')} />
+                        <SidebarNavButton
+                            label="Commissioner"
+                            icon="admin-panel-settings"
+                            onPress={() => router.push('/(modals)/commissioner-settings')}
+                            active={pathname.startsWith('/commissioner-settings')}
+                        />
                     ) : null}
                 </View>
             </ScrollView>

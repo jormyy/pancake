@@ -20,7 +20,7 @@ export function playerYearsExperienceLabel(yearsExp?: number | null): string | n
 
 export function playerSeasonContextText(player: PlayerContextInput): string {
     return [
-        player.avgFantasyPoints != null ? `${formatPoints(player.avgFantasyPoints)} FPts` : null,
+        player.avgFantasyPoints != null ? `${formatPoints(player.avgFantasyPoints)} FP` : null,
         player.avgMinutesPlayed != null ? `${formatPoints(player.avgMinutesPlayed)} MIN` : null,
         playerYearsExperienceLabel(player.yearsExp),
     ].filter(Boolean).join(' · ') || 'No season stats'

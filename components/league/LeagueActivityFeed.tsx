@@ -172,7 +172,7 @@ export function ActivityFeed({
 }
 
 const styles = StyleSheet.create({
-    column: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular },
+    column: { flex: 1, width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
     txRow: {
         minHeight: table.rowHeight,
         flexDirection: 'row',

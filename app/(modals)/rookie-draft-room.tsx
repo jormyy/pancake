@@ -351,7 +351,7 @@ export default function RookieDraftRoomScreen() {
                                 <TextInput
                                     style={styles.searchInput}
                                     placeholder="Search prospects…"
-                                    placeholderTextColor={colors.textPlaceholder}
+                                    placeholderTextColor={colors.inputPlaceholder}
                                     value={query}
                                     onChangeText={setQuery}
                                     autoCorrect={false}

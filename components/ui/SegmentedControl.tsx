@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useId, useRef } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
-import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webMasks, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
 
@@ -76,7 +76,12 @@ export function SegmentedControl<T extends string>({
     const scrollRef = useRef<ScrollView>(null)
     const segmentLayouts = useRef<Record<string, { x: number; width: number }>>({})
     const viewportWidth = useRef(0)
+    const contentWidth = useRef(0)
     const scrollX = useRef(0)
+    const [moreToRight, setMoreToRight] = useState(false)
+    const updateEdge = useCallback(() => {
+        setMoreToRight(contentWidth.current - scrollX.current - viewportWidth.current > 1)
+    }, [])
     const scrollIntoView = useCallback((target: T) => {
         const box = segmentLayouts.current[target]
         const viewport = viewportWidth.current
@@ -160,11 +165,20 @@ export function SegmentedControl<T extends string>({
                 ref={scrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                style={[styles.scrollTrack, Platform.OS === 'web' && moreToRight && styles.fadeRight]}
                 onLayout={(event) => {
                     viewportWidth.current = event.nativeEvent.layout.width
                     scrollIntoView(value)
+                    updateEdge()
                 }}
-                onScroll={(event) => { scrollX.current = event.nativeEvent.contentOffset.x }}
+                onContentSizeChange={(width) => {
+                    contentWidth.current = width
+                    updateEdge()
+                }}
+                onScroll={(event) => {
+                    scrollX.current = event.nativeEvent.contentOffset.x
+                    updateEdge()
+                }}
                 scrollEventThrottle={32}
                 role="tablist"
                 aria-label={accessibilityLabel}
@@ -202,6 +216,9 @@ const styles = StyleSheet.create({
     trackScrollable: {
         flexWrap: 'nowrap',
     },
+    // Clip to the space the parent gives, so a header action never sits on top of tabs.
+    scrollTrack: { width: '100%', flexGrow: 0 },
+    fadeRight: { maskImage: webMasks.fadeRight, WebkitMaskImage: webMasks.fadeRight } as object,
     segment: {
         flexDirection: 'row',
         alignItems: 'center',

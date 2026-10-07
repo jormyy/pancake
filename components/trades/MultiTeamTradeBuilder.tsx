@@ -245,7 +245,7 @@ export function MultiTeamTradeBuilder({
             <TextInput
                 style={[styles.notesInput, notesError && styles.notesInputInvalid]}
                 placeholder="Add a message to your trade offer..."
-                placeholderTextColor={colors.textPlaceholder}
+                placeholderTextColor={colors.inputPlaceholder}
                 value={notes}
                 onChangeText={(value) => {
                     const nextBytes = utf8ByteLength(value)
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
     },
-    stack: { gap: spacing.lg, marginBottom: spacing.lg },
+    stack: { gap: spacing.lg, marginBottom: spacing.lg, paddingHorizontal: spacing.xl },
     scroller: { marginBottom: spacing.lg },
     // flexGrow lets team panels share the full builder width instead of
     // sitting at their minimum width inside the sideways scroller.

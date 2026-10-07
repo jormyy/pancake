@@ -6,6 +6,10 @@ import { getErrorMessage } from '@/lib/shared/errors'
 
 type LaunchResult = 'opened' | 'missing' | 'error' | 'stale'
 
+// On web the draft tab and the auction room share the /draft-room URL. The
+// group prefix picks the tab's "No active draft" page, not "Draft not found".
+const NO_DRAFT_ROUTE = '/(tabs)/draft-room'
+
 export function useDraftRoomLauncher(
     leagueId: string | undefined,
     options: { notifyOnError?: boolean } = {},
@@ -26,7 +30,7 @@ export function useDraftRoomLauncher(
         const fallbackOnMissing = launchOptions.fallbackOnMissing ?? true
         const capturedKey = leagueId
         if (!capturedKey) {
-            if (fallbackOnMissing) router.push('/draft-room')
+            if (fallbackOnMissing) router.push(NO_DRAFT_ROUTE)
             return Promise.resolve<LaunchResult>('missing')
         }
         if (inFlightRef.current?.key === capturedKey) return inFlightRef.current.promise
@@ -42,7 +46,7 @@ export function useDraftRoomLauncher(
                 const draft = await getJoinableDraft(capturedKey, { includeCompletedRookie: true })
                 if (!ownsRequest()) return 'stale'
                 if (!draft) {
-                    if (fallbackOnMissing) router.push('/draft-room')
+                    if (fallbackOnMissing) router.push(NO_DRAFT_ROUTE)
                     return 'missing'
                 }
                 const pathname = draft.draftType === 'snake'

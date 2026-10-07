@@ -115,7 +115,7 @@ export function PlayerHeader({
             </View>
 
             <View style={styles.info}>
-                <Text style={styles.name} numberOfLines={2}>{player.display_name}</Text>
+                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2}>{player.display_name}</Text>
                 <View style={styles.metaRow}>
                     {metaParts.length > 0 && <Text style={styles.meta}>{metaParts.join(' · ')}</Text>}
                     {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
@@ -199,6 +199,7 @@ const styles = StyleSheet.create({
 
     info: { flex: 1, minWidth: 0, gap: spacing.xs },
     name: { fontFamily: fontFamily.display, fontSize: fontSize['2xl'], lineHeight: 28, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    nameCompact: { fontSize: fontSize.xl, lineHeight: 24 },
     metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
     badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

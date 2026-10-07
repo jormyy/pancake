@@ -261,7 +261,7 @@ export function DraftTimerControl({
                     onSubmitEditing={commitCustom}
                     keyboardType="number-pad"
                     placeholder="sec"
-                    placeholderTextColor={colors.textPlaceholder}
+                    placeholderTextColor={colors.inputPlaceholder}
                     accessibilityLabel="Custom timer seconds"
                 />
             </View>
@@ -277,6 +277,7 @@ const styles = StyleSheet.create({
         flexBasis: 78,
         minHeight: 44,
         paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         borderWidth: 1,
         borderColor: colors.border,
@@ -285,10 +286,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.primary },
-    nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
     nominationModeChipTextOn: { color: colors.textWhite },
+    // Presets and the custom field wrap as one row, so a narrow screen moves
+    // the custom field below instead of squeezing the presets into a column.
     timerControl: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'flex-start',
         gap: spacing.sm,
         marginBottom: spacing.sm,
@@ -297,10 +301,13 @@ const styles = StyleSheet.create({
         marginBottom: 0,
     },
     timerPresetWrap: {
-        flex: 1,
+        flexGrow: 1,
+        flexBasis: 200,
         minWidth: 0,
     },
     customTimerField: {
+        flexGrow: 1,
+        flexBasis: 118,
         minWidth: 118,
         minHeight: 44,
         borderWidth: 1,

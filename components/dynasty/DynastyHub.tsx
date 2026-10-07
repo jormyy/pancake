@@ -324,7 +324,6 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     const { current, currentLeague } = useLeagueContext()
     const { width } = useWindowDimensions()
     const showStats = width >= WIDE_BREAKPOINT
-    const narrowSearch = width < 440
     const narrowLayout = width < 760
     const [feed, setFeed] = useState<NewsFeed>('news')
     const { data: decisionMembers } = useFocusAsyncData(
@@ -395,19 +394,20 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 idBase="dynasty-ranking-view"
                                 scrollable
                             />
-                            <Text style={styles.syncText} numberOfLines={1}>
-                                {rankings.refreshing ? 'Refreshing…' : latestSync ? `Updated ${formatDate(latestSync)}` : 'Not synced yet'}
-                            </Text>
                         </View>
                         <View style={styles.searchRow}>
                             <Input
                                 value={rankings.query}
                                 onChangeText={rankings.setQuery}
-                                placeholder={narrowSearch ? 'Search rankings' : 'Search dynasty rankings'}
+                                placeholder="Search rankings"
                                 leftIcon="search"
                                 autoCorrect={false}
                                 accessibilityLabel="Search dynasty rankings"
+                                containerStyle={styles.searchField}
                             />
+                            <Text style={styles.syncText} numberOfLines={1}>
+                                {rankings.refreshing ? 'Refreshing…' : latestSync ? `Updated ${formatDate(latestSync)}` : 'Not synced yet'}
+                            </Text>
                         </View>
                         {rankings.error && rankings.players.length === 0 ? (
                             <View style={styles.errorState}>
@@ -431,7 +431,11 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 renderItem={renderRankingRow}
                                 ListEmptyComponent={rankings.loading
                                     ? null
-                                    : <EmptyState message="No ranked players found." fullScreen={false} />}
+                                    : rankings.query.trim()
+                                        ? <EmptyState message={`No ranked players match "${rankings.query.trim()}".`} fullScreen={false} />
+                                    : latestSync
+                                        ? <EmptyState message="No ranked players in this view." fullScreen={false} />
+                                        : <EmptyState message="Rankings haven't synced yet." description="They refresh daily from the published dynasty ranks. Check back after the next sync." fullScreen={false} />}
                                 ListFooterComponent={rankingFooter}
                                 onEndReached={rankings.loadMore}
                                 onEndReachedThreshold={0.4}
@@ -498,7 +502,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
     },
-    syncText: { ...textStyles.meta, flexShrink: 0, marginLeft: 'auto' },
+    syncText: { ...textStyles.meta, flexShrink: 0 },
+    searchField: { flex: 1, maxWidth: 420 },
     searchRow: {
         flexDirection: 'row',
         alignItems: 'center',

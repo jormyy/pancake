@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
+
 import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
-import { usePageMetrics } from '@/components/ui/Page'
+import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
@@ -39,6 +40,13 @@ import {
     proposeTrade,
 } from '@/lib/trades'
 import { takeTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
+
+// Inside the web shell the page is already clear of the notch; only native needs the inset.
+function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children: ReactNode }) {
+    return Platform.OS === 'web'
+        ? <View style={style}>{children}</View>
+        : <SafeAreaView style={style} edges={['top']}>{children}</SafeAreaView>
+}
 
 // The builder needs this width to show team columns side by side.
 const BUILDER_WIDTH = 900
@@ -353,9 +361,9 @@ export default function ProposeTradeScreen() {
 
     if (!current) {
         return (
-            <SafeAreaView style={styles.container} edges={['top']}>
+            <PageFrame style={styles.container}>
                 <View style={styles.emptyCenter}><Text style={styles.emptyText}>No active league.</Text></View>
-            </SafeAreaView>
+            </PageFrame>
         )
     }
 
@@ -365,13 +373,12 @@ export default function ProposeTradeScreen() {
     )
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <View style={styles.header}>
-                <View style={[styles.headerInner, sideBySide && styles.headerInnerWide]}>
-                    <Pressable onPress={back} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="Cancel trade proposal">
-                        <Text style={styles.cancelText}>Cancel</Text>
-                    </Pressable>
-                    <Text style={styles.headerTitle} numberOfLines={1}>{tradeComposerTitle(mode)}</Text>
+        <PageFrame style={styles.container}>
+            <PageHeader
+                title={tradeComposerTitle(mode)}
+                onBack={back}
+                backLabel="Cancel trade proposal"
+                actions={(
                     <Pressable
                         onPress={() => setReviewing(true)}
                         style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
@@ -385,8 +392,8 @@ export default function ProposeTradeScreen() {
                             Review
                         </Text>
                     </Pressable>
-                </View>
-            </View>
+                )}
+            />
             <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
               <View style={[styles.main, sideBySide && styles.mainWide]}>
                 {tradingClosed ? (
@@ -482,17 +489,11 @@ export default function ProposeTradeScreen() {
                     onRequestClose={() => setReviewing(false)}
                 >
                     <SafeAreaView style={styles.container} edges={['top']}>
-                        <View style={styles.header}>
-                            <View style={styles.headerInner}>
-                                <Pressable
-                                    onPress={() => setReviewing(false)}
-                                    style={styles.headerButton}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Back to trade editor"
-                                >
-                                    <Text style={styles.cancelText}>Back</Text>
-                                </Pressable>
-                                <Text style={styles.headerTitle} numberOfLines={1}>Review Trade</Text>
+                        <PageHeader
+                            title="Review trade"
+                            onBack={() => setReviewing(false)}
+                            backLabel="Back to trade editor"
+                            actions={(
                                 <Pressable
                                     onPress={handleSubmit}
                                     style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
@@ -502,10 +503,10 @@ export default function ProposeTradeScreen() {
                                     testID="trade-confirm-submit"
                                     id="trade-confirm-submit"
                                 >
-                                    <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Confirm</Text>
+                                    <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Send</Text>
                                 </Pressable>
-                            </View>
-                        </View>
+                            )}
+                        />
                         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                             <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
                             <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
@@ -514,7 +515,7 @@ export default function ProposeTradeScreen() {
                     </SafeAreaView>
                 </Modal>
             ) : null}
-        </SafeAreaView>
+        </PageFrame>
     )
 }
 
@@ -549,36 +550,6 @@ const styles = StyleSheet.create({
     main: { width: '100%', minWidth: 0 },
     mainWide: { width: BUILDER_WIDTH, flexShrink: 0 },
     rail: { width: layout.railWidth, paddingTop: spacing.xl },
-    header: { paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    headerInner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.xl,
-        width: '100%',
-        maxWidth: BUILDER_WIDTH,
-        alignSelf: 'center',
-    },
-    headerInnerWide: { maxWidth: BUILDER_WIDTH + spacing['3xl'] + layout.railWidth },
-    headerTitle: {
-        flex: 1,
-        marginHorizontal: spacing.md,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        textAlign: 'center',
-    },
-    headerButton: {
-        minWidth: 72,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     submitButton: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.xl,

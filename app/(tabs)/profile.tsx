@@ -256,7 +256,7 @@ export default function ProfileScreen() {
                                     returnKeyType="done"
                                     onSubmitEditing={handleSave}
                                     placeholder="Your team name"
-                                    placeholderTextColor={colors.textPlaceholder}
+                                    placeholderTextColor={colors.inputPlaceholder}
                                     accessibilityLabel="Team name"
                                 />
                             ) : undefined}
