@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
-import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webMasks, webOverlays } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
+import { useEdgeFade } from '@/components/ui/useEdgeFade'
 import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
 
 export type SegmentOption<T extends string> = {
@@ -75,27 +76,20 @@ export function SegmentedControl<T extends string>({
     // far-right section never opens with its tab hidden off screen.
     const scrollRef = useRef<ScrollView>(null)
     const segmentLayouts = useRef<Record<string, { x: number; width: number }>>({})
-    const viewportWidth = useRef(0)
-    const contentWidth = useRef(0)
-    const scrollX = useRef(0)
-    const [moreToRight, setMoreToRight] = useState(false)
-    const [moreToLeft, setMoreToLeft] = useState(false)
-    const updateEdge = useCallback(() => {
-        setMoreToRight(contentWidth.current - scrollX.current - viewportWidth.current > 1)
-        setMoreToLeft(scrollX.current > 1)
-    }, [])
-    const edgeFade = moreToLeft && moreToRight ? styles.fadeBoth : moreToRight ? styles.fadeRight : moreToLeft ? styles.fadeLeft : null
+    const keepSelectedInView = useRef<() => void>(() => {})
+    const { fadeStyle, scrollProps, scrollX: edgeSizes } = useEdgeFade(() => keepSelectedInView.current())
     const scrollIntoView = useCallback((target: T) => {
         const box = segmentLayouts.current[target]
-        const viewport = viewportWidth.current
+        const { viewport, x } = edgeSizes.current
         if (!scrollable || !box || viewport <= 0) return
         const pad = spacing.xl
-        if (box.x < scrollX.current + pad) {
+        if (box.x < x + pad) {
             scrollRef.current?.scrollTo({ x: Math.max(0, box.x - pad), animated: false })
-        } else if (box.x + box.width > scrollX.current + viewport - pad) {
+        } else if (box.x + box.width > x + viewport - pad) {
             scrollRef.current?.scrollTo({ x: box.x + box.width - viewport + pad, animated: false })
         }
-    }, [scrollable])
+    }, [scrollable, edgeSizes])
+    keepSelectedInView.current = () => scrollIntoView(value)
     useEffect(() => { scrollIntoView(value) }, [scrollIntoView, value])
 
     useEffect(() => {
@@ -168,21 +162,8 @@ export function SegmentedControl<T extends string>({
                 ref={scrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={[styles.scrollTrack, Platform.OS === 'web' && edgeFade]}
-                onLayout={(event) => {
-                    viewportWidth.current = event.nativeEvent.layout.width
-                    scrollIntoView(value)
-                    updateEdge()
-                }}
-                onContentSizeChange={(width) => {
-                    contentWidth.current = width
-                    updateEdge()
-                }}
-                onScroll={(event) => {
-                    scrollX.current = event.nativeEvent.contentOffset.x
-                    updateEdge()
-                }}
-                scrollEventThrottle={32}
+                style={[styles.scrollTrack, fadeStyle]}
+                {...scrollProps}
                 role="tablist"
                 aria-label={accessibilityLabel}
                 aria-orientation="horizontal"
@@ -221,9 +202,6 @@ const styles = StyleSheet.create({
     },
     // Clip to the space the parent gives, so a header action never sits on top of tabs.
     scrollTrack: { width: '100%', flexGrow: 0 },
-    fadeRight: { maskImage: webMasks.fadeRight, WebkitMaskImage: webMasks.fadeRight } as object,
-    fadeLeft: { maskImage: webMasks.fadeLeft, WebkitMaskImage: webMasks.fadeLeft } as object,
-    fadeBoth: { maskImage: webMasks.fadeBoth, WebkitMaskImage: webMasks.fadeBoth } as object,
     segment: {
         flexDirection: 'row',
         alignItems: 'center',

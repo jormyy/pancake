@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
-import { Platform, View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, fontFamily, fontSize, fontWeight, radii, scoreboardColors, spacing, webMasks } from '@/constants/tokens'
+import { View, Text, ScrollView, StyleSheet } from 'react-native'
+import { useEdgeFade } from '@/components/ui/useEdgeFade'
+import { colors, fontFamily, fontSize, fontWeight, radii, scoreboardColors, spacing } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 import { LivePulse, MotionView } from '@/components/Motion'
 
@@ -29,13 +29,7 @@ export function Scoreboard({
     /** Lay games out in rows (side column) instead of one sideways strip. */
     wrap?: boolean
 }) {
-    // Fade the strip's right edge while more games are off screen.
-    const sizes = useRef({ viewport: 0, content: 0, x: 0 })
-    const [moreToRight, setMoreToRight] = useState(false)
-    const updateEdge = useCallback(() => {
-        const { viewport, content, x } = sizes.current
-        setMoreToRight(content - x - viewport > 1)
-    }, [])
+    const { fadeStyle, scrollProps } = useEdgeFade()
 
     if (games.length === 0) return null
 
@@ -47,11 +41,8 @@ export function Scoreboard({
                 horizontal={!wrap}
                 scrollEnabled={!wrap}
                 showsHorizontalScrollIndicator={false}
-                style={!wrap && moreToRight && Platform.OS === 'web' ? styles.fadeRight : undefined}
-                onLayout={(event) => { sizes.current.viewport = event.nativeEvent.layout.width; updateEdge() }}
-                onContentSizeChange={(width) => { sizes.current.content = width; updateEdge() }}
-                onScroll={(event) => { sizes.current.x = event.nativeEvent.contentOffset.x; updateEdge() }}
-                scrollEventThrottle={32}
+                style={wrap ? undefined : fadeStyle}
+                {...scrollProps}
                 contentContainerStyle={[styles.scroll, compact && styles.scrollCompact, wrap && styles.scrollWrap]}
             >
                 {sorted.map((g, index) => {
@@ -131,7 +122,6 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.md,
         gap: spacing.md,
     },
-    fadeRight: { maskImage: webMasks.fadeRight, WebkitMaskImage: webMasks.fadeRight } as object,
     scrollWrap: {
         flexDirection: 'row',
         flexWrap: 'wrap',

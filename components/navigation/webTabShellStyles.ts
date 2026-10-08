@@ -144,6 +144,15 @@ export const styles = StyleSheet.create({
         color: colors.textMuted,
         fontSize: fontSize.xs,
     },
+    // Full-screen layer for the open league menu; its backdrop catches outside taps.
+    leagueMenuLayer: {
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        zIndex: 1000,
+    } as unknown as WebOnlyViewStyle,
     // Positioned by the switcher from its measured place on screen.
     leagueMenu: {
         position: 'absolute',

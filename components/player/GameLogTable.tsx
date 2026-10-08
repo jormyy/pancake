@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
 import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
+import { useEdgeFade } from '@/components/ui/useEdgeFade'
 
 type Props = {
     games: GameLogEntry[]
@@ -41,6 +42,7 @@ export function GameLogTable({
     onLoadMore,
 }: Props) {
     const showFpts = fantasyPointsMap !== null
+    const { fadeStyle, scrollProps } = useEdgeFade()
 
     if (games.length === 0) {
         return (
@@ -54,7 +56,7 @@ export function GameLogTable({
     return (
         <View style={styles.section}>
             <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Game Log</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableFrame} contentContainerStyle={styles.tableContent}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} {...scrollProps}>
                 <View style={styles.tableInner}>
                     {/* Header row */}
                     <View style={[styles.row, styles.headerRow]}>

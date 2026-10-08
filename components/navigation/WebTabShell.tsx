@@ -1,7 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { createPortal } from 'react-dom'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -141,9 +142,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const pathname = usePathname()
     const light = tone === 'light'
 
-    // The menu opens in a Modal layered over the whole page, anchored under the
-    // switch: a tap anywhere else closes it without reaching the page, Escape
-    // closes it, and so does a page change.
+    // The menu renders in a layer on document.body (this shell is web-only), so
+    // nothing in the page can clip it. It sits under the switch; a tap anywhere
+    // else closes it without reaching the page, as do Escape and a page change.
     useEffect(() => { setOpen(false) }, [pathname])
     useEffect(() => {
         if (!open || typeof document === 'undefined') return
@@ -151,12 +152,15 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
         document.addEventListener('keydown', onKey)
         return () => document.removeEventListener('keydown', onKey)
     }, [open])
+    // Read the switch's box straight from the page. The async measure call
+    // never answered on a reopen after Escape, which left the menu shut.
     const toggleMenu = () => {
         if (open) { setOpen(false); return }
-        wrapRef.current?.measureInWindow((x, y, width, height) => {
-            setAnchor({ x, y, width, height })
-            setOpen(true)
-        })
+        const node = wrapRef.current as unknown as HTMLElement | null
+        if (!node?.getBoundingClientRect) return
+        const { left, top, width, height } = node.getBoundingClientRect()
+        setAnchor({ x: left, y: top, width, height })
+        setOpen(true)
     }
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
@@ -205,12 +209,13 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color={chevronColor} />
             </Pressable>
 
-            <Modal visible={open && anchor != null} transparent animationType="none" onRequestClose={() => setOpen(false)}>
+            {open && anchor && typeof document !== 'undefined' ? createPortal(
+                <View style={styles.leagueMenuLayer}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} accessibilityLabel="Close league menu" />
                 <View
                     style={[
                         styles.leagueMenu,
-                        anchor ? { top: anchor.y + anchor.height + spacing.xs, left: anchor.x, width: Math.max(anchor.width, 260) } : null,
+                        { top: anchor.y + anchor.height + spacing.xs, left: anchor.x, width: Math.max(anchor.width, 260) },
                     ]}
                 >
                     {memberships.map((membership) => {
@@ -243,7 +248,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                         )
                     })}
                 </View>
-            </Modal>
+                </View>,
+                document.body,
+            ) : null}
         </View>
     )
 }
