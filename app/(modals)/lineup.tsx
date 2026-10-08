@@ -30,10 +30,10 @@ import {
     subscribeToTableChanges,
 } from '@/lib/realtime'
 import { todayET } from '@/lib/shared/dates'
+import { showAlert } from '@/lib/alert'
 import { useLocalSearchParams } from 'expo-router'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -428,7 +428,7 @@ export default function LineupScreen() {
             setSeasonOptimizerEnabled(true)
             await doAutoSet(null, true)
         } catch (e) {
-            Alert.alert('Optimizer failed', e instanceof Error ? e.message : String(e))
+            showAlert('Optimizer failed', getErrorMessage(e))
         }
     }
 
@@ -444,7 +444,7 @@ export default function LineupScreen() {
             )
             setSeasonOptimizerEnabled(false)
         } catch (e) {
-            Alert.alert('Optimizer failed', e instanceof Error ? e.message : String(e))
+            showAlert('Optimizer failed', getErrorMessage(e))
         }
     }
 
