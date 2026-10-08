@@ -78,13 +78,17 @@ describe('theme variables', () => {
         expect(Object.keys(WEB_THEME_VARS_DARK).sort()).toEqual(Object.keys(WEB_THEME_VARS).sort())
     })
 
-    it('emits the dark values only under the system dark preference', async () => {
+    it('stays light unless the Appearance choice asks for dark', async () => {
         const { themeVariablesCss } = await import('../constants/tokens')
         const css = themeVariablesCss()
-        const darkStart = css.indexOf('@media (prefers-color-scheme: dark)')
+        const darkStart = css.indexOf(':root[data-theme="dark"]{')
+        const systemStart = css.indexOf('@media (prefers-color-scheme: dark){:root[data-theme="system"]{')
 
         expect(darkStart).toBeGreaterThan(0)
+        expect(systemStart).toBeGreaterThan(darkStart)
         expect(css.slice(0, darkStart)).toContain('--pancake-bg-screen:#F7F1E8;')
-        expect(css.slice(darkStart)).toContain('--pancake-bg-screen:#121614;')
+        expect(css.slice(0, darkStart)).not.toContain('--pancake-bg-screen:#121614;')
+        expect(css.slice(darkStart, systemStart)).toContain('--pancake-bg-screen:#121614;')
+        expect(css.slice(systemStart)).toContain('--pancake-bg-screen:#121614;')
     })
 })

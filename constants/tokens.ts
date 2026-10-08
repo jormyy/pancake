@@ -465,11 +465,22 @@ export const webMasks = {
     fadeBoth: 'linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent)',
 } as const
 
+// Scopes selectors to a web Appearance choice, set as `data-theme` on <html>.
+function themedSelector(theme: 'dark' | 'system', selectors: string): string {
+    const root = `:root[data-theme="${theme}"]`
+    return selectors.split(',')
+        .map((selector) => (selector === 'html' || selector === ':root' ? root : `${root} ${selector}`))
+        .join(',')
+}
+const darkThemeSelector = (selectors: string) => themedSelector('dark', selectors)
+const systemThemeSelector = (selectors: string) => themedSelector('system', selectors)
+
 export const webChrome = {
     themeColor: palette.cream100,
     themeColorDark: night.bgScreen,
     rootBackgroundCss: `html,body,#root{background-color:${palette.cream100};}`
-        + `@media (prefers-color-scheme: dark){html,body,#root{background-color:${night.bgScreen};}}`,
+        + `${darkThemeSelector('html,body,#root')}{background-color:${night.bgScreen};}`
+        + `@media (prefers-color-scheme: dark){${systemThemeSelector('html,body,#root')}{background-color:${night.bgScreen};}}`,
 } as const
 
 export const tints = {
@@ -731,10 +742,15 @@ export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'pos-f': night.posSage,
 }
 
-/** CSS that declares both themes: light by default, dark when the system asks. */
+/**
+ * CSS that declares both themes. Light unless the Appearance setting (the
+ * `data-theme` attribute on <html>) asks for dark, or for "system" on a dark device.
+ */
 export function themeVariablesCss(): string {
     const declarations = (vars: Record<string, string>) =>
         Object.entries(vars).map(([name, value]) => `--pancake-${name}:${value};`).join('')
-    return `:root{${declarations(WEB_THEME_VARS)}}`
-        + `@media (prefers-color-scheme: dark){:root{${declarations(WEB_THEME_VARS_DARK)}color-scheme:dark;}}`
+    const dark = `${declarations(WEB_THEME_VARS_DARK)}color-scheme:dark;`
+    return `:root{${declarations(WEB_THEME_VARS)}color-scheme:light;}`
+        + `${darkThemeSelector(':root')}{${dark}}`
+        + `@media (prefers-color-scheme: dark){${systemThemeSelector(':root')}{${dark}}}`
 }
