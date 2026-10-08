@@ -136,7 +136,17 @@ function compactHeaderLabel(label: string): string {
 function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const { memberships, current, setCurrent } = useLeagueContext()
     const [open, setOpen] = useState(false)
+    const pathname = usePathname()
     const light = tone === 'light'
+
+    // The menu closes on Escape, on a click outside it, and when the page changes.
+    useEffect(() => { setOpen(false) }, [pathname])
+    useEffect(() => {
+        if (!open || typeof document === 'undefined') return
+        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+        document.addEventListener('keydown', onKey)
+        return () => document.removeEventListener('keydown', onKey)
+    }, [open])
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
     const chevronColor = light ? colors.textMuted : brand.onMuted
@@ -184,6 +194,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color={chevronColor} />
             </Pressable>
 
+            {open ? (
+                <Pressable style={styles.leagueMenuBackdrop} onPress={() => setOpen(false)} accessibilityLabel="Close league menu" />
+            ) : null}
             {open ? (
                 <View style={styles.leagueMenu}>
                     {memberships.map((membership) => {
@@ -335,7 +348,7 @@ function WebSidebar() {
                     <SidebarNavButton
                         label="League"
                         icon="emoji-events"
-                        active={pathname.startsWith('/league')}
+                        active={isRouteActive(pathname, '/league')}
                         href="/league"
                     />
                 </View>

@@ -18,7 +18,7 @@ const SLOT_W = 52
 const FPTS_W = 64
 const STAT_COL_W = 34
 const STAT_COL_WIDE_W = 46
-const NAME_MIN_W = 140
+const NAME_MIN_W = 130
 const STABLE_PLACEHOLDER = '—'
 
 function statColumnsWidth(columns: StatColumn[]): number {
@@ -73,18 +73,6 @@ function LineupAvatar({ player, compact = false, dense = false }: { player: Line
     )
 }
 
-function statParts(stats: LiveStatLine): string[] {
-    return [
-        stats.points   ? `${stats.points} PTS`   : null,
-        stats.rebounds ? `${stats.rebounds} REB`  : null,
-        stats.assists  ? `${stats.assists} AST`   : null,
-        stats.steals   ? `${stats.steals} STL`    : null,
-        stats.blocks   ? `${stats.blocks} BLK`    : null,
-        stats.threeMade ? `${stats.threeMade} 3PM` : null,
-        (stats.turnovers ?? 0) ? `${stats.turnovers ?? 0} TO` : null,
-    ].filter((part): part is string => part != null)
-}
-
 // One line under the name: the NBA game before tip-off, the box score after.
 // It is always present, so rows keep their height when live stats arrive.
 function detailLine(
@@ -97,11 +85,11 @@ function detailLine(
 ): string {
     const game = matchupLine(team, matchup, compact, compactWithBadge)
     if (stats?.didNotPlay) return compact ? 'DNP' : `${game} · DNP`
-    const parts = stats && includeStats ? statParts(stats) : []
-    if (parts.length === 0) return game
-    // Phones show the points/rebounds/assists slash line, which fits any width.
-    if (compact && stats) return `${stats.points}/${stats.rebounds}/${stats.assists}`
-    return `${game} · ${parts.join(', ')}`
+    if (!stats || !includeStats) return game
+    // The points/rebounds/assists slash line fits every width; the full box
+    // score is a tap away in the breakdown, or in columns on wide screens.
+    const slash = `${stats.points}/${stats.rebounds}/${stats.assists}`
+    return compact ? slash : `${game} · ${slash}`
 }
 
 // G and F only restate PG/SG and SF/PF; rows keep the space for the game line.
@@ -122,11 +110,11 @@ function InjuryStatusBadge({ status }: { status: string | null }) {
     )
 }
 
-function LiveTag() {
+function LiveTag({ dotOnly = false }: { dotOnly?: boolean }) {
     return (
-        <View style={styles.liveBadgeRow}>
+        <View style={styles.liveBadgeRow} accessibilityLabel="Live">
             <LivePulse color={uiColors.successTextLive} size={5} />
-            <Text style={styles.lockedBadge}>LIVE</Text>
+            {dotOnly ? null : <Text style={styles.lockedBadge}>LIVE</Text>}
         </View>
     )
 }
@@ -264,7 +252,7 @@ function PlayerSide({
             <>
                 <View style={[styles.nameRow, { justifyContent: align }]}>
                     <Text style={placeholderOnly ? styles.sideMeta : styles.emptySlotText} numberOfLines={1} ellipsizeMode="clip">
-                        {placeholderOnly ? STABLE_PLACEHOLDER : emptySlotLabel(slotType)}
+                        {placeholderOnly ? STABLE_PLACEHOLDER : tiny ? 'Empty' : emptySlotLabel(slotType)}
                     </Text>
                 </View>
                 {!dense ? (
@@ -297,7 +285,7 @@ function PlayerSide({
                 {!dense ? (
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         {mirror([
-                            isLive ? <LiveTag key="live" /> : null,
+                            isLive ? <LiveTag key="live" dotOnly={tiny} /> : null,
                             compactBadge ? <InjuryStatusBadge key="injury" status={injury} /> : null,
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text

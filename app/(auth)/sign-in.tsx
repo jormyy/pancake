@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     submit: { marginTop: spacing.sm },
     // Padded to a 44px tap target.
     link: {
-        paddingVertical: spacing.md,
+        paddingVertical: spacing.lg,
         textAlign: 'center',
         color: colors.primaryDark,
         fontSize: fontSize.md,

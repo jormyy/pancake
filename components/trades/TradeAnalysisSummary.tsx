@@ -35,7 +35,7 @@ export function TradeAnalysisSummary({
                 {analysis.teams.map((team) => (
                     <View key={team.memberId} style={styles.teamCard}>
                         <Text style={styles.teamName}>{participantName(team.memberId)}</Text>
-                        <Text style={styles.value}>Net value {signed(team.impact)}</Text>
+                        <Text style={[styles.value, team.impact < 0 && styles.valueNegative]}>Net value {signed(team.impact)}</Text>
                         <Text style={styles.detail}>Current points {signed(team.shortTermPoints)}</Text>
                         <Text style={styles.detail}>Long-term value {signed(team.longTermValue)}</Text>
                         <Text style={styles.detail}>Sent {team.valuesSent} · Received {team.valuesReceived}</Text>
@@ -81,6 +81,7 @@ const styles = StyleSheet.create({
     teamCard: { flexGrow: 1, flexBasis: 210, minWidth: 0, padding: spacing.lg, gap: spacing.xxs, backgroundColor: colors.bgMuted, borderRadius: radii.lg },
     teamName: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
     value: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    valueNegative: { color: colors.dangerDark },
     detail: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 },
     subhead: { ...textStyles.sectionLabel, marginTop: spacing.xs },
     assetRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },

@@ -187,7 +187,7 @@ const BenchRow = memo(function BenchRow({
 })
 
 export default function LineupScreen() {
-    const back = useGoBack('/')
+    const back = useGoBack('/roster')
     const { padX, usableWidth, compact: compactDays } = usePageMetrics()
     // Wide screens set starters and bench side by side, so a move never needs a scroll.
     const twoColumn = usableWidth >= TWO_COLUMN_MIN_WIDTH

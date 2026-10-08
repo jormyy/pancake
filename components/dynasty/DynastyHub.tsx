@@ -385,7 +385,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     ) : null
 
     return (
-            <View style={[styles.contentWrap, { paddingHorizontal: narrowLayout ? spacing.md : padX }]}>
+            <View style={[styles.contentWrap, { paddingHorizontal: padX }]}>
                 <View style={styles.body}>
                 {section === 'rankings' ? (
                     <>
@@ -440,7 +440,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 ListEmptyComponent={rankings.loading
                                     ? null
                                     : rankings.query.trim()
-                                        ? <EmptyState message={`No ranked players match "${rankings.query.trim()}".`} fullScreen={false} />
+                                        ? <EmptyState message={`No ranked players match "${rankings.query.trim()}".`} actionLabel="Clear search" onAction={() => rankings.setQuery('')} fullScreen={false} />
                                     : latestSync
                                         ? <EmptyState message="No ranked players in this view." fullScreen={false} />
                                         : <EmptyState message="Rankings haven't synced yet." description="They refresh daily from the published dynasty ranks. Check back after the next sync." fullScreen={false} />}

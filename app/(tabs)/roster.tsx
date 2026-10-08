@@ -18,7 +18,7 @@ import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligib
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
-import { colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, INJURY_COLORS, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -35,6 +35,7 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { autoSetLineup, getLineupContext } from '@/lib/lineup'
 import { isTradingClosed } from '@/lib/league'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
+import { Badge } from '@/components/Badge'
 
 type RosterListItem = (
     | { _isHeader: true; _section: string }
@@ -198,7 +199,12 @@ function RosterTablePlayerItem({
                         size={34}
                     />
                     <View style={styles.rosterTablePlayerInfo}>
-                        <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
+                        <View style={styles.rosterTableNameRow}>
+                            <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
+                            {item.players.injury_status ? (
+                                <Badge label={item.players.injury_status} color={INJURY_COLORS[item.players.injury_status] ?? colors.textMuted} variant="solid" />
+                            ) : null}
+                        </View>
                         <Text style={styles.rosterTableMeta} numberOfLines={1}>
                             {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
                         </Text>
@@ -1073,7 +1079,8 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     rosterTablePlayerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    rosterTableName: { ...textStyles.rowTitle },
+    rosterTableNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: 0 },
+    rosterTableName: { ...textStyles.rowTitle, flexShrink: 1 },
     rosterTableMeta: { ...textStyles.meta },
     rosterTableStat: {
         ...textStyles.tableCell,

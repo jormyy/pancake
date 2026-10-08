@@ -22,7 +22,7 @@ import { useGoBack } from '@/components/ui/useGoBack'
 export default function CreateLeagueScreen() {
     const { user } = useAuth()
     const { refresh } = useLeagueContext()
-    const goBack = useGoBack('/')
+    const goBack = useGoBack('/profile')
     const [leagueName, setLeagueName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [auctionBudget, setAuctionBudget] = useState('200')

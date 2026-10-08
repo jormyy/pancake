@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
-import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
+import { claimProcessDateLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
 import { loadAddLimitState } from '@/lib/roster-add-flow'
 import { addLimitSummary, reportPickupError } from '@/lib/pickup'
@@ -40,6 +40,7 @@ export default function ClaimPlayerScreen() {
     const [player, setPlayer] = useState<any>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
     const [priority, setPriority] = useState<number | null>(null)
+    const [clearsAt, setClearsAt] = useState<string | null>(null)
     const [transactionState, setTransactionState] = useState<MemberTransactionState | null>(null)
     const [bidInput, setBidInput] = useState('0')
     const [loading, setLoading] = useState(true)
@@ -72,6 +73,7 @@ export default function ClaimPlayerScreen() {
         setMyRoster([])
         setPriority(null)
         setTransactionState(null)
+        setClearsAt(null)
         setSelectedDrop(null)
         setBidInput('0')
         async function load() {
@@ -82,14 +84,16 @@ export default function ClaimPlayerScreen() {
             const requestedPlayerId = playerId
             const requestedLeagueId = leagueId
             try {
-                const [p, roster, prio, txState] = await Promise.all([
+                const [p, roster, prio, txState, waiverEnds] = await Promise.all([
                     getPlayer(requestedPlayerId),
                     getRoster(memberId, requestedLeagueId),
                     getMyWaiverPriority(memberId, requestedLeagueId),
                     loadAddLimitState(memberId, requestedLeagueId),
+                    getWaiverClearsAt(requestedLeagueId, requestedPlayerId),
                 ])
                 if (claimLoadSeqRef.current !== requestId) return
                 setPlayer(p)
+                setClearsAt(waiverEnds)
                 setMyRoster(roster)
                 setPriority(prio)
                 setTransactionState(txState)
@@ -149,14 +153,7 @@ export default function ClaimPlayerScreen() {
         }
     }
 
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const processDateStr = tomorrow.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'America/New_York',
-    })
+    const processDateStr = claimProcessDateLabel(clearsAt)
     const claimReady = !loading && !!player
     const submitDisabled = submitting || !claimReady || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop

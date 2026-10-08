@@ -64,7 +64,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                     </View>
                                     <View style={styles.teamTitleBlock}>
                                         <Text style={styles.teamName} numberOfLines={1}>{participant.label}</Text>
-                                        <Text style={styles.receivesLabel}>RECEIVES</Text>
+                                        <Text style={styles.receivesLabel}>Gets</Text>
                                     </View>
                                 </View>
                                 {participant.statusLabel ? (

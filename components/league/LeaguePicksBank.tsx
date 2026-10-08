@@ -449,8 +449,8 @@ const styles = StyleSheet.create({
     },
     picksBankHeaderRound: { width: 56 },
     picksBankHeaderFrom: { flex: 1, marginLeft: spacing.lg },
-    // From and Owner split the space evenly, so neither team name is cut while the other has room.
-    picksBankHeaderOwner: { flex: 1, marginLeft: spacing.md, textAlign: 'right' },
+    // Owner takes only the width its name needs (at most 45%); From gets the rest.
+    picksBankHeaderOwner: { flexShrink: 0, marginLeft: spacing.md, textAlign: 'right' },
     picksBankRow: {
         minHeight: table.rowHeightCompact,
         flexDirection: 'row',
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.warningDark,
     },
-    picksBankOwner: { flex: 1, minWidth: 0, marginLeft: spacing.md, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    picksBankOwner: { flexShrink: 1, maxWidth: '45%', marginLeft: spacing.md, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     picksLedgerIntro: {
         paddingTop: spacing.lg,
         paddingBottom: spacing.md,

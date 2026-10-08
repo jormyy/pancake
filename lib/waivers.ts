@@ -222,3 +222,27 @@ export async function getMyWaiverPriority(
     if (error) throw error
     return data?.priority ?? null
 }
+
+/** When this player's current waiver period ends, or null if they aren't on waivers. */
+export async function getWaiverClearsAt(leagueId: string, playerId: string): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('waiver_wire_log')
+        .select('clears_at')
+        .eq('league_id', leagueId)
+        .eq('player_id', playerId)
+        .is('cleared_at', null)
+        .gt('clears_at', new Date().toISOString())
+        .order('clears_at', { ascending: false })
+        .limit(1)
+    if (error) throw error
+    return (data?.[0] as { clears_at: string } | undefined)?.clears_at ?? null
+}
+
+/**
+ * The day a claim will process, in league (ET) time: when the player's waiver
+ * period ends, or the next nightly run if the end isn't known.
+ */
+export function claimProcessDateLabel(clearsAt: string | null, now: Date = new Date()): string {
+    const when = clearsAt ? new Date(clearsAt) : new Date(now.getTime() + 24 * 60 * 60 * 1000)
+    return when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' })
+}

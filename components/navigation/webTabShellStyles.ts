@@ -144,6 +144,17 @@ export const styles = StyleSheet.create({
         color: colors.textMuted,
         fontSize: fontSize.xs,
     },
+    // Invisible layer under the open menu: a click anywhere else closes it
+    // instead of reaching the page underneath.
+    leagueMenuBackdrop: {
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        zIndex: 90,
+        cursor: 'default',
+    } as unknown as WebOnlyViewStyle,
     leagueMenu: {
         position: 'absolute',
         // Anchor to the bottom of the switch (whatever its height) so the menu

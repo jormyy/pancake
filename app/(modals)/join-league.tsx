@@ -21,7 +21,7 @@ import { useGoBack } from '@/components/ui/useGoBack'
 export default function JoinLeagueScreen() {
     const { user } = useAuth()
     const { refresh } = useLeagueContext()
-    const goBack = useGoBack('/')
+    const goBack = useGoBack('/profile')
     const [inviteCode, setInviteCode] = useState('')
     const [teamName, setTeamName] = useState('')
     const [loading, setLoading] = useState(false)

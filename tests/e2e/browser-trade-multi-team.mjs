@@ -355,7 +355,7 @@ export async function runBrowserMultiTeamTradeScenario({
         'DEAL OVERVIEW',
         recipientTeamName,
         observerTeamName,
-        'RECEIVES',
+        'GETS',
         'Accepted',
         'Waiting',
         fixture.proposerPlayer.display_name,
