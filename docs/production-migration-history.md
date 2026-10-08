@@ -111,3 +111,20 @@ Use the same transaction and lock limits. Do not delete migration history or
 restore stale materialized rows. Verify the definition, indexes, ACL, RLS and
 canonical score equality after recovery. Local recovery proof does not establish
 production lock availability or device performance.
+
+
+The numeric coefficient migration `20261008000001` follows `20261007000001`.
+It converts eleven ordinary coefficients to numeric values once per league.
+The existing validated `scoring_settings_schema` requires numeric JSON values;
+missing coefficients still yield zero through the original COALESCE expressions.
+Bonus casts remain inside their existing conditions. Per-game rounding, DNP
+filtering, shared-settings equality, output columns and refresh scheduling stay unchanged.
+The migration refuses an unvalidated or missing scoring constraint.
+
+Replacement uses the same three-second lock and 120-second statement limits.
+A timeout or interruption rolls back the transaction. For recovery, append a
+forward migration containing `20261007000001_extract_scoring_cache_coefficients.sql`.
+Rebuild from current source data, then check canonical scores, indexes, grants
+and the public security-invoker view. Do not restore old materialized rows.
+Check production readers, data size and dependencies before application.
+The local benchmark proves no production lock availability or device performance.

@@ -343,6 +343,13 @@
       "statementCount": 12,
       "statementsSha256": "349d743dd5daee87ac6263328f9d13ac16ed53eb5fed88f71895d1bf738b8a34",
       "sha256": "58392a7d21db63246dd9cf929ee76961ff01255411b4909ab80a983f813f560b"
+    },
+    {
+      "name": "reuse_numeric_scoring_coefficients",
+      "version": "20261008000001",
+      "statementCount": 13,
+      "statementsSha256": "f939f17b7bd91df8f8658fd60b6e13c5942b6ee103c228399c034be490b5446a",
+      "sha256": "89364bb739366e151f060bce309cfe5b7e83331781bea487b0c1a8e0ea1149d7"
     }
   ]
 }

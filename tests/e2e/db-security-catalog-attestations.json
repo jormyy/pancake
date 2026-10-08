@@ -1,7 +1,7 @@
 {
   "version": 1,
   "baselineVersion": "20261005000002",
-  "candidateVersion": "20261007000001",
+  "candidateVersion": "20261008000001",
   "common": {
     "functions": [
       {
@@ -747,6 +747,10 @@
     {
       "filename": "20261005000003_league_season_rules.sql",
       "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d"
+    },
+    {
+      "filename": "20261008000001_reuse_numeric_scoring_coefficients.sql",
+      "sha256": "89364bb739366e151f060bce309cfe5b7e83331781bea487b0c1a8e0ea1149d7"
     }
   ]
 }
