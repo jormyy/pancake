@@ -237,3 +237,17 @@ Offline writes remain disabled. This avoids invalid moves after a game lock or r
 ## Supported client target
 
 Pancake supports iPhone Safari and the installed iPhone PWA. Android and native iOS app builds are excluded. Expo, React Native Web, routing, touch input, deep links, browser permissions, icons and service-worker infrastructure remain shared web dependencies. Desktop browsers and WebKit simulations provide development evidence; they do not prove real-iPhone or installed-iPhone-PWA behavior.
+
+### Dynasty foreground freshness
+
+Dynasty keeps its five-minute saved source snapshot for fast route loads. The
+focused screen revalidates that source on reconnect and foreground return,
+including within the five-minute window. It keeps matching saved rows and the
+search selection while loading. Concurrent resume events share the pending
+read. A new disconnect fences the old response and allows one follow-up read.
+Hidden screens defer resume reads until visible; there is no new poll timer.
+
+The existing metadata shows `Refreshing` during revalidation and `Refresh failed`
+when a source read fails. Published source timestamps retain their original
+meaning. A successful support lookup or cached replay does not confirm a fresh
+source response. Offline actions still require online server validation.

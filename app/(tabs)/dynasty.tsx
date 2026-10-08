@@ -383,7 +383,7 @@ export default function DynastyScreen() {
                     </View>
                     <View style={styles.syncPill}>
                         <MaterialIcons name="sync" size={14} color={colors.primaryDark} />
-                        <Text style={styles.syncText}>{rankings.refreshing ? 'Refreshing' : formatDate(latestSync)}</Text>
+                        <Text style={styles.syncText}>{rankings.refreshing ? 'Refreshing' : rankings.error ? 'Refresh failed' : formatDate(latestSync)}</Text>
                     </View>
                 </View>
 

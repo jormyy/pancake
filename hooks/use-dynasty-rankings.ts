@@ -320,8 +320,15 @@ export function useDynastyRankings({
         : '')
     const hasDataRef = useRef(Boolean(initialCache))
 
+    const focusedRef = useRef(false)
+    const resumeNeededRef = useRef(false)
+    const networkEpochRef = useRef(0)
+    const failedRef = useRef(false)
+    const inFlightRef = useRef<{
+        identity: string; requestId: number; epoch: number; force: boolean; promise: Promise<void>
+    } | null>(null)
     const scopeReady = Boolean(userId && memberId && leagueId)
-    const load = useCallback(async (force = false) => {
+    const load = useCallback(async (force = false): Promise<void> => {
         if (!scopeReady) {
             setOwnerScope(scopeIdentity)
             setInputs([])
@@ -330,79 +337,106 @@ export function useDynastyRankings({
             setLoading(false)
             return
         }
-        const requestId = ++requestSeqRef.current
-        if (ownerScope !== scopeIdentity) {
-            setOwnerScope(scopeIdentity)
-            activeKeyRef.current = ''
-            setInputs([])
-            setUnmatchedRookies([])
-            hasDataRef.current = false
-            lastLoadedAtRef.current = 0
-            setLoading(true)
-            setRefreshing(false)
+        const identity = `${scopeIdentity}:${scoringSignature}`
+        const pending = inFlightRef.current
+        if (pending?.identity === identity && pending.requestId === requestSeqRef.current) {
+            if (!force || (pending.force && pending.epoch === networkEpochRef.current)) return pending.promise
+            return pending.promise.then(() => {
+                if (requestSeqRef.current !== pending.requestId || !focusedRef.current) return
+                return load(true)
+            })
         }
-        setError(null)
-        try {
-            const fallbackSeasonYear = currentSeasonYear()
-            const season = await getCurrentSeason(leagueId)
-            if (requestSeqRef.current !== requestId) return
-            const seasonYear = season?.seasonYear ?? fallbackSeasonYear
-            const cacheScope = {
-                userId, memberId, leagueId, seasonYear, scoringSignature,
-            }
-            const cacheKey = dynastyDecisionCacheKey(cacheScope)
-            const previousKey = activeKeyRef.current
-            activeKeyRef.current = cacheKey
-            const cached = readPersistentCache<DynastyRankingsCache>(cacheKey)
-            if (cached && (!force || !hasDataRef.current)) {
-                setInputs(cached.inputs)
-                setUnmatchedRookies(cached.unmatchedRookies)
-                setSeasonYear(cached.seasonYear)
-                hasDataRef.current = true
-                lastLoadedAtRef.current = cached.savedAt
-                setLoading(false)
-            } else if (previousKey !== cacheKey) {
+        if ((typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
+            (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+            resumeNeededRef.current = true
+            return
+        }
+        const requestId = ++requestSeqRef.current
+        const epoch = networkEpochRef.current
+        const task = (async () => {
+            if (ownerScope !== scopeIdentity) {
+                setOwnerScope(scopeIdentity)
+                activeKeyRef.current = ''
                 setInputs([])
                 setUnmatchedRookies([])
                 hasDataRef.current = false
                 lastLoadedAtRef.current = 0
-            }
-            const hasData = hasDataRef.current
-            if (!force && cached && Date.now() - cached.savedAt < STALE_MS) return
-            setLoading(!hasData)
-            setRefreshing(hasData)
-            const [inputs, unmatchedRookies] = await Promise.all([
-                getDynastyDecisionInputs({
-                    leagueId,
-                    memberId,
-                    seasonYear,
-                    limit: MAX_RANKINGS,
-                }),
-                getUnmatchedRookieRankings(),
-            ])
-            if (requestSeqRef.current !== requestId || activeKeyRef.current !== cacheKey) return
-            const savedAt = Date.now()
-            setInputs(inputs)
-            setUnmatchedRookies(unmatchedRookies)
-            setSeasonYear(seasonYear)
-            hasDataRef.current = true
-            lastLoadedAtRef.current = savedAt
-            const cacheValue = { inputs, unmatchedRookies, savedAt, seasonYear }
-            writePersistentCache<DynastyRankingsCache>(cacheKey, cacheValue)
-            writePersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
-                userId, memberId, leagueId, scoringSignature,
-            }), cacheValue)
-        } catch (cause) {
-            if (requestSeqRef.current !== requestId) return
-            const nextError = cause instanceof Error ? cause : new Error(String(cause))
-            setError(nextError)
-            console.error(nextError)
-        } finally {
-            if (requestSeqRef.current === requestId) {
-                setLoading(false)
+                setLoading(true)
                 setRefreshing(false)
             }
-        }
+            setError(null)
+            failedRef.current = false
+            try {
+                const fallbackSeasonYear = currentSeasonYear()
+                const season = await getCurrentSeason(leagueId)
+                if (requestSeqRef.current !== requestId || epoch !== networkEpochRef.current) return
+                const seasonYear = season?.seasonYear ?? fallbackSeasonYear
+                const cacheScope = {
+                    userId, memberId, leagueId, seasonYear, scoringSignature,
+                }
+                const cacheKey = dynastyDecisionCacheKey(cacheScope)
+                const previousKey = activeKeyRef.current
+                activeKeyRef.current = cacheKey
+                const cached = readPersistentCache<DynastyRankingsCache>(cacheKey)
+                if (cached && (!force || !hasDataRef.current)) {
+                    setInputs(cached.inputs)
+                    setUnmatchedRookies(cached.unmatchedRookies)
+                    setSeasonYear(cached.seasonYear)
+                    hasDataRef.current = true
+                    lastLoadedAtRef.current = cached.savedAt
+                    setLoading(false)
+                } else if (previousKey !== cacheKey) {
+                    setInputs([])
+                    setUnmatchedRookies([])
+                    hasDataRef.current = false
+                    lastLoadedAtRef.current = 0
+                }
+                const hasData = hasDataRef.current
+                if (!force && cached && Date.now() - cached.savedAt < STALE_MS) return
+                if ((typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
+                    (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+                    resumeNeededRef.current = true
+                    return
+                }
+                setLoading(!hasData)
+                setRefreshing(hasData)
+                const [inputs, unmatchedRookies] = await Promise.all([
+                    getDynastyDecisionInputs({
+                        leagueId,
+                        memberId,
+                        seasonYear,
+                        limit: MAX_RANKINGS,
+                    }),
+                    getUnmatchedRookieRankings(),
+                ])
+                if (requestSeqRef.current !== requestId || activeKeyRef.current !== cacheKey || epoch !== networkEpochRef.current) return
+                const savedAt = Date.now()
+                setInputs(inputs)
+                setUnmatchedRookies(unmatchedRookies)
+                setSeasonYear(seasonYear)
+                hasDataRef.current = true
+                lastLoadedAtRef.current = savedAt
+                const cacheValue = { inputs, unmatchedRookies, savedAt, seasonYear }
+                writePersistentCache<DynastyRankingsCache>(cacheKey, cacheValue)
+                writePersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
+                    userId, memberId, leagueId, scoringSignature,
+                }), cacheValue)
+            } catch (cause) {
+                if (requestSeqRef.current !== requestId || epoch !== networkEpochRef.current) return
+                failedRef.current = true
+                const nextError = cause instanceof Error ? cause : new Error(String(cause))
+                setError(nextError)
+                console.error(nextError)
+            } finally {
+                if (requestSeqRef.current === requestId) {
+                    setLoading(false)
+                    setRefreshing(false)
+                }
+                if (inFlightRef.current?.requestId === requestId) inFlightRef.current = null
+            }
+        })()
+        inFlightRef.current = { identity, requestId, epoch, force, promise: task }
+        return task
     }, [leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSignature, userId])
 
     useEffect(() => {
@@ -413,8 +447,45 @@ export function useDynastyRankings({
     }, [load])
 
     useFocusEffect(useCallback(() => {
-        if (Date.now() - lastLoadedAtRef.current >= STALE_MS) void load()
+        focusedRef.current = true
+        if (resumeNeededRef.current) {
+            resumeNeededRef.current = false
+            void load(true)
+        } else if (Date.now() - lastLoadedAtRef.current >= STALE_MS) void load()
+        return () => {
+            focusedRef.current = false
+            resumeNeededRef.current = true
+        }
     }, [load]))
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof document === 'undefined') return
+        const resume = () => {
+            if (!focusedRef.current || document.visibilityState === 'hidden' || navigator.onLine === false) return
+            if (!resumeNeededRef.current && !failedRef.current) return
+            resumeNeededRef.current = false
+            void load(true)
+        }
+        const online = () => { resumeNeededRef.current = true; resume() }
+        const offline = () => {
+            networkEpochRef.current += 1
+            resumeNeededRef.current = true
+        }
+        const blur = () => { resumeNeededRef.current = true }
+        const visibility = () => { resumeNeededRef.current = true; resume() }
+        window.addEventListener('online', online)
+        window.addEventListener('offline', offline)
+        window.addEventListener('focus', resume)
+        window.addEventListener('blur', blur)
+        document.addEventListener('visibilitychange', visibility)
+        return () => {
+            window.removeEventListener('online', online)
+            window.removeEventListener('offline', offline)
+            window.removeEventListener('focus', resume)
+            window.removeEventListener('blur', blur)
+            document.removeEventListener('visibilitychange', visibility)
+        }
+    }, [load])
 
     const ownsScope = ownerScope === scopeIdentity
     const players = useMemo(() => rankedRows(
