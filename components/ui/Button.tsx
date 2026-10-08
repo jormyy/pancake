@@ -29,7 +29,7 @@ const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; ic
 function variantColors(variant: ButtonVariant) {
     switch (variant) {
         case 'primary':
-            return { bg: colors.primary, bgHover: colors.primaryDark, fg: colors.textWhite, border: 'transparent' }
+            return { bg: colors.primary, bgHover: colors.primaryHover, fg: colors.textWhite, border: 'transparent' }
         case 'danger':
             return { bg: colors.danger, bgHover: colors.dangerDark, fg: colors.onAccent, border: 'transparent' }
         case 'secondary':

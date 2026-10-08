@@ -32,6 +32,9 @@ type MultiTeamTradeBuilderProps = {
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
     reviewOnly?: boolean
+    /** Lets the screen keep the chosen sender tab when it swaps to Review and back. */
+    activeParticipantId?: string
+    onActiveParticipantChange?: (memberId: string) => void
 }
 
 export function MultiTeamTradeBuilder({
@@ -58,12 +61,16 @@ export function MultiTeamTradeBuilder({
     onNotesChange,
     onExpirationDaysChange,
     reviewOnly = false,
+    activeParticipantId: controlledActiveId,
+    onActiveParticipantChange,
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
     const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
     const shellContentWidth = width >= breakpoints.compact ? width - layout.sidebarWidth : width
     const useColumns = Math.min(contentWidth, shellContentWidth) >= 880
-    const [activeParticipantId, setActiveParticipantId] = useState(participants[0]?.memberId ?? '')
+    const [localActiveId, setLocalActiveId] = useState(participants[0]?.memberId ?? '')
+    const activeParticipantId = controlledActiveId ?? localActiveId
+    const setActiveParticipantId = onActiveParticipantChange ?? setLocalActiveId
     const [overviewExpanded, setOverviewExpanded] = useState(false)
     const notesBytes = utf8ByteLength(notes)
 
@@ -71,7 +78,7 @@ export function MultiTeamTradeBuilder({
         if (!participants.some((participant) => participant.memberId === activeParticipantId)) {
             setActiveParticipantId(participants[0]?.memberId ?? '')
         }
-    }, [activeParticipantId, participants])
+    }, [activeParticipantId, participants, setActiveParticipantId])
 
     const overviewItems = useMemo<TradeFlowItem[]>(() => items.map((item) => {
         const participant = participants.find((entry) => entry.memberId === item.fromMemberId)
@@ -204,6 +211,7 @@ export function MultiTeamTradeBuilder({
             {!useColumns ? (
                 <View
                     style={styles.senderTabs}
+                    role="tablist"
                     accessibilityRole="tablist"
                 >
                     {participants.map((participant) => {
@@ -213,6 +221,8 @@ export function MultiTeamTradeBuilder({
                                 key={participant.memberId}
                                 style={[styles.senderTab, active && styles.senderTabActive]}
                                 onPress={() => setActiveParticipantId(participant.memberId)}
+                                role="tab"
+                                aria-selected={active}
                                 accessibilityRole="tab"
                                 accessibilityState={{ selected: active }}
                                 accessibilityLabel={`Edit assets sent by ${participant.memberId === myMemberId ? 'you' : participantName(participant.memberId)}`}

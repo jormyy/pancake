@@ -93,88 +93,92 @@ export const RosterClaimItem = memo(function RosterClaimItem({
             ? 'Failed: roster full'
             : 'Failed: outbid'
     return (
-        <MotionView style={styles.row} preset="rise">
-            {isPending && waiverPriority != null ? (
-                <View style={styles.priorityBadge} accessibilityLabel={`Waiver priority ${waiverPriority}`}>
-                    <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
-                </View>
-            ) : null}
-            <Avatar
-                name={claim.playerName}
-                color={colors.bgMuted}
-                textColor={colors.textSecondary}
-                uri={playerHeadshotUrl(claim.playerNbaId) ?? undefined}
-                size={ROW_AVATAR}
-            />
-            <View style={styles.info}>
-                <Text style={styles.name} numberOfLines={1}>{claim.playerName}</Text>
-                <Text style={styles.meta} numberOfLines={2}>
-                    {[
-                        claim.dropPlayerName ? `Drop ${claim.dropPlayerName}` : null,
-                        `Order ${claim.claimOrder}`,
-                        usesFaab ? `Bid $${claim.bidAmount}` : null,
-                    ].filter(Boolean).join(' · ')}
-                </Text>
-                <Text style={[styles.meta, { color: statusColor }]}>{statusText}</Text>
-                {claim.failureReason ? (
-                    <Text style={[styles.meta, { color: colors.dangerDark }]}>{claim.failureReason}</Text>
-                ) : null}
-                {isPending ? (
-                    <View style={styles.claimEditRow}>
-                        {usesFaab ? (
-                            <TextInput
-                                style={styles.claimBidInput}
-                                value={bidText}
-                                onChangeText={(value) => {
-                                    if (/^\d*$/.test(value)) setBidText(value)
-                                }}
-                                keyboardType="numeric"
-                                accessibilityLabel={`Bid for ${claim.playerName}`}
-                            />
-                        ) : null}
-                        <MotionPressable
-                            style={styles.miniButton}
-                            onPress={() => onReorder(claim.id, 'up')}
-                            pressedScale={0.92}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Move ${claim.playerName} claim up`}
-                        >
-                            <Text style={styles.miniButtonText}>↑</Text>
-                        </MotionPressable>
-                        <MotionPressable
-                            style={styles.miniButton}
-                            onPress={() => onReorder(claim.id, 'down')}
-                            pressedScale={0.92}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Move ${claim.playerName} claim down`}
-                        >
-                            <Text style={styles.miniButtonText}>↓</Text>
-                        </MotionPressable>
-                        {usesFaab ? (
-                            <MotionPressable
-                                style={styles.miniButton}
-                                onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
-                                pressedScale={0.92}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Save bid for ${claim.playerName}`}
-                            >
-                                <Text style={styles.miniButtonText}>Save</Text>
-                            </MotionPressable>
-                        ) : null}
+        // Name and Cancel share the top line; the edit controls get a full-width
+        // line below, so nothing wraps on a narrow phone.
+        <MotionView style={styles.claimRow} preset="rise">
+            <View style={styles.claimTop}>
+                {isPending && waiverPriority != null ? (
+                    <View style={styles.priorityBadge} accessibilityLabel={`Waiver priority ${waiverPriority}`}>
+                        <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
                     </View>
+                ) : null}
+                <Avatar
+                    name={claim.playerName}
+                    color={colors.bgMuted}
+                    textColor={colors.textSecondary}
+                    uri={playerHeadshotUrl(claim.playerNbaId) ?? undefined}
+                    size={ROW_AVATAR}
+                />
+                <View style={styles.info}>
+                    <Text style={styles.name} numberOfLines={1}>{claim.playerName}</Text>
+                    <Text style={styles.meta} numberOfLines={2}>
+                        {[
+                            claim.dropPlayerName ? `Drop ${claim.dropPlayerName}` : null,
+                            `Order ${claim.claimOrder}`,
+                            usesFaab ? `Bid $${claim.bidAmount}` : null,
+                        ].filter(Boolean).join(' · ')}
+                    </Text>
+                    <Text style={[styles.meta, { color: statusColor }]}>{statusText}</Text>
+                    {claim.failureReason ? (
+                        <Text style={[styles.meta, { color: colors.dangerDark }]}>{claim.failureReason}</Text>
+                    ) : null}
+                </View>
+                {isPending ? (
+                    <MotionPressable
+                        style={styles.actionButton}
+                        onPress={() => onCancel(claim.id)}
+                        disabled={cancellingId === claim.id}
+                        pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Cancel claim for ${claim.playerName}`}
+                    >
+                        <Text style={styles.actionButtonText}>Cancel</Text>
+                    </MotionPressable>
                 ) : null}
             </View>
             {isPending ? (
-                <MotionPressable
-                    style={styles.actionButton}
-                    onPress={() => onCancel(claim.id)}
-                    disabled={cancellingId === claim.id}
-                    pressedScale={0.92}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Cancel claim for ${claim.playerName}`}
-                >
-                    <Text style={styles.actionButtonText}>Cancel</Text>
-                </MotionPressable>
+                <View style={styles.claimEditRow}>
+                    {usesFaab ? (
+                        <TextInput
+                            style={styles.claimBidInput}
+                            value={bidText}
+                            onChangeText={(value) => {
+                                if (/^\d*$/.test(value)) setBidText(value)
+                            }}
+                            keyboardType="numeric"
+                            accessibilityLabel={`Bid for ${claim.playerName}`}
+                        />
+                    ) : null}
+                    <MotionPressable
+                        style={styles.miniButton}
+                        onPress={() => onReorder(claim.id, 'up')}
+                        pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Move ${claim.playerName} claim up`}
+                    >
+                        <Text style={styles.miniButtonText}>↑</Text>
+                    </MotionPressable>
+                    <MotionPressable
+                        style={styles.miniButton}
+                        onPress={() => onReorder(claim.id, 'down')}
+                        pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Move ${claim.playerName} claim down`}
+                    >
+                        <Text style={styles.miniButtonText}>↓</Text>
+                    </MotionPressable>
+                    {usesFaab ? (
+                        <MotionPressable
+                            style={styles.miniButton}
+                            onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
+                            pressedScale={0.92}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Save bid for ${claim.playerName}`}
+                        >
+                            <Text style={styles.miniButtonText}>Save</Text>
+                        </MotionPressable>
+                    ) : null}
+                </View>
             ) : null}
         </MotionView>
     )
@@ -480,13 +484,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     priorityBadgeText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
-    claimEditRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: spacing.sm,
-        marginTop: spacing.xs,
-    },
+    claimRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
+    claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: spacing.md },
+    claimEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     // 16px text keeps iOS Safari from zooming the page when the field focuses.
     claimBidInput: {
         width: 64,

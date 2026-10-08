@@ -12,7 +12,7 @@ import { getRoster, RosterPlayer } from '@/lib/roster'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
-import { Button, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { Button, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { colors, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { useGoBack } from '@/components/ui/useGoBack'
 
@@ -132,9 +132,7 @@ export default function TeamRosterScreen() {
                 contentContainerStyle={[styles.listContent, { paddingHorizontal: padX }]}
             >
                 {loading && roster.length === 0 ? (
-                    // Blank while loading — content appears fully formed
-                    // instead of swapping a loading line for the roster.
-                    null
+                    <LoadingState />
                 ) : roster.length === 0 ? (
                     <EmptyState
                         icon="sports-basketball"

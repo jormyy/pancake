@@ -223,6 +223,9 @@ export const colors = {
     primaryLight:  webColor('primary-light', palette.maple50),
     primaryBorder: webColor('primary-border', palette.maple200),
     primaryDark:   webColor('primary-dark', palette.maple600),
+    // Hover fill behind white text. Dark mode lightens primaryDark for text, so
+    // fills keep this deeper maple in both themes.
+    primaryHover:  palette.maple600,
 
     // Danger (red)
     danger:     webColor('danger', palette.red600),

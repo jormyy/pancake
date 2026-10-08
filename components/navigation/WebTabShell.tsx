@@ -146,11 +146,6 @@ function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?:
     )
 }
 
-function compactHeaderLabel(label: string): string {
-    const words = label.trim().split(/\s+/).filter(Boolean)
-    return words.length > 2 ? words.slice(0, 2).join(' ') : label
-}
-
 function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const { memberships, current, setCurrent } = useLeagueContext()
     const [open, setOpen] = useState(false)
@@ -165,9 +160,15 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     useEffect(() => { setOpen(false) }, [pathname])
     useEffect(() => {
         if (!open || typeof document === 'undefined') return
-        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+        const close = () => setOpen(false)
+        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
         document.addEventListener('keydown', onKey)
-        return () => document.removeEventListener('keydown', onKey)
+        // Browser Back between two tabs of one page keeps the path, so watch history too.
+        window.addEventListener('popstate', close)
+        return () => {
+            document.removeEventListener('keydown', onKey)
+            window.removeEventListener('popstate', close)
+        }
     }, [open])
     // Read the switch's box straight from the page. The async measure call
     // never answered on a reopen after Escape, which left the menu shut.
@@ -182,7 +183,6 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
     const chevronColor = light ? colors.textMuted : brand.onMuted
-    const labelForTone = (label: string) => light ? compactHeaderLabel(label) : label
 
     if (!current) {
         return (
@@ -218,7 +218,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                     <Text style={styles.leagueCrestText}>{(current.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
                 </View>
                 <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={light ? 1 : 2} ellipsizeMode="tail">{labelForTone(currentLeagueName)}</Text>
+                    <Text style={nameStyle} numberOfLines={light ? 1 : 2} ellipsizeMode="tail">{currentLeagueName}</Text>
                     {light ? null : (
                         <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{currentTeamName}</Text>
                     )}
@@ -232,7 +232,8 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 <View
                     style={[
                         styles.leagueMenu,
-                        { top: anchor.y + anchor.height + spacing.xs, left: anchor.x, width: Math.max(anchor.width, 260) },
+                        // Match the switch's width so the menu stays inside the sidebar.
+                        { top: anchor.y + anchor.height + spacing.xs, left: anchor.x, width: anchor.width },
                     ]}
                 >
                     {memberships.map((membership) => {
@@ -328,8 +329,10 @@ function SidebarNavButton({
     return href ? <Link href={href} asChild>{button}</Link> : button
 }
 
+// Pages opened from Profile keep it marked as the current place.
+const PROFILE_ROUTES = ['/profile', '/change-password', '/create-league', '/join-league']
 function isProfileRoute(pathname: string) {
-    return pathname.startsWith('/profile') || pathname.startsWith('/change-password')
+    return PROFILE_ROUTES.some((route) => pathname.startsWith(route))
 }
 
 function WebSidebar() {
@@ -422,7 +425,8 @@ function WebSidebar() {
                     onPress={() => router.push('/profile')}
                     style={({ hovered, pressed }: PressableState) => [
                         styles.userChip,
-                        (hovered || profileActive) && styles.userChipHover,
+                        hovered && !profileActive && styles.userChipHover,
+                        profileActive && styles.userChipActive,
                         pressed && styles.pressed,
                     ]}
                     accessibilityRole="button"
@@ -434,14 +438,14 @@ function WebSidebar() {
                         name={current?.team_name ?? user?.email ?? 'P'}
                         size={34}
                         uri={avatarUrl}
-                        color={colors.primary}
+                        color={profileActive ? colors.primaryHover : colors.primary}
                         textColor={colors.textWhite}
                     />
                     <View style={styles.flex1}>
-                        <Text style={styles.userName} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
-                        <Text style={styles.userMeta} numberOfLines={1}>Profile & settings</Text>
+                        <Text style={[styles.userName, profileActive && styles.userTextActive]} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
+                        <Text style={[styles.userMeta, profileActive && styles.userTextActive]} numberOfLines={1}>Profile & settings</Text>
                     </View>
-                    <MaterialIcons name="settings" size={17} color={brand.onSubtle} />
+                    <MaterialIcons name="settings" size={17} color={profileActive ? brand.on : brand.onSubtle} />
                 </Pressable>
             </View>
         </View>

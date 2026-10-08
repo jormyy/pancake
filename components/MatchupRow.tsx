@@ -266,6 +266,8 @@ function PlayerSide({
         const playedToday = stats != null && !stats.didNotPlay
         const injury = player.injuryStatus ?? null
         const compactBadge = compact && !!injury && !playedToday
+        // A ruled-out player's team can be live without him, so the tag would mislead.
+        const sittingOut = !playedToday && injury?.toLowerCase() === 'out'
         block = (
             <>
                 <View style={[styles.nameRow, { justifyContent: align }]}>
@@ -285,7 +287,7 @@ function PlayerSide({
                 {!dense ? (
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         {mirror([
-                            isLive ? <LiveTag key="live" dotOnly={tiny} /> : null,
+                            isLive && !sittingOut ? <LiveTag key="live" dotOnly={tiny} /> : null,
                             compactBadge ? <InjuryStatusBadge key="injury" status={injury} /> : null,
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text

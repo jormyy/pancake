@@ -33,7 +33,7 @@ import { useMatchupData } from '@/hooks/use-matchup-data'
 import { resolveHomeSurface } from '@/lib/home-surface'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
-import { countLabel, formatPoints, shortName } from '@/lib/format'
+import { countLabel, formatPoints } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
@@ -288,7 +288,7 @@ export default function HomeScreen() {
                                 <MotionView style={styles.hint} preset="slide-left">
                                     <Text style={styles.hintText} numberOfLines={1}>
                                         {selectedPlayer
-                                            ? `${shortName(selectedPlayer.displayName)} selected — tap another slot`
+                                            ? `${selectedPlayer.displayName} selected — tap another slot`
                                             : `Empty slot selected — tap a player's slot`}
                                     </Text>
                                     <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9} accessibilityRole="button" accessibilityLabel="Cancel lineup move">

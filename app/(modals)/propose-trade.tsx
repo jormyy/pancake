@@ -77,6 +77,8 @@ export default function ProposeTradeScreen() {
     const [membersError, setMembersError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
+    // The sender tab outlives the editor so Review and back lands on the same side.
+    const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
     const ownerIdentity = myMemberId && leagueId ? `${leagueId}:${myMemberId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
@@ -341,6 +343,8 @@ export default function ProposeTradeScreen() {
     ])
 
     const multiTeamBuilderProps = {
+        activeParticipantId: senderTab,
+        onActiveParticipantChange: setSenderTab,
         participants: composer.participantViews,
         items,
         myMemberId,

@@ -25,9 +25,10 @@ import { addLimitSummary, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
-import { PageHeader, usePageMetrics } from '@/components/ui'
+import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
+import { EmptyState } from '@/components/EmptyState'
 import { useGoBack } from '@/components/ui/useGoBack'
 
 export default function ClaimPlayerScreen() {
@@ -378,7 +379,16 @@ export default function ClaimPlayerScreen() {
             <Stack.Screen options={{ title: 'Waiver Claim', presentation: 'modal', headerShown: false }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 {renderScreenHeader()}
-                {ineligibleIR.length > 0 ? renderIneligibleIR() : twoColumn ? (
+                {/* Until the claim loads, its facts (date, drop rule) would be guesses. */}
+                {loading ? <LoadingState /> : !player ? (
+                    <EmptyState
+                        icon="person-off"
+                        message="Couldn't load this player"
+                        description="Check your connection, then try again from Players."
+                        actionLabel="Back to Players"
+                        onAction={goBack}
+                    />
+                ) : ineligibleIR.length > 0 ? renderIneligibleIR() : twoColumn ? (
                     <ScrollView
                         style={styles.bodyScroll}
                         contentContainerStyle={[styles.bodyContent, styles.bodyContentWide, { paddingHorizontal: padX }]}

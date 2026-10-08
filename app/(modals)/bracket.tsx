@@ -11,11 +11,12 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { EmptyState } from '@/components/EmptyState'
 import { ModalScreen } from '@/components/ui/ModalScreen'
-import { usePageMetrics } from '@/components/ui'
+import { LoadingState, usePageMetrics } from '@/components/ui'
 import { formatPoints } from '@/lib/format'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 
 type Round = { key: string; label: string; matchups: BracketMatchup[]; final?: boolean }
+type LoadStatus = 'loading' | 'ready' | 'error'
 
 const ROUND_COLUMN_W = 280
 
@@ -23,12 +24,16 @@ export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
     const router = useRouter()
     const resourceKey = current?.id && currentLeague?.id ? `${current.id}:${currentLeague.id}` : null
-    const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null }>({
+    // "No bracket yet" is only true once a load succeeds; until then show loading or a retry.
+    const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null; status: LoadStatus }>({
         key: resourceKey,
         bracket: null,
+        status: 'loading',
     })
+    const [attempt, setAttempt] = useState(0)
     const requestRef = useRef(0)
     const bracket = resource.key === resourceKey ? resource.bracket : null
+    const status: LoadStatus = resource.key === resourceKey ? resource.status : 'loading'
     const { width, height } = useWindowDimensions()
     const { padX, usableWidth } = usePageMetrics()
 
@@ -40,19 +45,24 @@ export default function BracketScreen() {
 
     useEffect(() => {
         const requestId = ++requestRef.current
-        setResource({ key: resourceKey, bracket: null })
+        setResource({ key: resourceKey, bracket: null, status: 'loading' })
         async function load() {
-            if (!currentId || !currentLeagueId) return
+            if (!currentId || !currentLeagueId) {
+                setResource({ key: resourceKey, bracket: null, status: 'ready' })
+                return
+            }
             try {
                 const data = await getPlayoffBracket(currentLeagueId)
-                if (requestRef.current === requestId) setResource({ key: resourceKey, bracket: data })
+                if (requestRef.current === requestId) setResource({ key: resourceKey, bracket: data, status: 'ready' })
             } catch (e) {
-                if (requestRef.current === requestId) console.error(e)
+                if (requestRef.current !== requestId) return
+                console.error(e)
+                setResource({ key: resourceKey, bracket: null, status: 'error' })
             }
         }
         load()
         return () => { requestRef.current += 1 }
-    }, [currentId, currentLeagueId, resourceKey])
+    }, [attempt, currentId, currentLeagueId, resourceKey])
 
     const backToStandings = () => router.replace('/league?tab=results')
     const rounds: Round[] = bracket ? [
@@ -70,7 +80,15 @@ export default function BracketScreen() {
         <>
             <Stack.Screen options={{ title: 'Playoffs', presentation: 'modal', headerShown: false }} />
             <ModalScreen title="Playoffs" onBack={backToStandings} backLabel="Back to league standings">
-                {rounds.length === 0 ? (
+                {status === 'loading' ? <LoadingState /> : status === 'error' ? (
+                    <EmptyState
+                        icon="cloud-off"
+                        message="Couldn't load the bracket"
+                        description="Check your connection, then try again."
+                        actionLabel="Try Again"
+                        onAction={() => setAttempt((value) => value + 1)}
+                    />
+                ) : rounds.length === 0 ? (
                     <EmptyState
                         icon="account-tree"
                         message="No playoff bracket yet"

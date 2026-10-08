@@ -122,7 +122,7 @@ export function AuctionLivePanel({
                     return <View key={bid.id} style={styles.historyItem}>
                         <View style={[styles.orderPill, high && styles.orderPillHigh]}>
                             <Text style={[styles.orderText, high && styles.orderTextHigh]}>
-                                {high ? 'High' : `#${activeBids.length - index}`}
+                                {high ? 'High' : 'Outbid'}
                             </Text>
                         </View>
                         <View style={styles.historyInfo}>
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     historyEmpty: { fontSize: fontSize.sm, color: colors.textSecondary },
     historyItems: { gap: spacing.xs },
     historyItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 38 },
-    orderPill: { minWidth: 44, minHeight: 26, borderRadius: radii.full, borderCurve: 'continuous',
+    orderPill: { minWidth: 60, minHeight: 26, borderRadius: radii.full, borderCurve: 'continuous',
         backgroundColor: colors.bgScreen, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
     orderPillHigh: { backgroundColor: colors.successLight },
     orderText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },

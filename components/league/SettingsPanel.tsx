@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Platform, View, Text, Pressable, StyleSheet, ScrollView } from 'react-native'
+import { Platform, View, Text, StyleSheet, ScrollView } from 'react-native'
 import type { WaiverPriorityRow } from '@/lib/waivers'
 import { colors, fontSize, fontWeight, spacing, table, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { SettingsGroup, SettingsRow } from '@/components/settings/SettingsGroup'
-import { usePageMetrics } from '@/components/ui'
+import { Button, usePageMetrics } from '@/components/ui'
 
 function settingsWaiverPriorityRowLabel(row: WaiverPriorityRow, index: number, isMe: boolean) {
     return `Waiver priority ${index + 1}, ${row.teamName}${isMe ? ', your team' : ''}, manager ${row.displayName}`
@@ -96,25 +96,25 @@ export function SettingsPanel({
                     label="Invite code"
                     // Under the label, so Copy and Share keep their room on small phones.
                     detail={inviteCode ?? '—'}
-                    onPress={onShareInviteCode}
-                    accessibilityLabel={shareInviteAccessibilityLabel}
+                    // A plain row with two real buttons: no button nested in a button.
                     accessory={(
                         <View style={styles.inviteActions}>
                             {canCopy ? (
-                                <Pressable
-                                    // Nested inside the Share row — stop the press from
-                                    // bubbling into the outer share handler on web.
-                                    onPress={(e) => { e.stopPropagation(); void handleCopyInviteCode() }}
-                                    role="button"
-                                    aria-label="Copy invite code"
-                                    accessibilityRole="button"
+                                <Button
+                                    title={copied ? 'Copied' : 'Copy'}
+                                    size="sm"
+                                    variant="outline"
+                                    onPress={() => { void handleCopyInviteCode() }}
                                     accessibilityLabel="Copy invite code"
-                                    hitSlop={8}
-                                >
-                                    <Text style={styles.inviteAction}>{copied ? 'Copied' : 'Copy'}</Text>
-                                </Pressable>
+                                />
                             ) : null}
-                            <Text style={styles.inviteAction}>Share</Text>
+                            <Button
+                                title="Share"
+                                size="sm"
+                                variant="outline"
+                                onPress={onShareInviteCode}
+                                accessibilityLabel={shareInviteAccessibilityLabel}
+                            />
                         </View>
                     )}
                 />
@@ -132,8 +132,7 @@ export function SettingsPanel({
 }
 
 const styles = StyleSheet.create({
-    inviteActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-    inviteAction: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+    inviteActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     waiverRow: {
         minHeight: table.rowHeightCompact,
         flexDirection: 'row',

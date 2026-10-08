@@ -286,6 +286,13 @@ export const styles = StyleSheet.create({
     userChipHover: {
         backgroundColor: brand.overlay,
     },
+    // Same fill as the active nav item, so the current page reads the same way.
+    userChipActive: {
+        backgroundColor: colors.primary,
+    },
+    userTextActive: {
+        color: brand.on,
+    },
     userName: {
         color: brand.onStrong,
         fontSize: fontSize.sm,

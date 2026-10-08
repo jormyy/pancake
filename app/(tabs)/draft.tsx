@@ -21,8 +21,8 @@ export default function DraftRoomTab() {
     const checking = (currentLeague?.id && !draftChecked) || draftLoading
 
     return (
-        <Page title="Draft room">
-            <PageHeader title="Draft room" onBack={goBack} />
+        <Page title="Draft Room">
+            <PageHeader title="Draft Room" onBack={goBack} />
             {checking ? (
                 <EmptyState icon="flash-on" message="Checking for a live draft" />
             ) : draftError ? (
