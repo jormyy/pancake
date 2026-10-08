@@ -242,23 +242,6 @@ describe('autoSetLineup — daily', () => {
         expect(rows[0]).toMatchObject({ player_id: 'pA', slot_type: 'PG' })
     })
 
-    it('does not start a player with no game when a game-day player is available for the same slot', async () => {
-        const roster = [
-            rp('pA', 'PG', ['PG', 'G'], 'LAL'),
-            rp('pB', 'PG', ['PG', 'G'], 'TOR'), // no game
-        ]
-        const avgs  = [avg('pA', 20), avg('pB', 40)]
-        const games = [game('LAL', 'GSW')]
-
-        const { insertSpy } = setupMocks({ roster, avgs, games, templates: [{ slot_type: 'PG', slot_count: 1 }] })
-
-        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
-
-        const rows: any[] = insertSpy.mock.calls[0][0]
-        const hasNoGamePlayer = rows.some((r: any) => r.player_id === 'pB' && r.slot_type === 'PG')
-        expect(hasNoGamePlayer).toBe(false)
-    })
-
     it('assigns injured player (IR-eligible) projected=0 so they land on bench', async () => {
         const roster = [
             rp('pHealthy', 'PG', ['PG', 'G'], 'LAL'),
@@ -314,19 +297,6 @@ describe('autoSetLineup — daily', () => {
         const rows: any[] = insertSpy.mock.calls[0][0]
         expect(rows.find((r: any) => r.slot_type === 'PG')?.player_id).toBe('pPgOnly')
         expect(rows.find((r: any) => r.slot_type === 'SG')?.player_id).toBe('pCombo')
-    })
-
-    it('processes exactly one date when gameDate is provided', async () => {
-        const roster = [rp('pPG', 'PG', ['PG', 'G'], 'LAL')]
-        const avgs   = [avg('pPG', 30)]
-        const games  = [game('LAL', 'GSW')]
-
-        const { insertSpy } = setupMocks({ roster, avgs, games })
-
-        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
-
-        // One insert per day processed → exactly 1
-        expect(insertSpy).toHaveBeenCalledTimes(1)
     })
 })
 

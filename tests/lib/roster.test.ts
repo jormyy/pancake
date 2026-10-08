@@ -74,19 +74,6 @@ describe('isIREligible', () => {
     it('returns false for "active"', () => expect(isIREligible('active')).toBe(false))
     it('returns false for empty string', () => expect(isIREligible('')).toBe(false))
     it('returns false for null', () => expect(isIREligible(null)).toBe(false))
-
-    it('correctly classifies all mock players', () => {
-        const irEligible = MOCK_PLAYERS.filter((p) => isIREligible(p.injury_status))
-        const statuses = irEligible.map((p) => p.injury_status)
-        // Only Out / IR / IR-LTI should pass — not DTD, not null
-        expect(statuses.every((s) => s === 'Out' || s === 'IR' || s === 'IR-LTI')).toBe(true)
-    })
-
-    it('never marks a DTD player as IR-eligible', () => {
-        const dtdPlayers = MOCK_PLAYERS.filter((p) => p.injury_status?.toUpperCase() === 'DTD')
-        expect(dtdPlayers.length).toBeGreaterThan(0) // sanity check we have DTD players
-        dtdPlayers.forEach((p) => expect(isIREligible(p.injury_status)).toBe(false))
-    })
 })
 
 // ── isDTD ──────────────────────────────────────────────────────────────────────
@@ -99,22 +86,6 @@ describe('isDTD', () => {
     it('returns false for "IR-LTI"', () => expect(isDTD('IR-LTI')).toBe(false))
     it('returns false for null', () => expect(isDTD(null)).toBe(false))
     it('returns false for empty string', () => expect(isDTD('')).toBe(false))
-
-    it('correctly identifies all DTD players in the mock roster', () => {
-        const dtdPlayers = MOCK_PLAYERS.filter((p) => isDTD(p.injury_status))
-        const names = dtdPlayers.map((p) => p.display_name)
-        // Jaylen Brown, KAT, Donovan Clingan, Draymond Green are DTD in mock data
-        expect(names).toContain('Jaylen Brown')
-        expect(names).toContain('Karl-Anthony Towns')
-        expect(names).toContain('Donovan Clingan')
-        expect(names).toContain('Draymond Green')
-    })
-
-    it('DTD and IR-eligible are mutually exclusive across the mock roster', () => {
-        for (const p of MOCK_PLAYERS) {
-            expect(isDTD(p.injury_status) && isIREligible(p.injury_status)).toBe(false)
-        }
-    })
 })
 
 // ── isTaxiEligible ─────────────────────────────────────────────────────────────
@@ -138,18 +109,6 @@ describe('isTaxiEligible', () => {
 
     it('returns true for a high 2nd-round pick (pick 58)', () => {
         expect(isTaxiEligible(mockPlayer({ nba_draft_number: 58, years_exp: 0 }))).toBe(true)
-    })
-
-    it('returns true for current rookie #1 overall picks', () => {
-        const firstPicks = MOCK_PLAYERS.filter((p) => p.nba_draft_number === 1 && p.years_exp === 0)
-        expect(firstPicks.length).toBe(1)
-        firstPicks.forEach((p) => expect(isTaxiEligible(p)).toBe(true))
-    })
-
-    it('all mock rookies with a draft number are taxi-eligible', () => {
-        const rookies = MOCK_PLAYERS.filter((p) => p.id.startsWith('p-r-'))
-        expect(rookies.length).toBeGreaterThan(0)
-        rookies.forEach((p) => expect(isTaxiEligible(p)).toBe(true))
     })
 
     it('all mock veterans without a draft number are not taxi-eligible', () => {

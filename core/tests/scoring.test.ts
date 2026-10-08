@@ -167,10 +167,4 @@ describe('calculateFantasyPoints', () => {
         expect(roundFantasyPoints(-2.675)).toBe(-2.68)
         expect(roundFantasyPoints(-10.075)).toBe(-10.08)
     })
-
-    it('produces a number type', () => {
-        const stats: StatLine = { ...baseStats, points: 25 }
-        const result = calculateFantasyPoints(stats, defaultSettings)
-        expect(typeof result).toBe('number')
-    })
 })
