@@ -20,7 +20,7 @@ import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
 const reviewAndConfirmMultiTeamTrade = async (session, label) => {
   const reviewClick = await clickTestId(session, 'trade-submit', `${label} review`)
-  await assertPageText(session, ['Review Trade', 'FINAL REVIEW', 'DEAL OVERVIEW'], `${label} final review`)
+  await assertPageText(session, ['Review trade', 'FINAL REVIEW', 'DEAL OVERVIEW'], `${label} final review`)
   const confirmClick = await clickTestId(session, 'trade-confirm-submit', `${label} confirm`)
   return { reviewClick, confirmClick }
 }
@@ -349,6 +349,8 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-after-submit.png')], { timeout: 60_000 })
 
     await openOffersTab(session, env)
+    // Phone cards stay compact; the full routing opens in the details sheet.
+    await clickTestId(session, `trade-details-${tradeProposal.trade.id}`, 'mobile multi-team offer details')
     await assertPageText(
       session,
       [

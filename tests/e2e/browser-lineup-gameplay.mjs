@@ -947,14 +947,14 @@ export async function runBrowserLineupAutoSetScenario({
     await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
     await browser(session, ['wait', '3000'])
     await resetBrowserAlertCapture(session)
-    await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-Set'], 'lineup before auto-set')
+    await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-set'], 'lineup before auto-set')
     record({ beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-before.png') })
     const openClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button')
-    await assertPageText(session, ['Auto-Set Lineup', 'Today', 'Whole Week', 'Rest of Season'], 'auto-set modal')
+    await assertPageText(session, ['Auto-set lineup', 'Today', 'Whole week', 'Rest of season'], 'auto-set modal')
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
     const openSeasonClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
-    await assertPageText(session, ['Auto-Set Lineup', 'Rest of Season'], 'remaining-season auto-set modal')
+    await assertPageText(session, ['Auto-set lineup', 'Rest of season'], 'remaining-season auto-set modal')
     const seasonClick = await clickButton(session, 'Auto-set rest of season', 'auto-set remaining season button')
     const seasonAlert = await waitForAlertText(
       session,

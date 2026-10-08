@@ -10,7 +10,7 @@ const readyPredicates = {
   'home-live-lineup': `body.includes('Lineup') && document.querySelector('[aria-current="date"]') && !body.includes('Matchup lineup loading')`,
   'lineup-day-change': `body.includes('Lineup') && document.querySelector('[aria-label="Starters"]') && !body.includes('Loading lineup') && !body.includes('Refreshing lineup')`,
   'player-search-filter': `document.querySelector('input[placeholder="Search players..."]') && /\\d+(?: filtered)? players?/.test(body)`,
-  'player-detail-open': `location.pathname.startsWith('/player/') && !body.includes('Player not found') && (body.includes('Averages') || body.includes('Game Log'))`,
+  'player-detail-open': `location.pathname.startsWith('/player/') && !body.includes('Player not found') && /averages|game log/i.test(body)`,
   'roster-review-manage': `document.querySelector('[aria-label="Set lineup automatically"]') && !body.includes('Loading roster')`,
   'waiver-add-claim': `body.includes('Waiver Claim') && document.querySelector('[aria-label="Submit waiver claim"]') && !body.includes('Loading')`,
   'trade-review-act': `label === 'propose-trade'
@@ -379,7 +379,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
     // navigating to the lineup screen.
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[aria-label="Set lineup automatically"]',
-      expected: `document.body.innerText.includes('Auto-Set Lineup')`,
+      expected: `document.body.innerText.includes('Auto-set lineup')`,
       interaction: 'roster-open-lineup', target: 'Set lineup',
     })
     await clickUnmeasured(browser, session, '[aria-label="Cancel auto-set"]')
@@ -456,7 +456,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   if (workflowId === 'rookie-draft-room') {
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[aria-label="Show pick board"]',
-      expected: `!document.querySelector('input[placeholder^="Search prospects"]') && document.body.innerText.includes('Team') && document.body.innerText.includes('Player')`,
+      expected: `!document.querySelector('input[placeholder^="Search prospects"]') && /\\bteam\\b/i.test(document.body.innerText) && /\\bplayer\\b/i.test(document.body.innerText)`,
       interaction: 'rookie-pick-board-tab', target: 'Pick Board',
     })
     await clickUnmeasured(browser, session, '[aria-label="Show prospects"]')

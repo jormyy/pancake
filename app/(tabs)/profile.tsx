@@ -144,14 +144,14 @@ export default function ProfileScreen() {
     }
 
     function handleSignOut() {
-        confirmAction('Sign Out', 'Are you sure you want to sign out?', async () => {
+        confirmAction('Sign out', 'Are you sure you want to sign out?', async () => {
             try {
                 await signOut()
             } catch (e) {
                 console.error(e)
                 showAlert('Error', 'Sign out failed. Please try again.')
             }
-        }, 'Sign Out')
+        }, 'Sign out')
     }
 
     async function togglePreference(key: keyof NotificationPreferences) {

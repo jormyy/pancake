@@ -355,6 +355,8 @@ export function TradeCard({
                     accessibilityRole="button"
                     accessibilityLabel={`Show details of trade with ${model.opponentName}`}
                     accessibilityState={{ selected }}
+                    testID={`trade-details-${trade.id}`}
+                    id={`trade-details-${trade.id}`}
                     pressedScale={0.99}
                 >
                     {summary}
