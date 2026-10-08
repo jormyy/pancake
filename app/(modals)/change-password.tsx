@@ -1,5 +1,4 @@
 import {
-    View,
     StyleSheet,
     KeyboardAvoidingView,
     Platform,
@@ -22,7 +21,8 @@ export default function ChangePasswordScreen() {
     const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
-    const [error, setError] = useState<string | null>(null)
+    // Each message shows under the field it is about.
+    const [error, setError] = useState<{ field: 'current' | 'new' | 'confirm'; message: string } | null>(null)
     const [saving, setSaving] = useState(false)
     const { padX } = usePageMetrics()
 
@@ -30,19 +30,19 @@ export default function ChangePasswordScreen() {
         const current = currentPassword
         const next = newPassword
         if (!current) {
-            setError('Enter your current password.')
+            setError({ field: 'current', message: 'Enter your current password.' })
             return
         }
         if (next.length < MIN_PASSWORD_LENGTH) {
-            setError(`New password must be at least ${MIN_PASSWORD_LENGTH} characters.`)
+            setError({ field: 'new', message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` })
             return
         }
         if (next !== confirmPassword) {
-            setError('New passwords do not match.')
+            setError({ field: 'confirm', message: 'New passwords do not match.' })
             return
         }
         if (next === current) {
-            setError('New password must be different from your current password.')
+            setError({ field: 'new', message: 'New password must be different from your current password.' })
             return
         }
         setSaving(true)
@@ -52,7 +52,7 @@ export default function ChangePasswordScreen() {
             showSuccess('Password Changed', 'Your password has been updated.')
             back()
         } catch (e) {
-            setError(getErrorMessage(e) ?? 'Could not change your password.')
+            setError({ field: 'current', message: getErrorMessage(e) ?? 'Could not change your password.' })
         } finally {
             setSaving(false)
         }
@@ -61,7 +61,11 @@ export default function ChangePasswordScreen() {
     return (
         <>
         <Stack.Screen options={{ title: 'Change Password', headerShown: false }} />
-        <ModalScreen title="Change Password" onBack={() => back()}>
+        <ModalScreen
+            title="Change Password"
+            onBack={() => back()}
+            actions={<Button title="Save" size="sm" onPress={handleSave} loading={saving} accessibilityLabel="Update password" />}
+        >
         <KeyboardAvoidingView
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -70,6 +74,7 @@ export default function ChangePasswordScreen() {
 
                 <Input
                     label="Current password"
+                    error={error?.field === 'current' ? error.message : undefined}
                     value={currentPassword}
                     onChangeText={setCurrentPassword}
                     secureTextEntry
@@ -80,6 +85,7 @@ export default function ChangePasswordScreen() {
                 />
                 <Input
                     label="New password"
+                    error={error?.field === 'new' ? error.message : undefined}
                     value={newPassword}
                     onChangeText={setNewPassword}
                     secureTextEntry
@@ -97,15 +103,10 @@ export default function ChangePasswordScreen() {
                     autoComplete="new-password"
                     textContentType="newPassword"
                     leftIcon="lock"
-                    error={error}
+                    error={error?.field === 'confirm' ? error.message : undefined}
                     returnKeyType="done"
                     onSubmitEditing={handleSave}
                 />
-
-                <View style={styles.actions}>
-                    <Button title="Cancel" variant="secondary" onPress={() => back()} style={styles.flexBtn} />
-                    <Button title="Update Password" onPress={handleSave} loading={saving} style={styles.flexBtn} />
-                </View>
             </ScrollView>
         </KeyboardAvoidingView>
         </ModalScreen>
@@ -123,6 +124,4 @@ const styles = StyleSheet.create({
         maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
         alignSelf: 'center',
     },
-    actions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.md },
-    flexBtn: { flex: 1 },
 })

@@ -135,13 +135,13 @@ export default function CreateLeagueScreen() {
         />
     )
     const createButton = (
-        <Button title="Create League" onPress={handleCreate} loading={loading} fullWidth accessibilityLabel="Create league" />
+        <Button title="Create" size="sm" onPress={handleCreate} loading={loading} accessibilityLabel="Create league" />
     )
 
     return (
         <>
             <Stack.Screen options={{ title: 'Create League', presentation: 'modal', headerShown: false }} />
-            <ModalScreen title="Create League" onBack={() => goBack()}>
+            <ModalScreen title="Create League" onBack={() => goBack()} actions={createButton}>
                 <KeyboardAvoidingView
                     style={styles.flex1}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -153,10 +153,7 @@ export default function CreateLeagueScreen() {
                         {isCompactLandscape ? (
                             <>
                                 <View style={styles.compactFormRow}>{leagueField}{teamField}</View>
-                                <View style={styles.compactFormRow}>
-                                    {budgetField}
-                                    <View style={[styles.compactField, styles.compactActionField]}>{createButton}</View>
-                                </View>
+                                {budgetField}
                             </>
                         ) : (
                             <>
@@ -166,7 +163,6 @@ export default function CreateLeagueScreen() {
                             </>
                         )}
                         {error ? <Text style={styles.error}>{error}</Text> : null}
-                        {isCompactLandscape ? null : <View style={styles.action}>{createButton}</View>}
                     </ScrollView>
                 </KeyboardAvoidingView>
             </ModalScreen>
@@ -187,10 +183,7 @@ const styles = StyleSheet.create({
     compactInner: { paddingTop: spacing.md, paddingBottom: spacing.md, gap: spacing.sm },
     compactFormRow: { flexDirection: 'row', gap: spacing.md },
     compactField: { flex: 1, minWidth: 0 },
-    compactActionField: { justifyContent: 'flex-end' },
     error: { ...textStyles.body, color: colors.dangerDark },
-    action: { marginTop: spacing.md },
-
     // Success state
     successContainer: {
         flex: 1,

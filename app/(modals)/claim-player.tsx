@@ -185,23 +185,33 @@ export default function ClaimPlayerScreen() {
         )
     }
 
-    function renderSubmitButton(compact: boolean) {
+    // Sits at the top right like every other page's main action. A blocked
+    // add stays pressable so the tap can explain why.
+    function renderSubmitButton() {
         return (
             <Pressable
-                style={[styles.submitButton, compact && styles.compactSubmitButton, (submitDisabled || addBlockedReason != null) && styles.submitButtonDisabled]}
+                style={[styles.submitButton, (submitDisabled || addBlockedReason != null) && styles.submitButtonDisabled]}
                 onPress={handleSubmit}
                 accessibilityRole="button"
                 accessibilityLabel="Submit waiver claim"
                 {...blockedActionProps(addBlockedReason, submitDisabled)}
                 disabled={submitDisabled}
             >
-                <Text style={styles.submitButtonText}>Submit Claim</Text>
+                {/* Narrow phones drop "Claim" so the page title still fits beside it. */}
+                <Text style={styles.submitButtonText}>{usableWidth < NARROW_HEADER ? 'Submit' : 'Submit Claim'}</Text>
             </Pressable>
         )
     }
 
     function renderScreenHeader() {
-        return <PageHeader title="Waiver Claim" onBack={goBack} backLabel="Back" />
+        return (
+            <PageHeader
+                title="Waiver Claim"
+                onBack={goBack}
+                backLabel="Back"
+                actions={ineligibleIR.length > 0 ? null : renderSubmitButton()}
+            />
+        )
     }
 
     function renderClaimSummary() {
@@ -346,9 +356,10 @@ export default function ClaimPlayerScreen() {
         )
     }
 
-    const bidFooter = faab && isCompactLandscape ? (
-        <View style={styles.compactFooterRow}>
-            <View style={styles.footerBidControl}>
+    // Short landscape screens hide the claim card, so the bid moves to a footer.
+    const bidFooter = faab && compactDropMode ? (
+        <View style={[styles.footer, { paddingHorizontal: padX }]}>
+            <View style={[styles.footerInner, styles.footerBidControl]}>
                 <Text style={styles.footerBidLabel}>FAAB</Text>
                 <TextInput
                     style={styles.footerBidInput}
@@ -359,9 +370,8 @@ export default function ClaimPlayerScreen() {
                     accessibilityLabel="FAAB bid amount"
                 />
             </View>
-            {renderSubmitButton(true)}
         </View>
-    ) : renderSubmitButton(false)
+    ) : null
 
     return (
         <>
@@ -378,7 +388,6 @@ export default function ClaimPlayerScreen() {
                             <View style={styles.sideColumn}>
                                 {renderAddLimitNotice()}
                                 {renderClaimSummary()}
-                                {renderSubmitButton(false)}
                             </View>
                             <View style={styles.mainColumn}>{renderDropSection()}</View>
                         </View>
@@ -394,9 +403,7 @@ export default function ClaimPlayerScreen() {
                             {!compactDropMode ? renderClaimSummary() : null}
                             {renderDropSection()}
                         </ScrollView>
-                        <View style={[styles.footer, { paddingHorizontal: padX }]}>
-                            <View style={styles.footerInner}>{bidFooter}</View>
-                        </View>
+                        {bidFooter}
                     </>
                 )}
             </SafeAreaView>
@@ -407,6 +414,7 @@ export default function ClaimPlayerScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const TWO_COLUMN_MIN = 900
+const NARROW_HEADER = 360
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
@@ -421,7 +429,7 @@ const styles = StyleSheet.create({
     },
     bodyContentWide: { maxWidth: layout.contentMaxWidth },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
-    // Sticky on web so Submit stays in view while the drop list scrolls.
+    // Sticky on web so the claim stays in view while the drop list scrolls.
     sideColumn: {
         width: 380,
         flexShrink: 0,
@@ -528,7 +536,6 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgScreen,
     },
     footerInner: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
-    compactFooterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     footerBidControl: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -544,16 +551,16 @@ const styles = StyleSheet.create({
     footerBidLabel: { ...textStyles.sectionLabel },
     footerBidInput: { width: 56, height: '100%', fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
     submitButton: {
-        height: controlSize.button.lg.height,
+        minHeight: controlSize.button.sm.height,
+        paddingHorizontal: controlSize.button.sm.padX,
         backgroundColor: colors.primary,
-        borderRadius: radii.lg,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    compactSubmitButton: { flex: 1, height: controlSize.button.md.height },
     submitButtonDisabled: { opacity: 0.55 },
-    submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
     blockCard: {
         padding: spacing.xl,

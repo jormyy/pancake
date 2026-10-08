@@ -1,9 +1,9 @@
 import { createContext, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { colors, elevation, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
+import { breakpoints, colors, elevation, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { Button } from './Button'
 import { focusableDialogElements, trapDialogTabFocus, type DialogKeyboardEvent } from './dialogFocus'
 import { scheduleWebFocusRecovery } from './webFocus'
@@ -50,6 +50,9 @@ let toastSeq = 1
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
     const insets = useSafeAreaInsets()
+    // Confirms follow the shared pop-up rule: up from the bottom on phones,
+    // a centered window on wider screens.
+    const bottomSheet = useWindowDimensions().width < breakpoints.compact
     const [toasts, setToasts] = useState<Toast[]>([])
     const [confirmState, setConfirmState] = useState<(ConfirmInput & { resolve: (v: boolean) => void }) | null>(null)
     const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
@@ -156,11 +159,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 })}
             </View>
 
-            <Modal visible={!!confirmState} transparent animationType="fade" onRequestClose={() => closeConfirm(false)}>
-                <Pressable style={styles.dialogScrim} onPress={() => closeConfirm(false)}>
+            <Modal visible={!!confirmState} transparent animationType={bottomSheet ? 'slide' : 'fade'} onRequestClose={() => closeConfirm(false)}>
+                <Pressable style={[styles.dialogScrim, bottomSheet && styles.dialogScrimBottom]} onPress={() => closeConfirm(false)}>
                     <Pressable
                         nativeID={dialogContainerId}
-                        style={styles.dialog}
+                        style={[
+                            styles.dialog,
+                            bottomSheet && [styles.dialogBottom, { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.lg }],
+                        ]}
                         onPress={() => {}}
                         role="dialog"
                         aria-modal
@@ -170,6 +176,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                         accessibilityViewIsModal
                         {...dialogKeyProps}
                     >
+                        {bottomSheet ? <View style={styles.grabber} aria-hidden /> : null}
                         <Text nativeID={dialogTitleId} style={styles.dialogTitle}>{confirmState?.title}</Text>
                         {confirmState?.message ? (
                             <Text nativeID={dialogMessageId} style={styles.dialogMessage}>{confirmState.message}</Text>
@@ -243,6 +250,24 @@ const styles = StyleSheet.create({
         padding: spacing['3xl'],
         gap: spacing.md,
         ...(elevation('xl') as object),
+    },
+    dialogScrimBottom: { justifyContent: 'flex-end', padding: 0 },
+    dialogBottom: {
+        maxWidth: undefined,
+        paddingTop: spacing.sm,
+        paddingHorizontal: spacing.xl,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
+        borderTopLeftRadius: radii['3xl'],
+        borderTopRightRadius: radii['3xl'],
+    },
+    grabber: {
+        alignSelf: 'center',
+        width: 36,
+        height: 4,
+        borderRadius: radii.full,
+        backgroundColor: colors.border,
+        marginBottom: spacing.md,
     },
     dialogTitle: { fontSize: fontSize.xl, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
     dialogMessage: { fontSize: fontSize.md, color: colors.textSecondary, lineHeight: 21 },

@@ -85,7 +85,11 @@ export default function JoinLeagueScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'Join League', presentation: 'modal', headerShown: false }} />
-            <ModalScreen title="Join League" onBack={() => goBack()}>
+            <ModalScreen
+                title="Join League"
+                onBack={() => goBack()}
+                actions={<Button title="Join" size="sm" onPress={handleJoin} loading={loading} accessibilityLabel="Join league" />}
+            >
                 <KeyboardAvoidingView
                     style={styles.flex1}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -103,9 +107,6 @@ export default function JoinLeagueScreen() {
                             </>
                         )}
                         {error ? <Text style={styles.error}>{error}</Text> : null}
-                        <View style={[styles.action, isCompactLandscape && styles.compactAction]}>
-                            <Button title="Join League" onPress={handleJoin} loading={loading} fullWidth accessibilityLabel="Join league" />
-                        </View>
                     </ScrollView>
                 </KeyboardAvoidingView>
             </ModalScreen>
@@ -132,6 +133,4 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     error: { ...textStyles.body, color: colors.dangerDark },
-    action: { marginTop: spacing.md },
-    compactAction: { width: 220, alignSelf: 'center', marginTop: spacing.sm },
 })
