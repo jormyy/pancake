@@ -25,6 +25,7 @@ import {
     Text,
     View,
 } from 'react-native'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 // Wide enough for a side column of profile stats next to a full game log.
 const TWO_COLUMN_MIN = 1000
@@ -37,11 +38,7 @@ export default function PlayerDetailScreen() {
     const { push } = router
     const { padX, usableWidth } = usePageMetrics()
     const twoColumn = usableWidth >= TWO_COLUMN_MIN
-    // The installed iPhone app has no back swipe, and a deep link has no history.
-    const goBack = useCallback(() => {
-        if (router.canGoBack()) router.back()
-        else router.replace('/players')
-    }, [router])
+    const goBack = useGoBack('/players')
 
     const leagueId = currentLeague?.id ?? null
     const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}:${id}` : null

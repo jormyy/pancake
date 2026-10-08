@@ -22,16 +22,18 @@ import {
 } from '@/lib/notification-preferences'
 import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { WebPushSettings } from '@/components/WebPushSettings'
 import { SettingsGroup, SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
-import { Button, ErrorBanner, Page, usePageMetrics } from '@/components/ui'
+import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { WebPushStatus } from '@/lib/web-push'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 export default function ProfileScreen() {
+    const goBack = useGoBack('/')
     const { user } = useAuth()
     const router = useRouter()
     const { current, currentLeague, refresh, loading: leagueLoading } = useLeagueContext()
@@ -180,14 +182,26 @@ export default function ProfileScreen() {
     ]
 
     return (
-        <Page title="Profile" width="form">
+        <Page title="Profile">
+            <PageHeader
+                title="Profile"
+                onBack={goBack}
+                actions={editing ? (
+                    <>
+                        <Button title="Cancel" variant="ghost" size="sm" onPress={handleCancel} />
+                        <Button title="Save" size="sm" onPress={handleSave} loading={saving} />
+                    </>
+                ) : (
+                    <Button title="Edit" variant="outline" size="sm" icon="edit" disabled={!profileLoaded || !user} onPress={() => setEditing(true)} />
+                )}
+            />
             {profileError ? (
                 <ErrorBanner
                     message={`${profileError} Tap to retry.`}
                     onRetry={() => { void retryProfile() }}
                 />
             ) : null}
-            <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingHorizontal: padX }]}>
+            <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
                 <View style={styles.identity}>
                     <Pressable
                         onPress={handlePickAvatar}
@@ -215,14 +229,6 @@ export default function ProfileScreen() {
                         </Text>
                         {profile?.username ? <Text style={textStyles.meta} numberOfLines={1}>@{profile.username}</Text> : null}
                     </View>
-                    {editing ? (
-                        <View style={styles.identityActions}>
-                            <Button title="Cancel" variant="ghost" size="sm" onPress={handleCancel} />
-                            <Button title="Save" size="sm" onPress={handleSave} loading={saving} />
-                        </View>
-                    ) : (
-                        <Button title="Edit" variant="outline" size="sm" icon="edit" disabled={!profileLoaded || !user} onPress={() => setEditing(true)} />
-                    )}
                 </View>
 
                 <SettingsGroup title="Account">
@@ -296,11 +302,11 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+    formColumn: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     scroll: { flex: 1 },
     scrollContent: { paddingTop: spacing.xl, paddingBottom: spacing['4xl'], gap: spacing.xl },
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     identityText: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    identityActions: { flexDirection: 'row', gap: spacing.sm },
     avatarWrapper: { position: 'relative' },
     avatarBadge: {
         position: 'absolute',

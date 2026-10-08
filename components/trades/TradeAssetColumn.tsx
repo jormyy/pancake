@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     columnCountReceive: { backgroundColor: colors.primary },
-    columnCountText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
+    columnCountText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.onAccent },
     subSectionLabel: {
         ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     pickCircleSelected: { backgroundColor: colors.primary },
-    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
+    pickCircleText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
     playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     playerName: { ...textStyles.rowTitle },
     playerNameSelected: { color: colors.primaryDark },

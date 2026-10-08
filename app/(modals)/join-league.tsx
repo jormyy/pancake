@@ -7,7 +7,7 @@ import {
     ScrollView,
     useWindowDimensions,
 } from 'react-native'
-import { Stack, useRouter } from 'expo-router'
+import { Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -16,11 +16,12 @@ import { colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/con
 import { Button, Input, usePageMetrics } from '@/components/ui'
 import { ModalScreen } from '@/components/ui/ModalScreen'
 import { getErrorMessage } from '@/lib/shared/errors'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 export default function JoinLeagueScreen() {
     const { user } = useAuth()
     const { refresh } = useLeagueContext()
-    const router = useRouter()
+    const goBack = useGoBack('/')
     const [inviteCode, setInviteCode] = useState('')
     const [teamName, setTeamName] = useState('')
     const [loading, setLoading] = useState(false)
@@ -49,7 +50,7 @@ export default function JoinLeagueScreen() {
         try {
             await joinLeague(inviteCode.trim(), user!.id, teamName.trim())
             await refresh()
-            router.back()
+            goBack()
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
@@ -84,7 +85,7 @@ export default function JoinLeagueScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'Join League', presentation: 'modal', headerShown: false }} />
-            <ModalScreen title="Join League" onBack={() => router.back()}>
+            <ModalScreen title="Join League" onBack={() => goBack()}>
                 <KeyboardAvoidingView
                     style={styles.flex1}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}

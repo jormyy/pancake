@@ -98,7 +98,7 @@ html,body{background-color:var(--pancake-bg-screen);}
   color:${palette.white};font-weight:800;font-size:${fontSize.sm}px;}
 .pbs-league-text{min-width:0;flex:1;}
 .pbs-league-name{color:${brand.onStrong};font-weight:700;font-size:${fontSize.md}px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
 .pbs-league-meta{color:${brand.onSubtle};font-size:${fontSize.xs}px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pbs-navgroup{display:flex;flex-direction:column;gap:${spacing.xs}px;}
@@ -134,7 +134,8 @@ html,body{background-color:var(--pancake-bg-screen);}
   .pbs-topbar-league{flex:1;min-width:0;height:44px;display:flex;align-items:center;
     gap:${spacing.md}px;padding:0 ${spacing.md}px;border-radius:${radii.lg}px;
     background:var(--pancake-bg-muted);border:1px solid var(--pancake-border-light);}
-  .pbs-topbar-league .pbs-league-name{color:var(--pancake-text-primary);font-size:${fontSize.sm}px;}
+  .pbs-topbar-league .pbs-league-name{color:var(--pancake-text-primary);font-size:${fontSize.sm}px;
+    display:block;white-space:nowrap;text-overflow:ellipsis;}
   .pbs-chevron{width:18px;height:18px;flex-shrink:0;fill:var(--pancake-text-muted);}
   .pbs-menu{width:44px;height:44px;border-radius:${radii.lg}px;background:var(--pancake-bg-muted);
     display:flex;align-items:center;justify-content:center;flex-shrink:0;}

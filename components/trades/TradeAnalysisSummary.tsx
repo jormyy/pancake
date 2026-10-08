@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { readableSourceName } from '@/lib/source-names'
 
 export function TradeAnalysisSummary({
     analysis,
@@ -58,7 +59,7 @@ export function TradeAnalysisSummary({
             ))}
             <Text style={styles.subhead}>Sources and limits</Text>
             <Text style={styles.detail}>{analysis.sources.length > 0
-                ? analysis.sources.map((source) => `${source.name} · ${source.fetchedAt ? new Date(source.fetchedAt).toLocaleDateString() : 'Not dated'}`).join('\n')
+                ? analysis.sources.map((source) => `${readableSourceName(source.name)} · ${source.fetchedAt ? new Date(source.fetchedAt).toLocaleDateString() : 'Not dated'}`).join('\n')
                 : 'No dated source was available.'}</Text>
             <Text style={styles.detail}>Missing: {analysis.missingInputs.length > 0 ? analysis.missingInputs.join(', ') : 'None'}</Text>
         </View>

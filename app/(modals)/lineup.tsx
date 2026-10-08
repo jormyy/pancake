@@ -29,7 +29,7 @@ import {
     subscribeToTableChanges,
 } from '@/lib/realtime'
 import { todayET } from '@/lib/shared/dates'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Alert,
@@ -40,6 +40,7 @@ import {
 } from 'react-native'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Button, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 const TWO_COLUMN_MIN_WIDTH = 940
 
@@ -186,7 +187,7 @@ const BenchRow = memo(function BenchRow({
 })
 
 export default function LineupScreen() {
-    const { back } = useRouter()
+    const back = useGoBack('/')
     const { padX, usableWidth, compact: compactDays } = usePageMetrics()
     // Wide screens set starters and bench side by side, so a move never needs a scroll.
     const twoColumn = usableWidth >= TWO_COLUMN_MIN_WIDTH

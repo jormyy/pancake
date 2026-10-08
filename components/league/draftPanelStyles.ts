@@ -8,6 +8,7 @@ export const panelStyles = StyleSheet.create({
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         height: 44,
+        paddingHorizontal: spacing.lg,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -31,6 +32,7 @@ export const panelStyles = StyleSheet.create({
         gap: spacing.xl,
         width: '100%',
         maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
+        alignSelf: 'center',
     },
     panelScrollCompactLandscape: { paddingBottom: spacing['6xl'] },
     panelCard: {

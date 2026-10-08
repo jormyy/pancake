@@ -6,9 +6,9 @@ import { getErrorMessage } from '@/lib/shared/errors'
 
 type LaunchResult = 'opened' | 'missing' | 'error' | 'stale'
 
-// On web the draft tab and the auction room share the /draft-room URL. The
-// group prefix picks the tab's "No active draft" page, not "Draft not found".
-const NO_DRAFT_ROUTE = '/(tabs)/draft-room'
+// The "No active draft" page. It has its own URL so it never collides with the
+// auction room at /draft-room.
+const NO_DRAFT_ROUTE = '/draft'
 
 export function useDraftRoomLauncher(
     leagueId: string | undefined,

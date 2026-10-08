@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, ReactNode, useEffect, useMemo, useState } from 'react'
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -11,6 +11,7 @@ import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
 import { brand, breakpoints, colors, themeVariablesCss } from '@/constants/tokens'
+import { Sheet } from '@/components/ui/Sheet'
 import { styles } from './webTabShellStyles'
 
 type IconName = ComponentProps<typeof MaterialIcons>['name']
@@ -166,7 +167,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                     <Text style={styles.leagueCrestText}>{(current.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
                 </View>
                 <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{labelForTone(currentLeagueName)}</Text>
+                    <Text style={nameStyle} numberOfLines={light ? 1 : 2} ellipsizeMode="tail">{labelForTone(currentLeagueName)}</Text>
                     {light ? null : (
                         <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{currentTeamName}</Text>
                     )}
@@ -198,7 +199,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                                     <Text style={styles.leagueCrestText}>{(membership.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
                                 </View>
                                 <View style={styles.flex1}>
-                                    <Text style={styles.leagueMenuName} numberOfLines={1} ellipsizeMode="clip">{membership.leagues?.name ?? 'League'}</Text>
+                                    <Text style={styles.leagueMenuName} numberOfLines={2} ellipsizeMode="tail">{membership.leagues?.name ?? 'League'}</Text>
                                     <Text style={styles.leagueMenuMeta} numberOfLines={1} ellipsizeMode="clip">{membership.team_name ?? 'Team'}</Text>
                                 </View>
                                 {active ? <MaterialIcons name="check" size={17} color={colors.primary} /> : null}
@@ -452,40 +453,25 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
     )
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <Pressable style={styles.sheetScrim} onPress={onClose} accessibilityLabel="Close menu">
-                <View style={styles.sheet} onStartShouldSetResponder={() => true}>
-                    <View style={styles.sheetHeader}>
-                        <Text style={styles.sheetTitle}>Menu</Text>
-                        <Pressable
-                            onPress={onClose}
-                            style={styles.sheetClose}
-                            accessibilityRole="button"
-                            accessibilityLabel="Close menu"
-                        >
-                            <MaterialIcons name="close" size={20} color={colors.textPrimary} />
-                        </Pressable>
-                    </View>
-                    {menuItems.map((item) => (
-                        <Pressable
-                            key={item.key}
-                            onPress={() => {
-                                item.onPress()
-                                onClose()
-                            }}
-                            style={styles.sheetItem}
-                            disabled={item.loading}
-                            accessibilityRole="button"
-                            accessibilityLabel={item.label}
-                        >
-                            <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
-                            <Text style={styles.sheetItemText}>{item.label}</Text>
-                            <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
-                        </Pressable>
-                    ))}
-                </View>
-            </Pressable>
-        </Modal>
+        <Sheet visible={visible} title="Menu" onClose={onClose}>
+            {menuItems.map((item) => (
+                <Pressable
+                    key={item.key}
+                    onPress={() => {
+                        item.onPress()
+                        onClose()
+                    }}
+                    style={styles.sheetItem}
+                    disabled={item.loading}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                >
+                    <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
+                    <Text style={styles.sheetItemText}>{item.label}</Text>
+                    <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
+                </Pressable>
+            ))}
+        </Sheet>
     )
 }
 

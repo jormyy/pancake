@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
 import { Button, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { colors, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 
@@ -34,7 +35,8 @@ function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
 }
 
 export default function TeamRosterScreen() {
-    const { back, push } = useRouter()
+    const { push } = useRouter()
+    const back = useGoBack('/league')
     const { padX, compact } = usePageMetrics()
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague } = useLeagueContext()

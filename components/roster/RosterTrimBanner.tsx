@@ -127,5 +127,5 @@ const styles = StyleSheet.create({
     reserveAction: { backgroundColor: colors.bgScreen, borderColor: colors.primaryBorder },
     reserveText: { color: colors.primaryDark, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
     dropAction: { backgroundColor: colors.danger, borderColor: colors.danger },
-    dropText: { color: colors.textWhite, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
+    dropText: { color: colors.onAccent, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
 })

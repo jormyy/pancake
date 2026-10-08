@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
         borderColor: scoreboardColors.border,
     },
     cardCompact: {
-        width: 78,
+        width: 88,
         paddingHorizontal: 8,
         paddingVertical: 6,
         gap: 1,
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
         boxShadow: scoreboardColors.liveGlow,
     },
     cardFinal: {
-        opacity: 0.6,
+        opacity: 0.85,
     },
     liveBar: {
         position: 'absolute' as const,
@@ -211,6 +211,6 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
     statusFinal: {
-        color: scoreboardColors.statusFinal,
+        color: scoreboardColors.textMuted,
     },
 })

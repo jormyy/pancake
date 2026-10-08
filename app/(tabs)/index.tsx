@@ -731,15 +731,16 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
     },
     autoSetBtn: {
-        height: 28,
-        paddingHorizontal: spacing.lg,
+        minHeight: 40,
+        minWidth: 72,
+        paddingHorizontal: spacing.xl,
         borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.textWhite, letterSpacing: 0.6 },
+    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textWhite, letterSpacing: 0.6 },
 
     hint: {
         flexDirection: 'row',
@@ -754,7 +755,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.md,
     },
     hintText: { flex: 1, fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
-    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: spacing.lg },
+    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: spacing.lg, paddingVertical: spacing.md },
 
     lineupContainer: { flex: 1, minHeight: 0 },
     lineupRows: { flex: 1, minHeight: 0 },

@@ -56,7 +56,7 @@ export function ProjectionCard({
             <View style={[styles.topRow, compact && styles.topRowCompact]}>
                 <View style={styles.copy}>
                     <Text style={styles.label}>{title}</Text>
-                    <Text style={styles.meta} numberOfLines={compact ? 2 : 1}>{meta}</Text>
+                    <Text style={styles.meta} numberOfLines={2}>{meta}</Text>
                 </View>
                 <View style={styles.scoreBox}>
                     <Text style={styles.score}>{numberOrDash(projection.projection_fantasy_points)}</Text>

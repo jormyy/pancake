@@ -408,6 +408,7 @@ export function MockRoomsPanel({
                             value={roomName}
                             onChangeText={onRoomNameChange}
                             placeholder="Room name"
+                            placeholderTextColor={colors.inputPlaceholder}
                             accessibilityLabel="Mock room name"
                         />
                         <Text style={panelStyles.nominationModeLabel}>Room type</Text>
@@ -428,6 +429,7 @@ export function MockRoomsPanel({
                             value={roomScheduledAt}
                             onChangeText={onRoomScheduledAtChange}
                             placeholder="2026-07-01 19:30"
+                            placeholderTextColor={colors.inputPlaceholder}
                             autoCapitalize="none"
                             accessibilityLabel="Mock room start time"
                         />

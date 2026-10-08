@@ -375,44 +375,6 @@ export const styles = StyleSheet.create({
         color: colors.primaryDark,
     },
 
-    sheetScrim: {
-        position: 'fixed',
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 90,
-        backgroundColor: webOverlays.sheetScrim,
-    } as unknown as WebOnlyViewStyle,
-    sheet: {
-        backgroundColor: colors.bgCard,
-        borderBottomLeftRadius: radii['3xl'],
-        borderBottomRightRadius: radii['3xl'],
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        padding: spacing.xl,
-        paddingTop: spacing.lg,
-        boxShadow: shadows.xl,
-    } as WebOnlyViewStyle,
-    sheetHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.md,
-    },
-    sheetTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-    },
-    sheetClose: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        backgroundColor: colors.bgMuted,
-    },
     sheetItem: {
         minHeight: 46,
         flexDirection: 'row',
@@ -424,7 +386,7 @@ export const styles = StyleSheet.create({
     sheetItemText: {
         flex: 1,
         color: colors.textPrimary,
-        fontSize: 15,
+        fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
     },
 })

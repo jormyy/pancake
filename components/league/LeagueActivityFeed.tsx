@@ -2,7 +2,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
-import { colors, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
+import { alpha, colors, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
 import { playerHeadshotUrl, timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -21,7 +21,8 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
             <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
                 <Avatar
                     name={item.title ?? item.playerName}
-                    color={color}
+                    color={alpha(color, 0.22)}
+                    textColor={colors.textPrimary}
                     size={avatarSize}
                 />
                 <View style={styles.txInfo}>

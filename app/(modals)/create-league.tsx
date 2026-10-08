@@ -8,7 +8,7 @@ import {
     Share,
     useWindowDimensions,
 } from 'react-native'
-import { Stack, useRouter } from 'expo-router'
+import { Stack } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -17,11 +17,12 @@ import { colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, textS
 import { Button, Input, usePageMetrics } from '@/components/ui'
 import { ModalScreen } from '@/components/ui/ModalScreen'
 import { getErrorMessage } from '@/lib/shared/errors'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 export default function CreateLeagueScreen() {
     const { user } = useAuth()
     const { refresh } = useLeagueContext()
-    const router = useRouter()
+    const goBack = useGoBack('/')
     const [leagueName, setLeagueName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [auctionBudget, setAuctionBudget] = useState('200')
@@ -83,7 +84,7 @@ export default function CreateLeagueScreen() {
         return (
             <>
                 <Stack.Screen options={{ title: 'Create League', presentation: 'modal', headerShown: false }} />
-                <ModalScreen title="League created" onBack={() => router.back()}>
+                <ModalScreen title="League created" onBack={() => goBack()}>
                     <View style={[styles.successContainer, isCompactLandscape && styles.compactSuccessContainer]}>
                         <View style={[styles.successCopy, isCompactLandscape && styles.compactSuccessCopy]}>
                             <Text style={styles.successSub}>Share this code with your managers.</Text>
@@ -93,7 +94,7 @@ export default function CreateLeagueScreen() {
                         </View>
                         <View style={[styles.successActions, isCompactLandscape && styles.compactSuccessActions]}>
                             <Button title="Share Invite Code" icon="ios-share" onPress={handleShare} fullWidth accessibilityLabel="Share invite code" />
-                            <Button title="Done" variant="secondary" onPress={() => router.back()} fullWidth accessibilityLabel="Done" />
+                            <Button title="Done" variant="secondary" onPress={() => goBack()} fullWidth accessibilityLabel="Done" />
                         </View>
                     </View>
                 </ModalScreen>
@@ -140,7 +141,7 @@ export default function CreateLeagueScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'Create League', presentation: 'modal', headerShown: false }} />
-            <ModalScreen title="Create League" onBack={() => router.back()}>
+            <ModalScreen title="Create League" onBack={() => goBack()}>
                 <KeyboardAvoidingView
                     style={styles.flex1}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}

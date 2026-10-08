@@ -28,6 +28,7 @@ import { API_URL } from '@/lib/shared/api'
 import { getLeagueMembers } from '@/lib/league'
 import { colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { readableSourceName } from '@/lib/source-names'
 
 type NewsFeed = 'news' | 'my-news'
 export type DynastySection = 'rankings' | 'news'
@@ -99,7 +100,7 @@ function formatDate(value: string | null): string {
 }
 
 function formatStat(value: number | null, format?: 'integer' | 'pct'): string {
-    if (value == null) return '-'
+    if (value == null) return '—'
     if (format === 'integer') return String(Math.round(value))
     if (format === 'pct') return Number(value).toFixed(3)
     return formatPoints(value)
@@ -194,12 +195,13 @@ function RankingRowImpl({
         ? `${valueRange.low}-${valueRange.high}`
         : String(player.selectedValue ?? '—')
     const confidenceText = player.confidence == null ? 'Unknown' : `${Math.round(player.confidence * 100)}%`
-    const sourceText = player.decisionSources?.map((source) => source.name).join(', ') || player.rankSource
+    const sourceText = (player.decisionSources?.map((source) => readableSourceName(source.name)).join(', ')) || readableSourceName(player.rankSource ?? '')
     const sourceFreshness = player.decisionSources
         ?.map((source) => source.fetchedAt)
         .filter((value): value is string => Boolean(value))
         .sort()
         .at(-1) ?? player.rankFetchedAt
+    const freshnessText = sourceFreshness && Date.parse(sourceFreshness) > 0 ? `Updated ${formatDate(sourceFreshness)}` : 'Not synced yet'
 
     // Draft-pick placeholders carry no player, stats, or headshot — they're
     // ranked slots (e.g. an incoming 2026 first-rounder), so render a slim row.
@@ -218,7 +220,7 @@ function RankingRowImpl({
                         <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
                         <Text style={styles.draftLabel}>Future draft pick · Value {valueText}</Text>
                         <Text style={styles.decisionMeta}>Confidence {confidenceText} · {sourceText}</Text>
-                        <Text style={styles.decisionMeta}>Updated {formatDate(sourceFreshness)}</Text>
+                        <Text style={styles.decisionMeta}>{freshnessText}</Text>
                         {player.missingInputs?.length ? (
                             <Text style={styles.missingText}>Range reflects missing {player.missingInputs.join(', ')}.</Text>
                         ) : null}
@@ -255,7 +257,7 @@ function RankingRowImpl({
                     <Text style={styles.decisionMeta}>
                         Production {formatPoints(player.shortTermPoints ?? 0)} · Projection {formatPoints(player.projectionPoints ?? 0)} · Long term {player.longTermValue ?? 0}
                     </Text>
-                    <Text style={styles.decisionMeta}>Source {sourceText} · Updated {formatDate(sourceFreshness)}</Text>
+                    <Text style={styles.decisionMeta}>Source {sourceText} · {freshnessText}</Text>
                     {player.missingInputs?.length ? (
                         <Text style={styles.missingText}>Missing {player.missingInputs.join(', ')}</Text>
                     ) : null}

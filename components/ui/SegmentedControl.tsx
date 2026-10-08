@@ -79,9 +79,12 @@ export function SegmentedControl<T extends string>({
     const contentWidth = useRef(0)
     const scrollX = useRef(0)
     const [moreToRight, setMoreToRight] = useState(false)
+    const [moreToLeft, setMoreToLeft] = useState(false)
     const updateEdge = useCallback(() => {
         setMoreToRight(contentWidth.current - scrollX.current - viewportWidth.current > 1)
+        setMoreToLeft(scrollX.current > 1)
     }, [])
+    const edgeFade = moreToLeft && moreToRight ? styles.fadeBoth : moreToRight ? styles.fadeRight : moreToLeft ? styles.fadeLeft : null
     const scrollIntoView = useCallback((target: T) => {
         const box = segmentLayouts.current[target]
         const viewport = viewportWidth.current
@@ -165,7 +168,7 @@ export function SegmentedControl<T extends string>({
                 ref={scrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={[styles.scrollTrack, Platform.OS === 'web' && moreToRight && styles.fadeRight]}
+                style={[styles.scrollTrack, Platform.OS === 'web' && edgeFade]}
                 onLayout={(event) => {
                     viewportWidth.current = event.nativeEvent.layout.width
                     scrollIntoView(value)
@@ -219,6 +222,8 @@ const styles = StyleSheet.create({
     // Clip to the space the parent gives, so a header action never sits on top of tabs.
     scrollTrack: { width: '100%', flexGrow: 0 },
     fadeRight: { maskImage: webMasks.fadeRight, WebkitMaskImage: webMasks.fadeRight } as object,
+    fadeLeft: { maskImage: webMasks.fadeLeft, WebkitMaskImage: webMasks.fadeLeft } as object,
+    fadeBoth: { maskImage: webMasks.fadeBoth, WebkitMaskImage: webMasks.fadeBoth } as object,
     segment: {
         flexDirection: 'row',
         alignItems: 'center',

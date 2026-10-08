@@ -201,6 +201,9 @@ export const colors = {
     textDisabled:    webColor('text-disabled', palette.oatmilk),
     inputPlaceholder: webColor('input-placeholder', palette.hint),
     textWhite:       palette.white,
+    // Text on a solid status fill (danger, info, taxi). Those fills lighten in
+    // dark mode, so the text flips to near-black there to stay readable.
+    onAccent:        webColor('on-accent', palette.white),
 
     // Backgrounds
     bgScreen: webColor('bg-screen', palette.cream100),
@@ -353,7 +356,7 @@ export const table = {
 export const controlSize = {
     minTouch: foundation.minTouch,
     button: {
-        sm: { height: unit(10), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
+        sm: { height: unit(11), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
         md: { height: unit(12), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
         lg: { height: unit(13), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
     },
@@ -454,6 +457,8 @@ export const webOverlays = {
 // Fades the right edge of a scroll strip so more items read as "swipe for more".
 export const webMasks = {
     fadeRight: 'linear-gradient(to right, black calc(100% - 40px), transparent)',
+    fadeLeft: 'linear-gradient(to right, transparent, black 40px)',
+    fadeBoth: 'linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent)',
 } as const
 
 export const webChrome = {
@@ -633,6 +638,7 @@ export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'text-placeholder': night.textPlaceholder,
     'text-disabled': night.textDisabled,
     'input-placeholder': '#7A827B',
+    'on-accent': night.bgScreen,
     'bg-screen': night.bgScreen,
     'bg-card': night.bgCard,
     'bg-muted': night.bgMuted,

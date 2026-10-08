@@ -78,3 +78,12 @@ export function countLabel(count: number, noun: string): string {
 export function isIneligibleIR(rp: { is_on_ir: boolean; players?: { injury_status: string | null } | null }): boolean {
     return Boolean(rp.is_on_ir && !isIREligible(rp.players?.injury_status ?? null))
 }
+
+/** Draft clock: "0:05" and "1:15" under an hour; "2h 5m", then "28h", for slow clocks. */
+export function formatCountdown(totalSeconds: number): string {
+    const seconds = Math.max(0, Math.floor(totalSeconds))
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    return hours < 10 && minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+}

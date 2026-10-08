@@ -85,5 +85,5 @@ export const playerListStyles = StyleSheet.create({
         fontFamily: fontFamily.control,
         color: colors.textPrimary,
     },
-    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    emptyContainer: { flexGrow: 1 },
 })

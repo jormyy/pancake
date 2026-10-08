@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
     scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['5xl'] },
 
     headerSave: {
-        minHeight: 36,
+        minHeight: 44,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,

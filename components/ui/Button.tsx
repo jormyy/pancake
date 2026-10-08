@@ -31,7 +31,7 @@ function variantColors(variant: ButtonVariant) {
         case 'primary':
             return { bg: colors.primary, bgHover: colors.primaryDark, fg: colors.textWhite, border: 'transparent' }
         case 'danger':
-            return { bg: colors.danger, bgHover: colors.dangerDark, fg: colors.textWhite, border: 'transparent' }
+            return { bg: colors.danger, bgHover: colors.dangerDark, fg: colors.onAccent, border: 'transparent' }
         case 'secondary':
             return { bg: colors.bgMuted, bgHover: colors.bgCard, fg: colors.textPrimary, border: colors.borderLight }
         case 'outline':

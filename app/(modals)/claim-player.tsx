@@ -28,12 +28,14 @@ import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, s
 import { PageHeader, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
     const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
     const router = useRouter()
+    const goBack = useGoBack('/players')
 
     const [player, setPlayer] = useState<any>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
@@ -139,7 +141,7 @@ export default function ClaimPlayerScreen() {
                 'Claim Submitted',
                 'Your waiver claim has been submitted. Claims are processed nightly.',
             )
-            router.back()
+            goBack()
         } catch (e) {
             reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
@@ -202,7 +204,7 @@ export default function ClaimPlayerScreen() {
     }
 
     function renderScreenHeader() {
-        return <PageHeader title="Waiver Claim" onBack={() => router.back()} backLabel="Back to player" />
+        return <PageHeader title="Waiver Claim" onBack={goBack} backLabel="Back" />
     }
 
     function renderClaimSummary() {
@@ -300,7 +302,7 @@ export default function ClaimPlayerScreen() {
                         </Text>
                     </View>
                     <View style={[styles.check, isSelected && styles.checkSelected]}>
-                        {isSelected && <MaterialIcons name="check" size={16} color={colors.textWhite} />}
+                        {isSelected && <MaterialIcons name="check" size={16} color={colors.onAccent} />}
                     </View>
                 </Pressable>
             )

@@ -55,7 +55,7 @@ function closeSection(items: RosterListItem[]): RosterListItem[] {
 const TABLE_STATS = ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP'] as const
 const TABLE_SLOT_W = 44
 const TABLE_PLAYER_MIN_W = 220
-const TABLE_ACTIONS_W = 104
+const TABLE_ACTIONS_W = 128
 // Narrowest width that fits every stat column; below it rows stay two-line.
 const TABLE_MIN_WIDTH = TABLE_SLOT_W + TABLE_PLAYER_MIN_W + TABLE_STATS.length * table.statColWidth + TABLE_ACTIONS_W + 2 * spacing.lg
 
@@ -227,7 +227,7 @@ function RosterTablePlayerItem({
                         accessibilityRole="button"
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
                         accessibilityState={{ disabled: isBusy }}>
-                        <Text style={styles.tableActionText}>{item.is_on_ir ? 'Active' : 'IR'}</Text>
+                        <Text style={styles.tableActionText}>{item.is_on_ir ? 'Activate' : 'IR'}</Text>
                     </Pressable>
                 ) : canTaxi ? (
                     <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}

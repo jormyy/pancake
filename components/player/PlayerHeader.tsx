@@ -152,7 +152,7 @@ export function PlayerHeader({
                     {rosterStatus.status === 'free_agent' ? (
                         renderPickupAction({ label: 'Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: [styles.action, styles.actionPrimary], textStyle: styles.actionPrimaryText, onPress: onAdd, blockedReason: addBlockedReason })
                     ) : rosterStatus.status === 'on_waivers' ? (
-                        renderPickupAction({ label: 'Claim', accessibilityLabel: `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: styles.actionPrimaryText, onPress: onClaim, blockedReason: null })
+                        renderPickupAction({ label: 'Claim', accessibilityLabel: `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: [styles.actionPrimaryText, styles.actionClaimText], onPress: onClaim, blockedReason: null })
                     ) : rosterStatus.status === 'mine' ? (
                         <View style={styles.myActions}>
                             <Pressable
@@ -222,6 +222,7 @@ const styles = StyleSheet.create({
     },
     actionPrimary: { backgroundColor: colors.primary },
     actionClaim: { backgroundColor: colors.info },
+    actionClaimText: { color: colors.onAccent },
     actionDanger: { borderWidth: 1, borderColor: colors.danger },
     actionPrimaryText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
     actionDangerText: { color: colors.dangerDark, fontWeight: fontWeight.bold, fontSize: fontSize.sm },

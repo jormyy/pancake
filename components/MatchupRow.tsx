@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
 import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
@@ -41,8 +41,7 @@ function emptySlotLabel(slotType: string): string {
 function compactLineupName(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean)
     const last = parts.at(-1) ?? name
-    const primary = last.split('-')[0]
-    return primary.length > 6 ? primary.slice(0, 6) : primary
+    return last.split('-')[0]
 }
 
 function matchupLine(
@@ -100,7 +99,9 @@ function detailLine(
     if (stats?.didNotPlay) return compact ? 'DNP' : `${game} · DNP`
     const parts = stats && includeStats ? statParts(stats) : []
     if (parts.length === 0) return game
-    return compact ? parts.slice(0, 2).join(' ') : `${game} · ${parts.join(', ')}`
+    // Phones show the points/rebounds/assists slash line, which fits any width.
+    if (compact && stats) return `${stats.points}/${stats.rebounds}/${stats.assists}`
+    return `${game} · ${parts.join(', ')}`
 }
 
 // G and F only restate PG/SG and SF/PF; rows keep the space for the game line.
@@ -252,6 +253,9 @@ function PlayerSide({
 }) {
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
+    // Under 360px wide the avatar costs the name its last letters.
+    const { width } = useWindowDimensions()
+    const tiny = compact && width < 360
     const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
 
     let block: ReactNode
@@ -283,13 +287,11 @@ function PlayerSide({
                             key="name"
                             style={[styles.sideName, compact && styles.sideNameCompact, dense && styles.sideNameDense, !hasGame && styles.noGameName]}
                             numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.68}
-                            ellipsizeMode="clip"
+                            ellipsizeMode="tail"
                         >
                             {compact ? compactLineupName(player.displayName) : shortName(player.displayName)}
                         </Text>,
-                        <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
+                        tiny ? null : <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
                     ])}
                 </View>
                 {!dense ? (

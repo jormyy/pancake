@@ -3,7 +3,7 @@ import { Avatar } from '@/components/Avatar'
 import { MotionPressable } from '@/components/Motion'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, tints } from '@/constants/tokens'
 import { draftAgeLabel, draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
-import { playerHeadshotUrl } from '@/lib/format'
+import { formatCountdown, playerHeadshotUrl } from '@/lib/format'
 import type { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 
 type Controller = ReturnType<typeof useAuctionDraftRoomController>
@@ -71,7 +71,7 @@ export function AuctionLivePanel({
                         </View>
                         <View style={[styles.countdown, urgent && styles.countdownUrgent]}>
                             <Text style={[styles.countdownText, paused && styles.countdownTextPaused, urgent && styles.countdownTextUrgent]}>
-                                {paused ? 'Paused' : `0:${String(controller.timeLeft).padStart(2, '0')}`}
+                                {paused ? 'Paused' : formatCountdown(controller.timeLeft)}
                             </Text>
                         </View>
                     </View>
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
     bidLeaderLeading: { color: colors.successDark, fontWeight: fontWeight.bold, backgroundColor: colors.successLight,
         paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.full, overflow: 'hidden', alignSelf: 'flex-start' },
-    countdown: { width: 60, height: 60, borderRadius: 30, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
+    countdown: { minWidth: 60, height: 60, paddingHorizontal: spacing.sm, borderRadius: radii.full, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
         justifyContent: 'center', alignItems: 'center' },
     countdownUrgent: { backgroundColor: colors.dangerLight, borderWidth: 2, borderColor: colors.danger },
     countdownText: { fontSize: fontSize['2lg'], fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.textSecondary },

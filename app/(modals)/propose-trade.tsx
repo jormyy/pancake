@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
+import { useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
@@ -40,6 +40,7 @@ import {
     proposeTrade,
 } from '@/lib/trades'
 import { takeTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 // Inside the web shell the page is already clear of the notch; only native needs the inset.
 function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children: ReactNode }) {
@@ -64,7 +65,7 @@ export default function ProposeTradeScreen() {
         requestPickId?: string
         analyzerDraftId?: string
     }>()
-    const { back } = useRouter()
+    const back = useGoBack('/trades')
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
     const [members, setMembers] = useState<TradeComposerMember[]>([])
@@ -372,6 +373,40 @@ export default function ProposeTradeScreen() {
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
 
+    // Review replaces the editor inside the same page, like any pushed screen,
+    // instead of covering the whole window.
+    if (reviewing) {
+        return (
+            <PageFrame style={styles.container}>
+                <PageHeader
+                    title="Review trade"
+                    onBack={() => setReviewing(false)}
+                    backLabel="Back to trade editor"
+                    actions={(
+                        <Pressable
+                            onPress={handleSubmit}
+                            style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+                            disabled={!canSubmit}
+                            accessibilityRole="button"
+                            accessibilityLabel="Confirm and send trade"
+                            testID="trade-confirm-submit"
+                            id="trade-confirm-submit"
+                        >
+                            <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Send</Text>
+                        </Pressable>
+                    )}
+                />
+                <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.reviewColumn}>
+                        <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
+                        <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+                            loading={tradeAnalysis.loading} />
+                    </View>
+                </ScrollView>
+            </PageFrame>
+        )
+    }
+
     return (
         <PageFrame style={styles.container}>
             <PageHeader
@@ -481,40 +516,6 @@ export default function ProposeTradeScreen() {
               </View>
               {sideBySide ? <View style={styles.rail}>{verdict}</View> : null}
             </ScrollView>
-            {reviewing ? (
-                <Modal
-                    visible
-                    animationType="slide"
-                    presentationStyle="fullScreen"
-                    onRequestClose={() => setReviewing(false)}
-                >
-                    <SafeAreaView style={styles.container} edges={['top']}>
-                        <PageHeader
-                            title="Review trade"
-                            onBack={() => setReviewing(false)}
-                            backLabel="Back to trade editor"
-                            actions={(
-                                <Pressable
-                                    onPress={handleSubmit}
-                                    style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
-                                    disabled={!canSubmit}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Confirm and send trade"
-                                    testID="trade-confirm-submit"
-                                    id="trade-confirm-submit"
-                                >
-                                    <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Send</Text>
-                                </Pressable>
-                            )}
-                        />
-                        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                            <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
-                            <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
-                                loading={tradeAnalysis.loading} />
-                        </ScrollView>
-                    </SafeAreaView>
-                </Modal>
-            ) : null}
         </PageFrame>
     )
 }
@@ -548,6 +549,7 @@ const styles = StyleSheet.create({
         gap: spacing['3xl'],
     },
     main: { width: '100%', minWidth: 0 },
+    reviewColumn: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center' },
     mainWide: { width: BUILDER_WIDTH, flexShrink: 0 },
     rail: { width: layout.railWidth, paddingTop: spacing.xl },
     submitButton: {

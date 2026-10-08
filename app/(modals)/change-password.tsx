@@ -5,7 +5,7 @@ import {
     Platform,
     ScrollView,
 } from 'react-native'
-import { Stack, useRouter } from 'expo-router'
+import { Stack } from 'expo-router'
 import { useState } from 'react'
 import { changePassword } from '@/lib/auth'
 import { Input, Button, usePageMetrics } from '@/components/ui'
@@ -13,11 +13,12 @@ import { ModalScreen } from '@/components/ui/ModalScreen'
 import { showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { layout, spacing } from '@/constants/tokens'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 const MIN_PASSWORD_LENGTH = 8
 
 export default function ChangePasswordScreen() {
-    const { back } = useRouter()
+    const back = useGoBack('/profile')
     const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')

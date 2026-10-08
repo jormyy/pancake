@@ -9,7 +9,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { usePageMetrics } from '@/components/ui'
@@ -54,6 +54,8 @@ export default function DraftRoomScreen() {
     function navigateBackToDraftList(isMock = false) {
         router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
     }
+
+    if (!draftId) return <Redirect href="/draft" />
 
     if (!state) {
         const hasLoadError = loadError != null

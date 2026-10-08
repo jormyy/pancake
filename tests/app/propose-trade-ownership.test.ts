@@ -187,7 +187,9 @@ describe('propose trade async ownership', () => {
         const review = renderer.root.findByProps({ testID: 'trade-submit' })
         expect(review.props.accessibilityLabel).toBe('Review trade proposal')
         await act(async () => { review.props.onPress() })
-        expect(renderer.root.findByProps({ presentationStyle: 'fullScreen' }).props.visible).toBe(true)
+        // Review replaces the editor: its Send button shows and the editor's Review button is gone.
+        expect(renderer.root.findAllByProps({ testID: 'trade-confirm-submit' })).not.toHaveLength(0)
+        expect(renderer.root.findAllByProps({ testID: 'trade-submit' })).toHaveLength(0)
         expect(mocks.submitMultiTeamTradeComposer).not.toHaveBeenCalled()
 
         await act(async () => {

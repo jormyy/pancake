@@ -275,7 +275,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move'} ${player.display_name}${item.is_on_ir ? '' : ' to IR'}`}
                     >
                         <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
-                            {item.is_on_ir ? 'Active' : 'IR'}
+                            {item.is_on_ir ? 'Activate' : 'IR'}
                         </Text>
                     </MotionPressable>
                 ) : null}
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
     taxiButtonOutline: { borderColor: colors.info },
     taxiButtonOutlineText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.info },
     actionButtonText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textSecondary },
-    actionButtonTextActive: { color: colors.textWhite },
+    actionButtonTextActive: { color: colors.onAccent },
 
     pickCircle: {
         width: ROW_AVATAR,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
+    pickCircleText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
 
     priorityBadge: {
         width: 32,
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    priorityBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
+    priorityBadgeText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
     claimEditRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
