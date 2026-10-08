@@ -23,7 +23,7 @@ const SERVICE_WORKER_SHELL_ROUTES = /const SHELL_ROUTES = \[[^\n]*\]/
 // Everything the shell HTML boots from. Precaching exactly this set means the
 // reload that follows a service-worker update paints from disk instead of
 // re-downloading the bundle, which is what turned every deploy into a blank
-// launch. Deliberately not the whole build: per-route chunks stay lazy.
+// launch. Deliberately not the whole build: other per-route chunks stay lazy.
 /** Hashed asset paths under dist/assets, as URLs. */
 const assetUrls = async (root) => {
   const walk = async (dir, prefix) => {
@@ -129,7 +129,10 @@ const setServiceWorkerPrecache = async (root) => {
   if (!SERVICE_WORKER_PUBLIC_ASSETS.test(source) || !SERVICE_WORKER_PUBLIC_HASHES.test(source) || !SERVICE_WORKER_SHELL_ROUTES.test(source)) {
     throw new Error('Service worker is missing its public delivery allowlists')
   }
-  const html = await readFile(path.join(root, 'dist', 'index.html'), 'utf8')
+  // Logout must reach usable public controls even if the session began at signup.
+  // Use the export's full sign-in dependency graph, with the same required-byte checks.
+  const html = (await Promise.all(['index.html', 'sign-in.html'].map((file) =>
+    readFile(path.join(root, 'dist', file), 'utf8')))).join('\n')
   const assets = await assetUrls(root)
   const urls = bootAssets(html, { fonts: await referencedFonts(root, assets) })
   const delivery = await publicDelivery(root)

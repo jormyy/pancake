@@ -5,6 +5,8 @@ import { Database } from '@/types/database'
 import { fenceDataRequests } from '@/lib/session-fetch'
 import { authStorageKey, inspectSession, readStoredAuth, type StoredAuthState } from '@/lib/auth-session'
 import { createAuthStorage } from '@/lib/auth-storage'
+import { createAuthInvalidation } from '@/lib/auth-invalidation'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { authNavigatorLock } from '@/lib/auth-lock'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
@@ -37,7 +39,34 @@ function runtimeSupabaseOverride(key: string): string | null {
 
 const resolvedSupabaseUrl = runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl
 export const supabaseAuthStorageKey = authStorageKey(resolvedSupabaseUrl)
-const authStorage = createAuthStorage(() => typeof window === 'undefined' ? null : window.localStorage)
+export const localAuthChangeEvent = 'pancake-local-auth-change'
+const authStorage = createAuthInvalidation(
+    createAuthStorage(() => typeof window === 'undefined' ? null : window.localStorage),
+    createAuthStorage(() => typeof window === 'undefined' ? null : window.sessionStorage),
+    supabaseAuthStorageKey,
+    () => {
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event(localAuthChangeEvent))
+    },
+)
+const logoutChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel(`${supabaseAuthStorageKey}-local-logout`) : null
+if (logoutChannel) logoutChannel.onmessage = (event) => {
+    const value = event.data as { id?: unknown; signedOut?: unknown; generation?: unknown }
+    if (typeof value?.id === 'string' && value.signedOut === true && Number.isSafeInteger(value.generation)) {
+        authStorage.receive({ id: value.id, signedOut: true, generation: value.generation as number })
+    }
+}
+
+export async function invalidateLocalAuthSession(): Promise<void> {
+    const clear = async () => {
+        authStorage.invalidate()
+        setSessionOwner(null)
+        logoutChannel?.postMessage(authStorage.current())
+    }
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+        await authNavigatorLock(`lock:${supabaseAuthStorageKey}`, 10_000, clear)
+    } else await clear()
+}
 
 export function inspectAuthSession(value: unknown): StoredAuthState {
     return inspectSession(value, resolvedSupabaseUrl)
@@ -63,6 +92,6 @@ export const supabase = createClient<Database>(
             detectSessionInUrl: false,
             ...(typeof navigator !== 'undefined' && navigator.locks ? { lock: authNavigatorLock } : {}),
         },
-        global: { fetch: fenceDataRequests((input, init) => fetch(input, init)) },
+        global: { fetch: authStorage.fetch(fenceDataRequests((input, init) => fetch(input, init))) },
     },
 )

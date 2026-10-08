@@ -308,6 +308,8 @@ describe('release E2E contracts', () => {
     await writeFile(path.join(root, 'dist', 'index.html'), SHELL_HTML)
     for (const [file, body] of Object.entries({
       '_expo/static/js/web/entry-abc.js': 'console.log("boot")',
+      'sign-in.html': '<script src="/_expo/static/js/web/sign-in-abc.js"></script>',
+      '_expo/static/js/web/sign-in-abc.js': 'console.log("public login")',
       '_expo/static/css/app.css': 'body{margin:0}',
       'manifest.webmanifest': '{}',
       'pwa-192.png': 'fixture image',
@@ -343,6 +345,7 @@ describe('release E2E contracts', () => {
     expect(publicAssets).toEqual([
       '/_expo/static/css/app.css',
       '/_expo/static/js/web/entry-abc.js',
+      '/_expo/static/js/web/sign-in-abc.js',
       '/assets/fonts/MaterialIcons.abc123.ttf',
       '/assets/fonts/Outfit_900Black.def456.ttf',
       '/manifest.webmanifest',
@@ -353,7 +356,7 @@ describe('release E2E contracts', () => {
     expect(Object.values(publicHashes)).toEqual(Array.from({ length: publicAssets.length + 1 }, () => expect.stringMatching(/^[a-f0-9]{64}$/)))
     expect(publicHashes['/']).toBe(createHash('sha256').update(SHELL_HTML).digest('hex'))
     expect(publicAssets).not.toContain('/app.js')
-    expect(firstWorker).toContain('const SHELL_ROUTES = ["/","/index.html"]')
+    expect(firstWorker).toContain('const SHELL_ROUTES = ["/","/index.html","/sign-in","/sign-in.html"]')
 
     expect(firstWorker).toMatch(/pancake-aaaaaaaaaaaa-[a-f0-9]{12}/)
     // The worker must precache what the shell boots from, or the reload that
@@ -363,6 +366,7 @@ describe('release E2E contracts', () => {
         '/',
         '/_expo/static/css/app.css',
         '/_expo/static/js/web/entry-abc.js',
+        '/_expo/static/js/web/sign-in-abc.js',
         // The bundle fetches the icon font, so the document never lists it; the
         // real chrome renders empty boxes until it lands.
         '/assets/fonts/MaterialIcons.abc123.ttf',
@@ -382,6 +386,9 @@ describe('release E2E contracts', () => {
     expect(routingDigest).not.toBe(rebuiltMarker.bundleDigest)
     await writeFile(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n')
     expect(await digestReleaseBundle(root)).not.toBe(routingDigest)
+    await rm(path.join(root, 'dist', '_expo/static/js/web/sign-in-abc.js'))
+    await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(/Required boot asset is missing/)
+    await writeFile(path.join(root, 'dist', '_expo/static/js/web/sign-in-abc.js'), 'console.log("public login")')
     await rm(path.join(root, 'dist', '_expo/static/js/web/entry-abc.js'))
     await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(/Required boot asset is missing/)
   })

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { supabase, invalidateLocalAuthSession } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 import { detachWebPushFromAccount } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
@@ -32,17 +32,19 @@ export async function signOut() {
         console.warn('Web push detach failed.', error)
     }
 
+    let serverSignOutConfirmed = false
     try {
         const { error } = await supabase.auth.signOut()
-        if (!error) return
+        serverSignOutConfirmed = !error
+        if (error) console.warn('Server sign-out could not be confirmed.', error)
     } catch (error) {
-        console.warn('Server sign-out failed; clearing the local session.', error)
+        console.warn('Server sign-out could not be confirmed.', error)
     } finally {
         clearPersistentCaches()
     }
 
-    const { error: localError } = await supabase.auth.signOut({ scope: 'local' })
-    if (localError) throw localError
+    await invalidateLocalAuthSession()
+    return { serverSignOutConfirmed }
 }
 
 export async function changePassword(currentPassword: string, newPassword: string) {

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({
+    invalidateLocalAuthSession: vi.fn(),
     supabase: {
         auth: {
             signUp: vi.fn(),
@@ -13,7 +14,7 @@ vi.mock('@/lib/web-push', () => ({ detachWebPushFromAccount: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: vi.fn() }))
 
 import { signOut, signUp } from '@/lib/auth'
-import { supabase } from '@/lib/supabase'
+import { supabase, invalidateLocalAuthSession } from '@/lib/supabase'
 import { detachWebPushFromAccount } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 
@@ -25,24 +26,26 @@ describe('signOut', () => {
         vi.clearAllMocks()
     })
 
-    it('uses a local fallback when server sign-out returns an error', async () => {
+    it('invalidates local identity and reports unconfirmed server logout on network failure', async () => {
         mockAuth.signOut
             .mockResolvedValueOnce({ error: new Error('network') } as never)
             .mockResolvedValueOnce({ error: null } as never)
 
-        await signOut()
+        expect(await signOut()).toEqual({ serverSignOutConfirmed: false })
 
         expect(mockAuth.signOut).toHaveBeenNthCalledWith(1)
-        expect(mockAuth.signOut).toHaveBeenNthCalledWith(2, { scope: 'local' })
+        expect(mockAuth.signOut).toHaveBeenCalledOnce()
+        expect(invalidateLocalAuthSession).toHaveBeenCalledOnce()
         expect(detachWebPushFromAccount).toHaveBeenCalledOnce()
     })
 
-    it('does not run the local fallback after a successful server sign-out', async () => {
+    it('preserves server sign-out and fences late sessions after successful revocation', async () => {
         mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
 
         await signOut()
 
         expect(mockAuth.signOut).toHaveBeenCalledOnce()
+        expect(invalidateLocalAuthSession).toHaveBeenCalledOnce()
         expect(detachWebPushFromAccount).toHaveBeenCalledOnce()
     })
 

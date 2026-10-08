@@ -251,3 +251,25 @@ The existing metadata shows `Refreshing` during revalidation and `Refresh failed
 when a source read fails. Published source timestamps retain their original
 meaning. A successful support lookup or cached replay does not confirm a fresh
 source response. Offline actions still require online server validation.
+
+### Local logout when the server is unavailable
+
+Sign Out first requests normal SDK server sign-out. After that attempt, the app
+clears its own identity and saved private resources under the SDK's existing lock.
+A failed server request still signs out this browser, and shows “Signed out on this
+device” with “Server sign-out could not be confirmed. Other sessions may still be
+signed in.” This does not prove remote revocation or access-token invalidity.
+
+A project-scoped logout marker fences late auth responses and saved sessions across
+tabs and reloads. It contains only an opaque revision, generation, and signed-out
+flag; it stores no credential. One localStorage entry and one sessionStorage backup
+retain the latest generation without an expiry. A successful new password/signup
+response clears their signed-out flag. At most eight transient
+response tickets fence concurrent SDK saves. Other projects' storage stays intact.
+If the browser refuses every persistent write and removal, durable erasure cannot
+be promised after full process death and later restoration of storage access.
+
+The required public boot graph includes the sign-in export's scripts and styles.
+Logout can therefore reach signed-out controls even when a user entered through
+signup and never loaded Sign In. The worker still verifies allowlisted public bytes
+and headers, rejects incomplete installs, and does not cache private responses.

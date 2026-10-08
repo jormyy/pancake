@@ -1,6 +1,6 @@
 import { createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Session } from '@supabase/supabase-js'
-import { inspectAuthSession, readStoredAuthState, supabase, supabaseAuthStorageKey } from '@/lib/supabase'
+import { inspectAuthSession, readStoredAuthState, supabase, supabaseAuthStorageKey, localAuthChangeEvent } from '@/lib/supabase'
 import type { StoredAuthState } from '@/lib/auth-session'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 import { setSessionOwner } from '@/lib/session-cache-registry'
@@ -96,9 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         }
         const storageChanged = (event: StorageEvent) => {
-            if (event.key === null || event.key === supabaseAuthStorageKey) resume()
+            if (event.key === null || event.key === supabaseAuthStorageKey || event.key === `${supabaseAuthStorageKey}-local-logout`) resume()
         }
         if (typeof window !== 'undefined') {
+            window.addEventListener(localAuthChangeEvent, resume)
             window.addEventListener('online', resume)
             window.addEventListener('pageshow', resume)
             window.addEventListener('focus', resume)
@@ -111,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearTimeout(expiryTimer)
             subscription.unsubscribe()
             if (typeof window !== 'undefined') {
+                window.removeEventListener(localAuthChangeEvent, resume)
                 window.removeEventListener('online', resume)
                 window.removeEventListener('pageshow', resume)
                 window.removeEventListener('focus', resume)
