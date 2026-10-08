@@ -119,17 +119,75 @@ Deno.test('stats sync retry resumes strictly after the durable game cursor', asy
   if (resumedGames.join(',') !== GAME_B) throw new Error(`retry replayed a completed game: ${resumedGames}`)
 })
 
-Deno.test('stats sync unit bounds empty-date scans before releasing its claim', async () => {
+Deno.test('stats sync unit bounds empty-date batches and checkpoints before continuing', async () => {
   let scans = 0
   let releases = 0
+  const checkpoints: number[] = []
   await runStatsSyncJobUnit(statsSyncRange('2026-07-10', 365), 0, {
     findNextGame: () => { scans += 1; return Promise.resolve(null) },
     syncGame: () => Promise.reject(new Error('unexpected game')),
-    checkpoint: () => Promise.reject(new Error('unexpected checkpoint')),
+    checkpoint: () => { checkpoints.push(scans); return Promise.resolve() },
     release: () => { releases += 1; return Promise.resolve() },
     complete: () => Promise.reject(new Error('unexpected completion')),
   })
-  if (scans !== 31 || releases !== 1) {
-    throw new Error(`empty date scan was not bounded: ${JSON.stringify({ scans, releases })}`)
+  if (scans !== 124 || releases !== 1 || checkpoints.join(',') !== '31,62,93') {
+    throw new Error(`empty date scan was not bounded: ${JSON.stringify({ scans, releases, checkpoints })}`)
+  }
+})
+
+Deno.test('stats sync unit stops at a rejected empty-date checkpoint', async () => {
+  let scans = 0
+  let transitioned = false
+  try {
+    await runStatsSyncJobUnit(statsSyncRange('2026-07-10', 365), 4, {
+      findNextGame: () => { scans += 1; return Promise.resolve(null) },
+      syncGame: () => Promise.reject(new Error('unexpected game')),
+      checkpoint: () => Promise.reject(new Error('claim superseded')),
+      release: () => { transitioned = true; return Promise.resolve() },
+      complete: () => { transitioned = true; return Promise.resolve() },
+    })
+    throw new Error('checkpoint failure was swallowed')
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== 'claim superseded') throw error
+  }
+  if (scans !== 31 || transitioned) throw new Error('work continued without a fenced claim')
+})
+
+Deno.test('stats sync unit releases after a slow empty-date batch', async () => {
+  let scans = 0
+  let released = false
+  await runStatsSyncJobUnit(statsSyncRange('2026-07-10', 365), 0, {
+    findNextGame: async () => {
+      scans += 1
+      if (scans === 1) await new Promise((resolve) => setTimeout(resolve, 1_010))
+      return null
+    },
+    syncGame: () => Promise.reject(new Error('unexpected game')),
+    checkpoint: () => Promise.reject(new Error('slow batch should release')),
+    release: () => { released = true; return Promise.resolve() },
+    complete: () => Promise.reject(new Error('unexpected completion')),
+  })
+  if (scans !== 31 || !released) throw new Error('slow scan exceeded its batch budget')
+})
+
+Deno.test('stats sync unit re-reads later dates after a checkpoint and preserves one-game writes', async () => {
+  const range = statsSyncRange('2026-07-10', 65)
+  let scans = 0
+  let revision = false
+  const transitions: string[] = []
+  const result = await runStatsSyncJobUnit(range, 2, {
+    findNextGame: () => { scans += 1; return Promise.resolve(revision ? GAME_A : null) },
+    syncGame: (id) => { transitions.push(`game:${id}`); return Promise.resolve() },
+    checkpoint: (count, cursor) => {
+      transitions.push(`checkpoint:${count}:${cursor.nextDate}`)
+      revision = true
+      return Promise.resolve()
+    },
+    release: (count) => { transitions.push(`release:${count}`); return Promise.resolve() },
+    complete: () => Promise.reject(new Error('unexpected completion')),
+  })
+  if (scans !== 32 || result.completedItems !== 3 || result.metadata.afterGameId !== GAME_A
+    || !transitions[1].startsWith('game:') || transitions[3] !== 'release:3') {
+    throw new Error(`later authoritative result was not consumed: ${JSON.stringify({ scans, result, transitions })}`)
   }
 })
