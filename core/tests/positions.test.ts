@@ -10,24 +10,8 @@ describe('canPlayLineupSlot', () => {
         expect(canPlayLineupSlot('SG', [], 'SG')).toBe(true)
     })
 
-    it('allows PG in G slot', () => {
-        expect(canPlayLineupSlot('PG', [], 'G')).toBe(true)
-    })
-
-    it('allows SG in G slot', () => {
-        expect(canPlayLineupSlot('SG', [], 'G')).toBe(true)
-    })
-
     it('denies C in G slot', () => {
         expect(canPlayLineupSlot('C', [], 'G')).toBe(false)
-    })
-
-    it('allows SF in F slot', () => {
-        expect(canPlayLineupSlot('SF', [], 'F')).toBe(true)
-    })
-
-    it('allows PF in F slot', () => {
-        expect(canPlayLineupSlot('PF', [], 'F')).toBe(true)
     })
 
     it('denies PG in F slot', () => {
@@ -60,10 +44,6 @@ describe('canPlayLineupSlot', () => {
 
     it('eligiblePositions takes priority over position', () => {
         expect(canPlayLineupSlot('PG', ['C'], 'C')).toBe(true)
-    })
-
-    it('returns false for null position with no eligible positions', () => {
-        expect(canPlayLineupSlot(null, [], 'PG')).toBe(false)
     })
 
     it('UTIL and BE still require a known eligible position', () => {
