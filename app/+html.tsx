@@ -2,6 +2,7 @@ import { ScrollViewStyleReset } from 'expo-router/html'
 import { type PropsWithChildren } from 'react'
 import { webChrome } from '@/constants/tokens'
 import { BOOT_SHELL_CSS, BOOT_SHELL_HTML, BOOT_SHELL_SCRIPT } from '@/constants/boot-shell'
+import { THEME_BOOT_SCRIPT } from '@/lib/theme-preference'
 
 // Root HTML document for the web build. Adds the PWA manifest, theme color,
 // Apple install metadata, and registers the offline-shell service worker.
@@ -111,8 +112,9 @@ export default function Root({ children }: PropsWithChildren) {
                     prevents a white flash before first paint. */}
                 <link rel="manifest" href="/manifest.webmanifest" />
                 <meta name="color-scheme" content="light dark" />
-                <meta name="theme-color" media="(prefers-color-scheme: light)" content={webChrome.themeColor} />
-                <meta name="theme-color" media="(prefers-color-scheme: dark)" content={webChrome.themeColorDark} />
+                <meta name="theme-color" content={webChrome.themeColor} />
+                {/* Applies the saved Appearance choice before first paint. */}
+                <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
                 <style dangerouslySetInnerHTML={{ __html: webChrome.rootBackgroundCss }} />
                 {/* Paints the real app chrome from static HTML, before the JS
                     bundle mounts React. Removed by WebAppShell on mount. */}

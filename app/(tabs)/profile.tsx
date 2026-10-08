@@ -26,11 +26,18 @@ import { colors, fontSize, layout, radii, spacing, textStyles } from '@/constant
 import { Avatar } from '@/components/Avatar'
 import { WebPushSettings } from '@/components/WebPushSettings'
 import { SettingsGroup, SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
-import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { Button, ErrorBanner, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { WebPushStatus } from '@/lib/web-push'
 import { useGoBack } from '@/components/ui/useGoBack'
+import { DEFAULT_THEME, readThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference'
+
+const THEME_OPTIONS: { label: string; value: ThemePreference; accessibilityLabel?: string }[] = [
+    { label: 'Light', value: 'light' },
+    { label: 'Dark', value: 'dark' },
+    { label: 'Auto', value: 'system', accessibilityLabel: 'Match device' },
+]
 
 export default function ProfileScreen() {
     const goBack = useGoBack('/')
@@ -44,6 +51,9 @@ export default function ProfileScreen() {
     const [saving, setSaving] = useState(false)
     const [avatarUploading, setAvatarUploading] = useState(false)
     const [webPushStatus, setWebPushStatus] = useState<WebPushStatus | null>(null)
+    // Read after mount: the prerendered page cannot know this device's choice.
+    const [theme, setTheme] = useState<ThemePreference>(DEFAULT_THEME)
+    useEffect(() => { setTheme(readThemePreference()) }, [])
     const showPreferenceToggles = Platform.OS !== 'web' || webPushStatus === 'on'
     const preferenceUserId = user?.id
     const activeUserIdRef = useRef(preferenceUserId)
@@ -141,6 +151,11 @@ export default function ProfileScreen() {
         } finally {
             if (activeUserIdRef.current === ownerId) setAvatarUploading(false)
         }
+    }
+
+    function changeTheme(next: ThemePreference) {
+        setThemePreference(next)
+        setTheme(next)
     }
 
     function handleSignOut() {
@@ -287,6 +302,20 @@ export default function ProfileScreen() {
                     )) : null}
                 </SettingsGroup>
 
+                {/* Native screens are light only, so Appearance is a web setting. */}
+                {Platform.OS === 'web' ? (
+                    <SettingsGroup title="Appearance" footer="Auto matches your device's light or dark setting.">
+                        <View style={styles.themeRow}>
+                            <SegmentedControl<ThemePreference>
+                                options={THEME_OPTIONS}
+                                value={theme}
+                                onChange={changeTheme}
+                                accessibilityLabel="Theme"
+                            />
+                        </View>
+                    </SettingsGroup>
+                ) : null}
+
                 <SettingsGroup title="Leagues">
                     <SettingsRow label="Create a league" onPress={() => router.push('/(modals)/create-league')} />
                     <SettingsRow label="Join a league" onPress={() => router.push('/(modals)/join-league')} />
@@ -307,6 +336,7 @@ const styles = StyleSheet.create({
     scrollContent: { paddingTop: spacing.xl, paddingBottom: spacing['4xl'], gap: spacing.xl },
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     identityText: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    themeRow: { padding: spacing.md },
     avatarWrapper: { position: 'relative' },
     avatarBadge: {
         position: 'absolute',
