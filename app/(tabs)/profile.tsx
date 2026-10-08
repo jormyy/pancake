@@ -27,7 +27,7 @@ import { Avatar } from '@/components/Avatar'
 import { WebPushSettings } from '@/components/WebPushSettings'
 import { SettingsGroup, SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
-import { showAlert, confirmAction } from '@/lib/alert'
+import { showAlert, showSuccess, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { WebPushStatus } from '@/lib/web-push'
 import { useGoBack } from '@/components/ui/useGoBack'
@@ -101,7 +101,7 @@ export default function ProfileScreen() {
             if (current && trimmedTeam !== current.team_name) {
                 refresh()
             }
-            showAlert('Saved', 'Your profile has been updated.')
+            showSuccess('Saved', 'Your profile has been updated.')
         } catch (e) {
             if (activeUserIdRef.current === ownerId) showAlert('Error', getErrorMessage(e))
         } finally {

@@ -11,7 +11,7 @@ import {
     type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
 import { getActiveRookieDraft, reseedRookieDraftPicks, startRookieDraft } from '@/lib/rookieDraft'
-import { confirmAction, showAlert } from '@/lib/alert'
+import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { normalizeDraftTimerSeconds, type DraftTimerOption, type RookieRoundOption } from '@/lib/draft-options'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -217,7 +217,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
             }
             await reseedRookieDraftPicks(draft.id)
             if (ownsAction(capturedLeagueId, generation)) {
-                showAlert('Done', 'Pick slots updated to reflect traded picks.')
+                showSuccess('Done', 'Pick slots updated to reflect traded picks.')
             }
         } catch (error) {
             if (ownsAction(capturedLeagueId, generation)) {

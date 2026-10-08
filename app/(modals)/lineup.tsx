@@ -2,6 +2,7 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { PosTag } from '@/components/PosTag'
+import { InjuryBadge } from '@/components/Badge'
 import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -101,6 +102,7 @@ const StarterRow = memo(function StarterRow({
                     <View style={styles.playerInfo}>
                         <Text style={styles.playerName}>{p.displayName}</Text>
                         <View style={styles.playerMetaRow}>
+                            <InjuryBadge status={p.injuryStatus} />
                             {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                             {starterMatchupLabel !== null && (
                                 <Text style={styles.playerMeta}>{p.nbaTeam} {starterMatchupLabel}</Text>
@@ -172,6 +174,7 @@ const BenchRow = memo(function BenchRow({
             <View style={styles.playerInfo}>
                 <Text style={styles.playerName}>{player.displayName}</Text>
                 <View style={styles.playerMetaRow}>
+                    <InjuryBadge status={player.injuryStatus} />
                     {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                     {benchMatchupLabel !== null && (
                         <Text style={styles.playerMeta}>{player.nbaTeam} {benchMatchupLabel}</Text>

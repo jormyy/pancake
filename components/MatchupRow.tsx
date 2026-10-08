@@ -4,9 +4,9 @@ import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, fontSize, fontWeight, INJURY_COLORS, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
-import { Badge } from '@/components/Badge'
+import { InjuryBadge } from '@/components/Badge'
 import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
@@ -97,17 +97,6 @@ function specificPositions(positions: string[] | null | undefined): string[] {
     const list = positions ?? []
     const specific = list.filter((pos) => pos !== 'G' && pos !== 'F' && pos !== 'UTIL')
     return specific.length > 0 ? specific : list
-}
-
-function InjuryStatusBadge({ status }: { status: string | null }) {
-    if (!status) return null
-    return (
-        <Badge
-            label={status}
-            color={INJURY_COLORS[status] ?? colors.textMuted}
-            variant="solid"
-        />
-    )
 }
 
 function LiveTag({ dotOnly = false }: { dotOnly?: boolean }) {
@@ -272,7 +261,7 @@ function PlayerSide({
             <>
                 <View style={[styles.nameRow, { justifyContent: align }]}>
                     {mirror([
-                        !compact && !playedToday ? <InjuryStatusBadge key="injury" status={injury} /> : null,
+                        !compact && !playedToday ? <InjuryBadge key="injury" status={injury} /> : null,
                         <Text
                             key="name"
                             style={[styles.sideName, compact && styles.sideNameCompact, dense && styles.sideNameDense, !hasGame && styles.noGameName]}
@@ -288,7 +277,7 @@ function PlayerSide({
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         {mirror([
                             isLive && !sittingOut ? <LiveTag key="live" dotOnly={tiny} /> : null,
-                            compactBadge ? <InjuryStatusBadge key="injury" status={injury} /> : null,
+                            compactBadge ? <InjuryBadge key="injury" status={injury} /> : null,
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text
                                 key="detail"

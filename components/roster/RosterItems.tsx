@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
@@ -8,7 +8,7 @@ import { WaiverClaim } from '@/lib/waivers'
 import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { formatPoints, safeShortDate, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
+import { Badge, InjuryBadge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
@@ -22,11 +22,6 @@ export function RosterSectionBand({ label, detail, tone = 'default' }: { label: 
             {detail ? <View style={styles.bandDetail}>{detail}</View> : null}
         </View>
     )
-}
-
-function InjuryBadge({ status }: { status: string | null | undefined }) {
-    if (!status) return null
-    return <Badge label={status} color={INJURY_COLORS[status] ?? colors.textMuted} variant="solid" />
 }
 
 // Second row line: team, positions, then the season averages that drive
