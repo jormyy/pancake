@@ -636,7 +636,7 @@ const styles = StyleSheet.create({
     compactStat: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
     compactStatLabel: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: colors.textSecondary, letterSpacing: 0.4 },
     compactStatValue: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
-    newsContent: { paddingBottom: spacing.xl, gap: spacing.md },
+    newsContent: { paddingBottom: spacing.xl, gap: spacing.md, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     listCard: { overflow: 'hidden' },
     newsRow: { paddingVertical: spacing.lg, paddingHorizontal: spacing.md, gap: spacing.sm },
     newsTopLine: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg },

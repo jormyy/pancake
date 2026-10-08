@@ -187,9 +187,15 @@ export default function HomeScreen() {
     // Wide screens show a box score per row; the side column only joins when
     // the lineup still fits next to it.
     const statColumns = useMemo(() => lineupStatColumns(scoringSettings), [scoringSettings])
-    const showStatColumns = !narrow && usableWidth >= statLineupWidth(statColumns)
-    const lineupWidth = showStatColumns ? statLineupWidth(statColumns) : layout.lineupMaxWidth
-    const twoPane = !narrow && usableWidth >= lineupWidth + spacing['3xl'] + layout.railWidth
+    const statLineupMin = statLineupWidth(statColumns)
+    const showStatColumns = !narrow && usableWidth >= statLineupMin
+    const sideRail = spacing['3xl'] + layout.railWidth
+    const twoPane = !narrow && usableWidth >= (showStatColumns ? statLineupMin : layout.lineupMaxWidth) + sideRail
+    // A box-score lineup grows into the room it has (names and games need it),
+    // up to a cap; the plain lineup stays narrow so names sit near their points.
+    const lineupWidth = showStatColumns
+        ? Math.min(twoPane ? usableWidth - sideRail : usableWidth, layout.statLineupMaxWidth)
+        : layout.lineupMaxWidth
 
     const [detailsRow, setDetailsRow] = useState<DetailsRow | null>(null)
 
@@ -731,7 +737,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.xs,
     },
     autoSetBtn: {
-        minHeight: 40,
+        minHeight: 44,
         minWidth: 72,
         paddingHorizontal: spacing.xl,
         borderRadius: radii.full,

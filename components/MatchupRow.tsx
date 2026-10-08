@@ -404,7 +404,7 @@ function MatchupRowImpl({
                     isLive={myIsLive}
                     stats={myStats}
                     fpts={myFpts}
-                    leading={myFpts != null && (oppFpts == null || myFpts > oppFpts)}
+                    leading={!reserveSlot && myFpts != null && (oppFpts == null || myFpts > oppFpts)}
                     matchup={myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined}
                     compact={compact}
                     dense={dense}
@@ -456,7 +456,7 @@ function MatchupRowImpl({
                     isLive={oppIsLive}
                     stats={oppStats}
                     fpts={oppFpts}
-                    leading={oppFpts != null && (myFpts == null || oppFpts > myFpts)}
+                    leading={!reserveSlot && oppFpts != null && (myFpts == null || oppFpts > myFpts)}
                     matchup={oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam) : undefined}
                     compact={compact}
                     dense={dense}

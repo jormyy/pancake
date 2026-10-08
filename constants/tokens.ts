@@ -37,6 +37,7 @@ export const palette = {
     red200:   '#FECACA',
     red300:   '#FCA5A5',
     red500:   '#EF4444',
+    red600:   '#DC2626',
     red900:   '#991B1B',
     redDark:  '#7F1D1D',
     redBright:'#d00',
@@ -224,7 +225,7 @@ export const colors = {
     primaryDark:   webColor('primary-dark', palette.maple600),
 
     // Danger (red)
-    danger:     webColor('danger', palette.red500),
+    danger:     webColor('danger', palette.red600),
     dangerLight: webColor('danger-light', palette.red100),
     dangerDark:  webColor('danger-dark', palette.red900),
 
@@ -545,6 +546,8 @@ export const layout = {
     // Head-to-head lineup column. Wider than this, a player's name drifts away
     // from the points at the row's outer edge.
     lineupMaxWidth: 680,
+    // Box-score lineup: grows to this when there's room for names and games.
+    statLineupMaxWidth: 1120,
     // Side column on two-pane screens (other matchups, scoreboard, details).
     railWidth: 320,
     // Web app shell sidebar shown at breakpoints.compact and wider.

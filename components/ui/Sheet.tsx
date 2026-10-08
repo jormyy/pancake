@@ -89,6 +89,8 @@ const styles = StyleSheet.create({
     panel: {
         backgroundColor: colors.bgCard,
         overflow: 'hidden',
+        // The panel takes focus so keyboard users start inside it; it isn't a control, so no ring.
+        ...(Platform.OS === 'web' ? { outlineWidth: 0 } : {}),
         ...elevation('xl'),
     },
     panelBottom: {

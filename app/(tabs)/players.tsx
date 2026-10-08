@@ -455,6 +455,8 @@ function PlayerSearchSection() {
                               ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshPlayerSupport()} fullScreen={false} />
                             : search.activeFilterCount > 0
                               ? <EmptyState message="No players match these filters." actionLabel="Clear filters" onAction={search.clearAllFilters} fullScreen={false} />
+                            : search.search.query.trim()
+                              ? <EmptyState message={`No players match "${search.search.query.trim()}".`} actionLabel="Clear search" onAction={() => search.search.setQuery('')} fullScreen={false} />
                             : search.availabilityFilter.value === 'free_agents'
                               ? <EmptyState message="No free agents right now." description="Every player is on a roster or on waivers." actionLabel="Show all players" onAction={() => search.availabilityFilter.setValue('all')} fullScreen={false} />
                             : <EmptyState message="No players found." fullScreen={false} />

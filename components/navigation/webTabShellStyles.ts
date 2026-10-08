@@ -144,25 +144,9 @@ export const styles = StyleSheet.create({
         color: colors.textMuted,
         fontSize: fontSize.xs,
     },
-    // Invisible layer under the open menu: a click anywhere else closes it
-    // instead of reaching the page underneath.
-    leagueMenuBackdrop: {
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-        zIndex: 90,
-        cursor: 'default',
-    } as unknown as WebOnlyViewStyle,
+    // Positioned by the switcher from its measured place on screen.
     leagueMenu: {
         position: 'absolute',
-        // Anchor to the bottom of the switch (whatever its height) so the menu
-        // sits flush below both the 52px sidebar switch and the 40px mobile one.
-        top: '100%',
-        marginTop: spacing.xs,
-        left: 0,
-        right: 0,
         zIndex: 100,
         padding: spacing.sm,
         borderRadius: radii.xl,

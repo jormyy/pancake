@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
-import { ComponentProps, ReactNode, useEffect, useMemo, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -10,7 +10,7 @@ import { getProfile } from '@/lib/auth'
 import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
-import { brand, breakpoints, colors, themeVariablesCss } from '@/constants/tokens'
+import { brand, breakpoints, colors, spacing, themeVariablesCss } from '@/constants/tokens'
 import { Sheet } from '@/components/ui/Sheet'
 import { styles } from './webTabShellStyles'
 
@@ -136,10 +136,14 @@ function compactHeaderLabel(label: string): string {
 function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const { memberships, current, setCurrent } = useLeagueContext()
     const [open, setOpen] = useState(false)
+    const [anchor, setAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+    const wrapRef = useRef<View>(null)
     const pathname = usePathname()
     const light = tone === 'light'
 
-    // The menu closes on Escape, on a click outside it, and when the page changes.
+    // The menu opens in a Modal layered over the whole page, anchored under the
+    // switch: a tap anywhere else closes it without reaching the page, Escape
+    // closes it, and so does a page change.
     useEffect(() => { setOpen(false) }, [pathname])
     useEffect(() => {
         if (!open || typeof document === 'undefined') return
@@ -147,6 +151,13 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
         document.addEventListener('keydown', onKey)
         return () => document.removeEventListener('keydown', onKey)
     }, [open])
+    const toggleMenu = () => {
+        if (open) { setOpen(false); return }
+        wrapRef.current?.measureInWindow((x, y, width, height) => {
+            setAnchor({ x, y, width, height })
+            setOpen(true)
+        })
+    }
     const nameStyle = [styles.leagueName, light && styles.leagueNameLight]
     const metaStyle = [styles.leagueMeta, light && styles.leagueMetaLight]
     const chevronColor = light ? colors.textMuted : brand.onMuted
@@ -170,9 +181,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const currentTeamName = current.team_name ?? 'Team'
 
     return (
-        <View style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
+        <View ref={wrapRef} style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
             <Pressable
-                onPress={() => setOpen((value) => !value)}
+                onPress={toggleMenu}
                 style={({ hovered, pressed }: PressableState) => [
                     styles.leagueSwitch,
                     light && styles.leagueSwitchLight,
@@ -194,11 +205,14 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color={chevronColor} />
             </Pressable>
 
-            {open ? (
-                <Pressable style={styles.leagueMenuBackdrop} onPress={() => setOpen(false)} accessibilityLabel="Close league menu" />
-            ) : null}
-            {open ? (
-                <View style={styles.leagueMenu}>
+            <Modal visible={open && anchor != null} transparent animationType="none" onRequestClose={() => setOpen(false)}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} accessibilityLabel="Close league menu" />
+                <View
+                    style={[
+                        styles.leagueMenu,
+                        anchor ? { top: anchor.y + anchor.height + spacing.xs, left: anchor.x, width: Math.max(anchor.width, 260) } : null,
+                    ]}
+                >
                     {memberships.map((membership) => {
                         const active = membership.id === current.id
                         return (
@@ -229,7 +243,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                         )
                     })}
                 </View>
-            ) : null}
+            </Modal>
         </View>
     )
 }

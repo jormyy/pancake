@@ -84,7 +84,6 @@ export function availabilityPlayerScope(
 
 export function activePlayerFilterCount(state: PlayerSearchFilterState): number {
     let count = 0
-    if (state.query.trim()) count++
     if (state.position !== 'ALL') count++
     if (state.selectedTeams.length > 0) count++
     if (state.playingFilter !== 'all') count++

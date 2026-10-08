@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: radii.full,
         borderCurve: 'continuous' as const,
-        backgroundColor: uiColors.accentPick,
+        backgroundColor: colors.info,
         justifyContent: 'center',
         alignItems: 'center',
     },
