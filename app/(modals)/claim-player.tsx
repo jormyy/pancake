@@ -7,6 +7,7 @@ import {
     ScrollView,
     Platform,
     useWindowDimensions,
+    type ViewStyle,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
@@ -17,25 +18,30 @@ import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
-import { submitWaiverClaim, getMyWaiverPriority } from '@/lib/waivers'
+import { claimProcessDateLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
 import { loadAddLimitState } from '@/lib/roster-add-flow'
 import { addLimitSummary, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess } from '@/lib/alert'
 import { Avatar } from '@/components/Avatar'
+import { EmptyState } from '@/components/EmptyState'
+import { useGoBack } from '@/components/ui/useGoBack'
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
     const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
     const router = useRouter()
+    const goBack = useGoBack('/players')
 
     const [player, setPlayer] = useState<any>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
     const [priority, setPriority] = useState<number | null>(null)
+    const [clearsAt, setClearsAt] = useState<string | null>(null)
     const [transactionState, setTransactionState] = useState<MemberTransactionState | null>(null)
     const [bidInput, setBidInput] = useState('0')
     const [loading, setLoading] = useState(true)
@@ -54,6 +60,7 @@ export default function ClaimPlayerScreen() {
     const viewportWidth = Platform.OS === 'web' ? webViewport.width : width
     const viewportHeight = Platform.OS === 'web' ? webViewport.height : height
     const isCompactLandscape = viewportWidth > viewportHeight && viewportHeight < 520
+    const { padX, usableWidth } = usePageMetrics()
 
     const rosterSize = currentLeague?.roster_size ?? 20
     const leagueId = currentLeague?.id
@@ -67,6 +74,7 @@ export default function ClaimPlayerScreen() {
         setMyRoster([])
         setPriority(null)
         setTransactionState(null)
+        setClearsAt(null)
         setSelectedDrop(null)
         setBidInput('0')
         async function load() {
@@ -77,14 +85,16 @@ export default function ClaimPlayerScreen() {
             const requestedPlayerId = playerId
             const requestedLeagueId = leagueId
             try {
-                const [p, roster, prio, txState] = await Promise.all([
+                const [p, roster, prio, txState, waiverEnds] = await Promise.all([
                     getPlayer(requestedPlayerId),
                     getRoster(memberId, requestedLeagueId),
                     getMyWaiverPriority(memberId, requestedLeagueId),
                     loadAddLimitState(memberId, requestedLeagueId),
+                    getWaiverClearsAt(requestedLeagueId, requestedPlayerId),
                 ])
                 if (claimLoadSeqRef.current !== requestId) return
                 setPlayer(p)
+                setClearsAt(waiverEnds)
                 setMyRoster(roster)
                 setPriority(prio)
                 setTransactionState(txState)
@@ -136,7 +146,7 @@ export default function ClaimPlayerScreen() {
                 'Claim Submitted',
                 'Your waiver claim has been submitted. Claims are processed nightly.',
             )
-            router.back()
+            goBack()
         } catch (e) {
             reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
@@ -144,23 +154,28 @@ export default function ClaimPlayerScreen() {
         }
     }
 
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const processDateStr = tomorrow.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'America/New_York',
-    })
+    const processDateStr = claimProcessDateLabel(clearsAt)
     const claimReady = !loading && !!player
     const submitDisabled = submitting || !claimReady || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
+    const faab = transactionState?.waiverMode === 'faab'
+    // Wide screens put the claim beside the drop list instead of stacking them.
+    const twoColumn = needsDrop && !isCompactLandscape && usableWidth >= TWO_COLUMN_MIN
+    const claimFacts = [
+        `Processes ${processDateStr}`,
+        transactionState ? `Adds ${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'}` : null,
+        faab ? null : `Priority #${priority ?? '—'}`,
+    ].filter(Boolean).join(' · ')
+
+    function setBid(value: string) {
+        if (/^\d*$/.test(value)) setBidInput(value)
+    }
 
     function renderAddLimitNotice() {
         if (!addBlockedReason) return null
         return (
             <View
-                style={[styles.limitCard, isCompactLandscape && styles.compactLimitCard]}
+                style={styles.limitCard}
                 accessibilityLiveRegion="polite"
                 role="status"
                 testID="add-limit-notice"
@@ -171,48 +186,109 @@ export default function ClaimPlayerScreen() {
         )
     }
 
-    function renderSubmitButton(compact: boolean) {
+    // Sits at the top right like every other page's main action. A blocked
+    // add stays pressable so the tap can explain why.
+    function renderSubmitButton() {
         return (
             <Pressable
-                style={[styles.submitButton, compact && styles.compactSubmitButton, (submitDisabled || addBlockedReason != null) && styles.submitButtonDisabled]}
+                style={[styles.submitButton, (submitDisabled || addBlockedReason != null) && styles.submitButtonDisabled]}
                 onPress={handleSubmit}
                 accessibilityRole="button"
                 accessibilityLabel="Submit waiver claim"
                 {...blockedActionProps(addBlockedReason, submitDisabled)}
                 disabled={submitDisabled}
             >
-                <Text style={styles.submitButtonText}>Submit Claim</Text>
+                {/* Narrow phones drop "Claim" so the page title still fits beside it. */}
+                <Text style={styles.submitButtonText}>{usableWidth < NARROW_HEADER ? 'Submit' : 'Submit Claim'}</Text>
             </Pressable>
         )
     }
 
     function renderScreenHeader() {
         return (
-            <View style={styles.screenHeader}>
-                <Pressable
-                    onPress={() => router.back()}
-                    style={styles.headerBack}
-                    role="link"
-                    aria-label="Back to player"
-                    accessibilityRole="link"
-                    accessibilityLabel="Back to player"
-                >
-                    <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-                </Pressable>
-                <Text style={styles.screenTitle} numberOfLines={1}>
-                    Waiver Claim
-                </Text>
+            <PageHeader
+                title="Waiver Claim"
+                onBack={goBack}
+                backLabel="Back"
+                actions={ineligibleIR.length > 0 ? null : renderSubmitButton()}
+            />
+        )
+    }
+
+    function renderClaimSummary() {
+        return (
+            <View style={styles.claimCard}>
+                <Text style={styles.claimLabel}>Claiming</Text>
+                <View style={styles.claimPlayerRow}>
+                    <Avatar
+                        name={player?.display_name ?? 'Player'}
+                        uri={playerHeadshotUrl(player?.nba_id) ?? undefined}
+                        color={colors.bgMuted}
+                        textColor={colors.textSecondary}
+                        size={44}
+                    />
+                    <View style={styles.claimPlayerCopy}>
+                        <Text style={styles.claimName} numberOfLines={1}>{player?.display_name ?? '—'}</Text>
+                        <Text style={styles.claimMeta} numberOfLines={1}>
+                            {[player?.nba_team, player?.position].filter(Boolean).join(' · ')}
+                        </Text>
+                    </View>
+                </View>
+                <Text style={styles.claimFacts}>{claimFacts}</Text>
+                {faab ? (
+                    <View style={styles.bidRow}>
+                        <Text style={styles.bidLabel}>FAAB bid</Text>
+                        <View style={styles.bidField}>
+                            <Text style={styles.bidCurrency}>$</Text>
+                            <TextInput
+                                style={styles.bidInput}
+                                value={bidInput}
+                                onChangeText={setBid}
+                                keyboardType="numeric"
+                                selectTextOnFocus
+                                accessibilityLabel="FAAB bid amount"
+                            />
+                        </View>
+                        <Text style={styles.bidBalance}>of ${transactionState?.faabBalance ?? 0}</Text>
+                    </View>
+                ) : null}
+            </View>
+        )
+    }
+
+    function renderDropSection() {
+        if (!needsDrop) {
+            return (
+                <View style={styles.spaceNote}>
+                    <Text style={styles.spaceNoteText}>You have roster space. No drop required.</Text>
+                </View>
+            )
+        }
+        return (
+            <View style={styles.dropSection}>
+                <View style={styles.dropHeading}>
+                    {/* Literal casing: browser checks read this label verbatim. */}
+                    <Text style={styles.sectionTitle}>
+                        {compactDropMode ? 'DROP A PLAYER FOR CLAIM' : 'DROP A PLAYER (required)'}
+                    </Text>
+                    <Text style={styles.sectionSub}>
+                        {compactDropMode
+                            ? `Pick who goes if the claim for ${player?.display_name ?? 'this player'} wins.`
+                            : 'Your roster is full. Pick who goes if this claim wins.'}
+                    </Text>
+                </View>
+                <View style={styles.rosterList}>{renderRosterDropRows()}</View>
             </View>
         )
     }
 
     function renderRosterDropRows() {
-        return activeRoster.map((item) => {
+        return activeRoster.map((item, index) => {
             const isSelected = selectedDrop?.id === item.id
             return (
                 <Pressable
                     key={item.id}
-                    style={[styles.rosterRow, compactDropMode && styles.compactRosterRow, isSelected && styles.rosterRowSelected]}
+                    style={[styles.rosterRow, index > 0 && styles.rosterRowDivider, isSelected && styles.rosterRowSelected]}
                     onPress={() => setSelectedDrop(isSelected ? null : item)}
                     accessibilityRole="button"
                     accessibilityLabel={`Select ${item.players.display_name} to drop`}
@@ -223,178 +299,121 @@ export default function ClaimPlayerScreen() {
                         uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
                         color={colors.bgMuted}
                         textColor={colors.textSecondary}
-                        size={38}
+                        size={32}
                     />
                     <View style={styles.rosterInfo}>
-                        <Text style={styles.rosterName}>{item.players.display_name}</Text>
-                        <Text style={styles.rosterMeta}>
+                        <Text style={styles.rosterName} numberOfLines={1}>{item.players.display_name}</Text>
+                        <Text style={styles.rosterMeta} numberOfLines={1}>
                             {[item.players.nba_team, item.players.position]
                                 .filter(Boolean)
                                 .join(' · ')}
                         </Text>
                     </View>
                     <View style={[styles.check, isSelected && styles.checkSelected]}>
-                        {isSelected && <Text style={styles.checkText}>✓</Text>}
+                        {isSelected && <MaterialIcons name="check" size={16} color={colors.onAccent} />}
                     </View>
                 </Pressable>
             )
         })
     }
 
+    function renderIneligibleIR() {
+        return (
+            <ScrollView
+                style={styles.bodyScroll}
+                contentContainerStyle={[styles.bodyContent, { paddingHorizontal: padX }]}
+            >
+                <View style={styles.blockCard}>
+                    <MaterialIcons name="warning-amber" size={28} color={colors.warningDark} />
+                    <Text style={styles.blockTitle}>Resolve IR Status First</Text>
+                    <Text style={styles.blockSub}>
+                        {ineligibleIR.length > 1
+                            ? `${ineligibleIR.length} players on IR are no longer eligible. Activate or drop them before claiming.`
+                            : 'A player on IR is no longer eligible. Activate or drop that player before claiming.'}
+                    </Text>
+                    {ineligibleIR.map((rp) => (
+                        <View key={rp.id} style={styles.blockPlayerRow}>
+                            <Avatar
+                                name={rp.players.display_name}
+                                uri={playerHeadshotUrl(rp.players.nba_id) ?? undefined}
+                                color={colors.bgMuted}
+                                textColor={colors.textSecondary}
+                                size={32}
+                            />
+                            <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
+                            <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
+                        </View>
+                    ))}
+                </View>
+                <Pressable
+                    style={styles.blockButton}
+                    onPress={() => router.replace('/(tabs)/roster')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go to roster"
+                >
+                    <Text style={styles.blockButtonText}>Go to Roster</Text>
+                </Pressable>
+            </ScrollView>
+        )
+    }
+
+    // Short landscape screens hide the claim card, so the bid moves to a footer.
+    const bidFooter = faab && compactDropMode ? (
+        <View style={[styles.footer, { paddingHorizontal: padX }]}>
+            <View style={[styles.footerInner, styles.footerBidControl]}>
+                <Text style={styles.footerBidLabel}>FAAB</Text>
+                <TextInput
+                    style={styles.footerBidInput}
+                    value={bidInput}
+                    onChangeText={setBid}
+                    keyboardType="numeric"
+                    selectTextOnFocus
+                    accessibilityLabel="FAAB bid amount"
+                />
+            </View>
+        </View>
+    ) : null
+
     return (
         <>
             <Stack.Screen options={{ title: 'Waiver Claim', presentation: 'modal', headerShown: false }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
                 {renderScreenHeader()}
-                {ineligibleIR.length > 0 ? (
+                {/* Until the claim loads, its facts (date, drop rule) would be guesses. */}
+                {loading ? <LoadingState /> : !player ? (
+                    <EmptyState
+                        icon="person-off"
+                        message="Couldn't load this player"
+                        description="Check your connection, then try again from Players."
+                        actionLabel="Back to Players"
+                        onAction={goBack}
+                    />
+                ) : ineligibleIR.length > 0 ? renderIneligibleIR() : twoColumn ? (
                     <ScrollView
                         style={styles.bodyScroll}
-                        contentContainerStyle={[styles.bodyContent, isCompactLandscape && styles.compactBodyContent]}
+                        contentContainerStyle={[styles.bodyContent, styles.bodyContentWide, { paddingHorizontal: padX }]}
+                        keyboardShouldPersistTaps="handled"
                     >
-                        <View style={[styles.blockCard, isCompactLandscape && styles.compactBlockCard]}>
-                            <View style={styles.blockIconContainer}>
-                                <Text style={styles.blockIcon}>⚠️</Text>
+                        <View style={styles.columns}>
+                            <View style={styles.sideColumn}>
+                                {renderAddLimitNotice()}
+                                {renderClaimSummary()}
                             </View>
-                            <Text style={styles.blockTitle}>Resolve IR Status First</Text>
-                            <Text style={styles.blockSub}>
-                                You have {ineligibleIR.length} player{ineligibleIR.length > 1 ? 's' : ''} on IR who {' '}
-                                {ineligibleIR.length > 1 ? 'are' : 'is'} not eligible. You must activate or drop
-                                them before placing waiver claims.
-                            </Text>
-                            {ineligibleIR.map((rp) => (
-                                <View key={rp.id} style={styles.blockPlayerRow}>
-                                    <Avatar
-                                        name={rp.players.display_name}
-                                        uri={playerHeadshotUrl(rp.players.nba_id) ?? undefined}
-                                        color={colors.bgMuted}
-                                        textColor={colors.textSecondary}
-                                        size={34}
-                                    />
-                                    <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
-                                    <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
-                                </View>
-                            ))}
+                            <View style={styles.mainColumn}>{renderDropSection()}</View>
                         </View>
-                        <Pressable
-                            style={styles.blockButton}
-                            onPress={() => router.replace('/(tabs)/roster')}
-                            accessibilityRole="button"
-                            accessibilityLabel="Go to roster"
-                        >
-                            <Text style={styles.blockButtonText}>Go to Roster</Text>
-                        </Pressable>
                     </ScrollView>
                 ) : (
                     <>
                         <ScrollView
                             style={styles.bodyScroll}
-                            contentContainerStyle={[styles.bodyContent, isCompactLandscape && styles.compactBodyContent]}
+                            contentContainerStyle={[styles.bodyContent, { paddingHorizontal: padX }]}
                             keyboardShouldPersistTaps="handled"
                         >
                             {renderAddLimitNotice()}
-                            {!compactDropMode ? (
-                                <>
-                                    <View style={[styles.claimCard, isCompactLandscape && styles.compactClaimCard]}>
-                                <Text style={styles.claimLabel}>CLAIMING</Text>
-                                <View style={styles.claimPlayerRow}>
-                                    <Avatar
-                                        name={player?.display_name ?? 'Player'}
-                                        uri={playerHeadshotUrl(player?.nba_id) ?? undefined}
-                                        color={colors.bgMuted}
-                                        textColor={colors.textSecondary}
-                                        size={44}
-                                    />
-                                    <View style={styles.claimPlayerCopy}>
-                                        <Text style={styles.claimName} numberOfLines={1}>{player?.display_name ?? '—'}</Text>
-                                        <Text style={styles.claimMeta}>
-                                            {[player?.nba_team, player?.position].filter(Boolean).join(' · ')}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            <View style={[styles.infoRow, isCompactLandscape && styles.compactInfoRow]}>
-                            <View style={styles.infoCell}>
-                                <Text style={styles.infoLabel}>
-                                    {transactionState?.waiverMode === 'faab' ? 'FAAB Balance' : 'Your Priority'}
-                                </Text>
-                                <Text style={styles.infoValue}>
-                                    {transactionState?.waiverMode === 'faab' ? `$${transactionState.faabBalance}` : `#${priority ?? '—'}`}
-                                </Text>
-                            </View>
-                            <View style={styles.infoCell}>
-                                <Text style={styles.infoLabel}>Process Date</Text>
-                                <Text style={styles.infoValue}>{processDateStr}</Text>
-                            </View>
-                            <View style={styles.infoCell}>
-                                <Text style={styles.infoLabel}>Weekly Adds</Text>
-                                <Text style={styles.infoValue}>
-                                    {transactionState
-                                        ? `${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'}`
-                                    : '—'}
-                                </Text>
-                            </View>
-                            </View>
-                                </>
-                            ) : null}
-
-                            {transactionState?.waiverMode === 'faab' && !isCompactLandscape ? (
-                                <View style={[styles.bidCard, isCompactLandscape && styles.compactBidCard]}>
-                                <Text style={styles.bidLabel}>FAAB BID</Text>
-                                <TextInput
-                                    style={styles.bidInput}
-                                    value={bidInput}
-                                    onChangeText={(value) => {
-                                        if (/^\d*$/.test(value)) setBidInput(value)
-                                    }}
-                                    keyboardType="numeric"
-                                    selectTextOnFocus
-                                    accessibilityLabel="FAAB bid amount"
-                                />
-                            </View>
-                            ) : null}
-
-                            {needsDrop ? (
-                                <>
-                                <Text style={[styles.sectionTitle, compactDropMode && styles.compactSectionTitle]}>
-                                    {compactDropMode ? 'DROP A PLAYER FOR CLAIM' : 'DROP A PLAYER (required)'}
-                                </Text>
-                                <Text style={[styles.sectionSub, compactDropMode && styles.compactSectionSub]}>
-                                    {compactDropMode
-                                        ? `Select one player to drop if your claim for ${player?.display_name ?? 'this player'} succeeds.`
-                                        : 'Your roster is full. Select one player to drop if this claim succeeds.'}
-                                </Text>
-                                    <View style={[styles.rosterList, compactDropMode && styles.compactRosterList]}>{renderRosterDropRows()}</View>
-                                </>
-                            ) : (
-                                <View style={[styles.spaceNote, isCompactLandscape && styles.compactSpaceNote]}>
-                                <Text style={styles.spaceNoteText}>
-                                    You have roster space. No drop required.
-                                </Text>
-                            </View>
-                            )}
+                            {!compactDropMode ? renderClaimSummary() : null}
+                            {renderDropSection()}
                         </ScrollView>
-
-                        <View style={styles.footer}>
-                            {transactionState?.waiverMode === 'faab' && isCompactLandscape ? (
-                                <View style={styles.compactFooterRow}>
-                                    <View style={styles.footerBidControl}>
-                                        <Text style={styles.footerBidLabel}>FAAB</Text>
-                                        <TextInput
-                                            style={styles.footerBidInput}
-                                            value={bidInput}
-                                            onChangeText={(value) => {
-                                                if (/^\d*$/.test(value)) setBidInput(value)
-                                            }}
-                                            keyboardType="numeric"
-                                            selectTextOnFocus
-                                            accessibilityLabel="FAAB bid amount"
-                                        />
-                                    </View>
-                                    {renderSubmitButton(true)}
-                                </View>
-                            ) : renderSubmitButton(false)}
-                        </View>
+                        {bidFooter}
                     </>
                 )}
             </SafeAreaView>
@@ -404,327 +423,185 @@ export default function ClaimPlayerScreen() {
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
+const TWO_COLUMN_MIN = 900
+const NARROW_HEADER = 360
+
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
-    screenHeader: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgScreen,
-    },
-    headerBack: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    screenTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-    },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     bodyScroll: { flex: 1 },
-    bodyContent: { paddingBottom: spacing.md },
-    compactBodyContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingBottom: spacing.sm },
-
-    claimCard: {
-        margin: spacing.xl,
-        padding: spacing['2xl'],
-        backgroundColor: colors.bgScreen,
-        borderRadius: 14,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        gap: spacing.xs,
-    },
-    compactClaimCard: {
-        marginHorizontal: spacing['2xl'],
-        marginVertical: spacing.md,
-        padding: spacing.lg,
-    },
-    limitCard: {
-        marginHorizontal: spacing.xl,
-        marginTop: spacing.xl,
-        padding: spacing.lg,
-        backgroundColor: uiColors.brandSurfaceSoft,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: uiColors.brandBorder,
-        gap: spacing.xs,
-    },
-    compactLimitCard: {
-        marginHorizontal: spacing['2xl'],
-        marginTop: spacing.md,
-        padding: spacing.md,
-    },
-    limitBody: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 20 },
-    limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
-    claimLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 0 },
-    claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-    claimPlayerCopy: { flex: 1, minWidth: 0 },
-    claimName: { fontSize: 22, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    claimMeta: { fontSize: fontSize.md, color: colors.textMuted },
-
-    infoRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginHorizontal: spacing.xl,
-        marginBottom: spacing.xl,
+    bodyContent: {
+        width: '100%',
+        maxWidth: layout.formMaxWidth,
+        alignSelf: 'center',
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.xl,
         gap: spacing.lg,
     },
-    compactInfoRow: {
-        marginHorizontal: spacing['2xl'],
-        marginBottom: spacing.md,
-        gap: spacing.md,
+    bodyContentWide: { maxWidth: layout.contentMaxWidth },
+    columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
+    // Sticky on web so the claim stays in view while the drop list scrolls.
+    sideColumn: {
+        width: 380,
+        flexShrink: 0,
+        gap: spacing.lg,
+        ...(Platform.OS === 'web' ? ({ position: 'sticky', top: spacing.lg } as unknown as ViewStyle) : null),
     },
-    infoCell: {
-        flex: 1,
-        minWidth: 104,
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.xl,
+    mainColumn: { flex: 1, minWidth: 0 },
+
+    limitCard: {
+        padding: spacing.lg,
+        backgroundColor: uiColors.brandSurfaceSoft,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.primaryBorder,
+        gap: spacing.xs,
+    },
+    limitBody: { ...textStyles.body },
+    limitMeta: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: uiColors.brandText },
+
+    claimCard: {
+        padding: spacing.lg,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
-        padding: 14,
+        gap: spacing.md,
+    },
+    claimLabel: { ...textStyles.sectionLabel, color: colors.primaryDark },
+    claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    claimPlayerCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    claimName: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    claimMeta: { ...textStyles.meta },
+    claimFacts: { ...textStyles.meta, color: colors.textSecondary },
+    bidRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    bidLabel: { ...textStyles.rowTitle, flex: 1 },
+    bidField: {
+        flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.xs,
+        height: controlSize.field.md,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.bgInput,
     },
-    infoLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textPlaceholder, letterSpacing: 0 },
-    infoValue: { fontSize: 18, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
+    bidCurrency: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textMuted },
+    // 16px keeps iOS Safari from zooming into the field.
+    bidInput: { width: 64, height: '100%', fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'right' },
+    bidBalance: { ...textStyles.meta },
 
-    bidCard: {
-        marginHorizontal: spacing.xl,
-        marginBottom: spacing.xl,
-        gap: spacing.sm,
-    },
-    compactBidCard: {
-        marginHorizontal: spacing['2xl'],
-        marginBottom: spacing.md,
-    },
-    bidLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-    },
-    bidInput: {
-        height: 50,
+    dropSection: { gap: spacing.md },
+    dropHeading: { gap: spacing.xs },
+    sectionTitle: { ...textStyles.sectionLabel, textTransform: 'none' as const },
+    sectionSub: { ...textStyles.meta },
+    rosterList: {
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgScreen,
-        paddingHorizontal: spacing.lg,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
+        backgroundColor: colors.bgCard,
+        overflow: 'hidden',
     },
-
-    sectionTitle: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-        marginHorizontal: spacing['2xl'],
-        marginBottom: spacing.xs,
-    },
-    compactSectionTitle: {
-        marginHorizontal: spacing['2xl'],
-        marginTop: spacing.md,
-        marginBottom: spacing.xxs,
-    },
-    sectionSub: {
-        fontSize: fontSize.sm,
-        color: colors.textMuted,
-        marginHorizontal: spacing['2xl'],
-        marginBottom: spacing.lg,
-    },
-    compactSectionSub: {
-        fontSize: fontSize.sm,
-        marginHorizontal: spacing['2xl'],
-        marginBottom: spacing.sm,
-    },
-
-    rosterList: { paddingHorizontal: spacing.xl, gap: spacing.md },
-    compactRosterList: { paddingHorizontal: spacing['2xl'], gap: spacing.sm },
     rosterRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        padding: 14,
-        gap: spacing.lg,
-        minHeight: 56,
-    },
-    compactRosterRow: {
-        minHeight: 50,
-        paddingVertical: spacing.md,
+        gap: spacing.md,
+        minHeight: table.rowHeight,
         paddingHorizontal: spacing.lg,
     },
-    rosterRowSelected: { borderColor: colors.danger, backgroundColor: uiColors.dangerSurface },
-    rosterInfo: { flex: 1, gap: spacing.xxs },
-    rosterName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    rosterMeta: { fontSize: fontSize.sm, color: colors.textMuted },
+    rosterRowDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
+    rosterRowSelected: { backgroundColor: uiColors.dangerSurface },
+    rosterInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    rosterName: { ...textStyles.rowTitle },
+    rosterMeta: { ...textStyles.meta },
     check: {
         width: 24,
         height: 24,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
+        borderRadius: radii.full,
         borderWidth: 1.5,
         borderColor: colors.border,
-        justifyContent: 'center',
         alignItems: 'center',
+        justifyContent: 'center',
     },
     checkSelected: { backgroundColor: colors.danger, borderColor: colors.danger },
-    checkText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
 
     spaceNote: {
-        margin: spacing.xl,
-        padding: spacing.xl,
+        padding: spacing.lg,
         backgroundColor: uiColors.successSurface,
-        borderRadius: radii.xl,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: uiColors.successBorder,
     },
-    compactSpaceNote: {
-        marginHorizontal: spacing['2xl'],
-        marginVertical: spacing.md,
-        padding: spacing.lg,
-    },
     spaceNoteText: { fontSize: fontSize.md, color: uiColors.successText, fontWeight: fontWeight.semibold, textAlign: 'center' },
 
     footer: {
-        padding: spacing.xl,
+        paddingTop: spacing.md,
         paddingBottom: spacing.md,
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,
         backgroundColor: colors.bgScreen,
     },
-    compactFooterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    footerInner: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     footerBidControl: {
-        width: 178,
-        height: 52,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
+        gap: spacing.sm,
+        height: controlSize.field.md,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
+        borderWidth: 1,
+        borderColor: colors.border,
         backgroundColor: colors.bgInput,
     },
-    footerBidLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        letterSpacing: 0,
-    },
-    footerBidInput: {
-        flex: 1,
-        minWidth: 44,
-        height: 50,
-        paddingHorizontal: 0,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
+    footerBidLabel: { ...textStyles.sectionLabel },
+    footerBidInput: { width: 56, height: '100%', fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
     submitButton: {
+        minHeight: controlSize.button.sm.height,
+        paddingHorizontal: controlSize.button.sm.padX,
         backgroundColor: colors.primary,
-        borderRadius: 14,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        height: 52,
-        justifyContent: 'center',
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    compactSubmitButton: { flex: 1 },
     submitButtonDisabled: { opacity: 0.55 },
-    submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
+    submitButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 
-    // IR blocking styles
     blockCard: {
-        margin: spacing.xl,
-        padding: spacing['2xl'],
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: uiColors.brandBorder,
-        gap: spacing.lg,
-    },
-    compactBlockCard: {
-        marginHorizontal: spacing['2xl'],
-        marginVertical: spacing.md,
-        padding: spacing.lg,
-        gap: spacing.md,
-    },
-    blockIconContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        borderCurve: 'continuous' as const,
-        backgroundColor: uiColors.brandSurface,
-        justifyContent: 'center',
-        alignItems: 'center',
-        alignSelf: 'center',
-        marginBottom: spacing.md,
-    },
-    blockIcon: { fontSize: 28 },
-    blockTitle: {
-        fontSize: 18,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-        textAlign: 'center',
-    },
-    blockSub: {
-        fontSize: fontSize.md,
-        color: colors.textSecondary,
-        textAlign: 'center',
-        lineHeight: 22,
-    },
-    blockPlayerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.lg,
-        backgroundColor: uiColors.brandSurfaceSoft,
+        padding: spacing.xl,
+        backgroundColor: colors.bgCard,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        minHeight: 44,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        alignItems: 'center',
+        gap: spacing.md,
     },
-    blockPlayerName: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    blockPlayerStatus: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: uiColors.brandText,
+    blockTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
+    blockSub: { ...textStyles.body, textAlign: 'center' },
+    blockPlayerRow: {
+        alignSelf: 'stretch',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        minHeight: table.rowHeight,
+        borderTopWidth: 1,
+        borderTopColor: colors.separator,
     },
+    blockPlayerName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
+    blockPlayerStatus: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     blockButton: {
-        margin: spacing.xl,
+        height: controlSize.button.lg.height,
         backgroundColor: colors.primary,
-        paddingVertical: spacing.lg + spacing.xxs,
-        borderRadius: radii.xl,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         alignItems: 'center',
-        minHeight: 50,
         justifyContent: 'center',
     },
-    blockButtonText: {
-        color: colors.textWhite,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.bold,
-    },
+    blockButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.lg },
 })

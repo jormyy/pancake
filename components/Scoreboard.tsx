@@ -1,5 +1,6 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, fontFamily, fontWeight, radii, scoreboardColors, spacing } from '@/constants/tokens'
+import { useEdgeFade } from '@/components/ui/useEdgeFade'
+import { colors, fontFamily, fontSize, fontWeight, radii, scoreboardColors, spacing } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 import { LivePulse, MotionView } from '@/components/Motion'
 
@@ -21,12 +22,15 @@ export function Scoreboard({
     myTeamSet,
     compact = false,
     freshness = 'fresh',
+    wrap = false,
 }: {
     games: NBAGameRow[]
     myTeamSet: Set<string>
     compact?: boolean
     freshness?: 'fresh' | 'refreshing' | 'failed' | 'offline'
+    wrap?: boolean
 }) {
+    const { fadeStyle, scrollProps } = useEdgeFade()
     if (games.length === 0) return freshness === 'failed'
         ? <Text style={styles.status}>Live scores unavailable.</Text>
         : null
@@ -36,9 +40,12 @@ export function Scoreboard({
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>
             <ScrollView
-                horizontal
+                horizontal={!wrap}
+                scrollEnabled={!wrap}
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
+                style={wrap ? undefined : fadeStyle}
+                {...scrollProps}
+                contentContainerStyle={[styles.scroll, compact && styles.scrollCompact, wrap && styles.scrollWrap]}
             >
                 {sorted.map((g, index) => {
                     const hasScore = g.status === 'InProgress' || g.status === 'Final'
@@ -117,16 +124,21 @@ const styles = StyleSheet.create({
     },
     scroll: {
         paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        paddingVertical: spacing.md,
         gap: spacing.md,
+    },
+    scrollWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        paddingHorizontal: spacing.lg,
     },
     scrollCompact: {
         paddingHorizontal: spacing.lg,
-        paddingVertical: 6,
+        paddingVertical: spacing.sm,
         gap: spacing.sm,
     },
     card: {
-        width: 90,
+        width: 96,
         backgroundColor: scoreboardColors.card,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -138,7 +150,7 @@ const styles = StyleSheet.create({
         borderColor: scoreboardColors.border,
     },
     cardCompact: {
-        width: 78,
+        width: 88,
         paddingHorizontal: 8,
         paddingVertical: 6,
         gap: 1,
@@ -149,7 +161,7 @@ const styles = StyleSheet.create({
         boxShadow: scoreboardColors.liveGlow,
     },
     cardFinal: {
-        opacity: 0.6,
+        opacity: 0.85,
     },
     liveBar: {
         position: 'absolute' as const,
@@ -165,7 +177,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     tricode: {
-        fontSize: 11,
+        fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: scoreboardColors.textMuted,
         letterSpacing: 0.4,
@@ -184,7 +196,7 @@ const styles = StyleSheet.create({
     },
     scoreHidden: {
         color: scoreboardColors.hidden,
-        fontSize: 11,
+        fontSize: fontSize.xs,
     },
     scoreHighlight: {
         color: scoreboardColors.accentSoft,
@@ -197,9 +209,9 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     status: {
-        fontSize: 9,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
-        color: scoreboardColors.statusMuted,
+        color: scoreboardColors.textMuted,
         textAlign: 'center',
         letterSpacing: 0.3,
     },
@@ -212,6 +224,6 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
     statusFinal: {
-        color: scoreboardColors.statusFinal,
+        color: scoreboardColors.textMuted,
     },
 })

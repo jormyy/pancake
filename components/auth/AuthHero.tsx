@@ -4,13 +4,9 @@ import { MotionView } from '@/components/Motion'
 import { brand, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 
 export type AuthHeroContent = {
-    kicker: string
     title: string
     copy: string
     proofItems: readonly string[]
-    previewTitle: string
-    previewBadge: string
-    previewRows: readonly { label: string; value: string }[]
 }
 
 export function AuthHero({ content }: { content: AuthHeroContent }) {
@@ -46,7 +42,8 @@ const styles = StyleSheet.create({
     panel: {
         flex: 1.16,
         minWidth: 0,
-        padding: 56,
+        padding: spacing['6xl'],
+        justifyContent: 'center',
         backgroundColor: brand.surfaceDeep,
     },
     panelWeb: {
@@ -58,36 +55,35 @@ const styles = StyleSheet.create({
         gap: spacing.lg,
     },
     content: {
-        marginTop: 32,
-        maxWidth: 760,
+        marginTop: spacing['4xl'],
+        maxWidth: 640,
     },
     title: {
-        marginTop: spacing.lg,
         color: brand.on,
-        fontSize: 50,
-        lineHeight: 55,
+        fontSize: fontSize['5xl'],
+        lineHeight: 42,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.black,
     },
     copy: {
-        marginTop: spacing.xl,
+        marginTop: spacing.lg,
         color: brand.onMuted,
         fontSize: fontSize.lg,
-        lineHeight: 27,
-        maxWidth: 620,
+        lineHeight: 24,
+        maxWidth: 560,
     },
     proofGrid: {
-        marginTop: 40,
+        marginTop: spacing['4xl'],
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: spacing.lg,
-        maxWidth: 760,
+        gap: spacing.md,
+        maxWidth: 640,
     },
     proofCard: {
         width: '48%',
-        minHeight: 82,
-        padding: spacing.lg,
-        borderRadius: radii.xl,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.lg,
         borderWidth: 1,
         borderColor: brand.borderSubtle,
         backgroundColor: brand.overlay,

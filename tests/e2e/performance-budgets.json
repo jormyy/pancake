@@ -289,8 +289,8 @@
     {
       "rank": 10,
       "id": "dynasty-hub",
-      "name": "Open Dynasty Hub rankings/news",
-      "route": "/dynasty",
+      "name": "Open Players rankings/news",
+      "route": "/players?section=rankings",
       "frequency": "weekly scouting",
       "pain": "medium-high",
       "owner": "frontend, database, cached read models",

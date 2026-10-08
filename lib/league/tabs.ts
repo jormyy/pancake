@@ -1,12 +1,14 @@
 export type LeagueTab = 'results' | 'auctions' | 'mockRooms' | 'draftBoard' | 'settings' | 'history'
 
+// Most-used first: standings and activity all season, draft tools in the
+// offseason, settings last.
 export const LEAGUE_TABS: readonly { key: LeagueTab; label: string }[] = [
-    { key: 'results', label: 'Results' },
+    { key: 'results', label: 'Standings' },
+    { key: 'history', label: 'Activity' },
+    { key: 'draftBoard', label: 'Draft Board' },
     { key: 'auctions', label: 'Auctions' },
     { key: 'mockRooms', label: 'Mock Rooms' },
-    { key: 'draftBoard', label: 'Draft Board' },
     { key: 'settings', label: 'Settings' },
-    { key: 'history', label: 'History' },
 ]
 
 const LEAGUE_TAB_KEYS = new Set<LeagueTab>(LEAGUE_TABS.map((tab) => tab.key))

@@ -7,7 +7,8 @@ import {
     type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
 import type { LeaguePickItem } from '@/lib/rookieDraft'
-import { spacing } from '@/constants/tokens'
+import { layout, spacing } from '@/constants/tokens'
+import { usePageMetrics } from '@/components/ui'
 import {
     DraftChips,
     DraftTimerControl,
@@ -71,6 +72,7 @@ export function AuctionPanel({
     onOpenDraftBoard?: () => void
 }) {
     const { height } = useWindowDimensions()
+    const { padX } = usePageMetrics()
     const compactSetup = height < 500
     const activeDraftReady = !activeDraftLoading && !activeDraftError
     const hasActiveAuction = activeDraftReady && activeDraft?.draftType === 'auction'
@@ -96,6 +98,7 @@ export function AuctionPanel({
     return (
         <ScrollView contentContainerStyle={[
             panelStyles.panelScroll,
+            { paddingHorizontal: padX },
             compactSetup && panelStyles.panelScrollCompactLandscape,
             compactSetup && (hasActiveAuction || canStartAuction) && styles.activeDraftPanelScrollCompact,
         ]}>
@@ -197,6 +200,7 @@ export function DraftBoardPanel({
     onReseedRookiePicks: () => void
 }) {
     const { width, height } = useWindowDimensions()
+    const { padX } = usePageMetrics()
     const compactRookieSetup = height < 500
     const constrainBoardTop = width < 600 || height < 500
     const compactRookiePrepNotice = constrainBoardTop
@@ -312,12 +316,12 @@ export function DraftBoardPanel({
                         style={[styles.boardTopScroll, { maxHeight: boardTopMaxHeight }]}
                         showsVerticalScrollIndicator
                     >
-                        <View style={[styles.boardTop, styles.boardTopConstrained]}>
+                        <View style={[styles.boardTop, { paddingHorizontal: padX }, styles.boardTopConstrained]}>
                             {boardTop}
                         </View>
                     </ScrollView>
                 ) : (
-                    <View style={styles.boardTop}>
+                    <View style={[styles.boardTop, { paddingHorizontal: padX }]}>
                         {boardTop}
                     </View>
                 )
@@ -370,10 +374,10 @@ const styles = StyleSheet.create({
     },
     boardWrap: { flex: 1 },
     boardTop: {
-        padding: spacing.xl,
+        paddingVertical: spacing.lg,
         gap: spacing.lg,
         width: '100%',
-        maxWidth: 760,
+        maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
         alignSelf: 'center',
     },
     boardTopConstrained: {

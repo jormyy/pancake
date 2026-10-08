@@ -2,6 +2,7 @@ import { ScrollViewStyleReset } from 'expo-router/html'
 import { type PropsWithChildren } from 'react'
 import { webChrome } from '@/constants/tokens'
 import { BOOT_SHELL_CSS, BOOT_SHELL_HTML, BOOT_SHELL_SCRIPT } from '@/constants/boot-shell'
+import { THEME_BOOT_SCRIPT } from '@/lib/theme-preference'
 
 // Root HTML document for the web build. Adds the PWA manifest, theme color,
 // Apple install metadata, and registers the offline-shell service worker.
@@ -70,6 +71,19 @@ if ('serviceWorker' in navigator) {
 
 // Inlined at build time by Expo's static export; fall back to the production
 // project so the preconnect never renders an empty href.
+// Focus rings are for keyboard users. A mouse or finger tap marks the page so
+// the ring stays hidden; the next key press brings it back.
+const POINTER_FOCUS_SCRIPT = `
+(function () {
+  var root = document.documentElement;
+  addEventListener('pointerdown', function () { root.setAttribute('data-pointer', ''); }, true);
+  addEventListener('keydown', function (event) {
+    if (!event.metaKey && !event.ctrlKey && !event.altKey) root.removeAttribute('data-pointer');
+  }, true);
+})();
+`
+const FOCUS_CSS = 'input:focus,textarea:focus{outline:none;}html[data-pointer] :focus{outline:none;}'
+
 const SUPABASE_ORIGIN = process.env.EXPO_PUBLIC_SUPABASE_URL
     ? new URL(process.env.EXPO_PUBLIC_SUPABASE_URL).origin
     : 'https://ceeytbfmwsnzalxlkalc.supabase.co'
@@ -93,16 +107,20 @@ export default function Root({ children }: PropsWithChildren) {
                     content="Dynasty fantasy basketball — drafts, lineups, trades, waivers, and live scoring."
                 />
 
-                {/* PWA — theme-color matches the cream app surface so the installed
-                    status bar blends with the header instead of an orange strip;
-                    the body background prevents a white flash before first paint. */}
+                {/* PWA — theme-color matches the app surface in each theme so the
+                    installed status bar blends with the header; the body background
+                    prevents a white flash before first paint. */}
                 <link rel="manifest" href="/manifest.webmanifest" />
+                <meta name="color-scheme" content="light dark" />
                 <meta name="theme-color" content={webChrome.themeColor} />
+                {/* Applies the saved Appearance choice before first paint. */}
+                <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
                 <style dangerouslySetInnerHTML={{ __html: webChrome.rootBackgroundCss }} />
                 {/* Paints the real app chrome from static HTML, before the JS
                     bundle mounts React. Removed by WebAppShell on mount. */}
                 <style dangerouslySetInnerHTML={{ __html: BOOT_SHELL_CSS }} />
-                <style dangerouslySetInnerHTML={{ __html: 'input:focus,textarea:focus{outline:none;}' }} />
+                <style dangerouslySetInnerHTML={{ __html: FOCUS_CSS }} />
+                <script dangerouslySetInnerHTML={{ __html: POINTER_FOCUS_SCRIPT }} />
                 <link rel="icon" href="/favicon.ico" />
                 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
                 <meta name="mobile-web-app-capable" content="yes" />

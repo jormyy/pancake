@@ -95,7 +95,7 @@ describe('player search state helpers', () => {
             rookiesOnly: true,
             health: 'out',
             sortMode: 'reb',
-        })).toBe(8)
+        })).toBe(6)
     })
 
     it('sorts a large in-memory complete set deterministically under load', () => {

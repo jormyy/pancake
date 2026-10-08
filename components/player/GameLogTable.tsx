@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
+import { useEdgeFade } from '@/components/ui/useEdgeFade'
 
 type Props = {
     games: GameLogEntry[]
@@ -41,11 +42,12 @@ export function GameLogTable({
     onLoadMore,
 }: Props) {
     const showFpts = fantasyPointsMap !== null
+    const { fadeStyle, scrollProps } = useEdgeFade()
 
     if (games.length === 0) {
         return (
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Game Log</Text>
+                <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Game Log</Text>
                 <Text style={styles.noData}>No games found.</Text>
             </View>
         )
@@ -53,14 +55,14 @@ export function GameLogTable({
 
     return (
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Game Log</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View>
+            <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Game Log</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} {...scrollProps}>
+                <View style={styles.tableInner}>
                     {/* Header row */}
                     <View style={[styles.row, styles.headerRow]}>
                         <Text style={[styles.dateCell, styles.colHdr]}>DATE</Text>
                         <Text style={[styles.oppCell, styles.colHdr]}>OPP</Text>
-                        {showFpts && <Text style={[styles.fptsCell, styles.colHdr]}>FPTS</Text>}
+                        {showFpts && <Text style={[styles.fptsCell, styles.colHdr]}>FP</Text>}
                         <Text style={[styles.numCell, styles.colHdr]}>MIN</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>PTS</Text>
                         <Text style={[styles.numCell, styles.colHdr]}>REB</Text>
@@ -81,7 +83,7 @@ export function GameLogTable({
                         return (
                             <View
                                 key={g.gameId}
-                                style={[styles.row, i % 2 === 1 && styles.rowAlt]}
+                                style={[styles.row, i < games.length - 1 && styles.rowDivider]}
                             >
                                 <Text style={styles.dateCell}>{fmtDate(g.gameDate)}</Text>
                                 <Text style={styles.oppCell} numberOfLines={1}>
@@ -118,6 +120,8 @@ export function GameLogTable({
                     style={styles.loadMoreBtn}
                     onPress={onLoadMore}
                     disabled={loadingMore}
+                    accessibilityRole="button"
+                    accessibilityLabel="Load more games"
                 >
                     <Text style={styles.loadMoreText}>Load More</Text>
                 </Pressable>
@@ -127,39 +131,53 @@ export function GameLogTable({
 }
 
 const styles = StyleSheet.create({
-    section: { gap: 10 },
-    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
+    section: { gap: spacing.md },
+    noData: { ...textStyles.body, color: colors.textPlaceholder },
 
+    tableFrame: {
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        borderRadius: radii.lg,
+        borderCurve: 'continuous' as const,
+        backgroundColor: colors.bgCard,
+    },
+    // Fill the frame on wide screens; scroll sideways when the columns don't fit.
+    tableContent: { flexGrow: 1 },
+    tableInner: { flexGrow: 1 },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 7,
-        paddingHorizontal: 2,
+        minHeight: table.rowHeightCompact,
+        paddingHorizontal: table.cellPadX,
     },
-    headerRow: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingBottom: 6 },
-    rowAlt: { backgroundColor: uiColors.surfaceAlt },
+    rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
+    headerRow: {
+        minHeight: table.headerHeight,
+        backgroundColor: colors.bgSubtle,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
 
-    dateCell: { width: 58, fontSize: fontSize.sm, color: colors.textSecondary },
-    oppCell: { width: 60, fontSize: fontSize.sm, color: uiColors.tableText },
-    numCell: { width: 38, textAlign: 'center', fontSize: fontSize.sm, color: uiColors.tableText },
-    shotCell: { width: 52, textAlign: 'center', fontSize: fontSize['2sm'], color: uiColors.tableText },
-    fptsCell: { width: 46, textAlign: 'center', fontSize: fontSize.sm, color: colors.textPlaceholder },
-    fptsValue: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    dateCell: { ...textStyles.tableCell, width: 60 },
+    oppCell: { ...textStyles.tableCell, width: 64, flexGrow: 1 },
+    numCell: { ...textStyles.tableCell, width: 40, textAlign: 'center' },
+    shotCell: { ...textStyles.tableCell, width: 52, textAlign: 'center' },
+    fptsCell: { ...textStyles.tableCell, width: 48, textAlign: 'center', color: colors.textPlaceholder },
+    fptsValue: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
-    colHdr: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textPlaceholder },
+    colHdr: { ...textStyles.tableHeader },
     dnpText: { color: colors.textPlaceholder },
 
     loadMoreBtn: {
         alignSelf: 'center',
+        minHeight: table.rowHeightCompact,
+        minWidth: 120,
         paddingHorizontal: spacing['2xl'],
-        paddingVertical: 10,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
-        marginTop: spacing.xs,
-        minWidth: 100,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    loadMoreText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    loadMoreText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

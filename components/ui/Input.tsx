@@ -34,7 +34,7 @@ export const Input = forwardRef<TextInput, Props>(function Input(
                 ) : null}
                 <TextInput
                     ref={ref}
-                    placeholderTextColor={colors.textPlaceholder}
+                    placeholderTextColor={colors.inputPlaceholder}
                     accessibilityLabel={rest.accessibilityLabel ?? label}
                     style={[styles.input, leftIcon ? styles.inputWithIcon : null, style]}
                     {...rest}

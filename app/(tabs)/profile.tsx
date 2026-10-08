@@ -6,10 +6,8 @@ import {
     ScrollView,
     StyleSheet,
     Platform,
-    useWindowDimensions,
     ActivityIndicator,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
@@ -24,29 +22,38 @@ import {
 } from '@/lib/notification-preferences'
 import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing } from '@/constants/tokens'
+import { colors, fontSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { WebPushSettings } from '@/components/WebPushSettings'
-import { Button, ErrorBanner } from '@/components/ui'
-import { showAlert, confirmAction } from '@/lib/alert'
+import { SettingsGroup, SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
+import { Button, ErrorBanner, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
+import { showAlert, showSuccess, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { WebPushStatus } from '@/lib/web-push'
+import { useGoBack } from '@/components/ui/useGoBack'
+import { DEFAULT_THEME, readThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference'
+
+const THEME_OPTIONS: { label: string; value: ThemePreference; accessibilityLabel?: string }[] = [
+    { label: 'Light', value: 'light' },
+    { label: 'Dark', value: 'dark' },
+    { label: 'Auto', value: 'system', accessibilityLabel: 'Match device' },
+]
 
 export default function ProfileScreen() {
+    const goBack = useGoBack('/')
     const { user } = useAuth()
     const router = useRouter()
     const { current, currentLeague, refresh, loading: leagueLoading } = useLeagueContext()
-    // On narrow screens stack value under label (left-aligned) so long
-    // emails/usernames read on their own line instead of right-aligned wraps.
-    const narrow = useWindowDimensions().width < 480
-    const rowStyle = [styles.row, narrow && styles.rowNarrow]
-    const valueStyle = [styles.rowValue, narrow && styles.rowValueNarrow]
+    const { padX } = usePageMetrics()
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
     const [avatarUploading, setAvatarUploading] = useState(false)
     const [webPushStatus, setWebPushStatus] = useState<WebPushStatus | null>(null)
+    // Read after mount: the prerendered page cannot know this device's choice.
+    const [theme, setTheme] = useState<ThemePreference>(DEFAULT_THEME)
+    useEffect(() => { setTheme(readThemePreference()) }, [])
     const showPreferenceToggles = Platform.OS !== 'web' || webPushStatus === 'on'
     const preferenceUserId = user?.id
     const activeUserIdRef = useRef(preferenceUserId)
@@ -104,7 +111,7 @@ export default function ProfileScreen() {
             if (current && trimmedTeam !== current.team_name) {
                 refresh()
             }
-            showAlert('Saved', 'Your profile has been updated.')
+            showSuccess('Saved', 'Your profile has been updated.')
         } catch (e) {
             if (activeUserIdRef.current === ownerId) showAlert('Error', getErrorMessage(e))
         } finally {
@@ -146,8 +153,13 @@ export default function ProfileScreen() {
         }
     }
 
+    function changeTheme(next: ThemePreference) {
+        setThemePreference(next)
+        setTheme(next)
+    }
+
     function handleSignOut() {
-        confirmAction('Sign Out', 'Are you sure you want to sign out?', async () => {
+        confirmAction('Sign out', 'Are you sure you want to sign out?', async () => {
             try {
                 const result = await signOut()
                 if (!result.serverSignOutConfirmed) {
@@ -157,7 +169,7 @@ export default function ProfileScreen() {
                 console.error(e)
                 showAlert('Error', 'Sign out failed. Please try again.')
             }
-        }, 'Sign Out')
+        }, 'Sign out')
     }
 
     async function togglePreference(key: keyof NotificationPreferences) {
@@ -180,16 +192,35 @@ export default function ProfileScreen() {
     }
     const showTeamSection = Boolean(current) || leagueLoading
 
+    const notificationRows: [keyof NotificationPreferences, string][] = [
+        ['tradeEnabled', 'Trades'],
+        ['waiverEnabled', 'Waivers'],
+        ['draftEnabled', 'Drafts'],
+        ['activityEnabled', 'League activity'],
+    ]
+
     return (
-        <SafeAreaView style={styles.container}>
+        <Page title="Profile">
+            <PageHeader
+                title="Profile"
+                onBack={goBack}
+                actions={editing ? (
+                    <>
+                        <Button title="Cancel" variant="ghost" size="sm" onPress={handleCancel} />
+                        <Button title="Save" size="sm" onPress={handleSave} loading={saving} />
+                    </>
+                ) : (
+                    <Button title="Edit" variant="outline" size="sm" icon="edit" disabled={!profileLoaded || !user} onPress={() => setEditing(true)} />
+                )}
+            />
             {profileError ? (
                 <ErrorBanner
                     message={`${profileError} Tap to retry.`}
                     onRetry={() => { void retryProfile() }}
                 />
             ) : null}
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                <View style={styles.avatarSection}>
+            <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
+                <View style={styles.identity}>
                     <Pressable
                         onPress={handlePickAvatar}
                         disabled={avatarUploading || !profileLoaded}
@@ -200,277 +231,140 @@ export default function ProfileScreen() {
                     >
                         <Avatar
                             name={profile?.display_name ?? profile?.username ?? '?'}
-                            size={84}
+                            size={64}
                             uri={profile?.avatar_url}
                         />
                         <View style={styles.avatarBadge}>
                             {avatarUploading
                                 ? <ActivityIndicator size={12} color={colors.textWhite} />
-                                : <MaterialIcons name="photo-camera" size={14} color={colors.textWhite} />
+                                : <MaterialIcons name="photo-camera" size={12} color={colors.textWhite} />
                             }
                         </View>
                     </Pressable>
-                    <Text style={styles.profileTitle} numberOfLines={1}>
-                        {profile?.display_name ?? 'Profile'}
-                    </Text>
-                    <Text style={styles.profileSubtitle}>Profile & settings</Text>
+                    <View style={styles.identityText}>
+                        <Text style={textStyles.pageTitle} numberOfLines={1}>
+                            {profile?.display_name ?? 'Profile'}
+                        </Text>
+                        {profile?.username ? <Text style={textStyles.meta} numberOfLines={1}>@{profile.username}</Text> : null}
+                    </View>
                 </View>
 
-                <View style={styles.card}>
-                    <View style={rowStyle}>
-                        <Text style={styles.rowLabel}>Name</Text>
-                        {editing ? (
+                <SettingsGroup title="Account">
+                    <SettingsRow
+                        label="Name"
+                        value={editing ? null : profile?.display_name ?? '—'}
+                        accessory={editing ? (
                             <TextInput
                                 style={styles.input}
                                 value={displayName}
                                 onChangeText={setDisplayName}
                                 autoFocus
                                 returnKeyType="next"
+                                accessibilityLabel="Display name"
                             />
-                        ) : (
-                            <Text style={valueStyle}>{profile?.display_name ?? '—'}</Text>
-                        )}
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <View style={rowStyle}>
-                        <Text style={styles.rowLabel}>Username</Text>
-                        <Text style={valueStyle} numberOfLines={narrow ? 2 : 1}>@{profile?.username}</Text>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <View style={rowStyle}>
-                        <Text style={styles.rowLabel}>Email</Text>
-                        <Text style={valueStyle} numberOfLines={narrow ? 2 : 1}>{user?.email}</Text>
-                    </View>
-                </View>
-
-                {/* Team name (league-specific) */}
-                {showTeamSection && (
-                    <>
-                        <Text style={styles.sectionLabel}>
-                            {currentLeague?.name ?? 'League'}
-                        </Text>
-                        <View style={styles.card}>
-                            <View style={rowStyle}>
-                                <Text style={styles.rowLabel}>Team Name</Text>
-                                {editing && current ? (
-                                    <TextInput
-                                        style={styles.input}
-                                        value={teamName}
-                                        onChangeText={setTeamName}
-                                        returnKeyType="done"
-                                        onSubmitEditing={handleSave}
-                                        placeholder="Your team name"
-                                        placeholderTextColor={colors.textPlaceholder}
-                                    />
-                                ) : (
-                                    <Text style={valueStyle}>
-                                        {current?.team_name ?? '—'}
-                                    </Text>
-                                )}
-                            </View>
-                        </View>
-                    </>
-                )}
-
-                <Text style={styles.sectionLabel}>Leagues</Text>
-                <View style={styles.actionRow}>
-                    <Button
-                        title="Create League"
-                        variant="outline"
-                        icon="add"
-                        onPress={() => router.push('/(modals)/create-league')}
-                        style={styles.flexBtn}
+                        ) : undefined}
                     />
-                    <Button
-                        title="Join League"
-                        variant="outline"
-                        icon="vpn-key"
-                        onPress={() => router.push('/(modals)/join-league')}
-                        style={styles.flexBtn}
-                    />
-                </View>
+                    <SettingsRow label="Email" value={user?.email ?? '—'} />
+                </SettingsGroup>
 
-                <Text style={styles.sectionLabel}>Notifications</Text>
-                <View style={styles.card}>
+                {showTeamSection ? (
+                    <SettingsGroup title={currentLeague?.name ?? 'League'}>
+                        <SettingsRow
+                            label="Team name"
+                            value={editing && current ? null : current?.team_name ?? '—'}
+                            accessory={editing && current ? (
+                                <TextInput
+                                    style={styles.input}
+                                    value={teamName}
+                                    onChangeText={setTeamName}
+                                    returnKeyType="done"
+                                    onSubmitEditing={handleSave}
+                                    placeholder="Your team name"
+                                    placeholderTextColor={colors.inputPlaceholder}
+                                    accessibilityLabel="Team name"
+                                />
+                            ) : undefined}
+                        />
+                    </SettingsGroup>
+                ) : null}
+
+                <SettingsGroup title="Notifications">
                     {/* Web delivers through standards Web Push; the category toggles only
                         matter once this device is subscribed. */}
                     {Platform.OS === 'web' ? <WebPushSettings onStatusChange={setWebPushStatus} /> : null}
-                    {showPreferenceToggles ? (
-                        <>
-                            {Platform.OS === 'web' ? <View style={styles.divider} /> : null}
-                            {([
-                                ['tradeEnabled', 'Trades'],
-                                ['waiverEnabled', 'Waivers'],
-                                ['draftEnabled', 'Drafts'],
-                                ['activityEnabled', 'League Activity'],
-                            ] as [keyof NotificationPreferences, string][]).map(([key, label], index, all) => {
-                                const enabled = preferences[key]
-                                return (
-                                    <View key={key}>
-                                        <Pressable
-                                            style={styles.row}
-                                            onPress={() => togglePreference(key)}
-                                            disabled={!profileLoaded}
-                                            role="switch"
-                                            aria-checked={enabled}
-                                            accessibilityRole="switch"
-                                            accessibilityState={{ checked: enabled, disabled: !profileLoaded }}
-                                        >
-                                            <Text style={[styles.rowLabel, styles.switchLabel]}>{label}</Text>
-                                            <View style={[styles.toggle, enabled && styles.toggleOn]}>
-                                                <View style={[styles.toggleKnob, enabled && styles.toggleKnobOn]} />
-                                            </View>
-                                        </Pressable>
-                                        {index < all.length - 1 ? <View style={styles.divider} /> : null}
-                                    </View>
-                                )
-                            })}
-                        </>
-                    ) : null}
-                </View>
+                    {showPreferenceToggles ? notificationRows.map(([key, label]) => (
+                        <SettingsRow
+                            key={key}
+                            label={label}
+                            role="switch"
+                            checked={preferences[key]}
+                            disabled={!profileLoaded}
+                            onPress={() => togglePreference(key)}
+                            accessory={<SettingsToggle on={preferences[key]} />}
+                        />
+                    )) : null}
+                </SettingsGroup>
 
-                {editing ? (
-                    <View style={styles.actionRow}>
-                        <Button title="Cancel" variant="secondary" onPress={handleCancel} style={styles.flexBtn} />
-                        <Button title="Save" onPress={handleSave} loading={saving} style={styles.flexBtn} />
-                    </View>
-                ) : (
-                    <Button title="Edit Profile" variant="outline" fullWidth icon="edit" disabled={!profileLoaded || !user} onPress={() => setEditing(true)} />
-                )}
-
-                {!editing ? (
-                    <Button
-                        title="Change Password"
-                        variant="outline"
-                        fullWidth
-                        icon="lock"
-                        onPress={() => router.push('/(modals)/change-password')}
-                    />
+                {/* Native screens are light only, so Appearance is a web setting. */}
+                {Platform.OS === 'web' ? (
+                    <SettingsGroup title="Appearance" footer="Auto matches your device's light or dark setting.">
+                        <View style={styles.themeRow}>
+                            <SegmentedControl<ThemePreference>
+                                options={THEME_OPTIONS}
+                                value={theme}
+                                onChange={changeTheme}
+                                accessibilityLabel="Theme"
+                            />
+                        </View>
+                    </SettingsGroup>
                 ) : null}
 
-                <Button title="Sign Out" variant="ghost" fullWidth icon="logout" onPress={handleSignOut} style={styles.signOutButton} />
-                <View style={styles.appMeta}>
-                    <Text style={styles.appMetaText}>Pancake · Dynasty Hoops</Text>
-                </View>
+                <SettingsGroup title="Leagues">
+                    <SettingsRow label="Create a league" onPress={() => router.push('/(modals)/create-league')} />
+                    <SettingsRow label="Join a league" onPress={() => router.push('/(modals)/join-league')} />
+                </SettingsGroup>
+
+                <SettingsGroup>
+                    <SettingsRow label="Change password" onPress={() => router.push('/(modals)/change-password')} />
+                    <SettingsRow label="Sign out" tone="danger" chevron={false} onPress={handleSignOut} />
+                </SettingsGroup>
             </ScrollView>
-        </SafeAreaView>
+        </Page>
     )
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
+    formColumn: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     scroll: { flex: 1 },
-    scrollContent: { padding: spacing['3xl'], gap: spacing.xl, width: '100%', maxWidth: 760, alignSelf: 'center' },
-
-    avatarSection: {
-        alignItems: 'center',
-        paddingTop: spacing['2xl'],
-        paddingBottom: spacing.lg,
-        gap: spacing.sm,
-    },
-    avatarWrapper: {
-        position: 'relative',
-    },
+    scrollContent: { paddingTop: spacing.xl, paddingBottom: spacing['4xl'], gap: spacing.xl },
+    identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+    identityText: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    themeRow: { padding: spacing.md },
+    avatarWrapper: { position: 'relative' },
     avatarBadge: {
         position: 'absolute',
         bottom: 0,
         right: 0,
-        width: 26,
-        height: 26,
-        borderRadius: 13,
+        width: 22,
+        height: 22,
+        borderRadius: radii.full,
         backgroundColor: colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
         borderColor: colors.bgScreen,
     },
-    profileTitle: {
-        maxWidth: '100%',
-        color: colors.textPrimary,
-        fontSize: fontSize['2xl'],
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.black,
-    },
-    profileSubtitle: {
-        color: colors.textMuted,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-    },
-
-    sectionLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.4,
-        marginTop: spacing.md,
-        marginBottom: spacing.xs,
-        marginLeft: spacing.xs,
-    },
-
-    card: {
-        backgroundColor: colors.bgCard,
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        overflow: 'hidden',
-        ...(Platform.OS === 'web' ? { boxShadow: shadows.sm } : {}),
-    },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: 14,
-        gap: spacing.lg,
-    },
-    divider: { height: 1, backgroundColor: colors.separator, marginLeft: spacing.xl },
-    rowNarrow: { flexDirection: 'column', alignItems: 'flex-start', gap: spacing.xs, paddingVertical: spacing.lg },
-    rowLabel: { width: 86, fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },
-    switchLabel: { width: 'auto', flex: 1 },
-    rowValue: { flex: 1, minWidth: 0, fontSize: 15, color: colors.textPrimary, fontWeight: fontWeight.semibold, textAlign: 'right' },
-    rowValueNarrow: { width: '100%', flexGrow: 0, flexShrink: 0, flexBasis: 'auto', textAlign: 'left' },
+    // 16px keeps iOS Safari from zooming the page when the field is focused.
     input: {
-        flex: 1,
-        fontSize: 15,
+        flex: 1.4,
+        minWidth: 0,
+        fontSize: fontSize.lg,
         color: colors.textPrimary,
-        fontWeight: fontWeight.medium,
+        textAlign: 'right',
         borderBottomWidth: 1.5,
         borderBottomColor: colors.primary,
-        padding: 0,
+        paddingVertical: spacing.xs,
     },
-    toggle: {
-        width: 48,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        justifyContent: 'center',
-        paddingHorizontal: 3,
-    },
-    toggleOn: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
-    toggleKnob: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: colors.bgCard,
-    },
-    toggleKnobOn: {
-        alignSelf: 'flex-end',
-    },
-
-    actionRow: { flexDirection: 'row', gap: spacing.lg },
-    flexBtn: { flex: 1 },
-    signOutButton: { marginTop: spacing.md },
-    appMeta: { alignItems: 'center', paddingTop: spacing.lg },
-    appMetaText: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: fontWeight.semibold, letterSpacing: 0.5 },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

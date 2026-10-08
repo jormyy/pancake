@@ -14,47 +14,48 @@ import { getPendingIncomingTradeCount } from '@/lib/trades'
 export function usePendingTradeCount(): number {
     const { current, currentLeague } = useLeagueContext()
     const pathname = usePathname()
-    const [count, setCount] = useState(0)
     const memberId = current?.id
     const leagueId = currentLeague?.id
+    const key = memberId && leagueId ? `${leagueId}:${memberId}` : null
+    // The count remembers whose it is, so a league switch never shows the
+    // previous league's number while the new one loads.
+    const [state, setState] = useState<{ key: string; count: number } | null>(null)
     const requestRef = useRef(0)
+    const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    const fetchCount = useCallback(async () => {
+    const fetchCount = useCallback(async (attempt = 0) => {
         const requestId = ++requestRef.current
-        if (!memberId || !leagueId) {
-            setCount(0)
-            return
-        }
+        if (retryRef.current) clearTimeout(retryRef.current)
+        retryRef.current = null
+        if (!memberId || !leagueId) return
         try {
             const pending = await getPendingIncomingTradeCount(memberId, leagueId)
-            if (requestRef.current === requestId) setCount(pending)
+            if (requestRef.current === requestId) setState({ key: `${leagueId}:${memberId}`, count: pending })
         } catch (error) {
-            if (requestRef.current === requestId) console.error(error)
+            if (requestRef.current !== requestId) return
+            console.error(error)
+            // A dropped request would hide the badge until the next page change.
+            if (attempt < MAX_RETRIES) {
+                retryRef.current = setTimeout(() => { void fetchCount(attempt + 1) }, RETRY_DELAY_MS * (attempt + 1))
+            }
         }
     }, [leagueId, memberId])
 
     useEffect(() => {
-        if (!memberId || !leagueId) {
-            setCount(0)
-            return
-        }
+        if (!memberId || !leagueId) return
+        const refresh = () => { void fetchCount() }
         const channel = subscribeToTableChanges(
             `pending-trade-count:${leagueId}:${memberId}`,
             { mode: 'fallback', watches: [
                 { table: 'trades', filter: `league_id=eq.${leagueId}` },
                 { table: 'trade_participants', filter: `league_id=eq.${leagueId}` },
-            ], onChange: fetchCount },
+            ], onChange: refresh },
         )
-        if (typeof window !== 'undefined') {
-            window.addEventListener('focus', fetchCount)
-            return () => {
-                requestRef.current += 1
-                window.removeEventListener('focus', fetchCount)
-                reportRealtimeCleanup('pending trade count', unsubscribeFromTableChanges(channel))
-            }
-        }
+        if (typeof window !== 'undefined') window.addEventListener('focus', refresh)
         return () => {
             requestRef.current += 1
+            if (retryRef.current) clearTimeout(retryRef.current)
+            if (typeof window !== 'undefined') window.removeEventListener('focus', refresh)
             reportRealtimeCleanup('pending trade count', unsubscribeFromTableChanges(channel))
         }
     }, [fetchCount, memberId, leagueId])
@@ -63,5 +64,8 @@ export function usePendingTradeCount(): number {
         void fetchCount()
     }, [fetchCount, pathname])
 
-    return count
+    return state && state.key === key ? state.count : 0
 }
+
+const MAX_RETRIES = 2
+const RETRY_DELAY_MS = 2000

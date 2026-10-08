@@ -39,6 +39,7 @@ vi.mock('react-native', () => ({
     StyleSheet: { create: <Value,>(value: Value) => value },
     Text: 'Text',
     View: 'View',
+    useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
 vi.mock('expo-router', () => ({
@@ -137,6 +138,7 @@ vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuil
 vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'TradeAnalysisSummary' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
 vi.mock('@/components/ui', () => ({ ErrorBanner: () => null }))
+vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: () => null }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -185,7 +187,9 @@ describe('propose trade async ownership', () => {
         const review = renderer.root.findByProps({ testID: 'trade-submit' })
         expect(review.props.accessibilityLabel).toBe('Review trade proposal')
         await act(async () => { review.props.onPress() })
-        expect(renderer.root.findByProps({ presentationStyle: 'fullScreen' }).props.visible).toBe(true)
+        // Review replaces the editor: its Send button shows and the editor's Review button is gone.
+        expect(renderer.root.findAllByProps({ testID: 'trade-confirm-submit' })).not.toHaveLength(0)
+        expect(renderer.root.findAllByProps({ testID: 'trade-submit' })).toHaveLength(0)
         expect(mocks.submitMultiTeamTradeComposer).not.toHaveBeenCalled()
 
         await act(async () => {

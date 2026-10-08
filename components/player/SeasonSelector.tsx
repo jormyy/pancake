@@ -39,11 +39,12 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
 
 const styles = StyleSheet.create({
     // Wrap to a second row on narrow widths so the last season is never clipped.
-    row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, paddingVertical: 2 },
+    row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     pill: {
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        borderRadius: radii['3xl'],
+        minHeight: 36,
+        justifyContent: 'center',
+        paddingHorizontal: spacing.lg,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },

@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pancake",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"

@@ -9,9 +9,10 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { usePageMetrics } from '@/components/ui'
 import { MotionPressable } from '@/components/Motion'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
@@ -31,6 +32,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
     const isDesktop = width >= breakpoints.desktop && !compactLandscape
+    const { padX } = usePageMetrics()
 
     const myMemberId = current?.id
 
@@ -53,6 +55,8 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
     function navigateBackToDraftList(isMock = false) {
         router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
     }
+
+    if (!draftId) return <Redirect href="/draft" />
 
     if (!state) {
         const hasLoadError = loadError != null
@@ -83,6 +87,8 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
     const isPaused = draft.status === 'paused'
     const myBudget = myMemberId ? budgetByMember.get(myMemberId) : undefined
     const draftTitle = draft.isMock ? 'Mock Auction Draft' : 'Auction Draft'
+    const myPicks = controller.closedNominations.filter((nomination) =>
+        nomination.status === 'sold' && nomination.winningMemberId === myMemberId)
     const historyListHeight = Math.min(
         controller.closedNominations.length * HISTORY_ROW_HEIGHT,
         Math.max(360, height - 300),
@@ -120,14 +126,27 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
             <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
             <SafeAreaView style={styles.container} edges={['bottom']}>
             <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
+                {isCommissioner && isDesktop ? (
+                    <DraftAdminBar
+                        inline
+                        showLabel={false}
+                        isPaused={isPaused}
+                        onPause={handlePauseDraft}
+                        onResume={handleResumeDraft}
+                        onReset={handleResetDraft}
+                        onStop={handleStopDraft}
+                    />
+                ) : null}
                 {myBudget?.remaining != null ? (
-                    <View style={styles.budgetChip}>
-                        <Text style={styles.budgetChipText}>${myBudget.remaining} left</Text>
+                    // A plain figure, not a chip, so it never reads as a button.
+                    <View style={styles.budgetStat} accessible accessibilityLabel={`$${myBudget.remaining} budget left`}>
+                        <Text style={styles.budgetValue}>${myBudget.remaining}</Text>
+                        <Text style={styles.budgetLabel}>left</Text>
                     </View>
                 ) : null}
             </DraftScreenHeader>
 
-            {isCommissioner ? (
+            {isCommissioner && !isDesktop ? (
                 <DraftAdminBar
                     isPaused={isPaused}
                     onPause={handlePauseDraft}
@@ -151,6 +170,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                 style={styles.scroll}
                 contentContainerStyle={[
                     styles.scrollContent,
+                    { paddingHorizontal: padX },
                     compactLandscape && styles.scrollContentCompact,
                     isDesktop && styles.scrollContentDesktop,
                 ]}
@@ -161,6 +181,20 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                         {state.openNomination
                             ? <AuctionLivePanel controller={controller} memberId={myMemberId} compact={compactLandscape} />
                             : <AuctionIdlePanel controller={controller} memberId={myMemberId} compact={compactLandscape} />}
+                        {isDesktop && myPicks.length > 0 ? (
+                            <View style={styles.myPicks}>
+                                <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Your picks ({myPicks.length})</Text>
+                                <View style={styles.myPicksCard}>
+                                    {myPicks.map((pick, index) => (
+                                        <View key={pick.id} style={[styles.myPickRow, index > 0 && styles.myPickDivider]}>
+                                            <Text style={styles.myPickName} numberOfLines={1}>{pick.player?.displayName ?? 'Unknown'}</Text>
+                                            <Text style={styles.myPickMeta}>{[pick.player?.nbaTeam, pick.player?.position].filter(Boolean).join(' · ')}</Text>
+                                            <Text style={styles.myPickPrice}>${pick.finalPrice}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        ) : null}
                     </View>
 
                     <AuctionDraftSidePanel
@@ -173,6 +207,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                         myMemberId={myMemberId}
                         compact={compactLandscape}
                         desktop={isDesktop}
+                        stacked={isDesktop}
                         historyListHeight={historyListHeight}
                     />
                 </View>
@@ -186,12 +221,11 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
+    container: { flex: 1, backgroundColor: colors.bgScreen },
     keyboard: { flex: 1 },
     scroll: { flex: 1 },
-    scrollContent: { padding: spacing.xl, paddingBottom: spacing['3xl'], gap: spacing.lg, width: '100%', maxWidth: 760, alignSelf: 'center' },
+    scrollContent: { paddingTop: spacing.lg, paddingBottom: spacing['3xl'], gap: spacing.lg, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     scrollContentCompact: {
-        paddingHorizontal: spacing.md,
         paddingTop: spacing.md,
         paddingBottom: spacing['4xl'],
         gap: spacing.sm,
@@ -200,9 +234,15 @@ const styles = StyleSheet.create({
     // fills the canvas instead of a narrow centered strip.
     scrollContentDesktop: {
         maxWidth: layout.contentMaxWidth,
-        paddingHorizontal: spacing['3xl'],
-        paddingTop: spacing['3xl'],
+        paddingTop: spacing['2xl'],
     },
+    myPicks: { gap: spacing.sm },
+    myPicksCard: { backgroundColor: colors.bgCard, borderRadius: radii.lg, borderCurve: 'continuous' as const, borderWidth: 1, borderColor: colors.borderLight, paddingHorizontal: spacing.lg },
+    myPickRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: table.rowHeightCompact },
+    myPickDivider: { borderTopWidth: 1, borderTopColor: colors.separator },
+    myPickName: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
+    myPickMeta: { ...textStyles.meta },
+    myPickPrice: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
 
     // Single column on phones; block card + activity left, budgets/history
     // right once `isDesktop` flips the outer wrapper to a row.
@@ -213,17 +253,9 @@ const styles = StyleSheet.create({
     columnCompact: { gap: spacing.sm },
     columnMainDesktop: { flex: 3, minWidth: 0 },
 
-    budgetChip: {
-        backgroundColor: colors.primaryLight,
-        minHeight: 36,
-        justifyContent: 'center',
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.primaryBorder,
-    },
-    budgetChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    budgetStat: { alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: spacing.xs },
+    budgetValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
+    budgetLabel: { ...textStyles.meta },
     refreshWarning: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.sm,
@@ -237,6 +269,7 @@ const styles = StyleSheet.create({
     nominateButton: {
         marginTop: spacing.xs,
         height: 48,
+        paddingHorizontal: spacing['2xl'],
         backgroundColor: colors.primary,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,

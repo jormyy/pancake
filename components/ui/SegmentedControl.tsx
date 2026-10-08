@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useRef } from 'react'
-import { Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
+import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
 import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
+import { useEdgeFade } from '@/components/ui/useEdgeFade'
 import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
 
 export type SegmentOption<T extends string> = {
@@ -20,6 +21,8 @@ type Props<T extends string> = {
     idBase?: string
     controlledPanelId?: string
     scrollable?: boolean
+    /** `pills` filter a list; `tabs` switch between a page's sections. */
+    variant?: 'pills' | 'tabs'
     style?: StyleProp<ViewStyle>
 }
 
@@ -51,8 +54,10 @@ export function SegmentedControl<T extends string>({
     idBase,
     controlledPanelId,
     scrollable = false,
+    variant = 'pills',
     style,
 }: Props<T>) {
+    const tabs = variant === 'tabs'
     const generatedId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
     const effectiveIdBase = idBase ?? `segmented-${generatedId}`
     const pendingFocusValue = useRef<T | null>(null)
@@ -66,6 +71,26 @@ export function SegmentedControl<T extends string>({
     }, [effectiveIdBase])
 
     useEffect(() => () => cancelFocusRecovery.current?.(), [])
+
+    // Scrollable tracks keep the selected tab in view, so a deep link to a
+    // far-right section never opens with its tab hidden off screen.
+    const scrollRef = useRef<ScrollView>(null)
+    const segmentLayouts = useRef<Record<string, { x: number; width: number }>>({})
+    const keepSelectedInView = useRef<() => void>(() => {})
+    const { fadeStyle, scrollProps, scrollX: edgeSizes } = useEdgeFade(() => keepSelectedInView.current())
+    const scrollIntoView = useCallback((target: T) => {
+        const box = segmentLayouts.current[target]
+        const { viewport, x } = edgeSizes.current
+        if (!scrollable || !box || viewport <= 0) return
+        const pad = spacing.xl
+        if (box.x < x + pad) {
+            scrollRef.current?.scrollTo({ x: Math.max(0, box.x - pad), animated: false })
+        } else if (box.x + box.width > x + viewport - pad) {
+            scrollRef.current?.scrollTo({ x: box.x + box.width - viewport + pad, animated: false })
+        }
+    }, [scrollable, edgeSizes])
+    keepSelectedInView.current = () => scrollIntoView(value)
+    useEffect(() => { scrollIntoView(value) }, [scrollIntoView, value])
 
     useEffect(() => {
         if (pendingFocusValue.current !== value) return
@@ -111,19 +136,20 @@ export function SegmentedControl<T extends string>({
                 accessibilityLabel={segmentLabel}
                 accessibilityState={{ selected: active }}
                 {...webKeyProps}
-                style={({ hovered, pressed }: PressableState) => [
-                    styles.segment,
-                    active && styles.segmentActive,
-                    hovered && !active && styles.segmentHover,
-                    pressed && styles.pressed,
-                ]}
+                onLayout={scrollable ? (event: LayoutChangeEvent) => {
+                    segmentLayouts.current[opt.value] = { x: event.nativeEvent.layout.x, width: event.nativeEvent.layout.width }
+                    if (opt.value === value) scrollIntoView(value)
+                } : undefined}
+                style={({ hovered, pressed }: PressableState) => tabs
+                    ? [styles.tab, active && styles.tabActive, hovered && !active && styles.tabHover, pressed && styles.pressed]
+                    : [styles.segment, active && styles.segmentActive, hovered && !active && styles.segmentHover, pressed && styles.pressed]}
             >
-                <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+                <Text style={tabs ? [styles.tabLabel, active && styles.tabLabelActive] : [styles.label, active && styles.labelActive]} numberOfLines={1}>
                     {opt.label}
                 </Text>
                 {typeof opt.badge === 'number' && opt.badge > 0 ? (
-                    <View style={[styles.badge, active && styles.badgeActive]}>
-                        <Text style={[styles.badgeText, active && styles.badgeTextActive]}>{opt.badge}</Text>
+                    <View style={tabs ? styles.tabBadge : [styles.badge, active && styles.badgeActive]}>
+                        <Text style={tabs ? styles.tabBadgeText : [styles.badgeText, active && styles.badgeTextActive]}>{opt.badge}</Text>
                     </View>
                 ) : null}
             </Pressable>
@@ -133,14 +159,17 @@ export function SegmentedControl<T extends string>({
     if (scrollable) {
         return (
             <ScrollView
+                ref={scrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                style={[styles.scrollTrack, fadeStyle]}
+                {...scrollProps}
                 role="tablist"
                 aria-label={accessibilityLabel}
                 aria-orientation="horizontal"
                 accessibilityRole="tablist"
                 accessibilityLabel={accessibilityLabel}
-                contentContainerStyle={[styles.track, styles.trackScrollable, style]}
+                contentContainerStyle={[styles.track, tabs && styles.tabTrack, styles.trackScrollable, style]}
             >
                 {segments}
             </ScrollView>
@@ -149,7 +178,7 @@ export function SegmentedControl<T extends string>({
 
     return (
         <View
-            style={[styles.track, style]}
+            style={[styles.track, tabs && styles.tabTrack, style]}
             role="tablist"
             aria-label={accessibilityLabel}
             aria-orientation="horizontal"
@@ -171,6 +200,8 @@ const styles = StyleSheet.create({
     trackScrollable: {
         flexWrap: 'nowrap',
     },
+    // Clip to the space the parent gives, so a header action never sits on top of tabs.
+    scrollTrack: { width: '100%', flexGrow: 0 },
     segment: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -194,6 +225,37 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
     },
     labelActive: { color: colors.textWhite },
+    tabTrack: { gap: spacing.xs },
+    tab: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        minHeight: 44,
+        paddingHorizontal: spacing.lg,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    tabActive: { borderBottomColor: colors.primary },
+    tabHover: { borderBottomColor: colors.borderLight },
+    tabLabel: {
+        fontSize: fontSize.md,
+        fontWeight: fontWeight.semibold,
+        color: colors.textMuted,
+    },
+    tabLabelActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
+    // Underline tabs have no filled background, so the count keeps one solid
+    // style whether or not its tab is selected.
+    tabBadge: {
+        minWidth: 18,
+        height: 18,
+        paddingHorizontal: spacing.xs,
+        borderRadius: radii.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.primary,
+    },
+    tabBadgeText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: colors.textWhite },
     badge: {
         minWidth: 18,
         height: 18,

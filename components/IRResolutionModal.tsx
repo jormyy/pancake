@@ -1,22 +1,10 @@
-import {
-    View,
-    Text,
-    Pressable,
-    StyleSheet,
-    Modal,
-    ScrollView,
-} from 'react-native'
-import { useState } from 'react'
+import { View, Text, StyleSheet } from 'react-native'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
-import {
-    colors,
-    fontSize,
-    fontWeight,
-    radii,
-    scrim,
-    spacing,
-} from '@/constants/tokens'
+import { colors, fontWeight, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
+import { Button } from '@/components/ui/Button'
+import { Sheet } from '@/components/ui/Sheet'
 import { playerHeadshotUrl } from '@/lib/format'
 
 type Phase = 'ineligible' | 'drop-to-activate'
@@ -30,6 +18,25 @@ type Props = {
     onActivate: (player: RosterPlayer) => Promise<void>
     onDropAndActivate: (dropPlayer: RosterPlayer, activatePlayer: RosterPlayer) => Promise<void>
     onCancel: () => void
+}
+
+function PlayerLine({ player, action }: { player: RosterPlayer; action: ReactNode }) {
+    const p = player.players
+    return (
+        <View style={styles.row}>
+            <Avatar
+                name={p.display_name}
+                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
+                color={colors.bgMuted}
+                size={36}
+            />
+            <View style={styles.info}>
+                <Text style={textStyles.rowTitle} numberOfLines={1}>{p.display_name}</Text>
+                <Text style={textStyles.meta}>{[p.nba_team, p.position].filter(Boolean).join(' · ')}</Text>
+            </View>
+            {action}
+        </View>
+    )
 }
 
 export function IRResolutionModal({
@@ -54,6 +61,11 @@ export function IRResolutionModal({
         setActivatingPlayer(null)
         setLoadingId(null)
     }
+
+    // Start from the first step every time the sheet opens.
+    useEffect(() => {
+        if (visible) reset()
+    }, [visible])
 
     async function handleActivate(player: RosterPlayer) {
         if (hasRoom) {
@@ -80,195 +92,96 @@ export function IRResolutionModal({
         }
     }
 
-    // Reset internal state when modal opens
     const handleRequestClose = () => {
+        if (loadingId !== null) return
         reset()
         onCancel()
     }
 
     return (
-        <Modal
+        <Sheet
             visible={visible}
-            transparent
-            animationType="slide"
-            onRequestClose={handleRequestClose}
-            onShow={() => reset()}
+            onClose={handleRequestClose}
+            title={phase === 'ineligible' ? 'Resolve IR status' : 'Drop to activate'}
         >
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalCard}>
-                    {phase === 'ineligible' ? (
-                        <>
-                            <Text style={styles.modalTitle}>Resolve IR Status</Text>
-                            <Text style={styles.modalSub}>
-                                Activate these players before adding{' '}
-                                <Text style={styles.modalPlayerName}>{pendingPlayerName}</Text>
-                            </Text>
+            {phase === 'ineligible' ? (
+                <>
+                    <Text style={styles.sub}>
+                        Activate these players before adding{' '}
+                        <Text style={styles.playerName}>{pendingPlayerName}</Text>.
+                    </Text>
+                    <View style={styles.list}>
+                        {ineligibleIR.map((rp) => (
+                            <PlayerLine
+                                key={rp.id}
+                                player={rp}
+                                action={(
+                                    <Button
+                                        title="Activate"
+                                        size="sm"
+                                        onPress={() => handleActivate(rp)}
+                                        disabled={loadingId !== null}
+                                        loading={loadingId === rp.id}
+                                        accessibilityLabel={`Activate ${rp.players.display_name}`}
+                                    />
+                                )}
+                            />
+                        ))}
+                    </View>
+                </>
+            ) : (
+                <>
+                    <Text style={styles.sub}>
+                        Drop a player to activate{' '}
+                        <Text style={styles.playerName}>{activatingPlayer?.players.display_name}</Text> from IR.
+                    </Text>
+                    <View style={styles.list}>
+                        {activeRoster.map((rp) => (
+                            <PlayerLine
+                                key={rp.id}
+                                player={rp}
+                                action={(
+                                    <Button
+                                        title="Drop"
+                                        size="sm"
+                                        variant="danger"
+                                        onPress={() => handleDropAndActivate(rp)}
+                                        disabled={loadingId !== null}
+                                        loading={loadingId === rp.id}
+                                        accessibilityLabel={`Drop ${rp.players.display_name}`}
+                                    />
+                                )}
+                            />
+                        ))}
+                    </View>
+                </>
+            )}
 
-                            <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-                                {ineligibleIR.map((rp) => {
-                                    const p = rp.players
-                                    return (
-                                        <View key={rp.id} style={styles.row}>
-                                            <Avatar
-                                                name={p.display_name}
-                                                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                                                color={colors.bgMuted}
-                                                size={38}
-                                            />
-                                            <View style={styles.info}>
-                                                <Text style={styles.name} numberOfLines={1}>
-                                                    {p.display_name}
-                                                </Text>
-                                                <Text style={styles.meta}>
-                                                    {[p.nba_team, p.position].filter(Boolean).join(' · ')}
-                                                </Text>
-                                            </View>
-                                            <Pressable
-                                                style={styles.activateBtn}
-                                                onPress={() => handleActivate(rp)}
-                                                disabled={loadingId !== null}
-                                            >
-                                                <Text style={styles.activateBtnText}>Activate</Text>
-                                            </Pressable>
-                                        </View>
-                                    )
-                                })}
-                            </ScrollView>
-                        </>
-                    ) : (
-                        <>
-                            <Text style={styles.modalTitle}>Drop to Activate</Text>
-                            <Text style={styles.modalSub}>
-                                Drop a player to activate{' '}
-                                <Text style={styles.modalPlayerName}>
-                                    {activatingPlayer?.players.display_name}
-                                </Text>{' '}
-                                from IR
-                            </Text>
-
-                            <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-                                {activeRoster.map((rp) => {
-                                    const p = rp.players
-                                    return (
-                                        <View key={rp.id} style={styles.row}>
-                                            <Avatar
-                                                name={p.display_name}
-                                                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                                                color={colors.bgMuted}
-                                                size={38}
-                                            />
-                                            <View style={styles.info}>
-                                                <Text style={styles.name} numberOfLines={1}>
-                                                    {p.display_name}
-                                                </Text>
-                                                <Text style={styles.meta}>
-                                                    {[p.nba_team, p.position].filter(Boolean).join(' · ')}
-                                                </Text>
-                                            </View>
-                                            <Pressable
-                                                style={styles.dropBtn}
-                                                onPress={() => handleDropAndActivate(rp)}
-                                                disabled={loadingId !== null}
-                                            >
-                                                <Text style={styles.dropBtnText}>Drop</Text>
-                                            </Pressable>
-                                        </View>
-                                    )
-                                })}
-                            </ScrollView>
-                        </>
-                    )}
-
-                    <Pressable
-                        style={styles.modalCancel}
-                        onPress={handleRequestClose}
-                        disabled={loadingId !== null}
-                    >
-                        <Text style={styles.modalCancelText}>Cancel</Text>
-                    </Pressable>
-                </View>
-            </View>
-        </Modal>
+            <Button
+                title="Cancel"
+                variant="ghost"
+                onPress={handleRequestClose}
+                disabled={loadingId !== null}
+                fullWidth
+                style={styles.cancel}
+            />
+        </Sheet>
     )
 }
 
 const styles = StyleSheet.create({
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: scrim,
-        justifyContent: 'flex-end',
-    },
-    modalCard: {
-        backgroundColor: colors.bgScreen,
-        borderTopLeftRadius: radii['3xl'],
-        borderTopRightRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        paddingTop: spacing['3xl'],
-        paddingHorizontal: spacing['2xl'],
-        paddingBottom: 36,
-        maxHeight: '80%',
-    },
-    modalTitle: {
-        fontSize: 17,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        textAlign: 'center',
-        marginBottom: spacing.xs,
-    },
-    modalSub: {
-        fontSize: fontSize.sm,
-        color: colors.textPlaceholder,
-        textAlign: 'center',
-        marginBottom: spacing.xl,
-    },
-    modalPlayerName: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
-
-    list: { maxHeight: 360 },
+    sub: { ...textStyles.body, marginBottom: spacing.md },
+    playerName: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
+    list: { borderTopWidth: 1, borderTopColor: colors.separator },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: spacing.lg,
+        minHeight: 56,
+        paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
-        gap: spacing.lg,
+        gap: spacing.md,
     },
-    info: { flex: 1 },
-    name: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    meta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-
-    activateBtn: {
-        backgroundColor: colors.primary,
-        paddingHorizontal: spacing.lg + spacing.xxs,
-        paddingVertical: 7,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        minWidth: 72,
-        alignItems: 'center',
-    },
-    activateBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-
-    dropBtn: {
-        backgroundColor: colors.danger,
-        paddingHorizontal: spacing.lg + spacing.xxs,
-        paddingVertical: 7,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        minWidth: 60,
-        alignItems: 'center',
-    },
-    dropBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-
-    modalCancel: {
-        marginTop: spacing.xl,
-        paddingVertical: spacing.lg + spacing.xxs,
-        alignItems: 'center',
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgSubtle,
-    },
-    modalCancelText: {
-        fontSize: 15,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
-    },
+    info: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    cancel: { marginTop: spacing.md },
 })

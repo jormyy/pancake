@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native'
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native'
 import { Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, useFonts } from '@expo-google-fonts/outfit'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
@@ -7,7 +7,6 @@ import { Platform, View } from 'react-native'
 import 'react-native-reanimated'
 
 import { colors } from '@/constants/tokens'
-import { useColorScheme } from '@/hooks/use-color-scheme'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
 import { useWebPushNotifications } from '@/hooks/use-web-push-notifications'
@@ -20,23 +19,29 @@ export const unstable_settings = {
 }
 
 export default function RootLayout() {
-    const colorScheme = useColorScheme()
-
     // Display face (headlines + big numerals). Deliberately NOT gating render on
     // the loaded flag: text paints immediately with the fallback stack in
     // constants/tokens.ts fontFamily and upgrades in place once the font arrives.
     useFonts({ Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold })
 
-    // Web ships light-only (locked decision): never let react-navigation chrome
-    // (modal/stack headers) follow the OS dark preference. Native keeps dark.
+    // Navigation chrome (stack headers, card backgrounds) uses the app's own
+    // tokens. On web those are CSS variables, so headers follow the system
+    // theme with the rest of the page. Native ships light only.
     //
-    // The light theme's own background is a neutral grey, and the static export
+    // The default theme's background is a neutral grey, and the static export
     // prerenders it into the root element — so a signed-out launch flashed grey
-    // over the cream document before React painted the real screen background.
-    const navTheme =
-        Platform.OS !== 'web' && colorScheme === 'dark'
-            ? DarkTheme
-            : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bgScreen } }
+    // over the page before React painted the real screen background.
+    const navTheme = {
+        ...DefaultTheme,
+        colors: {
+            ...DefaultTheme.colors,
+            background: colors.bgScreen,
+            card: colors.bgCard,
+            text: colors.textPrimary,
+            border: colors.borderLight,
+            primary: colors.primary,
+        },
+    }
 
     return (
         <ThemeProvider value={navTheme}>

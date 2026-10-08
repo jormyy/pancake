@@ -157,6 +157,36 @@ describe('useMatchupData date ownership', () => {
         await act(async () => { renderer.unmount() })
     })
 
+    it('never shows the previous day under a newly picked day whose lineup failed to load', async () => {
+        readPersistentCache.mockReturnValue({
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: lineup('day-09-mine'), oppLineup: lineup('day-09-opp'),
+        })
+        getWeeklyLineup.mockRejectedValue(new Error('network'))
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = () => {
+            latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => {
+            latest.setSelectedDate('2026-07-10')
+            await latest.loadLineups(matchup, '2026-07-10')
+        })
+
+        expect(latest.selectedDate).toBe('2026-07-10')
+        expect(latest.myLineup).toBeNull()
+        expect(latest.oppLineup).toBeNull()
+        expect(latest.lineupError).toBe(true)
+
+        getWeeklyLineup.mockResolvedValue(lineup('day-10'))
+        await act(async () => { await latest.loadLineups(matchup, '2026-07-10') })
+        expect(latest.myLineup?.bench[0]?.playerId).toBe('day-10')
+        expect(latest.lineupError).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('invalidates an in-flight matchup read when the resource identity becomes empty', async () => {
         const pending = deferred<Matchup | null>()
         getMyMatchup.mockReturnValue(pending.promise)

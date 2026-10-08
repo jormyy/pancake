@@ -2,7 +2,8 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { PosTag } from '@/components/PosTag'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { InjuryBadge } from '@/components/Badge'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
@@ -29,7 +30,7 @@ import {
     subscribeToTableChanges,
 } from '@/lib/realtime'
 import { todayET } from '@/lib/shared/dates'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Alert,
@@ -38,8 +39,11 @@ import {
     Text,
     View,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import { Button, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { useGoBack } from '@/components/ui/useGoBack'
+
+const TWO_COLUMN_MIN_WIDTH = 940
 
 // Memoized row component that only re-renders when its props change
 const StarterRow = memo(function StarterRow({
@@ -98,6 +102,7 @@ const StarterRow = memo(function StarterRow({
                     <View style={styles.playerInfo}>
                         <Text style={styles.playerName}>{p.displayName}</Text>
                         <View style={styles.playerMetaRow}>
+                            <InjuryBadge status={p.injuryStatus} />
                             {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                             {starterMatchupLabel !== null && (
                                 <Text style={styles.playerMeta}>{p.nbaTeam} {starterMatchupLabel}</Text>
@@ -169,6 +174,7 @@ const BenchRow = memo(function BenchRow({
             <View style={styles.playerInfo}>
                 <Text style={styles.playerName}>{player.displayName}</Text>
                 <View style={styles.playerMetaRow}>
+                    <InjuryBadge status={player.injuryStatus} />
                     {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                     {benchMatchupLabel !== null && (
                         <Text style={styles.playerMeta}>{player.nbaTeam} {benchMatchupLabel}</Text>
@@ -184,7 +190,10 @@ const BenchRow = memo(function BenchRow({
 })
 
 export default function LineupScreen() {
-    const { back } = useRouter()
+    const back = useGoBack('/roster')
+    const { padX, usableWidth, compact: compactDays } = usePageMetrics()
+    // Wide screens set starters and bench side by side, so a move never needs a scroll.
+    const twoColumn = usableWidth >= TWO_COLUMN_MIN_WIDTH
     const { playerId: playerIdParam } = useLocalSearchParams<{ playerId?: string | string[] }>()
     const requestedPlayerId = Array.isArray(playerIdParam) ? playerIdParam[0] : playerIdParam
     const { user } = useAuth()
@@ -453,7 +462,7 @@ export default function LineupScreen() {
               ? 'Could not load lineup.'
               : 'No active lineup yet.'
         return (
-            <SafeAreaView style={styles.container}>
+            <Page title="Lineup">
                 <View style={styles.empty}>
                     <Text style={styles.emptyText}>{emptyMessage}</Text>
                     {lineupError ? <Text style={styles.emptySubtext}>{lineupError}</Text> : null}
@@ -469,49 +478,33 @@ export default function LineupScreen() {
                         </MotionPressable>
                     ) : null}
                 </View>
-            </SafeAreaView>
+            </Page>
         )
     }
 
     const rosterEmpty = visibleStarters.every((s) => !s.player) && visibleBench.length === 0
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            {/* Header */}
-            <View style={styles.header}>
-                <MotionPressable
-                    onPress={() => back()}
-                    style={styles.closeButton}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close lineup"
-                    pressedScale={0.92}
-                >
-                    <Text style={styles.closeText}>Done</Text>
-                </MotionPressable>
-                <Text
-                    style={styles.headerTitle}
-                    role="heading"
-                    aria-level={2}
-                    accessibilityRole="header"
-                >
-                    Week {visibleCtx.weekNumber} Lineup
-                </Text>
-                <MotionPressable
-                    style={[styles.autoSetButton, rosterEmpty && styles.autoSetButtonDisabled]}
-                    onPress={handleAutoSet}
-                    disabled={autoSetting || saving || rosterEmpty}
-                    accessibilityRole="button"
-                    accessibilityLabel="Open auto-set lineup options"
-                    accessibilityState={{ disabled: autoSetting || saving || rosterEmpty }}
-                    pressedScale={0.92}
-                >
-                    <Text style={[styles.autoSetText, rosterEmpty && styles.autoSetTextDisabled]}>Auto-Set</Text>
-                </MotionPressable>
-            </View>
+        <Page title="Lineup">
+            <PageHeader
+                title={`Week ${visibleCtx.weekNumber} lineup`}
+                onBack={() => back()}
+                backLabel="Close lineup"
+                actions={(
+                    <Button
+                        title="Auto-set"
+                        size="sm"
+                        variant="outline"
+                        onPress={handleAutoSet}
+                        disabled={autoSetting || saving || rosterEmpty}
+                        accessibilityLabel="Open auto-set lineup options"
+                    />
+                )}
+            />
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} />
+                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} />
             )}
 
             {lineupRefreshing ? (
@@ -546,7 +539,10 @@ export default function LineupScreen() {
                 </MotionView>
             )}
 
-            <ScrollView style={styles.scroller} contentContainerStyle={styles.scroll}>
+            <ScrollView
+                style={styles.scroller}
+                contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }, twoColumn && styles.scrollWide]}
+            >
                 {rosterEmpty ? (
                     <View style={styles.preDraftHint}>
                         <Text style={styles.preDraftHintText}>
@@ -554,6 +550,8 @@ export default function LineupScreen() {
                         </Text>
                     </View>
                 ) : null}
+                <View style={[styles.columns, twoColumn && styles.columnsWide]}>
+                <View style={[styles.column, twoColumn && styles.columnWide]}>
                 {/* Starters */}
                 <Text
                     style={styles.sectionLabel}
@@ -562,7 +560,7 @@ export default function LineupScreen() {
                     accessibilityRole="header"
                     accessibilityLabel="Starters"
                 >
-                    STARTERS
+                    Starters
                 </Text>
                 <MotionView style={styles.card} preset="rise">
                     {visibleStarters.map((slot, i) => (
@@ -579,7 +577,9 @@ export default function LineupScreen() {
                         />
                     ))}
                 </MotionView>
+                </View>
 
+                <View style={[styles.column, twoColumn && styles.columnWide]}>
                 {/* Bench */}
                 <Text
                     style={styles.sectionLabel}
@@ -588,7 +588,7 @@ export default function LineupScreen() {
                     accessibilityRole="header"
                     accessibilityLabel="Bench"
                 >
-                    BENCH
+                    Bench
                 </Text>
                 <MotionView style={styles.card} preset="rise" delay={90}>
                     {visibleBench.length === 0 ? (
@@ -609,6 +609,8 @@ export default function LineupScreen() {
                         ))
                     )}
                 </MotionView>
+                </View>
+                </View>
             </ScrollView>
 
             <AutoSetModal
@@ -621,42 +623,13 @@ export default function LineupScreen() {
                 onEnableSeasonOptimizer={handleEnableSeasonOptimizer}
                 onDisableSeasonOptimizer={handleDisableSeasonOptimizer}
             />
-        </SafeAreaView>
+        </Page>
     )
 }
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
-
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: 14,
-        backgroundColor: colors.bgScreen,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    closeButton: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-    closeText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    headerTitle: { flex: 1, fontSize: 18, fontWeight: fontWeight.extrabold, textAlign: 'center' },
-    autoSetButton: {
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        borderWidth: 1.5,
-        borderColor: colors.primary,
-        minWidth: 80,
-        minHeight: 48,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    autoSetButtonDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted, opacity: 0.55 },
-    autoSetTextDisabled: { color: colors.textMuted },
     preDraftHint: {
         padding: spacing.lg,
         borderRadius: radii.lg,
@@ -665,14 +638,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.primaryBorder,
     },
-    preDraftHintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium, lineHeight: 18 },
+    preDraftHintText: { ...textStyles.body, color: colors.primaryDark, fontWeight: fontWeight.medium },
 
     hint: {
         backgroundColor: colors.primaryLight,
         borderBottomWidth: 1,
         borderBottomColor: colors.primaryBorder,
         paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        paddingVertical: spacing.md,
     },
     hintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
 
@@ -681,7 +654,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.primaryBorder,
         paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        paddingVertical: spacing.md,
     },
     statusBannerText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
     errorBanner: {
@@ -692,11 +665,11 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.dangerLight,
         paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        paddingVertical: spacing.md,
     },
-    errorBannerText: { flex: 1, fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.medium },
+    errorBannerText: { flex: 1, fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.medium },
     errorRetryButton: {
-        minHeight: 36,
+        minHeight: 44,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -704,23 +677,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    errorRetryButtonText: { fontSize: fontSize.sm, color: colors.danger, fontWeight: fontWeight.bold },
+    errorRetryButtonText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.bold },
 
     scroller: { flex: 1, minHeight: 0 },
-    scroll: { padding: spacing.xl, gap: spacing.md, width: '100%', maxWidth: 640, alignSelf: 'center' },
+    scroll: { paddingVertical: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
+    scrollWide: { maxWidth: 2 * layout.lineupMaxWidth },
+    columns: { gap: spacing.md },
+    columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
+    // Only flex side by side; in one column a flex child would shrink inside the scroll view.
+    column: { minWidth: 0 },
+    columnWide: { flex: 1 },
 
     sectionLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-        marginBottom: spacing.xs,
+        ...textStyles.sectionLabel,
+        marginBottom: spacing.sm,
         marginLeft: spacing.xs,
     },
 
     card: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: 14,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
@@ -731,18 +707,18 @@ const styles = StyleSheet.create({
     slotRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-        gap: 10,
-        minHeight: 56,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        gap: spacing.md,
+        minHeight: 52,
     },
     benchRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-        gap: 10,
-        minHeight: 56,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        gap: spacing.md,
+        minHeight: 52,
     },
     divider: { borderTopWidth: 1, borderTopColor: colors.separator },
     selectedRow: { backgroundColor: colors.primaryLight },
@@ -753,21 +729,19 @@ const styles = StyleSheet.create({
         width: 36,
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
+        color: colors.primaryDark,
     },
 
-    playerInfo: { flex: 1, gap: 1 },
-    playerName: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    playerMeta: { fontSize: 12, color: colors.textMuted },
+    playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    playerName: { ...textStyles.rowTitle },
+    playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    playerMeta: { ...textStyles.meta },
 
-    emptySlot: { fontSize: fontSize.md, color: colors.textMuted, fontStyle: 'italic' },
+    emptySlot: { ...textStyles.body, color: colors.textMuted, fontStyle: 'italic' },
     lockedBadge: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: uiColors.successTextLive,
-        letterSpacing: 0,
     },
     moveBadge: {
         fontSize: fontSize['2xs'],
@@ -777,14 +751,12 @@ const styles = StyleSheet.create({
     },
     benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
 
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },
     emptySubtext: {
         maxWidth: 320,
         marginTop: spacing.sm,
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textMuted,
+        ...textStyles.meta,
         textAlign: 'center',
     },
     retryButton: {
@@ -798,5 +770,4 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     retryButtonText: { fontSize: fontSize.sm, color: colors.textWhite, fontWeight: fontWeight.bold },
-
 })

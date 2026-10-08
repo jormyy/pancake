@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii } from '@/constants/tokens'
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii } from '@/constants/tokens'
 
 type Variant = 'solid' | 'soft'
 
@@ -11,6 +11,12 @@ type Props = {
     textColor?: string
     variant?: Variant
     maxWidth?: number
+}
+
+/** A player's injury status (Out, GTD…) in its status color; nothing when healthy. */
+export function InjuryBadge({ status }: { status: string | null | undefined }) {
+    if (!status) return null
+    return <Badge label={status} color={INJURY_COLORS[status] ?? colors.textMuted} variant="solid" />
 }
 
 /** Small pill badge for status, injury, role, etc. */

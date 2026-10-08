@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, spacing, textStyles } from '@/constants/tokens'
 
 type Props = { label: string; level?: number; decorative?: boolean }
 
@@ -24,14 +24,8 @@ export function SectionHeader({ label, level = 2, decorative = false }: Props) {
 const styles = StyleSheet.create({
     container: {
         paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
+        paddingVertical: spacing.sm,
         backgroundColor: colors.bgSubtle,
     },
-    text: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        letterSpacing: 0,
-        textTransform: 'uppercase',
-    },
+    text: { ...textStyles.sectionLabel },
 })

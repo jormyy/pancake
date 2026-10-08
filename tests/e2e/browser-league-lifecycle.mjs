@@ -55,22 +55,6 @@ const waitForBodyText = async (session, predicateSource, label, attempts = 20) =
   throw new Error(`${label}: expected text did not appear. Last body: ${latest?.text ?? '<empty>'}`)
 }
 
-const clickExactText = async (session, text, label) => {
-  const result = await browser(session, [
-    'eval',
-    `(() => {
-      const target = [...document.querySelectorAll('*')]
-        .reverse()
-        .find((element) => (element.textContent || '').trim() === ${JSON.stringify(text)});
-      if (!target) return JSON.stringify({ ok: false });
-      target.click();
-      return JSON.stringify({ ok: true, tagName: target.tagName, text: target.textContent });
-    })()`,
-  ])
-  const parsed = parseEvalJson(result)
-  if (!parsed.ok) throw new Error(`${label}: text not found: ${text}`)
-}
-
 const signIn = async (session, env, user) => {
   await browser(session, ['open', joinUrl(env.frontendUrl, '/sign-in')])
   await browser(session, ['wait', '1500'])
@@ -210,10 +194,10 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     await browser(session, ['find', 'placeholder', 'e.g. Hoops Dynasty', 'fill', `Pancake Browser League Lifecycle ${runId}`])
     await browser(session, ['find', 'placeholder', 'e.g. Buckets BC', 'fill', commissioner.teamName])
     await browser(session, ['find', 'placeholder', '200', 'fill', '200'])
-    await clickExactText(session, 'Create League', 'create league button')
+    await clickButtonByName(browser, session, 'Create league')
     const createBody = await waitForBodyText(
       session,
-      `(text) => text.includes('League Created!') && /\\b[A-Z0-9]{16}\\b/.test(text)`,
+      `(text) => text.includes('League created') && /\\b[A-Z0-9]{16}\\b/.test(text)`,
       'create league success',
     )
     const inviteCode = createBody.match(/\b[A-Z0-9]{16}\b/)?.[0]
@@ -237,7 +221,7 @@ export async function runBrowserLeagueLifecycleScenario({ season = 0 } = {}) {
     await browser(session, ['wait', '1500'])
     await browser(session, ['find', 'placeholder', '16-character code', 'fill', inviteCode])
     await browser(session, ['find', 'placeholder', 'e.g. Buckets BC', 'fill', manager.teamName])
-    await clickExactText(session, 'Join League', 'join league button')
+    await clickButtonByName(browser, session, 'Join league')
     await browser(session, ['wait', '3000'])
     await browser(session, ['screenshot', path.join(artifactDir, 'joined-league.png')], { timeout: 60_000 })
 

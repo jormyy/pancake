@@ -4,7 +4,7 @@ import type {
     MockDraftRoomKind,
     MockDraftRoomStatus,
 } from '@/lib/mockDraftRooms'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import {
     DraftChips,
@@ -19,6 +19,7 @@ import {
 } from '@/components/league/DraftChips'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
+import { usePageMetrics } from '@/components/ui'
 
 const ROOM_STATUS_LABELS: Record<MockDraftRoomStatus, string> = {
     active: 'Active',
@@ -320,6 +321,7 @@ export function MockRoomsPanel({
     onDeleteRoom: (room: MockDraftRoom) => void
 }) {
     const { viewportHeight } = useWebViewport()
+    const { padX } = usePageMetrics()
     const compactComposer = viewportHeight < 500
     const statuses: MockDraftRoomStatus[] = ['live', 'active', 'scheduled', 'completed']
 
@@ -384,7 +386,7 @@ export function MockRoomsPanel({
         <>
             {rooms.length ? roomSections() : null}
             <View style={[panelStyles.panelCard, compactComposer && panelStyles.panelCardCompact]}>
-                <Text style={panelStyles.panelTitle}>Mock Draft Room</Text>
+                <Text style={panelStyles.panelTitle}>New mock room</Text>
                 {compactComposer ? (
                     <View style={styles.mockCompactCreateRow}>
                         <View style={styles.mockCompactTypeWrap}>
@@ -406,6 +408,7 @@ export function MockRoomsPanel({
                             value={roomName}
                             onChangeText={onRoomNameChange}
                             placeholder="Room name"
+                            placeholderTextColor={colors.inputPlaceholder}
                             accessibilityLabel="Mock room name"
                         />
                         <Text style={panelStyles.nominationModeLabel}>Room type</Text>
@@ -416,7 +419,6 @@ export function MockRoomsPanel({
                             groupLabel="Mock room type"
                             accessibilityLabelForOption={mockRoomTypeChipLabel}
                         />
-                        {createButton}
                     </>
                 )}
                 {compactComposer ? null : (
@@ -427,6 +429,7 @@ export function MockRoomsPanel({
                             value={roomScheduledAt}
                             onChangeText={onRoomScheduledAtChange}
                             placeholder="2026-07-01 19:30"
+                            placeholderTextColor={colors.inputPlaceholder}
                             autoCapitalize="none"
                             accessibilityLabel="Mock room start time"
                         />
@@ -467,15 +470,17 @@ export function MockRoomsPanel({
                         />
                     </>
                 )}
+                {/* Create comes after every option, so the room is set up before it exists. */}
+                {compactComposer ? null : createButton}
             </View>
             {rooms.length ? null : <MockRoomsEmptyState compact={compactComposer} />}
         </>
     )
 
     return (
-        <ScrollView contentContainerStyle={compactComposer ? undefined : panelStyles.panelScroll}>
+        <ScrollView contentContainerStyle={compactComposer ? undefined : [panelStyles.panelScroll, { paddingHorizontal: padX }]}>
             {compactComposer ? (
-                <View style={[panelStyles.panelScroll, panelStyles.panelScrollCompactLandscape, styles.mockRoomsScrollCompact]}>
+                <View style={[panelStyles.panelScroll, { paddingHorizontal: padX }, panelStyles.panelScrollCompactLandscape, styles.mockRoomsScrollCompact]}>
                     {panelContent}
                 </View>
             ) : panelContent}
@@ -492,7 +497,8 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.lg,
-        fontSize: fontSize.md,
+        // 16px keeps iOS Safari from zooming the page when the field is focused.
+        fontSize: fontSize.lg,
         color: colors.textPrimary,
         backgroundColor: colors.bgScreen,
     },
@@ -514,14 +520,7 @@ const styles = StyleSheet.create({
     },
     roomSection: { gap: spacing.sm },
     roomList: { gap: spacing.sm },
-    sectionLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        textTransform: 'uppercase',
-        letterSpacing: 0,
-        marginLeft: spacing.xs,
-    },
+    sectionLabel: { ...textStyles.sectionLabel, marginLeft: spacing.xs },
     roomCard: {
         backgroundColor: colors.bgCard,
         borderWidth: 1,
@@ -541,11 +540,11 @@ const styles = StyleSheet.create({
     roomCardTop: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
     roomCardTopCompact: { alignItems: 'center' },
     roomTitleWrap: { flex: 1, minWidth: 0 },
-    roomTitle: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    roomMeta: { fontSize: fontSize.sm, color: colors.textMuted, lineHeight: 18 },
+    roomTitle: { ...textStyles.rowTitle },
+    roomMeta: { ...textStyles.meta },
     roomStatusPill: {
         paddingHorizontal: spacing.md,
-        paddingVertical: 4,
+        paddingVertical: spacing.xs,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgSubtle,
@@ -579,11 +578,7 @@ const styles = StyleSheet.create({
         gap: spacing.xxs,
         justifyContent: 'center',
     },
-    mockRoomsEmptyTitle: {
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
+    mockRoomsEmptyTitle: { ...textStyles.rowTitle },
     mockRoomsEmptyTitleCompact: { fontSize: fontSize.sm },
     mockRoomsEmptyText: {
         fontSize: fontSize.sm,

@@ -64,7 +64,7 @@ const browserJson = async (session, source) =>
   parseEvalJson(await browser(session, ['eval', source]))
 
 const expectedSurfacePath = (label, route) =>
-  label === 'draft-launcher' ? '/draft-room' : new URL(route, 'http://pancake.local').pathname
+  new URL(route, 'http://pancake.local').pathname
 
 const surfaceRouteSettled = async (session, label, route, phase) => {
   const state = await browserJson(session, `JSON.stringify({
@@ -632,7 +632,7 @@ const fetchSweepContext = async (env, state, user) => {
     ['change-password', '/change-password'],
     ['lineup', '/lineup'],
     ['bracket', '/bracket'],
-    ['draft-launcher', '/(tabs)/draft-room'],
+    ['draft-launcher', '/draft'],
     ['not-found', '/surface-contract-not-found'],
   ]
   if (playerId) {
@@ -733,7 +733,7 @@ export async function runBrowserSmoke({
       ['roster', '/roster'],
       ['trades', '/trades'],
       ['league', '/league'],
-      ['dynasty', '/dynasty'],
+      ['dynasty', '/players?section=rankings'],
     ]
 
     if (fullSweep) {

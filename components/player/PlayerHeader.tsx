@@ -11,7 +11,7 @@ import {
 import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { INJURY_COLORS, colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -45,6 +45,8 @@ type Props = {
     onDrop: () => void
     onClaim: () => void
     onSetLineup: () => void
+    /** Smaller headshot so the name keeps room next to the actions on phones. */
+    compact?: boolean
 }
 
 export function PlayerHeader({
@@ -59,7 +61,9 @@ export function PlayerHeader({
     onDrop,
     onClaim,
     onSetLineup,
+    compact = false,
 }: Props) {
+    const headshotSize = compact ? HEADSHOT_COMPACT : HEADSHOT
     const [headshotError, setHeadshotError] = useState(false)
     const eligiblePositions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
@@ -98,22 +102,20 @@ export function PlayerHeader({
 
     return (
         <View style={styles.header}>
-            {/* Avatar */}
             <View style={styles.avatarWrap}>
                 {headshotUri && !headshotError ? (
                     <Image
                         source={{ uri: headshotUri }}
-                        style={styles.headshot}
+                        style={[styles.headshot, { width: headshotSize, height: headshotSize }]}
                         onError={() => setHeadshotError(true)}
                     />
                 ) : (
-                    <Avatar name={player.display_name} size={72} />
+                    <Avatar name={player.display_name} size={headshotSize} />
                 )}
             </View>
 
-            {/* Info */}
             <View style={styles.info}>
-                <Text style={styles.name}>{player.display_name}</Text>
+                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2}>{player.display_name}</Text>
                 <View style={styles.metaRow}>
                     {metaParts.length > 0 && <Text style={styles.meta}>{metaParts.join(' · ')}</Text>}
                     {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
@@ -128,7 +130,7 @@ export function PlayerHeader({
                     )}
                     {player.dynasty_rank != null && (
                         <Badge
-                            label={`Dynasty rank #${player.dynasty_rank}`}
+                            label={`Dynasty #${player.dynasty_rank}`}
                             color={colors.textSecondary}
                             variant="soft"
                             textColor={colors.textSecondary}
@@ -145,39 +147,38 @@ export function PlayerHeader({
                 </View>
             </View>
 
-            {/* Roster action */}
             {leagueActive && rosterStatus && (
                 <View style={styles.actionWrap}>
                     {rosterStatus.status === 'free_agent' ? (
-                        renderPickupAction({ label: '+ Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: styles.addButton, textStyle: styles.addButtonText, onPress: onAdd, blockedReason: addBlockedReason })
+                        renderPickupAction({ label: 'Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: [styles.action, styles.actionPrimary], textStyle: styles.actionPrimaryText, onPress: onAdd, blockedReason: addBlockedReason })
                     ) : rosterStatus.status === 'on_waivers' ? (
-                        renderPickupAction({ label: 'Claim', accessibilityLabel: `Claim ${player.display_name}`, buttonStyle: styles.claimButton, textStyle: styles.claimButtonText, onPress: onClaim, blockedReason: null })
+                        renderPickupAction({ label: 'Claim', accessibilityLabel: `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: [styles.actionPrimaryText, styles.actionClaimText], onPress: onClaim, blockedReason: null })
                     ) : rosterStatus.status === 'mine' ? (
                         <View style={styles.myActions}>
                             <Pressable
-                                style={styles.lineupButton}
+                                style={[styles.action, styles.actionPrimary]}
                                 onPress={onSetLineup}
                                 disabled={actionLoading}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Move ${player.display_name} in lineup`}
                                 accessibilityState={{ disabled: actionLoading }}
                             >
-                                <Text style={styles.lineupButtonText}>Lineup</Text>
+                                <Text style={styles.actionPrimaryText}>Lineup</Text>
                             </Pressable>
                             <Pressable
-                                style={styles.dropButton}
+                                style={[styles.action, styles.actionDanger]}
                                 onPress={onDrop}
                                 disabled={actionLoading}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Drop ${player.display_name}`}
                                 accessibilityState={{ disabled: actionLoading }}
                             >
-                                <Text style={styles.dropButtonText}>Drop</Text>
+                                <Text style={styles.actionDangerText}>Drop</Text>
                             </Pressable>
                         </View>
                     ) : (
                         <View style={styles.takenBadge}>
-                            <Text style={styles.takenText}>
+                            <Text style={styles.takenText} numberOfLines={2}>
                                 {rosterStatus.ownerTeamName}
                             </Text>
                         </View>
@@ -188,75 +189,51 @@ export function PlayerHeader({
     )
 }
 
+const HEADSHOT = 64
+const HEADSHOT_COMPACT = 48
+
 const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
     avatarWrap: { flexShrink: 0 },
-    headshot: { width: 72, height: 72, borderRadius: radii.full, backgroundColor: colors.bgMuted },
+    headshot: { borderRadius: radii.full, backgroundColor: colors.bgMuted },
 
-    info: { flex: 1, gap: spacing.xs },
-    name: { fontSize: fontSize['2xl'] - 2, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    meta: { fontSize: fontSize.md, color: colors.textMuted },
-    badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
+    info: { flex: 1, minWidth: 0, gap: spacing.xs },
+    name: { fontFamily: fontFamily.display, fontSize: fontSize['2xl'], lineHeight: 28, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    nameCompact: { fontSize: fontSize.xl, lineHeight: 24 },
+    metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
+    meta: { ...textStyles.meta, fontSize: fontSize.sm },
+    badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 
-    actionWrap: { flexShrink: 0 },
+    actionWrap: { flexShrink: 0, alignSelf: 'flex-start' },
     myActions: { gap: spacing.sm, alignItems: 'stretch' },
     pickupAction: { alignItems: 'flex-end', gap: spacing.xs, maxWidth: 160 },
     pickupBlocked: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     pickupBlockedText: { color: colors.textPlaceholder },
     pickupCaption: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'right' },
 
-    lineupButton: {
-        backgroundColor: colors.primary,
+    action: {
+        minHeight: controlSize.button.sm.height,
+        minWidth: 76,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        minWidth: 72,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    lineupButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-
-    addButton: {
-        backgroundColor: colors.primary,
-        paddingHorizontal: spacing.lg + 2,
-        paddingVertical: spacing.md + 1,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        minWidth: 68,
-        alignItems: 'center',
-    },
-    addButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-
-    dropButton: {
-        paddingHorizontal: spacing.lg + 2,
-        paddingVertical: spacing.md + 1,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1.5,
-        borderColor: colors.danger,
-        minWidth: 68,
-        alignItems: 'center',
-    },
-    dropButtonText: { color: colors.dangerDark, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-
-    claimButton: {
-        backgroundColor: colors.info,
-        paddingHorizontal: spacing.lg + 2,
-        paddingVertical: spacing.md + 1,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        minWidth: 68,
-        alignItems: 'center',
-    },
-    claimButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    actionPrimary: { backgroundColor: colors.primary },
+    actionClaim: { backgroundColor: colors.info },
+    actionClaimText: { color: colors.onAccent },
+    actionDanger: { borderWidth: 1, borderColor: colors.danger },
+    actionPrimaryText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
+    actionDangerText: { color: colors.dangerDark, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
 
     takenBadge: {
+        maxWidth: 140,
         backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.lg - 2,
-        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
     },
-    takenText: { color: colors.textMuted, fontSize: fontSize.sm - 1, fontWeight: fontWeight.semibold },
+    takenText: { color: colors.textMuted, fontSize: fontSize['2sm'], fontWeight: fontWeight.semibold, textAlign: 'center' },
 })

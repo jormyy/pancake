@@ -20,6 +20,8 @@ vi.mock('@/constants/tokens', () => ({
     fontWeight: { bold: '700', semibold: '600' },
     spacing: { md: 12, xxs: 2, lg: 16 },
     radii: { md: 4 },
+    table: { rowHeight: 52 },
+    textStyles: { sectionLabel: {}, rowTitle: {}, meta: {}, body: {} },
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

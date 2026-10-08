@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import DynastyScreen from '@/app/(tabs)/dynasty'
+import { DynastyHub } from '@/components/dynasty/DynastyHub'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
 import {
     dynastyAnalyzerLatestRouteCacheKey,
@@ -106,7 +106,7 @@ beforeEach(() => {
 describe('dynasty tools UI', () => {
     it('renders only the three requested ranking tabs with 5-year selected', async () => {
         let renderer!: ReturnType<typeof create>
-        await act(async () => { renderer = create(React.createElement(DynastyScreen)) })
+        await act(async () => { renderer = create(React.createElement(DynastyHub, { section: 'rankings' })) })
         const tabs = renderer.root.findAll((node) => node.props.accessibilityRole === 'tab')
         const rankingTabs = tabs.filter((node) => ['5-Year Points', '3-Year Points', 'Rookies & Picks']
             .includes(node.props.accessibilityLabel))

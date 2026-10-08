@@ -2,12 +2,13 @@ import {
     brand,
     breakpoints,
     fontSize,
+    layout,
     palette,
     radii,
     spacing,
     webBackgrounds,
     webOverlays,
-    WEB_THEME_VARS,
+    themeVariablesCss,
 } from './tokens'
 
 // The instant boot shell.
@@ -34,7 +35,7 @@ export const BOOT_SHELL_READY_ATTR = 'data-pancake-shell'
 export const BOOT_SHELL_MARK = 'pancake-boot-shell'
 export const APP_MOUNTED_MARK = 'pancake-app-mounted'
 
-const SIDEBAR_WIDTH = 264
+const SIDEBAR_WIDTH = layout.sidebarWidth
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
 const SANS = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -50,8 +51,6 @@ const ICONS: Record<string, string> = {
     groups:
         'M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58C.48 14.9 0 15.62 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85-.85-.37-1.79-.58-2.78-.58-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z',
     'swap-horiz': 'M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z',
-    'auto-awesome':
-        'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
     'flash-on': 'M7 2v11h3v9l7-12h-4l4-8z',
     'account-tree':
         'M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z',
@@ -63,26 +62,22 @@ const ICONS: Record<string, string> = {
 
 // Mirrors PRIMARY_NAV in WebTabShell; the sidebar groups these together.
 const PRIMARY_NAV: BootNavItem[] = [
-    { label: 'Matchup', mobileLabel: 'Match', href: '/', icon: 'home' },
+    { label: 'Matchup', mobileLabel: 'Matchup', href: '/', icon: 'home' },
     { label: 'Roster', mobileLabel: 'Roster', href: '/roster', icon: 'assignment' },
     { label: 'Players', mobileLabel: 'Players', href: '/players', icon: 'groups' },
     { label: 'Trades', mobileLabel: 'Trades', href: '/trades', icon: 'swap-horiz' },
-    { label: 'Dynasty', mobileLabel: 'Dyn', href: '/dynasty', icon: 'auto-awesome' },
 ]
 
 // League sits in its own sidebar group, and joins the primary items on mobile.
 const LEAGUE_NAV: BootNavItem = { label: 'League', mobileLabel: 'League', href: '/league', icon: 'emoji-events' }
 const NAV: BootNavItem[] = [...PRIMARY_NAV, LEAGUE_NAV]
 
-const themeVars = Object.entries(WEB_THEME_VARS)
-    .map(([name, value]) => `--pancake-${name}:${value};`)
-    .join('')
 
 export const BOOT_SHELL_CSS = `
-:root{${themeVars}}
-html,body{background-color:${palette.cream100};}
+${themeVariablesCss()}
+html,body{background-color:var(--pancake-bg-screen);}
 #${BOOT_SHELL_ID}{position:fixed;inset:0;z-index:1;display:none;font-family:${SANS};
-  background-color:${palette.cream100};background-image:${webBackgrounds.appRoot};}
+  background-color:var(--pancake-bg-screen);background-image:${webBackgrounds.appRoot};}
 #${BOOT_SHELL_ID}[data-visible="1"]{display:block;}
 #${BOOT_SHELL_ID} *{box-sizing:border-box;}
 #${BOOT_SHELL_ID} a{text-decoration:none;-webkit-tap-highlight-color:transparent;}
@@ -95,8 +90,6 @@ html,body{background-color:${palette.cream100};}
 .pbs-brand{display:flex;align-items:center;gap:11px;padding:6px 10px 16px;}
 .pbs-brand img{width:42px;height:42px;object-fit:contain;}
 .pbs-brand-title{font-size:21px;font-weight:800;color:${brand.on};line-height:1.15;}
-.pbs-brand-sub{margin-top:-2px;font-size:${fontSize['2xs']}px;font-weight:700;letter-spacing:1.1px;
-  text-transform:uppercase;color:${brand.onSubtle};}
 .pbs-league{min-height:58px;display:flex;align-items:center;gap:${spacing.lg}px;
   padding:${spacing.md}px ${spacing.lg}px;border-radius:${radii.lg}px;
   background:${brand.overlay};border:1px solid ${brand.borderSubtle};margin-bottom:${spacing.md}px;}
@@ -105,7 +98,7 @@ html,body{background-color:${palette.cream100};}
   color:${palette.white};font-weight:800;font-size:${fontSize.sm}px;}
 .pbs-league-text{min-width:0;flex:1;}
 .pbs-league-name{color:${brand.onStrong};font-weight:700;font-size:${fontSize.md}px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
 .pbs-league-meta{color:${brand.onSubtle};font-size:${fontSize.xs}px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pbs-navgroup{display:flex;flex-direction:column;gap:${spacing.xs}px;}
@@ -115,8 +108,7 @@ html,body{background-color:${palette.cream100};}
 .pbs-navitem svg{width:19px;height:19px;flex-shrink:0;fill:${brand.onStrong};}
 .pbs-navitem[aria-current="page"]{background:${palette.maple500};color:${brand.on};}
 .pbs-navitem[aria-current="page"] svg{fill:${palette.white};}
-.pbs-section{padding:14px ${spacing.lg}px ${spacing.sm}px;color:${brand.onSubtle};
-  font-size:${fontSize['2xs']}px;font-weight:800;letter-spacing:1px;text-transform:uppercase;}
+.pbs-section{height:1px;margin:${spacing.sm}px ${spacing.lg}px;background:${brand.borderSubtle};}
 .pbs-side-foot{flex-shrink:0;padding:${spacing.md}px 14px 0;border-top:1px solid ${brand.borderSubtle};}
 .pbs-userchip{min-height:50px;display:flex;align-items:center;gap:${spacing.lg}px;
   padding:0 ${spacing.md}px;border-radius:${radii.md}px;}
@@ -137,26 +129,27 @@ html,body{background-color:${palette.cream100};}
     height:calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top,0px));
     padding-top:env(safe-area-inset-top,0px);background:${webOverlays.mobileTopbar};
     -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
-    border-bottom:1px solid ${palette.cream300};}
+    border-bottom:1px solid var(--pancake-border-light);}
   .pbs-topbar img{width:34px;height:44px;object-fit:contain;}
   .pbs-topbar-league{flex:1;min-width:0;height:44px;display:flex;align-items:center;
     gap:${spacing.md}px;padding:0 ${spacing.md}px;border-radius:${radii.lg}px;
-    background:${palette.cream200};border:1px solid ${palette.cream300};}
-  .pbs-topbar-league .pbs-league-name{color:${palette.espresso};font-size:${fontSize.sm}px;}
-  .pbs-chevron{width:18px;height:18px;flex-shrink:0;fill:${palette.latte};}
-  .pbs-menu{width:44px;height:44px;border-radius:${radii.lg}px;background:${palette.cream200};
+    background:var(--pancake-bg-muted);border:1px solid var(--pancake-border-light);}
+  .pbs-topbar-league .pbs-league-name{color:var(--pancake-text-primary);font-size:${fontSize.sm}px;
+    display:block;white-space:nowrap;text-overflow:ellipsis;}
+  .pbs-chevron{width:18px;height:18px;flex-shrink:0;fill:var(--pancake-text-muted);}
+  .pbs-menu{width:44px;height:44px;border-radius:${radii.lg}px;background:var(--pancake-bg-muted);
     display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .pbs-menu svg{width:22px;height:22px;fill:${palette.espresso};}
+  .pbs-menu svg{width:22px;height:22px;fill:var(--pancake-text-primary);}
   .pbs-bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;
     align-items:center;justify-content:space-around;
     height:calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom,0px));
     padding-bottom:calc(${spacing.xs}px + env(safe-area-inset-bottom,0px));
-    background:${webOverlays.mobileBottomNav};border-top:1px solid ${palette.cream300};}
+    background:${webOverlays.mobileBottomNav};border-top:1px solid var(--pancake-border-light);}
   .pbs-bottomitem{flex:1;min-height:44px;height:54px;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:${spacing.xs}px;color:${palette.latte};}
-  .pbs-bottomitem svg{width:22px;height:22px;fill:${palette.latte};}
-  .pbs-bottomitem[aria-current="page"]{color:${palette.maple600};}
-  .pbs-bottomitem[aria-current="page"] svg{fill:${palette.maple600};}
+    align-items:center;justify-content:center;gap:${spacing.xs}px;color:var(--pancake-text-muted);}
+  .pbs-bottomitem svg{width:22px;height:22px;fill:var(--pancake-text-muted);}
+  .pbs-bottomitem[aria-current="page"]{color:var(--pancake-primary-dark);}
+  .pbs-bottomitem[aria-current="page"] svg{fill:var(--pancake-primary-dark);}
   .pbs-bottomlabel{width:100%;text-align:center;font-size:${fontSize['2xs']}px;font-weight:700;}
 }
 `.trim()
@@ -182,7 +175,7 @@ export const BOOT_SHELL_HTML = `
     <div class="pbs-side-scroll">
       <div class="pbs-brand">
         <img src="/pwa-192.png" alt="" />
-        <div><div class="pbs-brand-title">Pancake</div><div class="pbs-brand-sub">Manager Console</div></div>
+        <div class="pbs-brand-title">Pancake</div>
       </div>
       <div class="pbs-league">
         <div class="pbs-crest" data-pbs="crest">P</div>
@@ -193,7 +186,7 @@ export const BOOT_SHELL_HTML = `
       </div>
       <div class="pbs-navgroup">${PRIMARY_NAV.map(sideItem).join('')}</div>
       <div class="pbs-navgroup">${sideItem(LEAGUE_NAV)}</div>
-      <div class="pbs-section">Season tools</div>
+      <div class="pbs-section" aria-hidden="true"></div>
       <div class="pbs-navgroup">
         <div class="pbs-navitem">${icon('flash-on')}<span>Draft Room</span></div>
         <div class="pbs-navitem">${icon('account-tree')}<span>Playoffs</span></div>

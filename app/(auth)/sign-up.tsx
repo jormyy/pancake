@@ -9,21 +9,13 @@ import { getErrorMessage } from '@/lib/shared/errors'
 import { signUp } from '@/lib/auth'
 
 const SIGN_UP_HERO: AuthHeroContent = {
-    kicker: 'Dynasty league setup',
     title: 'Set up the league before the league sets the agenda.',
-    copy: 'Use real roster limits, future-pick banks, waiver settings, auction starts, rookie drafts, and manager profiles from day one.',
+    copy: 'Real roster limits, pick banks, waivers, auctions, and rookie drafts from day one.',
     proofItems: [
-        'Five-year pick banks are created with each league.',
-        'Auction and rookie draft rooms stay connected to roster state.',
-        'League settings, lineup slots, IR, and taxi rules travel together.',
-        'Managers can join, draft, trade, claim, and compete from the same shell.',
-    ],
-    previewTitle: 'Setup',
-    previewBadge: 'Commissioner ready',
-    previewRows: [
-        { label: 'Managers', value: '10 teams' },
-        { label: 'Pick bank', value: '5 years' },
-        { label: 'Draft modes', value: '2 rooms' },
+        'Five-year pick banks come with every league.',
+        'Draft rooms stay in sync with rosters.',
+        'Lineup slots, IR, and taxi rules travel together.',
+        'Join, draft, trade, and claim in one place.',
     ],
 }
 
@@ -63,7 +55,6 @@ export default function SignUpScreen() {
         <AuthScaffold
             eyebrow="Create account"
             title="Start your dynasty"
-            subtitle="Create your manager profile, then build or join a league with persistent roster rules."
             hero={SIGN_UP_HERO}
             footer={(
                 <Link href="/(auth)/sign-in" style={styles.link}>
@@ -119,14 +110,16 @@ export default function SignUpScreen() {
 
 const styles = StyleSheet.create({
     error: {
-        color: colors.danger,
+        color: colors.dangerDark,
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
         marginBottom: spacing.lg,
     },
     formBlock: { gap: spacing.lg },
     submit: { marginTop: spacing.sm },
+    // Padded to a 44px tap target.
     link: {
+        paddingVertical: spacing.lg,
         textAlign: 'center',
         color: colors.primaryDark,
         fontSize: fontSize.md,

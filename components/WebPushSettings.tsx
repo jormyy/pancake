@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, spacing, textStyles } from '@/constants/tokens'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import {
@@ -106,17 +106,19 @@ export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: 
     )
 }
 
+// Same row rhythm as SettingsRow so it sits in a SettingsGroup without a seam.
 const styles = StyleSheet.create({
     row: {
+        minHeight: 48,
         flexDirection: 'row',
         alignItems: 'center',
         flexWrap: 'wrap',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: 14,
-        gap: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        gap: spacing.md,
     },
-    text: { flex: 1, minWidth: 180, gap: 2 },
-    label: { fontSize: fontSize.md, color: colors.textPrimary, fontWeight: fontWeight.semibold },
-    detail: { fontSize: fontSize.sm, color: colors.textMuted },
+    text: { flex: 1, minWidth: 180, gap: spacing.xxs },
+    label: { ...textStyles.rowTitle },
+    detail: { ...textStyles.meta },
     actions: { flexDirection: 'row', gap: spacing.sm },
 })

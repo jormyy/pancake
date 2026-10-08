@@ -1,17 +1,23 @@
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
-import { colors, fontSize, fontWeight, radii, spacing, srOnly } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { tableStyles } from '@/components/league/leagueTableStyles'
-import { useWebViewport } from '@/hooks/use-web-viewport'
+import { usePageMetrics } from '@/components/ui'
 import type { LeagueStatus } from '@/types/database'
 
 type StandingsSortKey = 'wins' | 'pf' | 'maxPf' | 'pa'
+type PressableState = { hovered?: boolean; pressed?: boolean }
 
 const STANDINGS_LIST_ID = 'league-standings-results'
+const RANK_W = 28
+const RECORD_W = 64
+const POINTS_W = 64
+const RECORD_W_NARROW = 44
+const POINTS_W_NARROW = 52
 
 const STANDINGS_SORT_LABELS: Record<StandingsSortKey, string> = {
     wins: 'wins',
@@ -26,12 +32,6 @@ function sortDirectionLabel(direction: 'asc' | 'desc') {
 
 function defaultSortDirection(key: StandingsSortKey): 'asc' | 'desc' {
     return key === 'pa' ? 'asc' : 'desc'
-}
-
-function standingsSortIsVisible(key: StandingsSortKey, showPa: boolean, showMaxPf: boolean) {
-    if (key === 'pa') return showPa
-    if (key === 'maxPf') return showMaxPf
-    return true
 }
 
 function standingsSortAccessibilityLabel(key: StandingsSortKey, sortBy: StandingsSortKey, sortDir: 'asc' | 'desc') {
@@ -76,8 +76,8 @@ function standingsListAccessibilityLabel(status: LeagueStatus | undefined, count
     return `${phase}, ${countLabel(count, 'team')}, sorted by ${STANDINGS_SORT_LABELS[sortBy]} ${sortDirectionLabel(sortDir)}`
 }
 
-function standingsRecordLabel(item: StandingRow) {
-    return item.ties > 0 ? `${item.wins}-${item.losses}-${item.ties}` : `${item.wins}-${item.losses}`
+function standingsRecordLabel(item: StandingRow, showTies: boolean) {
+    return showTies ? `${item.wins}-${item.losses}-${item.ties}` : `${item.wins}-${item.losses}`
 }
 
 function StandingsRow({
@@ -87,7 +87,9 @@ function StandingsRow({
     onPress,
     showMaxPf,
     showPa,
+    showTies,
     narrow,
+    padX,
 }: {
     item: StandingRow
     index: number
@@ -95,75 +97,93 @@ function StandingsRow({
     onPress: () => void
     showMaxPf: boolean
     showPa: boolean
+    showTies: boolean
     narrow: boolean
+    padX: number
 }) {
     const label = standingsRowAccessibilityLabel(item, index, isMe, showMaxPf, showPa)
+    const cell = [styles.cell, isMe && tableStyles.textMe]
+    const recordCol = { width: narrow ? RECORD_W_NARROW : RECORD_W }
+    const pointsCol = { width: narrow ? POINTS_W_NARROW : POINTS_W }
 
     return (
         <Pressable
-            style={[styles.standingsRow, narrow && styles.standingsRowNarrow, isMe && tableStyles.rowMe]}
+            style={({ hovered }: PressableState) => [
+                styles.row,
+                { paddingHorizontal: padX },
+                isMe && tableStyles.rowMe,
+                hovered && !isMe && styles.rowHover,
+            ]}
             onPress={onPress}
             role="button"
             aria-label={label}
             accessibilityRole="button"
             accessibilityLabel={label}
         >
-            {narrow ? (
-                <>
-                    <Text style={[styles.standingsRank, styles.standingsRankNarrow, isMe && tableStyles.textMe]}>{index + 1}</Text>
-                    <View style={[styles.standingsTeamWrap, styles.standingsTeamWrapNarrow]}>
-                        <Text style={[styles.standingsTeamName, styles.standingsTeamNameNarrow, isMe && tableStyles.textMe]} numberOfLines={1}>
-                            {item.teamName}
-                        </Text>
-                        {isMe ? (
-                            <View style={styles.standingsYouPill} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                                <Text style={styles.standingsYouText}>You</Text>
-                            </View>
-                        ) : null}
+            <Text style={[styles.rank, isMe && tableStyles.textMe]}>{index + 1}</Text>
+            <View style={styles.teamWrap}>
+                <Text style={[styles.teamName, isMe && tableStyles.textMe]} numberOfLines={1}>
+                    {item.teamName}
+                </Text>
+                {isMe ? (
+                    <View style={styles.youPill} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                        <Text style={styles.youText}>You</Text>
                     </View>
-                    <Text style={[styles.standingsRecordNarrow, isMe && tableStyles.textMe]} numberOfLines={1}>
-                        {standingsRecordLabel(item)}
-                    </Text>
-                    <Text style={[styles.standingsPtsNarrow, isMe && tableStyles.textMe]} numberOfLines={1}>
-                        {item.pointsFor.toFixed(1)}
-                    </Text>
-                    <Text style={[styles.standingsPtsNarrow, isMe && tableStyles.textMe]} numberOfLines={1}>
-                        {item.pointsAgainst.toFixed(1)}
-                    </Text>
-                </>
-            ) : (
-                <>
-                    <Text style={[styles.standingsRank, isMe && tableStyles.textMe]}>{index + 1}</Text>
-                    <View style={styles.standingsTeamWrap}>
-                        <Text style={[styles.standingsTeamName, isMe && tableStyles.textMe]} numberOfLines={1}>
-                            {item.teamName}
-                        </Text>
-                        {isMe ? (
-                            <View style={styles.standingsYouPill} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                                <Text style={styles.standingsYouText}>You</Text>
-                            </View>
-                        ) : null}
-                    </View>
-                    <Text style={[styles.standingsCell, isMe && tableStyles.textMe]}>{item.wins}</Text>
-                    <Text style={[styles.standingsCell, isMe && tableStyles.textMe]}>{item.losses}</Text>
-                    <Text style={[styles.standingsCell, isMe && tableStyles.textMe]}>{item.ties}</Text>
-                    <Text style={[styles.standingsPts, isMe && tableStyles.textMe]}>{item.pointsFor.toFixed(1)}</Text>
-                    {showMaxPf ? <Text style={[styles.standingsPts, isMe && tableStyles.textMe]}>{item.maxPointsFor.toFixed(1)}</Text> : null}
-                    {showPa ? <Text style={[styles.standingsPts, isMe && tableStyles.textMe]}>{item.pointsAgainst.toFixed(1)}</Text> : null}
-                </>
-            )}
+                ) : null}
+            </View>
+            <Text style={[cell, recordCol]} numberOfLines={1}>{standingsRecordLabel(item, showTies)}</Text>
+            <Text style={[cell, pointsCol]} numberOfLines={1}>{item.pointsFor.toFixed(1)}</Text>
+            {showMaxPf ? <Text style={[cell, pointsCol]} numberOfLines={1}>{item.maxPointsFor.toFixed(1)}</Text> : null}
+            {showPa ? <Text style={[cell, pointsCol]} numberOfLines={1}>{item.pointsAgainst.toFixed(1)}</Text> : null}
         </Pressable>
     )
 }
 
-const StandingsListHeader = ({
+function SortHeader({
+    sortKey,
+    label,
+    sortBy,
+    sortDir,
+    onSort,
+    style,
+}: {
+    sortKey: StandingsSortKey
+    label: string
+    sortBy: StandingsSortKey
+    sortDir: 'asc' | 'desc'
+    onSort: (key: StandingsSortKey) => void
+    style: { width: number }
+}) {
+    const active = sortBy === sortKey
+    const accessibilityLabel = standingsSortAccessibilityLabel(sortKey, sortBy, sortDir)
+    return (
+        <Pressable
+            style={[styles.headerCell, styles.headerCellNumeric, style]}
+            onPress={() => onSort(sortKey)}
+            hitSlop={6}
+            role="button"
+            aria-label={accessibilityLabel}
+            aria-controls={STANDINGS_LIST_ID}
+            aria-pressed={active}
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel}
+            accessibilityState={{ selected: active }}
+        >
+            <Text style={[textStyles.tableHeader, active && styles.headerActive]} numberOfLines={1}>
+                {label}{active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+            </Text>
+        </Pressable>
+    )
+}
+
+function StandingsHeader({
     sortBy,
     sortDir,
     onSort,
     showMaxPf,
     showPa,
     narrow,
-    loading,
+    padX,
 }: {
     sortBy: StandingsSortKey
     sortDir: 'asc' | 'desc'
@@ -171,64 +191,16 @@ const StandingsListHeader = ({
     showMaxPf: boolean
     showPa: boolean
     narrow: boolean
-    loading?: boolean
-}) => {
-    const arrow = (key: StandingsSortKey) =>
-        sortBy === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''
+    padX: number
+}) {
     const sortControlsLabel = standingsSortControlsAccessibilityLabel(sortBy, sortDir)
-    // Narrow sort cells double as the mini-table's column headers, so they sit
-    // right above the numbers they sort instead of forming a chip row.
-    const narrowSortButton = (key: StandingsSortKey, label: string, colStyle: object) => (
-        <Pressable
-            key={key}
-            style={[styles.standingsSortCellNarrow, colStyle]}
-            onPress={() => onSort(key)}
-            hitSlop={6}
-            role="button"
-            aria-label={standingsSortAccessibilityLabel(key, sortBy, sortDir)}
-            aria-controls={STANDINGS_LIST_ID}
-            aria-pressed={sortBy === key}
-            accessibilityRole="button"
-            accessibilityLabel={standingsSortAccessibilityLabel(key, sortBy, sortDir)}
-            accessibilityState={{ selected: sortBy === key }}
-        >
-            <Text style={[tableStyles.headerText, sortBy === key && styles.standingsHeaderActive]}>{label}{arrow(key)}</Text>
-        </Pressable>
-    )
-
-    if (narrow) {
-        return (
-            <Fragment>
-                <View
-                    style={styles.standingsSortLiveStatus}
-                    role="status"
-                    aria-label={sortControlsLabel}
-                    aria-live="polite"
-                    accessibilityLabel={sortControlsLabel}
-                    accessibilityLiveRegion="polite"
-                >
-                    <Text>{sortControlsLabel}</Text>
-                </View>
-                <View
-                    style={[styles.standingsRow, styles.standingsRowNarrow, styles.standingsHeader, styles.standingsHeaderNarrow]}
-                    role="toolbar"
-                    aria-label={sortControlsLabel}
-                    accessibilityLabel={sortControlsLabel}
-                >
-                    <Text style={[styles.standingsRank, styles.standingsRankNarrow, tableStyles.headerText]} accessibilityLabel="Rank">#</Text>
-                    <Text style={[styles.standingsTeam, tableStyles.headerText]} accessibilityLabel="Team name">Team</Text>
-                    {narrowSortButton('wins', 'W-L', styles.standingsRecordColNarrow)}
-                    {narrowSortButton('pf', 'PF', styles.standingsPtsColNarrow)}
-                    {showPa ? narrowSortButton('pa', 'PA', styles.standingsPtsColNarrow) : null}
-                </View>
-            </Fragment>
-        )
-    }
-
+    const sortProps = { sortBy, sortDir, onSort }
+    const recordCol = { width: narrow ? RECORD_W_NARROW : RECORD_W }
+    const pointsCol = { width: narrow ? POINTS_W_NARROW : POINTS_W }
     return (
         <Fragment>
             <View
-                style={styles.standingsSortLiveStatus}
+                style={srOnly}
                 role="status"
                 aria-label={sortControlsLabel}
                 aria-live="polite"
@@ -238,75 +210,17 @@ const StandingsListHeader = ({
                 <Text>{sortControlsLabel}</Text>
             </View>
             <View
-                style={[styles.standingsRow, styles.standingsHeader]}
+                style={[styles.header, { paddingHorizontal: padX }]}
                 role="toolbar"
                 aria-label={sortControlsLabel}
                 accessibilityLabel={sortControlsLabel}
             >
-                <Text style={[styles.standingsRank, tableStyles.headerText]} accessibilityLabel="Rank">#</Text>
-                <Text style={[styles.standingsTeam, tableStyles.headerText]} accessibilityLabel="Team name">Team</Text>
-                <Pressable
-                    style={[styles.standingsCell, styles.standingsSortCell]}
-                    onPress={() => onSort('wins')}
-                    hitSlop={6}
-                    role="button"
-                    aria-label={standingsSortAccessibilityLabel('wins', sortBy, sortDir)}
-                    aria-controls={STANDINGS_LIST_ID}
-                    aria-pressed={sortBy === 'wins'}
-                    accessibilityRole="button"
-                    accessibilityLabel={standingsSortAccessibilityLabel('wins', sortBy, sortDir)}
-                    accessibilityState={{ selected: sortBy === 'wins' }}
-                >
-                    <Text style={[tableStyles.headerText, sortBy === 'wins' && styles.standingsHeaderActive]}>W{arrow('wins')}</Text>
-                </Pressable>
-                <Text style={[styles.standingsCell, tableStyles.headerText]} accessibilityLabel="Losses">L</Text>
-                <Text style={[styles.standingsCell, tableStyles.headerText]} accessibilityLabel="Ties">T</Text>
-                <Pressable
-                    style={[styles.standingsPts, styles.standingsSortCell]}
-                    onPress={() => onSort('pf')}
-                    hitSlop={6}
-                    role="button"
-                    aria-label={standingsSortAccessibilityLabel('pf', sortBy, sortDir)}
-                    aria-controls={STANDINGS_LIST_ID}
-                    aria-pressed={sortBy === 'pf'}
-                    accessibilityRole="button"
-                    accessibilityLabel={standingsSortAccessibilityLabel('pf', sortBy, sortDir)}
-                    accessibilityState={{ selected: sortBy === 'pf' }}
-                >
-                    <Text style={[tableStyles.headerText, sortBy === 'pf' && styles.standingsHeaderActive]}>PF{arrow('pf')}</Text>
-                </Pressable>
-                {showMaxPf ? (
-                    <Pressable
-                        style={[styles.standingsPts, styles.standingsSortCell]}
-                        onPress={() => onSort('maxPf')}
-                        hitSlop={6}
-                        role="button"
-                        aria-label={standingsSortAccessibilityLabel('maxPf', sortBy, sortDir)}
-                        aria-controls={STANDINGS_LIST_ID}
-                        aria-pressed={sortBy === 'maxPf'}
-                        accessibilityRole="button"
-                        accessibilityLabel={standingsSortAccessibilityLabel('maxPf', sortBy, sortDir)}
-                        accessibilityState={{ selected: sortBy === 'maxPf' }}
-                    >
-                        <Text style={[tableStyles.headerText, sortBy === 'maxPf' && styles.standingsHeaderActive]}>MAX PF{arrow('maxPf')}</Text>
-                    </Pressable>
-                ) : null}
-                {showPa ? (
-                    <Pressable
-                        style={[styles.standingsPts, styles.standingsSortCell]}
-                        onPress={() => onSort('pa')}
-                        hitSlop={6}
-                        role="button"
-                        aria-label={standingsSortAccessibilityLabel('pa', sortBy, sortDir)}
-                        aria-controls={STANDINGS_LIST_ID}
-                        aria-pressed={sortBy === 'pa'}
-                        accessibilityRole="button"
-                        accessibilityLabel={standingsSortAccessibilityLabel('pa', sortBy, sortDir)}
-                        accessibilityState={{ selected: sortBy === 'pa' }}
-                    >
-                        <Text style={[tableStyles.headerText, sortBy === 'pa' && styles.standingsHeaderActive]}>PA{arrow('pa')}</Text>
-                    </Pressable>
-                ) : null}
+                <Text style={[textStyles.tableHeader, styles.rank]} accessibilityLabel="Rank">#</Text>
+                <Text style={[textStyles.tableHeader, styles.teamWrap]} accessibilityLabel="Team name">Team</Text>
+                <SortHeader sortKey="wins" label="W-L" style={recordCol} {...sortProps} />
+                <SortHeader sortKey="pf" label="PF" style={pointsCol} {...sortProps} />
+                {showMaxPf ? <SortHeader sortKey="maxPf" label="Max PF" style={pointsCol} {...sortProps} /> : null}
+                {showPa ? <SortHeader sortKey="pa" label="PA" style={pointsCol} {...sortProps} /> : null}
             </View>
         </Fragment>
     )
@@ -320,11 +234,11 @@ function playoffTeamCount(teamCount: number) {
     return teamCount >= 10 ? 6 : 4
 }
 
-function PlayoffCutLine({ teamCount }: { teamCount: number }) {
+function PlayoffCutLine({ teamCount, padX }: { teamCount: number; padX: number }) {
     const label = `Playoff line: the top ${teamCount} teams qualify for the playoffs`
     return (
         <View
-            style={styles.playoffCutRow}
+            style={[styles.playoffCutRow, { paddingHorizontal: padX }]}
             role="separator"
             aria-label={label}
             accessibilityRole="text"
@@ -337,68 +251,12 @@ function PlayoffCutLine({ teamCount }: { teamCount: number }) {
     )
 }
 
-function standingsLegendCopy(status: LeagueStatus | undefined, showPa: boolean, showMaxPf: boolean) {
-    const pointTermLabels: Record<string, string> = {
-        PF: 'PF = Points For',
-        'MAX PF': 'MAX PF = best possible score',
-        PA: 'PA = Points Against',
-    }
-    const pointTerms = `${standingsPointMetricLabels(showPa, showMaxPf).map((label) => pointTermLabels[label]).join(' · ')}.`
-    const recordCopy = (() => {
-        switch (status) {
-            case 'setup':
-            case 'drafting':
-                return 'Records will update once games are scored.'
-            case 'playoffs':
-                return 'Regular-season records stay locked while bracket play decides the champion.'
-            case 'offseason':
-                return 'Records are preserved from the completed season.'
-            case 'archived':
-                return 'Records are final for league history.'
-            default:
-                return 'Records update as regular-season games are scored.'
-        }
-    })()
-    return `${pointTerms}\n${recordCopy}`
-}
-
-function StandingsTableHeader({
-    sortBy,
-    sortDir,
-    onSort,
-    showMaxPf,
-    showPa,
-    narrowRows,
-    teamCount,
-    leagueStatus,
-    compact,
-    onOpenBracket,
-    loading,
-}: {
-    sortBy: StandingsSortKey
-    sortDir: 'asc' | 'desc'
-    onSort: (key: StandingsSortKey) => void
-    showMaxPf: boolean
-    showPa: boolean
-    narrowRows: boolean
-    teamCount: number
-    leagueStatus?: LeagueStatus
-    compact: boolean
-    onOpenBracket?: () => void
-    loading?: boolean
-}) {
-    return (
-        <StandingsListHeader sortBy={sortBy} sortDir={sortDir} onSort={onSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrowRows} loading={loading} />
-    )
-}
-
 export function StandingsTable({
     standings,
     leagueStatus,
     loading = false,
     myMemberId,
     onSelectTeam,
-    onOpenBracket,
 }: {
     standings: StandingRow[]
     leagueStatus?: LeagueStatus
@@ -409,19 +267,16 @@ export function StandingsTable({
 }) {
     const [sortBy, setSortBy] = useState<StandingsSortKey>('wins')
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-    // Drop secondary point columns on narrow viewports so the Team name never
-    // collapses (320px would otherwise squeeze it to a single letter).
-    const { viewportWidth, compactLandscape } = useWebViewport()
-    const compactPhoneLandscape = compactLandscape && viewportWidth < 700
-    const narrowRows = viewportWidth < 440 || compactPhoneLandscape
-    const compactHeader = compactLandscape || narrowRows
-    // Narrow rows always carry the PA column in the mini-table; MAX PF only
-    // rides in the full-width desktop table.
-    const showPa = narrowRows || viewportWidth >= 440
-    const showMaxPf = viewportWidth >= 560 && !narrowRows
+    const { padX, usableWidth } = usePageMetrics()
+    // Columns give way to the team name as the screen narrows: Max PF goes
+    // first, then the columns tighten, and the smallest phones drop PA.
+    const showMaxPf = usableWidth >= 520
+    const narrow = usableWidth < 440
+    const showPa = usableWidth >= 340
+    const showTies = standings.some((row) => row.ties > 0)
 
     useEffect(() => {
-        if (standingsSortIsVisible(sortBy, showPa, showMaxPf)) return
+        if ((sortBy !== 'maxPf' || showMaxPf) && (sortBy !== 'pa' || showPa)) return
         setSortBy('pf')
         setSortDir(defaultSortDirection('pf'))
     }, [showMaxPf, showPa, sortBy])
@@ -444,7 +299,7 @@ export function StandingsTable({
             setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
         } else {
             setSortBy(key)
-            setSortDir(key === 'pa' ? 'asc' : 'desc')
+            setSortDir(defaultSortDirection(key))
         }
     }
     const listAccessibilityLabel = standingsListAccessibilityLabel(leagueStatus, sorted.length, sortBy, sortDir)
@@ -464,22 +319,10 @@ export function StandingsTable({
               description: 'Invite managers to fill the standings table before the draft.',
               accessibilityLabel: 'No league members yet. Invite managers to fill the standings table before the draft.',
           }
-    const standingsHeader = (
-        <StandingsTableHeader
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onSort={handleSort}
-            showMaxPf={showMaxPf}
-            showPa={showPa}
-            narrowRows={narrowRows}
-            teamCount={sorted.length}
-            leagueStatus={leagueStatus}
-            compact={compactHeader}
-            onOpenBracket={onOpenBracket}
-            loading={loading}
-        />
-    )
-    const standingsList = (
+    // The header stays visible (and sortable) even before any team joins.
+    const header = <StandingsHeader sortBy={sortBy} sortDir={sortDir} onSort={handleSort} showMaxPf={showMaxPf} showPa={showPa} narrow={narrow} padX={padX} />
+
+    const tableBody = sorted.length ? (
         <View
             nativeID={STANDINGS_LIST_ID}
             role="list"
@@ -494,7 +337,7 @@ export function StandingsTable({
             {sorted.map((item, index) => (
                 <Fragment key={item.memberId}>
                     {index === playoffCutIndex ? (
-                        <PlayoffCutLine teamCount={cutTeamCount} />
+                        <PlayoffCutLine teamCount={cutTeamCount} padX={padX} />
                     ) : index > 0 ? (
                         <ItemSeparator />
                     ) : null}
@@ -506,153 +349,80 @@ export function StandingsTable({
                             onPress={() => onSelectTeam(item.memberId, item.teamName)}
                             showMaxPf={showMaxPf}
                             showPa={showPa}
-                            narrow={narrowRows}
+                            showTies={showTies}
+                            narrow={narrow}
+                            padX={padX}
                         />
                     </View>
                 </Fragment>
             ))}
         </View>
+    ) : (
+        <View
+            nativeID={STANDINGS_LIST_ID}
+            role="status"
+            aria-live="polite"
+            aria-busy={loading ? true : undefined}
+            aria-label={emptyState.accessibilityLabel}
+            accessibilityLabel={emptyState.accessibilityLabel}
+            accessibilityLiveRegion="polite"
+            accessibilityState={{ busy: loading }}
+        >
+            <EmptyState message={emptyState.message} description={emptyState.description} fullScreen={false} />
+        </View>
     )
 
     return (
-        <ScrollView
-            style={styles.standingsScroll}
-            contentContainerStyle={compactLandscape ? styles.standingsContentCompactLandscape : styles.standingsContent}
-            removeClippedSubviews={false}
-        >
-            {sorted.length ? (
-                <>
-                    {compactLandscape ? standingsList : standingsHeader}
-                    {compactLandscape ? standingsHeader : standingsList}
-                    <Text style={styles.standingsLegend}>
-                        {standingsLegendCopy(leagueStatus, showPa, showMaxPf)}
-                    </Text>
-                </>
-            ) : (
-                <>
-                    <StandingsTableHeader
-                        sortBy={sortBy}
-                        sortDir={sortDir}
-                        onSort={handleSort}
-                        showMaxPf={showMaxPf}
-                        showPa={showPa}
-                        narrowRows={narrowRows}
-                        teamCount={0}
-                        leagueStatus={leagueStatus}
-                        compact={compactHeader}
-                        onOpenBracket={onOpenBracket}
-                        loading={loading}
-                    />
-                    <View
-                        nativeID={STANDINGS_LIST_ID}
-                        role="status"
-                        aria-live="polite"
-                        aria-busy={loading ? true : undefined}
-                        aria-label={emptyState.accessibilityLabel}
-                        accessibilityLabel={emptyState.accessibilityLabel}
-                        accessibilityLiveRegion="polite"
-                        accessibilityState={{ busy: loading }}
-                    >
-                        <EmptyState message={emptyState.message} description={emptyState.description} fullScreen={false} />
-                    </View>
-                </>
-            )}
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+            <View style={styles.tableColumn}>
+                {header}
+                {tableBody}
+            </View>
         </ScrollView>
     )
 }
 
 const styles = StyleSheet.create({
-    standingsRow: {
-        minHeight: 44,
+    scroll: { flex: 1 },
+    content: { paddingBottom: spacing['3xl'] },
+    tableColumn: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
+    header: {
+        minHeight: table.headerHeight,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: 11,
+        gap: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
     },
-    // Narrow rows stay a single aligned line: rank + name on the left, then
-    // fixed-width numeric columns (W-L, PF, PA) — a mini-table, not pill chips.
-    standingsRowNarrow: {
-        paddingVertical: spacing.md,
+    headerCell: { minHeight: table.headerHeight, justifyContent: 'center' },
+    headerCellNumeric: { alignItems: 'flex-end' },
+    headerActive: { color: colors.primaryDark },
+    row: {
+        minHeight: table.rowHeightCompact,
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: spacing.sm,
     },
-    standingsHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, paddingVertical: spacing.md },
-    standingsHeaderNarrow: { paddingVertical: 0 },
-    standingsHeaderActive: { color: colors.primaryDark },
-    standingsRank: { width: 24, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    standingsRankNarrow: { width: 22, fontSize: fontSize.sm },
-    standingsTeam: { flex: 1, minWidth: 72, paddingRight: spacing.md, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    standingsTeamWrap: { flex: 1, minWidth: 72, paddingRight: spacing.md, alignItems: 'flex-start', justifyContent: 'center', gap: spacing.xxs },
-    standingsTeamWrapNarrow: { minWidth: 0, paddingRight: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    rowHover: { backgroundColor: colors.bgSubtle },
+    rank: { width: RANK_W, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
+    teamWrap: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     // Link-colored so every row (not just "You") reads as a tappable roster.
-    standingsTeamName: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.primaryDark },
-    standingsTeamNameNarrow: { fontSize: fontSize.sm },
-    standingsRecordNarrow: {
-        width: 52,
-        textAlign: 'right',
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
-        fontVariant: ['tabular-nums'] as const,
-    },
-    standingsPtsNarrow: {
-        width: 58,
-        textAlign: 'right',
-        fontSize: fontSize.sm,
-        color: colors.textSecondary,
-        fontVariant: ['tabular-nums'] as const,
-    },
-    standingsRecordColNarrow: { width: 52 },
-    standingsPtsColNarrow: { width: 58 },
-    standingsYouPill: {
+    teamName: { ...textStyles.rowTitle, flexShrink: 1, color: colors.primaryDark },
+    youPill: {
         paddingHorizontal: spacing.sm,
-        paddingVertical: 2,
+        paddingVertical: spacing.xxs,
         borderRadius: radii.sm,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primary,
     },
-    standingsYouText: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textWhite },
-    standingsCell: { width: 44, textAlign: 'center', fontSize: fontSize.md, color: colors.textSecondary },
-    standingsPts: { width: 64, textAlign: 'center', fontSize: fontSize.sm, color: colors.textSecondary },
-    standingsSortCell: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-    // Narrow sort cells align with the mini-table's numeric columns instead of
-    // rendering a second row of pill chips.
-    standingsSortCellNarrow: {
-        minHeight: 44,
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-    },
+    youText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: colors.textWhite },
+    cell: { ...textStyles.tableCell, textAlign: 'right' },
     playoffCutRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        paddingHorizontal: spacing.xl,
         paddingVertical: spacing.xs,
     },
     playoffCutRule: { flex: 1, height: 1, backgroundColor: colors.border },
-    playoffCutLabel: {
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    standingsSortLiveStatus: {
-        ...srOnly,
-    },
-    standingsScroll: { flex: 1 },
-    standingsContent: { paddingBottom: spacing['3xl'] },
-    standingsContentCompactLandscape: { paddingBottom: 96 },
-    standingsLegend: {
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.lg,
-        fontSize: fontSize.xs,
-        color: colors.textMuted,
-        lineHeight: 16,
-    },
+    playoffCutLabel: { ...textStyles.tableHeader },
 })
-function standingsPointMetricLabels(showPa: boolean, showMaxPf: boolean) {
-    const labels = ['PF']
-    if (showMaxPf) labels.push('MAX PF')
-    if (showPa) labels.push('PA')
-    return labels
-}
