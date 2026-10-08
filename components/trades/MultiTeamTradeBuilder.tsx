@@ -4,7 +4,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindow
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, radii, spacing, uiColors, type WebOnlyViewStyle } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, textStyles, type WebOnlyViewStyle, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -32,6 +32,9 @@ type MultiTeamTradeBuilderProps = {
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
     reviewOnly?: boolean
+    /** Lets the screen keep the chosen sender tab when it swaps to Review and back. */
+    activeParticipantId?: string
+    onActiveParticipantChange?: (memberId: string) => void
 }
 
 export function MultiTeamTradeBuilder({
@@ -58,12 +61,16 @@ export function MultiTeamTradeBuilder({
     onNotesChange,
     onExpirationDaysChange,
     reviewOnly = false,
+    activeParticipantId: controlledActiveId,
+    onActiveParticipantChange,
 }: MultiTeamTradeBuilderProps) {
     const { width } = useWindowDimensions()
     const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
-    const shellContentWidth = width >= breakpoints.compact ? width - 264 : width
+    const shellContentWidth = width >= breakpoints.compact ? width - layout.sidebarWidth : width
     const useColumns = Math.min(contentWidth, shellContentWidth) >= 880
-    const [activeParticipantId, setActiveParticipantId] = useState(participants[0]?.memberId ?? '')
+    const [localActiveId, setLocalActiveId] = useState(participants[0]?.memberId ?? '')
+    const activeParticipantId = controlledActiveId ?? localActiveId
+    const setActiveParticipantId = onActiveParticipantChange ?? setLocalActiveId
     const [overviewExpanded, setOverviewExpanded] = useState(false)
     const notesBytes = utf8ByteLength(notes)
 
@@ -71,7 +78,7 @@ export function MultiTeamTradeBuilder({
         if (!participants.some((participant) => participant.memberId === activeParticipantId)) {
             setActiveParticipantId(participants[0]?.memberId ?? '')
         }
-    }, [activeParticipantId, participants])
+    }, [activeParticipantId, participants, setActiveParticipantId])
 
     const overviewItems = useMemo<TradeFlowItem[]>(() => items.map((item) => {
         const participant = participants.find((entry) => entry.memberId === item.fromMemberId)
@@ -204,6 +211,7 @@ export function MultiTeamTradeBuilder({
             {!useColumns ? (
                 <View
                     style={styles.senderTabs}
+                    role="tablist"
                     accessibilityRole="tablist"
                 >
                     {participants.map((participant) => {
@@ -213,6 +221,8 @@ export function MultiTeamTradeBuilder({
                                 key={participant.memberId}
                                 style={[styles.senderTab, active && styles.senderTabActive]}
                                 onPress={() => setActiveParticipantId(participant.memberId)}
+                                role="tab"
+                                aria-selected={active}
                                 accessibilityRole="tab"
                                 accessibilityState={{ selected: active }}
                                 accessibilityLabel={`Edit assets sent by ${participant.memberId === myMemberId ? 'you' : participantName(participant.memberId)}`}
@@ -245,7 +255,7 @@ export function MultiTeamTradeBuilder({
             <TextInput
                 style={[styles.notesInput, notesError && styles.notesInputInvalid]}
                 placeholder="Add a message to your trade offer..."
-                placeholderTextColor={colors.textPlaceholder}
+                placeholderTextColor={colors.inputPlaceholder}
                 value={notes}
                 onChangeText={(value) => {
                     const nextBytes = utf8ByteLength(value)
@@ -319,12 +329,7 @@ const styles = StyleSheet.create({
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
     reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing['4xl'] },
     reviewHeading: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
-    reviewEyebrow: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-    },
+    reviewEyebrow: { ...textStyles.sectionLabel },
     reviewTitle: {
         marginTop: spacing.xs,
         fontSize: fontSize.xl,
@@ -339,12 +344,7 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: uiColors.borderNeutral,
     },
-    reviewTermsLabel: {
-        marginTop: spacing.sm,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-    },
+    reviewTermsLabel: { ...textStyles.sectionLabel, marginTop: spacing.sm },
     reviewTermsValue: {
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
@@ -370,30 +370,24 @@ const styles = StyleSheet.create({
         zIndex: 10,
     } as unknown as WebOnlyViewStyle,
     compactSummaryCopy: { minWidth: 0, flex: 1 },
-    compactSummaryTitle: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-    },
+    compactSummaryTitle: { ...textStyles.sectionLabel },
     compactSummaryMeta: {
-        marginTop: 2,
+        marginTop: spacing.xxs,
         fontSize: fontSize.sm,
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
     sectionLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
+        ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
     },
-    stack: { gap: spacing.lg, marginBottom: spacing.lg },
+    stack: { gap: spacing.lg, marginBottom: spacing.lg, paddingHorizontal: spacing.xl },
     scroller: { marginBottom: spacing.lg },
-    columns: { flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+    // flexGrow lets team panels share the full builder width instead of
+    // sitting at their minimum width inside the sideways scroller.
+    columns: { flexGrow: 1, flexDirection: 'row', gap: spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
     senderTabs: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -422,9 +416,9 @@ const styles = StyleSheet.create({
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        fontSize: fontSize.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        fontSize: fontSize.lg,
         color: colors.textPrimary,
         minHeight: 80,
         textAlignVertical: 'top',
@@ -444,7 +438,7 @@ const styles = StyleSheet.create({
     notesCountInvalid: { color: colors.dangerDark },
     termsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginHorizontal: spacing.xl },
     termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
-    termLabel: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textMuted, letterSpacing: 0 },
+    termLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
     termInput: {
         minHeight: 44,
         borderWidth: 1,
@@ -452,7 +446,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.md,
-        fontSize: fontSize.md,
+        fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },

@@ -1,7 +1,6 @@
 import { StyleSheet } from 'react-native'
-import { brand, colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
+import { brand, colors, fontFamily, fontSize, fontWeight, layout, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
 
-const SIDEBAR_WIDTH = 264
 const MOBILE_TOPBAR_HEIGHT = 56
 const MOBILE_BOTTOMBAR_HEIGHT = 64
 
@@ -24,7 +23,7 @@ export const styles = StyleSheet.create({
     },
 
     sidebar: {
-        width: SIDEBAR_WIDTH,
+        width: layout.sidebarWidth,
         flexShrink: 0,
         // Pin to the viewport height so the nav ScrollView scrolls on short
         // screens (landscape phones) instead of clipping the lower items when
@@ -70,14 +69,6 @@ export const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
         color: brand.on,
         letterSpacing: 0,
-    },
-    brandSubtitle: {
-        marginTop: -2,
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.bold,
-        letterSpacing: 1.1,
-        textTransform: 'uppercase',
-        color: brand.onSubtle,
     },
 
     leagueSwitchWrap: {
@@ -153,14 +144,18 @@ export const styles = StyleSheet.create({
         color: colors.textMuted,
         fontSize: fontSize.xs,
     },
+    // Full-screen layer for the open league menu; its backdrop catches outside taps.
+    leagueMenuLayer: {
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+        zIndex: 1000,
+    } as unknown as WebOnlyViewStyle,
+    // Positioned by the switcher from its measured place on screen.
     leagueMenu: {
         position: 'absolute',
-        // Anchor to the bottom of the switch (whatever its height) so the menu
-        // sits flush below both the 52px sidebar switch and the 40px mobile one.
-        top: '100%',
-        marginTop: spacing.xs,
-        left: 0,
-        right: 0,
         zIndex: 100,
         padding: spacing.sm,
         borderRadius: radii.xl,
@@ -199,15 +194,11 @@ export const styles = StyleSheet.create({
     navGroup: {
         gap: spacing.xs,
     },
-    navSectionLabel: {
-        paddingTop: 14,
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.sm,
-        color: brand.onSubtle,
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 1,
-        textTransform: 'uppercase',
+    navDivider: {
+        height: 1,
+        marginVertical: spacing.sm,
+        marginHorizontal: spacing.lg,
+        backgroundColor: brand.borderSubtle,
     },
     sideNavItem: {
         display: 'flex',
@@ -232,10 +223,10 @@ export const styles = StyleSheet.create({
     sideNavItemHover: {
         backgroundColor: brand.overlay,
     },
+    // No glow: matches the boot shell's active item, so nothing shifts on mount.
     sideNavItemActive: {
         backgroundColor: colors.primary,
-        boxShadow: shadows.brandGlow,
-    } as WebOnlyViewStyle,
+    },
     sideNavItemDisabled: {
         opacity: 0.64,
     },
@@ -294,6 +285,13 @@ export const styles = StyleSheet.create({
     },
     userChipHover: {
         backgroundColor: brand.overlay,
+    },
+    // Same fill as the active nav item, so the current page reads the same way.
+    userChipActive: {
+        backgroundColor: colors.primary,
+    },
+    userTextActive: {
+        color: brand.on,
     },
     userName: {
         color: brand.onStrong,
@@ -388,44 +386,6 @@ export const styles = StyleSheet.create({
         color: colors.primaryDark,
     },
 
-    sheetScrim: {
-        position: 'fixed',
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 90,
-        backgroundColor: webOverlays.sheetScrim,
-    } as unknown as WebOnlyViewStyle,
-    sheet: {
-        backgroundColor: colors.bgCard,
-        borderBottomLeftRadius: radii['3xl'],
-        borderBottomRightRadius: radii['3xl'],
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        padding: spacing.xl,
-        paddingTop: spacing.lg,
-        boxShadow: shadows.xl,
-    } as WebOnlyViewStyle,
-    sheetHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.md,
-    },
-    sheetTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-    },
-    sheetClose: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        backgroundColor: colors.bgMuted,
-    },
     sheetItem: {
         minHeight: 46,
         flexDirection: 'row',
@@ -434,10 +394,16 @@ export const styles = StyleSheet.create({
         borderRadius: radii.md,
         paddingHorizontal: spacing.sm,
     },
+    sheetItemActive: {
+        backgroundColor: colors.bgMuted,
+    },
+    sheetItemTextActive: {
+        color: colors.primaryDark,
+    },
     sheetItemText: {
         flex: 1,
         color: colors.textPrimary,
-        fontSize: 15,
+        fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
     },
 })

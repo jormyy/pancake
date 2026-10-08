@@ -3,144 +3,147 @@ import {
     Text,
     ScrollView,
     StyleSheet,
-    Pressable,
     useWindowDimensions,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { EmptyState } from '@/components/EmptyState'
+import { ModalScreen } from '@/components/ui/ModalScreen'
+import { LoadingState, usePageMetrics } from '@/components/ui'
 import { formatPoints } from '@/lib/format'
-import { colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+
+type Round = { key: string; label: string; matchups: BracketMatchup[]; final?: boolean }
+type LoadStatus = 'loading' | 'ready' | 'error'
+
+const ROUND_COLUMN_W = 280
 
 export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
     const router = useRouter()
     const resourceKey = current?.id && currentLeague?.id ? `${current.id}:${currentLeague.id}` : null
-    const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null }>({
+    // "No bracket yet" is only true once a load succeeds; until then show loading or a retry.
+    const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null; status: LoadStatus }>({
         key: resourceKey,
         bracket: null,
+        status: 'loading',
     })
+    const [attempt, setAttempt] = useState(0)
     const requestRef = useRef(0)
     const bracket = resource.key === resourceKey ? resource.bracket : null
+    const status: LoadStatus = resource.key === resourceKey ? resource.status : 'loading'
     const { width, height } = useWindowDimensions()
+    const { padX, usableWidth } = usePageMetrics()
 
     const myMemberId = current?.id
     const currentId = current?.id
     const currentLeagueId = currentLeague?.id
     const compactLandscape = width >= 600 && height < 500
     const finalMatchups = bracket?.final ? [bracket.final] : []
-    const showFinalFirst = finalMatchups.length > 0 && !finalMatchups[0].isFinalized
-    const showSemisFirst = !showFinalFirst && Boolean(bracket?.semifinals.some((m) => !m.isFinalized))
 
     useEffect(() => {
         const requestId = ++requestRef.current
-        setResource({ key: resourceKey, bracket: null })
+        setResource({ key: resourceKey, bracket: null, status: 'loading' })
         async function load() {
-            if (!currentId || !currentLeagueId) return
+            if (!currentId || !currentLeagueId) {
+                setResource({ key: resourceKey, bracket: null, status: 'ready' })
+                return
+            }
             try {
                 const data = await getPlayoffBracket(currentLeagueId)
-                if (requestRef.current === requestId) setResource({ key: resourceKey, bracket: data })
+                if (requestRef.current === requestId) setResource({ key: resourceKey, bracket: data, status: 'ready' })
             } catch (e) {
-                if (requestRef.current === requestId) console.error(e)
+                if (requestRef.current !== requestId) return
+                console.error(e)
+                setResource({ key: resourceKey, bracket: null, status: 'error' })
             }
         }
         load()
         return () => { requestRef.current += 1 }
-    }, [currentId, currentLeagueId, resourceKey])
+    }, [attempt, currentId, currentLeagueId, resourceKey])
+
+    const backToStandings = () => router.replace('/league?tab=results')
+    const rounds: Round[] = bracket ? [
+        { key: 'qf', label: 'Quarterfinals', matchups: bracket.quarterfinals },
+        { key: 'sf', label: 'Semifinals', matchups: bracket.semifinals },
+        { key: 'final', label: 'Championship', matchups: finalMatchups, final: true },
+    ].filter((round) => round.matchups.length > 0) : []
+    // Wide screens draw the real bracket, rounds left to right. Narrow screens
+    // stack rounds and lead with the one still being played.
+    const columns = rounds.length > 1 && usableWidth >= rounds.length * ROUND_COLUMN_W + (rounds.length - 1) * spacing['3xl']
+    const liveIndex = rounds.findIndex((round) => round.matchups.some((matchup) => !matchup.isFinalized))
+    const stacked = liveIndex > 0 ? [rounds[liveIndex], ...rounds.filter((_, index) => index !== liveIndex)] : rounds
 
     return (
         <>
-            <Stack.Screen options={{ title: 'Playoff Bracket', presentation: 'modal', headerShown: false }} />
-            <SafeAreaView style={styles.container} edges={['bottom']}>
-                <View style={styles.screenHeader}>
-                    <Pressable
-                        onPress={() => router.replace('/league?tab=results')}
-                        style={styles.headerBack}
-                        role="link"
-                        aria-label="Back to league results"
-                        accessibilityRole="link"
-                        accessibilityLabel="Back to league results"
-                    >
-                        <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-                    </Pressable>
-                    <Text style={styles.screenTitle}>Playoff Bracket</Text>
-                </View>
-                {!bracket ||
-                  (bracket.quarterfinals.length === 0 &&
-                      bracket.semifinals.length === 0 &&
-                      !bracket.final) ? (
+            <Stack.Screen options={{ title: 'Playoffs', presentation: 'modal', headerShown: false }} />
+            <ModalScreen title="Playoffs" onBack={backToStandings} backLabel="Back to league standings">
+                {status === 'loading' ? <LoadingState /> : status === 'error' ? (
+                    <EmptyState
+                        icon="cloud-off"
+                        message="Couldn't load the bracket"
+                        description="Check your connection, then try again."
+                        actionLabel="Try Again"
+                        onAction={() => setAttempt((value) => value + 1)}
+                    />
+                ) : rounds.length === 0 ? (
                     <EmptyState
                         icon="account-tree"
                         message="No playoff bracket yet"
-                        description="The bracket is generated at the end of the regular season. Check the standings to see who's in contention."
+                        description="It appears when the regular season ends."
                         actionLabel="View Standings"
-                        onAction={() => router.replace('/league?tab=results')}
+                        onAction={backToStandings}
                     />
                 ) : (
-                    <ScrollView contentContainerStyle={[styles.scroll, compactLandscape && styles.scrollCompact]}>
-                        {bracket.champion && (
+                    <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }, compactLandscape && styles.scrollCompact]}>
+                        {bracket?.champion ? (
                             <View style={[styles.championBanner, compactLandscape && styles.championBannerCompact]}>
-                                <Text style={styles.championLabel}>CHAMPION</Text>
+                                <Text style={textStyles.sectionLabel}>Champion</Text>
                                 <Text style={styles.championName}>{bracket.champion}</Text>
                             </View>
+                        ) : null}
+                        {columns ? (
+                            <View style={styles.columns}>
+                                {rounds.map((round) => (
+                                    <View key={round.key} style={styles.column}>
+                                        <RoundSection round={round} myMemberId={myMemberId} compact={compactLandscape} inColumn />
+                                    </View>
+                                ))}
+                            </View>
+                        ) : (
+                            <View style={styles.stack}>
+                                {stacked.map((round) => (
+                                    <RoundSection key={round.key} round={round} myMemberId={myMemberId} compact={compactLandscape} />
+                                ))}
+                            </View>
                         )}
-
-                        {showFinalFirst ? (
-                            <RoundSection label="CHAMPIONSHIP" matchups={finalMatchups} myMemberId={myMemberId} compact={compactLandscape} final />
-                        ) : null}
-
-                        {showSemisFirst ? (
-                            <RoundSection label="SEMIFINALS" matchups={bracket.semifinals} myMemberId={myMemberId} compact={compactLandscape} />
-                        ) : null}
-
-                        <RoundSection label="QUARTERFINALS" matchups={bracket.quarterfinals} myMemberId={myMemberId} compact={compactLandscape} />
-
-                        {!showSemisFirst ? (
-                            <RoundSection label="SEMIFINALS" matchups={bracket.semifinals} myMemberId={myMemberId} compact={compactLandscape} />
-                        ) : null}
-
-                        {!showFinalFirst ? (
-                            <RoundSection label="CHAMPIONSHIP" matchups={finalMatchups} myMemberId={myMemberId} compact={compactLandscape} final />
-                        ) : null}
                     </ScrollView>
                 )}
-            </SafeAreaView>
+            </ModalScreen>
         </>
     )
 }
 
-function RoundSection({
-    label,
-    matchups,
-    myMemberId,
-    compact,
-    final = false,
-}: {
-    label: string
-    matchups: BracketMatchup[]
-    myMemberId?: string
-    compact: boolean
-    final?: boolean
-}) {
-    if (!matchups.length) return null
-
+function RoundSection({ round, myMemberId, compact, inColumn = false }: { round: Round; myMemberId?: string; compact: boolean; inColumn?: boolean }) {
     return (
-        <>
-            <Text style={[styles.roundLabel, compact && styles.roundLabelCompact]}>{label}</Text>
-            {matchups.map((matchup) => (
-                <MatchupCard
-                    key={matchup.id}
-                    matchup={matchup}
-                    myMemberId={myMemberId}
-                    isFinal={final}
-                    compact={compact}
-                />
-            ))}
-        </>
+        <View style={[styles.round, inColumn && styles.roundInColumn]}>
+            <Text style={[textStyles.sectionLabel, styles.roundLabel]} role="heading" aria-level={2} accessibilityRole="header">
+                {round.label}
+            </Text>
+            <View style={[styles.roundCards, inColumn && styles.roundCardsInColumn]}>
+                {round.matchups.map((matchup) => (
+                    <MatchupCard
+                        key={matchup.id}
+                        matchup={matchup}
+                        myMemberId={myMemberId}
+                        isFinal={round.final}
+                        compact={compact}
+                    />
+                ))}
+            </View>
+        </View>
     )
 }
 
@@ -260,88 +263,57 @@ function TeamRow({
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgSubtle },
-    screenHeader: {
-        minHeight: 56,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-        backgroundColor: colors.bgCard,
-    },
-    headerBack: {
-        width: 44,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    screenTitle: {
-        flex: 1,
-        color: colors.textPrimary,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-    },
-    scroll: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing['5xl'] },
-    scrollCompact: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
+    scroll: { paddingTop: spacing.xl, paddingBottom: spacing['5xl'], gap: spacing.lg, width: '100%', maxWidth: 3 * ROUND_COLUMN_W + 2 * spacing['3xl'] + 2 * spacing['3xl'], alignSelf: 'center' },
+    scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
+    stack: { gap: spacing.lg },
+    columns: { flexDirection: 'row', alignItems: 'stretch', gap: spacing['3xl'] },
+    column: { flex: 1, minWidth: 0 },
+    round: { gap: spacing.sm },
+    roundInColumn: { flex: 1 },
+    roundCards: { gap: spacing.md },
+    // In bracket columns the later rounds center between the games feeding them.
+    roundCardsInColumn: { flex: 1, justifyContent: 'space-around' },
+    roundLabel: { marginLeft: spacing.xs },
 
     championBanner: {
         backgroundColor: uiColors.warningSurface,
-        borderRadius: radii.md,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: uiColors.warningBorder,
         padding: spacing['2xl'],
         alignItems: 'center',
         gap: spacing.xs,
-        marginBottom: spacing.md,
     },
-    championBannerCompact: { padding: spacing.lg, marginBottom: spacing.sm },
-    championLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: uiColors.warningText, letterSpacing: 0 },
-    championName: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-
-    roundLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
-        marginTop: spacing.md,
-        marginBottom: spacing.xs,
-        marginLeft: spacing.xs,
-    },
-    roundLabelCompact: { marginTop: spacing.xs, marginBottom: 0 },
+    championBannerCompact: { padding: spacing.lg },
+    championName: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold, color: colors.textPrimary },
 
     card: {
-        backgroundColor: colors.bgScreen,
-        borderRadius: radii.md,
+        backgroundColor: colors.bgCard,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
         overflow: 'hidden',
-        marginBottom: spacing.md,
     },
-    cardCompact: { marginBottom: spacing.sm },
+    cardCompact: {},
     cardFinal: { borderColor: uiColors.warningBorder, borderWidth: 1.5 },
 
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: 10,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
     cardHeaderCompact: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-    weekLabel: { fontSize: 12, color: colors.textPlaceholder, fontWeight: fontWeight.semibold },
+    weekLabel: { ...textStyles.meta, fontWeight: fontWeight.semibold },
 
     statusPill: {
         paddingHorizontal: spacing.md,
-        paddingVertical: 3,
+        paddingVertical: spacing.xxs,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
     },
@@ -353,28 +325,29 @@ const styles = StyleSheet.create({
     statusTextLive: { color: uiColors.successTextLive },
     statusTextFinal: { color: colors.textSecondary },
 
-    divider: { height: 1, backgroundColor: colors.separator, marginHorizontal: spacing.xl },
+    divider: { height: 1, backgroundColor: colors.separator, marginHorizontal: spacing.lg },
 
     teamRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: 14,
+        minHeight: 48,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
     },
-    teamRowCompact: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+    teamRowCompact: { minHeight: 40, paddingVertical: spacing.xs },
     teamRowWon: { backgroundColor: colors.successLight },
-    teamRowLost: { opacity: 0.5 },
+    teamRowLost: {},
     teamLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: spacing.sm },
-    winIndicator: { fontSize: 10, color: uiColors.successTextLive },
-    teamName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
+    winIndicator: { fontSize: fontSize['2xs'], color: uiColors.successTextLive },
+    teamName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flex: 1 },
     teamNameCompact: { fontSize: fontSize.md },
     teamNameWon: { color: uiColors.successTextStrong, fontWeight: fontWeight.bold },
-    teamNameLost: { color: uiColors.textLost },
+    teamNameLost: { color: colors.textMuted },
     teamNameMe: { color: colors.primaryDark },
     meTag: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontWeight: fontWeight.regular },
-    teamPoints: { fontSize: 18, fontWeight: fontWeight.bold, color: uiColors.tableText, minWidth: 60, textAlign: 'right' },
+    teamPoints: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: uiColors.tableText, minWidth: 60, textAlign: 'right', fontVariant: ['tabular-nums'] as const },
     teamPointsCompact: { fontSize: fontSize.md, minWidth: 52 },
     teamPointsWon: { color: uiColors.successTextStrong },
-    teamPointsLost: { color: colors.textDisabled },
+    teamPointsLost: { color: colors.textMuted },
 })

@@ -6,75 +6,72 @@ import {
     StyleSheet,
     ScrollView,
     useWindowDimensions,
+    type StyleProp,
+    type ViewStyle,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { ReactNode, useCallback, useEffect, useMemo } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
-import { ErrorBanner } from '@/components/ui'
+import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
 import { getLineupMoveTargetState, LineupSlot, LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { LiveStatLine } from '@/lib/games'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { AutoSetModal } from '@/components/AutoSetModal'
-import { MatchupRow } from '@/components/MatchupRow'
+import { MatchupColumnHeader, MatchupRow, statLineupWidth } from '@/components/MatchupRow'
+import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
+import { lineupStatColumns, type StatColumn } from '@/lib/score-breakdown'
 import { LeagueSwitcher } from '@/components/LeagueSwitcher'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { resolveHomeSurface } from '@/lib/home-surface'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
-import { countLabel, formatPoints, shortName } from '@/lib/format'
+import { countLabel, formatPoints } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
 import { MotionPressable, MotionView } from '@/components/Motion'
+import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 function shouldShowScoreboard(selectedDate: string, today: string): boolean {
     return selectedDate === today
 }
 
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
 
 // Mirrors the loaded lineup chrome exactly (header, AUTO control, day
 // selector) so nothing moves when rows hydrate — the rows area stays blank
 // rather than showing a placeholder that differs from the final UI.
-function MatchupLineupLoadingState({
-    compact,
-    daySelector,
-}: {
-    compact: boolean
-    daySelector?: ReactNode
-}) {
+function MatchupLineupLoadingState({ daySelector }: { daySelector?: ReactNode }) {
     return (
         <View
-            style={[styles.lineupContainer, compact && styles.lineupContainerCompact]}
+            style={styles.lineupContainer}
             role="status"
             aria-busy
             aria-label="Matchup lineup loading"
             accessibilityLabel="Matchup lineup loading"
             accessibilityState={{ busy: true }}
         >
-            <View style={styles.lineupHeader}>
-                <Text
-                    style={styles.lineupTitle}
-                    role="heading"
-                    aria-level={2}
-                    accessibilityRole="header"
-                >
-                    Lineup
-                </Text>
-                <View style={[styles.autoSetBtn, styles.autoSetBtnDisabled]}>
-                    <Text style={[styles.autoSetText, styles.autoSetTextDisabled]}>AUTO</Text>
-                </View>
-            </View>
+            <LineupHeading />
             {daySelector}
         </View>
+    )
+}
+
+// The section bands and AUTO control label the lineup on screen; this heading
+// keeps the page outline intact for screen readers.
+function LineupHeading() {
+    return (
+        <Text style={srOnly} role="heading" aria-level={2} accessibilityRole="header">
+            Lineup
+        </Text>
     )
 }
 
@@ -83,12 +80,16 @@ export default function HomeScreen() {
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
     const { width, height } = useWindowDimensions()
-    const compact = width < 560 || height < 840
+    const { padX, usableWidth } = usePageMetrics()
+    // Short screens tighten vertical spacing; only narrow screens shorten names.
+    const narrow = width < breakpoints.phone
+    const compact = narrow || height < 840
     const dense = height < 620
+    const { openDraftRoom } = useDraftRoomLauncher(league?.id, { notifyOnError: true })
 
     const {
         matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate,
-        myLineup, oppLineup, matchupLoading, lineupLoading,
+        myLineup, oppLineup, matchupLoading, lineupLoading, lineupError,
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh,
     } = useMatchupData(current, user, league)
@@ -183,19 +184,45 @@ export default function HomeScreen() {
         [league?.scoring_settings],
     )
 
+    // Wide screens show a box score per row; the side column only joins when
+    // the lineup still fits next to it.
+    const statColumns = useMemo(() => lineupStatColumns(scoringSettings), [scoringSettings])
+    const statLineupMin = statLineupWidth(statColumns)
+    const showStatColumns = !narrow && usableWidth >= statLineupMin
+    const sideRail = spacing['3xl'] + layout.railWidth
+    const twoPane = !narrow && usableWidth >= (showStatColumns ? statLineupMin : layout.lineupMaxWidth) + sideRail
+    // A box-score lineup grows into the room it has (names and games need it),
+    // up to a cap; the plain lineup stays narrow so names sit near their points.
+    const lineupWidth = showStatColumns
+        ? Math.min(twoPane ? usableWidth - sideRail : usableWidth, layout.statLineupMaxWidth)
+        : layout.lineupMaxWidth
+
+    const [detailsRow, setDetailsRow] = useState<DetailsRow | null>(null)
+
     const today = todayET()
 
     // Stay blank while auth/league context loads — flashing the NoLeagueState
     // welcome (or any placeholder) and then swapping it for the real screen is
     // exactly the layout jump this screen must avoid.
     if (authLoading || (leagueLoading && memberships.length === 0)) {
-        return <View style={styles.container} />
+        return <View style={styles.blank} />
     }
     if (!user) return <NoLeagueState />
     if (memberships.length === 0) return <NoLeagueState />
 
+    const sideInfo = (
+        <>
+            <AroundLeague matchups={leagueMatchups} compact={narrow} stacked={twoPane} />
+            {shouldShowScoreboard(selectedDate, today) && !dense ? (
+                <View style={styles.scoreboardFooter}>
+                    <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} wrap={twoPane} />
+                </View>
+            ) : null}
+        </>
+    )
+
     return (
-        <SafeAreaView style={styles.container}>
+        <Page title="Matchup" width="full">
             {Platform.OS !== 'web' && (
                 // The web shell's header has its own league switcher; this row
                 // would duplicate it. Native has no shell header, so it stays.
@@ -214,7 +241,8 @@ export default function HomeScreen() {
             {error && homeSurface !== 'error' && <ErrorBanner onRetry={refresh} />}
 
             {matchup ? (
-                <View style={styles.playSurface}>
+                <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
+                    <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>
                     <ScoreCard matchup={matchup} compact={compact} />
 
                     {myLineup && oppLineup ? (
@@ -230,12 +258,19 @@ export default function HomeScreen() {
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
-                            compact={compact}
+                            statColumns={showStatColumns ? statColumns : null}
+                            onOpenDetails={setDetailsRow}
+                            capacity={{
+                                bench: Math.max(0, (league?.roster_size ?? 20) - myLineup.starters.length),
+                                ir: league?.ir_slots ?? 2,
+                                taxi: league?.taxi_slots ?? 3,
+                            }}
+                            compact={narrow}
                             dense={dense}
                             daySelector={weekDays.length > 0 ? (
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                             ) : null}
-                            headerAccessory={
+                            autoSetControl={
                                 <MotionPressable
                                     style={styles.autoSetBtn}
                                     hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
@@ -253,28 +288,18 @@ export default function HomeScreen() {
                                 <MotionView style={styles.hint} preset="slide-left">
                                     <Text style={styles.hintText} numberOfLines={1}>
                                         {selectedPlayer
-                                            ? `${shortName(selectedPlayer.displayName)} selected — tap another slot`
+                                            ? `${selectedPlayer.displayName} selected — tap another slot`
                                             : `Empty slot selected — tap a player's slot`}
                                     </Text>
-                                    <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9}>
+                                    <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9} accessibilityRole="button" accessibilityLabel="Cancel lineup move">
                                         <Text style={styles.hintCancel}>Cancel</Text>
                                     </MotionPressable>
                                 </MotionView>
                             ) : null}
-                            footer={
-                                <>
-                                    <AroundLeague matchups={leagueMatchups} compact={compact} />
-                                    {shouldShowScoreboard(selectedDate, today) && !dense ? (
-                                        <View style={styles.scoreboardFooter}>
-                                            <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} />
-                                        </View>
-                                    ) : null}
-                                </>
-                            }
+                            footer={twoPane ? null : sideInfo}
                         />
                     ) : matchupLoading || lineupLoading ? (
                         <MatchupLineupLoadingState
-                            compact={compact}
                             daySelector={weekDays.length > 0 ? (
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                             ) : null}
@@ -284,14 +309,28 @@ export default function HomeScreen() {
                             {weekDays.length > 0 && (
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                             )}
-                            <View style={styles.noLineup}>
-                                <Text style={styles.noLineupText}>No lineup set for this day.</Text>
-                                <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
-                                    <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
-                                </Pressable>
-                            </View>
+                            {lineupError ? (
+                                <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} />
+                            ) : (
+                                <View style={styles.noLineup}>
+                                    <Text style={styles.noLineupText}>No lineup set for this day.</Text>
+                                    <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
+                                        <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
+                                    </Pressable>
+                                </View>
+                            )}
                         </>
                     )}
+                    </View>
+                    {twoPane ? (
+                        <ScrollView
+                            style={styles.rail}
+                            contentContainerStyle={styles.railContent}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            {sideInfo}
+                        </ScrollView>
+                    ) : null}
                 </View>
             ) : homeSurface === 'draft' ? (
                 <View style={styles.playSurface}>
@@ -302,7 +341,7 @@ export default function HomeScreen() {
                         message="Your draft is live"
                         description="The auction draft is underway — nominate players and build your roster before the season tips off."
                         actionLabel="Go to Draft Room"
-                        onAction={() => router.push('/league')}
+                        onAction={() => { void openDraftRoom() }}
                     />
                 </View>
             ) : homeSurface === 'loading' ? (
@@ -346,6 +385,15 @@ export default function HomeScreen() {
                 onCancel={() => setActivationOverflowPending(null)}
             />
 
+            <ScoreBreakdownSheet
+                visible={detailsRow != null}
+                onClose={() => setDetailsRow(null)}
+                slotType={detailsRow?.slotType ?? ''}
+                mine={{ player: detailsRow?.myPlayer ?? null, stats: detailsRow?.myPlayer ? liveStats.get(detailsRow.myPlayer.playerId) : undefined }}
+                theirs={{ player: detailsRow?.oppPlayer ?? null, stats: detailsRow?.oppPlayer ? liveStats.get(detailsRow.oppPlayer.playerId) : undefined }}
+                settings={scoringSettings}
+            />
+
             <AutoSetModal
                 visible={autoSetModalVisible}
                 onClose={() => setAutoSetModalVisible(false)}
@@ -353,20 +401,24 @@ export default function HomeScreen() {
                 onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
                 onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
             />
-        </SafeAreaView>
+        </Page>
     )
 }
 
-function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; compact: boolean }) {
+function AroundLeague({ matchups, compact, stacked = false }: { matchups: LeagueWeekMatchup[]; compact: boolean; stacked?: boolean }) {
     const { width } = useWindowDimensions()
     const otherMatchups = matchups.filter((item) => !item.isMine)
     if (otherMatchups.length === 0) return null
+    const cards = otherMatchups.map((item) => (
+        <AroundLeagueCard
+            key={item.id}
+            item={item}
+            style={stacked ? undefined : compact ? [styles.aroundLeagueCardCompact, { width: Math.min(220, width - 82) }] : styles.aroundLeagueCardFixed}
+        />
+    ))
 
-    const sidePad = compact ? 10 : 16
-    const cardGap = compact ? 6 : 8
-    // On narrow screens, size cards so one fits fully with a deliberate peek
-    // of the next card's left (name) edge — a score never sits under the clip.
-    const cardWidth = compact ? Math.min(220, width - sidePad - 72) : 190
+    const cardGap = compact ? spacing.sm : spacing.md
+    const cardWidth = Math.min(220, width - 82)
 
     return (
         <View style={styles.aroundLeague}>
@@ -381,42 +433,50 @@ function AroundLeague({ matchups, compact }: { matchups: LeagueWeekMatchup[]; co
                 </Text>
                 <Text style={styles.aroundLeagueMeta}>{countLabel(otherMatchups.length, 'matchup')}</Text>
             </View>
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                snapToInterval={compact ? cardWidth + cardGap : undefined}
-                decelerationRate={compact ? 'fast' : undefined}
-                contentContainerStyle={[styles.aroundLeagueScroll, compact && styles.aroundLeagueScrollCompact]}
-            >
-                {otherMatchups.map((item) => {
-                    const homeScore = item.homePoints
-                    const awayScore = item.awayPoints
-                    const homeLeading = homeScore != null && (awayScore == null || homeScore >= awayScore)
-                    const awayLeading = awayScore != null && (homeScore == null || awayScore > homeScore)
-                    return (
-                        <View key={item.id} style={[styles.aroundLeagueCard, compact && [styles.aroundLeagueCardCompact, { width: cardWidth }]]}>
-                            <View style={styles.aroundLeagueTeamRow}>
-                                <Text style={[styles.aroundLeagueTeam, homeLeading && styles.aroundLeagueTeamLeading]} numberOfLines={1}>
-                                    {item.homeTeamName}
-                                </Text>
-                                <Text style={[styles.aroundLeagueScore, homeLeading && styles.aroundLeagueScoreLeading]}>
-                                    {formatPoints(item.homePoints)}
-                                </Text>
-                            </View>
-                            <View style={styles.aroundLeagueDivider} />
-                            <View style={styles.aroundLeagueTeamRow}>
-                                <Text style={[styles.aroundLeagueTeam, awayLeading && styles.aroundLeagueTeamLeading]} numberOfLines={1}>
-                                    {item.awayTeamName}
-                                </Text>
-                                <Text style={[styles.aroundLeagueScore, awayLeading && styles.aroundLeagueScoreLeading]}>
-                                    {formatPoints(item.awayPoints)}
-                                </Text>
-                            </View>
-                            <Text style={styles.aroundLeagueStatus}>{item.isFinalized ? 'Final' : 'Live'}</Text>
-                        </View>
-                    )
-                })}
-            </ScrollView>
+            {stacked ? (
+                <View style={styles.aroundLeagueStack}>{cards}</View>
+            ) : (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    // On narrow screens one card fits fully with a peek of the next
+                    // card's name edge, so a score never sits under the clip.
+                    snapToInterval={compact ? cardWidth + cardGap : undefined}
+                    decelerationRate={compact ? 'fast' : undefined}
+                    contentContainerStyle={[styles.aroundLeagueScroll, { gap: cardGap }]}
+                >
+                    {cards}
+                </ScrollView>
+            )}
+        </View>
+    )
+}
+
+function AroundLeagueCard({ item, style }: { item: LeagueWeekMatchup; style?: StyleProp<ViewStyle> }) {
+    const homeScore = item.homePoints
+    const awayScore = item.awayPoints
+    const homeLeading = homeScore != null && (awayScore == null || homeScore >= awayScore)
+    const awayLeading = awayScore != null && (homeScore == null || awayScore > homeScore)
+    return (
+        <View style={[styles.aroundLeagueCard, style]}>
+            <View style={styles.aroundLeagueTeamRow}>
+                <Text style={[styles.aroundLeagueTeam, homeLeading && styles.aroundLeagueTeamLeading]} numberOfLines={1}>
+                    {item.homeTeamName}
+                </Text>
+                <Text style={[styles.aroundLeagueScore, homeLeading && styles.aroundLeagueScoreLeading]}>
+                    {formatPoints(item.homePoints)}
+                </Text>
+            </View>
+            <View style={styles.aroundLeagueDivider} />
+            <View style={styles.aroundLeagueTeamRow}>
+                <Text style={[styles.aroundLeagueTeam, awayLeading && styles.aroundLeagueTeamLeading]} numberOfLines={1}>
+                    {item.awayTeamName}
+                </Text>
+                <Text style={[styles.aroundLeagueScore, awayLeading && styles.aroundLeagueScoreLeading]}>
+                    {formatPoints(item.awayPoints)}
+                </Text>
+            </View>
+            <Text style={styles.aroundLeagueStatus}>{item.isFinalized ? 'Final' : 'Live'}</Text>
         </View>
     )
 }
@@ -433,10 +493,13 @@ function MatchupLineupView({
     liveTeams,
     scoringSettings,
     teamMatchups,
+    statColumns,
+    onOpenDetails,
+    capacity,
     compact,
     dense,
     daySelector,
-    headerAccessory,
+    autoSetControl,
     hint,
     footer,
 }: {
@@ -451,22 +514,27 @@ function MatchupLineupView({
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    statColumns: StatColumn[] | null
+    onOpenDetails: (row: DetailsRow) => void
+    /** League slot counts; every slot shows, filled or empty, so open room is visible. */
+    capacity: { bench: number; ir: number; taxi: number }
     compact: boolean
     dense: boolean
     daySelector?: ReactNode
-    headerAccessory?: ReactNode
+    autoSetControl?: ReactNode
     hint?: ReactNode
     footer?: ReactNode
 }) {
-    const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length)
-    const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length)
-    const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length)
+    const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
+    const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length, capacity.ir)
+    const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length, capacity.taxi)
     const sections = useMemo(
         () => [
             {
                 key: 'starters' as const,
                 label: 'Starters',
                 count: myLineup.starters.length,
+                used: `${myLineup.starters.filter((slot) => slot.player).length}/${myLineup.starters.length}`,
                 color: colors.primaryDark,
                 rows: myLineup.starters.map((slot, i) => ({
                     key: `s${i}`,
@@ -482,6 +550,7 @@ function MatchupLineupView({
                 key: 'bench' as const,
                 label: 'Bench',
                 count: maxBench,
+                used: `${myLineup.bench.length}/${capacity.bench}`,
                 color: colors.textMuted,
                 rows: Array.from({ length: maxBench }, (_, i) => ({
                     key: `b${i}`,
@@ -490,13 +559,16 @@ function MatchupLineupView({
                     slotType: 'BE',
                     selKind: 'bench' as const,
                     selIndex: i,
-                    isExtraOppRow: i >= myLineup.bench.length,
+                    // Rows past my bench size are open slots I can move a starter into;
+                    // only rows past the league's bench size belong to the opponent alone.
+                    isExtraOppRow: i >= Math.max(myLineup.bench.length, capacity.bench),
                 })),
             },
             {
                 key: 'ir' as const,
                 label: 'Injured Reserve',
                 count: maxIR,
+                used: `${myLineup.ir.length}/${capacity.ir}`,
                 color: colors.danger,
                 rows: Array.from({ length: maxIR }, (_, i) => ({
                     key: `ir${i}`,
@@ -512,6 +584,7 @@ function MatchupLineupView({
                 key: 'taxi' as const,
                 label: 'Taxi Squad',
                 count: maxTaxi,
+                used: `${myLineup.taxi.length}/${capacity.taxi}`,
                 color: colors.textMuted,
                 rows: Array.from({ length: maxTaxi }, (_, i) => ({
                     key: `tx${i}`,
@@ -524,22 +597,12 @@ function MatchupLineupView({
                 })),
             },
         ].filter((section) => section.key === 'starters' || section.count > 0),
-        [maxBench, maxIR, maxTaxi, myLineup, oppLineup],
+        [capacity.bench, capacity.ir, capacity.taxi, maxBench, maxIR, maxTaxi, myLineup, oppLineup],
     )
 
     return (
-        <View style={[styles.lineupContainer, compact && styles.lineupContainerCompact]}>
-            <View style={styles.lineupHeader}>
-                <Text
-                    style={styles.lineupTitle}
-                    role="heading"
-                    aria-level={2}
-                    accessibilityRole="header"
-                >
-                    Lineup
-                </Text>
-                {headerAccessory}
-            </View>
+        <View style={styles.lineupContainer}>
+            <LineupHeading />
             {daySelector}
             {hint}
 
@@ -560,8 +623,11 @@ function MatchupLineupView({
                             >
                                 {section.label}
                             </Text>
-                            <Text style={styles.lineupSectionCount}>{section.count}</Text>
+                            {section.key === 'starters' && autoSetControl ? autoSetControl : (
+                                <Text style={styles.lineupSectionCount}>{section.used}</Text>
+                            )}
                         </View>
+                        {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
                         {section.rows.map((row, i) => (
                             <MatchupRow
                                 key={row.key}
@@ -583,6 +649,8 @@ function MatchupLineupView({
                                 dense={dense}
                                 motionDelay={i * 18}
                                 targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
+                                statColumns={statColumns}
+                                onOpenDetails={onOpenDetails}
                             />
                         ))}
                     </View>
@@ -594,54 +662,46 @@ function MatchupLineupView({
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bgScreen },
-
+    blank: { flex: 1, backgroundColor: colors.bgScreen },
     playSurface: { flex: 1, minHeight: 0 },
-    aroundLeague: {
-        paddingTop: 0,
-        paddingBottom: 2,
+    playSurfaceTwoPane: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: spacing['3xl'],
     },
+    mainColumn: {
+        flex: 1,
+        minHeight: 0,
+        width: '100%',
+        alignSelf: 'center',
+    },
+    mainColumnTwoPane: { alignSelf: 'stretch' },
+    rail: { width: layout.railWidth, flexGrow: 0, flexShrink: 0 },
+    railContent: { gap: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xl },
+
+    aroundLeague: { gap: spacing.sm },
     aroundLeagueHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingBottom: 3,
     },
-    aroundLeagueTitle: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.6,
-        textTransform: 'uppercase' as const,
-    },
-    aroundLeagueMeta: {
-        fontSize: fontSize['2sm'],
-        fontWeight: fontWeight.semibold,
-        color: colors.textMuted,
-    },
-    aroundLeagueScroll: {
-        paddingHorizontal: 16,
-        gap: 8,
-    },
-    aroundLeagueScrollCompact: {
-        paddingHorizontal: 10,
-        gap: 6,
-    },
+    aroundLeagueTitle: { ...textStyles.sectionLabel },
+    aroundLeagueMeta: { ...textStyles.meta },
+    aroundLeagueScroll: { paddingRight: spacing.md },
+    aroundLeagueStack: { gap: spacing.sm },
     aroundLeagueCard: {
-        width: 190,
-        paddingHorizontal: 10,
-        paddingVertical: 7,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
         backgroundColor: colors.bgCard,
     },
+    aroundLeagueCardFixed: { width: 200 },
     aroundLeagueCardCompact: {
-        width: 184,
-        paddingHorizontal: 9,
-        paddingVertical: 6,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
     },
     aroundLeagueTeamRow: {
         flexDirection: 'row',
@@ -651,12 +711,13 @@ const styles = StyleSheet.create({
     aroundLeagueTeam: {
         flex: 1,
         minWidth: 0,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
+        fontSize: fontSize['2sm'],
+        fontWeight: fontWeight.semibold,
         color: colors.textSecondary,
     },
     aroundLeagueTeamLeading: {
         color: colors.textPrimary,
+        fontWeight: fontWeight.bold,
     },
     aroundLeagueScore: {
         fontSize: fontSize.md,
@@ -664,6 +725,7 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
         minWidth: 48,
         textAlign: 'right',
+        fontVariant: ['tabular-nums'] as const,
     },
     aroundLeagueScoreLeading: {
         color: colors.primaryDark,
@@ -671,33 +733,24 @@ const styles = StyleSheet.create({
     aroundLeagueDivider: {
         height: 1,
         backgroundColor: colors.separator,
-        marginVertical: 3,
+        marginVertical: spacing.xs,
     },
     aroundLeagueStatus: {
-        marginTop: 3,
+        ...textStyles.sectionLabel,
         fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.5,
-        textTransform: 'uppercase' as const,
+        marginTop: spacing.xs,
     },
     autoSetBtn: {
-        height: 26,
-        paddingHorizontal: 14,
-        borderRadius: 20,
+        minHeight: 44,
+        minWidth: 72,
+        paddingHorizontal: spacing.xl,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
-        backgroundColor: colors.primaryLight,
-        borderWidth: 1.5,
-        borderColor: colors.primary,
+        backgroundColor: colors.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    autoSetText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, letterSpacing: 0.6 },
-    autoSetBtnDisabled: {
-        backgroundColor: colors.bgMuted,
-        borderColor: colors.borderLight,
-    },
-    autoSetTextDisabled: { color: colors.textPlaceholder },
+    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textWhite, letterSpacing: 0.6 },
 
     hint: {
         flexDirection: 'row',
@@ -705,32 +758,18 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primaryLight,
         borderWidth: 1,
         borderColor: colors.primaryBorder,
-        borderRadius: 14,
+        borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        marginTop: 8,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        marginTop: spacing.md,
     },
     hintText: { flex: 1, fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
-    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: 12 },
+    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: spacing.lg, paddingVertical: spacing.md },
 
-    lineupContainer: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: 8 },
-    lineupContainerCompact: { paddingHorizontal: 8 },
-    lineupHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingTop: 0,
-        paddingBottom: 2,
-    },
-    lineupTitle: {
-        flex: 1,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
+    lineupContainer: { flex: 1, minHeight: 0 },
     lineupRows: { flex: 1, minHeight: 0 },
-    lineupRowsContent: { paddingTop: 4, paddingBottom: 8 },
+    lineupRowsContent: { paddingTop: spacing.md, paddingBottom: spacing.md },
     lineupSection: {
         borderWidth: 1,
         borderColor: colors.borderLight,
@@ -738,25 +777,23 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgCard,
         overflow: 'hidden' as const,
-        marginBottom: 8,
+        marginBottom: spacing.md,
     },
     lineupSectionBand: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
+        minHeight: 36,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
+        paddingVertical: spacing.xs,
         borderLeftWidth: 3,
         backgroundColor: colors.bgSubtle,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
     lineupSectionTitle: {
+        ...textStyles.sectionLabel,
         flex: 1,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
     },
     lineupSectionCount: {
         fontSize: fontSize.xs,
@@ -764,7 +801,7 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     lineupFooter: {
-        gap: spacing.md,
+        gap: spacing.xl,
         paddingTop: spacing.sm,
         paddingBottom: spacing.lg,
     },
@@ -774,11 +811,10 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
     },
 
-    noLineup: { padding: 32, alignItems: 'center', gap: 12 },
+    noLineup: { padding: spacing['4xl'], alignItems: 'center', gap: spacing.lg },
     noLineupText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
-    setLineupBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
+    setLineupBtn: { paddingHorizontal: spacing['2xl'], paddingVertical: spacing.md, borderRadius: radii.lg, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
     setLineupBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

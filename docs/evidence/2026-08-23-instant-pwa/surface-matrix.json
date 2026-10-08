@@ -189,8 +189,8 @@
     {
       "id": "draft-launcher",
       "routeLabel": "draft-launcher",
-      "source": "app/(tabs)/draft-room.tsx",
-      "path": "/(tabs)/draft-room",
+      "source": "app/(tabs)/draft.tsx",
+      "path": "/draft",
       "functionIds": ["draft-launch"],
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "active-draft"], "proofIds": ["browser.surface_online", "browser.smoke"] },

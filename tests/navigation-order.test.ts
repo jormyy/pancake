@@ -16,7 +16,7 @@ describe('primary navigation order', () => {
             readFile(path.join(ROOT, 'app/(tabs)/_layout.tsx'), 'utf8'),
             readFile(path.join(ROOT, 'components/navigation/WebTabShell.tsx'), 'utf8'),
         ])
-        const labels = ['Matchup', 'Roster', 'Players', 'Trades', 'Dynasty', 'League']
+        const labels = ['Matchup', 'Roster', 'Players', 'Trades', 'League']
         const webPrimary = webSource.slice(
             webSource.indexOf('const PRIMARY_NAV'),
             webSource.indexOf('const MOBILE_NAV'),
@@ -31,6 +31,8 @@ describe('primary navigation order', () => {
         expect(webMobile).toContain("{ label: 'League', href: '/league'")
         expect(nativeSource).not.toContain('NativeTabs.Trigger name="draft-room"')
         expect(nativeSource).not.toContain('NativeTabs.Trigger name="profile"')
+        expect(nativeSource).not.toContain('NativeTabs.Trigger name="dynasty"')
+        expect(webPrimary).not.toContain("href: '/dynasty'")
     })
 
     it('keeps profile access in league settings', async () => {

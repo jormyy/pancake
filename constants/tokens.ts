@@ -1,4 +1,4 @@
-import { Platform, type ViewStyle } from 'react-native'
+import { Platform, type TextStyle, type ViewStyle } from 'react-native'
 
 // ── Raw palette ─────────────────────────────────────────────────
 // Every color in the app lives here. Components import semantic
@@ -28,6 +28,8 @@ export const palette = {
     latte:      '#627068',
     cappuccino: '#6D6155',
     oatmilk:    '#A99379',
+    // Input hint text: lighter than typed values so a hint never reads as an answer.
+    hint:       '#9A8B78',
 
     // ── Red ──
     red50:    '#FEF2F2',
@@ -35,6 +37,7 @@ export const palette = {
     red200:   '#FECACA',
     red300:   '#FCA5A5',
     red500:   '#EF4444',
+    red600:   '#DC2626',
     red900:   '#991B1B',
     redDark:  '#7F1D1D',
     redBright:'#d00',
@@ -103,15 +106,74 @@ export const palette = {
     black:    '#11181C',
 } as const
 
+// ── Night palette ───────────────────────────────────────────────
+// Warm near-black surfaces and a cream text ramp for dark mode. Accent hues
+// are lifted so text and icons keep their contrast on dark surfaces.
+const night = {
+    bgScreen: '#121614',
+    bgSubtle: '#171C19',
+    bgCard:   '#1C221F',
+    bgInput:  '#1F2622',
+    bgMuted:  '#262E2A',
+    separator: '#2D3530',
+    border:    '#3D4641',
+    textPrimary:     '#F3EEE4',
+    textSecondary:   '#CFC8BC',
+    textMuted:       '#A3ABA4',
+    textPlaceholder: '#8C948D',
+    textDisabled:    '#6A726C',
+    maple:       '#F0A868',
+    mapleStrong: '#F7C99A',
+    mapleAccent: '#D9823F',
+    mapleTint:   '#3A2618',
+    mapleTintSoft: '#2A1D14',
+    mapleBorder: '#7A4A26',
+    mapleBorderSoft: '#5A3820',
+    red:       '#F87171',
+    redText:   '#FCA5A5',
+    redTint:   '#3B1D1D',
+    redTintSoft: '#2E1919',
+    redBorder: '#6B2B2B',
+    green:       '#4FB286',
+    greenText:   '#9EE0BF',
+    greenLive:   '#5FD39C',
+    greenStrong: '#7FD9AE',
+    greenTint:   '#173328',
+    greenTintSoft: '#14261E',
+    greenTintStrong: '#1D3A2C',
+    greenBorder: '#2F5E48',
+    amber:     '#E2A84B',
+    amberText: '#F3C97C',
+    amberTint: '#3A2C14',
+    amberBorder: '#6B5320',
+    purple:     '#B48FC7',
+    purpleText: '#C9A6DA',
+    purpleTint: '#2C2335',
+    blue:   '#7FB0D3',
+    indigo: '#8B8DF8',
+    posCoral:  '#E07B6E',
+    posBurnt:  '#E8924A',
+    posForest: '#6DB878',
+    posTeal:   '#4DB5A6',
+    posPlum:   '#C98AC4',
+    posAmber:  '#D4AE45',
+    posSage:   '#9DB88E',
+} as const
+
+// Every themed color registers its light value here as it is declared, so the
+// light CSS variables can never drift from the tokens that use them.
+const LIGHT_THEME: Record<string, string> = {}
+
 function webColor(name: string, fallback: string) {
+    LIGHT_THEME[name] = fallback
     return Platform.OS === 'web' ? `var(--pancake-${name}, ${fallback})` : fallback
 }
 
-// Convert a hex string (#RGB or #RRGGBB) to an rgba() string. Use for tinted
-// fills/overlays instead of ad-hoc `color + '22'` concatenation. Pass raw
-// `palette.*` hex values (not semantic CSS-var colors, which can't be parsed).
-export function alpha(hex: string, a: number): string {
-    let h = hex.replace('#', '')
+// Tint a color: rgba() for a hex value. A themed CSS-variable color can't be
+// parsed, so on web it mixes with transparent and follows the active theme.
+export function alpha(color: string, a: number): string {
+    if (!color.startsWith('#')) return `color-mix(in srgb, ${color} ${Math.round(a * 100)}%, transparent)`
+    let h = color.replace('#', '')
     if (h.length === 3) h = h.split('').map((c) => c + c).join('')
     const r = parseInt(h.slice(0, 2), 16)
     const g = parseInt(h.slice(2, 4), 16)
@@ -138,7 +200,11 @@ export const colors = {
     textMuted:       webColor('text-muted', palette.latte),
     textPlaceholder: webColor('text-placeholder', palette.cappuccino),
     textDisabled:    webColor('text-disabled', palette.oatmilk),
+    inputPlaceholder: webColor('input-placeholder', palette.hint),
     textWhite:       palette.white,
+    // Text on a solid status fill (danger, info, taxi). Those fills lighten in
+    // dark mode, so the text flips to near-black there to stay readable.
+    onAccent:        webColor('on-accent', palette.white),
 
     // Backgrounds
     bgScreen: webColor('bg-screen', palette.cream100),
@@ -157,9 +223,12 @@ export const colors = {
     primaryLight:  webColor('primary-light', palette.maple50),
     primaryBorder: webColor('primary-border', palette.maple200),
     primaryDark:   webColor('primary-dark', palette.maple600),
+    // Hover fill behind white text. Dark mode lightens primaryDark for text, so
+    // fills keep this deeper maple in both themes.
+    primaryHover:  palette.maple600,
 
     // Danger (red)
-    danger:     webColor('danger', palette.red500),
+    danger:     webColor('danger', palette.red600),
     dangerLight: webColor('danger-light', palette.red100),
     dangerDark:  webColor('danger-dark', palette.red900),
 
@@ -262,10 +331,36 @@ export const fontWeight = {
     black: '900' as const,
 }
 
+const tabularNums: TextStyle['fontVariant'] = ['tabular-nums']
+
+// Text roles. Screens pick a role instead of a raw size so the hierarchy reads
+// the same everywhere: hero number > page title > row title > body > meta > label.
+export const textStyles = {
+    hero: { fontFamily: fontFamily.display, fontSize: fontSize['5xl'], lineHeight: 40, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    pageTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, lineHeight: 26, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    rowTitle: { fontSize: fontSize.md, lineHeight: 18, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    body: { fontSize: fontSize.md, lineHeight: 20, color: colors.textSecondary },
+    meta: { fontSize: fontSize['2sm'], lineHeight: 16, color: colors.textMuted },
+    sectionLabel: { fontSize: fontSize.xs, lineHeight: 14, fontWeight: fontWeight.extrabold, letterSpacing: 0.8, textTransform: 'uppercase' as const, color: colors.textMuted },
+    stat: { fontSize: fontSize['2sm'], fontVariant: tabularNums, color: colors.textSecondary },
+    tableHeader: { fontSize: fontSize['2xs'], lineHeight: 12, fontWeight: fontWeight.extrabold, letterSpacing: 0.6, textTransform: 'uppercase' as const, color: colors.textMuted },
+    tableCell: { fontSize: fontSize.sm, fontVariant: tabularNums, color: colors.textSecondary },
+} satisfies Record<string, TextStyle>
+
+// Data tables (roster, players, standings, rankings, trades). One spec so
+// every table has the same header, row height, and column rhythm.
+export const table = {
+    headerHeight: 32,
+    rowHeight: 52,
+    rowHeightCompact: 44,
+    statColWidth: 44,
+    cellPadX: spacing.sm,
+} as const
+
 export const controlSize = {
     minTouch: foundation.minTouch,
     button: {
-        sm: { height: unit(10), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
+        sm: { height: unit(11), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
         md: { height: unit(12), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
         lg: { height: unit(13), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
     },
@@ -342,18 +437,18 @@ export type WebOnlyViewStyle = ViewStyle & {
 }
 
 export const webBackgrounds = {
-    appRoot: 'radial-gradient(circle at 22% 0%, rgba(166, 83, 23, 0.10), transparent 32%), radial-gradient(circle at 78% 10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, #FFFDF7 0%, #F7F1E8 42%, #EFE5D6 100%)',
-    appContent: 'radial-gradient(circle at 74% -10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, rgba(255, 253, 247, 0.92), rgba(247, 241, 232, 0.98))',
-    authScreen: 'radial-gradient(circle at 84% 8%, rgba(47, 122, 91, 0.12), transparent 32%), linear-gradient(135deg, #FFFDF7 0%, #F7F1E8 54%, #EDE0CE 100%)',
+    appRoot: webColor('image-app-root', 'radial-gradient(circle at 22% 0%, rgba(166, 83, 23, 0.10), transparent 32%), radial-gradient(circle at 78% 10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, #FFFDF7 0%, #F7F1E8 42%, #EFE5D6 100%)'),
+    appContent: webColor('image-app-content', 'radial-gradient(circle at 74% -10%, rgba(47, 122, 91, 0.12), transparent 30%), linear-gradient(180deg, rgba(255, 253, 247, 0.92), rgba(247, 241, 232, 0.98))'),
+    authScreen: webColor('image-auth-screen', 'radial-gradient(circle at 84% 8%, rgba(47, 122, 91, 0.12), transparent 32%), linear-gradient(135deg, #FFFDF7 0%, #F7F1E8 54%, #EDE0CE 100%)'),
     authHero: `radial-gradient(circle at 24% 12%, rgba(166, 83, 23, 0.30), transparent 30%), radial-gradient(circle at 80% 30%, rgba(47, 122, 91, 0.22), transparent 34%), linear-gradient(155deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
-    noLeague: 'radial-gradient(circle at 78% 8%, rgba(47, 122, 91, 0.12), transparent 34%), linear-gradient(145deg, #FFFDF7, #F7F1E8)',
+    noLeague: webColor('image-no-league', 'radial-gradient(circle at 78% 8%, rgba(47, 122, 91, 0.12), transparent 34%), linear-gradient(145deg, #FFFDF7, #F7F1E8)'),
     sidebar: `radial-gradient(circle at 18% 0%, rgba(166, 83, 23, 0.26), transparent 34%), linear-gradient(180deg, ${brand.surface} 0%, ${brand.surfaceDeeper} 100%)`,
 } as const
 
 export const webOverlays = {
     brandPreview: 'rgba(255, 248, 234, 0.08)',
-    mobileTopbar: 'rgba(255, 253, 247, 0.90)',
-    mobileBottomNav: 'rgba(255, 253, 247, 0.94)',
+    mobileTopbar: webColor('overlay-mobile-topbar', 'rgba(255, 253, 247, 0.90)'),
+    mobileBottomNav: webColor('overlay-mobile-bottom-nav', 'rgba(255, 253, 247, 0.94)'),
     navBadgeActive: 'rgba(255, 255, 255, 0.28)',
     sheetScrim: 'rgba(16, 23, 19, 0.48)',
     scoreboardBorder: 'rgba(255,255,255,0.07)',
@@ -363,9 +458,18 @@ export const webOverlays = {
     liveGlow: '0 0 14px rgba(166, 83, 23, 0.35)',
 } as const
 
+// Fades the right edge of a scroll strip so more items read as "swipe for more".
+export const webMasks = {
+    fadeRight: 'linear-gradient(to right, black calc(100% - 40px), transparent)',
+    fadeLeft: 'linear-gradient(to right, transparent, black 40px)',
+    fadeBoth: 'linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent)',
+} as const
+
 export const webChrome = {
     themeColor: palette.cream100,
-    rootBackgroundCss: `html,body,#root{background-color:${palette.cream100};}`,
+    themeColorDark: night.bgScreen,
+    rootBackgroundCss: `html,body,#root{background-color:${palette.cream100};}`
+        + `@media (prefers-color-scheme: dark){html,body,#root{background-color:${night.bgScreen};}}`,
 } as const
 
 export const tints = {
@@ -379,37 +483,37 @@ export const tints = {
 } as const
 
 export const uiColors = {
-    accentDanger: palette.red500,
-    accentPick: palette.indigo500,
-    accentSuccess: palette.green500,
-    brandAccent: palette.maple500,
-    brandBorder: palette.maple200,
-    brandBorderSoft: palette.maple100,
-    brandSurface: palette.maple100,
-    brandSurfaceSoft: palette.maple50,
-    brandText: palette.maple600,
-    brandTextStrong: palette.maple900,
-    borderNeutral: palette.gray300,
-    dangerBorder: palette.red200,
-    dangerSurface: palette.red50,
-    dangerText: palette.red900,
-    neutralSolid: palette.mocha,
-    neutralTint: palette.latte,
-    successBorder: palette.green200,
-    successSurface: palette.green50,
-    successSurfaceStrong: palette.green300,
-    successText: palette.green800,
-    successTextLive: palette.green600,
-    successTextStrong: palette.green700,
-    surfaceAlt: palette.gray50,
-    tableText: palette.gray900,
-    taxi: palette.purple500,
-    textFaint: palette.gray500,
-    textLost: palette.gray650,
-    warningBorder: palette.amber200,
-    warningSurface: palette.amber300,
-    warningText: palette.amber600,
-    waiverText: palette.purple600,
+    accentDanger: webColor('ui-accent-danger', palette.red500),
+    accentPick: webColor('ui-accent-pick', palette.indigo500),
+    accentSuccess: webColor('ui-accent-success', palette.green500),
+    brandAccent: webColor('ui-brand-accent', palette.maple500),
+    brandBorder: webColor('ui-brand-border', palette.maple200),
+    brandBorderSoft: webColor('ui-brand-border-soft', palette.maple100),
+    brandSurface: webColor('ui-brand-surface', palette.maple100),
+    brandSurfaceSoft: webColor('ui-brand-surface-soft', palette.maple50),
+    brandText: webColor('ui-brand-text', palette.maple600),
+    brandTextStrong: webColor('ui-brand-text-strong', palette.maple900),
+    borderNeutral: webColor('ui-border-neutral', palette.gray300),
+    dangerBorder: webColor('ui-danger-border', palette.red200),
+    dangerSurface: webColor('ui-danger-surface', palette.red50),
+    dangerText: webColor('ui-danger-text', palette.red900),
+    neutralSolid: webColor('ui-neutral-solid', palette.mocha),
+    neutralTint: webColor('ui-neutral-tint', palette.latte),
+    successBorder: webColor('ui-success-border', palette.green200),
+    successSurface: webColor('ui-success-surface', palette.green50),
+    successSurfaceStrong: webColor('ui-success-surface-strong', palette.green300),
+    successText: webColor('ui-success-text', palette.green800),
+    successTextLive: webColor('ui-success-text-live', palette.green600),
+    successTextStrong: webColor('ui-success-text-strong', palette.green700),
+    surfaceAlt: webColor('ui-surface-alt', palette.gray50),
+    tableText: webColor('ui-table-text', palette.gray900),
+    taxi: webColor('ui-taxi', palette.purple500),
+    textFaint: webColor('ui-text-faint', palette.gray500),
+    textLost: webColor('ui-text-lost', palette.gray650),
+    warningBorder: webColor('ui-warning-border', palette.amber200),
+    warningSurface: webColor('ui-warning-surface', palette.amber300),
+    warningText: webColor('ui-warning-text', palette.amber600),
+    waiverText: webColor('ui-waiver-text', palette.purple600),
 } as const
 
 export const scoreboardColors = {
@@ -442,6 +546,16 @@ export const layout = {
     contentMaxWidth: 1280,
     // Readable form/settings column on wide screens (was inlined as 640/720/760).
     formMaxWidth: 720,
+    // Head-to-head lineup column. Wider than this, a player's name drifts away
+    // from the points at the row's outer edge.
+    lineupMaxWidth: 680,
+    // Box-score lineup: grows to this when there's room for names and games.
+    statLineupMaxWidth: 1120,
+    // Side column on two-pane screens (other matchups, scoreboard, details).
+    railWidth: 320,
+    // Web app shell sidebar shown at breakpoints.compact and wider.
+    sidebarWidth: 264,
+    pagePadX: { compact: spacing.lg, regular: spacing['3xl'] },
 } as const
 
 // Visually-hidden but screen-reader-available. Use for headings/labels that
@@ -469,42 +583,6 @@ export const breakpoints = {
     wide: 1200,    // extra breathing room
 } as const
 
-// ── Web theme CSS variables ─────────────────────────────────────
-// Single source for the injected `--pancake-*` light-mode CSS variables
-// (consumed via webColor()). Values reference `palette` so they can never
-// drift from a second hand-maintained hex copy. Web is light-only (locked).
-export const WEB_THEME_VARS: Record<string, string> = {
-    'text-primary': palette.espresso,
-    'text-secondary': palette.mocha,
-    'text-muted': palette.latte,
-    'text-placeholder': palette.cappuccino,
-    'text-disabled': palette.oatmilk,
-    'bg-screen': palette.cream100,
-    'bg-card': palette.cream50,
-    'bg-muted': palette.cream200,
-    'bg-subtle': palette.cream150,
-    'bg-input': palette.cream150,
-    'separator': palette.cream300,
-    'border': palette.cream400,
-    'border-light': palette.cream300,
-    'primary': palette.maple500,
-    'primary-light': palette.maple50,
-    'primary-border': palette.maple200,
-    'primary-dark': palette.maple600,
-    'danger': palette.red500,
-    'danger-light': palette.red100,
-    'danger-dark': palette.red900,
-    'success': palette.green500,
-    'success-light': palette.green100,
-    'success-dark': palette.green900,
-    'warning': palette.amber400,
-    'warning-light': palette.amber300,
-    'warning-dark': palette.amber600,
-    'info': palette.purple500,
-    'info-light': palette.purple100,
-    'accent': palette.blue500,
-}
-
 // ── Domain color maps ───────────────────────────────────────────
 
 // Solid-badge backgrounds darkened so the white 11px label clears WCAG AA (>=4.5:1).
@@ -515,25 +593,148 @@ export const INJURY_COLORS: Record<string, string> = {
     IR: palette.redDark,
 }
 
+// Transaction colors follow the theme so soft badges stay readable in dark mode.
 export const TX_COLORS: Record<string, string> = {
-    fa_add: palette.green500,
-    waiver_add: palette.purple500,
-    trade_in: palette.blue500,
-    fa_drop: palette.red500,
-    waiver_drop: palette.red500,
-    trade_out: palette.maple500,
-    ir_designate: palette.amber400,
-    ir_return: palette.indigo500,
-    draft_won: palette.green500,
+    fa_add: webColor('tx-add', palette.green500),
+    waiver_add: webColor('tx-waiver', palette.purple500),
+    trade_in: webColor('tx-trade-in', palette.blue500),
+    fa_drop: webColor('tx-drop', palette.red500),
+    waiver_drop: webColor('tx-drop', palette.red500),
+    trade_out: webColor('tx-trade-out', palette.maple500),
+    ir_designate: webColor('tx-ir', palette.amber400),
+    ir_return: webColor('tx-ir-return', palette.indigo500),
+    draft_won: webColor('tx-add', palette.green500),
 }
 
 export const TRADE_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
     // Text shades darkened to clear WCAG AA (>=4.5:1) on their badge backgrounds.
-    pending: { bg: palette.amber300, text: palette.maple900 },
-    accepted: { bg: palette.green100, text: palette.green900 },
-    rejected: { bg: palette.red100, text: palette.red900 },
-    withdrawn: { bg: palette.cream200, text: palette.mocha },
-    completed: { bg: palette.green100, text: palette.green900 },
-    expired: { bg: palette.cream200, text: palette.mocha },
-    vetoed: { bg: palette.red100, text: palette.red900 },
+    pending: { bg: webColor('status-pending-bg', palette.amber300), text: webColor('status-pending-text', palette.maple900) },
+    accepted: { bg: webColor('status-good-bg', palette.green100), text: webColor('status-good-text', palette.green900) },
+    rejected: { bg: webColor('status-bad-bg', palette.red100), text: webColor('status-bad-text', palette.red900) },
+    withdrawn: { bg: webColor('status-neutral-bg', palette.cream200), text: webColor('status-neutral-text', palette.mocha) },
+    completed: { bg: webColor('status-good-bg', palette.green100), text: webColor('status-good-text', palette.green900) },
+    expired: { bg: webColor('status-neutral-bg', palette.cream200), text: webColor('status-neutral-text', palette.mocha) },
+    vetoed: { bg: webColor('status-bad-bg', palette.red100), text: webColor('status-bad-text', palette.red900) },
+}
+
+// Position identity hues. Light values keep white chip text >=4.5:1 (WCAG AA);
+// dark values are lifted so tinted chips and labels stay readable on dark.
+export const positionColors: Record<string, string> = {
+    PG: webColor('pos-pg', palette.posCoral),
+    SG: webColor('pos-sg', palette.posBurnt),
+    SF: webColor('pos-sf', palette.posForest),
+    PF: webColor('pos-pf', palette.posTeal),
+    C:  webColor('pos-c', palette.posPlum),
+    G:  webColor('pos-g', palette.posAmber),
+    F:  webColor('pos-f', palette.posSage),
+}
+
+// ── Web theme CSS variables ─────────────────────────────────────
+// Light values come from the tokens themselves (LIGHT_THEME). Dark values are
+// listed here, one per light value; a test keeps the two sets of names equal.
+// Web follows the system setting; native stays light.
+export const WEB_THEME_VARS: Record<string, string> = LIGHT_THEME
+
+const darkImage = (glow: string) =>
+    `radial-gradient(circle at 22% 0%, rgba(240, 168, 104, 0.07), transparent 32%), ${glow}linear-gradient(180deg, ${night.bgSubtle} 0%, ${night.bgScreen} 100%)`
+
+export const WEB_THEME_VARS_DARK: Record<string, string> = {
+    'text-primary': night.textPrimary,
+    'text-secondary': night.textSecondary,
+    'text-muted': night.textMuted,
+    'text-placeholder': night.textPlaceholder,
+    'text-disabled': night.textDisabled,
+    'input-placeholder': '#7A827B',
+    'on-accent': night.bgScreen,
+    'bg-screen': night.bgScreen,
+    'bg-card': night.bgCard,
+    'bg-muted': night.bgMuted,
+    'bg-subtle': night.bgSubtle,
+    'bg-input': night.bgInput,
+    'separator': night.separator,
+    'border': night.border,
+    'border-light': night.separator,
+    'primary': palette.maple500,
+    'primary-light': night.mapleTint,
+    'primary-border': night.mapleBorder,
+    'primary-dark': night.maple,
+    'danger': night.red,
+    'danger-light': night.redTint,
+    'danger-dark': night.redText,
+    'success': night.green,
+    'success-light': night.greenTint,
+    'success-dark': night.greenText,
+    'warning': night.amber,
+    'warning-light': night.amberTint,
+    'warning-dark': night.amberText,
+    'info': night.purple,
+    'info-light': night.purpleTint,
+    'accent': night.blue,
+    'image-app-root': darkImage('radial-gradient(circle at 78% 10%, rgba(79, 178, 134, 0.06), transparent 30%), '),
+    'image-app-content': darkImage(''),
+    'image-auth-screen': darkImage('radial-gradient(circle at 84% 8%, rgba(79, 178, 134, 0.06), transparent 32%), '),
+    'image-no-league': darkImage(''),
+    'overlay-mobile-topbar': 'rgba(18, 22, 20, 0.90)',
+    'overlay-mobile-bottom-nav': 'rgba(18, 22, 20, 0.94)',
+    'ui-accent-danger': night.red,
+    'ui-accent-pick': night.indigo,
+    'ui-accent-success': night.green,
+    'ui-brand-accent': night.mapleAccent,
+    'ui-brand-border': night.mapleBorder,
+    'ui-brand-border-soft': night.mapleBorderSoft,
+    'ui-brand-surface': night.mapleTint,
+    'ui-brand-surface-soft': night.mapleTintSoft,
+    'ui-brand-text': night.maple,
+    'ui-brand-text-strong': night.mapleStrong,
+    'ui-border-neutral': night.border,
+    'ui-danger-border': night.redBorder,
+    'ui-danger-surface': night.redTintSoft,
+    'ui-danger-text': night.redText,
+    'ui-neutral-solid': night.textSecondary,
+    'ui-neutral-tint': night.textMuted,
+    'ui-success-border': night.greenBorder,
+    'ui-success-surface': night.greenTintSoft,
+    'ui-success-surface-strong': night.greenTintStrong,
+    'ui-success-text': night.greenText,
+    'ui-success-text-live': night.greenLive,
+    'ui-success-text-strong': night.greenStrong,
+    'ui-surface-alt': night.bgCard,
+    'ui-table-text': night.textPrimary,
+    'ui-taxi': night.purple,
+    'ui-text-faint': night.textDisabled,
+    'ui-text-lost': night.textPlaceholder,
+    'ui-warning-border': night.amberBorder,
+    'ui-warning-surface': night.amberTint,
+    'ui-warning-text': night.amberText,
+    'ui-waiver-text': night.purpleText,
+    'status-pending-bg': night.amberTint,
+    'status-pending-text': night.amberText,
+    'status-good-bg': night.greenTint,
+    'status-good-text': night.greenText,
+    'status-bad-bg': night.redTint,
+    'status-bad-text': night.redText,
+    'status-neutral-bg': night.bgMuted,
+    'status-neutral-text': night.textSecondary,
+    'tx-add': night.greenLive,
+    'tx-waiver': night.purpleText,
+    'tx-trade-in': night.blue,
+    'tx-drop': night.redText,
+    'tx-trade-out': night.maple,
+    'tx-ir': night.amberText,
+    'tx-ir-return': night.indigo,
+    'pos-pg': night.posCoral,
+    'pos-sg': night.posBurnt,
+    'pos-sf': night.posForest,
+    'pos-pf': night.posTeal,
+    'pos-c': night.posPlum,
+    'pos-g': night.posAmber,
+    'pos-f': night.posSage,
+}
+
+/** CSS that declares both themes: light by default, dark when the system asks. */
+export function themeVariablesCss(): string {
+    const declarations = (vars: Record<string, string>) =>
+        Object.entries(vars).map(([name, value]) => `--pancake-${name}:${value};`).join('')
+    return `:root{${declarations(WEB_THEME_VARS)}}`
+        + `@media (prefers-color-scheme: dark){:root{${declarations(WEB_THEME_VARS_DARK)}color-scheme:dark;}}`
 }

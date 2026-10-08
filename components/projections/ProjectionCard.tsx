@@ -7,7 +7,7 @@ import {
     type StyleProp,
     type ViewStyle,
 } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import {
     compactProjectionStatLine,
     formatProjectionGame,
@@ -56,7 +56,7 @@ export function ProjectionCard({
             <View style={[styles.topRow, compact && styles.topRowCompact]}>
                 <View style={styles.copy}>
                     <Text style={styles.label}>{title}</Text>
-                    <Text style={styles.meta} numberOfLines={compact ? 2 : 1}>{meta}</Text>
+                    <Text style={styles.meta} numberOfLines={2}>{meta}</Text>
                 </View>
                 <View style={styles.scoreBox}>
                     <Text style={styles.score}>{numberOrDash(projection.projection_fantasy_points)}</Text>
@@ -91,18 +91,18 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
         borderWidth: 1,
         borderColor: colors.borderLight,
-        borderRadius: radii.md,
+        borderRadius: radii.lg,
         borderCurve: 'continuous',
-        padding: spacing.xl,
-        gap: spacing.lg,
+        padding: spacing.lg,
+        gap: spacing.sm,
     },
     cardCompact: { padding: spacing.lg },
     headerSlot: { minWidth: 0 },
     topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.lg },
     topRowCompact: { alignItems: 'flex-start' },
     copy: { flex: 1, minWidth: 0 },
-    label: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    meta: { marginTop: spacing.xs, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    label: { ...textStyles.sectionLabel },
+    meta: { ...textStyles.meta, marginTop: spacing.xs },
     scoreBox: { alignItems: 'flex-end', minWidth: 72 },
     score: {
         fontSize: fontSize['2xl'],
@@ -112,6 +112,6 @@ const styles = StyleSheet.create({
     },
     scoreLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
     detailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap' },
-    statLine: { flex: 1, minWidth: 180, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    statLine: { ...textStyles.stat, flex: 1, minWidth: 180, fontWeight: fontWeight.semibold },
     footerSlot: { minWidth: 0 },
 })

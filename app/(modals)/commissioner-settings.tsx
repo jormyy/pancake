@@ -6,9 +6,8 @@ import {
     ScrollView,
     useWindowDimensions,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack } from 'expo-router'
+import type { ReactNode } from 'react'
 import type { TradeVetoMode, WaiverMode } from '@/lib/league'
 import { colors } from '@/constants/tokens'
 import {
@@ -18,7 +17,8 @@ import {
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import { styles } from '@/components/commissioner/settings-styles'
 import { EmptyState } from '@/components/EmptyState'
-import { ErrorBanner } from '@/components/ui'
+import { ModalScreen } from '@/components/ui/ModalScreen'
+import { ErrorBanner, usePageMetrics } from '@/components/ui'
 import {
     useCommissionerSettingsController,
 } from '@/hooks/use-commissioner-settings-controller'
@@ -30,6 +30,7 @@ export default function CommissionerSettingsScreen() {
     const { width, height } = useWindowDimensions()
     const compactLandscape = width >= 600 && height < 500
     const compactMobile = width <= 400
+    const { padX } = usePageMetrics()
     const {
         adjustSlot, busyAction, draft, handleAddCountOverride, handleDeleteLeague,
         handleFaabOverride, isCommissioner, lifecycle, loadError, loadState, lowerPriorityActions,
@@ -43,14 +44,25 @@ export default function CommissionerSettingsScreen() {
         tradeVetoThresholdPercent, tradeDeadline,
     } = draft
 
-    const screenHeader = (
-        <View style={styles.screenHeader}>
-            <Pressable onPress={navigateBack} style={styles.headerBack} role="link"
-                aria-label="Back to league settings" accessibilityRole="link" accessibilityLabel="Back to league settings">
-                <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
-            </Pressable>
-            <Text style={styles.screenTitle}>League Settings</Text>
-        </View>
+    // Save stays in reach at the top while the long form scrolls under it.
+    const saveAction = loadState === 'ready' || loadState === 'loading' ? (
+                <Pressable
+                    style={[styles.headerSave, (saving || loadState !== 'ready') && styles.headerSaveDisabled]}
+                    onPress={save}
+                    disabled={saving || loadState !== 'ready'}
+                    role="button"
+                    aria-label="Save league settings"
+                    accessibilityRole="button"
+                    accessibilityLabel="Save league settings"
+                    accessibilityState={{ disabled: saving || loadState !== 'ready', busy: saving }}
+                >
+                    <Text style={styles.headerSaveText}>{saving ? 'Saving…' : 'Save'}</Text>
+                </Pressable>
+    ) : null
+    const frame = (children: ReactNode) => (
+        <ModalScreen title="League Settings" onBack={navigateBack} backLabel="Back to league settings" actions={saveAction}>
+            {children}
+        </ModalScreen>
     )
 
     if (loadState !== 'ready') {
@@ -58,22 +70,21 @@ export default function CommissionerSettingsScreen() {
         // renders — no placeholder card that would swap for the settings form.
         return <>
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
-            <SafeAreaView style={styles.container} edges={['bottom']}>
-                {screenHeader}
+            {frame(<>
                 {loadState === 'error' ? <ErrorBanner message={loadError ?? 'Could not load league settings.'} onRetry={retryLoad} /> : null}
                 {loadState === 'unauthorized' || loadState === 'error' ? (
                     <EmptyState fullScreen={false}
                         message={loadState === 'unauthorized' ? 'Commissioner access required' : 'Settings unavailable'}
                         description={loadState === 'unauthorized' ? 'Only league commissioners can manage these settings.' : 'League controls will appear when the current configuration is ready.'} />
                 ) : null}
-            </SafeAreaView>
+            </>)}
         </>
     }
 
     function renderAction(action: CommissionerAction, grid = false) {
-        const color = action.intent === 'danger'
-            ? colors.danger
-            : action.intent === 'primary' ? colors.primaryDark : colors.primary
+        // primaryDark is the accent text color in both themes; primary is a
+        // fill color and drops to about 3:1 as text on dark surfaces.
+        const color = action.intent === 'danger' ? colors.danger : colors.primaryDark
         const accessibilityLabel = action.description ? `${action.label}. ${action.description}` : action.label
         const button = (
             <Pressable
@@ -103,10 +114,9 @@ export default function CommissionerSettingsScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
-            <SafeAreaView style={styles.container} edges={['bottom']}>
-                {screenHeader}
+            {frame(
                 <ScrollView
-                    contentContainerStyle={[styles.scroll, compactLandscape && styles.scrollCompact]}
+                    contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }, compactLandscape && styles.scrollCompact]}
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={[styles.lifecycleCard, compactLandscape && styles.lifecycleCardCompact]}>
@@ -119,7 +129,7 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
-                    <Text style={styles.sectionTitle}>SCORING</Text>
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Scoring</Text>
                     <View style={styles.card}>
                         {COMMISSIONER_SCORING_FIELDS.map(({ key, label }, i) => (
                             <View
@@ -145,7 +155,7 @@ export default function CommissionerSettingsScreen() {
                         ))}
                     </View>
 
-                    <Text style={styles.sectionTitle}>LINEUP SLOTS</Text>
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Lineup slots</Text>
                     <View style={styles.card}>
                         {SLOT_TYPES.map((type, i) => (
                             <View
@@ -178,7 +188,7 @@ export default function CommissionerSettingsScreen() {
                         ))}
                     </View>
 
-                    <Text style={styles.sectionTitle}>GENERAL</Text>
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">General</Text>
                     <View style={styles.card}>
                         {[
                             { label: 'Active Roster Size', value: rosterSize, set: (value: string) => updateField('rosterSize', value) },
@@ -240,7 +250,7 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
-                    <Text style={styles.sectionTitle}>TRADE DEADLINE</Text>
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Trade deadline</Text>
                     <View style={styles.card}>
                         <View style={[styles.row, styles.rowBorder]}>
                             <Text style={styles.rowLabel}>Deadline (month/day)</Text>
@@ -249,7 +259,7 @@ export default function CommissionerSettingsScreen() {
                                 value={tradeDeadline}
                                 onChangeText={(value) => updateField('tradeDeadline', value)}
                                 placeholder="None"
-                                placeholderTextColor={colors.textPlaceholder}
+                                placeholderTextColor={colors.inputPlaceholder}
                                 accessibilityLabel="Trade deadline, month and day"
                                 selectTextOnFocus
                             />
@@ -259,7 +269,7 @@ export default function CommissionerSettingsScreen() {
                         </Text>
                     </View>
 
-                    <Text style={styles.sectionTitle}>TRADE VETO</Text>
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Trade veto</Text>
                     <View style={styles.card}>
                         <View style={[styles.row, styles.rowBorder, compactMobile && styles.rowStacked]}>
                             <Text style={styles.rowLabel}>Veto Mode</Text>
@@ -307,7 +317,7 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
-                    <Text style={styles.sectionTitle}>TRANSACTION OVERRIDES</Text>
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Transaction overrides</Text>
                     <View style={styles.card}>
                         <View style={styles.memberChipRow}>
                             {members.map((member) => {
@@ -332,7 +342,7 @@ export default function CommissionerSettingsScreen() {
                                 onChangeText={setOverrideFaab}
                                 keyboardType="numeric"
                                 placeholder="FAAB balance"
-                                placeholderTextColor={colors.textPlaceholder}
+                                placeholderTextColor={colors.inputPlaceholder}
                             />
                             <Pressable style={styles.overrideButton} onPress={handleFaabOverride} disabled={overrideSaving}>
                                 <Text style={styles.overrideButtonText}>Set FAAB</Text>
@@ -345,7 +355,7 @@ export default function CommissionerSettingsScreen() {
                                 onChangeText={setOverrideAdds}
                                 keyboardType="numeric"
                                 placeholder="Weekly adds used"
-                                placeholderTextColor={colors.textPlaceholder}
+                                placeholderTextColor={colors.inputPlaceholder}
                             />
                             <Pressable style={styles.overrideButton} onPress={handleAddCountOverride} disabled={overrideSaving}>
                                 <Text style={styles.overrideButtonText}>Set Adds</Text>
@@ -353,20 +363,12 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
-                    <Pressable
-                        style={styles.saveButton}
-                        onPress={save}
-                        disabled={saving}
-                    >
-                        <Text style={styles.saveButtonText}>Save Settings</Text>
-                    </Pressable>
-
-                    <Text style={styles.sectionTitle}>COMMISSIONER ACTIONS</Text>
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Commissioner actions</Text>
                     {lowerPriorityActions.map((action) => renderAction(action))}
 
                     {isCommissioner ? (
                         <>
-                            <Text style={styles.sectionTitle}>DANGER ZONE</Text>
+                            <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Danger zone</Text>
                             {renderAction({
                                 id: 'delete-league',
                                 label: 'Archive League',
@@ -376,8 +378,8 @@ export default function CommissionerSettingsScreen() {
                             })}
                         </>
                     ) : null}
-                </ScrollView>
-            </SafeAreaView>
+                </ScrollView>,
+            )}
         </>
     )
 }

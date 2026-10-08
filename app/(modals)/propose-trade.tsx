@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
+import { useLocalSearchParams } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
+
 import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
-import { showAlert, showSuccess } from '@/lib/alert'
+import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import {
@@ -38,9 +40,23 @@ import {
     proposeTrade,
 } from '@/lib/trades'
 import { takeTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
+import { useGoBack } from '@/components/ui/useGoBack'
+
+// Inside the web shell the page is already clear of the notch; only native needs the inset.
+function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children: ReactNode }) {
+    return Platform.OS === 'web'
+        ? <View style={style}>{children}</View>
+        : <SafeAreaView style={style} edges={['top']}>{children}</SafeAreaView>
+}
+
+// The builder needs this width to show team columns side by side.
+const BUILDER_WIDTH = 900
 
 export default function ProposeTradeScreen() {
     const { current, currentLeague } = useLeagueContext()
+    const { usableWidth } = usePageMetrics()
+    // The verdict moves beside the builder only when the builder keeps its columns.
+    const sideBySide = usableWidth >= BUILDER_WIDTH + layout.railWidth
     const params = useLocalSearchParams<{
         recipientMemberId?: string
         editTradeId?: string
@@ -49,7 +65,7 @@ export default function ProposeTradeScreen() {
         requestPickId?: string
         analyzerDraftId?: string
     }>()
-    const { back } = useRouter()
+    const back = useGoBack('/trades')
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
     const [members, setMembers] = useState<TradeComposerMember[]>([])
@@ -61,6 +77,8 @@ export default function ProposeTradeScreen() {
     const [membersError, setMembersError] = useState<string | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
+    // The sender tab outlives the editor so Review and back lands on the same side.
+    const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
     const ownerIdentity = myMemberId && leagueId ? `${leagueId}:${myMemberId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
@@ -214,6 +232,11 @@ export default function ProposeTradeScreen() {
     }, [multiTeamMode, toggleParticipant])
 
     const items = composer.buildMultiTeamItems()
+    // Leaving drops a built trade, so ask first once anything is selected.
+    const leave = () => {
+        if (items.length === 0) back()
+        else confirmAction('Discard this trade?', 'The players and picks you picked will be cleared.', back, 'Discard')
+    }
     const tradeAnalysis = useDynastyTradeAnalysis({
         enabled: composer.assetsReady,
         leagueId,
@@ -320,6 +343,8 @@ export default function ProposeTradeScreen() {
     ])
 
     const multiTeamBuilderProps = {
+        activeParticipantId: senderTab,
+        onActiveParticipantChange: setSenderTab,
         participants: composer.participantViews,
         items,
         myMemberId,
@@ -346,20 +371,59 @@ export default function ProposeTradeScreen() {
 
     if (!current) {
         return (
-            <SafeAreaView style={styles.container} edges={['top']}>
+            <PageFrame style={styles.container}>
                 <View style={styles.emptyCenter}><Text style={styles.emptyText}>No active league.</Text></View>
-            </SafeAreaView>
+            </PageFrame>
+        )
+    }
+
+    const verdict = (
+        <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+            loading={tradeAnalysis.loading} inset={!sideBySide} />
+    )
+
+    // Review replaces the editor inside the same page, like any pushed screen,
+    // instead of covering the whole window.
+    if (reviewing) {
+        return (
+            <PageFrame style={styles.container}>
+                <PageHeader
+                    title="Review trade"
+                    onBack={() => setReviewing(false)}
+                    backLabel="Back to trade editor"
+                    actions={(
+                        <Pressable
+                            onPress={handleSubmit}
+                            style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+                            disabled={!canSubmit}
+                            accessibilityRole="button"
+                            accessibilityLabel="Confirm and send trade"
+                            testID="trade-confirm-submit"
+                            id="trade-confirm-submit"
+                        >
+                            <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Send</Text>
+                        </Pressable>
+                    )}
+                />
+                {/* Its own key, so review opens at the top instead of the editor's scroll position. */}
+                <ScrollView key="review" style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.reviewColumn}>
+                        <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
+                        <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+                            loading={tradeAnalysis.loading} />
+                    </View>
+                </ScrollView>
+            </PageFrame>
         )
     }
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <View style={styles.header}>
-                <View style={styles.headerInner}>
-                    <Pressable onPress={back} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="Cancel trade proposal">
-                        <Text style={styles.cancelText}>Cancel</Text>
-                    </Pressable>
-                    <Text style={styles.headerTitle} numberOfLines={1}>{tradeComposerTitle(mode)}</Text>
+        <PageFrame style={styles.container}>
+            <PageHeader
+                title={tradeComposerTitle(mode)}
+                onBack={leave}
+                backLabel="Cancel trade proposal"
+                actions={(
                     <Pressable
                         onPress={() => setReviewing(true)}
                         style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
@@ -373,9 +437,10 @@ export default function ProposeTradeScreen() {
                             Review
                         </Text>
                     </Pressable>
-                </View>
-            </View>
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                )}
+            />
+            <ScrollView key="editor" style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
+              <View style={[styles.main, sideBySide && styles.mainWide]}>
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>
                         <Text style={styles.lockBannerText}>Trades are locked only from the trade deadline until the champion is finalized.</Text>
@@ -401,7 +466,7 @@ export default function ProposeTradeScreen() {
                         <Text style={styles.lockBannerText}>{participantLimitMessage}</Text>
                     </View>
                 ) : null}
-                <Text style={styles.sectionLabel}>TRADE WITH</Text>
+                <Text style={styles.sectionLabel}>Trade with</Text>
                 {canUseMultiTeamMode ? (
                     <View style={styles.modeSwitch}>
                         <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
@@ -456,51 +521,12 @@ export default function ProposeTradeScreen() {
                         framed
                     />
                 ) : null}
-                <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
-                    loading={tradeAnalysis.loading} />
+                {sideBySide ? null : verdict}
                 <View style={styles.bottomSpace} />
+              </View>
+              {sideBySide ? <View style={styles.rail}>{verdict}</View> : null}
             </ScrollView>
-            {reviewing ? (
-                <Modal
-                    visible
-                    animationType="slide"
-                    presentationStyle="fullScreen"
-                    onRequestClose={() => setReviewing(false)}
-                >
-                    <SafeAreaView style={styles.container} edges={['top']}>
-                        <View style={styles.header}>
-                            <View style={styles.headerInner}>
-                                <Pressable
-                                    onPress={() => setReviewing(false)}
-                                    style={styles.headerButton}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Back to trade editor"
-                                >
-                                    <Text style={styles.cancelText}>Back</Text>
-                                </Pressable>
-                                <Text style={styles.headerTitle} numberOfLines={1}>Review Trade</Text>
-                                <Pressable
-                                    onPress={handleSubmit}
-                                    style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
-                                    disabled={!canSubmit}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Confirm and send trade"
-                                    testID="trade-confirm-submit"
-                                    id="trade-confirm-submit"
-                                >
-                                    <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Confirm</Text>
-                                </Pressable>
-                            </View>
-                        </View>
-                        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                            <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
-                                loading={tradeAnalysis.loading} />
-                            <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
-                        </ScrollView>
-                    </SafeAreaView>
-                </Modal>
-            ) : null}
-        </SafeAreaView>
+        </PageFrame>
     )
 }
 
@@ -525,36 +551,17 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
-    scrollContent: { width: '100%', maxWidth: 900, minWidth: 0, alignSelf: 'center' },
-    header: { paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    headerInner: {
+    scrollContent: { width: '100%', maxWidth: BUILDER_WIDTH, minWidth: 0, alignSelf: 'center' },
+    scrollContentWide: {
+        maxWidth: BUILDER_WIDTH + spacing['3xl'] + layout.railWidth,
         flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.xl,
-        width: '100%',
-        maxWidth: 900,
-        alignSelf: 'center',
+        alignItems: 'flex-start',
+        gap: spacing['3xl'],
     },
-    headerTitle: {
-        flex: 1,
-        marginHorizontal: spacing.md,
-        fontSize: 17,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        textAlign: 'center',
-    },
-    headerButton: {
-        minWidth: 72,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    cancelText: { fontSize: fontSize.lg, color: colors.textSecondary },
+    main: { width: '100%', minWidth: 0 },
+    reviewColumn: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center' },
+    mainWide: { width: BUILDER_WIDTH, flexShrink: 0 },
+    rail: { width: layout.railWidth, paddingTop: spacing.xl },
     submitButton: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.xl,
@@ -566,13 +573,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     submitButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
-    submitText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: 15 },
+    submitText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     submitTextDisabled: { color: colors.textPlaceholder },
     sectionLabel: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textPlaceholder,
-        letterSpacing: 0,
+        ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
         paddingTop: spacing['2xl'],
         paddingBottom: spacing.md,
@@ -594,7 +598,7 @@ const styles = StyleSheet.create({
     modeButtonTextActive: { color: colors.textWhite },
     teamChips: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xs, gap: spacing.md, flexDirection: 'row', flexWrap: 'wrap' },
     teamChip: {
-        paddingHorizontal: 14,
+        paddingHorizontal: spacing.lg,
         minHeight: 44,
         maxWidth: '100%',
         flexShrink: 1,
@@ -620,5 +624,5 @@ const styles = StyleSheet.create({
     lockBannerText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.warningDark, textAlign: 'center' },
     emptyCenter: { alignItems: 'center', padding: spacing['5xl'] },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
-    bottomSpace: { height: 40 },
+    bottomSpace: { height: spacing['5xl'] },
 })

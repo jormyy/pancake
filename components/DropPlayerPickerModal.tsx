@@ -1,16 +1,11 @@
-import {
-    View,
-    Text,
-    Pressable,
-    ScrollView,
-    Modal,
-    StyleSheet,
-} from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
-import { colors, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
+import { colors, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
+import { Button } from '@/components/ui/Button'
+import { Sheet } from '@/components/ui/Sheet'
 import { playerHeadshotUrl } from '@/lib/format'
 
 type Props = {
@@ -24,113 +19,70 @@ type Props = {
 }
 
 export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel }: Props) {
+    const close = () => {
+        if (dropping === null) onCancel()
+    }
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-            <View style={styles.overlay}>
-                <View style={styles.card}>
-                    <Text style={styles.title}>{title}</Text>
-                    {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-                    <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-                        {roster.map((rp) => {
-                            const p = rp.players
-                            const ep = getEligiblePositions(p)
-                            return (
-                                <View key={rp.id} style={styles.row}>
-                                    <Avatar
-                                        name={p.display_name}
-                                        uri={playerHeadshotUrl(p.nba_id) ?? undefined}
-                                        color={colors.bgMuted}
-                                        size={38}
-                                    />
-                                    <View style={styles.info}>
-                                        <Text style={styles.name} numberOfLines={1}>{p.display_name}</Text>
-                                        <View style={styles.metaRow}>
-                                            {p.nba_team ? <Text style={styles.meta}>{p.nba_team}</Text> : null}
-                                            {ep.map((pos) => <PosTag key={pos} position={pos} />)}
-                                        </View>
-                                    </View>
-                                    <Pressable
-                                        style={styles.dropBtn}
-                                        onPress={() => onDrop(rp)}
-                                        disabled={dropping !== null}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={`Drop ${p.display_name}`}
-                                        testID={`drop-roster-player-${rp.id}`}
-                                        id={`drop-roster-player-${rp.id}`}
-                                    >
-                                        <Text style={styles.dropBtnText}>Drop</Text>
-                                    </Pressable>
+        <Sheet visible={visible} onClose={close} title={title}>
+            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            <View style={styles.list}>
+                {roster.map((rp) => {
+                    const p = rp.players
+                    const ep = getEligiblePositions(p)
+                    return (
+                        <View key={rp.id} style={styles.row}>
+                            <Avatar
+                                name={p.display_name}
+                                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
+                                color={colors.bgMuted}
+                                size={36}
+                            />
+                            <View style={styles.info}>
+                                <Text style={textStyles.rowTitle} numberOfLines={1}>{p.display_name}</Text>
+                                <View style={styles.metaRow}>
+                                    {p.nba_team ? <Text style={textStyles.meta}>{p.nba_team}</Text> : null}
+                                    {ep.map((pos) => <PosTag key={pos} position={pos} />)}
                                 </View>
-                            )
-                        })}
-                    </ScrollView>
-                    <Pressable
-                        style={styles.cancel}
-                        onPress={onCancel}
-                        disabled={dropping !== null}
-                        accessibilityRole="button"
-                        accessibilityLabel="Cancel drop player"
-                    >
-                        <Text style={styles.cancelText}>Cancel</Text>
-                    </Pressable>
-                </View>
+                            </View>
+                            <Button
+                                title="Drop"
+                                size="sm"
+                                variant="danger"
+                                onPress={() => onDrop(rp)}
+                                disabled={dropping !== null}
+                                loading={dropping === rp.id}
+                                accessibilityLabel={`Drop ${p.display_name}`}
+                            />
+                        </View>
+                    )
+                })}
             </View>
-        </Modal>
+            <Button
+                title="Cancel"
+                variant="ghost"
+                onPress={onCancel}
+                disabled={dropping !== null}
+                accessibilityLabel="Cancel drop player"
+                fullWidth
+                style={styles.cancel}
+            />
+        </Sheet>
     )
 }
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: scrim, justifyContent: 'flex-end' },
-    card: {
-        backgroundColor: colors.bgScreen,
-        borderTopLeftRadius: radii['3xl'],
-        borderTopRightRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        paddingTop: spacing['3xl'],
-        paddingHorizontal: spacing['2xl'],
-        paddingBottom: 36,
-        maxHeight: '80%',
-    },
-    title: {
-        fontSize: 17,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-        textAlign: 'center',
-        marginBottom: spacing.xs,
-    },
-    subtitle: { fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center', marginBottom: spacing.xl },
-    list: { maxHeight: 360 },
+    subtitle: { ...textStyles.body, marginBottom: spacing.md },
+    list: { borderTopWidth: 1, borderTopColor: colors.separator },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: spacing.lg,
+        minHeight: 56,
+        paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
-        gap: spacing.lg,
+        gap: spacing.md,
     },
-    info: { flex: 1 },
-    name: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
-    meta: { fontSize: 12, color: colors.textMuted },
-    dropBtn: {
-        backgroundColor: colors.danger,
-        paddingHorizontal: spacing.lg + spacing.xxs,
-        paddingVertical: 7,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        minWidth: 60,
-        minHeight: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    dropBtnText: { color: colors.textWhite, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
-    cancel: {
-        marginTop: spacing.xl,
-        paddingVertical: spacing.lg + spacing.xxs,
-        alignItems: 'center',
-        borderRadius: radii.xl,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgSubtle,
-    },
-    cancelText: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.textSecondary },
+    info: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    cancel: { marginTop: spacing.md },
 })

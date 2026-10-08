@@ -1,45 +1,12 @@
-import { Platform, StyleSheet } from 'react-native'
-import { colors, fontFamily, fontSize, fontWeight, layout, radii, shadows, spacing, srOnly } from '@/constants/tokens'
+import { StyleSheet } from 'react-native'
+import { colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { playerRowGeometry } from '@/components/PlayerSearchItem'
 
-// Shared chrome for the Players + Projections screens (filter card, stat-table
-// header, search input) — previously duplicated verbatim in both screens.
+// Shared chrome for the Players screen: stat-table header, search input, and
+// sort control.
 export const playerListStyles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
-    hiddenHeading: {
-        ...srOnly,
-    },
-    filterCard: {
-        marginTop: spacing.xl,
-        marginHorizontal: spacing.lg,
-        marginBottom: spacing.lg,
-        padding: spacing.xl,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.xl,
-        backgroundColor: colors.bgCard,
-        gap: spacing.xl,
-        ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
-    },
-    filterCardTop: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.lg,
-    },
-    filterCardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.md,
-    },
-    filterCardTitle: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.extrabold,
-        fontFamily: fontFamily.displayMedium,
-        color: colors.textPrimary,
-        letterSpacing: 0.4,
-        textTransform: 'uppercase' as const,
-    },
+    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
     filterCountDot: {
         minWidth: 20,
         height: 20,
@@ -50,24 +17,6 @@ export const playerListStyles = StyleSheet.create({
         justifyContent: 'center',
     },
     filterCountDotText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
-    resultCountText: {
-        flexShrink: 0,
-        minWidth: 104,
-        textAlign: 'right',
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        color: colors.textMuted,
-    },
-    filterGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.md,
-    },
-    filterSelectCaret: {
-        flexShrink: 0,
-        fontSize: fontSize.xs,
-        color: colors.textMuted,
-    },
     sortDirButton: {
         minHeight: 38,
         alignSelf: 'flex-end',
@@ -83,86 +32,58 @@ export const playerListStyles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.textSecondary,
     },
+    // Each width mirrors PlayerSearchItem's row geometry so columns line up.
     tableHeader: {
-        minHeight: 34,
+        minHeight: table.headerHeight,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingLeft: spacing.lg,    // mirrors playerRow.paddingLeft
+        paddingLeft: spacing.sm,
         borderTopWidth: 1,
         borderBottomWidth: 1,
         borderColor: colors.borderLight,
-        backgroundColor: colors.bgMuted,
+        backgroundColor: colors.bgSubtle,
     },
-    tableHeaderAddSpacer: { width: 36 },    // mirrors addCol.width
+    tableHeaderAddSpacer: { width: playerRowGeometry.addColWidth },
     tableHeaderCardRow: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingLeft: spacing.md,    // mirrors playerCard.paddingLeft
-        paddingRight: spacing['4xl'], // mirrors playerCard.paddingRight
-        gap: spacing.lg,            // mirrors playerCard.gap
+        paddingLeft: spacing.sm,
+        paddingRight: spacing.lg,
+        gap: spacing.md,
     },
-    tableHeaderHeadshotSpacer: { width: 44 },  // mirrors headshot.width
-    tableHeaderPlayer: {
-        flex: 1,                    // mirrors playerInfo flex: 1
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
-    },
-    tableHeaderOwnership: {
-        width: 90,                  // mirrors statusBadge.width
-        textAlign: 'center',
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-        letterSpacing: 0.7,
-        textTransform: 'uppercase' as const,
-    },
+    tableHeaderHeadshotSpacer: { width: playerRowGeometry.headshot },
+    tableHeaderPlayer: { ...textStyles.tableHeader, flex: 1 },
+    tableHeaderOwnership: { ...textStyles.tableHeader, width: playerRowGeometry.statusWidth, textAlign: 'center' },
     tableHeaderStatsGroup: {
-        width: 10 * 54,             // mirrors statsGrid.width
+        width: playerRowGeometry.statCount * table.statColWidth,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'flex-end', // mirrors statsGrid.justifyContent
+        justifyContent: 'flex-end',
     },
     tableHeaderStatBtn: {
-        width: 54,                  // mirrors statCell.width
-        minHeight: 34,
+        width: table.statColWidth,
+        minHeight: table.headerHeight,
         alignItems: 'flex-end',
         justifyContent: 'center',
     },
-    tableHeaderStat: {
-        textAlign: 'right',
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.extrabold,
-        color: colors.textSecondary,
-        letterSpacing: 0.7,
-        textTransform: 'uppercase' as const,
-    },
+    tableHeaderStat: { ...textStyles.tableHeader, textAlign: 'right', color: colors.textSecondary },
     tableHeaderStatActive: {
         color: colors.primaryDark,
     },
     searchInput: {
         flex: 1,
         height: 44,
+        minWidth: 0,
         backgroundColor: colors.bgCard,
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.lg + spacing.xxs,
+        paddingHorizontal: spacing.lg,
         fontSize: fontSize.lg,
         fontFamily: fontFamily.control,
         color: colors.textPrimary,
     },
-    clearAllChip: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.dangerLight,
-    },
-    clearAllChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.dangerDark },
-    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    emptyContainer: { flexGrow: 1 },
 })

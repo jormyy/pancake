@@ -9,21 +9,13 @@ import { getErrorMessage } from '@/lib/shared/errors'
 import { signIn } from '@/lib/auth'
 
 const SIGN_IN_HERO: AuthHeroContent = {
-    kicker: 'Dynasty basketball operations',
     title: 'A calmer command center for serious dynasty leagues.',
-    copy: 'Pancake keeps the season moving: live scoring, future picks, waivers, auctions, rookie drafts, and roster rules in one fast web app.',
+    copy: 'Live scoring, future picks, waivers, auctions, and rookie drafts in one fast app.',
     proofItems: [
-        'Daily lineup decisions stay close to live NBA context.',
-        'Trades include players, FAAB, and long-horizon pick assets.',
-        'Commissioner tools stay available without leaving the app shell.',
-        'Player search, projections, and dynasty ranks share one workflow.',
-    ],
-    previewTitle: 'Tonight',
-    previewBadge: 'Live board',
-    previewRows: [
-        { label: 'Lineup edge', value: '+42.6' },
-        { label: 'Waiver budget', value: '$61' },
-        { label: 'Pick bank', value: '15 assets' },
+        'Set lineups against live NBA games.',
+        'Trade players, FAAB, and future picks.',
+        'Run auctions and rookie drafts in-app.',
+        'Rankings and projections beside every player.',
     ],
 }
 
@@ -59,7 +51,6 @@ export default function SignInScreen() {
         <AuthScaffold
             eyebrow="Dynasty hoops"
             title="Welcome back"
-            subtitle="Manage lineups, claims, trades, draft rooms, and long-term roster value from one console."
             hero={SIGN_IN_HERO}
             footer={(
                 <Link href="/(auth)/sign-up" style={styles.link}>
@@ -98,14 +89,16 @@ export default function SignInScreen() {
 
 const styles = StyleSheet.create({
     error: {
-        color: colors.danger,
+        color: colors.dangerDark,
         fontSize: fontSize.md,
         fontWeight: fontWeight.semibold,
         marginBottom: spacing.lg,
     },
     formBlock: { gap: spacing.lg },
     submit: { marginTop: spacing.sm },
+    // Padded to a 44px tap target.
     link: {
+        paddingVertical: spacing.lg,
         textAlign: 'center',
         color: colors.primaryDark,
         fontSize: fontSize.md,

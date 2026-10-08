@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { LeaguePickItem } from '@/lib/rookieDraft'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -9,6 +9,7 @@ import { SectionHeader } from '@/components/SectionHeader'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
+import { usePageMetrics } from '@/components/ui/Page'
 import type { LeagueStatus } from '@/types/database'
 
 type PickLedgerFilter = 'mine' | 'all' | 'traded'
@@ -63,25 +64,28 @@ function pickRowLabel(pick: LeaguePickItem, isMine: boolean) {
 function PicksBankRow({
     pick,
     isMine,
+    highlightMine,
     compact,
-    narrow,
     landscapeDense,
+    padX,
 }: {
     pick: LeaguePickItem
     isMine: boolean
+    highlightMine: boolean
     compact: boolean
-    narrow: boolean
     landscapeDense: boolean
+    padX: number
 }) {
+    const mine = isMine && highlightMine
     const isTraded = pick.originalOwnerMemberId !== pick.currentOwnerMemberId
     const label = pickRowLabel(pick, isMine)
     return (
         <View
             style={[
                 styles.picksBankRow,
+                { paddingHorizontal: padX },
                 landscapeDense && styles.picksBankRowLandscapeDense,
-                narrow && styles.picksBankRowNarrow,
-                isMine && tableStyles.rowMe,
+                mine && tableStyles.rowMe,
             ]}
             role="listitem"
             aria-label={label}
@@ -89,14 +93,13 @@ function PicksBankRow({
             accessibilityLabel={label}
         >
             <Text
-                style={[styles.picksBankRound, compact && styles.picksBankRoundCompact, narrow && styles.picksBankRoundNarrow, isMine && tableStyles.textMe]}
+                style={[styles.picksBankRound, compact && styles.picksBankRoundCompact, mine && tableStyles.textMe]}
                 numberOfLines={1}
             >
                 {compact ? `${pick.seasonYear} R${pick.round}` : `R${pick.round}`}
             </Text>
-            <View style={[styles.picksBankFromWrap, narrow && styles.picksBankFromWrapNarrow]}>
-                <Text style={[styles.picksBankFrom, isMine && tableStyles.textMe]} numberOfLines={1}>
-                    {compact ? <Text style={styles.picksBankInlineLabel}>From </Text> : null}
+            <View style={styles.picksBankFromWrap}>
+                <Text style={[styles.picksBankFrom, mine && tableStyles.textMe]} numberOfLines={1}>
                     {pick.originalTeamName}
                 </Text>
                 {isTraded ? (
@@ -105,20 +108,19 @@ function PicksBankRow({
                     </View>
                 ) : null}
             </View>
-            <Text style={[styles.picksBankOwner, narrow && styles.picksBankOwnerNarrow, isMine && tableStyles.textMe]} numberOfLines={1}>
-                {compact ? <Text style={styles.picksBankInlineLabel}>Owner </Text> : null}
+            <Text style={[styles.picksBankOwner, mine && tableStyles.textMe]} numberOfLines={1}>
                 {isMine ? 'You' : pick.currentTeamName}
             </Text>
         </View>
     )
 }
 
-function PicksBankColumns({ compact }: { compact: boolean }) {
+function PicksBankColumns({ padX, compact }: { padX: number; compact: boolean }) {
     return (
-        <View style={styles.picksBankHeader}>
-            <Text style={[tableStyles.headerText, styles.picksBankHeaderRound, compact && styles.picksBankRoundCompact]} numberOfLines={1} accessibilityLabel="Draft round">ROUND</Text>
-            <Text style={[tableStyles.headerText, styles.picksBankHeaderFrom]} accessibilityLabel="Original team">FROM</Text>
-            <Text style={[tableStyles.headerText, styles.picksBankHeaderOwner]} accessibilityLabel="Current owner">OWNER</Text>
+        <View style={[styles.picksBankHeader, { paddingHorizontal: padX }]}>
+            <Text style={[textStyles.tableHeader, styles.picksBankHeaderRound, compact && styles.picksBankRoundCompact]} numberOfLines={1} accessibilityLabel="Draft round">{compact ? 'Pick' : 'Round'}</Text>
+            <Text style={[textStyles.tableHeader, styles.picksBankHeaderFrom]} accessibilityLabel="Original team">From</Text>
+            <Text style={[textStyles.tableHeader, styles.picksBankHeaderOwner]} accessibilityLabel="Current owner">Owner</Text>
         </View>
     )
 }
@@ -137,74 +139,34 @@ function comparePicks(a: LeaguePickItem, b: LeaguePickItem): number {
     )
 }
 
-function pickLedgerIntroCopy(status?: LeagueStatus) {
-    switch (status) {
-        case 'active':
-        case 'playoffs':
-            return {
-                copy: 'Future rookie picks stay visible during the live season for trades and long-term planning. Traded picks show their original team and current owner.',
-                compactCopy: 'Live-season trade assets',
-            }
-        case 'offseason':
-            return {
-                copy: 'Pick ownership is the source of truth before the rookie draft clock starts. Traded picks show their original team and current owner.',
-                compactCopy: 'Rookie draft ownership',
-            }
-        case 'drafting':
-            return {
-                copy: 'Startup draft is live while future rookie pick ownership remains available for roster planning and trade context.',
-                compactCopy: 'Drafting with pick context',
-            }
-        case 'archived':
-            return {
-                copy: 'Future pick ownership is preserved with league history, including traded picks and original teams.',
-                compactCopy: 'Preserved pick history',
-            }
-        default:
-            return {
-                copy: 'Future rookie picks stay visible before the draft clock starts. Traded picks show their original team and current owner.',
-                compactCopy: 'Future pick ownership',
-            }
-    }
-}
-
-function pickLedgerCompactCopy(intro: { compactCopy: string }, loading: boolean | undefined, totalCount: number) {
-    if (!loading) return intro.compactCopy
-    return totalCount > 0 ? 'Refreshing draft assets' : 'Draft assets loading'
-}
-
 function PicksLedgerHeader({
     filter,
     onFilterChange,
     flatHasRows,
-    showColumns,
+    compactColumns,
     totalCount,
     mineCount,
     tradedCount,
     hasMemberId,
-    compact,
+    padX,
     loading,
-    leagueStatus,
 }: {
     filter: PickLedgerFilter
     onFilterChange: (filter: PickLedgerFilter) => void
     flatHasRows: boolean
-    showColumns: boolean
+    compactColumns: boolean
     totalCount: number
     mineCount: number
     tradedCount: number
     hasMemberId: boolean
-    compact: boolean
+    padX: number
     loading?: boolean
-    leagueStatus?: LeagueStatus
 }) {
-    const intro = pickLedgerIntroCopy(leagueStatus)
     const pickCountState = (count: number) => loading ? 'loading' : countLabel(count, 'pick')
     const totalStatLabel = loading ? 'Assets loading' : `${totalCount} total`
     const mineStatLabel = loading || !hasMemberId ? 'Mine loading' : `${mineCount} mine`
     const tradedStatLabel = loading ? 'Traded loading' : `${tradedCount} traded`
-    const compactCopy = pickLedgerCompactCopy(intro, loading, totalCount)
-    const headerAccessibilityLabel = `Draft assets. ${compact ? compactCopy : intro.copy} ${totalStatLabel}. ${mineStatLabel}. ${tradedStatLabel}.`
+    const headerAccessibilityLabel = `Draft assets. ${totalStatLabel}. ${mineStatLabel}. ${tradedStatLabel}.`
     const filterAccessibilityLabel = pickFilterGroupAccessibilityLabel(filter, totalCount, mineCount, tradedCount, hasMemberId, loading)
     const options = pickFilterOptions(hasMemberId).map((option) => {
         const badge =
@@ -222,10 +184,12 @@ function PicksLedgerHeader({
         return { ...option, badge, accessibilityLabel }
     })
 
+    // The filter counts already say how many picks there are, so the header is
+    // just the filters; the summary stays available to screen readers.
     return (
         <>
             <View
-                style={[styles.picksLedgerIntro, compact && styles.picksLedgerIntroCompact]}
+                style={[styles.picksLedgerIntro, { paddingHorizontal: padX }]}
                 role="group"
                 aria-label={headerAccessibilityLabel}
                 aria-live="polite"
@@ -234,32 +198,7 @@ function PicksLedgerHeader({
                 accessibilityLiveRegion="polite"
                 accessibilityState={{ busy: loading }}
             >
-                {compact ? (
-                    <View style={styles.picksLedgerCompactSummary}>
-                        <Text style={styles.picksLedgerCompactTitle} numberOfLines={1} role="heading" aria-level={2}>Draft assets</Text>
-                        <Text style={styles.picksLedgerCompactCopy} numberOfLines={1}>{compactCopy}</Text>
-                    </View>
-                ) : (
-                    <View>
-                        <Text style={styles.picksLedgerTitle} role="heading" aria-level={2}>Draft assets</Text>
-                        <Text style={styles.picksLedgerCopy}>
-                            {intro.copy}
-                        </Text>
-                    </View>
-                )}
-                {compact ? null : (
-                    <View style={styles.picksLedgerStats}>
-                        <View style={styles.picksLedgerStat}>
-                            <Text style={styles.picksLedgerStatText}>{totalStatLabel}</Text>
-                        </View>
-                        <View style={styles.picksLedgerStat}>
-                            <Text style={styles.picksLedgerStatText}>{mineStatLabel}</Text>
-                        </View>
-                        <View style={styles.picksLedgerStat}>
-                            <Text style={styles.picksLedgerStatText}>{tradedStatLabel}</Text>
-                        </View>
-                    </View>
-                )}
+                <Text style={srOnly} role="heading" aria-level={2} accessibilityRole="header">Draft assets</Text>
                 <SegmentedControl
                     options={options}
                     value={filter}
@@ -270,7 +209,7 @@ function PicksLedgerHeader({
                     scrollable
                 />
             </View>
-            {flatHasRows && showColumns ? <PicksBankColumns compact={compact} /> : null}
+            {flatHasRows ? <PicksBankColumns padX={padX} compact={compactColumns} /> : null}
         </>
     )
 }
@@ -352,6 +291,7 @@ export function PicksBankList({
 }) {
     const [filter, setFilter] = useState<PickLedgerFilter>('mine')
     const { viewportWidth, viewportHeight, compactLandscape } = useWebViewport()
+    const { padX } = usePageMetrics()
     const narrowRows = viewportWidth < 440
     const compactHeader = viewportHeight < 500 || narrowRows
     const compactRows = compactHeader || narrowRows
@@ -424,14 +364,13 @@ export function PicksBankList({
             filter={activeFilter}
             onFilterChange={setFilter}
             flatHasRows={flatData.length > 0}
-            showColumns={flatData.length > 0 && !compactRows}
+            compactColumns={compactRows}
             totalCount={picks.length}
             mineCount={mineCount}
             tradedCount={tradedCount}
             hasMemberId={hasMemberId}
-            compact={compactHeader}
+            padX={padX}
             loading={loading}
-            leagueStatus={leagueStatus}
         />
     )
 
@@ -439,7 +378,7 @@ export function PicksBankList({
         <ScrollView
             key={listKey}
             style={styles.picksBankScroll}
-            contentContainerStyle={styles.picksBankContent}
+            contentContainerStyle={[styles.picksBankContent, styles.column]}
             removeClippedSubviews={false}
         >
             {deferHeaderUntilAfterRows ? null : ledgerHeader}
@@ -470,9 +409,11 @@ export function PicksBankList({
                                     <PicksBankRow
                                         pick={item.pick}
                                         isMine={item.pick.currentOwnerMemberId === myMemberId}
+                                        // Every row in "Mine" is yours; tint only where it tells rows apart.
+                                        highlightMine={activeFilter !== 'mine'}
                                         compact={compactRows}
-                                        narrow={narrowRows}
                                         landscapeDense={landscapeDenseRows}
+                                        padX={padX}
                                     />
                                 )}
                             </Fragment>
@@ -498,37 +439,30 @@ export function PicksBankList({
 }
 
 const styles = StyleSheet.create({
+    column: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
     picksBankHeader: {
+        minHeight: table.headerHeight,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
     picksBankHeaderRound: { width: 56 },
     picksBankHeaderFrom: { flex: 1, marginLeft: spacing.lg },
-    picksBankHeaderOwner: { width: 110, textAlign: 'right' },
+    // Owner takes only the width its name needs (at most 45%); From gets the rest.
+    picksBankHeaderOwner: { flexShrink: 0, marginLeft: spacing.md, textAlign: 'right' },
     picksBankRow: {
-        minHeight: 44,
+        minHeight: table.rowHeightCompact,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
+        paddingVertical: spacing.sm,
     },
     picksBankRowLandscapeDense: {
         minHeight: 28,
         paddingVertical: spacing.xs,
     },
-    picksBankRowNarrow: {
-        flexDirection: 'column',
-        alignItems: 'stretch',
-        paddingVertical: spacing.md,
-        gap: spacing.xxs,
-    },
     picksBankRound: { width: 56, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
     picksBankRoundCompact: { width: 68 },
-    picksBankRoundNarrow: { width: 'auto' },
     picksBankFromWrap: {
         flex: 1,
         minWidth: 0,
@@ -537,90 +471,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.sm,
     },
-    picksBankFromWrapNarrow: { marginLeft: 0 },
     picksBankFrom: { flex: 1, minWidth: 0, fontSize: fontSize.sm, color: colors.textSecondary },
-    picksBankInlineLabel: {
-        color: colors.textPlaceholder,
-        fontSize: 10,
-        fontWeight: fontWeight.bold,
-        textTransform: 'uppercase',
-    },
     picksBankTradePill: {
         paddingHorizontal: spacing.sm,
-        paddingVertical: 2,
+        paddingVertical: spacing.xxs,
         borderRadius: radii.sm,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.warningLight,
     },
     picksBankTradeText: {
-        fontSize: 10,
+        fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: colors.warningDark,
     },
-    picksBankOwner: { width: 110, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    picksBankOwnerNarrow: { width: 'auto', textAlign: 'left' },
+    picksBankOwner: { flexShrink: 1, maxWidth: '45%', marginLeft: spacing.md, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     picksLedgerIntro: {
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing.xl,
-        paddingBottom: spacing.lg,
-        gap: spacing.md,
-        backgroundColor: colors.bgCard,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    picksLedgerIntroCompact: {
-        paddingTop: spacing.xs,
-        paddingBottom: spacing.xs,
-        gap: spacing.sm,
-    },
-    picksLedgerCompactSummary: {
-        minHeight: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-    },
-    picksLedgerCompactTitle: {
-        color: colors.textPrimary,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        textTransform: 'uppercase',
-        letterSpacing: 0,
-    },
-    picksLedgerCompactCopy: {
-        flex: 1,
-        minWidth: 0,
-        color: colors.textSecondary,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.medium,
-    },
-    picksLedgerTitle: {
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textPrimary,
-    },
-    picksLedgerCopy: {
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textSecondary,
-    },
-    picksLedgerStats: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-    },
-    picksLedgerStat: {
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-        borderRadius: 8,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    picksLedgerStatText: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textSecondary,
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.md,
     },
     picksBankScroll: { flex: 1 },
     picksBankContent: { paddingBottom: spacing['3xl'] },

@@ -1,6 +1,6 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
@@ -8,9 +8,50 @@ import { WaiverClaim } from '@/lib/waivers'
 import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { formatPoints, safeShortDate, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
+import { Badge, InjuryBadge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
+
+const ROW_AVATAR = 36
+
+/** Band at the top of a roster section card: label left, optional detail right. */
+export function RosterSectionBand({ label, detail, tone = 'default' }: { label: string; detail?: ReactNode; tone?: 'default' | 'taxi' }) {
+    return (
+        <View style={[styles.band, tone === 'taxi' && styles.bandTaxi]} role="heading" aria-level={2} accessibilityRole="header" accessibilityLabel={label}>
+            <Text style={[styles.bandLabel, tone === 'taxi' && styles.bandLabelTaxi]}>{label}</Text>
+            {detail ? <View style={styles.bandDetail}>{detail}</View> : null}
+        </View>
+    )
+}
+
+// Second row line: team, positions, then the season averages that drive
+// lineup decisions. Wraps under the name instead of growing the row.
+function PlayerMetaLine({
+    team,
+    positions,
+    avgFpts,
+    avgMinutes,
+    extra,
+}: {
+    team: string | null | undefined
+    positions: string[]
+    avgFpts?: number
+    avgMinutes?: number | null
+    extra?: string | null
+}) {
+    const averages = [
+        avgFpts != null ? `${formatPoints(avgFpts)} FP` : null,
+        avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null,
+    ].filter(Boolean).join(' · ')
+    return (
+        <View style={styles.metaRow}>
+            {team ? <Text style={styles.meta}>{team}</Text> : null}
+            {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+            {averages ? <Text style={styles.averages}>{averages}</Text> : null}
+            {extra ? <Text style={styles.meta}>{extra}</Text> : null}
+        </View>
+    )
+}
 
 export const RosterClaimItem = memo(function RosterClaimItem({
     claim,
@@ -36,91 +77,103 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         setBidText(String(claim.bidAmount ?? 0))
     }, [claim.bidAmount])
     const statusColor =
-        claim.status === 'succeeded' ? colors.success
+        claim.status === 'succeeded' ? colors.successDark
         : claim.status === 'pending' ? colors.info
-        : colors.danger
+        : colors.dangerDark
+    const statusText = claim.status === 'pending'
+        ? `Processes ${safeShortDate(claim.processDate ? `${claim.processDate}T12:00:00Z` : null) || 'soon'}`
+        : claim.status === 'succeeded'
+          ? 'Succeeded'
+          : claim.status === 'failed_roster'
+            ? 'Failed: roster full'
+            : 'Failed: outbid'
     return (
+        // Name and Cancel share the top line; the edit controls get a full-width
+        // line below, so nothing wraps on a narrow phone.
         <MotionView style={styles.claimRow} preset="rise">
-            {isPending && waiverPriority != null ? (
-                <View style={styles.priorityBadge}>
-                    <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
+            <View style={styles.claimTop}>
+                {isPending && waiverPriority != null ? (
+                    <View style={styles.priorityBadge} accessibilityLabel={`Waiver priority ${waiverPriority}`}>
+                        <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
+                    </View>
+                ) : null}
+                <Avatar
+                    name={claim.playerName}
+                    color={colors.bgMuted}
+                    textColor={colors.textSecondary}
+                    uri={playerHeadshotUrl(claim.playerNbaId) ?? undefined}
+                    size={ROW_AVATAR}
+                />
+                <View style={styles.info}>
+                    <Text style={styles.name} numberOfLines={1}>{claim.playerName}</Text>
+                    <Text style={styles.meta} numberOfLines={2}>
+                        {[
+                            claim.dropPlayerName ? `Drop ${claim.dropPlayerName}` : null,
+                            `Order ${claim.claimOrder}`,
+                            usesFaab ? `Bid $${claim.bidAmount}` : null,
+                        ].filter(Boolean).join(' · ')}
+                    </Text>
+                    <Text style={[styles.meta, { color: statusColor }]}>{statusText}</Text>
+                    {claim.failureReason ? (
+                        <Text style={[styles.meta, { color: colors.dangerDark }]}>{claim.failureReason}</Text>
+                    ) : null}
                 </View>
-            ) : null}
-            <Avatar
-                name={claim.playerName}
-                color={colors.bgMuted}
-                textColor={colors.textSecondary}
-                uri={playerHeadshotUrl(claim.playerNbaId) ?? undefined}
-            />
-            <View style={styles.info}>
-                <Text style={styles.playerName}>{claim.playerName}</Text>
-                {claim.dropPlayerName ? (
-                    <View style={styles.claimDropRow}>
-                        <Avatar
-                            name={claim.dropPlayerName}
-                            color={colors.bgMuted}
-                            textColor={colors.textSecondary}
-                            uri={playerHeadshotUrl(claim.dropPlayerNbaId) ?? undefined}
-                            size={18}
-                        />
-                        <Text style={styles.playerMeta}>Drop: {claim.dropPlayerName}</Text>
-                    </View>
-                ) : null}
-                <Text style={styles.playerMeta}>
-                    Order {claim.claimOrder}{usesFaab ? ` · Bid $${claim.bidAmount}` : ''}
-                </Text>
-                <Text style={[styles.playerMeta, { color: statusColor }]}>
-                    {claim.status === 'pending'
-                        ? `Processes ${safeShortDate(claim.processDate ? `${claim.processDate}T12:00:00Z` : null) || 'soon'}`
-                        : claim.status === 'succeeded'
-                          ? 'Succeeded'
-                          : claim.status === 'failed_roster'
-                          ? 'Failed: roster full'
-                            : 'Failed: outbid'}
-                </Text>
-                {claim.failureReason ? (
-                    <Text style={[styles.playerMeta, { color: colors.danger }]}>{claim.failureReason}</Text>
-                ) : null}
                 {isPending ? (
-                    <View style={styles.claimEditRow}>
-                        {usesFaab ? (
-                            <TextInput
-                                style={styles.claimBidInput}
-                                value={bidText}
-                                onChangeText={(value) => {
-                                    if (/^\d*$/.test(value)) setBidText(value)
-                                }}
-                                keyboardType="numeric"
-                                accessibilityLabel={`Bid for ${claim.playerName}`}
-                            />
-                        ) : null}
-                        <MotionPressable style={styles.miniButton} onPress={() => onReorder(claim.id, 'up')} pressedScale={0.92}>
-                            <Text style={styles.miniButtonText}>Up</Text>
-                        </MotionPressable>
-                        <MotionPressable style={styles.miniButton} onPress={() => onReorder(claim.id, 'down')} pressedScale={0.92}>
-                            <Text style={styles.miniButtonText}>Down</Text>
-                        </MotionPressable>
-                        {usesFaab ? (
-                            <MotionPressable
-                                style={styles.miniButton}
-                                onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
-                                pressedScale={0.92}
-                            >
-                                <Text style={styles.miniButtonText}>Save</Text>
-                            </MotionPressable>
-                        ) : null}
-                    </View>
+                    <MotionPressable
+                        style={styles.actionButton}
+                        onPress={() => onCancel(claim.id)}
+                        disabled={cancellingId === claim.id}
+                        pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Cancel claim for ${claim.playerName}`}
+                    >
+                        <Text style={styles.actionButtonText}>Cancel</Text>
+                    </MotionPressable>
                 ) : null}
             </View>
             {isPending ? (
-                <MotionPressable
-                    style={styles.actionButton}
-                    onPress={() => onCancel(claim.id)}
-                    disabled={cancellingId === claim.id}
-                    pressedScale={0.92}
-                >
-                    <Text style={styles.actionButtonText}>Cancel</Text>
-                </MotionPressable>
+                <View style={styles.claimEditRow}>
+                    {usesFaab ? (
+                        <TextInput
+                            style={styles.claimBidInput}
+                            value={bidText}
+                            onChangeText={(value) => {
+                                if (/^\d*$/.test(value)) setBidText(value)
+                            }}
+                            keyboardType="numeric"
+                            accessibilityLabel={`Bid for ${claim.playerName}`}
+                        />
+                    ) : null}
+                    <MotionPressable
+                        style={styles.miniButton}
+                        onPress={() => onReorder(claim.id, 'up')}
+                        pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Move ${claim.playerName} claim up`}
+                    >
+                        <Text style={styles.miniButtonText}>↑</Text>
+                    </MotionPressable>
+                    <MotionPressable
+                        style={styles.miniButton}
+                        onPress={() => onReorder(claim.id, 'down')}
+                        pressedScale={0.92}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Move ${claim.playerName} claim down`}
+                    >
+                        <Text style={styles.miniButtonText}>↓</Text>
+                    </MotionPressable>
+                    {usesFaab ? (
+                        <MotionPressable
+                            style={styles.miniButton}
+                            onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
+                            pressedScale={0.92}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Save bid for ${claim.playerName}`}
+                        >
+                            <Text style={styles.miniButtonText}>Save</Text>
+                        </MotionPressable>
+                    ) : null}
+                </View>
             ) : null}
         </MotionView>
     )
@@ -135,18 +188,18 @@ export const RosterPickItem = memo(function RosterPickItem({
 }) {
     const isOwn = pick.originalTeamName === myTeamName
     return (
-        <MotionView style={styles.pickRow} preset="rise">
+        <MotionView style={styles.row} preset="rise">
             <View style={styles.pickCircle}>
                 <Text style={styles.pickCircleText}>
-                    {String(pick.seasonYear).slice(2)}
+                    &apos;{String(pick.seasonYear).slice(2)}
                 </Text>
             </View>
             <View style={styles.info}>
-                <Text style={styles.playerName}>
+                <Text style={styles.name}>
                     {pick.seasonYear} Round {pick.round}
                 </Text>
                 {!isOwn ? (
-                    <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
+                    <Text style={styles.meta}>via {pick.originalTeamName}</Text>
                 ) : null}
             </View>
         </MotionView>
@@ -183,9 +236,9 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
-        <View style={styles.playerRow}>
+        <View style={styles.row}>
             <MotionPressable
-                style={styles.playerRowMain}
+                style={styles.rowMain}
                 onPress={() => onPress(item)}
                 onLongPress={() => onLongPress(item)}
                 delayLongPress={400}
@@ -198,31 +251,15 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                     color={colors.bgMuted}
                     textColor={colors.textSecondary}
                     uri={headshotUri ?? undefined}
+                    size={ROW_AVATAR}
                 />
 
                 <View style={styles.info}>
-                    <Text style={styles.playerName}>{player.display_name}</Text>
-                    <View style={styles.playerMetaRow}>
-                        {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                        {player.injury_status ? (
-                            <Badge
-                                label={player.injury_status}
-                                color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
-                                variant="solid"
-                            />
-                        ) : null}
+                    <View style={styles.nameRow}>
+                        <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
+                        <InjuryBadge status={player.injury_status} />
                     </View>
-                    {avgFpts != null || avgMinutes != null ? (
-                        <View style={styles.playerMetaRow}>
-                            {avgFpts != null ? (
-                                <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
-                            ) : null}
-                            {avgMinutes != null ? (
-                                <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
-                            ) : null}
-                        </View>
-                    ) : null}
+                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
                 </View>
             </MotionPressable>
 
@@ -237,7 +274,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move'} ${player.display_name}${item.is_on_ir ? '' : ' to IR'}`}
                     >
                         <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
-                            {item.is_on_ir ? 'Active' : 'IR'}
+                            {item.is_on_ir ? 'Activate' : 'IR'}
                         </Text>
                     </MotionPressable>
                 ) : null}
@@ -276,44 +313,37 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
     const hasStats = avgFpts != null || avgMinutes != null
 
     return (
-        <MotionPressable style={styles.playerRow} onPress={onPress} pressedScale={0.985}>
+        <MotionPressable
+            style={styles.row}
+            onPress={onPress}
+            pressedScale={0.985}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${player.display_name}`}
+        >
             <Avatar
                 name={player.display_name}
                 color={colors.bgMuted}
                 textColor={colors.textSecondary}
                 uri={headshotUri ?? undefined}
+                size={ROW_AVATAR}
             />
 
             <View style={styles.info}>
-                <Text style={styles.playerName} numberOfLines={1}>{player.display_name}</Text>
-                <View style={styles.playerMetaRow}>
-                    {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {player.injury_status ? (
-                        <Badge
-                            label={player.injury_status}
-                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
-                            variant="solid"
-                        />
-                    ) : null}
-                    {yearsLabel ? <Text style={styles.playerMeta}>{yearsLabel}</Text> : null}
+                <View style={styles.nameRow}>
+                    <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
+                    <InjuryBadge status={player.injury_status} />
+                    {item.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
+                    {item.is_on_taxi ? <Badge label="TX" color={colors.textMuted} variant="soft" /> : null}
                 </View>
-                <View style={styles.playerMetaRow}>
-                    {avgFpts != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
-                    ) : null}
-                    {avgMinutes != null ? (
-                        <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
-                    ) : null}
-                    {!hasStats ? <Text style={styles.playerMeta}>No season stats</Text> : null}
-                </View>
-                {(item.is_on_ir || item.is_on_taxi) ? (
-                    <View style={styles.readOnlyBadges}>
-                        {item.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
-                        {item.is_on_taxi ? <Badge label="TX" color={colors.textMuted} variant="soft" /> : null}
-                    </View>
-                ) : null}
+                <PlayerMetaLine
+                    team={player.nba_team}
+                    positions={positions}
+                    avgFpts={avgFpts}
+                    avgMinutes={avgMinutes}
+                    extra={hasStats ? yearsLabel : [yearsLabel, 'No season stats'].filter(Boolean).join(' · ')}
+                />
             </View>
+            <Text style={styles.chevron} aria-hidden>›</Text>
         </MotionPressable>
     )
 })
@@ -337,9 +367,9 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
     const positions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
     return (
-        <View style={styles.playerRow}>
+        <View style={styles.row}>
             <MotionPressable
-                style={styles.playerRowMain}
+                style={styles.rowMain}
                 onPress={() => onPress(item)}
                 pressedScale={0.985}
                 accessibilityRole="button"
@@ -350,20 +380,12 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                     color={colors.bgMuted}
                     textColor={colors.textSecondary}
                     uri={headshotUri ?? undefined}
+                    size={ROW_AVATAR}
                 />
 
                 <View style={styles.info}>
-                    <Text style={styles.playerName}>{player.display_name}</Text>
-                    <View style={styles.playerMetaRow}>
-                        {player.nba_team ? <Text style={styles.playerMeta}>{player.nba_team}</Text> : null}
-                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                        {avgFpts != null ? (
-                            <Text style={styles.fptsText}>{formatPoints(avgFpts)} FPts</Text>
-                        ) : null}
-                        {avgMinutes != null ? (
-                            <Text style={styles.fptsText}>{formatPoints(avgMinutes)} MIN</Text>
-                        ) : null}
-                    </View>
+                    <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
+                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
                 </View>
             </MotionPressable>
 
@@ -383,100 +405,100 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
 })
 
 const styles = StyleSheet.create({
-    playerRow: {
+    band: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
+        gap: spacing.md,
+        minHeight: 36,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.xs,
+        backgroundColor: colors.bgSubtle,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
     },
-    playerRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+    bandTaxi: { backgroundColor: colors.infoLight },
+    bandLabel: { ...textStyles.sectionLabel, flex: 1 },
+    bandLabelTaxi: { color: colors.info },
+    bandDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 
-    info: { flex: 1, gap: 2 },
-    playerName: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    playerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
-    claimDropRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 1 },
-    playerMeta: { fontSize: fontSize.sm, color: colors.textMuted },
-    fptsText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    readOnlyBadges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, marginTop: 2 },
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: 52,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.xs,
+        gap: spacing.md,
+    },
+    rowMain: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+
+    info: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: 0 },
+    name: { ...textStyles.rowTitle, flexShrink: 1 },
+    metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
+    meta: { ...textStyles.meta },
+    averages: { ...textStyles.meta, fontWeight: fontWeight.bold, color: colors.primaryDark, fontVariant: ['tabular-nums'] as const },
 
     rowActions: { flexDirection: 'row', gap: spacing.sm },
 
     actionButton: {
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
+        minHeight: 44,
+        minWidth: 52,
+        paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.border,
-        minWidth: 52,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     irButtonActive: { backgroundColor: colors.danger, borderColor: colors.danger },
     taxiButtonActive: { backgroundColor: colors.info, borderColor: colors.info },
     taxiButtonOutline: { borderColor: colors.info },
-    taxiButtonOutlineText: { fontSize: 12, fontWeight: fontWeight.bold, color: colors.info },
-    actionButtonText: { fontSize: 12, fontWeight: fontWeight.bold, color: colors.textMuted },
-    actionButtonTextActive: { color: colors.textWhite },
+    taxiButtonOutlineText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.info },
+    actionButtonText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textSecondary },
+    actionButtonTextActive: { color: colors.onAccent },
 
-    pickRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-    },
     pickCircle: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: ROW_AVATAR,
+        height: ROW_AVATAR,
+        borderRadius: ROW_AVATAR / 2,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.info,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    pickCircleText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-
-    claimRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-    },
+    pickCircleText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
 
     priorityBadge: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 32,
+        height: 32,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: uiColors.taxi,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    priorityBadgeText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
-    claimEditRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: spacing.sm,
-        marginTop: spacing.sm,
-    },
+    priorityBadgeText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
+    claimRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
+    claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: spacing.md },
+    claimEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    // 16px text keeps iOS Safari from zooming the page when the field focuses.
     claimBidInput: {
-        minWidth: 56,
-        height: 32,
+        width: 64,
+        minHeight: 44,
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.sm,
-        fontSize: fontSize.sm,
+        fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
+        backgroundColor: colors.bgInput,
     },
     miniButton: {
-        minHeight: 32,
-        minWidth: 48,
+        minHeight: 44,
+        minWidth: 44,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
@@ -485,5 +507,6 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.sm,
     },
-    miniButtonText: { fontSize: 11, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    miniButtonText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textSecondary },
+    chevron: { fontSize: fontSize.xl, color: colors.textPlaceholder },
 })

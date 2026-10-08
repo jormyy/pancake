@@ -1,18 +1,12 @@
-import {
-    View,
-    Text,
-    StyleSheet,
-} from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { colors, spacing, layout, fontSize, fontWeight } from '@/constants/tokens'
-import { ErrorBanner } from '@/components/ui'
+import { View, StyleSheet } from 'react-native'
+import { colors } from '@/constants/tokens'
+import { ErrorBanner, Page, PageHeader, SegmentedControl } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
 import { AuctionPanel, DraftBoardPanel } from '@/components/league/DraftSetupPanels'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
 import { SettingsPanel } from '@/components/league/SettingsPanel'
-import { LeagueTabBar } from '@/components/league/LeagueTabBar'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
 import { LEAGUE_TABS } from '@/lib/league/tabs'
 
@@ -31,7 +25,7 @@ export default function LeagueScreen() {
         // No placeholder shell while the league context loads — the screen
         // stays blank and the real UI appears fully formed, with no reflow.
         if (screen.leagueLoading) {
-            return <SafeAreaView style={styles.container} />
+            return <View style={styles.container} />
         }
         return <NoLeagueState />
     }
@@ -172,45 +166,41 @@ export default function LeagueScreen() {
         )
     }
 
+    // The league switcher already names the league and team, so the page
+    // leads with its sections.
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.contentWrap}>
-                <View style={styles.header}>
-                    <Text style={styles.leagueName} role="heading" aria-level={1} accessibilityRole="header">
-                        {screen.currentLeague?.name ?? 'League'}
-                    </Text>
-                    {screen.current?.team_name ? (
-                        <Text style={styles.teamName}>{screen.current.team_name}</Text>
-                    ) : null}
-                </View>
-                <LeagueTabBar activeTab={screen.tab} onTabChange={screen.handleTabChange} compact />
-                <View
-                    nativeID={activePanelId}
-                    style={styles.contentScroll}
-                    role="tabpanel"
-                    aria-label={`${activeTabLabel} league section`}
-                    aria-labelledby={activeTabId}
-                    accessibilityLabel={`${activeTabLabel} league section`}
-                >
-                    {renderTabContent()}
-                </View>
+        <Page title="League">
+            <PageHeader
+                tabs={(
+                    <SegmentedControl
+                        variant="tabs"
+                        value={screen.tab}
+                        onChange={screen.handleTabChange}
+                        options={LEAGUE_TABS.map((tab) => ({ label: tab.label, value: tab.key }))}
+                        accessibilityLabel="League sections"
+                        idBase="league-tab"
+                        controlledPanelId={activePanelId}
+                        scrollable
+                    />
+                )}
+            />
+            <View
+                nativeID={activePanelId}
+                style={styles.panel}
+                role="tabpanel"
+                aria-label={`${activeTabLabel} league section`}
+                aria-labelledby={activeTabId}
+                accessibilityLabel={`${activeTabLabel} league section`}
+            >
+                {renderTabContent()}
             </View>
-        </SafeAreaView>
+        </Page>
     )
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
-    contentWrap: { flex: 1, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.md },
-    contentScroll: { flex: 1 },
-    header: {
-        paddingTop: spacing.lg,
-        paddingBottom: spacing.md,
-        paddingHorizontal: spacing.md,
-        gap: 2,
-    },
-    leagueName: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    teamName: { fontSize: fontSize.md, color: colors.textSecondary },
+    panel: { flex: 1, minHeight: 0 },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

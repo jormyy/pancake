@@ -29,9 +29,9 @@ const SIZES: Record<ButtonSize, { height: number; padX: number; font: number; ic
 function variantColors(variant: ButtonVariant) {
     switch (variant) {
         case 'primary':
-            return { bg: colors.primary, bgHover: colors.primaryDark, fg: colors.textWhite, border: 'transparent' }
+            return { bg: colors.primary, bgHover: colors.primaryHover, fg: colors.textWhite, border: 'transparent' }
         case 'danger':
-            return { bg: colors.danger, bgHover: colors.dangerDark, fg: colors.textWhite, border: 'transparent' }
+            return { bg: colors.danger, bgHover: colors.dangerDark, fg: colors.onAccent, border: 'transparent' }
         case 'secondary':
             return { bg: colors.bgMuted, bgHover: colors.bgCard, fg: colors.textPrimary, border: colors.borderLight }
         case 'outline':
@@ -80,7 +80,7 @@ export function Button({
                     borderWidth: variant === 'outline' || variant === 'secondary' ? 1 : 0,
                 },
                 fullWidth && styles.fullWidth,
-                raised && !isDisabled && (elevation('brandGlow') as ViewStyle),
+                raised && !isDisabled && (elevation('sm') as ViewStyle),
                 pressed && !isDisabled && styles.pressed,
                 isDisabled && styles.disabled,
                 style,

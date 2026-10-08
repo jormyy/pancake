@@ -1,6 +1,6 @@
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { alpha, colors, fontFamily, fontSize, fontWeight, radii, shadows, uiColors } from '@/constants/tokens'
+import { alpha, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
 function compactOwnerRecord(username: string | null | undefined, wins: number, losses: number): string {
@@ -49,7 +49,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                 <Text
                     style={styles.week}
                     role="heading"
-                    aria-level={1}
+                    aria-level={2}
                     accessibilityRole="header"
                     accessibilityLabel={`Week ${matchup.weekNumber} matchup`}
                 >
@@ -102,15 +102,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     <View style={[styles.edgeMine, { width: `${myShare}%` }]} />
                     <View style={styles.edgeOpponent} />
                 </View>
-                <View style={styles.edgeLabels}>
-                    <Text style={[styles.edgeText, iWinning && styles.edgeTextStrong]} numberOfLines={1} ellipsizeMode="clip">
-                        {formatPoints(matchup.myPoints)}
-                    </Text>
-                    <Text style={styles.edgeCenter} numberOfLines={1} ellipsizeMode="clip">{compact ? compactEdgeLabel : edgeLabel}</Text>
-                    <Text style={[styles.edgeText, oppWinning && styles.edgeTextStrong]} numberOfLines={1} ellipsizeMode="clip">
-                        {formatPoints(matchup.opponentPoints)}
-                    </Text>
-                </View>
+                <Text style={styles.edgeCenter} numberOfLines={1} ellipsizeMode="clip">{compact ? compactEdgeLabel : edgeLabel}</Text>
             </View>
         </View>
     )
@@ -118,8 +110,8 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
 
 const styles = StyleSheet.create({
     card: {
-        marginHorizontal: 16,
-        marginVertical: 10,
+        marginTop: spacing.md,
+        marginBottom: spacing.sm,
         backgroundColor: colors.bgCard,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
@@ -129,8 +121,9 @@ const styles = StyleSheet.create({
         ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
     },
     cardCompact: {
-        marginVertical: 3,
-        borderRadius: 12,
+        marginTop: spacing.xs,
+        marginBottom: spacing.xs,
+        borderRadius: radii.xl,
     },
 
     header: {
@@ -201,7 +194,7 @@ const styles = StyleSheet.create({
     },
     teamNameCompact: {
         fontSize: fontSize.xs,
-        lineHeight: 13,
+        lineHeight: 14,
     },
     username: {
         fontSize: fontSize['2xs'],
@@ -223,15 +216,10 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         marginTop: 2,
     },
-    score: {
-        fontSize: 38,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.black,
-        lineHeight: 44,
-    },
+    score: { ...textStyles.hero },
     scoreCompact: {
-        fontSize: 27,
-        lineHeight: 31,
+        fontSize: fontSize['3xl'],
+        lineHeight: 32,
     },
     scoreWin: {
         color: colors.textPrimary,
@@ -282,20 +270,6 @@ const styles = StyleSheet.create({
         flex: 1,
         height: '100%',
         backgroundColor: colors.bgMuted,
-    },
-    edgeLabels: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    edgeText: {
-        width: 58,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        color: colors.textMuted,
-    },
-    edgeTextStrong: {
-        color: colors.primaryDark,
     },
     edgeCenter: {
         flex: 1,

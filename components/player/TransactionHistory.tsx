@@ -2,7 +2,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useRef, useState } from 'react'
 import { getPlayerTransactionHistory } from '@/lib/players'
 import type { TransactionHistoryEntry } from '@/lib/players'
-import { colors, fontSize, fontWeight, spacing, radii } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, spacing, radii, table, textStyles } from '@/constants/tokens'
 
 const PAGE_SIZE = 20
 
@@ -71,7 +71,7 @@ export function TransactionHistory({ playerId, leagueId, transactions: initial }
     if (current.transactions.length === 0) {
         return (
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>League History</Text>
+                <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>League History</Text>
                 <Text style={styles.noData}>No transactions yet.</Text>
             </View>
         )
@@ -79,7 +79,7 @@ export function TransactionHistory({ playerId, leagueId, transactions: initial }
 
     return (
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>League History</Text>
+            <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>League History</Text>
             {current.transactions.map((tx) => (
                 <View key={tx.id} style={styles.row}>
                     <View style={styles.left}>
@@ -99,22 +99,22 @@ export function TransactionHistory({ playerId, leagueId, transactions: initial }
 }
 
 const styles = StyleSheet.create({
-    section: { gap: spacing.md },
-    sectionTitle: { fontSize: 17, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    noData: { color: colors.textPlaceholder, fontSize: fontSize.md },
+    section: { gap: spacing.sm },
+    noData: { ...textStyles.body, color: colors.textPlaceholder },
 
     row: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 10,
+        gap: spacing.lg,
+        minHeight: table.rowHeight,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
-    left: { gap: spacing.xxs },
-    label: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    team: { fontSize: 12, color: colors.textMuted },
-    date: { fontSize: 12, color: colors.textPlaceholder },
+    left: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    label: { ...textStyles.rowTitle },
+    team: { ...textStyles.meta },
+    date: { ...textStyles.meta, color: colors.textPlaceholder },
 
     loadMore: {
         alignItems: 'center',
