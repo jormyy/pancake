@@ -350,6 +350,13 @@
       "statementCount": 13,
       "statementsSha256": "f939f17b7bd91df8f8658fd60b6e13c5942b6ee103c228399c034be490b5446a",
       "sha256": "89364bb739366e151f060bce309cfe5b7e83331781bea487b0c1a8e0ea1149d7"
+    },
+    {
+      "name": "optimizer_setting_context_writes",
+      "version": "20261008000002",
+      "statementCount": 9,
+      "statementsSha256": "5edb1efdaeb65c508860d9c9668b4a803eb1291aa2cf044d28eeddb00f84594b",
+      "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
     }
   ]
 }

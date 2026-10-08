@@ -1,7 +1,7 @@
 {
   "version": 1,
   "baselineVersion": "20261005000002",
-  "candidateVersion": "20261008000001",
+  "candidateVersion": "20261008000002",
   "common": {
     "functions": [
       {
@@ -751,6 +751,10 @@
     {
       "filename": "20261008000001_reuse_numeric_scoring_coefficients.sql",
       "sha256": "89364bb739366e151f060bce309cfe5b7e83331781bea487b0c1a8e0ea1149d7"
+    },
+    {
+      "filename": "20261008000002_optimizer_setting_context_writes.sql",
+      "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
     }
   ]
 }
