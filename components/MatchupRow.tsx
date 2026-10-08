@@ -416,7 +416,6 @@ function MatchupRowImpl({
                 style={[
                     styles.slotChipCenter,
                     compact && styles.slotChipCenterCompact,
-                    dense && styles.slotChipCenterDense,
                     { backgroundColor: alpha(slotColor, 0.13) },
                     isSel && styles.slotChipSelected,
                     targetState === 'valid' && styles.slotChipTarget,
@@ -431,7 +430,7 @@ function MatchupRowImpl({
                     : `Select empty ${slotType} slot ${selIndex + 1}`}
                 accessibilityHint={targetState === 'valid' ? `Move the selected player to ${slotType}` : undefined}
                 accessibilityState={{ disabled: saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
-                hitSlop={dense ? 10 : 7}
+                hitSlop={7}
                 pressedScale={0.88}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
@@ -542,15 +541,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         flexShrink: 0,
     },
-    // Phone chips are the tap target for lineup moves, so they stay near 44px.
+    // Phone chips are the tap target for lineup moves, so they stay near 44px,
+    // even on the shortest phones.
     slotChipCenterCompact: {
         width: 42,
         height: 40,
         borderRadius: radii.md,
-    },
-    slotChipCenterDense: {
-        width: 42,
-        height: 32,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
     slotChipTarget: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successLight },

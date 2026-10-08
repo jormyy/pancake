@@ -89,7 +89,7 @@ export default function HomeScreen() {
 
     const {
         matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate,
-        myLineup, oppLineup, matchupLoading, lineupLoading,
+        myLineup, oppLineup, matchupLoading, lineupLoading, lineupError,
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh,
     } = useMatchupData(current, user, league)
@@ -309,12 +309,16 @@ export default function HomeScreen() {
                             {weekDays.length > 0 && (
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                             )}
-                            <View style={styles.noLineup}>
-                                <Text style={styles.noLineupText}>No lineup set for this day.</Text>
-                                <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
-                                    <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
-                                </Pressable>
-                            </View>
+                            {lineupError ? (
+                                <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} />
+                            ) : (
+                                <View style={styles.noLineup}>
+                                    <Text style={styles.noLineupText}>No lineup set for this day.</Text>
+                                    <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
+                                        <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
+                                    </Pressable>
+                                </View>
+                            )}
                         </>
                     )}
                     </View>

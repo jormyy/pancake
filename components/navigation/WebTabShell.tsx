@@ -44,6 +44,22 @@ const SECTION_TITLES: { label: string; href: RouteHref }[] = [
     { label: 'Profile', href: '/profile' },
 ]
 
+// Pages opened on top of a section name themselves in the browser tab.
+const PAGE_TITLES: { prefix: string; label: string }[] = [
+    { prefix: '/lineup', label: 'Lineup' },
+    { prefix: '/claim-player', label: 'Waiver Claim' },
+    { prefix: '/propose-trade', label: 'Propose Trade' },
+    { prefix: '/team-roster', label: 'Team Roster' },
+    { prefix: '/player/', label: 'Player' },
+    { prefix: '/bracket', label: 'Playoffs' },
+    { prefix: '/commissioner-settings', label: 'League Settings' },
+    { prefix: '/create-league', label: 'Create League' },
+    { prefix: '/join-league', label: 'Join League' },
+    { prefix: '/change-password', label: 'Change Password' },
+    { prefix: '/rookie-draft-room', label: 'Rookie Draft' },
+    { prefix: '/draft', label: 'Draft Room' },
+]
+
 // react-native-web forwards aria-* props to the DOM, but React Native's prop
 // types don't model aria-current — spread this constant so the active nav item
 // emits a real signal for assistive tech (accessibilityState.selected is not
@@ -106,8 +122,9 @@ function useDocumentTitle() {
     const pathname = usePathname()
     useEffect(() => {
         if (typeof document === 'undefined') return
-        const section = SECTION_TITLES.find((item) => isRouteActive(pathname, item.href))
-        document.title = section ? `${section.label} · Pancake` : 'Pancake'
+        const label = PAGE_TITLES.find((item) => pathname.startsWith(item.prefix))?.label ??
+            SECTION_TITLES.find((item) => isRouteActive(pathname, item.href))?.label
+        document.title = label ? `${label} · Pancake` : 'Pancake'
     }, [pathname])
 }
 
@@ -311,8 +328,13 @@ function SidebarNavButton({
     return href ? <Link href={href} asChild>{button}</Link> : button
 }
 
+function isProfileRoute(pathname: string) {
+    return pathname.startsWith('/profile') || pathname.startsWith('/change-password')
+}
+
 function WebSidebar() {
     const pathname = usePathname()
+    const profileActive = isProfileRoute(pathname)
     const router = useRouter()
     const { current, currentLeague, isCommissioner } = useLeagueContext()
     const { user } = useAuth()
@@ -400,11 +422,13 @@ function WebSidebar() {
                     onPress={() => router.push('/profile')}
                     style={({ hovered, pressed }: PressableState) => [
                         styles.userChip,
-                        hovered && styles.userChipHover,
+                        (hovered || profileActive) && styles.userChipHover,
                         pressed && styles.pressed,
                     ]}
                     accessibilityRole="button"
                     accessibilityLabel="Profile & settings"
+                    accessibilityState={{ selected: profileActive }}
+                    {...(profileActive ? ARIA_CURRENT_PAGE : null)}
                 >
                     <Avatar
                         name={current?.team_name ?? user?.email ?? 'P'}
@@ -479,20 +503,27 @@ function MobileBottomNav() {
 
 function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const router = useRouter()
+    const pathname = usePathname()
     const { currentLeague, isCommissioner } = useLeagueContext()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
     // League sub-tabs are reachable from the League tab's own pill bar — the
     // sheet only carries destinations the bottom bar doesn't already cover.
     const menuItems = useMemo(
         () => [
-            { key: 'draft-room', label: 'Draft Room', icon: 'flash-on' as IconName, onPress: openDraftRoom, loading: draftLoading },
-            { key: 'playoffs', label: 'Playoffs', icon: 'account-tree' as IconName, onPress: () => router.push('/(modals)/bracket') },
+            {
+                key: 'draft-room', label: 'Draft Room', icon: 'flash-on' as IconName, onPress: openDraftRoom, loading: draftLoading,
+                active: pathname.startsWith('/draft') || pathname.startsWith('/rookie-draft-room'),
+            },
+            { key: 'playoffs', label: 'Playoffs', icon: 'account-tree' as IconName, onPress: () => router.push('/(modals)/bracket'), active: pathname.startsWith('/bracket') },
             ...(isCommissioner
-                ? [{ key: 'commissioner', label: 'Commissioner', icon: 'admin-panel-settings' as IconName, onPress: () => router.push('/(modals)/commissioner-settings') }]
+                ? [{
+                    key: 'commissioner', label: 'Commissioner', icon: 'admin-panel-settings' as IconName,
+                    onPress: () => router.push('/(modals)/commissioner-settings'), active: pathname.startsWith('/commissioner-settings'),
+                }]
                 : []),
-            { key: 'profile', label: 'Profile & settings', icon: 'settings' as IconName, onPress: () => router.push('/profile') },
+            { key: 'profile', label: 'Profile & settings', icon: 'settings' as IconName, onPress: () => router.push('/profile'), active: isProfileRoute(pathname) },
         ],
-        [draftLoading, isCommissioner, openDraftRoom, router],
+        [draftLoading, isCommissioner, openDraftRoom, pathname, router],
     )
 
     return (
@@ -504,13 +535,15 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
                         item.onPress()
                         onClose()
                     }}
-                    style={styles.sheetItem}
+                    style={[styles.sheetItem, item.active && styles.sheetItemActive]}
                     disabled={item.loading}
                     accessibilityRole="button"
                     accessibilityLabel={item.label}
+                    accessibilityState={{ selected: item.active }}
+                    {...(item.active ? ARIA_CURRENT_PAGE : null)}
                 >
-                    <MaterialIcons name={item.icon} size={21} color={colors.textSecondary} />
-                    <Text style={styles.sheetItemText}>{item.label}</Text>
+                    <MaterialIcons name={item.icon} size={21} color={item.active ? colors.primaryDark : colors.textSecondary} />
+                    <Text style={[styles.sheetItemText, item.active && styles.sheetItemTextActive]}>{item.label}</Text>
                     <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
                 </Pressable>
             ))}

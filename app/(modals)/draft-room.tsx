@@ -137,8 +137,10 @@ export default function DraftRoomScreen() {
                     />
                 ) : null}
                 {myBudget?.remaining != null ? (
-                    <View style={styles.budgetChip}>
-                        <Text style={styles.budgetChipText}>${myBudget.remaining} left</Text>
+                    // A plain figure, not a chip, so it never reads as a button.
+                    <View style={styles.budgetStat} accessible accessibilityLabel={`$${myBudget.remaining} budget left`}>
+                        <Text style={styles.budgetValue}>${myBudget.remaining}</Text>
+                        <Text style={styles.budgetLabel}>left</Text>
                     </View>
                 ) : null}
             </DraftScreenHeader>
@@ -250,17 +252,9 @@ const styles = StyleSheet.create({
     columnCompact: { gap: spacing.sm },
     columnMainDesktop: { flex: 3, minWidth: 0 },
 
-    budgetChip: {
-        backgroundColor: colors.primaryLight,
-        minHeight: 40,
-        justifyContent: 'center',
-        paddingHorizontal: spacing.md,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.primaryBorder,
-    },
-    budgetChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    budgetStat: { alignItems: 'flex-end', justifyContent: 'center', paddingHorizontal: spacing.xs },
+    budgetValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark },
+    budgetLabel: { ...textStyles.meta },
     refreshWarning: {
         paddingHorizontal: spacing.xl,
         paddingVertical: spacing.sm,

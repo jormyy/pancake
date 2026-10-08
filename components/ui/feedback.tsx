@@ -249,6 +249,8 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
         padding: spacing['3xl'],
         gap: spacing.md,
+        // Focus lands here only as a fallback; it isn't a control, so no ring.
+        ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}),
         ...(elevation('xl') as object),
     },
     dialogScrimBottom: { justifyContent: 'flex-end', padding: 0 },

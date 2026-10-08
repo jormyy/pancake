@@ -106,6 +106,8 @@ export function useMatchupData(
     const [oppLineup, setOppLineup] = useState<LineupData | null>(initialCache?.oppLineup ?? null)
     const [matchupLoading, setMatchupLoading] = useState(!initialCache)
     const [lineupLoading, setLineupLoading] = useState(false)
+    // A picked day whose lineup failed to load shows a retry, never the day before.
+    const [lineupError, setLineupError] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [dataOwnerKey, setDataOwnerKey] = useState(resourceKey)
     const matchupRef = useRef<Matchup | null>(initialCache?.matchup ?? null)
@@ -130,6 +132,7 @@ export function useMatchupData(
         setSelectedDate(cached?.selectedDate ?? todayET())
         setMatchupLoading(!cached)
         setLineupLoading(false)
+        setLineupError(false)
         setError(null)
         matchupRef.current = cached?.matchup ?? null
         setDataOwnerKey(resourceKey)
@@ -156,13 +159,22 @@ export function useMatchupData(
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             setLineupLoading(true)
+            const stillCurrent = () => seq === lineupSeqRef.current &&
+                activeResourceKeyRef.current === capturedResourceKey && date === selectedDateRef.current
             try {
                 const lineups = await fetchLineups(m, date, currentLeagueId)
-                if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
-                    date !== selectedDateRef.current) return null
+                if (!stillCurrent()) return null
                 setMyLineup(lineups.mine)
                 setOppLineup(lineups.opp)
+                setLineupError(false)
                 return lineups
+            } catch (e) {
+                if (!stillCurrent()) return null
+                console.error(e)
+                setMyLineup(null)
+                setOppLineup(null)
+                setLineupError(true)
+                return null
             } finally {
                 if (seq === lineupSeqRef.current) setLineupLoading(false)
             }
@@ -200,6 +212,7 @@ export function useMatchupData(
                 date !== selectedDateRef.current) return
             setMyLineup(mine)
             setOppLineup(opp)
+            setLineupError(false)
         },
         [leagueId, ownsResource, resourceKey],
     )
@@ -242,6 +255,7 @@ export function useMatchupData(
                 setSelectedDate(selected)
                 setMyLineup(lineups.mine)
                 setOppLineup(lineups.opp)
+                setLineupError(false)
                 writeMatchupCache(current.id, leagueId, {
                     selectedDate: selected,
                     matchup: m,
@@ -374,6 +388,7 @@ export function useMatchupData(
         oppLineup: ownsResource ? oppLineup : null,
         matchupLoading: ownsResource ? matchupLoading : true,
         lineupLoading: ownsResource ? lineupLoading : false,
+        lineupError: ownsResource ? lineupError : false,
         error: ownsResource ? error : null,
         refresh: load,
         loadMyLineup,

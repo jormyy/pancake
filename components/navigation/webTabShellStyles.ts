@@ -387,6 +387,12 @@ export const styles = StyleSheet.create({
         borderRadius: radii.md,
         paddingHorizontal: spacing.sm,
     },
+    sheetItemActive: {
+        backgroundColor: colors.bgMuted,
+    },
+    sheetItemTextActive: {
+        color: colors.primaryDark,
+    },
     sheetItemText: {
         flex: 1,
         color: colors.textPrimary,

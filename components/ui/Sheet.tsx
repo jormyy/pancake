@@ -90,7 +90,8 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
         overflow: 'hidden',
         // The panel takes focus so keyboard users start inside it; it isn't a control, so no ring.
-        ...(Platform.OS === 'web' ? { outlineWidth: 0 } : {}),
+        // Chrome ignores the outline width for its focus ring, so drop the style.
+        ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}),
         ...elevation('xl'),
     },
     panelBottom: {
