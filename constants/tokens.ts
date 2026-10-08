@@ -587,16 +587,17 @@ export const INJURY_COLORS: Record<string, string> = {
     IR: palette.redDark,
 }
 
+// Transaction colors follow the theme so soft badges stay readable in dark mode.
 export const TX_COLORS: Record<string, string> = {
-    fa_add: palette.green500,
-    waiver_add: palette.purple500,
-    trade_in: palette.blue500,
-    fa_drop: palette.red500,
-    waiver_drop: palette.red500,
-    trade_out: palette.maple500,
-    ir_designate: palette.amber400,
-    ir_return: palette.indigo500,
-    draft_won: palette.green500,
+    fa_add: webColor('tx-add', palette.green500),
+    waiver_add: webColor('tx-waiver', palette.purple500),
+    trade_in: webColor('tx-trade-in', palette.blue500),
+    fa_drop: webColor('tx-drop', palette.red500),
+    waiver_drop: webColor('tx-drop', palette.red500),
+    trade_out: webColor('tx-trade-out', palette.maple500),
+    ir_designate: webColor('tx-ir', palette.amber400),
+    ir_return: webColor('tx-ir-return', palette.indigo500),
+    draft_won: webColor('tx-add', palette.green500),
 }
 
 export const TRADE_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -708,6 +709,13 @@ export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'status-bad-text': night.redText,
     'status-neutral-bg': night.bgMuted,
     'status-neutral-text': night.textSecondary,
+    'tx-add': night.greenLive,
+    'tx-waiver': night.purpleText,
+    'tx-trade-in': night.blue,
+    'tx-drop': night.redText,
+    'tx-trade-out': night.maple,
+    'tx-ir': night.amberText,
+    'tx-ir-return': night.indigo,
     'pos-pg': night.posCoral,
     'pos-sg': night.posBurnt,
     'pos-sf': night.posForest,

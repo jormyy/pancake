@@ -70,7 +70,16 @@ function tradesNavLabel(label: string, pendingCount: number) {
     return `${label}, ${pendingCount} pending offer${pendingCount === 1 ? '' : 's'}`
 }
 
+// Screens opened on top of a section keep that section lit in the navigation.
+const SECTION_CHILDREN: Partial<Record<RouteHref, string[]>> = {
+    '/roster': ['/lineup'],
+    '/players': ['/player/', '/claim-player'],
+    '/trades': ['/propose-trade'],
+    '/league': ['/team-roster'],
+}
+
 function isRouteActive(pathname: string, href: RouteHref) {
+    if ((SECTION_CHILDREN[href] ?? []).some((prefix) => pathname.startsWith(prefix))) return true
     if (href === '/') return pathname === '/' || pathname === '' || pathname === '/index' || pathname === '/(tabs)' || pathname === '/(tabs)/index'
     return pathname.startsWith(href)
 }
@@ -338,7 +347,7 @@ function WebSidebar() {
                         icon="flash-on"
                         onPress={openDraftRoom}
                         loading={draftLoading}
-                        active={pathname.startsWith('/draft-room') || pathname.startsWith('/rookie-draft-room')}
+                        active={pathname.startsWith('/draft') || pathname.startsWith('/rookie-draft-room')}
                     />
                     <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} active={pathname.startsWith('/bracket')} />
                     {isCommissioner ? (

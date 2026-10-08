@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-end',
         gap: spacing.md,
-        minHeight: 48,
+        minHeight: 56,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },

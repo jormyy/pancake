@@ -91,7 +91,6 @@ export function activePlayerFilterCount(state: PlayerSearchFilterState): number 
     if (state.availabilityFilter !== 'free_agents') count++
     if (state.rookiesOnly) count++
     if (state.health !== 'all') count++
-    if (state.sortMode !== 'fpts') count++
     return count
 }
 

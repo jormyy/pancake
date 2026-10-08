@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FlashList } from '@shopify/flash-list'
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import {
     Linking,
     Pressable,
@@ -96,7 +96,7 @@ function formatDate(value: string | null): string {
     if (!value) return 'Not synced'
     const timestamp = Date.parse(value)
     if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Not synced'
-    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).replace(' ', '\u00a0')
 }
 
 function formatStat(value: number | null, format?: 'integer' | 'pct'): string {
@@ -370,7 +370,13 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     const activeNews = feed === 'my-news' ? myNews : news
     const activeNewsHydrated = !newsLoading || activeNews.length > 0
     const emptyNewsMessage = feed === 'my-news' ? 'No news for your players.' : 'No dynasty news yet.'
-    const latestSync = rankings.players.find((player) => Date.parse(player.rankFetchedAt) > 0)?.rankFetchedAt ?? null
+    const visibleSync = rankings.players.find((player) => Date.parse(player.rankFetchedAt) > 0)?.rankFetchedAt ?? null
+    // A search that matches nothing has no rows to read the date from; keep the last one seen.
+    const [knownSync, setKnownSync] = useState<string | null>(null)
+    useEffect(() => {
+        if (visibleSync && (!knownSync || Date.parse(visibleSync) > Date.parse(knownSync))) setKnownSync(visibleSync)
+    }, [visibleSync, knownSync])
+    const latestSync = visibleSync ?? knownSync
     const rankingFooter = rankings.loadingMore ? null : rankings.loadMoreError ? (
         <Pressable style={styles.footerRetry} onPress={() => void rankings.retryLoadMore()} accessibilityRole="button" accessibilityLabel="Retry rankings">
             <MaterialIcons name="refresh" size={16} color={colors.primaryDark} />

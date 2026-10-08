@@ -20,6 +20,7 @@ export const panelStyles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         height: 44,
+        paddingHorizontal: spacing.lg,
         justifyContent: 'center',
         alignItems: 'center',
     },

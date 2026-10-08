@@ -331,5 +331,5 @@ const styles = StyleSheet.create({
     teamPoints: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: uiColors.tableText, minWidth: 60, textAlign: 'right', fontVariant: ['tabular-nums'] as const },
     teamPointsCompact: { fontSize: fontSize.md, minWidth: 52 },
     teamPointsWon: { color: uiColors.successTextStrong },
-    teamPointsLost: { color: colors.textDisabled },
+    teamPointsLost: { color: colors.textMuted },
 })

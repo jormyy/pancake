@@ -15,7 +15,7 @@ import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
-import { showAlert, showSuccess } from '@/lib/alert'
+import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import {
@@ -230,6 +230,11 @@ export default function ProposeTradeScreen() {
     }, [multiTeamMode, toggleParticipant])
 
     const items = composer.buildMultiTeamItems()
+    // Leaving drops a built trade, so ask first once anything is selected.
+    const leave = () => {
+        if (items.length === 0) back()
+        else confirmAction('Discard this trade?', 'The players and picks you picked will be cleared.', back, 'Discard')
+    }
     const tradeAnalysis = useDynastyTradeAnalysis({
         enabled: composer.assetsReady,
         leagueId,
@@ -396,7 +401,8 @@ export default function ProposeTradeScreen() {
                         </Pressable>
                     )}
                 />
-                <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                {/* Its own key, so review opens at the top instead of the editor's scroll position. */}
+                <ScrollView key="review" style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                     <View style={styles.reviewColumn}>
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
                         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
@@ -411,7 +417,7 @@ export default function ProposeTradeScreen() {
         <PageFrame style={styles.container}>
             <PageHeader
                 title={tradeComposerTitle(mode)}
-                onBack={back}
+                onBack={leave}
                 backLabel="Cancel trade proposal"
                 actions={(
                     <Pressable
@@ -429,7 +435,7 @@ export default function ProposeTradeScreen() {
                     </Pressable>
                 )}
             />
-            <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
+            <ScrollView key="editor" style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
               <View style={[styles.main, sideBySide && styles.mainWide]}>
                 {tradingClosed ? (
                     <View style={styles.lockBanner}>

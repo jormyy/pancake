@@ -439,7 +439,7 @@ export function PicksBankList({
 }
 
 const styles = StyleSheet.create({
-    column: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular },
+    column: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
     picksBankHeader: {
         minHeight: table.headerHeight,
         flexDirection: 'row',
@@ -449,7 +449,8 @@ const styles = StyleSheet.create({
     },
     picksBankHeaderRound: { width: 56 },
     picksBankHeaderFrom: { flex: 1, marginLeft: spacing.lg },
-    picksBankHeaderOwner: { width: 96, textAlign: 'right' },
+    // From and Owner split the space evenly, so neither team name is cut while the other has room.
+    picksBankHeaderOwner: { flex: 1, marginLeft: spacing.md, textAlign: 'right' },
     picksBankRow: {
         minHeight: table.rowHeightCompact,
         flexDirection: 'row',
@@ -483,7 +484,7 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.warningDark,
     },
-    picksBankOwner: { width: 96, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    picksBankOwner: { flex: 1, minWidth: 0, marginLeft: spacing.md, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     picksLedgerIntro: {
         paddingTop: spacing.lg,
         paddingBottom: spacing.md,

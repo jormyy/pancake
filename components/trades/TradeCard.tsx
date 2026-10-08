@@ -329,7 +329,7 @@ export function TradeCard({
     return (
         <MotionView style={[styles.card, selected && styles.cardSelected]} preset="rise">
             <View style={styles.cardHeader}>
-                <Text style={styles.cardOpponent} numberOfLines={1}>{model.opponentName}</Text>
+                <Text style={styles.cardOpponent} numberOfLines={2}>{model.opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
                     <MotionPressable
                         style={[styles.analyzeBtn, acting && styles.analyzeBtnDisabled]}

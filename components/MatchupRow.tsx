@@ -4,7 +4,7 @@ import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, fontSize, fontWeight, INJURY_COLORS, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, colors, fontSize, fontWeight, INJURY_COLORS, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
 import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
@@ -380,8 +380,10 @@ function MatchupRowImpl({
             : (POSITION_COLORS[slotType] ?? uiColors.neutralTint)
     const myStats = myPlayer ? liveStats.get(myPlayer.playerId) : undefined
     const oppStats = oppPlayer ? liveStats.get(oppPlayer.playerId) : undefined
-    const myIsLive = myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
-    const oppIsLive = oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
+    // IR and taxi players don't score, so their rows skip the LIVE tag (and keep room for the team).
+    const reserveSlot = slotType === 'IR' || slotType === 'TX'
+    const myIsLive = !reserveSlot && myPlayer?.nbaTeam ? liveTeams.has(myPlayer.nbaTeam) : false
+    const oppIsLive = !reserveSlot && oppPlayer?.nbaTeam ? liveTeams.has(oppPlayer.nbaTeam) : false
     const myFpts = myStats && !myStats.didNotPlay ? computeLiveFantasyPoints(myStats, scoringSettings) : null
     const oppFpts = oppStats && !oppStats.didNotPlay ? computeLiveFantasyPoints(oppStats, scoringSettings) : null
     const openDetails = onOpenDetails && (myPlayer || oppPlayer)
@@ -545,21 +547,22 @@ const styles = StyleSheet.create({
     statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
     slotChipCenter: {
         width: SLOT_W,
-        height: 30,
+        height: 36,
         borderRadius: 8,
         borderCurve: 'continuous' as const,
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
     },
+    // Phone chips are the tap target for lineup moves, so they stay near 44px.
     slotChipCenterCompact: {
-        width: 38,
-        height: 26,
-        borderRadius: 7,
+        width: 42,
+        height: 40,
+        borderRadius: radii.md,
     },
     slotChipCenterDense: {
-        width: 38,
-        height: 24,
+        width: 42,
+        height: 32,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
     slotChipTarget: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successLight },

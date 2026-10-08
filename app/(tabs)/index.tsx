@@ -285,7 +285,7 @@ export default function HomeScreen() {
                                             ? `${shortName(selectedPlayer.displayName)} selected — tap another slot`
                                             : `Empty slot selected — tap a player's slot`}
                                     </Text>
-                                    <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9}>
+                                    <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9} accessibilityRole="button" accessibilityLabel="Cancel lineup move">
                                         <Text style={styles.hintCancel}>Cancel</Text>
                                     </MotionPressable>
                                 </MotionView>

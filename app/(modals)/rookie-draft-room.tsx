@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
-import { getPositionColor } from "@/constants/positions"
 import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
@@ -24,6 +23,7 @@ import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
+import { PosTag } from '@/components/PosTag'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -445,9 +445,7 @@ function ProspectRow({
                 <View style={styles.resultNameRow}>
                     <Text style={styles.resultName} numberOfLines={1}>{player.display_name}</Text>
                     {player.nba_draft_number != null && (
-                        <View style={[styles.posChipXs, { backgroundColor: getPositionColor(player.position) }]}>
-                            <Text style={styles.posChipXsText}>{player.position ?? '?'}</Text>
-                        </View>
+                        <PosTag position={player.position ?? '?'} />
                     )}
                 </View>
                 <Text style={styles.resultTeam}>
@@ -648,13 +646,6 @@ const styles = StyleSheet.create({
     resultTeam: { ...textStyles.meta },
     pickBtn: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
 
-    posChipXs: {
-        paddingHorizontal: spacing.xs,
-        paddingVertical: spacing.xxs,
-        borderRadius: radii.xs,
-        borderCurve: 'continuous' as const,
-    },
-    posChipXsText: { color: colors.textWhite, fontSize: fontSize['2xs'], fontWeight: fontWeight.bold },
 
     separator: { height: 1, backgroundColor: colors.separator },
 
