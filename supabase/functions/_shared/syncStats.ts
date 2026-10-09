@@ -204,8 +204,15 @@ export function buildStatRow(
   weekNumber: number,
 ): PlayerGameStatsInsert {
   const s = p.statistics
-  const minutesPlayed = parseNBAMinutes(s.minutes)
-  const dnp = minutesPlayed == null
+  const parsedMinutes = typeof s.minutes === 'string' ? parseNBAMinutes(s.minutes) : null
+  const minutesPlayed = parsedMinutes != null && Number.isFinite(parsedMinutes) ? parsedMinutes : null
+  // The CDN includes zero-minute rows for both DNPs and players who appeared.
+  // Only explicit provider flags override the legacy minutes fallback.
+  const dnp = p.played === '0' || p.played === 0
+    ? true
+    : p.played === '1' || p.played === 1
+      ? false
+      : minutesPlayed == null
 
   const reb = s.reboundsTotal ?? 0
   const ast = s.assists ?? 0

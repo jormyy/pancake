@@ -176,6 +176,7 @@ interface NBABoxScoreTeam {
 export interface NBABoxScorePlayer {
   personId: number
   name: string
+  played?: string | number | null
   statistics: {
     assists: number
     blocks: number
