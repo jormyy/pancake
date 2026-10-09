@@ -117,6 +117,9 @@ Activation deletes older Pancake caches. The new worker takes control immediatel
 The page checks for a new worker on every return to the foreground, on the browser `online`
 event, and hourly while it stays visible. The page reloads once after a new worker takes
 control. The first worker install does not reload the page.
+If session storage denies access, the version reply still closes its port. The page
+does not reload without a saved version comparison. This does not grant a cached
+identity or change the private-resource policy.
 
 A response the host rewrote to a document (the `+not-found.html` HTTP 200 rewrite for a
 hashed asset from a previous release) is never stored in an asset cache.
