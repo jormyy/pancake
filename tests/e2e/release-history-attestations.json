@@ -364,6 +364,13 @@
       "statementCount": 4,
       "statementsSha256": "283074369c9a2b71e868aa290759ad1f4e588ca278f52d24adf944999afb7d24",
       "sha256": "1a6c5e3109155f02b9f0254426e28d60d521b8b7d7c87f612d7dc6fc92f0275d"
+    },
+    {
+      "name": "projection_team_calendar",
+      "version": "20261009000003",
+      "statementCount": 2,
+      "statementsSha256": "65c816410cd37519e1564045a68f80c347e145dacd5c36ea610cfd9f96d1678b",
+      "sha256": "ba268fba2fadc64160cf1ae730d362873fd97e6c2da00ac30629ddce2449cbff"
     }
   ]
 }

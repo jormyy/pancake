@@ -1,7 +1,5 @@
--- Canonical SQL source for public.get_league_projection_rows.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
-
+-- Reuse only the next-game calendar row for equal teams within this invocation.
+-- Preserve the existing player filter, game order, scoring, freshness, and RLS.
 CREATE OR REPLACE FUNCTION public.get_league_projection_rows(
   p_league_id uuid,
   p_season_year int DEFAULT public.current_season_year_et(),
@@ -563,3 +561,5 @@ ORDER BY b.projection_fantasy_points DESC NULLS LAST, bp.display_name ASC, bp.id
 LIMIT (SELECT page_limit FROM args)
 OFFSET (SELECT page_offset FROM args);
 $$;
+
+NOTIFY pgrst, 'reload schema';
