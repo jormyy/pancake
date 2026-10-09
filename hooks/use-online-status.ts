@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 function browserOnline(): boolean {
-    return typeof navigator === 'undefined' || navigator.onLine
+    return typeof navigator === 'undefined' || navigator.onLine !== false
 }
 
 export function useOnlineStatus(): boolean {

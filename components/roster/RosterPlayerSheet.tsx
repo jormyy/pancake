@@ -20,6 +20,7 @@ export type RosterSheetAction = {
     icon: IconName
     onPress: () => void
     tone?: 'default' | 'danger'
+    disabled?: boolean
     accessibilityLabel?: string
 }
 
@@ -103,10 +104,13 @@ export function RosterPlayerSheet({
                             <Pressable
                                 key={action.key}
                                 onPress={action.onPress}
+                                disabled={action.disabled}
+                                accessibilityState={{ disabled: action.disabled }}
                                 accessibilityRole="button"
                                 accessibilityLabel={action.accessibilityLabel ?? action.label}
                                 style={({ hovered, pressed }: PressableState) => [
                                     styles.action,
+                                    action.disabled && { opacity: 0.5 },
                                     index < actions.length - 1 && styles.actionDivider,
                                     hovered && styles.actionHover,
                                     pressed && styles.actionPressed,
