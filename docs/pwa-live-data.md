@@ -299,3 +299,12 @@ logout and identity changes cannot use the previous snapshot. Storage denial or
 corruption makes the saved view unavailable; it never grants identity or access.
 
 Lineup snapshot recovery keeps context authority separate from domain availability. Retry, date changes, realtime catch-up and action readback validate the current owner/member/league, then refresh season and week context before reading the complete selected-day domain. A failed required lookup keeps saved content read-only; a successful roster or lineup response alone cannot restore edit authority. These necessary context reads add traffic and are not a backend-saving claim.
+
+
+### Health-filtered player search
+
+Health-filtered search evaluates the existing invoker score view once per statement for the requested league and season. The statement reuses those rows while applying the existing player filters and page order. Searches without a recognized health filter keep the direct view path. This adds no stored snapshot, API call, TTL, or authority change. Existing score-cache refresh and projection-source rules still apply.
+
+At the isolated 1,330-player population, five paired OUT and IR caller medians fell from 486/331ms to 43/31ms. Ordered output and response bytes stayed equal. Singleton, empty, sort, role, materialized-cache, correction, DNP, settings-refresh, and concurrent-user cases retain the frozen cost and correctness guards. These are local synthetic-data measurements, not production or phone timings.
+
+Migration `20261009000002_health_search_score_reuse.sql` only replaces `public.search_players`; its signature, invoker privileges, stability and existing function settings stay unchanged. It takes no table rewrite or index-build lock. A three-second lock timeout aborts blocked application. Recovery reinstalls the prior canonical function from the accepted pre-migration revision in a transaction, then verifies its body and ACL. Existing callers work with either definition. Production application still requires the release migration preflight and readback.

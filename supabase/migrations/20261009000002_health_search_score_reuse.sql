@@ -1,6 +1,7 @@
--- Canonical SQL source for public.search_players.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Reuse the invoker score relation within health-filtered searches.
+-- Unfiltered searches keep their existing join plan; no persistent cache is added.
+BEGIN;
+SET LOCAL lock_timeout = '3s';
 
 CREATE OR REPLACE FUNCTION public.search_players(
   p_query text DEFAULT '',
@@ -250,3 +251,5 @@ LEFT JOIN projection AS proj
 ORDER BY pb.page_rank;
 END;
 $$;
+
+COMMIT;

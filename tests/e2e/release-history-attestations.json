@@ -357,6 +357,13 @@
       "statementCount": 9,
       "statementsSha256": "5edb1efdaeb65c508860d9c9668b4a803eb1291aa2cf044d28eeddb00f84594b",
       "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
+    },
+    {
+      "name": "health_search_score_reuse",
+      "version": "20261009000002",
+      "statementCount": 4,
+      "statementsSha256": "283074369c9a2b71e868aa290759ad1f4e588ca278f52d24adf944999afb7d24",
+      "sha256": "1a6c5e3109155f02b9f0254426e28d60d521b8b7d7c87f612d7dc6fc92f0275d"
     }
   ]
 }

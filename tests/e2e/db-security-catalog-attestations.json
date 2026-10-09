@@ -1,7 +1,7 @@
 {
   "version": 1,
   "baselineVersion": "20261005000002",
-  "candidateVersion": "20261008000002",
+  "candidateVersion": "20261009000002",
   "common": {
     "functions": [
       {
@@ -755,6 +755,10 @@
     {
       "filename": "20261008000002_optimizer_setting_context_writes.sql",
       "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
+    },
+    {
+      "filename": "20261009000002_health_search_score_reuse.sql",
+      "sha256": "1a6c5e3109155f02b9f0254426e28d60d521b8b7d7c87f612d7dc6fc92f0275d"
     }
   ]
 }
