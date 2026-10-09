@@ -44,13 +44,10 @@ RETURNS TABLE (
   projection_week_number int,
   projection_is_fresh boolean
 )
-LANGUAGE plpgsql
+LANGUAGE sql
 STABLE
 SET search_path = public
 AS $$
-#variable_conflict use_column
-BEGIN
-RETURN QUERY
 WITH args AS (
   SELECT
     CASE WHEN p_view IN ('today', 'week_avg', 'week_total') THEN p_view ELSE 'today' END AS view_name,
@@ -561,5 +558,4 @@ WHERE b.player_id IS NOT NULL
 ORDER BY b.projection_fantasy_points DESC NULLS LAST, bp.display_name ASC, bp.id ASC
 LIMIT (SELECT page_limit FROM args)
 OFFSET (SELECT page_offset FROM args);
-END;
 $$;

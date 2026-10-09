@@ -357,13 +357,6 @@
       "statementCount": 9,
       "statementsSha256": "5edb1efdaeb65c508860d9c9668b4a803eb1291aa2cf044d28eeddb00f84594b",
       "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
-    },
-    {
-      "name": "projection_parameter_plans",
-      "version": "20261009000001",
-      "statementCount": 4,
-      "statementsSha256": "05a22a9c41cfa180a554034969cdad71207c536c2eb6f91f4651df093fe62a67",
-      "sha256": "4d8dac22d38a1f1938fb0a8fbbbc9c1da381948485fbb69a16f63aefefc00e78"
     }
   ]
 }
