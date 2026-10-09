@@ -273,3 +273,26 @@ The required public boot graph includes the sign-in export's scripts and styles.
 Logout can therefore reach signed-out controls even when a user entered through
 signup and never loaded Sign In. The worker still verifies allowlisted public bytes
 and headers, rejects incomplete installs, and does not cache private responses.
+
+### Lineup saved-day recovery
+
+The Lineup screen stores successful roster, slot and week-schedule reads through the
+existing private cache. Its scope includes the admitted auth project and user,
+member, league, current ET day, selected day and the observed season. A context
+pointer and the day payload must agree. The family uses at most four cache entries,
+within the global 64-entry limit, and rejects payloads over 256 KiB. Entries expire
+within 24 hours and cannot carry yesterday's current-day context into today.
+
+Saved Lineup content is read-only. It never establishes current locks, eligibility,
+optimizer authority or live game status. Offline, updating and failed-refresh
+states use the existing inline status area. Date and back navigation remain usable;
+an unsaved day is unavailable. Auto-set and move controls require a successful
+current load and online server validation. There is no offline write queue.
+
+Reconnect, foreground and the next ET midnight revalidate the context. Requests
+capture the owner generation and selected date before fetching, and recheck them
+before saving or rendering. Confirmed access failures, missing active seasons,
+logout and identity changes cannot use the previous snapshot. Storage denial or
+corruption makes the saved view unavailable; it never grants identity or access.
+
+Lineup snapshot recovery keeps context authority separate from domain availability. Retry, date changes, realtime catch-up and action readback validate the current owner/member/league, then refresh season and week context before reading the complete selected-day domain. A failed required lookup keeps saved content read-only; a successful roster or lineup response alone cannot restore edit authority. These necessary context reads add traffic and are not a backend-saving claim.

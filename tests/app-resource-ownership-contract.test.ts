@@ -9,7 +9,9 @@ describe('route resource ownership contracts', () => {
         const lineup = source('app/(modals)/lineup.tsx')
         expect(lineup).toContain('const ownsLineup = dataOwnerKey === ownerKey')
         expect(lineup).toContain('const visibleCtx = ownsLineup ? ctx : null')
-        expect(lineup).toContain('disabled={saving || lineupRefreshing || lineupLoading}')
+        expect(lineup).toContain('generation === sessionGeneration()')
+        expect(lineup).toContain('readStoredAuthState().session?.user.id === userId')
+        expect(lineup).toContain('disabled={readOnly || saving || lineupRefreshing || lineupLoading}')
     })
 
     it('cancels roster confirmations and action effects when membership changes', () => {
