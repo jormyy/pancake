@@ -1,6 +1,6 @@
--- Canonical SQL source for public.get_league_projection_rows.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+-- Preserve projection rows and permissions while using automatic per-call query planning.
+BEGIN;
+SET LOCAL lock_timeout = '5s';
 
 CREATE OR REPLACE FUNCTION public.get_league_projection_rows(
   p_league_id uuid,
@@ -563,3 +563,5 @@ LIMIT (SELECT page_limit FROM args)
 OFFSET (SELECT page_offset FROM args);
 END;
 $$;
+
+COMMIT;

@@ -299,3 +299,10 @@ logout and identity changes cannot use the previous snapshot. Storage denial or
 corruption makes the saved view unavailable; it never grants identity or access.
 
 Lineup snapshot recovery keeps context authority separate from domain availability. Retry, date changes, realtime catch-up and action readback validate the current owner/member/league, then refresh season and week context before reading the complete selected-day domain. A failed required lookup keeps saved content read-only; a successful roster or lineup response alone cannot restore edit authority. These necessary context reads add traffic and are not a backend-saving claim.
+
+
+### Projection query planning
+
+`get_league_projection_rows` keeps its existing query, stable snapshot, invoker permissions, and public search path. Its PL/pgSQL wrapper lets PostgreSQL use normal parameter-aware query planning without planner overrides. Projection source selection, freshness windows, score arithmetic, ordering, and page bounds stay unchanged.
+
+The migration only replaces the existing function and uses a five-second local lock timeout. No table rewrite or new index is required. Before production application, confirm the current function signature, owner, grants, and source body. Recovery replaces the function with its preceding SQL-language definition; it does not delete data. The measured local workload uses synthetic NBA-season-scale rows and generated accounts; it is not phone or production evidence.
