@@ -5,6 +5,8 @@ import { runBounded } from '../_shared/runBounded.ts'
 
 export const OUTBOX_CLAIM_LIMIT = 10
 export const OUTBOX_LEASE_SECONDS = 60
+export const OUTBOX_MAX_CLAIMS_PER_RUN = 20
+export const OUTBOX_DRAIN_BUDGET_MS = 20_000
 const OUTBOX_MUTATION_CONCURRENCY = OUTBOX_CLAIM_LIMIT
 
 export type TradeNotificationOutboxRow = {
@@ -17,6 +19,7 @@ export type TradeNotificationOutboxRow = {
   category: string
 }
 
+type DeliveryCounts = { ticketed: number; failed: number; discarded: number; deadLettered: number }
 type Complete = (row: TradeNotificationOutboxRow) => Promise<void>
 type Fail = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
 type DeadLetter = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
@@ -45,7 +48,7 @@ export async function deliverTradeNotificationOutbox(
   complete: Complete,
   fail: Fail,
   deadLetter: DeadLetter,
-): Promise<{ ticketed: number; failed: number; discarded: number; deadLettered: number }> {
+): Promise<DeliveryCounts> {
   if (rows.length === 0) return { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
 
   let ticketed = 0
@@ -80,4 +83,27 @@ export async function deliverTradeNotificationOutbox(
     }
   }), OUTBOX_MUTATION_CONCURRENCY)
   return { ticketed, failed, discarded, deadLettered }
+}
+
+// One claim per cron run left a burst of trade notifications waiting a full
+// interval for every ten messages. Keep claiming while each batch fills and
+// settles without a retryable failure; any failure ends the run so the
+// existing retry backoff, not this loop, decides when that row is tried again.
+export async function drainTradeNotificationOutbox(
+  claim: () => Promise<TradeNotificationOutboxRow[]>,
+  deliver: (rows: TradeNotificationOutboxRow[]) => Promise<DeliveryCounts>,
+  now: () => number = Date.now,
+): Promise<DeliveryCounts> {
+  const totals: DeliveryCounts = { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
+  const startedAt = now()
+  for (let claims = 0; claims < OUTBOX_MAX_CLAIMS_PER_RUN; claims += 1) {
+    const rows = await claim()
+    const result = await deliver(rows)
+    totals.ticketed += result.ticketed
+    totals.failed += result.failed
+    totals.discarded += result.discarded
+    totals.deadLettered += result.deadLettered
+    if (rows.length < OUTBOX_CLAIM_LIMIT || result.failed > 0 || now() - startedAt >= OUTBOX_DRAIN_BUDGET_MS) break
+  }
+  return totals
 }
