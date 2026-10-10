@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { attestedMigrationFiles } from './helpers/attested-migrations'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -186,7 +187,7 @@ describe('fake upstream handoff', () => {
 })
 
 describe('soak shard plan inputs', () => {
-  const filenames = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql')).sort()
+  const filenames = attestedMigrationFiles.map(({ filename }) => filename)
   const release = JSON.parse(readFileSync('tests/e2e/release-history-attestations.json', 'utf8'))
   const pending = release.approvedMigrations.map((row: { version: string, name: string }) => `${row.version}_${row.name}.sql`)
   const input = {
