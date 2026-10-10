@@ -43,6 +43,12 @@ async function syncStats(body: Record<string, unknown>): Promise<Record<string, 
 }
 
 async function syncBackfill(body: Record<string, unknown>): Promise<unknown> {
+  // Explicit retry of one registered job's failed games; the job keeps its own season and source.
+  const jobId = optionalStringField(body, 'jobId')
+  if (jobId) {
+    assertUuid(jobId, 'jobId')
+    return await invokeInternalFunction('backfill', { action: 'retry', jobId })
+  }
   const seasonYear = optionalIntegerField(body, 'seasonYear', { min: 1946, max: 2100 })
   if (!seasonYear) {
     return await invokeInternalFunction('backfill', { action: 'start-all' })

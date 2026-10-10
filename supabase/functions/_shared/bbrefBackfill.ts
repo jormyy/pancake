@@ -2,9 +2,11 @@ import { supabase } from './supabase.ts'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, sleep } from './bbref.ts'
 import { errorMessage } from './responses.ts'
 import {
+  type BackfillRun,
   completeBackfillJobFromLedger,
   failBackfillJob,
   invokeBackfill,
+  loadBackfillRetryGameKeys,
   loadBackfillTerminalGameKeys,
   markBackfillGameCompleted,
   markBackfillGameFailed,
@@ -38,31 +40,32 @@ type GameRecord = {
   updated_at: string
 }
 
-export async function runBBRefChunk(seasonYear: number, jobId: string, offset: number): Promise<void> {
+/** Returns true when the next chunk was queued with this run's claim. */
+export async function runBBRefChunk(run: BackfillRun, offset: number): Promise<boolean> {
+  const { jobId, seasonYear } = run
   const resolver = await loadNamePlayerResolver()
 
-  if (offset === 0) {
+  // An explicit retry reuses the season already initialized by this job.
+  if (offset === 0 && !run.retryBefore) {
     const initialized = await initializeBBRefSeason(seasonYear, jobId)
-    if (!initialized) return
+    if (!initialized) return false
   }
 
   const dbGames = await loadSeasonGames(seasonYear)
   const dbGameMap = new Map(dbGames.map((game) => [game.nba_game_id, game]))
-  const terminalGameKeys = await loadBackfillTerminalGameKeys(jobId, 'bbref')
+  const skip = run.retryBefore ? null : await loadBackfillTerminalGameKeys(jobId, 'bbref')
+  const retry = run.retryBefore ? await loadBackfillRetryGameKeys(run) : null
   const pendingGameIds = dbGames
     .map((game) => game.nba_game_id)
-    .filter((id) => {
-      const dbGame = dbGameMap.get(id)
-      return dbGame && !terminalGameKeys.has(id)
-    })
+    .filter((id) => dbGameMap.has(id) && (retry ? retry.has(id) : !skip!.has(id)))
 
-  if (offset === 0) await updateBackfillJob(jobId, { total_items: pendingGameIds.length })
+  if (offset === 0 && !run.retryBefore) await updateBackfillJob(jobId, { total_items: pendingGameIds.length })
 
   const chunkGameIds = pendingGameIds.slice(0, BBREF_CHUNK)
   if (!chunkGameIds.length) {
     await completeBackfillJobFromLedger(jobId, 'bbref')
     console.log(`[backfill/bbref] Season ${seasonYear} complete.`)
-    return
+    return false
   }
 
   let completed = 0
@@ -90,7 +93,7 @@ export async function runBBRefChunk(seasonYear: number, jobId: string, offset: n
 
   if (!isDone) {
     try {
-      await invokeBackfill({ action: 'continue', source: 'bbref', seasonYear, jobId, offset: offset + BBREF_CHUNK })
+      await invokeBackfill({ action: 'continue', source: 'bbref', seasonYear, jobId, offset: offset + BBREF_CHUNK, claimToken: run.claimToken })
     } catch (e) {
       await failBackfillJob(jobId, e)
       throw e
@@ -98,6 +101,7 @@ export async function runBBRefChunk(seasonYear: number, jobId: string, offset: n
   }
 
   console.log(`[backfill/bbref] Season ${seasonYear} offset=${offset}: ${completed} ok, ${failed} failed; ledger=${ledgerProgress.completed_items}/${ledgerProgress.failed_items}`)
+  return !isDone
 }
 
 async function initializeBBRefSeason(seasonYear: number, jobId: string): Promise<boolean> {

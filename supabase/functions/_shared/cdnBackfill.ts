@@ -2,9 +2,11 @@ import { supabase } from './supabase.ts'
 import { buildStatRow } from './syncStats.ts'
 import { errorMessage } from './responses.ts'
 import {
+  type BackfillRun,
   completeBackfillJobFromLedger,
   failBackfillJob,
   invokeBackfill,
+  loadBackfillRetryGameKeys,
   loadBackfillTerminalGameKeys,
   markBackfillGameCompleted,
   markBackfillGameFailed,
@@ -46,10 +48,18 @@ type CdnBoxScore = {
   game?: CdnGame
 }
 
-export async function runCDNChunk(seasonYear: number, jobId: string, offset: number): Promise<void> {
+/** Returns true when the next chunk was queued with this run's claim. */
+export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boolean> {
+  const { jobId, seasonYear } = run
   const allGames = await loadFinalCdnGames(seasonYear)
-  const terminalGameKeys = await loadBackfillTerminalGameKeys(jobId, 'cdn')
-  const pending = allGames.filter((game) => !terminalGameKeys.has(game.nba_game_id))
+  let pending: DbGame[]
+  if (run.retryBefore) {
+    const retryGameKeys = await loadBackfillRetryGameKeys(run)
+    pending = allGames.filter((game) => retryGameKeys.has(game.nba_game_id))
+  } else {
+    const terminalGameKeys = await loadBackfillTerminalGameKeys(jobId, 'cdn')
+    pending = allGames.filter((game) => !terminalGameKeys.has(game.nba_game_id))
+  }
 
   if (offset === 0) await updateBackfillJob(jobId, { total_items: allGames.length })
 
@@ -57,7 +67,7 @@ export async function runCDNChunk(seasonYear: number, jobId: string, offset: num
   if (!chunk.length) {
     await completeBackfillJobFromLedger(jobId, 'cdn')
     console.log(`[backfill/cdn] Season ${seasonYear} complete.`)
-    return
+    return false
   }
 
   let completed = 0
@@ -92,7 +102,7 @@ export async function runCDNChunk(seasonYear: number, jobId: string, offset: num
 
   if (!isDone) {
     try {
-      await invokeBackfill({ action: 'continue', source: 'cdn', seasonYear, jobId, offset: offset + CDN_CHUNK })
+      await invokeBackfill({ action: 'continue', source: 'cdn', seasonYear, jobId, offset: offset + CDN_CHUNK, claimToken: run.claimToken })
     } catch (e) {
       await failBackfillJob(jobId, e)
       throw e
@@ -100,15 +110,20 @@ export async function runCDNChunk(seasonYear: number, jobId: string, offset: num
   }
 
   console.log(`[backfill/cdn] Season ${seasonYear} offset=${offset}: ${completed} ok, ${failed} failed, ${Math.max(0, pending.length - CDN_CHUNK)} remaining; ledger=${ledgerProgress.completed_items}/${ledgerProgress.failed_items}`)
+  return !isDone
 }
 
-export async function runCDNEnumChunk(seasonYear: number, jobId: string, offset: number): Promise<void> {
+/** Returns true when the next chunk was queued with this run's claim. */
+export async function runCDNEnumChunk(run: BackfillRun, offset: number): Promise<boolean> {
+  const { jobId, seasonYear } = run
   const allGameIds = buildCandidateGameIds(seasonYear)
+  if (run.retryBefore) return await runCDNEnumRetryChunk(run, allGameIds, offset)
+
   const terminalGameKeys = await loadBackfillTerminalGameKeys(jobId, 'cdn-enum')
   const chunk = allGameIds.slice(offset, offset + CDN_CHUNK)
   if (!chunk.length) {
     await completeBackfillJobFromLedger(jobId, 'cdn-enum')
-    return
+    return false
   }
 
   let completed = 0
@@ -123,62 +138,101 @@ export async function runCDNEnumChunk(seasonYear: number, jobId: string, offset:
     const currentOffset = offset + index
     if (terminalGameKeys.has(gameId)) continue
 
-    try {
-      const resolver = await loadCdnPlayerResolver()
-      const result = await fetchCdnGameOrMiss(gameId)
-      if (result === 'missing') {
-        await markBackfillGameMissing(jobId, 'cdn-enum', seasonYear, gameId)
-        missing++
-        consecutiveMisses++
-        if (consecutiveMisses > 25) {
-          const nextRangeOffset = findNextCandidateRangeOffset(allGameIds, currentOffset)
-          if (nextRangeOffset == null) {
-            done = true
-          } else {
-            nextOffset = nextRangeOffset
-          }
-          break
+    const outcome = await processCdnEnumGame(run, gameId)
+    if (outcome === 'missing') {
+      missing++
+      consecutiveMisses++
+      if (consecutiveMisses > 25) {
+        const nextRangeOffset = findNextCandidateRangeOffset(allGameIds, currentOffset)
+        if (nextRangeOffset == null) {
+          done = true
+        } else {
+          nextOffset = nextRangeOffset
         }
-        await delay(CDN_DELAY_MS)
-        continue
+        break
       }
-
-      consecutiveMisses = 0
-      const game = result
-      if (!game || game.gameStatus !== 3) {
-        await markBackfillGameFailed(jobId, 'cdn-enum', seasonYear, gameId, 'CDN game is not final')
-        failed++
-        await delay(CDN_DELAY_MS)
-        continue
-      }
-
-      const dbGame = await upsertCdnGame(gameId, game, seasonYear)
-      await upsertCdnStats(game, dbGame.id, seasonYear, dbGame.week_number, resolver)
-      await persistNbaIdUpdates(resolver.nbaIdUpdates)
-      await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
-      completed++
-    } catch (e) {
-      await markBackfillGameFailed(jobId, 'cdn-enum', seasonYear, gameId, e)
-      failed++
-      console.warn(`[backfill/cdn-enum] ${gameId}: ${errorMessage(e)}`)
+      await delay(CDN_DELAY_MS)
+      continue
     }
+
+    consecutiveMisses = 0
+    if (outcome === 'completed') completed++
+    else failed++
     await delay(CDN_DELAY_MS)
   }
 
   const isDone = done || nextOffset >= allGameIds.length
+  return await finishCdnEnumChunk(run, offset, nextOffset, isDone, { completed, failed, missing })
+}
+
+// Explicit retry visits only the job's previously failed candidate IDs.
+async function runCDNEnumRetryChunk(run: BackfillRun, allGameIds: string[], offset: number): Promise<boolean> {
+  const retryGameKeys = await loadBackfillRetryGameKeys(run)
+  const pending = allGameIds.filter((gameId) => retryGameKeys.has(gameId))
+  const chunk = pending.slice(0, CDN_CHUNK)
+  if (!chunk.length) {
+    await completeBackfillJobFromLedger(run.jobId, 'cdn-enum')
+    return false
+  }
+
+  const counts = { completed: 0, failed: 0, missing: 0 }
+  for (const gameId of chunk) {
+    counts[await processCdnEnumGame(run, gameId)]++
+    await delay(CDN_DELAY_MS)
+  }
+  return await finishCdnEnumChunk(run, offset, offset + CDN_CHUNK, pending.length <= CDN_CHUNK, counts)
+}
+
+async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'completed' | 'failed' | 'missing'> {
+  const { jobId, seasonYear } = run
+  try {
+    const resolver = await loadCdnPlayerResolver()
+    const result = await fetchCdnGameOrMiss(gameId)
+    if (result === 'missing') {
+      await markBackfillGameMissing(jobId, 'cdn-enum', seasonYear, gameId)
+      return 'missing'
+    }
+
+    const game = result
+    if (!game || game.gameStatus !== 3) {
+      await markBackfillGameFailed(jobId, 'cdn-enum', seasonYear, gameId, 'CDN game is not final')
+      return 'failed'
+    }
+
+    const dbGame = await upsertCdnGame(gameId, game, seasonYear)
+    await upsertCdnStats(game, dbGame.id, seasonYear, dbGame.week_number, resolver)
+    await persistNbaIdUpdates(resolver.nbaIdUpdates)
+    await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
+    return 'completed'
+  } catch (e) {
+    await markBackfillGameFailed(jobId, 'cdn-enum', seasonYear, gameId, e)
+    console.warn(`[backfill/cdn-enum] ${gameId}: ${errorMessage(e)}`)
+    return 'failed'
+  }
+}
+
+async function finishCdnEnumChunk(
+  run: BackfillRun,
+  offset: number,
+  nextOffset: number,
+  isDone: boolean,
+  counts: { completed: number; failed: number; missing: number },
+): Promise<boolean> {
+  const { jobId, seasonYear } = run
   if (isDone) await recalcCdnEnumWeekNumbers(seasonYear)
   const ledgerProgress = await syncBackfillLedgerProgress(jobId, 'cdn-enum', isDone)
 
   if (!isDone) {
     try {
-      await invokeBackfill({ action: 'continue', source: 'cdn-enum', seasonYear, jobId, offset: nextOffset })
+      await invokeBackfill({ action: 'continue', source: 'cdn-enum', seasonYear, jobId, offset: nextOffset, claimToken: run.claimToken })
     } catch (e) {
       await failBackfillJob(jobId, e)
       throw e
     }
   }
 
-  console.log(`[backfill/cdn-enum] Season ${seasonYear} offset=${offset}: ${completed} ok, ${failed} failed, ${missing} missing; ledger=${ledgerProgress.completed_items}/${ledgerProgress.failed_items}/${ledgerProgress.missing_items}`)
+  console.log(`[backfill/cdn-enum] Season ${seasonYear} offset=${offset}: ${counts.completed} ok, ${counts.failed} failed, ${counts.missing} missing; ledger=${ledgerProgress.completed_items}/${ledgerProgress.failed_items}/${ledgerProgress.missing_items}`)
+  return !isDone
 }
 
 async function loadFinalCdnGames(seasonYear: number): Promise<DbGame[]> {
