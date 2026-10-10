@@ -245,7 +245,7 @@ export default function LineupScreen() {
     selectedDateRef.current = selectedDate
     const [savedSnapshot, setSavedSnapshot] = useState(true)
     const [contextAuthority, setContextAuthority] = useState(false)
-    const loadPendingRef = useRef<{ key: string; promise: Promise<void> } | null>(null)
+    const loadPendingRef = useRef<{ key: string; requestId: number; promise: Promise<void> } | null>(null)
     const [dataOwnerKey, setDataOwnerKey] = useState(ownerKey)
 
     const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
@@ -296,7 +296,10 @@ export default function LineupScreen() {
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return Promise.resolve()
         const wanted = requestedDate ?? (dataOwnerKey === ownerKey ? selectedDateRef.current : currentDay)
         const pendingKey = `${ownerKey}:${sessionGeneration()}:${online}:${wanted}`
-        if (loadPendingRef.current?.key === pendingKey) return loadPendingRef.current.promise
+        // Join a pending load only while it is still the newest request; a load that a later
+        // request (such as going offline) superseded will discard its result.
+        const joinable = loadPendingRef.current
+        if (joinable?.key === pendingKey && joinable.requestId === lineupLoadSeqRef.current) return joinable.promise
         const requestId = ++lineupLoadSeqRef.current
         const generation = sessionGeneration()
         const cached = readLineupSnapshot(snapshotScope, wanted)
@@ -348,7 +351,7 @@ export default function LineupScreen() {
                 if (requestIsCurrent(requestId, generation)) { setLineupLoading(false); setLineupRefreshing(false) }
             }
         })()
-        const pending = { key: pendingKey, promise: task }
+        const pending = { key: pendingKey, requestId, promise: task }
         loadPendingRef.current = pending
         void task.finally(() => { if (loadPendingRef.current === pending) loadPendingRef.current = null })
         return task
