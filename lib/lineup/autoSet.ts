@@ -342,13 +342,11 @@ function chooseBestAssignments(
     hasGame: (player: AutoSetPlayer) => boolean,
 ): { playerId: string; slotType: string }[] {
     const memo = new Map<string, AssignmentResult>()
+    // BigInt bitmask: a Number loses exact bits at index 53, which let a
+    // 54-player roster reuse player 0 in a second slot.
+    const bits = players.map((_, index) => 1n << BigInt(index))
 
-    function used(mask: number, index: number): boolean {
-        const bit = 2 ** index
-        return Math.floor(mask / bit) % 2 === 1
-    }
-
-    function search(slotIndex: number, mask: number): AssignmentResult {
+    function search(slotIndex: number, mask: bigint): AssignmentResult {
         if (slotIndex >= slots.length) return { assignments: [], score: emptyScore() }
         const key = `${slotIndex}:${mask}`
         const cached = memo.get(key)
@@ -359,11 +357,11 @@ function chooseBestAssignments(
         const eligible = SLOT_ELIGIBLE[slotType] ?? []
 
         for (let playerIndex = 0; playerIndex < players.length; playerIndex++) {
-            if (used(mask, playerIndex)) continue
+            if ((mask & bits[playerIndex]) !== 0n) continue
             const player = players[playerIndex]
             if (!player.eligiblePositions.some((pos) => eligible.includes(pos))) continue
 
-            const next = search(slotIndex + 1, mask + 2 ** playerIndex)
+            const next = search(slotIndex + 1, mask | bits[playerIndex])
             const score = addScore(next.score, player, hasGame(player))
             const candidate: AssignmentResult = {
                 assignments: [{ playerId: player.playerId, slotType }, ...next.assignments],
@@ -379,5 +377,5 @@ function chooseBestAssignments(
         return best
     }
 
-    return search(0, 0).assignments
+    return search(0, 0n).assignments
 }
