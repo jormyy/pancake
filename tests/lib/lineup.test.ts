@@ -132,7 +132,7 @@ interface MockOpts {
     avgs: ReturnType<typeof avg>[]
     games: ReturnType<typeof game>[]
     templates?: { slot_type: string; slot_count: number }[]
-    existingEntries?: { player_id: string; slot_type: string }[]
+    existingEntries?: { player_id: string; slot_type: string; players?: { nba_team: string | null } }[]
     seasonWeeks?: any   // single object for getWeekDays (weekly), array for getRemainingSeasonDates (season)
     weekGames?: ReturnType<typeof game>[] // override nba_games for the first (week-level) query
 }
@@ -437,6 +437,25 @@ describe('autoSetLineup — locked lineup preservation', () => {
             expect.objectContaining({ player_id: 'pB', slot_type: 'SG' }),
             expect.objectContaining({ player_id: 'pC', slot_type: 'SF' }),
         ]))
+    })
+
+    it('reserves a locked starter slot after that player leaves the roster', async () => {
+        setupMocks({
+            roster: [rp('pB', 'PG', ['PG', 'SG'], 'BOS')],
+            avgs: [avg('pB', 30)],
+            games: [game('LAL', 'OKC', 'InProgress'), game('BOS', 'MIA')],
+            templates: [{ slot_type: 'PG', slot_count: 1 }, { slot_type: 'SG', slot_count: 1 }],
+            existingEntries: [{ player_id: 'departed', slot_type: 'PG', players: { nba_team: 'LAL' } }],
+        })
+
+        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
+
+        expect(mockRpc).toHaveBeenCalledWith('auto_set_lineup_atomic', expect.objectContaining({
+            p_assignments: [
+                expect.objectContaining({ player_id: 'departed', slot_type: 'PG' }),
+                expect.objectContaining({ player_id: 'pB', slot_type: 'SG' }),
+            ],
+        }))
     })
 
     it('skips the delete call entirely when all existing entries are locked', async () => {

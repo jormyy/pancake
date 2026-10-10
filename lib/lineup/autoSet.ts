@@ -46,6 +46,7 @@ type GameRow = {
     started_at: string | null
 }
 type WeeklyLineupRow = {
+    players?: { nba_team: string | null } | null
     player_id: string
     slot_type: RosterSlotType
 }
@@ -187,7 +188,7 @@ async function autoSetForDate(
             .eq('game_date', gameDate),
         supabase
             .from('weekly_lineups')
-            .select('player_id, slot_type')
+            .select('player_id, slot_type, players(nba_team)')
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId)
@@ -235,7 +236,7 @@ async function autoSetForDate(
             .map((player) => player.playerId),
     )
     for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
-        const team = playerTeamMap.get(entry.player_id)
+        const team = entry.players?.nba_team ?? playerTeamMap.get(entry.player_id)
         if (team && startedTeams.has(team)) {
             lockedPlayerIds.add(entry.player_id)
             const isStarter = entry.slot_type !== 'BE' && entry.slot_type !== 'IR'

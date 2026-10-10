@@ -106,11 +106,26 @@ BEGIN
 
     SELECT count(*)
       INTO v_owned_count
-      FROM roster_players
-     WHERE member_id = p_member_id
-       AND league_id = p_league_id
-       AND league_season_id = p_league_season_id
-       AND player_id = ANY (v_player_ids);
+      FROM unnest(v_player_ids) AS requested(player_id)
+     WHERE EXISTS (
+       SELECT 1 FROM roster_players rp
+        WHERE rp.member_id = p_member_id
+          AND rp.league_id = p_league_id
+          AND rp.league_season_id = p_league_season_id
+          AND rp.player_id = requested.player_id
+     ) OR EXISTS (
+       SELECT 1
+         FROM weekly_lineups wl
+         JOIN jsonb_array_elements(p_assignments) AS a
+           ON (a->>'player_id')::uuid = wl.player_id
+          AND (a->>'slot_type')::roster_slot_type = wl.slot_type
+        WHERE wl.member_id = p_member_id
+          AND wl.league_id = p_league_id
+          AND wl.league_season_id = p_league_season_id
+          AND wl.game_date = p_game_date
+          AND wl.player_id = requested.player_id
+          AND private.lineup_game_started(wl.player_id, wl.game_date)
+     );
 
     v_total_count := array_length(v_player_ids, 1);
     IF v_owned_count <> v_total_count THEN
@@ -300,7 +315,8 @@ BEGIN
    WHERE member_id = p_member_id
      AND league_id = p_league_id
      AND league_season_id = p_league_season_id
-     AND game_date = p_game_date;
+     AND game_date = p_game_date
+     AND NOT private.lineup_game_started(player_id, game_date);
 
   INSERT INTO weekly_lineups (
     member_id,
@@ -326,6 +342,14 @@ BEGIN
     FROM jsonb_array_elements(p_assignments) AS a
    WHERE a->>'player_id' IS NOT NULL
      AND a->>'slot_type' IS NOT NULL
-     AND (a->>'slot_type')::roster_slot_type <> 'BE'::roster_slot_type;
+     AND (a->>'slot_type')::roster_slot_type <> 'BE'::roster_slot_type
+     AND NOT EXISTS (
+       SELECT 1 FROM weekly_lineups wl
+        WHERE wl.member_id = p_member_id
+          AND wl.league_id = p_league_id
+          AND wl.league_season_id = p_league_season_id
+          AND wl.game_date = p_game_date
+          AND wl.player_id = (a->>'player_id')::uuid
+     );
 END;
 $function$;

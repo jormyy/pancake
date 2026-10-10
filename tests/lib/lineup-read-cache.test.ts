@@ -7,13 +7,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
     counts: new Map<string, number>(),
     failTemplates: 0,
+    assignments: [] as Record<string, unknown>[],
+    players: [] as Record<string, unknown>[],
 }))
 
 vi.mock('@/lib/supabase', async () => {
     const fixtures = {
         lineup_slot_templates: [{ league_id: 'league', slot_type: 'PG', slot_count: 1 }],
         roster_players: [],
-        weekly_lineups: [],
+        weekly_lineups: state.assignments,
+        players: state.players,
     }
     const fake = (await import('../helpers/fake-supabase')).createFakeSupabase(state.counts, fixtures)
     return {
@@ -46,9 +49,21 @@ beforeEach(() => {
     clearSessionCaches()
     state.counts.clear()
     state.failTemplates = 0
+    state.assignments.length = 0
+    state.players.length = 0
 })
 
 describe('lineup read caches', () => {
+    it('shows a retained starter who leaves the roster during the current day', async () => {
+        state.assignments.push({ player_id: 'departed', slot_type: 'PG' })
+        state.players.push({ id: 'departed', display_name: 'Departed starter', position: 'PG', eligible_positions: ['PG'], nba_team: 'BOS' })
+
+        const lineup = await read()
+
+        expect(lineup.starters[0].player).toMatchObject({ playerId: 'departed', displayName: 'Departed starter' })
+        expect(lineup.bench).toEqual([])
+    })
+
     it('a silent refresh hits the cached templates and roster; a full load misses them', async () => {
         await read()
         await read({ allowCachedStatics: true })
