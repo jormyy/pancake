@@ -28,7 +28,7 @@ export async function signOut() {
     try {
         await detachWebPushFromAccount()
     } catch (error) {
-        // Not fatal: the next signed-in sync re-assigns this endpoint to its new owner.
+        // Local sign-out still completes when notification cleanup fails.
         console.warn('Web push detach failed.', error)
     }
 

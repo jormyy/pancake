@@ -164,6 +164,18 @@ describe('web push client', () => {
         expect(subscription.unsubscribe).toHaveBeenCalled()
     })
 
+    it('revokes local delivery when account detach fails during sign-out', async () => {
+        permission = 'granted'
+        const subscription = fakeSubscription('https://web.push.apple.com/device', keyBytes())
+        current = subscription
+        const { detachWebPushFromAccount } = await load()
+        mocks.apiPost.mockRejectedValueOnce(new Error('offline'))
+
+        await expect(detachWebPushFromAccount()).rejects.toThrow('offline')
+
+        expect(subscription.unsubscribe).toHaveBeenCalledOnce()
+    })
+
     it('is a no-op without the Push API (native)', async () => {
         vi.stubGlobal('navigator', { product: 'ReactNative' })
         vi.stubGlobal('window', {})

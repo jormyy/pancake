@@ -128,7 +128,13 @@ export async function detachWebPushFromAccount(): Promise<void> {
     const worker = await registration()
     const subscription = await worker?.pushManager.getSubscription()
     if (!subscription) return
-    await apiPost('/profile/web-push/unsubscribe', { endpoint: subscription.endpoint })
+    try {
+        await apiPost('/profile/web-push/unsubscribe', { endpoint: subscription.endpoint })
+    } catch (error) {
+        // The server still owns this endpoint, so stop delivery in the browser.
+        await subscription.unsubscribe().catch(() => false)
+        throw error
+    }
 }
 
 export async function disableWebPush(): Promise<void> {
