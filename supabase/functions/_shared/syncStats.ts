@@ -3,7 +3,6 @@ import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
 import {
   loadCdnPlayerResolver,
-  persistNbaIdUpdates,
   resolveCdnPlayer,
   type CdnPlayerResolver,
 } from './playerResolver.ts'
@@ -61,10 +60,6 @@ export async function syncStatsByDate(
     }
   }
 
-  // A shared resolver spans several dates and accumulates ids across all of them;
-  // its owner persists once at the end so we do not rewrite the same list per date.
-  if (!sharedResolver) await flushNbaIdUpdates(resolver)
-
   if (syncFailures.length > 0) {
     throw new Error(`[sync-stats] Failed to sync ${syncFailures.length} game(s) for ${dateStr}: ${syncFailures.join('; ')}`)
   }
@@ -80,23 +75,10 @@ export async function syncStatsForDates(dateKeys: string[]): Promise<number> {
 
   const resolver = await loadCdnPlayerResolver()
   let statCount = 0
-  try {
-    for (const dateKey of dateKeys) {
-      statCount += await syncStatsByDate(dateFromETDate(dateKey), resolver)
-    }
-  } finally {
-    // A failing date must not cost us the id mappings resolved before it; the
-    // per-date path persisted before throwing, and this keeps that guarantee.
-    await flushNbaIdUpdates(resolver)
+  for (const dateKey of dateKeys) {
+    statCount += await syncStatsByDate(dateFromETDate(dateKey), resolver)
   }
   return statCount
-}
-
-async function flushNbaIdUpdates(resolver: CdnPlayerResolver): Promise<void> {
-  await persistNbaIdUpdates(resolver.nbaIdUpdates)
-  if (resolver.nbaIdUpdates.length > 0) {
-    console.log(`[sync-stats] Mapped ${resolver.nbaIdUpdates.length} new NBA person IDs.`)
-  }
 }
 
 export async function findNextStatsGame(dateStr: string, afterGameId?: string): Promise<StatsSyncGame | null> {
@@ -107,7 +89,6 @@ export async function findNextStatsGame(dateStr: string, afterGameId?: string): 
 export async function syncStatsGame(game: StatsSyncGame): Promise<number> {
   const resolver = await loadCdnPlayerResolver()
   const statLines = await syncStatsGameWithResolver(game, resolver, true)
-  await persistNbaIdUpdates(resolver.nbaIdUpdates)
   return statLines
 }
 

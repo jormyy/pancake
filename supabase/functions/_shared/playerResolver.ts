@@ -8,18 +8,12 @@ type PlayerRow = {
   nba_id?: string | null
 }
 
-type NbaIdUpdate = {
-  id: string
-  nba_id: string
-}
-
 const AMBIGUOUS = '__ambiguous__'
 
 export type CdnPlayerResolver = {
   byNbaId: Map<string, string>
   byExactName: Map<string, string>
   byName: Map<string, string>
-  nbaIdUpdates: NbaIdUpdate[]
 }
 
 export type NamePlayerResolver = {
@@ -57,7 +51,7 @@ export async function loadCdnPlayerResolver(): Promise<CdnPlayerResolver> {
       setUniqueName(byName, normalizeName(player.display_name), player.id)
     }
   }
-  return { byNbaId, byExactName, byName, nbaIdUpdates: [] }
+  return { byNbaId, byExactName, byName }
 }
 
 export async function loadNamePlayerResolver(): Promise<NamePlayerResolver> {
@@ -83,7 +77,7 @@ export async function resolveCdnPlayer(
   const normalizedName = normalizeName(displayName)
   const exactName = resolver.byExactName.get(displayName.toLowerCase())
   if (exactName && exactName !== AMBIGUOUS) {
-    resolver.nbaIdUpdates.push({ id: exactName, nba_id: personId })
+    await claimNbaId(exactName, personId)
     resolver.byNbaId.set(personId, exactName)
     return exactName
   }
@@ -96,7 +90,7 @@ export async function resolveCdnPlayer(
     ? exactName
     : normalizedMatch
   if (existingByName && existingByName !== AMBIGUOUS) {
-    resolver.nbaIdUpdates.push({ id: existingByName, nba_id: personId })
+    await claimNbaId(existingByName, personId)
     resolver.byNbaId.set(personId, existingByName)
     return existingByName
   }
@@ -128,31 +122,22 @@ export async function resolveNamedPlayer(
   throw new Error(`No canonical player match for BBRef player: ${displayName}`)
 }
 
-export async function persistNbaIdUpdates(updates: NbaIdUpdate[]): Promise<void> {
-  for (const update of updates) {
-    const existingOwner = await mustSupabase(
-      'load existing player by NBA id before update',
-      supabase
-        .from('players')
-        .select('id')
-        .eq('nba_id', update.nba_id)
-        .maybeSingle(),
-    )
-    if (existingOwner?.id && existingOwner.id !== update.id) {
-      await mustSupabase(
-        'merge duplicate player before NBA id update',
-        supabase.rpc('merge_players', {
-          winner_id: existingOwner.id,
-          loser_id: update.id,
-        }),
-      )
-      continue
-    }
+async function claimNbaId(playerId: string, nbaId: string): Promise<void> {
+  // Claim identity before returning a player ID that callers use for stats.
+  // The null predicate prevents concurrent providers from replacing an ID.
+  const claimed = await mustSupabase(
+    'claim NBA player id',
+    supabase.from('players').update({ nba_id: nbaId })
+      .eq('id', playerId).is('nba_id', null).select('id').maybeSingle(),
+  )
+  if (claimed?.id) return
 
-    await mustSupabase(
-      'persist NBA player id update',
-      supabase.from('players').update({ nba_id: update.nba_id }).eq('id', update.id),
-    )
+  const current = await mustSupabase(
+    'verify NBA player id',
+    supabase.from('players').select('nba_id').eq('id', playerId).maybeSingle(),
+  )
+  if (current?.nba_id !== nbaId) {
+    throw new Error(`Conflicting NBA identity for player ${playerId}: ${nbaId}`)
   }
 }
 
@@ -175,13 +160,13 @@ async function createPlayer(displayName: string, nbaId?: string): Promise<string
     if (!newPlayer?.id) throw new Error(`create backfill player returned no id for ${displayName}`)
     return newPlayer.id
   } catch (error) {
-    const existingId = await findExistingPlayer(displayName, nbaId)
+    const existingId = await findExistingPlayer(nbaId)
     if (existingId) return existingId
     throw error
   }
 }
 
-async function findExistingPlayer(displayName: string, nbaId?: string): Promise<string | null> {
+async function findExistingPlayer(nbaId: string): Promise<string | null> {
   if (nbaId) {
     const byNbaId = await mustSupabase(
       'reload player by NBA id',
@@ -194,19 +179,7 @@ async function findExistingPlayer(displayName: string, nbaId?: string): Promise<
     if (byNbaId?.id) return byNbaId.id
   }
 
-  const normalized = normalizeName(displayName)
-  let match: string | null = null
-  let ambiguous = false
-  for (const player of await loadPlayers('id, display_name')) {
-    if (!player.display_name || normalizeName(player.display_name) !== normalized) continue
-    if (match && match !== player.id) {
-      ambiguous = true
-      break
-    }
-    match = player.id
-  }
-
-  return ambiguous ? null : match
+  return null
 }
 
 function setUniqueName(map: Map<string, string>, key: string, playerId: string): void {

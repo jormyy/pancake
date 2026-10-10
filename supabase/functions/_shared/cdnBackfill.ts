@@ -15,7 +15,7 @@ import {
   syncBackfillLedgerProgress,
   updateBackfillJob,
 } from './backfillJobs.ts'
-import { loadCdnPlayerResolver, persistNbaIdUpdates, resolveCdnPlayer } from './playerResolver.ts'
+import { loadCdnPlayerResolver, resolveCdnPlayer } from './playerResolver.ts'
 import type { Database } from './database.ts'
 import type { NBABoxScorePlayer } from './nba.ts'
 
@@ -85,7 +85,6 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
       }
 
       await upsertCdnStats(game, dbGame.id, seasonYear, dbGame.week_number, resolver)
-      await persistNbaIdUpdates(resolver.nbaIdUpdates)
       await markBackfillGameCompleted(jobId, 'cdn', seasonYear, gameId, dbGame.id)
       completed++
     } catch (e) {
@@ -201,7 +200,6 @@ async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'co
 
     const dbGame = await upsertCdnGame(gameId, game, seasonYear)
     await upsertCdnStats(game, dbGame.id, seasonYear, dbGame.week_number, resolver)
-    await persistNbaIdUpdates(resolver.nbaIdUpdates)
     await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
     return 'completed'
   } catch (e) {
