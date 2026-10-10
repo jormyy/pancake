@@ -259,6 +259,21 @@ async function loadStarterSlots(leagueId: string): Promise<string[]> {
 function bestLineupPointsForDate(candidates: LineupCandidate[], starterSlots: string[]): number {
     if (candidates.length === 0 || starterSlots.length === 0) return 0
 
+    if (candidates.length > starterSlots.length
+        && starterSlots.every((slot) => slot === 'UTIL')
+        && candidates.every((candidate) => Number.isFinite(candidate.points))) {
+        // Identical slots need only the strongest eligible positive entries.
+        // Keep their input order and the DFS's addition order, including ties.
+        candidates = candidates
+            .map((candidate, index) => ({ candidate, index }))
+            .filter(({ candidate }) => candidate.points > 0
+                && canPlayStarterSlot(candidate.eligible_positions, 'UTIL'))
+            .sort((a, b) => b.candidate.points - a.candidate.points)
+            .slice(0, starterSlots.length)
+            .sort((a, b) => a.index - b.index)
+            .map(({ candidate }) => candidate)
+    }
+
     const memo = new Map<string, number>()
 
     function dfs(slotIndex: number, usedMask: bigint): number {
