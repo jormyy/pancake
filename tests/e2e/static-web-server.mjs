@@ -133,7 +133,7 @@ const server = createServer((request, response) => {
   const immutableAsset = filePath.includes(`${path.sep}_expo${path.sep}static${path.sep}`);
   const encoding = acceptedEncoding(request, extension);
   response.writeHead(200, {
-    'cache-control': immutableAsset ? 'public, max-age=31536000, immutable' : 'no-store',
+    'cache-control': immutableAsset ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate',
     'content-type': contentTypes.get(extension) ?? 'application/octet-stream',
     ...(encoding ? { 'content-encoding': encoding, vary: 'Accept-Encoding' } : {}),
   });
