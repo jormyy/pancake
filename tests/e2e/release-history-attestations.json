@@ -371,6 +371,13 @@
       "statementCount": 2,
       "statementsSha256": "65c816410cd37519e1564045a68f80c347e145dacd5c36ea610cfd9f96d1678b",
       "sha256": "ba268fba2fadc64160cf1ae730d362873fd97e6c2da00ac30629ddce2449cbff"
+    },
+    {
+      "name": "trade_veto_read_policy",
+      "version": "20261010000001",
+      "statementCount": 2,
+      "statementsSha256": "b561f07f93bb456ae72d2712b974ba42c21fb54fd362979f5d761b16c27fa260",
+      "sha256": "16907cc0841e032a39e318e48630b916b7ccebaa61ee0bb6b90d6e9c5f7cb9ff"
     }
   ]
 }

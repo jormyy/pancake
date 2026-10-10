@@ -1,7 +1,7 @@
 {
   "version": 1,
   "baselineVersion": "20261005000002",
-  "candidateVersion": "20261009000003",
+  "candidateVersion": "20261010000001",
   "common": {
     "functions": [
       {
@@ -763,6 +763,10 @@
     {
       "filename": "20261009000003_projection_team_calendar.sql",
       "sha256": "ba268fba2fadc64160cf1ae730d362873fd97e6c2da00ac30629ddce2449cbff"
+    },
+    {
+      "filename": "20261010000001_trade_veto_read_policy.sql",
+      "sha256": "16907cc0841e032a39e318e48630b916b7ccebaa61ee0bb6b90d6e9c5f7cb9ff"
     }
   ]
 }
