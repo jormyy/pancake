@@ -94,6 +94,11 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  IF private.roster_status_game_started(v_rp.player_id) THEN
+    RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_taxi_slots := COALESCE(v_league.taxi_slots, 0);
 

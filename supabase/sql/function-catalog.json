@@ -67,6 +67,7 @@
     "private.replace_trade_offer(uuid,uuid,uuid,text,uuid[],uuid[],uuid[],uuid[],text,timestamp with time zone,integer,integer)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.reserved_trade_asset_message()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.roll_setup_league_seasons(timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.roster_status_game_started(uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.seed_faab_balances_for_member()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.seed_faab_balances_for_season()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.set_trade_child_league_id()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
