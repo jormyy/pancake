@@ -193,7 +193,20 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type !== 'PANCAKE_WORKER_VERSION') return
-  event.ports?.[0]?.postMessage({ version: VERSION })
+  // controllerchange can precede activation. Keep the current page visible
+  // until the replacement worker can serve the reload without waiting.
+  event.waitUntil(new Promise((resolve) => {
+    const worker = self.registration.active
+    if (!worker) { resolve(); return }
+    const replyWhenActive = () => {
+      if (worker.state !== 'activated' && worker.state !== 'redundant') return
+      worker.removeEventListener('statechange', replyWhenActive)
+      if (worker.state === 'activated') event.ports?.[0]?.postMessage({ version: VERSION })
+      resolve()
+    }
+    worker.addEventListener('statechange', replyWhenActive)
+    replyWhenActive()
+  }))
 })
 
 async function assetResponse(request, event, immutable) {
