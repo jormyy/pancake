@@ -260,7 +260,9 @@ export async function syncBackfillLedgerProgress(
   return progress
 }
 
-export async function loadBackfillTerminalGameKeys(jobId: string, source: string): Promise<Set<string>> {
+export async function loadBackfillTerminalGameKeys(
+  jobId: string, source: string, statuses: ('completed' | 'failed' | 'missing')[] = ['completed', 'failed', 'missing'],
+): Promise<Set<string>> {
   const keys = new Set<string>()
   let page = 0
 
@@ -272,7 +274,7 @@ export async function loadBackfillTerminalGameKeys(jobId: string, source: string
         .select('game_key')
         .eq('job_id', jobId)
         .eq('source', source)
-        .in('status', ['completed', 'failed', 'missing'])
+        .in('status', statuses)
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
     )
 

@@ -10,7 +10,7 @@ vi.mock('@/lib/supabase', () => ({
         from: vi.fn(),
     },
 }))
-vi.mock('@/lib/web-push', () => ({ detachWebPushFromAccount: vi.fn() }))
+vi.mock('@/lib/web-push', () => ({ detachWebPushFromAccount: vi.fn(), prepareWebPushLogin: vi.fn(async () => null), completeWebPushLogin: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: vi.fn() }))
 
 import { signOut, signUp } from '@/lib/auth'

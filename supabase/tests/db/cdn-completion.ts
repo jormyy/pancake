@@ -16,7 +16,14 @@ const payload = () => {
   return {game:{gameId:gameKey,gameStatus:3,gameEt:`${year-1}-10-15T19:00:00`,homeTeam:{teamTricode:'XCH',players:[players[0]]},awayTeam:{teamTricode:'XCA',players:mode==='empty-team'?[]:[players[1]]}}}
 }
 const provider = Deno.serve({hostname:'127.0.0.1',port:0,onListen(){}},request=>{
-  assert.equal(new URL(request.url).pathname,`/liveData/boxscore/boxscore_${gameKey}.json`)
+  const pathname = new URL(request.url).pathname
+  if (pathname !== `/liveData/boxscore/boxscore_${gameKey}.json`) {
+    const expectedPrefix = `/liveData/boxscore/boxscore_${gameKey.slice(0,-4)}`
+    assert.ok(pathname.startsWith(expectedPrefix))
+    const candidate = Number(pathname.slice(expectedPrefix.length, -5))
+    assert.ok(candidate >= 2 && candidate <= 27, 'Stop after the verified 26-candidate missing tail')
+    return new Response('No such synthetic candidate', {status:404})
+  }
   return mode==='provider-failure'?new Response('Synthetic provider failure',{status:503}):Response.json(payload())
 })
 const origin=`http://127.0.0.1:${provider.addr.port}`

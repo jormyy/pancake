@@ -1,6 +1,6 @@
 import { supabase, invalidateLocalAuthSession } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
-import { detachWebPushFromAccount } from '@/lib/web-push'
+import { completeWebPushLogin, detachWebPushFromAccount, prepareWebPushLogin } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 export async function signUp(
@@ -9,18 +9,22 @@ export async function signUp(
     username: string,
     displayName: string,
 ) {
+    const pushIntent = await prepareWebPushLogin()
     const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { username, display_name: displayName } },
     })
     if (error) throw error
+    if (data.session) await completeWebPushLogin(pushIntent, data.session.user.id)
     return data
 }
 
 export async function signIn(email: string, password: string) {
+    const pushIntent = await prepareWebPushLogin()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    if (data.session) await completeWebPushLogin(pushIntent, data.session.user.id)
     return data
 }
 

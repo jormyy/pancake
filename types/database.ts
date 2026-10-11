@@ -3850,6 +3850,17 @@ export type Database = {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
       }
+      clear_web_push_for_user_atomic: {
+        Args: {
+          p_endpoint: string
+          p_next_credential_hash: string
+          p_user_id: string
+        }
+        Returns: {
+          applied: boolean
+          generation: number
+        }[]
+      }
       close_auction_nomination_atomic: {
         Args: { p_nomination_id: string }
         Returns: boolean
@@ -4529,6 +4540,21 @@ export type Database = {
       register_push_token_atomic: {
         Args: { p_revocation_hash: string; p_token: string; p_user_id: string }
         Returns: undefined
+      }
+      register_web_push_atomic: {
+        Args: {
+          p_auth: string
+          p_credential_hash: string
+          p_endpoint: string
+          p_expected_generation: number
+          p_next_credential_hash: string
+          p_p256dh: string
+          p_user_id: string
+        }
+        Returns: {
+          applied: boolean
+          generation: number
+        }[]
       }
       reject_trade_atomic: {
         Args: { p_member_id: string; p_trade_id: string; p_user_id: string }

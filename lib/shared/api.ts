@@ -53,8 +53,9 @@ function apiErrorMessage(json: { error?: unknown; message?: unknown } | null, st
     return error ?? message ?? `API error: ${status}`
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+async function authHeaders(expectedUserId?: string): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession()
+    if (expectedUserId && session?.user.id !== expectedUserId) throw new Error('Your account changed. Please retry.')
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`
@@ -66,6 +67,8 @@ const DEFAULT_TIMEOUT_MS = 30_000
 
 export interface ApiRequestOptions {
     timeoutMs?: number
+    expectedUserId?: string
+    beforeSend?: () => Promise<void>
 }
 
 function isAbortError(err: unknown): boolean {
@@ -99,9 +102,11 @@ export async function apiPost<T = unknown>(
     const request = async (): Promise<T> => {
         let res: Response
         try {
+            const headers = await authHeaders(options.expectedUserId)
+            await options.beforeSend?.()
             res = await fetch(`${apiUrl()}${path}`, {
                 method: 'POST',
-                headers: await authHeaders(),
+                headers,
                 body: JSON.stringify(body),
                 signal: controller.signal,
             })

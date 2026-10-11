@@ -8,7 +8,7 @@ import {
     Platform,
     ActivityIndicator,
 } from 'react-native'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
@@ -30,6 +30,7 @@ import { Button, ErrorBanner, Page, PageHeader, SegmentedControl, usePageMetrics
 import { showAlert, showSuccess, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { WebPushStatus } from '@/lib/web-push'
+import { sessionGeneration } from '@/lib/session-cache-registry'
 import { useGoBack } from '@/components/ui/useGoBack'
 import { DEFAULT_THEME, readThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference'
 
@@ -50,11 +51,16 @@ export default function ProfileScreen() {
     const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
     const [avatarUploading, setAvatarUploading] = useState(false)
-    const [webPushStatus, setWebPushStatus] = useState<WebPushStatus | null>(null)
+    const pushOwner = `${user?.id ?? ''}:${sessionGeneration()}`
+    const [webPushState, setWebPushState] = useState<{ owner: string; status: WebPushStatus } | null>(null)
+    const setWebPushStatus = useCallback((status: WebPushStatus) => {
+        setWebPushState({ owner: pushOwner, status })
+    }, [pushOwner])
     // Read after mount: the prerendered page cannot know this device's choice.
     const [theme, setTheme] = useState<ThemePreference>(DEFAULT_THEME)
     useEffect(() => { setTheme(readThemePreference()) }, [])
-    const showPreferenceToggles = Platform.OS !== 'web' || webPushStatus === 'on'
+    const showPreferenceToggles = Platform.OS !== 'web' ||
+        (webPushState?.owner === pushOwner && webPushState.status === 'on')
     const preferenceUserId = user?.id
     const activeUserIdRef = useRef(preferenceUserId)
     activeUserIdRef.current = preferenceUserId
@@ -291,7 +297,7 @@ export default function ProfileScreen() {
                 <SettingsGroup title="Notifications">
                     {/* Web delivers through standards Web Push; the category toggles only
                         matter once this device is subscribed. */}
-                    {Platform.OS === 'web' ? <WebPushSettings onStatusChange={setWebPushStatus} /> : null}
+                    {Platform.OS === 'web' ? <WebPushSettings key={pushOwner} onStatusChange={setWebPushStatus} /> : null}
                     {showPreferenceToggles ? notificationRows.map(([key, label]) => (
                         <SettingsRow
                             key={key}

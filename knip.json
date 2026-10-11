@@ -30,7 +30,8 @@
     "supabase/tests/db/cdn-calendar-completeness.ts",
     "supabase/tests/db/bbref-player-completeness.ts",
     "supabase/tests/db/bbref-schedule-completeness.ts",
-    "supabase/tests/db/player-name-parity.ts"
+    "supabase/tests/db/player-name-parity.ts",
+    "supabase/tests/db/cdn-continuation.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

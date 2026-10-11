@@ -51,14 +51,10 @@ type CdnBoxScore = {
 export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boolean> {
   const { jobId, seasonYear } = run
   const allGames = await loadFinalCdnGames(seasonYear)
-  let pending: DbGame[]
-  if (run.retryBefore) {
-    const retryGameKeys = await loadBackfillRetryGameKeys(run)
-    pending = allGames.filter((game) => retryGameKeys.has(game.nba_game_id))
-  } else {
-    const terminalGameKeys = await loadBackfillTerminalGameKeys(jobId, 'cdn')
-    pending = allGames.filter((game) => !terminalGameKeys.has(game.nba_game_id))
-  }
+  const terminalGameKeys = await loadBackfillTerminalGameKeys(jobId, 'cdn')
+  const retryGameKeys = run.retryBefore ? await loadBackfillRetryGameKeys(run) : null
+  const pending = allGames.filter((game) =>
+    !terminalGameKeys.has(game.nba_game_id) || retryGameKeys?.has(game.nba_game_id))
 
   if (offset === 0) await updateBackfillJob(jobId, { total_items: allGames.length })
 
@@ -115,73 +111,51 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
 
 /** Returns true when the next chunk was queued with this run's claim. */
 export async function runCDNEnumChunk(run: BackfillRun, offset: number): Promise<boolean> {
-  const { jobId, seasonYear } = run
-  const allGameIds = buildCandidateGameIds(seasonYear)
-  if (run.retryBefore) return await runCDNEnumRetryChunk(run, allGameIds, offset)
-
-  const terminalGameKeys = await loadBackfillTerminalGameKeys(jobId, 'cdn-enum')
-  const chunk = allGameIds.slice(offset, offset + CDN_CHUNK)
-  if (!chunk.length) {
-    await completeBackfillJobFromLedger(jobId, 'cdn-enum')
-    return false
-  }
-
-  let completed = 0
-  let failed = 0
-  let missing = 0
-  let consecutiveMisses = 0
-  let done = false
-  let nextOffset = offset + CDN_CHUNK
-
-  for (let index = 0; index < chunk.length; index++) {
-    const gameId = chunk[index]
-    const currentOffset = offset + index
-    if (terminalGameKeys.has(gameId)) continue
-
-    const outcome = await processCdnEnumGame(run, gameId)
-    if (outcome === 'missing') {
-      missing++
-      consecutiveMisses++
-      if (consecutiveMisses > 25) {
-        const nextRangeOffset = findNextCandidateRangeOffset(allGameIds, currentOffset)
-        if (nextRangeOffset == null) {
-          done = true
-        } else {
-          nextOffset = nextRangeOffset
-        }
-        break
-      }
-      await delay(CDN_DELAY_MS)
-      continue
-    }
-
-    consecutiveMisses = 0
-    if (outcome === 'completed') completed++
-    else failed++
-    await delay(CDN_DELAY_MS)
-  }
-
-  const isDone = done || nextOffset >= allGameIds.length
-  return await finishCdnEnumChunk(run, offset, nextOffset, isDone, { completed, failed, missing })
-}
-
-// Explicit retry visits only the job's previously failed candidate IDs.
-async function runCDNEnumRetryChunk(run: BackfillRun, allGameIds: string[], offset: number): Promise<boolean> {
-  const retryGameKeys = await loadBackfillRetryGameKeys(run)
-  const pending = allGameIds.filter((gameId) => retryGameKeys.has(gameId))
-  const chunk = pending.slice(0, CDN_CHUNK)
-  if (!chunk.length) {
-    await recalcCdnEnumWeekNumbers(run.seasonYear)
-    await completeBackfillJobFromLedger(run.jobId, 'cdn-enum')
-    return false
-  }
-
+  const allGameIds = buildCandidateGameIds(run.seasonYear)
+  const terminal = await loadBackfillTerminalGameKeys(run.jobId, 'cdn-enum')
+  const missing = await loadBackfillTerminalGameKeys(run.jobId, 'cdn-enum', ['missing'])
+  const retry = run.retryBefore ? await loadBackfillRetryGameKeys(run) : new Set<string>()
   const counts = { completed: 0, failed: 0, missing: 0 }
-  for (const gameId of chunk) {
-    counts[await processCdnEnumGame(run, gameId)]++
+  let attempted = 0
+
+  // Keep explicit retries even if an earlier missing tail ends ordinary discovery.
+  const retryIds = allGameIds.filter((id) => retry.has(id))
+  for (const gameId of retryIds.slice(0, CDN_CHUNK)) {
+    const outcome = await processCdnEnumGame(run, gameId)
+    counts[outcome]++
+    attempted++
+    terminal.add(gameId)
+    if (outcome === 'missing') missing.add(gameId)
     await delay(CDN_DELAY_MS)
   }
-  return await finishCdnEnumChunk(run, offset, offset + CDN_CHUNK, pending.length <= CDN_CHUNK, counts)
+  if (retryIds.length > CDN_CHUNK) {
+    return await finishCdnEnumChunk(run, offset, 0, false, counts)
+  }
+
+  // Reconstruct the missing tail from the ledger across chunks and failed continuations.
+  // Reading existing attempts uses no provider request or chunk budget.
+  let consecutiveMisses = 0
+  for (let index = 0; index < allGameIds.length; index++) {
+    const gameId = allGameIds[index]
+    if (index > 0 && gameId.slice(0, 3) !== allGameIds[index - 1].slice(0, 3)) consecutiveMisses = 0
+    let isMissing = missing.has(gameId)
+    if (!terminal.has(gameId)) {
+      if (attempted === CDN_CHUNK) return await finishCdnEnumChunk(run, offset, index, false, counts)
+      const outcome = await processCdnEnumGame(run, gameId)
+      counts[outcome]++
+      attempted++
+      isMissing = outcome === 'missing'
+      await delay(CDN_DELAY_MS)
+    }
+    consecutiveMisses = isMissing ? consecutiveMisses + 1 : 0
+    if (consecutiveMisses > 25) {
+      const nextRange = findNextCandidateRangeOffset(allGameIds, index)
+      if (nextRange === null) break
+      index = nextRange - 1
+      consecutiveMisses = 0
+    }
+  }
+  return await finishCdnEnumChunk(run, offset, allGameIds.length, true, counts)
 }
 
 async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'completed' | 'failed' | 'missing'> {

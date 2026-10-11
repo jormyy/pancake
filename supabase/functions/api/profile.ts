@@ -106,7 +106,15 @@ function webPushKey(body: Record<string, unknown>, key: 'p256dh' | 'auth'): stri
   return stringField(body, key).trim().replace(/=+$/g, '')
 }
 
-async function subscribeWebPush(userId: string, body: Record<string, unknown>): Promise<void> {
+function webPushGeneration(body: Record<string, unknown>): number {
+  const generation = body.generation
+  if (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 0) {
+    throw new ValidationError('generation must be a non-negative safe integer')
+  }
+  return generation
+}
+
+async function subscribeWebPush(userId: string, body: Record<string, unknown>) {
   const subscription = {
     endpoint: webPushEndpoint(body),
     p256dh: webPushKey(body, 'p256dh'),
@@ -117,34 +125,56 @@ async function subscribeWebPush(userId: string, body: Record<string, unknown>): 
   } catch (error) {
     throw new ValidationError(error instanceof Error ? error.message : 'subscription keys are invalid')
   }
-
-  // An endpoint belongs to one browser profile; re-subscribing after a
-  // different user signs in on the same device moves it to that user.
-  const { error } = await supabase
-    .from('web_push_subscriptions')
-    .upsert({ user_id: userId, ...subscription, updated_at: new Date().toISOString() }, { onConflict: 'endpoint' })
-  if (error) throwDb(error)
+  const generation = webPushGeneration(body)
+  const previous = revocationCredential(body)
+  const credential = createRevocationCredential()
+  const { data, error } = await supabase.rpc('register_web_push_atomic', {
+    p_user_id: userId,
+    p_endpoint: subscription.endpoint,
+    p_p256dh: subscription.p256dh,
+    p_auth: subscription.auth,
+    p_expected_generation: generation,
+    p_credential_hash: await credentialHash(previous),
+    p_next_credential_hash: await credentialHash(credential),
+  })
+  if (error) {
+    if (!missingCredentialRpc(error)) throwDb(error)
+    throw new ServiceUnavailableError('Web push registration is temporarily unavailable. Please retry.')
+  }
+  const result = data?.[0]
+  if (!result?.applied) return { applied: false as const }
 
   const { data: stale, error: staleError } = await supabase
     .from('web_push_subscriptions')
-    .select('endpoint')
+    .select('endpoint, user_id, updated_at')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
+    .order('endpoint')
     .range(MAX_WEB_PUSH_SUBSCRIPTIONS_PER_USER, MAX_WEB_PUSH_SUBSCRIPTIONS_PER_USER + 50)
-  if (staleError) throwDb(staleError)
-  if (stale && stale.length > 0) {
-    const { error: pruneError } = await pruneWebPushSubscriptions(stale.map((row) => row.endpoint))
-    if (pruneError) throwDb(pruneError)
+  // Registration is committed. Preserve its acknowledgement even if quota cleanup needs a later retry.
+  if (staleError) console.error('Web push quota lookup failed', staleError)
+  else if (stale?.length) {
+    const { error: pruneError } = await pruneWebPushSubscriptions(stale)
+    if (pruneError) console.error('Web push quota cleanup failed', pruneError)
   }
+  return { applied: true as const, generation: result.generation, revocationCredential: credential }
 }
 
-async function unsubscribeWebPush(userId: string, endpoint: string): Promise<void> {
-  const { error } = await supabase
-    .from('web_push_subscriptions')
-    .delete()
-    .eq('user_id', userId)
-    .eq('endpoint', endpoint)
-  if (error) throwDb(error)
+async function unsubscribeWebPush(userId: string, endpoint: string) {
+  const credential = createRevocationCredential()
+  const { data, error } = await supabase.rpc('clear_web_push_for_user_atomic', {
+    p_user_id: userId,
+    p_endpoint: endpoint,
+    p_next_credential_hash: await credentialHash(credential),
+  })
+  if (error) {
+    if (!missingCredentialRpc(error)) throwDb(error)
+    throw new ServiceUnavailableError('Web push cleanup is temporarily unavailable. Please retry.')
+  }
+  const result = data?.[0]
+  return result?.applied
+    ? { applied: true as const, generation: result.generation, revocationCredential: credential }
+    : { applied: false as const }
 }
 
 async function handleWebPushRoute(req: Request, path: string): Promise<Response | null> {
@@ -156,14 +186,17 @@ async function handleWebPushRoute(req: Request, path: string): Promise<Response 
     const body = await readJsonObject(req)
     const userId = await requireUser(req)
     if (!webPushVapidKeys()) throw new ServiceUnavailableError('Web push is not configured.')
-    await subscribeWebPush(userId, body)
-    return json({ ok: true })
+    const result = await subscribeWebPush(userId, body)
+    if (!result.applied) {
+      return json({ ok: false, code: 'WEB_PUSH_STALE', error: 'Notification registration changed. Enable notifications again.' }, 409)
+    }
+    return json({ ok: true, ...result })
   }
   if (path === '/profile/web-push/unsubscribe') {
     const body = await readJsonObject(req)
     const userId = await requireUser(req)
-    await unsubscribeWebPush(userId, stringField(body, 'endpoint').trim())
-    return json({ ok: true })
+    const result = await unsubscribeWebPush(userId, webPushEndpoint(body))
+    return json({ ok: true, ...result })
   }
   if (path === '/profile/web-push/test') {
     const userId = await requireUser(req)

@@ -7,7 +7,7 @@ const assert = (condition: unknown, message: string): void => {
 }
 
 const KEYS: VapidKeys = { publicKey: 'pub', privateKey: 'priv', subject: 'mailto:ops@pancake.test' }
-const sub = (userId: string, endpoint: string) => ({ user_id: userId, endpoint, p256dh: 'p', auth: 'a' })
+const sub = (userId: string, endpoint: string) => ({ user_id: userId, endpoint, p256dh: 'p', auth: 'a', updated_at: '2026-01-01T00:00:00Z' })
 const message = (userId: string, overrides: Partial<WebPushFanoutMessage> = {}): WebPushFanoutMessage => ({
   userId,
   title: 'Trade accepted',
@@ -26,7 +26,7 @@ Deno.test('web push fanout delivers to every subscription and prunes gone endpoi
       error: null,
     }),
     prune: async (endpoints) => {
-      pruned = endpoints
+      pruned = endpoints.map((entry) => entry.endpoint)
       return { error: null }
     },
     send: async (subscription: WebPushSubscription, payload, _keys, options): Promise<WebPushResult> => {
