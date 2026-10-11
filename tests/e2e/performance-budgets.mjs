@@ -275,7 +275,12 @@ export const validateWorkflowReportKeys = (manifest, report, reportPath, expecte
         && measurement.routeJsNetworkEntryCount === 0
         && Number.isInteger(measurement.routeJsEntryCount) && measurement.routeJsEntryCount > 0
         && Number.isFinite(measurement.routeJsDecodedKb) && measurement.routeJsDecodedKb > 0
-      if (!transferredRouteBytes && !provenRouteCacheHit) failures.push(`${workflow.id}: ${reportPath} is missing route JS transfer or cache-hit evidence`)
+      // A route whose code already ships in the shared bundle loads no route script at all. With the
+      // route ready and its interaction observed, an explicitly empty route ledger is the evidence.
+      const sharedBundleRoute = measurement.routeJsEntryCount === 0 && measurement.routeJsNetworkEntryCount === 0
+        && Array.isArray(measurement.routeJsLedger) && measurement.routeJsLedger.length === 0
+        && measurement.readyState === true && measurement.feedbackObserved === true
+      if (!transferredRouteBytes && !provenRouteCacheHit && !sharedBundleRoute) failures.push(`${workflow.id}: ${reportPath} is missing route JS transfer or cache-hit evidence`)
       const ledger = Array.isArray(measurement.routeJsLedger) ? measurement.routeJsLedger : []
       const ledgerIsValid = ledger.length === measurement.routeJsEntryCount && ledger.every((entry) => (
         typeof entry?.url === 'string' && entry.url.length > 0 &&

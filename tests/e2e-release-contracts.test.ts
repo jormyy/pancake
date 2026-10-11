@@ -1101,6 +1101,28 @@ describe('release E2E contracts', () => {
     }, 'report.json')).toEqual([])
   })
 
+  it('accepts a ready route served entirely by the shared bundle, and only when it was ready', () => {
+    const manifest = {
+      globalBudgets: { maxInitialWebJsKb: 350, maxRouteWebJsKb: 220 },
+      workflows: [{
+        id: 'workflow',
+        budgets: { feedbackMs: 100, cachedRequestMs: 300, fullLoadMs: 1000 },
+        measurement: { report: 'report.json' },
+      }],
+    }
+    const measurement = {
+      id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, warmRequestCount: 1,
+      warmRequestEvidence: 'fetch-or-xhr-duration', coldFullLoadMs: 3, readyState: true,
+      feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
+      routeJsCacheHit: false, routeJsEntryCount: 0, routeJsNetworkEntryCount: 0,
+      routeJsDecodedKb: 0, routeJsEncodedKb: 0, routeJsLedger: [],
+    }
+    expect(validateWorkflowReportKeys(manifest, { status: 'PASS', workflowMeasurements: [measurement] }, 'report.json')).toEqual([])
+    expect(validateWorkflowReportKeys(manifest, {
+      status: 'PASS', workflowMeasurements: [{ ...measurement, readyState: false }],
+    }, 'report.json')).toContain('workflow: report.json is missing route JS transfer or cache-hit evidence')
+  })
+
   it('rejects missing, nonnumeric, and negative workflow timing evidence', () => {
     const manifest = {
       globalBudgets: { maxInitialWebJsKb: 350, maxRouteWebJsKb: 220 },
