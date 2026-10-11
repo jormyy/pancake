@@ -51,7 +51,7 @@ describe('local auth invalidation', () => {
         await expect(request).rejects.toThrow('Authentication changed')
         expect(auth.getItem(key)).toBeNull()
     })
-    it('drops a refresh that answers after another account signed in, whether it succeeded or failed', async () => {
+    it('drops a failed refresh that answers after another account signed in', async () => {
         const { auth, disk } = fixture()
         disk.setItem(key, JSON.stringify({ access_token: 'a-access', refresh_token: 'a-refresh' }))
         let finish!: (response: Response) => void
@@ -64,11 +64,19 @@ describe('local auth invalidation', () => {
         finish(new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }))
         await expect(refresh).rejects.toThrow(/no longer holds|changed while this request was in flight/)
         expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'b-access', refresh_token: 'b-refresh' })
-
-        const late = auth.fetch(vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ access_token: 'a-late', refresh_token: 'a-next' }))))(
-            'http://local/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: 'a-refresh' }) })
-        // A refresh sent after B holds the device is refused before it leaves (pre-send guard).
-        await expect(late).rejects.toThrow('Authentication changed before token refresh')
+    })
+    it('keeps a session another tab rotated when an older refresh fails', async () => {
+        const { auth, make } = fixture(), tab = make()
+        let finish!: (response: Response) => void
+        const pending = new Promise<Response>((resolve) => { finish = resolve })
+        const older = auth.fetch(vi.fn<typeof fetch>().mockReturnValue(pending))(
+            'http://local/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: 'refresh-original' }) })
+        // The same account refreshes in another tab; no sign-in happens, so the revision stays put.
+        await response(tab, 'rotated', 'refresh_token')
+        tab.setItem(key, JSON.stringify({ access_token: 'rotated', refresh_token: 'refresh-rotated' }))
+        finish(new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }))
+        await expect(older).rejects.toThrow('no longer holds')
+        expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'rotated', refresh_token: 'refresh-rotated' })
     })
     it('passes a refresh for the session this device holds', async () => {
         const { auth, disk } = fixture()
