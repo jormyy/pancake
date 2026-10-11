@@ -351,6 +351,7 @@ export default function RosterScreen() {
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
     const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])
     const claims = useMemo(() => data?.claims ?? EMPTY_CLAIMS, [data?.claims])
+    const pendingClaimCount = claims.filter((claim) => claim.status === 'pending').length
     const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
     const avgStatsMap = useMemo(() => data?.avgStatsMap ?? EMPTY_STATS_MAP, [data?.avgStatsMap])
     const waiverPriority = data?.waiverPriority ?? null
@@ -869,15 +870,15 @@ export default function RosterScreen() {
                         <Text style={styles.summaryText}>
                             {active.length}/{rosterSize} active · {ir.length}/{irSlots} IR · {taxi.length}/{taxiSlots} taxi
                         </Text>
-                        {claims.length > 0 && !twoPane ? (
+                        {pendingClaimCount > 0 && !twoPane ? (
                             <Pressable
                                 style={styles.claimsChip}
                                 onPress={scrollToClaims}
                                 accessibilityRole="button"
-                                accessibilityLabel={`${claims.length} waiver claim${claims.length === 1 ? '' : 's'} pending, jump to claims`}
+                                accessibilityLabel={`${pendingClaimCount} waiver claim${pendingClaimCount === 1 ? '' : 's'} pending, jump to claims`}
                             >
                                 <Text style={styles.claimsChipText}>
-                                    {claims.length} claim{claims.length === 1 ? '' : 's'} pending
+                                    {pendingClaimCount} claim{pendingClaimCount === 1 ? '' : 's'} pending
                                 </Text>
                             </Pressable>
                         ) : null}
