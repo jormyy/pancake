@@ -92,6 +92,7 @@
     "public.assert_current_league_season_for_lineup(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.assert_current_season_for_pending_waiver_claim()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.assert_current_season_for_uncleared_waiver_log()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.assign_player_nba_id_atomic(uuid,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.auto_pick_snake_pick_atomic(uuid,uuid,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.auto_set_lineup_atomic_unchecked(uuid,uuid,uuid,date,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.auto_set_lineup_atomic(uuid,uuid,uuid,date,jsonb)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},

@@ -296,9 +296,7 @@ async function syncNBAIds(): Promise<{ mapped: number; merged: number; failures:
 
   const dbNormCounts = new Map<string, number>()
   const dbExactCounts = new Map<string, number>()
-  const dbByNbaId = new Map<string, string>()
   for (const player of players) {
-    if (player.nba_id) dbByNbaId.set(player.nba_id, player.id)
     if (!player.display_name) continue
     const exact = player.display_name.toLowerCase()
     const norm = normalizeName(player.display_name)
@@ -323,23 +321,12 @@ async function syncNBAIds(): Promise<{ mapped: number; merged: number; failures:
 
   let mergedBeforeUpdate = 0
   for (const update of updates) {
-    const existingOwnerId = dbByNbaId.get(update.nba_id)
-    if (existingOwnerId && existingOwnerId !== update.id) {
-      const { error: mergeErr } = await supabase.rpc('merge_players', {
-        winner_id: existingOwnerId,
-        loser_id: update.id,
-      })
-      if (mergeErr) throw mergeErr
-      mergedBeforeUpdate++
-      continue
-    }
-
-    const { error: updateErr } = await supabase
-      .from('players')
-      .update({ nba_id: update.nba_id })
-      .eq('id', update.id)
-    if (updateErr) throw updateErr
-    dbByNbaId.set(update.nba_id, update.id)
+    const { data: canonicalId, error } = await supabase.rpc('assign_player_nba_id_atomic', {
+      p_player_id: update.id,
+      p_nba_id: update.nba_id,
+    })
+    if (error) throw error
+    if (canonicalId !== update.id) mergedBeforeUpdate++
   }
 
   console.log(`[sync-players] Updated nba_id for ${updates.length - mergedBeforeUpdate} players; merged ${mergedBeforeUpdate} duplicate rows before update.`)

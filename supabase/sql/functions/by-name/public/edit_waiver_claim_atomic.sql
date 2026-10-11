@@ -32,8 +32,7 @@ BEGIN
     FROM waiver_claims
    WHERE id = p_claim_id
      AND member_id = p_member_id
-     AND status = 'pending'
-   FOR UPDATE;
+     AND status = 'pending';
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Pending waiver claim not found.'
@@ -49,6 +48,22 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Access denied.'
       USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
+
+  SELECT *
+    INTO v_claim
+    FROM waiver_claims
+   WHERE id = p_claim_id
+     AND member_id = p_member_id
+     AND status = 'pending'
+   FOR UPDATE;
+
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pending waiver claim not found.'
+      USING ERRCODE = 'P0002';
   END IF;
 
   SELECT *

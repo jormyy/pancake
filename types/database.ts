@@ -3583,6 +3583,10 @@ export type Database = {
         Args: { p_league_id: string; p_league_season_id: string }
         Returns: undefined
       }
+      assign_player_nba_id_atomic: {
+        Args: { p_nba_id: string; p_player_id: string }
+        Returns: string
+      }
       auto_pick_snake_pick_atomic: {
         Args: { p_draft_id: string; p_member_id: string; p_reason?: string }
         Returns: Json
