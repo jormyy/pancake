@@ -494,6 +494,18 @@ const dispatchDomClick = async (session, name, label) => {
   return parsed
 }
 
+// A save keeps its button disabled until the lineup reload behind it finishes. Wait for that, as a user would;
+// a button that never re-enables still fails here, with its own message.
+const waitForEnabledButton = async (session, name, label, timeoutMs = 15_000) => {
+  const disabled = `button "${name}" [disabled`
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!(await browser(session, ['snapshot'])).includes(disabled)) return
+    await browser(session, ['wait', '250'])
+  }
+  throw new Error(`${label}: button stayed disabled for ${timeoutMs} ms: ${name}`)
+}
+
 const clickButton = async (session, name, label, { preferDom = false } = {}) => {
   if (preferDom) return dispatchDomClick(session, name, label)
   try {
@@ -953,6 +965,7 @@ export async function runBrowserLineupAutoSetScenario({
     await assertPageText(session, ['Auto-set lineup', 'Today', 'Whole week', 'Rest of season'], 'auto-set modal')
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
+    await waitForEnabledButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
     const openSeasonClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
     await assertPageText(session, ['Auto-set lineup', 'Rest of season'], 'remaining-season auto-set modal')
     const seasonClick = await clickButton(session, 'Auto-set rest of season', 'auto-set remaining season button')
