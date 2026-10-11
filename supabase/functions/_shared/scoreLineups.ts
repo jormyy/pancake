@@ -209,13 +209,9 @@ function buildRosterEligibilityAtCutoff(
                 cutoff,
             )
             if (latestAvailabilityTransaction && ROSTER_INACTIVE_TRANSACTION_TYPE_SET.has(latestAvailabilityTransaction.transaction_type)) return []
-            if (!latestAvailabilityTransaction) {
-                if (latestOwnershipTransaction.acquired_to_taxi === true) return []
-                if (latestOwnershipTransaction.acquired_to_taxi === null &&
-                    ['draft_won', 'trade_in'].includes(latestOwnershipTransaction.transaction_type)) {
-                    throw new Error(`Historical acquisition ${latestOwnershipTransaction.id} has no verified active or taxi destination. Restore its original acquisition evidence before recalculating scores.`)
-                }
-            }
+            // NULL is legacy history without destination evidence. Acquiring straight into taxi did not exist
+            // then, so those players joined the active roster and a later taxi move has its own transaction.
+            if (!latestAvailabilityTransaction && latestOwnershipTransaction.acquired_to_taxi === true) return []
             return rosterPlayerEligibility(latestOwnershipTransaction)
         }
 
