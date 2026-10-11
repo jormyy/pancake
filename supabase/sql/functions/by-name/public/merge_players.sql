@@ -9,37 +9,48 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_loser_sleeper_id text;
-  v_loser_nba_id text;
+  v_winner players%ROWTYPE;
+  v_loser players%ROWTYPE;
 BEGIN
   IF winner_id = loser_id THEN RETURN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM players WHERE id = winner_id) THEN RETURN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM players WHERE id = loser_id)  THEN RETURN; END IF;
+  PERFORM id FROM players WHERE id IN (winner_id, loser_id) ORDER BY id FOR UPDATE;
+  SELECT * INTO v_winner FROM players WHERE id = winner_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  SELECT * INTO v_loser FROM players WHERE id = loser_id;
+  IF NOT FOUND THEN RETURN; END IF;
 
-  SELECT sleeper_id, nba_id
-    INTO v_loser_sleeper_id, v_loser_nba_id
-    FROM players
-   WHERE id = loser_id;
+  -- Release unique provider links before moving them to the surviving identity.
+  UPDATE players SET
+    sleeper_id = CASE WHEN v_winner.sleeper_id IS NULL THEN NULL ELSE sleeper_id END,
+    nba_id = CASE WHEN v_winner.nba_id IS NULL THEN NULL ELSE nba_id END,
+    espn_id = CASE WHEN v_winner.espn_id IS NULL THEN NULL ELSE espn_id END,
+    sportsdata_id = CASE WHEN v_winner.sportsdata_id IS NULL THEN NULL ELSE sportsdata_id END
+  WHERE id = loser_id;
 
-  UPDATE players
-    SET sleeper_id = NULL
-    WHERE id = loser_id AND v_loser_sleeper_id IS NOT NULL
-      AND (SELECT sleeper_id FROM players WHERE id = winner_id) IS NULL;
-
-  UPDATE players
-    SET sleeper_id = v_loser_sleeper_id
-    WHERE id = winner_id AND sleeper_id IS NULL
-      AND v_loser_sleeper_id IS NOT NULL;
-
-  UPDATE players
-    SET nba_id = NULL
-    WHERE id = loser_id AND v_loser_nba_id IS NOT NULL
-      AND (SELECT nba_id FROM players WHERE id = winner_id) IS NULL;
-
-  UPDATE players
-    SET nba_id = v_loser_nba_id
-    WHERE id = winner_id AND nba_id IS NULL
-      AND v_loser_nba_id IS NOT NULL;
+  UPDATE players SET
+    sleeper_id = COALESCE(v_winner.sleeper_id, v_loser.sleeper_id),
+    nba_id = COALESCE(v_winner.nba_id, v_loser.nba_id),
+    espn_id = COALESCE(v_winner.espn_id, v_loser.espn_id),
+    sportsdata_id = COALESCE(v_winner.sportsdata_id, v_loser.sportsdata_id),
+    nba_team = COALESCE(v_winner.nba_team, v_loser.nba_team),
+    position = COALESCE(v_winner.position, v_loser.position),
+    eligible_positions = CASE WHEN cardinality(v_winner.eligible_positions) = 0
+      THEN v_loser.eligible_positions ELSE v_winner.eligible_positions END,
+    headshot_url = COALESCE(v_winner.headshot_url, v_loser.headshot_url),
+    jersey_number = COALESCE(v_winner.jersey_number, v_loser.jersey_number),
+    years_exp = COALESCE(v_winner.years_exp, v_loser.years_exp),
+    nba_draft_number = COALESCE(v_winner.nba_draft_number, v_loser.nba_draft_number),
+    -- A backfill stub has no team or position. Its empty injury status is unknown.
+    injury_status = CASE WHEN v_winner.nba_team IS NULL AND v_winner.position IS NULL
+      THEN COALESCE(v_winner.injury_status, v_loser.injury_status) ELSE v_winner.injury_status END,
+    status = CASE WHEN v_winner.nba_team IS NULL AND v_winner.position IS NULL
+      THEN COALESCE(v_loser.status, v_winner.status) ELSE v_winner.status END,
+    dynasty_rank = COALESCE(v_winner.dynasty_rank, v_loser.dynasty_rank),
+    dynasty_rank_source = CASE WHEN v_winner.dynasty_rank IS NULL
+      THEN v_loser.dynasty_rank_source ELSE v_winner.dynasty_rank_source END,
+    dynasty_rank_fetched_at = CASE WHEN v_winner.dynasty_rank IS NULL
+      THEN v_loser.dynasty_rank_fetched_at ELSE v_winner.dynasty_rank_fetched_at END
+  WHERE id = winner_id;
 
   -- A member who already holds the winner on the active roster keeps that row,
   -- so their listings, lineups, pending drops and offers move to the winner

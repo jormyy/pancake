@@ -36,9 +36,25 @@ BEGIN
   PERFORM create_waiver_claim_atomic(v_league,v_member,v_lower,NULL,v_user,CASE WHEN v_mode='faab' THEN 5 ELSE 0 END,1);
   PERFORM create_waiver_claim_atomic(v_league,v_member,v_preferred,NULL,v_user,CASE WHEN v_mode='faab' THEN 5 ELSE 0 END,2);
   SELECT id INTO v_preferred_claim FROM waiver_claims WHERE member_id=v_member AND player_id=v_preferred;
+  -- Legacy clients can submit tied orders. Both directions must recover them.
+  UPDATE waiver_claims SET claim_order=2,
+    submitted_at=CASE WHEN player_id=v_lower THEN now()-interval '1 minute' ELSE now() END
+   WHERE member_id=v_member;
+  PERFORM reorder_waiver_claim_atomic(v_preferred_claim,v_member,v_user,'up');
+  IF (SELECT claim_order FROM waiver_claims WHERE id=v_preferred_claim) <> 1 THEN
+    RAISE EXCEPTION 'Up arrow cannot recover a tied preference';
+  END IF;
+  PERFORM reorder_waiver_claim_atomic(v_preferred_claim,v_member,v_user,'down');
+  IF (SELECT claim_order FROM waiver_claims WHERE id=v_preferred_claim) <> 2 THEN
+    RAISE EXCEPTION 'Down arrow did not move the claim';
+  END IF;
   PERFORM reorder_waiver_claim_atomic(v_preferred_claim,v_member,v_user,'up');
   IF (SELECT claim_order FROM waiver_claims WHERE id=v_preferred_claim) <> 1 THEN
     RAISE EXCEPTION 'Reorder did not store the preferred claim first';
+  END IF;
+  PERFORM edit_waiver_claim_atomic(v_preferred_claim,v_member,v_user,NULL,CASE WHEN v_mode='faab' THEN 5 ELSE 0 END);
+  IF (SELECT claim_order FROM waiver_claims WHERE id=v_preferred_claim) <> 1 THEN
+    RAISE EXCEPTION 'Bid-only save overwrote committed preference';
   END IF;
   UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_id=v_league;
   UPDATE waiver_claims SET process_date=current_date-1 WHERE league_id=v_league;

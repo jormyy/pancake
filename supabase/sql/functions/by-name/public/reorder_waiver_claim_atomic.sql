@@ -61,6 +61,21 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
+  -- Older submissions can share an order. Preserve the processor's tie order,
+  -- then assign distinct positions so a requested swap always moves one claim.
+  WITH ordered AS (
+    SELECT id, row_number() OVER (ORDER BY claim_order, submitted_at, id)::int AS position
+      FROM waiver_claims
+     WHERE member_id = p_member_id
+       AND league_season_id = v_claim.league_season_id
+       AND status = 'pending'
+       AND bid_amount = v_claim.bid_amount
+  )
+  UPDATE waiver_claims AS claim SET claim_order = ordered.position
+    FROM ordered WHERE claim.id = ordered.id AND claim.claim_order <> ordered.position;
+
+  SELECT * INTO v_claim FROM waiver_claims WHERE id = p_claim_id;
+
   IF p_direction = 'up' THEN
     SELECT *
       INTO v_other

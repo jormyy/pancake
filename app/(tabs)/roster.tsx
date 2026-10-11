@@ -626,7 +626,6 @@ export default function RosterScreen() {
             await editWaiverClaim(claim.id, current.id, {
                 dropPlayerId: claim.dropPlayerId,
                 bidAmount,
-                claimOrder: claim.claimOrder,
             })
             if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
