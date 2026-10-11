@@ -24,6 +24,12 @@ export type StatsSyncGame = Pick<
 // (syncStatsForCompletedWeeks' 4-day window) flow through the same query, so
 // corrections keep propagating — just at most twice an hour per game.
 const FINAL_STATS_RECHECK_MS = 30 * 60 * 1000
+const FINAL_NUMERIC_STATS = [
+  'assists', 'blocks', 'fieldGoalsAttempted', 'fieldGoalsMade', 'foulsPersonal',
+  'freeThrowsAttempted', 'freeThrowsMade', 'plusMinusPoints', 'points',
+  'reboundsDefensive', 'reboundsOffensive', 'reboundsTotal', 'steals',
+  'threePointersAttempted', 'threePointersMade', 'turnovers',
+] as const satisfies readonly (keyof NBABoxScorePlayer['statistics'])[]
 type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert']
 
 // Returns YYYY-MM-DD for the given Date in America/New_York (ET).
@@ -70,14 +76,24 @@ export async function syncStatsByDate(
 
 // Syncs several dates on one shared player resolver. Loading it per date costs a
 // full paginated players scan each time, which dominates a multi-date re-sync.
-export async function syncStatsForDates(dateKeys: string[]): Promise<number> {
+export async function syncStatsForDates(
+  dateKeys: string[],
+  onDateError?: (dateKey: string, error: unknown) => void,
+): Promise<number> {
   if (dateKeys.length === 0) return 0
 
   const resolver = await loadCdnPlayerResolver()
   let statCount = 0
+  const failures: unknown[] = []
   for (const dateKey of dateKeys) {
-    statCount += await syncStatsByDate(dateFromETDate(dateKey), resolver)
+    try {
+      statCount += await syncStatsByDate(dateFromETDate(dateKey), resolver)
+    } catch (error) {
+      if (onDateError) onDateError(dateKey, error)
+      else failures.push(error)
+    }
   }
+  if (failures.length) throw new AggregateError(failures, 'Stats sync failed for some dates')
   return statCount
 }
 
@@ -119,12 +135,24 @@ async function syncStatsGameWithResolver(
 ): Promise<number> {
   if (!game.nba_game_id) throw new Error(`NBA game ${game.id} is missing its provider id`)
   const boxScore = await fetchBoxScore(game.nba_game_id)
+  if (game.status === 'Final' && boxScore.gameStatus !== 3) {
+    throw new Error(`Final game box score is not final for ${game.nba_game_id}`)
+  }
   if (skipScheduled && boxScore.gameStatus === 1) return 0
 
   const allPlayers = [
     ...(boxScore.homeTeam?.players ?? []),
     ...(boxScore.awayTeam?.players ?? []),
   ]
+  if (boxScore.gameStatus === 3 &&
+      (!boxScore.homeTeam?.players?.length || !boxScore.awayTeam?.players?.length)) {
+    throw new Error(`Final box score has an empty team for ${game.nba_game_id}`)
+  }
+  if (boxScore.gameStatus === 3 && allPlayers.some((player) =>
+    !player.statistics || typeof player.statistics.minutes !== 'string' ||
+    FINAL_NUMERIC_STATS.some((key) => !Number.isFinite(player.statistics[key])))) {
+    throw new Error(`Final box score has incomplete statistics for ${game.nba_game_id}`)
+  }
   const stats: PlayerGameStatsInsert[] = []
   for (const player of allPlayers) {
     const playerId = await resolveCdnPlayer(resolver, String(player.personId), player.name ?? '')
@@ -133,6 +161,9 @@ async function syncStatsGameWithResolver(
     }
   }
 
+  if (boxScore.gameStatus === 3 && stats.length !== allPlayers.length) {
+    throw new Error(`Final box score has unresolved player stats for ${game.nba_game_id}`)
+  }
   const changed = await unchangedStatRowsRemoved(game.id, stats)
   if (changed.length > 0) {
     const { error } = await supabase

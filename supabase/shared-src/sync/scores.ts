@@ -130,6 +130,7 @@ type StatUpdateTimestamp = {
 }
 
 type GameDateForRefresh = {
+    stats_synced_at: string | null
     game_date: string
     nba_game_id: string | null
     status: string | null
@@ -465,6 +466,7 @@ async function finalizeWeekIfComplete(
     settings: Record<string, number>,
     scoringReadStartedAt: string,
     referenceDate: Date,
+    failedRecoveryDates: ReadonlySet<string>,
 ) {
     // Get the week's date range from season_weeks (authoritative)
     const { data: weekData, error: weekErr } = await supabase
@@ -494,6 +496,7 @@ async function finalizeWeekIfComplete(
         ? [{ ...weekData, week_number: weekNumber }]
         : await loadMatchupWeeks(seasonYear, weekNumber, endWeek)
     const endDate = weeks[weeks.length - 1].week_end
+    if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
     if (matchups.some((matchup) => isPlayoffMatchupType(matchup.matchup_type)) && toETDate(referenceDate) <= endDate) return
     const { data: pendingGames, error: pendingGamesError } = await supabase
         .from('nba_games')
@@ -501,7 +504,9 @@ async function finalizeWeekIfComplete(
         .eq('season_year', seasonYear)
         .gte('game_date', weekData.week_start)
         .lte('game_date', endDate)
-        .in('status', ['Scheduled', 'InProgress'])
+        // stats_synced_at is the CDN completion marker. BBRef imports use their
+        // backfill ledger and existing Final rows do not carry this marker.
+        .or('status.in.(Scheduled,InProgress),and(nba_game_id.like.002*,status.eq.Final,stats_synced_at.is.null)')
     if (pendingGamesError) throw pendingGamesError
     if ((pendingGames ?? []).some((game) => isRegularSeasonGameId(game.nba_game_id))) return
 
@@ -905,7 +910,12 @@ async function loadEarliestStatCorrectionWeek(
     return earliest
 }
 
-async function syncStatsForCompletedWeeks(seasonYear: number, weeks: number[], referenceDate = new Date()): Promise<void> {
+async function syncStatsForCompletedWeeks(
+    seasonYear: number,
+    weeks: number[],
+    referenceDate: Date,
+    onDateError: (date: string, error: unknown) => void,
+): Promise<void> {
     if (weeks.length === 0) return
 
     const weekSet = new Set(weeks)
@@ -920,7 +930,7 @@ async function syncStatsForCompletedWeeks(seasonYear: number, weeks: number[], r
     const today = toETDate(referenceDate)
     const games = await fetchAllPages<GameDateForRefresh>((from, to) => supabase
         .from('nba_games')
-        .select('game_date, nba_game_id, status')
+        .select('game_date, nba_game_id, status, stats_synced_at')
         .eq('season_year', seasonYear)
         .gte('game_date', firstWeekStart)
         .lte('game_date', lastWeekEnd)
@@ -939,11 +949,9 @@ async function syncStatsForCompletedWeeks(seasonYear: number, weeks: number[], r
                     const weekNumber = weekNumberForGameDate(game.game_date, weekBounds)
                     if (weekNumber == null || !weekSet.has(weekNumber)) return false
                     if (game.game_date < today) {
-                        // A Final game past the correction window will not change again,
-                        // so re-fetching its box score every tick is pure waste. Weeks
-                        // still rescore from stored stats — that path reads the database,
-                        // not the CDN, so narrowing this does not affect reach-back.
-                        return game.status !== 'Final' || game.game_date >= settledBefore
+                        // Age limits correction polling only after a successful stats sync.
+                        // Missing initial box scores still need recovery in longer rounds.
+                        return game.status !== 'Final' || game.stats_synced_at == null || game.game_date >= settledBefore
                     }
                     return game.status !== 'Scheduled' && game.status !== 'InProgress'
                 })
@@ -951,7 +959,7 @@ async function syncStatsForCompletedWeeks(seasonYear: number, weeks: number[], r
         ),
     ].sort()
 
-    await syncStatsForDates(dateKeys)
+    await syncStatsForDates(dateKeys, onDateError)
 }
 
 // Update current matchups and replay corrected historical seasons.
@@ -1013,14 +1021,28 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
         for (const week of plan.weeksToSync) weeks.add(week)
         weeksBySeasonYear.set(plan.season.season_year, weeks)
     }
+    const recoveryFailures: Error[] = []
+    const failedRecoveryYears = new Set<number>()
+    const failedRecoveryDates = new Map<number, Set<string>>()
     for (const [seasonYear, weeks] of weeksBySeasonYear) {
-        await syncStatsForCompletedWeeks(seasonYear, [...weeks].sort((a, b) => a - b), referenceDate)
+        const failedDates = new Set<string>()
+        failedRecoveryDates.set(seasonYear, failedDates)
+        try {
+            await syncStatsForCompletedWeeks(seasonYear, [...weeks].sort((a, b) => a - b), referenceDate, (date, error) => {
+                failedDates.add(date)
+                recoveryFailures.push(new Error(`${seasonYear}/${date}: ${errorText(error)}`))
+            })
+        } catch (error) {
+            failedRecoveryYears.add(seasonYear)
+            recoveryFailures.push(new Error(`${seasonYear}: ${errorText(error)}`))
+        }
     }
 
     const syncFailures: string[] = []
     let syncedLeagues = 0
     await runBounded(
         plans.map(({ season, weekNumber, weeksToSync }) => async () => {
+            if (failedRecoveryYears.has(season.season_year)) return
             const settings = scoringSettingsFromJson(season.leagues?.scoring_settings)
             // Score every week the season covers. Playoff rounds use the
             // week_number stored on each generated matchup, and the scoring pass
@@ -1040,7 +1062,8 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
             // Finalize older weeks before newer weeks so cumulative standings for
             // week N always build on the week N-1 snapshot when both close late.
             for (const finalizeWeek of weeksToSync) {
-                await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year, settings, scoringReadStartedAt, referenceDate)
+                await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year, settings,
+                    scoringReadStartedAt, referenceDate, failedRecoveryDates.get(season.season_year) ?? new Set())
             }
             syncedLeagues += 1
         }),
@@ -1050,7 +1073,11 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
         console.error(`[scores] sync failed for some league(s): ${errorText(error)}`)
     })
 
-    // Partial failures are logged and the healthy leagues complete; only a
+    // Preserve healthy scoring work, but report failed recovery so the caller
+    // can retry the affected dates instead of claiming a complete sync.
+    if (recoveryFailures.length) throw new AggregateError(recoveryFailures, 'Stats recovery failed for some dates; healthy scoring completed')
+
+    // Partial scoring failures are logged and the healthy leagues complete; only a
     // total wipeout (every league failed) surfaces as a failed sync run.
     if (seasons.length > 0 && syncedLeagues === 0 && planFailures.length + syncFailures.length > 0) {
         throw new AggregateError(

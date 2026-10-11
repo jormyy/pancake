@@ -16,6 +16,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
 import { syncStatsForDates } from '../_shared/syncStats.ts'
+import { syncStatsThenScores } from '../_shared/syncStatsThenScores.ts'
 import { syncScores } from '../_shared/syncScores.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { errorMessage } from '../_shared/responses.ts'
@@ -82,12 +83,10 @@ serveInternal('live-poll', async () => {
 
     const syncForMissingStats = async () => {
       try {
-        await syncStatsForDates(candidateDates)
-      } catch (error) {
+        return await syncStatsForDates(candidateDates)
+      } finally {
         await touchGames(missingStatGameIds)
-        throw error
       }
-      await touchGames(missingStatGameIds)
     }
 
     if (!cdnGames.length) {
@@ -95,8 +94,7 @@ serveInternal('live-poll', async () => {
       if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
       if (decision.action === 'synced-db-active') {
         console.log(`[live-poll] CDN unavailable or empty; db-active=${activeGames?.length ?? 0} finalMissingStats=${missingFinalStats} — syncing stats + scores`)
-        await syncForMissingStats()
-        await syncScores()
+        await syncStatsThenScores(syncForMissingStats, syncScores)
         return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames?.length ?? 0, missingFinalStats })
       }
       return Response.json({ ok: true, action: 'idle' })
@@ -160,8 +158,7 @@ serveInternal('live-poll', async () => {
     if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
     if (decision.action === 'synced') {
       console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}, finalMissingStats=${missingFinalStats}`)
-      await syncForMissingStats()
-      await syncScores()
+      await syncStatsThenScores(syncForMissingStats, syncScores)
       return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive, allDone })
     }
 

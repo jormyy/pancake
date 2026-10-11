@@ -258,13 +258,31 @@ export async function runSeasonBoundary(
   referenceDate = new Date(),
   leagueId?: string,
 ): Promise<BoundaryLeagueReport[]> {
-  let query = supabase
-    .from('league_seasons')
-    .select('id, league_id, leagues!league_seasons_league_id_fkey ( status, playoff_start_week )')
-    .eq('is_current', true)
-  if (leagueId) query = query.eq('league_id', leagueId)
-  const { data: seasons, error } = await query
-  if (error) throw error
+  type CurrentSeason = {
+    id: string
+    league_id: string
+    leagues: { status: string; playoff_start_week: number } | null
+  }
+  const seasons: CurrentSeason[] = []
+  let afterId: string | undefined
+  while (true) {
+    let query = supabase
+      .from('league_seasons')
+      .select('id, league_id, leagues!league_seasons_league_id_fkey!inner ( status, playoff_start_week )')
+      .eq('is_current', true)
+      .in('leagues.status', ['active', 'playoffs', 'offseason'])
+      .order('id')
+      .limit(1000)
+    if (leagueId) query = query.eq('league_id', leagueId)
+    if (afterId) query = query.gt('id', afterId)
+    const { data, error } = await query
+    if (error) throw error
+    const page = data as CurrentSeason[]
+    if (!page?.length) break
+    seasons.push(...page)
+    afterId = page[page.length - 1].id
+    if (page.length < 1000) break
+  }
 
   const reports: BoundaryLeagueReport[] = []
   const jobs = (seasons ?? []).flatMap((season) => {

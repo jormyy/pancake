@@ -120,6 +120,8 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
       player_id: player, game_id: games[side], season_year: year, week_number: weekNumber,
       game_date: gameDate, points: side ? 20 : 30, did_not_play: false,
     }))))
+    // These fixtures provide completed box-score rows directly.
+    await query(supabase.from('nba_games').update({ stats_synced_at: new Date().toISOString() }).in('id', games))
     // Keep the lineup fixture independent of automatic roster-link maintenance.
     await query(supabase.from('weekly_lineups').delete().eq('league_id', league))
     await query(supabase.from('weekly_lineups').insert(players.map((player, side) => ({

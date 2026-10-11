@@ -11,6 +11,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_start int;
+  v_year int;
   v_type matchup_type;
   v_count int;
   v_ready boolean;
@@ -22,7 +23,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid automatic season boundary request.' USING ERRCODE = '22023';
   END IF;
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
-  SELECT COALESCE(season.playoff_start_week, league.playoff_start_week, 20) INTO v_start
+  SELECT COALESCE(season.playoff_start_week, league.playoff_start_week, 20), season.season_year INTO v_start, v_year
     FROM public.league_seasons season JOIN public.leagues league ON league.id = season.league_id
     WHERE season.id = p_league_season_id AND season.league_id = p_league_id AND season.is_current
     FOR UPDATE OF season;
@@ -51,6 +52,29 @@ BEGIN
       AND (v_type <> 'regular_season' OR week_number < v_start);
   IF NOT (p_action = 'generate' AND v_start = 1) AND
       (v_count = 0 OR v_ready IS DISTINCT FROM true OR v_latest > p_reference_at - interval '48 hours') THEN
+    RETURN jsonb_build_object('applied', false);
+  END IF;
+
+  -- A saved correction must be replayed before its old decision becomes immutable.
+  IF EXISTS (
+    SELECT 1
+      FROM public.matchups matchup
+      JOIN public.season_weeks week ON week.season_year = v_year
+        AND week.week_number BETWEEN matchup.week_number AND COALESCE(matchup.end_week_number, matchup.week_number)
+      JOIN (
+        SELECT stats.game_id, stats.season_year, stats.game_date, stats.updated_at
+          FROM public.player_game_stats stats WHERE stats.season_year = v_year
+        UNION ALL
+        SELECT correction.game_id, correction.season_year, correction.game_date, correction.updated_at
+          FROM public.game_calendar_corrections correction WHERE correction.season_year = v_year
+      ) changed ON changed.game_date BETWEEN week.week_start AND week.week_end
+      JOIN public.nba_games game ON game.id = changed.game_id
+      WHERE matchup.league_season_id = p_league_season_id AND matchup.matchup_type = v_type
+        AND (v_type <> 'regular_season' OR matchup.week_number < v_start)
+        AND changed.updated_at > COALESCE(matchup.score_read_started_at, matchup.finalized_at, '-infinity'::timestamptz)
+        AND btrim(game.nba_game_id) <> ''
+        AND (btrim(game.nba_game_id) LIKE '002%' OR btrim(game.nba_game_id) !~ '^00[0-9]')
+  ) THEN
     RETURN jsonb_build_object('applied', false);
   END IF;
 
