@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
     unsubscribeFromDraft: vi.fn(async () => undefined),
 }))
 
+vi.mock('react-native', () => ({
+    AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) },
+}))
+
 vi.mock('@/lib/draft', () => ({
     closeExpiredNominations: vi.fn(),
     getDraftState: mocks.getDraftState,

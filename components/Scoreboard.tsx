@@ -21,17 +21,19 @@ export function Scoreboard({
     games,
     myTeamSet,
     compact = false,
+    freshness = 'fresh',
     wrap = false,
 }: {
     games: NBAGameRow[]
     myTeamSet: Set<string>
     compact?: boolean
-    /** Lay games out in rows (side column) instead of one sideways strip. */
+    freshness?: 'fresh' | 'refreshing' | 'failed' | 'offline'
     wrap?: boolean
 }) {
     const { fadeStyle, scrollProps } = useEdgeFade()
-
-    if (games.length === 0) return null
+    if (games.length === 0) return freshness === 'failed'
+        ? <Text style={styles.status}>Live scores unavailable.</Text>
+        : null
 
     const sorted = sortGames(games)
 
@@ -46,7 +48,9 @@ export function Scoreboard({
                 contentContainerStyle={[styles.scroll, compact && styles.scrollCompact, wrap && styles.scrollWrap]}
             >
                 {sorted.map((g, index) => {
-                    const isLive = g.status === 'InProgress'
+                    const hasScore = g.status === 'InProgress' || g.status === 'Final'
+                    const isInProgress = g.status === 'InProgress'
+                    const isLive = isInProgress && freshness === 'fresh'
                     const isFinal = g.status === 'Final'
                     const myAway = myTeamSet.has(g.away_team)
                     const myHome = myTeamSet.has(g.home_team)
@@ -58,7 +62,7 @@ export function Scoreboard({
                             style={[
                                 styles.card,
                                 compact && styles.cardCompact,
-                                isLive && styles.cardLive,
+                                isInProgress && styles.cardLive,
                                 isFinal && styles.cardFinal,
                             ]}
                         >
@@ -70,10 +74,10 @@ export function Scoreboard({
                                 </Text>
                                 <Text style={[
                                     styles.score,
-                                    !isFinal && !isLive && styles.scoreHidden,
-                                    myAway && (isFinal || isLive) && styles.scoreHighlight,
+                                    !hasScore && styles.scoreHidden,
+                                    myAway && hasScore && styles.scoreHighlight,
                                 ]}>
-                                    {isFinal || isLive ? g.away_score : ''}
+                                    {hasScore ? g.away_score : '·'}
                                 </Text>
                             </View>
                             {/* Home */}
@@ -83,21 +87,22 @@ export function Scoreboard({
                                 </Text>
                                 <Text style={[
                                     styles.score,
-                                    !isFinal && !isLive && styles.scoreHidden,
-                                    myHome && (isFinal || isLive) && styles.scoreHighlight,
+                                    !hasScore && styles.scoreHidden,
+                                    myHome && hasScore && styles.scoreHighlight,
                                 ]}>
-                                    {isFinal || isLive ? g.home_score : ''}
+                                    {hasScore ? g.home_score : '·'}
                                 </Text>
                             </View>
                             {/* Status */}
                             <View style={styles.statusRow}>
                                 {isLive && <LivePulse color={colors.primary} size={5} />}
-                                <Text numberOfLines={1} style={[
+                                <Text numberOfLines={1} accessibilityLabel={freshness === 'fresh' ? undefined : freshness === 'failed' ? 'Refresh failed. Saved scores.' : `${freshness === 'offline' ? 'Offline' : 'Updating'}. Saved scores.`} style={[
                                     styles.status,
+                                    freshness !== 'fresh' && styles.statusSaved,
                                     isLive && styles.statusLive,
                                     isFinal && styles.statusFinal,
                                 ]}>
-                                    {statusLabel(g)}
+                                    {freshness === 'fresh' ? statusLabel(g) : freshness === 'offline' ? 'Offline' : freshness === 'failed' ? 'Failed' : 'Updating'}
                                 </Text>
                             </View>
                         </MotionView>
@@ -182,7 +187,7 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.extrabold,
     },
     score: {
-        fontSize: fontSize.sm,
+        fontSize: 13,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
         color: scoreboardColors.accent,
@@ -209,6 +214,9 @@ const styles = StyleSheet.create({
         color: scoreboardColors.textMuted,
         textAlign: 'center',
         letterSpacing: 0.3,
+    },
+    statusSaved: {
+        color: scoreboardColors.textMuted,
     },
     statusLive: {
         color: scoreboardColors.accent,

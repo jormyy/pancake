@@ -11,6 +11,7 @@ export function RosterTrimBanner({
     taxiAvailable,
     busyId,
     onDrop,
+    dropDisabled = false,
     onMoveToIR,
     onMoveToTaxi,
 }: {
@@ -20,6 +21,7 @@ export function RosterTrimBanner({
     taxiAvailable: boolean
     busyId: string | null
     onDrop: (player: RosterPlayer) => void
+    dropDisabled?: boolean
     onMoveToIR: (player: RosterPlayer) => void
     onMoveToTaxi: (player: RosterPlayer) => void
 }) {
@@ -72,12 +74,12 @@ export function RosterTrimBanner({
                                     </Pressable>
                                 ) : null}
                                 <Pressable
-                                    style={[styles.action, styles.dropAction]}
+                                    style={[styles.action, styles.dropAction, dropDisabled && { opacity: 0.5 }]}
                                     onPress={() => onDrop(player)}
-                                    disabled={busy}
+                                    disabled={busy || dropDisabled}
                                     accessibilityRole="button"
                                     accessibilityLabel={`Drop ${player.players.display_name}`}
-                                    accessibilityState={{ disabled: busy }}
+                                    accessibilityState={{ disabled: busy || dropDisabled }}
                                 >
                                     <Text style={styles.dropText}>Drop</Text>
                                 </Pressable>

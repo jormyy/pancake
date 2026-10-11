@@ -75,6 +75,9 @@ export async function submitWaiverClaim(
     dropPlayerId?: string,
     options: { bidAmount?: number; claimOrder?: number | null } = {},
 ): Promise<void> {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        throw new Error('Connect to the internet to submit a waiver claim.')
+    }
     await apiPost('/waivers/claims', {
         memberId,
         leagueId,

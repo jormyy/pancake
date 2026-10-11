@@ -284,6 +284,7 @@ export function TradeCard({
     tradeVetoMode = 'member_vote',
     isCommissioner = false,
     acting,
+    decisionsDisabled = false,
     selected = false,
     brief = false,
     onAccept,
@@ -299,6 +300,7 @@ export function TradeCard({
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
     acting: boolean
+    decisionsDisabled?: boolean
     selected?: boolean
     /** Beside an open detail pane: names only, the pane shows season context and notes. */
     brief?: boolean
@@ -366,7 +368,7 @@ export function TradeCard({
             <TradeActionButtons
                 trade={trade}
                 model={model}
-                actions={{ acting, onAccept, onReject, onVeto, onWithdraw }}
+                actions={{ acting: acting || decisionsDisabled, onAccept, onReject, onVeto, onWithdraw }}
                 withTestIds
             />
         </MotionView>

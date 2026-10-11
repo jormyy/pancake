@@ -211,6 +211,26 @@ function setupMocks(opts: MockOpts) {
 // ── autoSetLineup — daily ─────────────────────────────────────────────────────
 
 describe('autoSetLineup — daily', () => {
+    it('never places one player in two slots on a 54-player roster', async () => {
+        // Player 0 and the last player are the only eligible ones; a Number
+        // bitmask dropped player 0 at index 53 and reused it for UTIL.
+        const roster = Array.from({ length: 54 }, (_, index) => index === 0
+            ? rp('p0', 'PG', ['PG'], 'LAL')
+            : index === 53 ? rp('p53', 'C', ['C'], 'LAL') : rp(`p${index}`, 'X', [], 'LAL'))
+        // Projection order puts p0 first and p53 last, at indexes 0 and 53.
+        const avgs = roster.map((row) => avg(row.player_id, row.player_id === 'p0' ? 30 : row.player_id === 'p53' ? 1 : 10))
+        const { insertSpy } = setupMocks({
+            roster, avgs, games: [game('LAL', 'GSW')],
+            templates: [{ slot_type: 'PG', slot_count: 1 }, { slot_type: 'C', slot_count: 1 }, { slot_type: 'UTIL', slot_count: 1 }],
+        })
+
+        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, '2026-04-22')
+
+        const rows: any[] = insertSpy.mock.calls[0][0]
+        expect(new Set(rows.map((row) => row.player_id)).size).toBe(rows.length)
+        expect(rows.map((row) => row.player_id).sort()).toEqual(['p0', 'p53'])
+    })
+
     it('places a game-day player in their matching starter slot', async () => {
         const roster = [rp('pPG', 'PG', ['PG', 'G'], 'LAL')]
         const avgs   = [avg('pPG', 30)]

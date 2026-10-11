@@ -7,21 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "pancake",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.pancake"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
@@ -47,20 +32,14 @@
             "backgroundColor": "#140D07"
           }
         }
-      ],
-      "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#F97316"
-        }
-      ],
-      "react-native-bottom-tabs"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "platforms": [
+      "web"
+    ]
   }
 }

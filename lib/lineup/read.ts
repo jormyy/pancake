@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
-import { getCurrentSeason } from '@/lib/shared/season'
-import { getCurrentWeekNumber, getSeasonWeekStart } from '@/lib/shared/week'
+import { getCurrentSeason, invalidateSeasonCache } from '@/lib/shared/season'
+import { getCurrentWeekNumber, getSeasonWeekStart, invalidateWeekNumberCache } from '@/lib/shared/week'
 import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
@@ -79,7 +79,19 @@ export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
     return teams
 }
 
-export async function getLineupContext(leagueId: string): Promise<LineupContext | null> {
+export async function getLineupContext(
+    leagueId: string,
+    owner?: { memberId: string; userId: string },
+): Promise<LineupContext | null> {
+    if (owner) {
+        const { data, error } = await supabase.from('league_members')
+            .select('id').eq('id', owner.memberId).eq('league_id', leagueId).eq('user_id', owner.userId).maybeSingle()
+        if (error) throw error
+        if (!data) return null
+        // Snapshot recovery must validate context, not reuse the short-lived lookup caches.
+        invalidateSeasonCache(leagueId)
+        invalidateWeekNumberCache()
+    }
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
     const weekNumber = await getCurrentWeekNumber(season.seasonYear) ?? 1

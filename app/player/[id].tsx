@@ -9,6 +9,7 @@ import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
+import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
@@ -34,6 +35,7 @@ const SIDE_COLUMN_WIDTH = 400
 export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
     const { current, currentLeague } = useLeagueContext()
+    const online = useOnlineStatus()
     const router = useRouter()
     const { push } = router
     const { padX, usableWidth } = usePageMetrics()
@@ -225,6 +227,7 @@ export default function PlayerDetailScreen() {
                         rosterStatus={rosterStatus}
                         leagueActive={!!current}
                         actionLoading={dropping || quickAdd.adding === id}
+                        dropDisabled={!online}
                         playedToday={playedToday}
                         addBlockedReason={quickAdd.addBlockedReason}
                         addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}

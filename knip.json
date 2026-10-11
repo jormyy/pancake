@@ -37,7 +37,6 @@
   "ignoreDependencies": [
     "agent-browser",
     "cheerio",
-    "expo-symbols",
     "expo-updates",
     "npm",
     "prettier"

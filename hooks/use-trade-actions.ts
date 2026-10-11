@@ -7,11 +7,15 @@ export function useTradeActions({
     memberId,
     leagueId,
     onAction,
+    enabled = true,
 }: {
     memberId: string
     leagueId: string
     onAction: () => void | Promise<void>
+    enabled?: boolean
 }) {
+    const enabledRef = useRef(enabled)
+    enabledRef.current = enabled
     const identity = `${leagueId}:${memberId}`
     const identityRef = useRef(identity)
     identityRef.current = identity
@@ -38,7 +42,7 @@ export function useTradeActions({
     }, [onAction])
 
     const accept = useCallback(async (trade: Trade) => {
-        if (!mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
+        if (!enabledRef.current || !mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
         mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
@@ -63,7 +67,7 @@ export function useTradeActions({
         operation: (tradeId: string, memberId: string) => Promise<void>,
         fallbackMessage: string,
     ) => {
-        if (!mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
+        if (!enabledRef.current || !mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
         mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity

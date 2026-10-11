@@ -8,7 +8,7 @@ const TRADES_PAGE_SIZE = 40
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 type TradesResource = { key: string | null; trades: Trade[] }
 
-export function useTradesFeed(memberId: string, leagueId: string) {
+export function useTradesFeed(memberId: string, leagueId: string, online = true) {
     const resourceKey = memberId && leagueId ? tradesCacheKey(memberId, leagueId) : null
     const cached = useMemo(
         () => memberId && leagueId ? readPersistentCache<Trade[]>(tradesCacheKey(memberId, leagueId)) : null,
@@ -20,6 +20,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         [cached, resource, resourceKey],
     )
     const [loading, setLoading] = useState(!cached)
+    const [validatedKey, setValidatedKey] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [hasMore, setHasMore] = useState((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
     const [loadingMore, setLoadingMore] = useState(false)
@@ -31,6 +32,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
 
     const refresh = useCallback(async () => {
         const requestId = ++loadSequence.current
+        setValidatedKey(null)
         paginationRequest.current = null
         nextCursor.current = null
         setLoadingMore(false)
@@ -50,6 +52,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
             if (loadSequence.current !== requestId) return
             nextCursor.current = result.nextCursor
             setResource({ key: resourceKey, trades: result.trades })
+            setValidatedKey(resourceKey)
             setHasMore(result.hasMore)
             writePersistentCache(tradesCacheKey(memberId, leagueId), result.trades)
         } catch (cause) {
@@ -66,12 +69,18 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         paginationRequest.current = null
         nextCursor.current = null
         setResource({ key: resourceKey, trades: cached ?? [] })
+        setValidatedKey(null)
         setError(null)
         setLoadMoreError(null)
         setLoading(!cached)
         setHasMore((cached?.length ?? 0) >= TRADES_PAGE_SIZE)
         setLoadingMore(false)
     }, [cached, resourceKey])
+
+    useEffect(() => {
+        loadSequence.current += 1
+        setValidatedKey(null)
+    }, [online])
 
     useEffect(() => {
         void refresh()
@@ -123,6 +132,7 @@ export function useTradesFeed(memberId: string, leagueId: string) {
         loadingMore: ownsResource && loadingMore,
         hasMore: ownsResource ? hasMore : (cached?.length ?? 0) >= TRADES_PAGE_SIZE,
         error: ownsResource ? error : null,
+        isSnapshot: resourceKey !== null && validatedKey !== resourceKey,
         loadMoreError: ownsResource ? loadMoreError : null,
         refresh,
         loadMore,

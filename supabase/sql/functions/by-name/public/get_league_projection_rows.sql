@@ -90,6 +90,21 @@ base_players AS (
   FROM public.players p
   WHERE p_player_ids IS NULL OR p.id = ANY(p_player_ids)
 ),
+team_next_games AS MATERIALIZED (
+  SELECT teams.nba_team, g.game_date, g.home_team, g.away_team, g.game_time
+  FROM (SELECT DISTINCT nba_team FROM base_players WHERE nba_team IS NOT NULL) teams
+  LEFT JOIN LATERAL (
+    SELECT ng.game_date, ng.home_team, ng.away_team, ng.game_time
+    FROM args
+    JOIN public.nba_games ng
+      ON ng.season_year = p_season_year
+     AND ng.game_date >= args.game_date
+     AND public.is_regular_season_game_id(ng.nba_game_id)
+     AND (ng.home_team = teams.nba_team OR ng.away_team = teams.nba_team)
+    ORDER BY ng.game_date ASC, ng.game_time ASC NULLS LAST, ng.id ASC
+    LIMIT 1
+  ) g ON true
+),
 next_games AS (
   SELECT
     bp.id AS player_id,
@@ -101,18 +116,7 @@ next_games AS (
     END AS next_game_opponent,
     g.game_time AS next_game_time
   FROM base_players bp
-  LEFT JOIN LATERAL (
-    SELECT ng.game_date, ng.home_team, ng.away_team, ng.game_time
-    FROM args
-    JOIN public.nba_games ng
-      ON ng.season_year = p_season_year
-     AND ng.game_date >= args.game_date
-     AND public.is_regular_season_game_id(ng.nba_game_id)
-     AND bp.nba_team IS NOT NULL
-     AND (ng.home_team = bp.nba_team OR ng.away_team = bp.nba_team)
-    ORDER BY ng.game_date ASC, ng.game_time ASC NULLS LAST, ng.id ASC
-    LIMIT 1
-  ) g ON true
+  LEFT JOIN team_next_games g ON g.nba_team = bp.nba_team
 ),
 week_game_counts AS (
   SELECT

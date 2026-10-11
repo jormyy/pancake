@@ -11,6 +11,9 @@ type LeagueContextType = {
     isCommissioner: boolean
     setCurrent: (m: LeagueMembership) => void
     loading: boolean
+    membershipStatus: ReturnType<typeof useLeagues>['membershipStatus']
+    membershipError: Error | null
+    online: boolean
     refresh: () => Promise<void>
 }
 
@@ -31,7 +34,7 @@ function readSelectedMembershipId(userId: string | null): string | null {
 
 export function LeagueProvider({ children }: PropsWithChildren) {
     const { user } = useAuth()
-    const { memberships, loading, refresh } = useLeagues()
+    const { memberships, loading, error: membershipError, membershipStatus, online, refresh } = useLeagues()
     const userId = user?.id ?? null
     const persistedMembershipId = useMemo(() => readSelectedMembershipId(userId), [userId])
     const [selection, setSelection] = useState<LeagueSelection>(() => ({
@@ -69,7 +72,7 @@ export function LeagueProvider({ children }: PropsWithChildren) {
     }, [persistedMembershipId, userId])
 
     useEffect(() => {
-        if (!userId || loading) return
+        if (!userId || loading || membershipError) return
         const validatedId = memberships.some((membership) => membership.id === currentId)
             ? currentId
             : memberships[0]?.id ?? null
@@ -80,12 +83,12 @@ export function LeagueProvider({ children }: PropsWithChildren) {
         ))
         if (validatedId) writePersistentCache(selectedLeagueCacheKey(userId), validatedId)
         else removePersistentCache(selectedLeagueCacheKey(userId))
-    }, [currentId, loading, memberships, userId])
+    }, [currentId, loading, membershipError, memberships, userId])
 
     // Memoize context value so consumers don't tear / re-render on every parent tick.
     const value = useMemo<LeagueContextType>(
-        () => ({ memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh }),
-        [memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh],
+        () => ({ memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipError, online }),
+        [memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipError, online],
     )
 
     return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>

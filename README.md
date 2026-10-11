@@ -17,6 +17,8 @@ commissioner disappears.
 - [Deployment](#deployment)
 - [Documentation](#documentation)
 
+Pancake supports iPhone Safari and the installed iPhone PWA. Native app builds are not supported.
+
 ## Highlights
 
 - **Startup auction draft** with real-time bidding, commissioner-chosen nomination-order
@@ -38,7 +40,7 @@ commissioner disappears.
   offers, expiration, counteroffers, outgoing edits, trade block, and a 24h veto window
 - **H2H matchups** with cumulative weekly scoring, playoff brackets, and a fully
   automated season lifecycle ([Season autonomy](#season-autonomy))
-- **Push notifications** via Expo (server-emitted only)
+- **Push notifications** via Web Push for the installed iPhone PWA (server-emitted only)
 - **PWA**: installable web app with an offline app shell (manifest + service worker)
 
 ## Architecture
@@ -60,7 +62,7 @@ parity tests fail the build if any copy drifts.
 
 ```bash
 npm install
-npx expo start                                # frontend
+npm start                                     # Safari/PWA frontend
 supabase start                                # local database stack
 supabase functions serve --env-file .env      # Edge API
 ```

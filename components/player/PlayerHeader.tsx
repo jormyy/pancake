@@ -36,6 +36,7 @@ type Props = {
     rosterStatus: PlayerRosterStatus | null
     leagueActive: boolean
     actionLoading: boolean
+    dropDisabled?: boolean
     playedToday?: boolean
     /** Why a free-agent add is unavailable (weekly add limit); the action stays pressable so a tap explains it. A claim is gated by the claim modal. */
     addBlockedReason?: string | null
@@ -54,6 +55,7 @@ export function PlayerHeader({
     rosterStatus,
     leagueActive,
     actionLoading,
+    dropDisabled = false,
     playedToday = false,
     addBlockedReason = null,
     addBlockedCaption = null,
@@ -166,12 +168,12 @@ export function PlayerHeader({
                                 <Text style={styles.actionPrimaryText}>Lineup</Text>
                             </Pressable>
                             <Pressable
-                                style={[styles.action, styles.actionDanger]}
+                                style={[styles.action, styles.actionDanger, dropDisabled && { opacity: 0.5 }]}
                                 onPress={onDrop}
-                                disabled={actionLoading}
+                                disabled={actionLoading || dropDisabled}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Drop ${player.display_name}`}
-                                accessibilityState={{ disabled: actionLoading }}
+                                accessibilityState={{ disabled: actionLoading || dropDisabled }}
                             >
                                 <Text style={styles.actionDangerText}>Drop</Text>
                             </Pressable>

@@ -41,6 +41,13 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         expect(onAdd).toHaveBeenCalledWith(playerRow())
     })
 
+    it('search rows disable pickup while the screen is offline', async () => {
+        const tree = await renderSearchItem({ addDisabled: true })
+        const add = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
+        expect(add.props.disabled).toBe(true)
+        expect(add.props.accessibilityState).toEqual({ disabled: true })
+    })
+
     it('search rows are plain add buttons when adds are available', async () => {
         const tree = await renderSearchItem()
         const add = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })

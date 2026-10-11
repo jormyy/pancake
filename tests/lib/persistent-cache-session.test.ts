@@ -1,3 +1,4 @@
+import { authSession, inspectFixtureSession } from '../helpers/auth-session'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +17,9 @@ vi.mock('react-native', () => ({
     AppState: { currentState: 'active', addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
 }))
 vi.mock('@/lib/supabase', () => ({
-    readStoredSessionSync: () => auth.seeded,
+    readStoredAuthState: () => inspectFixtureSession(auth.seeded),
+        inspectAuthSession: (value: unknown) => inspectFixtureSession(value),
+        supabaseAuthStorageKey: 'sb-auth-fixture-auth-token',
     supabase: {
         auth: {
             getSession: () => new Promise(() => {}),
@@ -47,7 +50,7 @@ import { getCurrentSeason } from '@/lib/shared/season'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const session = (userId: string) => ({ user: { id: userId }, access_token: `token-${userId}` })
+const session = authSession
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
     const promise = new Promise<Value>((done) => { resolve = done })
@@ -82,7 +85,7 @@ describe('persistent cache across sign-out', () => {
 
     it('caches again once the next user signs in', async () => {
         await act(async () => auth.callback!('SIGNED_OUT', null))
-        await act(async () => auth.callback!('SIGNED_IN', session('user-b')))
+        await act(async () => { auth.seeded = session('user-b'); auth.callback!('SIGNED_IN', session('user-b')) })
 
         writePersistentCache('pancake:roster:member-b:league', ['user b roster'])
 
@@ -95,7 +98,7 @@ describe('persistent cache across sign-out', () => {
         expect(auth.seasonReads).toBe(1)
 
         await act(async () => auth.callback!('SIGNED_OUT', null))
-        await act(async () => auth.callback!('SIGNED_IN', session('user-b')))
+        await act(async () => { auth.seeded = session('user-b'); auth.callback!('SIGNED_IN', session('user-b')) })
         await getCurrentSeason('league')
 
         expect(auth.seasonReads).toBe(2)

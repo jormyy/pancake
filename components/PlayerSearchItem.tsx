@@ -20,6 +20,7 @@ function PlayerSearchItemImpl({
     ownedMap,
     waiverIds,
     isAdding,
+    addDisabled = false,
     gamesLeft,
     showStats = false,
     showCompactStats = true,
@@ -34,6 +35,7 @@ function PlayerSearchItemImpl({
     ownedMap: Map<string, OwnedEntry>
     waiverIds: Set<string>
     isAdding: boolean
+    addDisabled?: boolean
     gamesLeft: Map<string, number>
     showStats?: boolean
     showCompactStats?: boolean
@@ -103,10 +105,10 @@ function PlayerSearchItemImpl({
                     <MotionPressable
                         style={styles.addTarget}
                         onPress={() => onAdd(item)}
-                        disabled={isAdding}
+                        disabled={isAdding || addDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`Add ${item.display_name}`}
-                        {...blockedActionProps(blockedReason, isAdding)}
+                        {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                         hitSlop={8}
                         pressedScale={0.88}
                     >

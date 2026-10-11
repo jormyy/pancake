@@ -180,8 +180,8 @@ export const BOOT_SHELL_HTML = `
       <div class="pbs-league">
         <div class="pbs-crest" data-pbs="crest">P</div>
         <div class="pbs-league-text">
-          <div class="pbs-league-name" data-pbs="league">No league</div>
-          <div class="pbs-league-meta" data-pbs="team">Create or join from League</div>
+          <div class="pbs-league-name" data-pbs="league">League unavailable</div>
+          <div class="pbs-league-meta" data-pbs="team">Waiting for league access</div>
         </div>
       </div>
       <div class="pbs-navgroup">${PRIMARY_NAV.map(sideItem).join('')}</div>
@@ -206,7 +206,7 @@ export const BOOT_SHELL_HTML = `
   <div class="pbs-topbar">
     <img src="/pwa-192.png" alt="" />
     <div class="pbs-topbar-league"><div class="pbs-crest" data-pbs="crest">P</div>
-      <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">No league</div></div>
+      <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">League unavailable</div></div>
       ${CHEVRON_ICON}</div>
     <div class="pbs-menu" aria-hidden="true">${MENU_ICON}</div>
   </div>

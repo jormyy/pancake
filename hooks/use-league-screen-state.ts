@@ -165,6 +165,8 @@ export function useLeagueScreenState() {
         leagueLoading,
         isTabLoading: tabResources.isTabLoading,
         isTabLoaded: tabResources.isTabLoaded,
+        isTabRefreshing: tabResources.isTabRefreshing,
+        isOnline: tabResources.isOnline,
         mockRooms: tabResources.mockRooms,
         nominationMode: draft.nominationMode,
         openBracket: () => push('/(modals)/bracket'),

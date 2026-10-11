@@ -1253,6 +1253,20 @@ export type Database = {
             referencedRelation: "league_members"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lineup_optimizer_settings_member_league_fkey"
+            columns: ["member_id", "league_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id", "league_id"]
+          },
+          {
+            foreignKeyName: "lineup_optimizer_settings_season_league_fkey"
+            columns: ["league_season_id", "league_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id", "league_id"]
+          },
         ]
       }
       lineup_slot_templates: {

@@ -1,19 +1,13 @@
 import 'react-native-url-polyfill/auto'
-import { createClient, type Session } from '@supabase/supabase-js'
-import * as SecureStore from 'expo-secure-store'
+import { createClient } from '@supabase/supabase-js'
 import { Platform } from 'react-native'
 import { Database } from '@/types/database'
 import { fenceDataRequests } from '@/lib/session-fetch'
-
-// SecureStore is native-only — fall back to undefined (default storage) on web/SSR
-const ExpoSecureStoreAdapter =
-    Platform.OS === 'web'
-        ? undefined
-        : {
-              getItem: (key: string) => SecureStore.getItemAsync(key),
-              setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-              removeItem: (key: string) => SecureStore.deleteItemAsync(key),
-          }
+import { authStorageKey, inspectSession, readStoredAuth, type StoredAuthState } from '@/lib/auth-session'
+import { createAuthStorage } from '@/lib/auth-storage'
+import { createAuthInvalidation } from '@/lib/auth-invalidation'
+import { setSessionOwner } from '@/lib/session-cache-registry'
+import { authNavigatorLock } from '@/lib/auth-lock'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const supabasePublicKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -43,38 +37,103 @@ function runtimeSupabaseOverride(key: string): string | null {
     }
 }
 
-// Synchronously read the session supabase-js persisted to localStorage so the
-// first render already knows who is signed in. Without this, every screen
-// waits for the async getSession() round-trip on each refresh, which defeats
-// the persistent per-user caches (their keys need user.id). The token may be
-// expired — that's fine: it's only used to seed UI state; supabase-js still
-// validates/refreshes it through the normal async path.
-export function readStoredSessionSync(): Session | null {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return null
-    try {
-        const storage = window.localStorage
-        for (let index = 0; index < storage.length; index += 1) {
-            const key = storage.key(index)
-            if (!key || !key.startsWith('sb-') || !key.endsWith('-auth-token')) continue
-            const parsed = JSON.parse(storage.getItem(key) ?? '') as Session
-            if (parsed && typeof parsed === 'object' && parsed.access_token && parsed.user?.id) return parsed
-        }
-    } catch {
-        // Private mode / corrupt entry — fall back to the async path.
+const resolvedSupabaseUrl = runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl
+const resolvedSupabasePublicKey = runtimeSupabaseOverride(SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) ?? supabasePublicKey
+export const supabaseAuthStorageKey = authStorageKey(resolvedSupabaseUrl)
+export const localAuthChangeEvent = 'pancake-local-auth-change'
+const authStorage = createAuthInvalidation(
+    createAuthStorage(() => typeof window === 'undefined' ? null : window.localStorage),
+    createAuthStorage(() => typeof window === 'undefined' ? null : window.sessionStorage),
+    supabaseAuthStorageKey,
+    () => {
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event(localAuthChangeEvent))
+    },
+)
+const logoutChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel(`${supabaseAuthStorageKey}-local-logout`) : null
+if (logoutChannel) logoutChannel.onmessage = (event) => {
+    const value = event.data as { id?: unknown; signedOut?: unknown; generation?: unknown }
+    if (typeof value?.id === 'string' && value.signedOut === true && Number.isSafeInteger(value.generation)) {
+        authStorage.receive({ id: value.id, signedOut: true, generation: value.generation as number })
     }
-    return null
+}
+
+export async function invalidateLocalAuthSession(): Promise<void> {
+    const clear = async () => {
+        authStorage.invalidate()
+        setSessionOwner(null)
+        logoutChannel?.postMessage(authStorage.current())
+    }
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+        await authNavigatorLock(`lock:${supabaseAuthStorageKey}`, 10_000, clear)
+    } else await clear()
+}
+
+export function inspectAuthSession(value: unknown): StoredAuthState {
+    return inspectSession(value, resolvedSupabaseUrl)
+}
+
+export function readStoredAuthState(): StoredAuthState {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return { session: null, status: 'missing' }
+    const stored = authStorage.read(supabaseAuthStorageKey)
+    return stored.available
+        ? readStoredAuth({ getItem: () => stored.value }, resolvedSupabaseUrl)
+        : { session: null, status: 'unavailable' }
 }
 
 export const supabase = createClient<Database>(
-    runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl,
-    runtimeSupabaseOverride(SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) ?? supabasePublicKey,
+    resolvedSupabaseUrl,
+    resolvedSupabasePublicKey,
     {
         auth: {
-            storage: ExpoSecureStoreAdapter,
+            storageKey: supabaseAuthStorageKey,
+            storage: authStorage,
             autoRefreshToken: true,
             persistSession: true,
             detectSessionInUrl: false,
+            ...(typeof navigator !== 'undefined' && navigator.locks ? { lock: authNavigatorLock } : {}),
         },
-        global: { fetch: fenceDataRequests((input, init) => fetch(input, init)) },
+        global: { fetch: authStorage.fetch(fenceDataRequests((input, init) => fetch(input, init))) },
     },
 )
+
+type SessionTokens = { access_token: string; refresh_token: string }
+
+/** The saved session's tokens, even after the access token expired, so sign-out can still revoke it. */
+export function readStoredSessionTokens(): SessionTokens | null {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return null
+    const stored = authStorage.read(supabaseAuthStorageKey)
+    if (!stored.available || !stored.value) return null
+    try {
+        const session = JSON.parse(stored.value) as Partial<SessionTokens>
+        return typeof session.access_token === 'string' && typeof session.refresh_token === 'string' && session.refresh_token
+            ? { access_token: session.access_token, refresh_token: session.refresh_token }
+            : null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Revoke a session this device already signed out of. A separate in-memory client refreshes an
+ * expired access token if needed and never writes the device's stored auth. `beforeRevoke` gets
+ * a usable access token for server cleanup that needs the old identity.
+ */
+export async function revokeDetachedSession(
+    tokens: SessionTokens,
+    beforeRevoke: (accessToken: string) => Promise<void>,
+): Promise<boolean> {
+    const detached = createClient<Database>(resolvedSupabaseUrl, resolvedSupabasePublicKey, {
+        auth: {
+            storageKey: `${supabaseAuthStorageKey}-revoke`,
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+        },
+    })
+    const { data, error } = await detached.auth.setSession(tokens)
+    if (error || !data.session) return false
+    await beforeRevoke(data.session.access_token)
+    const { error: signOutError } = await detached.auth.signOut()
+    return !signOutError
+}

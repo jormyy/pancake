@@ -14,12 +14,14 @@ import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import * as Haptics from 'expo-haptics'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
+import { useOnlineStatus } from '@/hooks/use-online-status'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
 import { colors, fontSize, fontWeight, INJURY_COLORS, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
+import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
@@ -259,10 +261,11 @@ function RosterTablePlayerItem({
 
 
 export default function RosterScreen() {
+    const online = useOnlineStatus()
     const { push } = useRouter()
     const { padX, usableWidth } = usePageMetrics()
     const { user } = useAuth()
-    const { current, currentLeague, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, loading: leagueLoading, membershipStatus } = useLeagueContext()
     const leagueId = currentLeague?.id
     const cachedRosterData = useMemo(
         () => readRosterCache(current?.id, leagueId),
@@ -571,6 +574,10 @@ export default function RosterScreen() {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity) return
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            showAlert('Offline', 'Connect to the internet to drop a player.')
+            return
+        }
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
         confirmAction(
             `Drop ${item.players.display_name}?`,
@@ -691,6 +698,7 @@ export default function RosterScreen() {
         }
         actions.push({
             key: 'drop',
+            disabled: !online,
             label: 'Drop player',
             icon: 'person-remove',
             tone: 'danger',
@@ -698,7 +706,7 @@ export default function RosterScreen() {
             onPress: run(() => handleDropPrompt(item)),
         })
         return actions
-    }, [sheetPlayer, push, rosterOverflow, taxi.length, taxiSlots, currentLeague, handleToggleIR, handleToggleTaxi, handleDropPrompt])
+    }, [sheetPlayer, online, push, rosterOverflow, taxi.length, taxiSlots, currentLeague, handleToggleIR, handleToggleTaxi, handleDropPrompt])
 
     const renderRosterContent = useCallback((item: RosterListItem) => {
         if (item._isHeader) {
@@ -835,7 +843,7 @@ export default function RosterScreen() {
         if (leagueLoading) {
             return <View style={styles.container} />
         }
-        return <EmptyState message="Join or create a league first." />
+        return membershipStatus === 'empty' ? <EmptyState message="Join or create a league first." /> : <NoLeagueState />
     }
 
     const lineupLocked = rosterOverflow > 0 || autoSetting
@@ -923,6 +931,7 @@ export default function RosterScreen() {
                 taxiAvailable={taxi.length < taxiSlots}
                 busyId={trimBusyId}
                 onDrop={handleDropPrompt}
+                dropDisabled={!online}
                 onMoveToIR={(player) => { void handleToggleIR(player) }}
                 onMoveToTaxi={(player) => { void handleToggleTaxi(player) }}
             />

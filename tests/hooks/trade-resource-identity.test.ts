@@ -413,3 +413,31 @@ describe('trade resource identity', () => {
         expect(getTradeBlockItems).toHaveBeenCalledTimes(readsBeforeMutation)
     })
 })
+
+
+describe('trade reconnect authority', () => {
+    it('retains offers without enabling decisions before a fresh reconnect response', async () => {
+        getTradesForScreen.mockResolvedValueOnce({ trades: [trade('saved')], nextCursor: null, hasMore: false })
+        let latest!: ReturnType<typeof useTradesFeed>
+        const Probe = ({ online }: { online: boolean }) => {
+            latest = useTradesFeed('member-a', 'league-a', online)
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { online: true })) })
+        expect(latest.isSnapshot).toBe(false)
+        const old = deferred<TradePage>()
+        getTradesForScreen.mockReturnValueOnce(old.promise)
+        await act(async () => { void latest.refresh() })
+        await act(async () => { renderer.update(React.createElement(Probe, { online: false })) })
+        await act(async () => { renderer.update(React.createElement(Probe, { online: true })) })
+        await act(async () => { old.resolve({ trades: [trade('late')], nextCursor: null, hasMore: false }) })
+        expect(latest.trades.map((item) => item.id)).toEqual(['saved'])
+        expect(latest.isSnapshot).toBe(true)
+        getTradesForScreen.mockResolvedValueOnce({ trades: [], nextCursor: null, hasMore: false })
+        await act(async () => { await latest.refresh() })
+        expect(latest.trades).toEqual([])
+        expect(latest.isSnapshot).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+})

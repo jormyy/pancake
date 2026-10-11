@@ -329,6 +329,55 @@
       "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d",
       "statementCount": 14,
       "statementsSha256": "78bd410df2613e4bb3eb6747943d1e05ecfbec5372e36315429fc3e71dfad797"
+    },
+    {
+      "name": "share_scoring_cache_aggregation",
+      "version": "20261006000001",
+      "statementCount": 12,
+      "statementsSha256": "b04e7678f3fb87c19998f56d092bddc709b0441405cf73c4e78765b3d10ed6bd",
+      "sha256": "673b9ded8f58df587525711dae2c38b3f5377a000d5a32e43f3632c41346f9df"
+    },
+    {
+      "name": "extract_scoring_cache_coefficients",
+      "version": "20261007000001",
+      "statementCount": 12,
+      "statementsSha256": "349d743dd5daee87ac6263328f9d13ac16ed53eb5fed88f71895d1bf738b8a34",
+      "sha256": "58392a7d21db63246dd9cf929ee76961ff01255411b4909ab80a983f813f560b"
+    },
+    {
+      "name": "reuse_numeric_scoring_coefficients",
+      "version": "20261008000001",
+      "statementCount": 13,
+      "statementsSha256": "f939f17b7bd91df8f8658fd60b6e13c5942b6ee103c228399c034be490b5446a",
+      "sha256": "89364bb739366e151f060bce309cfe5b7e83331781bea487b0c1a8e0ea1149d7"
+    },
+    {
+      "name": "optimizer_setting_context_writes",
+      "version": "20261008000002",
+      "statementCount": 9,
+      "statementsSha256": "5edb1efdaeb65c508860d9c9668b4a803eb1291aa2cf044d28eeddb00f84594b",
+      "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
+    },
+    {
+      "name": "health_search_score_reuse",
+      "version": "20261009000002",
+      "statementCount": 4,
+      "statementsSha256": "283074369c9a2b71e868aa290759ad1f4e588ca278f52d24adf944999afb7d24",
+      "sha256": "1a6c5e3109155f02b9f0254426e28d60d521b8b7d7c87f612d7dc6fc92f0275d"
+    },
+    {
+      "name": "projection_team_calendar",
+      "version": "20261009000003",
+      "statementCount": 2,
+      "statementsSha256": "65c816410cd37519e1564045a68f80c347e145dacd5c36ea610cfd9f96d1678b",
+      "sha256": "ba268fba2fadc64160cf1ae730d362873fd97e6c2da00ac30629ddce2449cbff"
+    },
+    {
+      "name": "trade_veto_read_policy",
+      "version": "20261010000001",
+      "statementCount": 2,
+      "statementsSha256": "b561f07f93bb456ae72d2712b974ba42c21fb54fd362979f5d761b16c27fa260",
+      "sha256": "16907cc0841e032a39e318e48630b916b7ccebaa61ee0bb6b90d6e9c5f7cb9ff"
     }
   ]
 }

@@ -161,7 +161,10 @@ export default function ProfileScreen() {
     function handleSignOut() {
         confirmAction('Sign out', 'Are you sure you want to sign out?', async () => {
             try {
-                await signOut()
+                const result = await signOut()
+                if (!result.serverSignOutConfirmed) {
+                    showAlert('Signed out on this device', 'Server sign-out could not be confirmed. Other sessions may still be signed in.')
+                }
             } catch (e) {
                 console.error(e)
                 showAlert('Error', 'Sign out failed. Please try again.')

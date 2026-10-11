@@ -91,6 +91,24 @@ WITH args AS (
     LEAST(GREATEST(COALESCE(p_limit, 20), 1), 100) AS page_limit,
     GREATEST(COALESCE(p_offset, 0), 0) AS page_offset
 ),
+league_scores AS MATERIALIZED (
+  SELECT fp.player_id, fp.avg_fantasy_points
+  FROM public.v_player_avg_fantasy_points AS fp
+  WHERE fp.league_id = p_league_id
+    AND fp.season_year = p_season_year
+    AND (p_include_player_ids IS NULL OR fp.player_id = ANY(p_include_player_ids))
+),
+score_source AS (
+  SELECT fp.player_id, fp.avg_fantasy_points
+  FROM public.v_player_avg_fantasy_points AS fp
+  WHERE fp.league_id = p_league_id
+    AND fp.season_year = p_season_year
+    AND NOT COALESCE(p_health IN ('healthy', 'gtd', 'out', 'ir'), false)
+  UNION ALL
+  SELECT fp.player_id, fp.avg_fantasy_points
+  FROM league_scores AS fp
+  WHERE p_health IN ('healthy', 'gtd', 'out', 'ir')
+),
 filtered_base AS (
   SELECT
     p.id,
@@ -118,10 +136,8 @@ filtered_base AS (
   LEFT JOIN public.mv_player_season_averages AS avg
     ON avg.player_id = p.id
    AND avg.season_year = p_season_year
-  LEFT JOIN public.v_player_avg_fantasy_points AS fp
+  LEFT JOIN score_source AS fp
     ON fp.player_id = p.id
-   AND fp.season_year = p_season_year
-   AND fp.league_id = p_league_id
   WHERE
     (args.query_text IS NULL OR p.display_name ILIKE ('%' || args.query_text || '%'))
     AND (cardinality(args.pos_filter) = 0 OR EXISTS (

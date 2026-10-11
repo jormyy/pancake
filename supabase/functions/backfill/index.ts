@@ -1,6 +1,19 @@
 import { runBBRefChunk } from '../_shared/bbrefBackfill.ts'
 import { runCDNChunk, runCDNEnumChunk } from '../_shared/cdnBackfill.ts'
-import { createBackfillJob, failBackfillJob, invokeBackfill } from '../_shared/backfillJobs.ts'
+import {
+  BACKFILL_SOURCES,
+  BackfillAdmissionError,
+  type BackfillRun,
+  type BackfillSource,
+  backfillJobAuthority,
+  beginBackfillRetry,
+  claimBackfillJob,
+  createBackfillJob,
+  endBackfillRetry,
+  failBackfillJob,
+  invokeBackfill,
+  releaseBackfillJob,
+} from '../_shared/backfillJobs.ts'
 import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
 
@@ -8,11 +21,18 @@ const CDN_START_YEARS = [24, 23, 22, 21, 20, 19] as const
 const BBREF_SEASON_YEARS = Array.from({ length: 16 }, (_, i) => 2004 + i)
 
 type BackfillBody = {
-  action?: 'start' | 'continue' | 'start-all'
+  action?: 'start' | 'continue' | 'retry' | 'start-all'
   source?: string
   seasonYear?: number
   jobId?: string
   offset?: number
+  claimToken?: string
+}
+
+function runChunk(run: BackfillRun, offset: number): Promise<boolean> {
+  if (run.source === 'cdn') return runCDNChunk(run, offset)
+  if (run.source === 'cdn-enum') return runCDNEnumChunk(run, offset)
+  return runBBRefChunk(run, offset)
 }
 
 Deno.serve(async (req) => {
@@ -52,6 +72,9 @@ Deno.serve(async (req) => {
 
     if (action === 'start') {
       if (!source || !seasonYear) return Response.json({ ok: false, error: 'Missing source or seasonYear' }, { status: 400 })
+      if (!BACKFILL_SOURCES.includes(source as BackfillSource)) {
+        return Response.json({ ok: false, error: 'Unknown source' }, { status: 400 })
+      }
 
       const jid = await createBackfillJob(source, seasonYear)
       try {
@@ -63,26 +86,37 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true, jobId: jid })
     }
 
-    if (action === 'continue') {
-      if (!source || !seasonYear || !jobId) {
-        return Response.json({ ok: false, error: 'Missing source, seasonYear, or jobId' }, { status: 400 })
-      }
+    if (action === 'continue' || action === 'retry') {
+      if (!jobId) return Response.json({ ok: false, error: 'Missing jobId' }, { status: 400 })
 
-      if (source === 'cdn') {
-        await runCDNChunk(seasonYear, jobId, offset)
-      } else if (source === 'cdn-enum') {
-        await runCDNEnumChunk(seasonYear, jobId, offset)
-      } else if (source === 'bbref') {
-        await runBBRefChunk(seasonYear, jobId, offset)
-      } else {
-        return Response.json({ ok: false, error: 'Unknown source' }, { status: 400 })
+      // The registered job, not the request, decides the season and source,
+      // and only one run of a job may write at a time.
+      const { job, claimToken } = await claimBackfillJob(jobId, body.claimToken ?? null)
+      let handedOff = false
+      try {
+        const authority = backfillJobAuthority(job, { source, seasonYear })
+        const run: BackfillRun = { jobId, source: authority.source, seasonYear: authority.seasonYear, claimToken, retryBefore: authority.retryBefore }
+        if (action === 'retry') {
+          // Queue the first retry chunk like a new start; continuations read retryBefore from the job.
+          run.retryBefore = await beginBackfillRetry(run, job.metadata)
+          await invokeBackfill({ action: 'continue', jobId, offset: 0, claimToken })
+          handedOff = true
+          return Response.json({ ok: true, jobId, retryBefore: run.retryBefore })
+        }
+        handedOff = await runChunk(run, offset)
+        if (!handedOff && run.retryBefore) await endBackfillRetry(run, job.metadata)
+      } finally {
+        if (!handedOff) await releaseBackfillJob(jobId, claimToken)
       }
       return Response.json({ ok: true, jobId, offset })
     }
 
     return Response.json({ ok: false, error: 'Unknown action' }, { status: 400 })
   } catch (e: unknown) {
-    if (body.action === 'continue' && body.jobId) {
+    if (e instanceof BackfillAdmissionError) {
+      return Response.json({ ok: false, error: e.message }, { status: e.status })
+    }
+    if ((body.action === 'continue' || body.action === 'retry') && body.jobId) {
       try {
         await failBackfillJob(body.jobId, e)
       } catch (failError) {

@@ -117,6 +117,9 @@ Activation deletes older Pancake caches. The new worker takes control immediatel
 The page checks for a new worker on every return to the foreground, on the browser `online`
 event, and hourly while it stays visible. The page reloads once after a new worker takes
 control. The first worker install does not reload the page.
+If session storage denies access, the version reply still closes its port. The page
+does not reload without a saved version comparison. This does not grant a cached
+identity or change the private-resource policy.
 
 A response the host rewrote to a document (the `+not-found.html` HTTP 200 rewrite for a
 hashed asset from a previous release) is never stored in an asset cache.
@@ -142,7 +145,7 @@ league lookups, so the next launch paints the new user's identity or none. A
 database response that arrives after the signed-in user changed (sign-out, a
 switch to another account, or signing in again) is discarded before it reaches
 any cache; its caller gets an error instead of the data. The web sign-in reloads its tab, but another open tab of the
-same session stays live, so this matters on web as well as native.
+same browser session stays live, so identity changes must fence pending responses.
 
 ## Offline and reconnect behavior
 
@@ -233,3 +236,75 @@ Browser background limits can delay sockets on an idle home-screen app. Foregrou
 Offline data is a last known snapshot. The error banner marks its uncertain freshness.
 
 Offline writes remain disabled. This avoids invalid moves after a game lock or roster change.
+
+## Supported client target
+
+Pancake supports iPhone Safari and the installed iPhone PWA. Android and native iOS app builds are excluded. Expo, React Native Web, routing, touch input, deep links, browser permissions, icons and service-worker infrastructure remain shared web dependencies. Desktop browsers and WebKit simulations provide development evidence; they do not prove real-iPhone or installed-iPhone-PWA behavior.
+
+### Dynasty foreground freshness
+
+Dynasty keeps its five-minute saved source snapshot for fast route loads. The
+focused screen revalidates that source on reconnect and foreground return,
+including within the five-minute window. It keeps matching saved rows and the
+search selection while loading. Concurrent resume events share the pending
+read. A new disconnect fences the old response and allows one follow-up read.
+Hidden screens defer resume reads until visible; there is no new poll timer.
+
+The existing metadata shows `Refreshing` during revalidation and `Refresh failed`
+when a source read fails. Published source timestamps retain their original
+meaning. A successful support lookup or cached replay does not confirm a fresh
+source response. Offline actions still require online server validation.
+
+### Local logout when the server is unavailable
+
+Sign Out first requests normal SDK server sign-out. After that attempt, the app
+clears its own identity and saved private resources under the SDK's existing lock.
+A failed server request still signs out this browser, and shows “Signed out on this
+device” with “Server sign-out could not be confirmed. Other sessions may still be
+signed in.” This does not prove remote revocation or access-token invalidity.
+
+A project-scoped logout marker fences late auth responses and saved sessions across
+tabs and reloads. It contains only an opaque revision, generation, and signed-out
+flag; it stores no credential. One localStorage entry and one sessionStorage backup
+retain the latest generation without an expiry. A successful new password/signup
+response clears their signed-out flag. At most eight transient
+response tickets fence concurrent SDK saves. Other projects' storage stays intact.
+If the browser refuses every persistent write and removal, durable erasure cannot
+be promised after full process death and later restoration of storage access.
+
+The required public boot graph includes the sign-in export's scripts and styles.
+Logout can therefore reach signed-out controls even when a user entered through
+signup and never loaded Sign In. The worker still verifies allowlisted public bytes
+and headers, rejects incomplete installs, and does not cache private responses.
+
+### Lineup saved-day recovery
+
+The Lineup screen stores successful roster, slot and week-schedule reads through the
+existing private cache. Its scope includes the admitted auth project and user,
+member, league, current ET day, selected day and the observed season. A context
+pointer and the day payload must agree. The family uses at most four cache entries,
+within the global 64-entry limit, and rejects payloads over 256 KiB. Entries expire
+within 24 hours and cannot carry yesterday's current-day context into today.
+
+Saved Lineup content is read-only. It never establishes current locks, eligibility,
+optimizer authority or live game status. Offline, updating and failed-refresh
+states use the existing inline status area. Date and back navigation remain usable;
+an unsaved day is unavailable. Auto-set and move controls require a successful
+current load and online server validation. There is no offline write queue.
+
+Reconnect, foreground and the next ET midnight revalidate the context. Requests
+capture the owner generation and selected date before fetching, and recheck them
+before saving or rendering. Confirmed access failures, missing active seasons,
+logout and identity changes cannot use the previous snapshot. Storage denial or
+corruption makes the saved view unavailable; it never grants identity or access.
+
+Lineup snapshot recovery keeps context authority separate from domain availability. Retry, date changes, realtime catch-up and action readback validate the current owner/member/league, then refresh season and week context before reading the complete selected-day domain. A failed required lookup keeps saved content read-only; a successful roster or lineup response alone cannot restore edit authority. These necessary context reads add traffic and are not a backend-saving claim.
+
+
+### Health-filtered player search
+
+Health-filtered search evaluates the existing invoker score view once per statement for the requested league and season. The statement reuses those rows while applying the existing player filters and page order. Searches without a recognized health filter keep the direct view path. This adds no stored snapshot, API call, TTL, or authority change. Existing score-cache refresh and projection-source rules still apply.
+
+At the isolated 1,330-player population, five paired OUT and IR caller medians fell from 486/331ms to 43/31ms. Ordered output and response bytes stayed equal. Singleton, empty, sort, role, materialized-cache, correction, DNP, settings-refresh, and concurrent-user cases retain the frozen cost and correctness guards. These are local synthetic-data measurements, not production or phone timings.
+
+Migration `20261009000002_health_search_score_reuse.sql` only replaces `public.search_players`; its signature, invoker privileges, stability and existing function settings stay unchanged. It takes no table rewrite or index-build lock. A three-second lock timeout aborts blocked application. Recovery reinstalls the prior canonical function from the accepted pre-migration revision in a transaction, then verifies its body and ACL. Existing callers work with either definition. Production application still requires the release migration preflight and readback.

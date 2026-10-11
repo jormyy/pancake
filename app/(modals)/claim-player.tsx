@@ -14,6 +14,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
+import { useOnlineStatus } from '@/hooks/use-online-status'
 import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
@@ -35,6 +36,7 @@ export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
     const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
+    const online = useOnlineStatus()
     const router = useRouter()
     const goBack = useGoBack('/players')
 
@@ -48,6 +50,7 @@ export default function ClaimPlayerScreen() {
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
     const [submitting, setSubmitting] = useState(false)
     const claimLoadSeqRef = useRef(0)
+    const submittingRef = useRef(false)
     const { width, height } = useWindowDimensions()
     const [webViewport, setWebViewport] = useState({ width, height })
     useEffect(() => {
@@ -120,6 +123,7 @@ export default function ClaimPlayerScreen() {
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
+        if (submittingRef.current) return
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
         if (explainBlock()) return
@@ -133,6 +137,7 @@ export default function ClaimPlayerScreen() {
             return
         }
 
+        submittingRef.current = true
         setSubmitting(true)
         try {
             await submitWaiverClaim(
@@ -150,13 +155,14 @@ export default function ClaimPlayerScreen() {
         } catch (e) {
             reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
+            submittingRef.current = false
             setSubmitting(false)
         }
     }
 
     const processDateStr = claimProcessDateLabel(clearsAt)
     const claimReady = !loading && !!player
-    const submitDisabled = submitting || !claimReady || (needsDrop && !selectedDrop)
+    const submitDisabled = !online || submitting || !claimReady || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
     const faab = transactionState?.waiverMode === 'faab'
     // Wide screens put the claim beside the drop list instead of stacking them.

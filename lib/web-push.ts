@@ -123,12 +123,13 @@ export async function enableWebPush(): Promise<WebPushStatus> {
  * browser subscription so the next sign-in re-attaches it without a prompt
  * (matching native, which re-registers its Expo token on sign-in).
  */
-export async function detachWebPushFromAccount(): Promise<void> {
+/** Runs after local sign-out, so the caller passes the signed-out account's access token. */
+export async function detachWebPushFromAccount(accessToken: string): Promise<void> {
     if (!hasPushApi()) return
     const worker = await registration()
     const subscription = await worker?.pushManager.getSubscription()
     if (!subscription) return
-    await apiPost('/profile/web-push/unsubscribe', { endpoint: subscription.endpoint })
+    await apiPost('/profile/web-push/unsubscribe', { endpoint: subscription.endpoint }, { accessToken })
 }
 
 export async function disableWebPush(): Promise<void> {

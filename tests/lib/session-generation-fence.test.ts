@@ -1,3 +1,4 @@
+import { authSession, inspectFixtureSession } from '../helpers/auth-session'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,7 +38,9 @@ vi.mock('@/lib/supabase', async () => {
         global: { fetch: fenceDataRequests(heldFetch as typeof fetch) },
     })
     return {
-        readStoredSessionSync: () => net.seeded,
+        readStoredAuthState: () => inspectFixtureSession(net.seeded),
+        inspectAuthSession: (value: unknown) => inspectFixtureSession(value),
+        supabaseAuthStorageKey: 'sb-auth-fixture-auth-token',
         supabase: {
             auth: {
                 getSession: () => new Promise(() => {}),
@@ -60,8 +63,8 @@ import { supabase } from '@/lib/supabase'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const session = (userId: string) => ({ user: { id: userId }, access_token: `token-${userId}` })
-const emit = async (event: string, value: unknown) => { await act(async () => net.callback!(event, value)) }
+const session = authSession
+const emit = async (event: string, value: unknown) => { await act(async () => { net.seeded = value; net.callback!(event, value) }) }
 const settle = async () => { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) }) }
 const releaseAll = async () => {
     for (const request of net.held.splice(0)) request.release()

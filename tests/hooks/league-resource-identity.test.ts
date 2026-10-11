@@ -12,6 +12,7 @@ vi.mock('@react-navigation/native', async () => {
     return { useFocusEffect: (callback: React.EffectCallback) => ReactModule.useEffect(callback, [callback]) }
 })
 vi.mock('@/lib/scoring', () => ({ getLeagueStandings: vi.fn(async () => []) }))
+vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/lib/waivers', () => ({ getWaiverPriorityOrder: vi.fn(async () => []) }))
 vi.mock('@/lib/transactions', () => ({ getLeagueTransactions }))
 vi.mock('@/lib/rookieDraft', () => ({ getAllLeaguePicks: vi.fn(async () => []) }))

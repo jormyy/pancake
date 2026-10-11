@@ -5,6 +5,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
 import {
   deliverTradeNotificationOutbox,
+  drainTradeNotificationOutbox,
   OUTBOX_CLAIM_LIMIT,
   OUTBOX_LEASE_SECONDS,
 } from './outbox.ts'
@@ -71,13 +72,19 @@ async function processAcceptedTrades(): Promise<{
 }
 
 async function drainNotificationOutbox(): Promise<{ ticketed: number; failed: number; discarded: number; deadLettered: number }> {
+  return drainTradeNotificationOutbox(claimNotificationOutbox, deliverNotificationOutbox)
+}
+
+async function claimNotificationOutbox(): Promise<OutboxRow[]> {
   const { data, error } = await supabase.rpc('claim_notification_outbox_atomic', {
     p_limit: OUTBOX_CLAIM_LIMIT,
     p_lease_seconds: OUTBOX_LEASE_SECONDS,
   })
   if (error) throw error
-  const rows: OutboxRow[] = data ?? []
+  return data ?? []
+}
 
+function deliverNotificationOutbox(rows: OutboxRow[]) {
   return deliverTradeNotificationOutbox(
     rows,
     notifyMembers,

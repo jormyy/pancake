@@ -49,6 +49,14 @@ E2E_SOURCE_RECOVERY_VERIFIED=1 npm run e2e:source-health
   live-poll and the lineup optimizer. An idle tick calls no Edge function, writes no
   `edge_invocations` row, and cannot fail on a missing Edge URL or token. That
   misconfiguration surfaces on the first tick with due work, or on any ungated job.
+- A stats range invocation processes at most one provider game. It reads empty dates
+  sequentially, with a fenced checkpoint after each 31-date batch before continuing.
+  It releases after four batches or when a batch ends after the one-second scan budget.
+  The time budget can overrun by one batch; it does not cancel a pending date read.
+  Each date keeps its current eligibility query. No schedule gaps or finished-game flags replace those reads.
+  A failed checkpoint stops further work. The stored cursor supports retry after interruption.
+  This reduces dispatcher handoffs while retaining bounded progress and claim renewal.
+  Each invocation still records its result; checkpoints update the existing job rather than adding invocation records.
 - The reconciler joins `net._http_response` on request id, which pg_net does not index, so
   its cost tracks that table's size. Production's pg_net (0.19.5) never triggers autovacuum, so the hourly
   `pg-net-response-vacuum` job keeps it compact. If `pg_relation_size('net._http_response')`

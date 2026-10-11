@@ -191,6 +191,9 @@ export async function dropAndAddFreeAgent(
 }
 
 export async function dropPlayer(rosterPlayerId: string): Promise<void> {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        throw new Error('Connect to the internet to drop a player.')
+    }
     // Atomic: delete roster row, insert 48h waiver_wire_log, insert
     // roster_transactions audit row — all in a single Postgres transaction.
     // Prior implementation issued 3 serial writes with no rollback, so a

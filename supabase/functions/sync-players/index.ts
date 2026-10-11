@@ -4,6 +4,7 @@ import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 import { fetchEspnNews, fetchEspnPlayerRecords } from '../_shared/playerSource.ts'
+import { fetchAllPlayers } from './players.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
@@ -52,20 +53,7 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
     espn_id: string | null
     position: string | null
     eligible_positions: string[] | null
-  }[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error: fetchErr } = await supabase
-      .from('players')
-      .select('id, display_name, espn_id, position, eligible_positions')
-      .range(from, from + PAGE - 1)
-    if (fetchErr) throw fetchErr
-    if (!data || data.length === 0) break
-    existing.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
-  }
+  }[] = await fetchAllPlayers(supabase, 'id, display_name, espn_id, position, eligible_positions')
 
   const byExactName = new Map<string, string>()
   const byNormName = new Map<string, string>()
@@ -186,21 +174,10 @@ async function syncPlayers(): Promise<{ updated: number; inserted: number; failu
       /^\d+$/.test(p.player_id ?? ''),
   )
 
-  // Paginate to avoid PostgREST max_rows cap
-  const existing: { id: string; display_name: string | null; sleeper_id: string | null }[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error: fetchErr } = await supabase
-      .from('players')
-      .select('id, display_name, sleeper_id')
-      .range(from, from + PAGE - 1)
-    if (fetchErr) throw fetchErr
-    if (!data || data.length === 0) break
-    existing.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
-  }
+  const existing = await fetchAllPlayers<{ id: string; display_name: string | null; sleeper_id: string | null }>(
+    supabase,
+    'id, display_name, sleeper_id',
+  )
 
   const byExactName = new Map<string, string>()
   const byNormName = new Map<string, string>()
@@ -312,21 +289,10 @@ async function syncNBAIds(): Promise<{ mapped: number; merged: number; failures:
     setUnique(byNormName, norm, personId)
   }
 
-  // Paginate to avoid PostgREST max_rows cap
-  const players: { id: string; display_name: string | null; nba_id: string | null }[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('id, display_name, nba_id')
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    players.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
-  }
+  const players = await fetchAllPlayers<{ id: string; display_name: string | null; nba_id: string | null }>(
+    supabase,
+    'id, display_name, nba_id',
+  )
 
   const dbNormCounts = new Map<string, number>()
   const dbExactCounts = new Map<string, number>()

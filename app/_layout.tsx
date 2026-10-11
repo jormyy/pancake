@@ -3,16 +3,16 @@ import { Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, useFonts } from '
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
-import { Platform } from 'react-native'
+import { Platform, View } from 'react-native'
 import 'react-native-reanimated'
 
 import { colors } from '@/constants/tokens'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
 import { LeagueProvider } from '@/contexts/league-context'
-import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useWebPushNotifications } from '@/hooks/use-web-push-notifications'
 import { FeedbackProvider } from '@/components/ui'
 import { WebAppShell } from '@/components/navigation/WebTabShell'
+import { LeagueAccessNotice } from '@/components/LeagueAccessNotice'
 
 export const unstable_settings = {
     anchor: '(tabs)',
@@ -59,7 +59,6 @@ function RootContent() {
     const { session, loading } = useAuth()
     const router = useRouter()
     const segments = useSegments()
-    usePushNotifications()
     useWebPushNotifications()
     const firstSegment = segments[0]
     const inAuthGroup = firstSegment === '(auth)' || firstSegment === 'sign-in' || firstSegment === 'sign-up'
@@ -82,15 +81,18 @@ function RootContent() {
     const webChrome = !!session && !inAuthGroup
 
     const stack = (
-        <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="(modals)" options={{ headerShown: false }} />
-            {/* Declare the dynamic player route so a cold deep-link (/player/<id>)
-                rehydrates a valid navigation state instead of crashing in
-                getRehydratedState. The screen sets its own header options. */}
-            <Stack.Screen name="player/[id]" />
-        </Stack>
+        <View style={{ flex: 1 }}>
+            <LeagueAccessNotice />
+            <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen name="(modals)" options={{ headerShown: false }} />
+                {/* Declare the dynamic player route so a cold deep-link (/player/<id>)
+                    rehydrates a valid navigation state instead of crashing in
+                    getRehydratedState. The screen sets its own header options. */}
+                <Stack.Screen name="player/[id]" />
+            </Stack>
+        </View>
     )
 
     return (

@@ -4,8 +4,8 @@ The catalog gate validates the database phase explicitly. It does not apply migr
 
 | Phase | Required applied history | Required cron wrapper |
 | --- | --- | --- |
-| `pre-migration` | Exactly 328 migrations through `20261005000002`; the approved one remains pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
-| `post-migration` | Exactly 329 migrations through `20261005000003`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
+| `pre-migration` | Exactly 328 migrations through `20261005000002`; all three approved migrations remain pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
+| `post-migration` | Exactly 331 migrations through `20261007000001`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
 
 Partial upgrades, reordered history, unknown aliases, changed approved SQL, unexpected overloads and wrong project links fail. The production history planner retains its audited historical-alias checks. Local databases require canonical migration names and no production link.
 
@@ -16,6 +16,15 @@ Both phases require the actual drop-player guard chain:
 The gate pins function signatures, defaults, raw body SHA-256, owners, search paths and execute grants. It also pins roster trigger definitions and enabled states, waiver policies, required RLS boundaries and valid indexes. The started-game predicate remains in the private helper. Searching the public RPC for obsolete inline text cannot prove this protection.
 
 The pre-migration contract validates the existing cron wrappers and guards positively. The post-migration contract additionally requires the reviewed scheduling objects, RLS and indexes. Missing candidate objects never pass the post-migration gate. Metadata verification complements the retained roster and lineup behavioral tests; it does not replace them.
+
+The integrated range also includes `20261006000001`, which replaces the derived
+scoring cache without changing the objects pinned here. An ordered local CLI
+application from 328 to 330 migrations confirms both phase catalogs exactly.
+The scoring migration's source and stored SQL hashes are pinned in the release
+history attestation. The subsequent `20261007000001` coefficient extraction
+adds one derived-cache replacement, with no change to these pinned security objects.
+An actual local CLI upgrade from 330 to 331 reproduces the pinned catalog and
+records its 12-statement fingerprint. This catalog does not measure production lock or rebuild cost.
 
 ## Commands
 

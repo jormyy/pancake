@@ -95,7 +95,7 @@ export default function HomeScreen() {
     } = useMatchupData(current, user, league)
     const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error })
 
-    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, refreshSilently)
+    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, refreshSilently)
     const actionContext = useMemo(() => matchup && league ? {
         memberId: matchup.myMemberId,
         leagueId: league.id,
@@ -215,7 +215,7 @@ export default function HomeScreen() {
             <AroundLeague matchups={leagueMatchups} compact={narrow} stacked={twoPane} />
             {shouldShowScoreboard(selectedDate, today) && !dense ? (
                 <View style={styles.scoreboardFooter}>
-                    <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} wrap={twoPane} />
+                    <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} freshness={freshness} wrap={twoPane} />
                 </View>
             ) : null}
         </>

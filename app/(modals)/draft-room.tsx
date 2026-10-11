@@ -24,8 +24,9 @@ import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomContro
 
 const HISTORY_ROW_HEIGHT = 54
 
-export default function DraftRoomScreen() {
-    const { draftId } = useLocalSearchParams<{ draftId: string }>()
+export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?: string } = {}) {
+    const { draftId: routeDraftId } = useLocalSearchParams<{ draftId: string }>()
+    const draftId = resolvedDraftId ?? routeDraftId
     const { current, isCommissioner } = useLeagueContext()
     const router = useRouter()
     const { width, height } = useWindowDimensions()

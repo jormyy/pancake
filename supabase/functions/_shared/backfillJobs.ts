@@ -13,6 +13,150 @@ type BackfillLedgerProgress = {
   missing_items: number
 }
 const PAGE_SIZE = 1000
+// A chunk of 30 paced games finishes well inside this; a crashed chunk frees the job after it.
+const BACKFILL_CLAIM_LEASE_MS = 5 * 60_000
+
+export const BACKFILL_SOURCES = ['cdn', 'cdn-enum', 'bbref'] as const
+export type BackfillSource = typeof BACKFILL_SOURCES[number]
+
+/** One admitted run of a registered job: stored source/season, the held claim, and an explicit-retry cutoff. */
+export type BackfillRun = {
+  jobId: string
+  source: BackfillSource
+  seasonYear: number
+  claimToken: string
+  retryBefore: string | null
+}
+
+type StoredBackfillJob = { id: string; job_type: string; metadata: Json | null }
+
+export class BackfillAdmissionError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+  }
+}
+
+function jobMetadata(job: StoredBackfillJob): Record<string, unknown> {
+  return job.metadata && typeof job.metadata === 'object' && !Array.isArray(job.metadata)
+    ? job.metadata as Record<string, unknown>
+    : {}
+}
+
+/** The registered job's stored source and season are authoritative; a request may only restate them. */
+export function backfillJobAuthority(
+  job: StoredBackfillJob,
+  supplied: { source?: unknown; seasonYear?: unknown },
+): { source: BackfillSource; seasonYear: number; retryBefore: string | null } {
+  const metadata = jobMetadata(job)
+  const source = metadata.source as BackfillSource
+  const seasonYear = metadata.seasonYear
+  if (!BACKFILL_SOURCES.includes(source) || !Number.isInteger(seasonYear) ||
+      job.job_type !== `backfill_${source}_${seasonYear}`) {
+    throw new BackfillAdmissionError('Job is not a registered backfill job', 409)
+  }
+  if ((supplied.source != null && supplied.source !== source) ||
+      (supplied.seasonYear != null && supplied.seasonYear !== seasonYear)) {
+    throw new BackfillAdmissionError(`Request does not match registered backfill job ${source} ${seasonYear}`, 409)
+  }
+  return {
+    source,
+    seasonYear: seasonYear as number,
+    retryBefore: typeof metadata.retryBefore === 'string' ? metadata.retryBefore : null,
+  }
+}
+
+/**
+ * Admit one run per job: claim a free or stale job, or take over the claim a
+ * previous chunk handed to its continuation. Overlapping calls are refused
+ * before any write instead of repeating the same fetches and upserts.
+ */
+export async function claimBackfillJob(
+  jobId: string,
+  handoffToken: string | null,
+): Promise<{ job: StoredBackfillJob; claimToken: string }> {
+  const claimToken = crypto.randomUUID()
+  const staleBefore = new Date(Date.now() - BACKFILL_CLAIM_LEASE_MS).toISOString()
+  // Each conditional update re-checks its predicate under the row lock, so at
+  // most one caller wins a given job state. (PostgREST rejects or= on updates.)
+  const claim = () =>
+    supabase
+      .from('sync_jobs')
+      .update({ claim_token: claimToken, claimed_at: new Date().toISOString() })
+      .eq('id', jobId)
+      .like('job_type', 'backfill_%')
+  // Builders run only when awaited, in order.
+  const attempts = [
+    claim().is('claim_token', null),
+    ...(handoffToken ? [claim().eq('claim_token', handoffToken)] : []),
+    claim().lt('claimed_at', staleBefore),
+  ]
+  for (const attempt of attempts) {
+    const claimed = await mustSupabase('claim backfill job', attempt.select('id, job_type, metadata'))
+    if (claimed?.length === 1) return { job: claimed[0] as StoredBackfillJob, claimToken }
+  }
+
+  const existing = await mustSupabase(
+    'load backfill job',
+    supabase.from('sync_jobs').select('id').eq('id', jobId).like('job_type', 'backfill_%').maybeSingle(),
+  )
+  if (!existing) throw new BackfillAdmissionError('Backfill job not found', 404)
+  throw new BackfillAdmissionError('Backfill job is already running', 409)
+}
+
+export async function releaseBackfillJob(jobId: string, claimToken: string): Promise<void> {
+  await mustSupabase(
+    'release backfill job',
+    supabase.from('sync_jobs').update({ claim_token: null, claimed_at: null }).eq('id', jobId).eq('claim_token', claimToken),
+  )
+}
+
+/** Explicit retry: reopen the same job and rerun only games that had failed before now. */
+export async function beginBackfillRetry(run: BackfillRun, metadata: Json | null): Promise<string> {
+  const retryBefore = new Date().toISOString()
+  const base = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {}
+  await mustSupabase(
+    'begin backfill retry',
+    supabase
+      .from('sync_jobs')
+      .update({ status: 'pending', completed_at: null, metadata: { ...base, retryBefore } })
+      .eq('id', run.jobId)
+      .eq('claim_token', run.claimToken),
+  )
+  return retryBefore
+}
+
+export async function endBackfillRetry(run: BackfillRun, metadata: Json | null): Promise<void> {
+  const base = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? { ...metadata } : {}
+  delete (base as Record<string, unknown>).retryBefore
+  await mustSupabase(
+    'end backfill retry',
+    supabase.from('sync_jobs').update({ metadata: base }).eq('id', run.jobId).eq('claim_token', run.claimToken),
+  )
+}
+
+export async function loadBackfillRetryGameKeys(run: BackfillRun): Promise<Set<string>> {
+  const keys = new Set<string>()
+  let page = 0
+  while (true) {
+    const rows = await mustSupabase(
+      'load failed backfill games for retry',
+      supabase
+        .from('backfill_game_attempts')
+        .select('game_key')
+        .eq('job_id', run.jobId)
+        .eq('source', run.source)
+        .eq('status', 'failed')
+        .lt('updated_at', run.retryBefore!)
+        .order('game_key')
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
+    )
+    if (!rows?.length) break
+    for (const row of rows as { game_key: string }[]) keys.add(row.game_key)
+    if (rows.length < PAGE_SIZE) break
+    page++
+  }
+  return keys
+}
 
 export async function mustSupabase<T>(
   label: string,
