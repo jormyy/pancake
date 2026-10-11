@@ -83,3 +83,36 @@ it('reports partial season optimization and exposes an explicit retry', async ()
     )
     await act(async () => { renderer.unmount() })
 })
+
+
+it('keeps optimization busy while the same owner refreshes action authority', async () => {
+    let finish!: (value: null) => void
+    mocks.autoSetLineup.mockImplementationOnce(() => new Promise<null>((resolve) => { finish = resolve }))
+    let actions!: ReturnType<typeof useLineupActions>
+    const owner = { memberId: 'member-1', leagueId: 'league-1', seasonId: 'season-1', weekNumber: 1, seasonYear: 2026 }
+    const Probe = ({ authorized }: { authorized: boolean }) => {
+        actions = useLineupActions({
+            actionContext: authorized ? owner : null,
+            actionOwner: owner,
+            myLineup: { starters: [], bench: [] },
+            league: { roster_size: 20 },
+            selectedDate: '2026-07-09', startedTeams: new Set(),
+            reloadLineup: vi.fn(async () => undefined),
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    let pending!: Promise<void>
+    await act(async () => { renderer = create(React.createElement(Probe, { authorized: true })) })
+    await act(async () => { pending = actions.doAutoSet(null, true) })
+    expect(actions.autoSetting).toBe(true)
+    await act(async () => { renderer.update(React.createElement(Probe, { authorized: false })) })
+    expect(actions.autoSetting).toBe(true)
+    await act(async () => { renderer.update(React.createElement(Probe, { authorized: true })) })
+    expect(actions.autoSetting).toBe(true)
+    await act(async () => { await actions.handleTap({ kind: 'bench', index: 0 }) })
+    expect(actions.selected).toBeNull()
+    await act(async () => { finish(null); await pending })
+    expect(actions.autoSetting).toBe(false)
+    await act(async () => { renderer.unmount() })
+})

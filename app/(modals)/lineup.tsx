@@ -405,13 +405,14 @@ export default function LineupScreen() {
         return result
     }, [weekDays, selectedDate])
     const displayedMatchups = readOnly ? savedMatchups : teamMatchups
-    const actionContext = !readOnly && current && visibleCtx && currentLeague ? {
+    const actionOwner = current && visibleCtx && currentLeague ? {
         memberId: current.id,
         leagueId: currentLeague.id,
         seasonId: visibleCtx.seasonId,
         weekNumber: visibleCtx.weekNumber,
         seasonYear: visibleCtx.seasonYear,
     } : null
+    const actionContext = readOnly ? null : actionOwner
     const lineupForActions = useMemo(
         () => visibleCtx ? { starters: visibleStarters, bench: visibleBench } : null,
         [visibleBench, visibleCtx, visibleStarters],
@@ -462,6 +463,7 @@ export default function LineupScreen() {
         handleAutoSet,
     } = useLineupActions({
         actionContext,
+        actionOwner,
         myLineup: lineupForActions,
         league: currentLeague,
         selectedDate,

@@ -27,6 +27,7 @@ export type LineupActionContext = {
 
 export function useLineupActions({
     actionContext,
+    actionOwner = actionContext,
     myLineup,
     league,
     selectedDate,
@@ -34,6 +35,7 @@ export function useLineupActions({
     reloadLineup,
 }: {
     actionContext: LineupActionContext | null | undefined
+    actionOwner?: Pick<LineupActionContext, 'memberId' | 'leagueId' | 'seasonId'> | null
     myLineup: LineupData | null
     league: { roster_size?: number; taxi_slots?: number } | null
     selectedDate: string
@@ -46,8 +48,8 @@ export function useLineupActions({
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
-    const ownerIdentity = actionContext
-        ? `${actionContext.memberId}:${actionContext.leagueId}:${actionContext.seasonId}:${selectedDate}`
+    const ownerIdentity = actionOwner
+        ? `${actionOwner.memberId}:${actionOwner.leagueId}:${actionOwner.seasonId}:${selectedDate}`
         : null
     const renderedOwnerRef = useRef(ownerIdentity)
     const activeOwnerRef = useRef(ownerIdentity)
