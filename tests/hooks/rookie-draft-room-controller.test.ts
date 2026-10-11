@@ -6,6 +6,7 @@ import type { RookieDraftState } from '@/lib/rookieDraft'
 
 const mocks = vi.hoisted(() => ({
     activate: vi.fn(),
+    drop: vi.fn(),
     appStateListener: vi.fn(),
     getRevision: vi.fn(),
     getRoster: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock('@/lib/rookieDraft', () => ({
     subscribeToRookieDraft: mocks.subscribe,
     unsubscribeFromRookieDraft: mocks.unsubscribe,
 }))
-vi.mock('@/lib/roster', () => ({ dropPlayer: vi.fn(), getRoster: mocks.getRoster, toggleTaxi: vi.fn() }))
+vi.mock('@/lib/roster', () => ({ dropPlayer: mocks.drop, getRoster: mocks.getRoster, toggleTaxi: vi.fn() }))
 vi.mock('@/lib/roster-locks', () => ({ getRosterStatusChangeLockMessage: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
@@ -54,8 +55,9 @@ const draftState = (id: string, status = 'in_progress'): RookieDraftState => ({
 
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
-    const promise = new Promise<Value>((done) => { resolve = done })
-    return { promise, resolve }
+    let reject!: (reason: Error) => void
+    const promise = new Promise<Value>((done, fail) => { resolve = done; reject = fail })
+    return { promise, resolve, reject }
 }
 
 beforeEach(() => {
@@ -165,5 +167,98 @@ describe('useRookieDraftRoomController', () => {
         expect(latest.picking).toBe(false)
         expect(mocks.getRoster).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
+    })
+})
+
+
+describe('annual draft overflow completion', () => {
+    it('uses one final trim and removes it after the actual remaining roster fits', async () => {
+        const roster = [
+            { id: 'old-roster', is_on_ir: false, is_on_taxi: false, players: { id: 'old', display_name: 'Old' } },
+            { id: 'new-roster', is_on_ir: false, is_on_taxi: false, players: { id: 'rookie', display_name: 'Rookie' } },
+        ]
+        mocks.getState.mockResolvedValue(draftState('annual'))
+        mocks.getRoster.mockImplementation(async () => [...roster])
+        mocks.drop.mockImplementation(async (id: string) => { roster.splice(roster.findIndex((r) => r.id === id), 1) })
+        mocks.makePick.mockImplementation(async () => {
+            mocks.getState.mockResolvedValue(draftState('annual', 'completed'))
+            return { rosterOverflow: true, taxiSlotsAvailable: false }
+        })
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'annual', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+                return null
+            }))
+        })
+        await act(async () => {
+            await latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 })
+        })
+        expect(latest.trimOverflow?.excess).toBe(1)
+        expect(latest.rosterOverflow).toBeNull()
+        await act(async () => { await latest.handleTrimDrop('old-roster') })
+        expect(mocks.drop).toHaveBeenCalledWith('old-roster')
+        expect(latest.trimOverflow).toBeNull()
+        expect(latest.rosterOverflow).toBeNull()
+        expect(latest.rosterForDrop).toEqual([])
+        expect(mocks.activate).toHaveBeenCalledWith('annual')
+        await act(async () => { renderer.unmount() })
+    })
+})
+
+
+describe('annual draft late roster lookup', () => {
+    it('discards an old rejected roster lookup after changing drafts', async () => {
+        const roster = deferred<never[]>()
+        mocks.getState.mockImplementation(async (id: string) => draftState(id))
+        mocks.getRoster.mockReturnValue(roster.promise)
+        mocks.makePick.mockResolvedValue({ rosterOverflow: true, taxiSlotsAvailable: false })
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        const Probe = ({ draftId }: { draftId: string }) => {
+            latest = useRookieDraftRoomController({ draftId, memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'old' })) })
+        let pending!: Promise<void>
+        await act(async () => {
+            pending = latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 })
+        })
+        expect(mocks.getRoster).toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'new' })) })
+        await act(async () => { roster.reject(new Error('Old roster failed')); await pending })
+        expect(latest.state?.draft.id).toBe('new')
+        expect(latest.rosterOverflow).toBeNull()
+        expect(latest.rosterForDrop).toEqual([])
+        await act(async () => { renderer.unmount() })
+        consoleError.mockRestore()
+    })
+})
+
+
+describe('annual draft roster read recovery', () => {
+    it('keeps navigation available and explains recovery when an acquired roster cannot load', async () => {
+        mocks.getState.mockResolvedValue(draftState('annual'))
+        mocks.getRoster.mockRejectedValue(new Error('Roster unavailable'))
+        mocks.makePick.mockResolvedValue({ rosterOverflow: true, taxiSlotsAvailable: false })
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'annual', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+                return null
+            }))
+        })
+        await act(async () => {
+            await latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 })
+        })
+        expect(latest.rosterOverflow).toBeNull()
+        expect(latest.pickError).toBe('Player drafted, but roster details could not load. Open Roster to resolve any overflow.')
+        expect(latest.picking).toBe(false)
+        await act(async () => { renderer.unmount() })
+        consoleError.mockRestore()
     })
 })

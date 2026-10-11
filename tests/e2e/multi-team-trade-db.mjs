@@ -11,6 +11,7 @@ import {
   balanceFor,
   env,
   expectRpcError,
+  executeRecoverySql,
   faabRoutes,
   fetchTrade,
   propose,
@@ -260,12 +261,12 @@ const assertLazyRosterEnforcement = async (fixture) => {
     .select('id').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
     .eq('member_id', fixture.proposer.id).eq('player_id', proposerExtraOne.id).single()
   if (taxiRosterError) throw new Error(`taxi roster lookup: ${taxiRosterError.message}`)
-  await rpc(fixture.admin, 'toggle_taxi_atomic', {
+  await expectRpcError(fixture.admin, 'toggle_taxi_atomic', {
     p_roster_player_id: taxiRoster.id,
     p_to_taxi: true,
     p_user_id: fixture.users[0].id,
-  })
-  assert.equal(await activeCount(fixture.proposer.id), 1, 'taxi move did not reduce the over-cap active roster')
+  }, 'only through a draft or trade')
+  assert.equal(await activeCount(fixture.proposer.id), 2, 'rejected manual taxi entry changed the over-cap roster')
 
   const { data: dropRoster, error: dropRosterError } = await fixture.admin.from('roster_players')
     .select('id').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
@@ -441,14 +442,30 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     .eq('member_id', fixture.proposer.id).eq('player_id', player.id).single()
   if (rosterError) throw new Error(`inactive acceptance roster lookup: ${rosterError.message}`)
 
+  // Seed the legacy inactive state solely to test stale-offer acceptance.
+  // Ordinary taxi entry is independently rejected above; this is not that path.
+  const seedExistingTaxi = () => {
+    const ids = [fixture.league.id, fixture.currentSeason.id, fixture.proposer.id, player.id, roster.id]
+    for (const id of ids) assert.match(id, /^[0-9a-f-]{36}$/i)
+    executeRecoverySql(`BEGIN;
+      UPDATE players SET years_exp=0,nba_draft_number=1,nba_team='XTX' WHERE id='${player.id}';
+      DELETE FROM league_player_taxi_exits WHERE league_id='${fixture.league.id}' AND player_id='${player.id}';
+      SELECT private.authorize_taxi_acquisition('${fixture.league.id}','${fixture.currentSeason.id}',
+        '${fixture.proposer.id}','${player.id}','draft','${roster.id}');
+      UPDATE roster_players SET is_on_taxi=true WHERE id='${roster.id}';
+      COMMIT;`)
+  }
   for (const inactiveColumn of ['is_on_ir', 'is_on_taxi']) {
     const tradeId = await proposeStandardAssetTrade(fixture, {
       playerId: player.id,
       notes: `DB ${inactiveColumn} acceptance assertion`,
     })
-    const { error: inactiveError } = await fixture.admin.from('roster_players')
-      .update({ [inactiveColumn]: true }).eq('id', roster.id)
-    if (inactiveError) throw new Error(`${inactiveColumn} setup: ${inactiveError.message}`)
+    if (inactiveColumn === 'is_on_taxi') seedExistingTaxi()
+    else {
+      const { error: inactiveError } = await fixture.admin.from('roster_players')
+        .update({ is_on_ir: true }).eq('id', roster.id)
+      if (inactiveError) throw new Error(`${inactiveColumn} setup: ${inactiveError.message}`)
+    }
 
     await expectRpcError(fixture.admin, 'accept_trade_atomic', {
       p_trade_id: tradeId,
@@ -465,8 +482,7 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     playerId: player.id,
     notes: 'DB direct accepted-status trigger assertion',
   })
-  const { error: taxiError } = await fixture.admin.from('roster_players').update({ is_on_taxi: true }).eq('id', roster.id)
-  if (taxiError) throw new Error(`direct trigger taxi setup: ${taxiError.message}`)
+  seedExistingTaxi()
   const { error: triggerError } = await fixture.admin.from('trades')
     .update({ status: 'accepted', accepted_at: new Date().toISOString() })
     .eq('id', triggerTradeId)

@@ -12,20 +12,16 @@ export type ActivationOverflowPending = { rosterPlayerId: string; source: 'ir' |
 export function ActivationOverflowModal({
     pending,
     myLineup,
-    leagueTaxiSlots,
     saving,
     onDrop,
     onMoveToIR,
-    onMoveToTaxi,
     onCancel,
 }: {
     pending: ActivationOverflowPending
     myLineup: { starters: { player?: LineupPlayer | null }[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] } | null
-    leagueTaxiSlots: number
     saving: boolean
     onDrop: (rosterPlayerId: string) => void
     onMoveToIR: (rosterPlayerId: string) => void
-    onMoveToTaxi: (rosterPlayerId: string) => void
     onCancel: () => void
 }) {
     const visible = pending !== null
@@ -36,11 +32,10 @@ export function ActivationOverflowModal({
         ...myLineup.bench,
     ]
 
-    const taxiAvailable = leagueTaxiSlots > myLineup.taxi.length
 
     return (
         <Sheet visible onClose={onCancel} title="Active roster full">
-            <Text style={styles.sub}>Drop a player, or move one to IR or the taxi squad, to make room.</Text>
+            <Text style={styles.sub}>Drop a player or move an eligible player to IR to make room.</Text>
             <View style={styles.list}>
                 {activePlayers.map((p) => (
                     <View key={p.rosterPlayerId} style={styles.row}>
@@ -68,16 +63,7 @@ export function ActivationOverflowModal({
                                     accessibilityLabel={`Move ${p.displayName} to IR`}
                                 />
                             ) : null}
-                            {taxiAvailable ? (
-                                <Button
-                                    title="Taxi"
-                                    size="sm"
-                                    variant="secondary"
-                                    onPress={() => onMoveToTaxi(p.rosterPlayerId)}
-                                    disabled={saving}
-                                    accessibilityLabel={`Move ${p.displayName} to taxi squad`}
-                                />
-                            ) : null}
+
                             <Button
                                 title="Drop"
                                 size="sm"

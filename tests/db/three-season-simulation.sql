@@ -490,7 +490,7 @@ BEGIN
   PERFORM pg_temp.act_as(i.u2);
   PERFORM pg_temp.rejected('IR a healthy player', pg_temp.try(format('SELECT public.toggle_ir_atomic(%L, true, %L)', pg_temp.row_of(i.a2, pg_temp.vet(8)), i.u2)), '%Out or IR%');
   PERFORM pg_temp.act_as(i.u3);
-  PERFORM pg_temp.rejected('taxi a veteran', pg_temp.try(format('SELECT public.toggle_taxi_atomic(%L, true, %L)', pg_temp.row_of(i.a3, pg_temp.vet(7)), i.u3)), '%rookie%');
+  PERFORM pg_temp.rejected('taxi a veteran', pg_temp.try(format('SELECT public.toggle_taxi_atomic(%L, true, %L)', pg_temp.row_of(i.a3, pg_temp.vet(7)), i.u3)), '%only through a draft or trade%');
   INSERT INTO public.weekly_lineups (league_id, league_season_id, member_id, player_id, slot_type, game_date)
   VALUES (i.a, pg_temp.season(i.a), i.a3, pg_temp.vet(7), 'UTIL', (now() AT TIME ZONE 'America/New_York')::date + 2);
   PERFORM pg_temp.checkpoint('season 1: IR and lineups');
@@ -525,8 +525,8 @@ END $$;
 SELECT pg_temp.checkpoint('season 1: rollover');
 
 -- Rookie draft helper used by seasons 2 and 3 --------------------------------------
-CREATE FUNCTION pg_temp.run_rookie_draft(p_league uuid, p_commissioner uuid, p_first_rookie int, p_listed_pick uuid) RETURNS uuid LANGUAGE plpgsql AS $$
-DECLARE v_draft uuid; v_member uuid; v_rookie int := p_first_rookie; v_status text; v_overall int := 0; v_total int;
+CREATE FUNCTION pg_temp.run_rookie_draft(p_league uuid, p_commissioner uuid, p_first_rookie int, p_listed_pick uuid, p_taxi_member uuid DEFAULT NULL) RETURNS uuid LANGUAGE plpgsql AS $$
+DECLARE v_draft uuid; v_member uuid; v_rookie int := p_first_rookie; v_status text; v_overall int := 0; v_total int; v_to_taxi boolean;
 BEGIN
   PERFORM pg_temp.act_as(NULL);
   PERFORM public.start_rookie_draft_atomic(p_league, 2, false, 30, 'commissioner_pick');
@@ -538,6 +538,7 @@ BEGIN
     v_member := pg_temp.snake_clock(v_draft);
     EXIT WHEN v_member IS NULL;
     v_overall := v_overall + 1;
+    v_to_taxi := v_member = p_taxi_member AND NOT EXISTS (SELECT 1 FROM roster_players WHERE member_id=v_member AND league_season_id=pg_temp.season(p_league) AND is_on_taxi);
     PERFORM pg_temp.act_as(pg_temp.user_of(v_member));
     IF v_overall = 1 THEN
       PERFORM pg_temp.rejected('veteran in the rookie draft', pg_temp.try(format('SELECT public.make_snake_pick_atomic(%L, %L, %L)', v_draft, v_member, pg_temp.vet(31))), '%rookie%');
@@ -554,12 +555,12 @@ BEGIN
       PERFORM public.process_expired_snake_pick_atomic(v_draft);
       PERFORM pg_temp.assert((SELECT status::text FROM public.drafts WHERE id = v_draft) = 'paused', 'expired clock did not hand the draft to the commissioner');
       PERFORM pg_temp.act_as(p_commissioner);
-      PERFORM public.commissioner_snake_pick_atomic(v_draft, v_member, pg_temp.rookie(v_rookie), p_commissioner);
+      PERFORM public.commissioner_snake_pick_atomic(v_draft, v_member, pg_temp.rookie(v_rookie), p_commissioner, COALESCE(v_to_taxi,false));
       IF (SELECT status::text FROM public.drafts WHERE id = v_draft) = 'paused' THEN
         PERFORM public.resume_draft_atomic(v_draft, p_commissioner);
       END IF;
     ELSE
-      PERFORM public.make_snake_pick_atomic(v_draft, v_member, pg_temp.rookie(v_rookie));
+      PERFORM public.make_snake_pick_atomic(v_draft, v_member, pg_temp.rookie(v_rookie), COALESCE(v_to_taxi,false));
     END IF;
     PERFORM pg_temp.rejected('pick retry', pg_temp.try(format('SELECT public.make_snake_pick_atomic(%L, %L, %L)', v_draft, v_member, pg_temp.rookie(v_rookie))), 'not your pick|already|complete|not in progress');
     PERFORM pg_temp.assert(pg_temp.owner_of(p_league, pg_temp.rookie(v_rookie)) = v_member, 'rookie ' || v_rookie || ' did not land on the picking roster');
@@ -604,13 +605,13 @@ BEGIN
   PERFORM pg_temp.assert((SELECT count(*) FROM public.snake_draft_picks WHERE draft_id = v_draft AND round = 1 AND member_id = i.a3) = 2, 'the traded pick did not move the slot');
   PERFORM pg_temp.act_as(NULL);
   PERFORM public.add_trade_block_item_atomic(i.b2, i.b, NULL, pg_temp.pick('B2', 2099, 1), NULL, i.u3);
-  PERFORM pg_temp.run_rookie_draft(i.b, i.u2, 7, pg_temp.pick('B2', 2099, 1));
+  PERFORM pg_temp.run_rookie_draft(i.b, i.u2, 7, pg_temp.pick('B2', 2099, 1), i.b2);
   PERFORM pg_temp.checkpoint('season 2: rookie drafts');
 
-  -- Taxi squads: rookies only, within the slot count.
+  -- Taxi acquisition occurs in the draft; later manual entry is forbidden.
   PERFORM pg_temp.act_as(i.u3);
-  PERFORM public.toggle_taxi_atomic(pg_temp.row_of(i.b2, pg_temp.any_player(i.b2, true)), true, i.u3);
-  PERFORM pg_temp.assert((SELECT count(*) FROM public.roster_players WHERE member_id = i.b2 AND league_season_id = pg_temp.season(i.b) AND is_on_taxi) = 1, 'taxi move did not take');
+  PERFORM pg_temp.rejected('manual taxi entry', pg_temp.try(format('SELECT public.toggle_taxi_atomic(%L, true, %L)', pg_temp.row_of(i.b2, pg_temp.any_player(i.b2, true)), i.u3)), '%only through a draft or trade%');
+  PERFORM pg_temp.assert((SELECT count(*) FROM public.roster_players WHERE member_id = i.b2 AND league_season_id = pg_temp.season(i.b) AND is_on_taxi) = 1, 'draft taxi acquisition did not take');
   -- Settings change between seasons: A tightens to 2 adds a week, B gains a limit of 1.
   UPDATE public.leagues SET weekly_add_limit = 2 WHERE id = i.a;
   UPDATE public.leagues SET weekly_add_limit = 1 WHERE id = i.b;

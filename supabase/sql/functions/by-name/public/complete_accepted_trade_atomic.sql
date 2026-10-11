@@ -185,9 +185,14 @@ BEGIN
     v_to_member := v_item.to_member_id;
 
     IF v_item.player_id IS NOT NULL THEN
+      IF v_item.to_taxi THEN
+        PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_to_member,v_item.player_id,'trade',p_trade_id);
+      END IF;
+      BEGIN
       UPDATE roster_players
          SET member_id = v_to_member,
-             acquired_via = 'trade'
+             acquired_via = 'trade',
+             is_on_taxi = v_item.to_taxi
        WHERE league_id = v_trade.league_id
          AND league_season_id = v_trade.league_season_id
          AND member_id = v_from_member
@@ -200,6 +205,12 @@ BEGIN
         RAISE EXCEPTION 'Failed to move player asset atomically'
           USING ERRCODE = 'PT001';
       END IF;
+
+      EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF NOT v_item.to_taxi THEN RAISE; END IF;
+        -- A changed destination precondition expires this trade, not the whole queue.
+        RAISE EXCEPTION 'Taxi acquisition failed: %', SQLERRM USING ERRCODE='PT001';
+      END;
 
       INSERT INTO roster_transactions (
         league_id,

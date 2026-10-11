@@ -7,7 +7,8 @@ CREATE OR REPLACE FUNCTION public.place_auction_bid_atomic(
   p_member_id uuid,
   p_nomination_id uuid,
   p_amount int,
-  p_user_id uuid
+  p_user_id uuid,
+  p_to_taxi boolean DEFAULT false
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -139,7 +140,9 @@ BEGIN
        AND COALESCE(is_on_ir, false) = false
        AND COALESCE(is_on_taxi, false) = false;
 
-    IF v_active_roster_count >= v_roster_size THEN
+    IF p_to_taxi THEN
+      PERFORM private.assert_taxi_acquisition_allowed(v_draft.league_id,v_draft.league_season_id,p_member_id,v_nom.player_id);
+    ELSIF v_active_roster_count >= v_roster_size THEN
       RAISE EXCEPTION 'Your active roster is full (%)', v_roster_size;
     END IF;
   END IF;
@@ -147,15 +150,16 @@ BEGIN
   UPDATE nominations
      SET current_bid_amount = p_amount,
          current_bidder_id = p_member_id,
+         current_bid_to_taxi = COALESCE(p_to_taxi,false),
          countdown_expires_at = now() + make_interval(secs => v_draft.pick_timer_seconds)
    WHERE id = p_nomination_id;
 
-  INSERT INTO bids (nomination_id, member_id, amount)
-  VALUES (p_nomination_id, p_member_id, p_amount);
+  INSERT INTO bids (nomination_id, member_id, amount, to_taxi)
+  VALUES (p_nomination_id, p_member_id, p_amount, COALESCE(p_to_taxi,false));
 
   -- A manager may spend the whole remaining budget and fill open slots later
   -- through waivers or free agency, so the only bar to outbidding is the next
-  -- dollar and an open active slot.
+  -- dollar and room for this player in the active roster or taxi squad.
   IF NOT v_draft.is_mock THEN
     v_next_bid := p_amount + 1;
     SELECT EXISTS (
@@ -175,7 +179,7 @@ BEGIN
         ) AS roster
        WHERE budget.draft_id = p_draft_id
          AND budget.member_id <> p_member_id
-         AND roster.active_count < v_roster_size
+         AND (roster.active_count < v_roster_size OR private.can_acquire_draft_taxi(v_draft.league_id,v_draft.league_season_id,member.id,v_nom.player_id))
          AND budget.remaining >= v_next_bid
     )
       INTO v_can_outbid_exists;

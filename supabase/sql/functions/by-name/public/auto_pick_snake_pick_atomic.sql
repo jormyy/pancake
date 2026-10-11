@@ -5,7 +5,8 @@
 CREATE OR REPLACE FUNCTION public.auto_pick_snake_pick_atomic(
   p_draft_id uuid,
   p_member_id uuid,
-  p_reason text DEFAULT 'manual'
+  p_reason text DEFAULT 'manual',
+  p_to_taxi boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -41,6 +42,8 @@ BEGIN
     FROM players AS player
    WHERE player.years_exp = 0
      AND player.nba_draft_number IS NOT NULL
+     AND (NOT COALESCE(p_to_taxi,false) OR v_draft.is_mock OR
+       private.can_acquire_draft_taxi(v_draft.league_id,v_draft.league_season_id,p_member_id,player.id))
      AND NOT EXISTS (
        SELECT 1
          FROM snake_draft_picks AS picked
@@ -68,7 +71,8 @@ BEGIN
     p_draft_id,
     p_member_id,
     v_player_id,
-    v_reason = 'timer_expired'
+    v_reason = 'timer_expired',
+    p_to_taxi
   );
 
   INSERT INTO draft_audit_logs (draft_id, league_id, actor_user_id, action, metadata)

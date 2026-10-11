@@ -31,11 +31,13 @@ describe('scheduling wiring', () => {
         }
     })
 
-    it('score sync sends only changed playoff rows back to the finalization RPC', async () => {
+    it('score sync separates read boundaries from playoff grace resets', async () => {
         for (const file of ['supabase/shared-src/sync/scores.ts', 'supabase/functions/_shared/syncScores.ts']) {
             const source = await readFile(file, 'utf8')
-            expect(source, file).toMatch(/const matchupWrites = matchupResults\.filter\(\(m\) =>\s*!isPlayoffMatchupType\(m\.matchup_type\) \|\| finalizationWriteNeeded\(m\)/)
-            expect(source, file).toContain('p_matchups: matchupWrites.map(')
+            expect(source, file).toContain('score_read_started_at: scoringReadStartedAt')
+            expect(source, file).toContain('reconcile_decision: finalizationWriteNeeded(m)')
         }
+        const sql = await readFile('supabase/sql/functions/by-name/public/finalize_score_week_atomic.sql', 'utf8')
+        expect(sql).toContain('COALESCE(locked.requested_reconcile_decision, true) THEN p_reconciliation_at')
     })
 })

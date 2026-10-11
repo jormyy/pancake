@@ -55,8 +55,14 @@ SELECT pg_temp.expect_game_lock(format(
 FROM unnest(ARRAY[NULL, 'BE', 'SG']) AS slot;
 
 RESET ROLE;
+-- Seed an existing taxi member for activation checks. This is fixture setup,
+-- not a permitted manual entry. Restore veteran metadata and the started team.
+UPDATE players SET years_exp=0,nba_team='UNL' WHERE id='00000000-0000-0000-0000-0000f6d40402';
+SELECT private.authorize_taxi_acquisition('00000000-0000-0000-0000-0000f6d40101','00000000-0000-0000-0000-0000f6d40301',
+  '00000000-0000-0000-0000-0000f6d40201','00000000-0000-0000-0000-0000f6d40402','draft','00000000-0000-0000-0000-0000f6d40502');
 UPDATE roster_players SET is_on_ir = false, is_on_taxi = true
 WHERE id = '00000000-0000-0000-0000-0000f6d40502';
+UPDATE players SET years_exp=1,nba_team='LCK' WHERE id='00000000-0000-0000-0000-0000f6d40402';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.expect_game_lock(
   'SELECT public.activate_roster_player_with_overflow_atomic(''00000000-0000-0000-0000-0000f6d40502'', ''taxi'', ''00000000-0000-0000-0000-0000f6d40501'', ''drop'')');

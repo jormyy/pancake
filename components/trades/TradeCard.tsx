@@ -30,6 +30,7 @@ const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric',
 export type TradeCardActions = {
     acting: boolean
     onAccept: () => void
+    onTaxiDestination?: (playerId: string, value: boolean) => void
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void
@@ -118,6 +119,7 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
                     <Text style={styles.assetName} numberOfLines={1}>{item.playerName}</Text>
                     <View style={styles.assetMetaRow}>
                         {item.nbaTeam ? <Text style={styles.assetMeta}>{item.nbaTeam}</Text> : null}
+                        {item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
                         {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                         {item.injuryStatus ? (
                             <Badge
@@ -176,7 +178,7 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label: item.playerName,
-            detail: [item.nbaTeam, ...playerEligiblePositions(item)].filter(Boolean).join(' · '),
+            detail: [item.nbaTeam, ...playerEligiblePositions(item), item.toTaxi ? 'To taxi' : null].filter(Boolean).join(' · '),
         }
     }
     if (item.kind === 'pick') {
@@ -305,6 +307,7 @@ export function TradeCard({
     /** Beside an open detail pane: names only, the pane shows season context and notes. */
     brief?: boolean
     onAccept: () => void
+    onTaxiDestination?: (playerId: string, value: boolean) => void
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void

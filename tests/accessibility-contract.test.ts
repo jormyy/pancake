@@ -16,7 +16,7 @@ describe('interactive accessibility contracts', () => {
         const roster = source('app/(tabs)/roster.tsx')
         expect(roster).toContain('accessibilityLabel={`Open ${item.players.display_name}`}')
         expect(roster).toContain("accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}")
-        expect(roster).toContain('accessibilityLabel={`Move ${item.players.display_name} to taxi`}')
+        expect(roster).not.toContain('accessibilityLabel={`Move ${item.players.display_name} to taxi`}')
         expect(roster).toContain('<View style={styles.rosterTableRow}>')
         expect(roster).toContain('<Pressable\n                style={styles.rosterTableOpen}')
     })

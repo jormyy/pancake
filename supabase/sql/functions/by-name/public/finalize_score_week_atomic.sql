@@ -56,7 +56,9 @@ BEGIN
         id uuid,
         winner_member_id uuid,
         home_max_possible_points numeric,
-        away_max_possible_points numeric
+        away_max_possible_points numeric,
+        score_read_started_at timestamptz,
+        reconcile_decision boolean
       )
   ),
   locked AS (
@@ -64,7 +66,9 @@ BEGIN
       matchup.*,
       requested.winner_member_id AS requested_winner_member_id,
       requested.home_max_possible_points AS requested_home_max_possible_points,
-      requested.away_max_possible_points AS requested_away_max_possible_points
+      requested.away_max_possible_points AS requested_away_max_possible_points,
+      requested.score_read_started_at AS requested_score_read_started_at,
+      requested.reconcile_decision AS requested_reconcile_decision
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id
@@ -88,7 +92,9 @@ BEGIN
         id uuid,
         winner_member_id uuid,
         home_max_possible_points numeric,
-        away_max_possible_points numeric
+        away_max_possible_points numeric,
+        score_read_started_at timestamptz,
+        reconcile_decision boolean
       )
   ),
   locked AS (
@@ -96,7 +102,9 @@ BEGIN
       matchup.*,
       requested.winner_member_id AS requested_winner_member_id,
       requested.home_max_possible_points AS requested_home_max_possible_points,
-      requested.away_max_possible_points AS requested_away_max_possible_points
+      requested.away_max_possible_points AS requested_away_max_possible_points,
+      requested.score_read_started_at AS requested_score_read_started_at,
+      requested.reconcile_decision AS requested_reconcile_decision
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id
@@ -111,13 +119,14 @@ BEGIN
            home_max_possible_points = locked.requested_home_max_possible_points,
            away_max_possible_points = locked.requested_away_max_possible_points,
            is_finalized = true,
+           score_read_started_at = COALESCE(locked.requested_score_read_started_at, p_finalized_at),
            finalized_at = CASE
              WHEN locked.is_finalized IS FALSE THEN p_finalized_at
              WHEN locked.matchup_type IN (
                'playoff_quarterfinal'::matchup_type,
                'playoff_semifinal'::matchup_type,
                'playoff_final'::matchup_type
-             ) THEN p_reconciliation_at
+             ) AND COALESCE(locked.requested_reconcile_decision, true) THEN p_reconciliation_at
              ELSE matchup.finalized_at
            END
       FROM locked

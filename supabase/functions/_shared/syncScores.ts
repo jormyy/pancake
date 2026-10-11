@@ -142,7 +142,9 @@ type FinalizedRegularSeasonMatchupWeek = {
 
 type FinalizedPlayoffMatchupTimestamp = {
     week_number: number
+    matchup_type: string
     finalized_at: string | null
+    score_read_started_at: string | null
 }
 
 type StandingSnapshotMember = {
@@ -190,12 +192,8 @@ async function loadLockedPlayoffTypes(
     return locked
 }
 
-// A finalized matchup is only sent back to finalize_score_week_atomic when its
-// decision moved. The RPC re-stamps finalized_at on every playoff row it is
-// handed (so an in-window stat correction re-arms the 48h boundary grace), and
-// the closed week stays inside the sync window for the whole following week,
-// so handing it unchanged rows on every live-poll tick kept resetting the grace
-// clock and the bracket never advanced.
+// Re-arm playoff grace only when its decision changes. The read boundary can
+// advance on unchanged polling without delaying bracket advancement.
 export type FinalizationCandidate = {
     is_finalized: boolean | null
     winner_member_id: string | null
@@ -236,6 +234,7 @@ async function buildStandingsSnapshotRows(
     weekNumber: number,
     matchups: MatchupForFinalization[],
     maxPossiblePointsByMember: Map<string, number>,
+    scoringReadStartedAt: string,
 ): Promise<StandingSnapshotUpsertRow[] | null> {
     // Standings (wins/losses/PF/PA/max) only accumulate from regular_season
     // matchups. Playoff matchups (QF/SF/Final) are finalized in the same week
@@ -359,14 +358,13 @@ async function buildStandingsSnapshotRows(
         }
     }
 
-    const snapshotCreatedAt = new Date().toISOString()
     return [...standingsByMember.values()]
         .map((row) => ({
             league_id: leagueId,
             league_season_id: leagueSeasonId,
             member_id: row.member_id,
             week_number: weekNumber,
-            created_at: snapshotCreatedAt,
+            created_at: scoringReadStartedAt,
             wins: row.wins,
             losses: row.losses,
             ties: row.ties,
@@ -443,6 +441,7 @@ async function finalizeWeekIfComplete(
     weekNumber: number,
     seasonYear: number,
     settings: Record<string, number>,
+    scoringReadStartedAt: string,
 ) {
     // Get the week's date range from season_weeks (authoritative)
     const { data: weekData, error: weekErr } = await supabase
@@ -504,6 +503,7 @@ async function finalizeWeekIfComplete(
         weekNumber,
         matchups,
         maxPossiblePointsByMember,
+        scoringReadStartedAt,
     )
     if (standingsRows == null) return
 
@@ -529,19 +529,18 @@ async function finalizeWeekIfComplete(
         }
     })
 
-    // Regular-season rows keep going through unchanged (the RPC leaves their
-    // finalized_at alone and the standings upsert rides on the same call).
-    const matchupWrites = matchupResults.filter((m) =>
-        !isPlayoffMatchupType(m.matchup_type) || finalizationWriteNeeded(m)
-    )
+    // Every completed read advances its replay boundary. Only a changed decision
+    // restarts the playoff grace period.
     const reconciliationTimestamp = new Date().toISOString()
     const finalizedTimestamp = new Date().toISOString()
     const { data: notificationData, error: finalizeErr } = await supabase.rpc('finalize_score_week_atomic', {
         p_league_id: leagueId,
         p_league_season_id: leagueSeasonId,
         p_week_number: weekNumber,
-        p_matchups: matchupWrites.map((m) => ({
+        p_matchups: matchupResults.map((m) => ({
             id: m.id,
+            score_read_started_at: scoringReadStartedAt,
+            reconcile_decision: finalizationWriteNeeded(m),
             winner_member_id: m.winnerId,
             home_max_possible_points: m.homeMaxPossiblePoints,
             away_max_possible_points: m.awayMaxPossiblePoints,
@@ -784,7 +783,7 @@ async function loadEarliestStatCorrectionWeek(
 
     const playoffRows = await fetchAllPages<FinalizedPlayoffMatchupTimestamp>((from, to) => supabase
         .from('matchups')
-        .select('week_number, finalized_at')
+        .select('week_number, matchup_type, finalized_at, score_read_started_at')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .in('matchup_type', ['playoff_quarterfinal', 'playoff_semifinal', 'playoff_final'])
@@ -793,10 +792,13 @@ async function loadEarliestStatCorrectionWeek(
         .order('week_number')
         .range(from, to))
 
+    const lockedPlayoffTypes = await loadLockedPlayoffTypes(leagueId, seasonId)
     const playoffFinalizationTimeByWeek = new Map<number, number>()
     for (const row of playoffRows) {
+        if (lockedPlayoffTypes.has(row.matchup_type)) continue
         const weekNumber = Number(row.week_number)
-        const finalizedAt = row.finalized_at ? Date.parse(row.finalized_at) : NaN
+        const readStartedAt = row.score_read_started_at ?? row.finalized_at
+        const finalizedAt = readStartedAt ? Date.parse(readStartedAt) : NaN
         if (!Number.isInteger(weekNumber) || Number.isNaN(finalizedAt)) continue
         playoffFinalizationTimeByWeek.set(
             weekNumber,
@@ -910,18 +912,18 @@ async function syncStatsForCompletedWeeks(seasonYear: number, weeks: number[], r
     await syncStatsForDates(dateKeys)
 }
 
-// Main sync: updates live scores for all current-week matchups across all leagues.
+// Update current matchups and replay corrected historical seasons.
 export async function syncScores(leagueId?: string, referenceDate = new Date()) {
     const seasons = await fetchAllPages<{
         id: string
         league_id: string
         season_year: number
+        is_current: boolean
         leagues: { scoring_settings: Json } | null
     }>((from, to) => {
         let query = supabase
             .from('league_seasons')
-            .select('id, league_id, season_year, leagues!league_seasons_league_id_fkey ( scoring_settings )')
-            .eq('is_current', true)
+            .select('id, league_id, season_year, is_current, leagues!league_seasons_league_id_fkey ( scoring_settings )')
             .order('id')
 
         if (leagueId) query = query.eq('league_id', leagueId)
@@ -946,7 +948,14 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
             console.log(`[scores] No current week for season ${season.season_year}`)
             return
         }
-        const weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
+        let weeksToSync: number[]
+        if (season.is_current === false) {
+            const staleWeek = await loadEarliestStatCorrectionWeek(season.league_id, season.id, season.season_year, weekNumber)
+            if (staleWeek == null) return
+            weeksToSync = weekRange(staleWeek, weekNumber)
+        } else {
+            weeksToSync = await loadWeeksToSync(season.league_id, season.id, season.season_year, weekNumber)
+        }
         plans.push({ season, weekNumber, weeksToSync })
     }), LEAGUE_SYNC_CONCURRENCY).catch((error) => {
         planFailures.push(errorText(error))
@@ -980,6 +989,8 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
 
             console.log(`[scores] Syncing week ${weekNumber} for league ${season.league_id}`)
 
+            // An overlapping correction must remain newer than this read boundary.
+            const scoringReadStartedAt = new Date().toISOString()
             for (const scoreWeek of weeksToSync) {
                 await updateWeekPoints(season.league_id, season.id, season.season_year, scoreWeek, settings)
             }
@@ -987,7 +998,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
             // Finalize older weeks before newer weeks so cumulative standings for
             // week N always build on the week N-1 snapshot when both close late.
             for (const finalizeWeek of weeksToSync) {
-                await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year, settings)
+                await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year, settings, scoringReadStartedAt)
             }
             syncedLeagues += 1
         }),

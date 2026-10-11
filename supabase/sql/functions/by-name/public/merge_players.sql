@@ -113,6 +113,9 @@ BEGIN
           AND own.is_on_ir = false AND own.is_on_taxi = false
      );
 
+  PERFORM private.authorize_taxi_acquisition(league_id,league_season_id,member_id,winner_id,'merge',loser_id)
+    FROM roster_players WHERE player_id=loser_id AND is_on_taxi;
+
   -- roster_players: drop the loser's rows that already have a winner row in the
   -- same (league, season), then re-point the rest.
   DELETE FROM roster_players
@@ -164,6 +167,11 @@ BEGIN
     WHERE player_id = loser_id
       AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = winner_id);
   UPDATE player_game_stats SET player_id = winner_id WHERE player_id = loser_id;
+
+  INSERT INTO league_player_taxi_exits(league_id,player_id,exited_at)
+    SELECT league_id,winner_id,exited_at FROM league_player_taxi_exits WHERE player_id=loser_id
+    ON CONFLICT(league_id,player_id) DO UPDATE SET exited_at=LEAST(league_player_taxi_exits.exited_at,EXCLUDED.exited_at);
+  DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND source='merge' AND related_id=loser_id;
 
   DELETE FROM players WHERE id = loser_id;
 END;

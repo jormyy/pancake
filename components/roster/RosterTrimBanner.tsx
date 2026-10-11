@@ -2,35 +2,31 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { colors, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
-import { isIREligible, isTaxiEligible, type RosterPlayer } from '@/lib/roster'
+import { isIREligible, type RosterPlayer } from '@/lib/roster'
 
 export function RosterTrimBanner({
     players,
     excess,
     irAvailable,
-    taxiAvailable,
     busyId,
     onDrop,
     dropDisabled = false,
     onMoveToIR,
-    onMoveToTaxi,
 }: {
     players: RosterPlayer[]
     excess: number
     irAvailable: boolean
-    taxiAvailable: boolean
     busyId: string | null
     onDrop: (player: RosterPlayer) => void
     dropDisabled?: boolean
     onMoveToIR: (player: RosterPlayer) => void
-    onMoveToTaxi: (player: RosterPlayer) => void
 }) {
     if (excess <= 0) return null
 
     return (
         <View style={styles.banner} accessibilityRole="alert" accessibilityLabel={`Roster is ${excess} over the active player limit`}>
             <Text style={styles.title}>Trim roster: {excess} over limit</Text>
-            <Text style={styles.detail}>Lineup changes are locked. Drop players or move eligible players to an open reserve slot.</Text>
+            <Text style={styles.detail}>Lineup changes are locked. Drop players or move eligible players to an open IR slot.</Text>
             <ScrollView style={styles.list} nestedScrollEnabled>
                 {players.map((player) => {
                     const busy = busyId !== null
@@ -61,18 +57,7 @@ export function RosterTrimBanner({
                                         <Text style={styles.reserveText}>IR</Text>
                                     </Pressable>
                                 ) : null}
-                                {taxiAvailable && isTaxiEligible(player.players) ? (
-                                    <Pressable
-                                        style={[styles.action, styles.reserveAction]}
-                                        onPress={() => onMoveToTaxi(player)}
-                                        disabled={busy}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={`Move ${player.players.display_name} to Taxi Squad`}
-                                        accessibilityState={{ disabled: busy }}
-                                    >
-                                        <Text style={styles.reserveText}>Taxi</Text>
-                                    </Pressable>
-                                ) : null}
+
                                 <Pressable
                                     style={[styles.action, styles.dropAction, dropDisabled && { opacity: 0.5 }]}
                                     onPress={() => onDrop(player)}

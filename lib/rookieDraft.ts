@@ -254,21 +254,22 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
 
 
 export async function startRookieDraft(leagueId: string, options: RookieDraftStartOptions = {}) {
-    return sharedApiPost<any>('/draft/start-rookie', {
+    const result = await sharedApiPost<{ draft: { id: string; draft_type: 'snake' } }>('/draft/start-rookie', {
         leagueId,
         isMock: options.isMock === true,
         ...(options.timerSeconds != null ? { timerSeconds: options.timerSeconds } : {}),
         ...(options.rounds != null ? { rounds: options.rounds } : {}),
         ...(options.timerExpiryBehavior ? { timerExpiryBehavior: options.timerExpiryBehavior } : {}),
     })
+    return { draft: { id: result.draft.id, draftType: result.draft.draft_type } }
 }
 
-export async function makeSnakePick(draftId: string, memberId: string, playerId: string) {
-    return sharedApiPost<any>(`/draft/${draftId}/snake-pick`, { memberId, playerId })
+export async function makeSnakePick(draftId: string, memberId: string, playerId: string, toTaxi = false) {
+    return sharedApiPost<any>(`/draft/${draftId}/snake-pick`, { memberId, playerId, toTaxi })
 }
 
-export async function commissionerSnakePick(draftId: string, memberId: string, playerId: string) {
-    return sharedApiPost<any>(`/draft/${draftId}/commissioner-pick`, { memberId, playerId })
+export async function commissionerSnakePick(draftId: string, memberId: string, playerId: string, toTaxi = false) {
+    return sharedApiPost<any>(`/draft/${draftId}/commissioner-pick`, { memberId, playerId, toTaxi })
 }
 
 export async function processExpiredSnakePick(draftId: string, memberId: string) {

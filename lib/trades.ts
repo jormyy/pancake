@@ -9,6 +9,7 @@ export {
 
 type TradePlayerItem = {
     kind: 'player'
+    toTaxi?: boolean
     playerId: string
     playerName: string
     position: string | null
@@ -130,6 +131,7 @@ type TradePlayerQueryRow = {
     years_exp: number | null
 } | null
 type TradeItemQueryRow = {
+    to_taxi: boolean
     side: 'proposer' | 'recipient'
     player_id: string | null
     pick_id: string | null
@@ -380,6 +382,10 @@ export async function editTrade(
     return result.tradeId
 }
 
+export async function setTradeTaxiDestinations(tradeId: string, memberId: string, playerIds: string[]) {
+    await apiPost(`/trades/${tradeId}/taxi-destinations`, { memberId, playerIds })
+}
+
 export async function acceptTrade(
     tradeId: string,
     memberId: string,
@@ -434,6 +440,7 @@ const TRADE_SELECT = `
                 id,
                 side,
                 player_id,
+                to_taxi,
                 pick_id,
                 from_member_id,
                 to_member_id,
@@ -458,6 +465,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         if (item.player_id != null && item.players) {
             tradeItem = {
                 kind: 'player',
+                toTaxi: item.to_taxi,
                 playerId: item.player_id,
                 playerName: item.players?.display_name ?? 'Unknown',
                 position: item.players?.position ?? null,

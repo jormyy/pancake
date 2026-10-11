@@ -12,7 +12,8 @@
     "hooks/use-color-scheme.web.ts",
     "public/sw.js",
     "supabase/functions/**/index.ts",
-    "supabase/functions/**/*.test.ts"
+    "supabase/functions/**/*.test.ts",
+    "supabase/tests/db/scoring-corrections.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

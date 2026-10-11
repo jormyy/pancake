@@ -7,7 +7,7 @@ import {
     type LineupPlayer,
     type LineupSelection,
 } from '@/lib/lineup'
-import { activateRosterPlayerWithLineup, toggleIR, toggleTaxi } from '@/lib/roster'
+import { activateRosterPlayerWithLineup, toggleIR } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
@@ -141,8 +141,7 @@ export function useLineupActions({
                 })
             } else if (plan.kind === 'toggle-ir') {
                 await toggleIR(plan.rosterPlayerId, true)
-            } else if (plan.kind === 'toggle-taxi') {
-                await toggleTaxi(plan.rosterPlayerId, true)
+
             } else {
                 await setPlayerSlotMoves(
                     {
@@ -163,7 +162,7 @@ export function useLineupActions({
         }
     }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity, autoSetting, saving])
 
-    async function resolveOverflow(freeAction: 'drop' | 'ir' | 'taxi', rosterPlayerId: string) {
+    async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return
         const starterPlayers = myLineup?.starters
             .map((slot) => slot.player)
@@ -212,7 +211,6 @@ export function useLineupActions({
 
     const handleOverflowDrop = (id: string) => resolveOverflow('drop', id)
     const handleOverflowMoveToIR = (id: string) => resolveOverflow('ir', id)
-    const handleOverflowMoveToTaxi = (id: string) => resolveOverflow('taxi', id)
 
     async function doAutoSet(date: string | null, restOfSeason?: boolean, retryDates?: string[]) {
         if (!actionContext || !league || autoSetting || saving || activationOverflowSaving) return
@@ -267,7 +265,6 @@ export function useLineupActions({
         handleTap,
         handleOverflowDrop,
         handleOverflowMoveToIR,
-        handleOverflowMoveToTaxi,
         doAutoSet,
         handleAutoSet,
     }

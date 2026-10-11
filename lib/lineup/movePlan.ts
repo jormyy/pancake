@@ -29,7 +29,6 @@ type LineupMovePlan =
           slotType: string | null
       }
     | { kind: 'toggle-ir'; rosterPlayerId: string }
-    | { kind: 'toggle-taxi'; rosterPlayerId: string }
     | { kind: 'slot-moves'; moves: LineupSlotMove[] }
 
 export type LineupMoveTargetState = 'valid' | 'invalid' | null
@@ -135,14 +134,8 @@ export function planLineupMove({
         const taxiPlayer = selectedPlayer(lineup, taxiSelection)
         const activePlayer = selectedPlayer(lineup, activeSelection)
 
-        if (activePlayer && !taxiPlayer) {
-            const taxiLimit = league.taxi_slots ?? 0
-            if (taxiLimit === 0) {
-                return { kind: 'invalid', title: 'Taxi squad disabled', message: 'This league has no taxi squad slots configured.' }
-            }
-            if ((lineup.taxi ?? []).length >= taxiLimit) {
-                return { kind: 'invalid', title: 'Taxi squad full', message: `Your taxi squad is full (${taxiLimit} slots).` }
-            }
+        if (activePlayer) {
+            return { kind: 'invalid', title: 'Taxi entry restricted', message: 'Players enter taxi only through a draft or trade. Activate taxi players into an empty active slot.' }
         }
 
         if (taxiPlayer && !activePlayer && activeRosterCount(lineup) >= (league.roster_size ?? 20)) {
@@ -159,12 +152,11 @@ export function planLineupMove({
                 kind: 'activate',
                 activateRosterPlayerId: taxiPlayer.rosterPlayerId,
                 activateSource: 'taxi',
-                freeRosterPlayerId: activePlayer?.rosterPlayerId ?? null,
-                freeAction: activePlayer ? 'taxi' : null,
+                freeRosterPlayerId: null,
+                freeAction: null,
                 slotType: activationSlotType(lineup, activeSelection, taxiPlayer),
             }
         }
-        if (activePlayer) return { kind: 'toggle-taxi', rosterPlayerId: activePlayer.rosterPlayerId }
     }
 
     if (aPlayer && bSlot !== 'BE' && !canPlaySlot(aPlayer.eligiblePositions, bSlot)) {

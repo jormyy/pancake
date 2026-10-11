@@ -138,7 +138,7 @@ describe('planLineupMove', () => {
         })
     })
 
-    it('keeps taxi-slot validation in the planner', () => {
+    it('rejects manual taxi entry even with an empty eligible taxi slot', () => {
         const fullTaxi = planLineupMove({
             lineup: lineup({
                 bench: [player('bench')],
@@ -149,7 +149,7 @@ describe('planLineupMove', () => {
             from: { kind: 'bench', index: 0 },
             to: { kind: 'taxi', index: 1 },
         })
-        expect(fullTaxi).toMatchObject({ kind: 'invalid', title: 'Taxi squad full' })
+        expect(fullTaxi).toMatchObject({ kind: 'invalid', title: 'Taxi entry restricted' })
 
         const availableTaxi = planLineupMove({
             lineup: lineup({ bench: [player('bench')], taxi: [] }),
@@ -158,7 +158,7 @@ describe('planLineupMove', () => {
             from: { kind: 'bench', index: 0 },
             to: { kind: 'taxi', index: 0 },
         })
-        expect(availableTaxi).toEqual({ kind: 'toggle-taxi', rosterPlayerId: 'rp-bench' })
+        expect(availableTaxi).toMatchObject({ kind: 'invalid', title: 'Taxi entry restricted' })
     })
 })
 

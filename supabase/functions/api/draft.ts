@@ -301,6 +301,7 @@ async function placeBid(
   nominationId: string,
   amount: number,
   userId: string,
+  toTaxi = false,
 ): Promise<void> {
   if (!Number.isInteger(amount) || amount < MIN_BID) {
     throw new ValidationError('Bid amount must be a positive integer')
@@ -312,6 +313,7 @@ async function placeBid(
     p_nomination_id: nominationId,
     p_amount: amount,
     p_user_id: userId,
+    p_to_taxi: toTaxi,
   })
   if (error) throwDb(error)
 }
@@ -366,11 +368,12 @@ export async function startRookieDraft(
   return data
 }
 
-async function makeSnakePick(draftId: string, memberId: string, playerId: string): Promise<Record<string, unknown>> {
+async function makeSnakePick(draftId: string, memberId: string, playerId: string, toTaxi = false): Promise<Record<string, unknown>> {
   const { data: rpcData, error: rpcError } = await supabase.rpc('make_snake_pick_atomic', {
     p_draft_id: draftId,
     p_member_id: memberId,
     p_player_id: playerId,
+    p_to_taxi: toTaxi,
   })
   if (rpcError) throwDb(rpcError)
 
@@ -382,12 +385,14 @@ async function commissionerSnakePick(
   memberId: string,
   playerId: string,
   actorUserId: string,
+  toTaxi = false,
 ): Promise<Record<string, unknown>> {
   const { data: rpcData, error: rpcError } = await supabase.rpc('commissioner_snake_pick_atomic', {
     p_draft_id: draftId,
     p_member_id: memberId,
     p_player_id: playerId,
     p_actor_user_id: actorUserId,
+    p_to_taxi: toTaxi,
   })
   if (rpcError) throwDb(rpcError)
 
@@ -467,11 +472,12 @@ async function snakePickResponse(
   }
 }
 
-export async function autoPickBest(draftId: string, memberId: string): Promise<Record<string, unknown>> {
+export async function autoPickBest(draftId: string, memberId: string, toTaxi = false): Promise<Record<string, unknown>> {
   const { data: rpcData, error: rpcError } = await supabase.rpc('auto_pick_snake_pick_atomic', {
     p_draft_id: draftId,
     p_member_id: memberId,
     p_reason: 'manual',
+    p_to_taxi: toTaxi,
   })
   if (rpcError) throwDb(rpcError)
 
@@ -657,7 +663,7 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
   if (action.action === 'bid') {
     const memberId = uuidField(body, 'memberId')
     await verifyOwnMember(userId, memberId)
-    await placeBid(draftId, memberId, uuidField(body, 'nominationId'), integerField(body, 'amount', { min: MIN_BID, max: 1_000_000 }), userId)
+    await placeBid(draftId, memberId, uuidField(body, 'nominationId'), integerField(body, 'amount', { min: MIN_BID, max: 1_000_000 }), userId, optionalBooleanField(body, 'toTaxi') ?? false)
     return json({ ok: true })
   }
 
@@ -670,21 +676,21 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
   if (action.action === 'snake-pick') {
     const memberId = uuidField(body, 'memberId')
     await verifyOwnMember(userId, memberId)
-    return json({ ok: true, ...await makeSnakePick(draftId, memberId, uuidField(body, 'playerId')) })
+    return json({ ok: true, ...await makeSnakePick(draftId, memberId, uuidField(body, 'playerId'), optionalBooleanField(body, 'toTaxi') ?? false) })
   }
 
   if (action.action === 'commissioner-pick') {
     await requireCommissionerForDraft(userId, draftId)
     return json({
       ok: true,
-      ...await commissionerSnakePick(draftId, uuidField(body, 'memberId'), uuidField(body, 'playerId'), userId),
+      ...await commissionerSnakePick(draftId, uuidField(body, 'memberId'), uuidField(body, 'playerId'), userId, optionalBooleanField(body, 'toTaxi') ?? false),
     })
   }
 
   if (action.action === 'auto-pick') {
     const memberId = uuidField(body, 'memberId')
     await verifyOwnMember(userId, memberId)
-    return json({ ok: true, ...await autoPickBest(draftId, memberId) })
+    return json({ ok: true, ...await autoPickBest(draftId, memberId, optionalBooleanField(body, 'toTaxi') ?? false) })
   }
 
   if (action.action === 'process-expired-pick') {

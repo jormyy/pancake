@@ -476,6 +476,16 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
   const userId = await requireUser(req)
   const body = await readJsonObject(req)
 
+  if (action.action === 'taxi-destinations') {
+    const memberId = uuidField(body, 'memberId')
+    await requireOwnMember(userId, memberId)
+    const { error } = await supabase.rpc('set_trade_taxi_destinations_atomic', {
+      p_trade_id: action.tradeId, p_member_id: memberId, p_user_id: userId,
+      p_player_ids: optionalUuidArrayField(body, 'playerIds'),
+    })
+    if (error) throwDb(error)
+    return json({ ok: true })
+  }
   if (action.action === 'accept') {
     await acceptTrade(userId, action.tradeId, body)
     return json({ ok: true })

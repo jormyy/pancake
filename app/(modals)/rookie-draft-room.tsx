@@ -23,6 +23,7 @@ import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
+import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { PosTag } from '@/components/PosTag'
 
 export default function RookieDraftRoomScreen() {
@@ -42,7 +43,8 @@ export default function RookieDraftRoomScreen() {
         prospects,
         prospectsLoading,
         picking,
-        activeTab,
+        draftToTaxi,
+        setDraftToTaxi,        activeTab,
         setActiveTab,
         secondsLeft,
         pickError,
@@ -56,7 +58,6 @@ export default function RookieDraftRoomScreen() {
         handleTrimDrop,
         handlePick,
         handleCommissionerPick,
-        resolveByTaxi,
         resolveByDrop,
     } = useRookieDraftRoomController({
         draftId,
@@ -130,22 +131,11 @@ export default function RookieDraftRoomScreen() {
                             {' '}but your active roster is over capacity. Resolve before continuing.
                         </Text>
 
-                        {rosterOverflow?.taxiSlotsAvailable && (
-                            <MotionPressable
-                                style={[styles.overflowBtn, styles.overflowBtnPrimary]}
-                                onPress={resolveByTaxi}
-                                disabled={resolvingOverflow}
-                                pressedScale={0.965}
-                            >
-                                <Text style={styles.overflowBtnPrimaryText}>
-                                    Move {rosterOverflow?.newPlayerName} to Taxi Squad
-                                </Text>
-                            </MotionPressable>
-                        )}
+
 
                         {rosterForDrop.length > 0 && (
                             <>
-                                <Text style={styles.overflowDropLabel}>Or drop a player:</Text>
+                                <Text style={styles.overflowDropLabel}>Drop a player:</Text>
                                 <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
                                     {rosterForDrop.map((rp) => (
                                         <MotionPressable
@@ -236,6 +226,9 @@ export default function RookieDraftRoomScreen() {
                         />
                     ) : null}
                 </DraftScreenHeader>
+                {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? <TaxiAcquisitionChoice
+                    value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking}
+                    label="Draft this pick directly into taxi" /> : null}
                 <KeyboardAvoidingView
                     style={[styles.body, isDesktop && styles.bodyDesktop]}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

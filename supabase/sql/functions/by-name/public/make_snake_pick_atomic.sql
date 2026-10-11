@@ -5,7 +5,8 @@
 CREATE OR REPLACE FUNCTION public.make_snake_pick_atomic(
   p_draft_id uuid,
   p_member_id uuid,
-  p_player_id uuid
+  p_player_id uuid,
+  p_to_taxi boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -17,7 +18,8 @@ BEGIN
     p_draft_id,
     p_member_id,
     p_player_id,
-    false
+    false,
+    p_to_taxi
   );
 END;
 $$;

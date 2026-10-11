@@ -23,6 +23,7 @@ export type DraftNomination = {
     nominatingMemberId: string
     currentBidAmount: number
     currentBidderId: string | null
+    currentBidToTaxi?: boolean
     countdownExpiresAt: string | null
     winningMemberId: string | null
     finalPrice: number | null
@@ -114,6 +115,7 @@ type NominationPollRow = {
     status: string
     current_bid_amount: number
     current_bidder_id: string | null
+    current_bid_to_taxi: boolean
     countdown_expires_at: string | null
     closed_at: string | null
 }
@@ -245,7 +247,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
                 .from('nominations')
                 .select(
                     `
-        id, status, current_bid_amount, current_bidder_id, countdown_expires_at,
+        id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at,
         winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order,
         player_id,
         players ( display_name, nba_team, position, nba_id )
@@ -312,6 +314,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
         nominatingMemberId: n.nominating_member_id,
         currentBidAmount: n.current_bid_amount,
         currentBidderId: n.current_bidder_id,
+        currentBidToTaxi: n.current_bid_to_taxi,
         countdownExpiresAt: n.countdown_expires_at,
         winningMemberId: n.winning_member_id,
         finalPrice: n.final_price,
@@ -376,7 +379,7 @@ export async function getDraftPollRevision(draftId: string): Promise<string | nu
             .maybeSingle(),
         supabase
             .from('nominations')
-            .select('id, status, current_bid_amount, current_bidder_id, countdown_expires_at, closed_at')
+            .select('id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at, closed_at')
             .eq('draft_id', draftId)
             .order('nomination_order', { ascending: false })
             .limit(1)
@@ -530,8 +533,9 @@ export async function placeBid(
     memberId: string,
     nominationId: string,
     amount: number,
+    toTaxi = false,
 ): Promise<void> {
-    await sharedApiPost(`/draft/${draftId}/bid`, { memberId, nominationId, amount })
+    await sharedApiPost(`/draft/${draftId}/bid`, { memberId, nominationId, amount, toTaxi })
 }
 
 export async function withdrawNomination(

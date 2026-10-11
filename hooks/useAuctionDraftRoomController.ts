@@ -39,6 +39,8 @@ export function useAuctionDraftRoomController({
     // Bidding — held as raw text so the field can be cleared/typed freely;
     // the value is validated and clamped only on submit (handleBid).
     const [bidText, setBidText] = useState('1')
+    const [bidToTaxi, setBidToTaxi] = useState(false)
+    useEffect(() => { setBidToTaxi(false) }, [draftId, memberId])
     const [bidding, setBidding] = useState(false)
     const [withdrawing, setWithdrawing] = useState(false)
 
@@ -308,7 +310,7 @@ export function useAuctionDraftRoomController({
         }
         setBidding(true)
         try {
-            await placeBid(draftId, memberId, visibleState.openNomination.id, amount)
+            await placeBid(draftId, memberId, visibleState.openNomination.id, amount, bidToTaxi)
             if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
@@ -395,7 +397,8 @@ export function useAuctionDraftRoomController({
             ? 'Live draft connection lost. Tap to retry.'
             : null),
         bidText,
-        setBidText,
+        bidToTaxi,
+        setBidToTaxi,        setBidText,
         bidding,
         withdrawing,
         nominating,

@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
+import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { MotionPressable } from '@/components/Motion'
 import { MultiTeamTradeOverview } from '@/components/trades/MultiTeamTradeOverview'
 import {
@@ -70,6 +71,11 @@ export function TradeDetailsPanel({
                 </View>
             ) : null}
 
+            {trade.status === 'pending' && actions.onTaxiDestination ? trade.routedItems.flatMap((item) =>
+                item.kind === 'player' && item.toMemberId === myMemberId ? [<TaxiAcquisitionChoice
+                    key={item.playerId} value={item.toTaxi === true} disabled={actions.acting}
+                    label={`Receive ${item.playerName} into taxi`}
+                    onChange={(value) => actions.onTaxiDestination?.(item.playerId, value)} />] : []) : null}
             <TradeActionButtons trade={trade} model={model} actions={actions} />
             <MotionPressable
                 style={styles.analyze}

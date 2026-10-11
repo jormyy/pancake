@@ -178,15 +178,21 @@ BEGIN
   END IF;
 END $$;
 
--- T4: a taxi move clears the listing.
+-- T4: manual taxi entry is rejected and preserves the existing listing.
 SELECT public.add_trade_block_item_atomic(ids.member_a, ids.league_id, ids.rookie, NULL, NULL, ids.user_a) FROM lifecycle_ids AS ids;
-SELECT public.toggle_taxi_atomic('00000000-0000-0000-0000-0000000a0503', true, ids.user_a) FROM lifecycle_ids AS ids;
 DO $$
-DECLARE ids lifecycle_ids%ROWTYPE;
+DECLARE ids lifecycle_ids%ROWTYPE; rejected boolean := false;
 BEGIN
   SELECT * INTO ids FROM lifecycle_ids;
-  IF pg_temp.listing_count(ids.member_a, ids.rookie) <> 0 THEN
-    RAISE EXCEPTION 'T4: listing survived a taxi move';
+  BEGIN
+    PERFORM public.toggle_taxi_atomic('00000000-0000-0000-0000-0000000a0503', true, ids.user_a);
+  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+    IF SQLERRM NOT LIKE '%only through a draft or trade%' THEN RAISE; END IF;
+    rejected := true;
+  END;
+  IF NOT rejected OR pg_temp.listing_count(ids.member_a, ids.rookie) <> 1
+     OR (SELECT is_on_taxi FROM roster_players WHERE id='00000000-0000-0000-0000-0000000a0503') THEN
+    RAISE EXCEPTION 'T4: rejected taxi entry changed the roster or listing';
   END IF;
 END $$;
 

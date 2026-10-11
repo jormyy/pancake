@@ -44,11 +44,9 @@ describe('roster overflow recovery ownership', () => {
                 players: [player('one'), player('two')],
                 excess: 1,
                 irAvailable: false,
-                taxiAvailable: false,
                 busyId: 'roster-one',
                 onDrop: vi.fn(),
                 onMoveToIR: vi.fn(),
-                onMoveToTaxi: vi.fn(),
             }))
         })
         const dropActions = renderer.root.findAll((node) =>

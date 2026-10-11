@@ -99,6 +99,7 @@ export type Database = {
           member_id: string
           nomination_id: string
           placed_at: string
+          to_taxi: boolean
         }
         Insert: {
           amount: number
@@ -107,6 +108,7 @@ export type Database = {
           member_id: string
           nomination_id: string
           placed_at?: string
+          to_taxi?: boolean
         }
         Update: {
           amount?: number
@@ -115,6 +117,7 @@ export type Database = {
           member_id?: string
           nomination_id?: string
           placed_at?: string
+          to_taxi?: boolean
         }
         Relationships: [
           {
@@ -1078,6 +1081,46 @@ export type Database = {
           },
         ]
       }
+      league_player_taxi_exits: {
+        Row: {
+          exited_at: string
+          league_id: string
+          player_id: string
+        }
+        Insert: {
+          exited_at?: string
+          league_id: string
+          player_id: string
+        }
+        Update: {
+          exited_at?: string
+          league_id?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_player_taxi_exits_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_player_taxi_exits_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_player_taxi_exits_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_seasons: {
         Row: {
           created_at: string
@@ -1370,6 +1413,7 @@ export type Database = {
           league_id: string
           league_season_id: string
           matchup_type: Database["public"]["Enums"]["matchup_type"]
+          score_read_started_at: string | null
           week_number: number
           winner_member_id: string | null
         }
@@ -1387,6 +1431,7 @@ export type Database = {
           league_id: string
           league_season_id: string
           matchup_type?: Database["public"]["Enums"]["matchup_type"]
+          score_read_started_at?: string | null
           week_number: number
           winner_member_id?: string | null
         }
@@ -1404,6 +1449,7 @@ export type Database = {
           league_id?: string
           league_season_id?: string
           matchup_type?: Database["public"]["Enums"]["matchup_type"]
+          score_read_started_at?: string | null
           week_number?: number
           winner_member_id?: string | null
         }
@@ -1526,6 +1572,7 @@ export type Database = {
           closed_at: string | null
           countdown_expires_at: string | null
           current_bid_amount: number
+          current_bid_to_taxi: boolean
           current_bidder_id: string | null
           draft_id: string
           final_price: number | null
@@ -1541,6 +1588,7 @@ export type Database = {
           closed_at?: string | null
           countdown_expires_at?: string | null
           current_bid_amount?: number
+          current_bid_to_taxi?: boolean
           current_bidder_id?: string | null
           draft_id: string
           final_price?: number | null
@@ -1556,6 +1604,7 @@ export type Database = {
           closed_at?: string | null
           countdown_expires_at?: string | null
           current_bid_amount?: number
+          current_bid_to_taxi?: boolean
           current_bidder_id?: string | null
           draft_id?: string
           final_price?: number | null
@@ -2373,6 +2422,7 @@ export type Database = {
           skip_reason: string | null
           skipped_at: string | null
           timer_expires_at: string | null
+          to_taxi: boolean
         }
         Insert: {
           draft_id: string
@@ -2387,6 +2437,7 @@ export type Database = {
           skip_reason?: string | null
           skipped_at?: string | null
           timer_expires_at?: string | null
+          to_taxi?: boolean
         }
         Update: {
           draft_id?: string
@@ -2401,6 +2452,7 @@ export type Database = {
           skip_reason?: string | null
           skipped_at?: string | null
           timer_expires_at?: string | null
+          to_taxi?: boolean
         }
         Relationships: [
           {
@@ -2668,6 +2720,7 @@ export type Database = {
           player_id: string | null
           side: Database["public"]["Enums"]["trade_side"]
           to_member_id: string
+          to_taxi: boolean
           trade_id: string
         }
         Insert: {
@@ -2680,6 +2733,7 @@ export type Database = {
           player_id?: string | null
           side: Database["public"]["Enums"]["trade_side"]
           to_member_id: string
+          to_taxi?: boolean
           trade_id: string
         }
         Update: {
@@ -2692,6 +2746,7 @@ export type Database = {
           player_id?: string | null
           side?: Database["public"]["Enums"]["trade_side"]
           to_member_id?: string
+          to_taxi?: boolean
           trade_id?: string
         }
         Relationships: [
@@ -3617,7 +3672,12 @@ export type Database = {
         Returns: string
       }
       auto_pick_snake_pick_atomic: {
-        Args: { p_draft_id: string; p_member_id: string; p_reason?: string }
+        Args: {
+          p_draft_id: string
+          p_member_id: string
+          p_reason?: string
+          p_to_taxi?: boolean
+        }
         Returns: Json
       }
       auto_set_lineup_atomic: {
@@ -3728,6 +3788,7 @@ export type Database = {
           p_draft_id: string
           p_member_id: string
           p_player_id: string
+          p_to_taxi?: boolean
         }
         Returns: Json
       }
@@ -3796,6 +3857,7 @@ export type Database = {
           closed_at: string | null
           countdown_expires_at: string | null
           current_bid_amount: number
+          current_bid_to_taxi: boolean
           current_bidder_id: string | null
           draft_id: string
           final_price: number | null
@@ -4196,7 +4258,12 @@ export type Database = {
         Returns: string[]
       }
       make_snake_pick_atomic: {
-        Args: { p_draft_id: string; p_member_id: string; p_player_id: string }
+        Args: {
+          p_draft_id: string
+          p_member_id: string
+          p_player_id: string
+          p_to_taxi?: boolean
+        }
         Returns: Json
       }
       merge_duplicate_players: { Args: never; Returns: undefined }
@@ -4219,6 +4286,7 @@ export type Database = {
           p_draft_id: string
           p_member_id: string
           p_nomination_id: string
+          p_to_taxi?: boolean
           p_user_id: string
         }
         Returns: undefined
@@ -4512,6 +4580,15 @@ export type Database = {
           p_member_id: string
           p_moves: Json
           p_week_number: number
+        }
+        Returns: undefined
+      }
+      set_trade_taxi_destinations_atomic: {
+        Args: {
+          p_member_id: string
+          p_player_ids: string[]
+          p_trade_id: string
+          p_user_id: string
         }
         Returns: undefined
       }

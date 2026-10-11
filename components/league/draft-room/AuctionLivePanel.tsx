@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { Avatar } from '@/components/Avatar'
 import { MotionPressable } from '@/components/Motion'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, tints } from '@/constants/tokens'
@@ -75,6 +76,10 @@ export function AuctionLivePanel({
                             </Text>
                         </View>
                     </View>
+                    {!state.draft.isMock && !leading ? <TaxiAcquisitionChoice value={controller.bidToTaxi}
+                        onChange={controller.setBidToTaxi} disabled={controller.bidding || paused}
+                        label="Receive this auction player into taxi" /> : null}
+                    {leading && nomination.currentBidToTaxi ? <Text style={textStyles.meta}>Winning destination: Taxi squad</Text> : null}
                     {!leading && (budget?.remaining ?? 0) >= 1 && !paused && controller.realtimeConnected ? <View style={styles.bidInputRow}>
                         <View style={styles.bidStepGroup}>
                             <MotionPressable style={styles.bidStep}
