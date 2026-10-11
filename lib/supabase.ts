@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, isAuthApiError, isAuthSessionMissingError } from '@supabase/supabase-js'
 import { Platform } from 'react-native'
 import { Database } from '@/types/database'
 import { fenceDataRequests } from '@/lib/session-fetch'
@@ -132,7 +132,14 @@ export async function revokeDetachedSession(
         },
     })
     const { data, error } = await detached.auth.setSession(tokens)
-    if (error || !data.session) return false
+    // A session the server already rejects (signed out elsewhere, refresh token revoked) has
+    // nothing left to revoke, which the SDK's own sign-out also treats as confirmed. The SDK
+    // reports a JWT whose session is gone (403 session_not_found) as AuthSessionMissingError.
+    if (error) {
+        return isAuthSessionMissingError(error)
+            || (isAuthApiError(error) && [400, 401, 403, 404].includes(error.status))
+    }
+    if (!data.session) return false
     await beforeRevoke(data.session.access_token)
     const { error: signOutError } = await detached.auth.signOut()
     return !signOutError
