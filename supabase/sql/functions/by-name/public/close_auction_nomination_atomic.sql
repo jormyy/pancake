@@ -157,6 +157,7 @@ BEGIN
           member_id,
           player_id,
           transaction_type,
+          acquired_to_taxi,
           related_nomination_id
         )
         VALUES (
@@ -165,6 +166,7 @@ BEGIN
           v_nom.current_bidder_id,
           v_nom.player_id,
           'draft_won',
+          v_nom.current_bid_to_taxi,
           v_nom.id
         );
       END IF;

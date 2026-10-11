@@ -248,7 +248,7 @@ async function fetchCdnGameOrMiss(gameId: string): Promise<CdnGame | 'missing' |
     { headers: CDN_HEADERS, signal: controller.signal },
   ).finally(() => clearTimeout(timeout))
 
-  if (res.status === 404 || res.status === 403) return 'missing'
+  if (res.status === 404) return 'missing'
   if (!res.ok) throw new Error(`CDN ${res.status}`)
 
   const data = await res.json() as CdnBoxScore

@@ -2273,6 +2273,7 @@ export type Database = {
       }
       roster_transactions: {
         Row: {
+          acquired_to_taxi: boolean | null
           id: string
           league_id: string
           league_season_id: string
@@ -2285,6 +2286,7 @@ export type Database = {
           transaction_type: string
         }
         Insert: {
+          acquired_to_taxi?: boolean | null
           id?: string
           league_id: string
           league_season_id: string
@@ -2297,6 +2299,7 @@ export type Database = {
           transaction_type: string
         }
         Update: {
+          acquired_to_taxi?: boolean | null
           id?: string
           league_id?: string
           league_season_id?: string

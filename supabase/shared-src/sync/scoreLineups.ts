@@ -37,6 +37,7 @@ type RosterTransactionForScore = PlayerEligibilitySource & {
     player_id: string
     transaction_type: string
     occurred_at: string
+    acquired_to_taxi: boolean | null
 }
 
 type StatRow = Record<string, unknown> & {
@@ -206,6 +207,13 @@ function buildRosterEligibilityAtCutoff(
                 cutoff,
             )
             if (latestAvailabilityTransaction && ROSTER_INACTIVE_TRANSACTION_TYPE_SET.has(latestAvailabilityTransaction.transaction_type)) return []
+            if (!latestAvailabilityTransaction) {
+                if (latestOwnershipTransaction.acquired_to_taxi === true) return []
+                if (latestOwnershipTransaction.acquired_to_taxi === null &&
+                    ['draft_won', 'trade_in'].includes(latestOwnershipTransaction.transaction_type)) {
+                    throw new Error(`Historical acquisition ${latestOwnershipTransaction.id} has no verified active or taxi destination. Restore its original acquisition evidence before recalculating scores.`)
+                }
+            }
             return rosterPlayerEligibility(latestOwnershipTransaction)
         }
 
@@ -437,7 +445,7 @@ async function loadMaxPossiblePointsInput(
 
     const rosterTransactionRows = await fetchAllPages<RosterTransactionForScore>((from, to) => supabase
         .from('roster_transactions')
-        .select('id, member_id, player_id, transaction_type, occurred_at, players(position, eligible_positions)')
+        .select('id, member_id, player_id, transaction_type, occurred_at, acquired_to_taxi, players(position, eligible_positions)')
         .in('member_id', memberIds)
         .eq('league_season_id', leagueSeasonId)
         .in('transaction_type', ROSTER_HISTORY_TRANSACTION_TYPES)

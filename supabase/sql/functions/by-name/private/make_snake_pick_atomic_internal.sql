@@ -161,6 +161,7 @@ BEGIN
       member_id,
       player_id,
       transaction_type,
+      acquired_to_taxi,
       occurred_at
     )
     VALUES (
@@ -169,6 +170,7 @@ BEGIN
       p_member_id,
       p_player_id,
       'draft_won',
+      COALESCE(p_to_taxi,false),
       v_now
     );
 

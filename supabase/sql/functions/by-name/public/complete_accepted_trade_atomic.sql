@@ -218,11 +218,12 @@ BEGIN
         member_id,
         player_id,
         transaction_type,
+        acquired_to_taxi,
         related_trade_id
       )
       VALUES
-        (v_trade.league_id, v_trade.league_season_id, v_from_member, v_item.player_id, 'trade_out', p_trade_id),
-        (v_trade.league_id, v_trade.league_season_id, v_to_member, v_item.player_id, 'trade_in', p_trade_id);
+        (v_trade.league_id, v_trade.league_season_id, v_from_member, v_item.player_id, 'trade_out', false, p_trade_id),
+        (v_trade.league_id, v_trade.league_season_id, v_to_member, v_item.player_id, 'trade_in', v_item.to_taxi, p_trade_id);
     ELSIF v_item.pick_id IS NOT NULL THEN
       UPDATE draft_picks
          SET current_owner_id = v_to_member

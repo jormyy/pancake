@@ -31,7 +31,9 @@
     "supabase/tests/db/bbref-player-completeness.ts",
     "supabase/tests/db/bbref-schedule-completeness.ts",
     "supabase/tests/db/player-name-parity.ts",
-    "supabase/tests/db/cdn-continuation.ts"
+    "supabase/tests/db/cdn-continuation.ts",
+    "supabase/tests/db/taxi-acquisition-scoring.ts",
+    "supabase/tests/db/cdn-http-retry.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"
