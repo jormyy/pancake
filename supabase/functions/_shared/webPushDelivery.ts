@@ -32,21 +32,12 @@ export type WebPushFanoutDependencies = {
   send?: (subscription: WebPushSubscription, payload: unknown, keys: VapidKeys, options: Parameters<typeof sendWebPush>[3]) => Promise<WebPushResult>
 }
 
-// Tap targets inside the app shell; the service worker only opens same-origin paths.
-const CATEGORY_URLS: Record<WebPushCategory, string> = {
-  trade: '/trades',
-  waiver: '/roster',
-  draft: '/draft-room',
-  activity: '/',
-}
-
-export function webPushPayload(message: WebPushFanoutMessage) {
+// An endpoint can outlive account cleanup. Do not send account details to it.
+export function webPushPayload() {
   return {
-    title: message.title,
-    body: message.body,
-    url: CATEGORY_URLS[message.category],
-    category: message.category,
-    data: message.data ?? {},
+    title: 'Pancake',
+    body: 'Open Pancake to check for updates.',
+    url: '/',
   }
 }
 
@@ -84,7 +75,7 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
       if (gone.has(subscription.endpoint)) return
       let result: WebPushResult
       try {
-        result = await send(subscription, webPushPayload(message), keys, {
+        result = await send(subscription, webPushPayload(), keys, {
           urgency: message.category === 'draft' ? 'high' : 'normal',
         })
       } catch (error) {
