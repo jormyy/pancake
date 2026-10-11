@@ -17,6 +17,7 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
 import { Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
 import { usePageMetrics } from '@/components/ui/Page'
+import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDynastyRankings, type DynastyRankingView } from '@/hooks/use-dynasty-rankings'
 import { useAuth } from '@/hooks/use-auth'
@@ -387,8 +388,8 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     return (
             <View style={[styles.contentWrap, { paddingHorizontal: padX }]}>
                 <View style={styles.body}>
-                {section === 'rankings' ? (
-                    <>
+                <RetainedPanel active={section === 'rankings'}>
+                    <View style={styles.body}>
                         <View style={styles.controlRow}>
                             <SegmentedControl<DynastyRankingView>
                                 value={rankings.view}
@@ -449,8 +450,9 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 onEndReachedThreshold={0.4}
                             />
                         )}
-                    </>
-                ) : (
+                    </View>
+                </RetainedPanel>
+                <RetainedPanel active={section === 'news'}>
                     <ScrollView
                         contentContainerStyle={styles.newsContent}
                     >
@@ -487,7 +489,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                             </Card>
                         )}
                     </ScrollView>
-                )}
+                </RetainedPanel>
                 </View>
             </View>
     )

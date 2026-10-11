@@ -13,6 +13,7 @@ import {
 } from '@/lib/players'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
+import { getErrorMessage } from '@/lib/shared/errors'
 import { supabase } from '@/lib/supabase'
 import { getPlayerProjection, type LeagueProjectionRow } from '@/lib/projections'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -47,9 +48,7 @@ type PlayerScreenCacheState = Omit<PlayerScreenCache, 'today' | 'seasons'>
 const PLAYER_SCREEN_CACHE_PREFIX = 'pancake:player-screen:v1:'
 
 function errorMessage(error: unknown): string {
-    if (error instanceof Error) return error.message
-    if (typeof error === 'string') return error
-    return 'Unknown error'
+    return getErrorMessage(error) ?? 'Player data could not load.'
 }
 
 function seasonCacheKey(playerId: string, leagueId: string | null, season: number): string {
