@@ -16,6 +16,9 @@ DECLARE
   v_player_ids uuid[];
   v_current_season_id uuid;
 BEGIN
+  -- Serialize with picks before taking draft, league or season row locks.
+  PERFORM pg_advisory_xact_lock(hashtext(p_draft_id::text), 0);
+
   SELECT * INTO v_draft FROM drafts WHERE id = p_draft_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Draft not found.';
