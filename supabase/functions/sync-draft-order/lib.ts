@@ -46,7 +46,22 @@ export function defaultDraftOrderSeasonYear(now = new Date()): number {
   return currentSeasonYear(now)
 }
 
-export async function syncDraftOrder(seasonYear: number) {
+/** The most recent June draft class in US Eastern time: this year's from June on, last year's before June. */
+function latestDraftClassYear(now = new Date()): number {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric' }).formatToParts(now)
+  const year = Number(parts.find((part) => part.type === 'year')?.value)
+  const month = Number(parts.find((part) => part.type === 'month')?.value)
+  if (!Number.isInteger(year) || !Number.isInteger(month)) throw new Error('Could not resolve the current draft class')
+  return month >= 6 ? year : year - 1
+}
+
+export async function syncDraftOrder(seasonYear: number, now = new Date()) {
+  // A board replaces every current rookie draft number, so only the latest class may replace it. A past board
+  // would turn veterans back into rookies and clear the current class; it is refused, not reinterpreted.
+  const latestClass = latestDraftClassYear(now)
+  if (seasonYear !== latestClass) {
+    throw new Error(`Refusing the ${seasonYear} draft board: only the latest draft class (${latestClass}) can replace the rookie board`)
+  }
   console.log(`[sync-draft-order] Fetching ${seasonYear} NBA draft order`)
   const { source, picks } = await fetchDraftOrder(seasonYear)
   if (picks.length < MIN_COMPLETE_DRAFT_PICKS) {

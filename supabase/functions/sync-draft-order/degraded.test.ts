@@ -120,6 +120,8 @@ Deno.env.set('NBA_STATS_BASE_URL', `http://127.0.0.1:${(upstream.addr as Deno.Ne
 Deno.env.set('NBA_COM_BASE_URL', `http://127.0.0.1:${(upstream.addr as Deno.NetAddr).port}`)
 
 const { syncDraftOrder, defaultDraftOrderSeasonYear } = await import('./lib.ts')
+// The 2027 board is the latest class from June 2027 on.
+const DRAFT_WINDOW = new Date('2027-06-25T12:00:00Z')
 
 Deno.test({
   name: 'a fully-failed window day writes nothing and leaves the prior order intact',
@@ -130,7 +132,7 @@ Deno.test({
     const before = priorOrderSnapshot()
     let threw = false
     try {
-      await syncDraftOrder(2027)
+      await syncDraftOrder(2027, DRAFT_WINDOW)
     } catch {
       threw = true
     }
@@ -150,7 +152,7 @@ Deno.test({
     upstreamMode = 'partial'
     let message = ''
     try {
-      await syncDraftOrder(2027)
+      await syncDraftOrder(2027, DRAFT_WINDOW)
     } catch (error) {
       message = error instanceof Error ? error.message : String(error)
     }
@@ -167,7 +169,7 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     upstreamMode = 'good'
-    const result = await syncDraftOrder(2027)
+    const result = await syncDraftOrder(2027, DRAFT_WINDOW)
     if (result.draftPickCount !== 60 || result.updated !== 60) {
       throw new Error(`unexpected sync result: ${JSON.stringify(result)}`)
     }
@@ -185,7 +187,7 @@ for (const mode of ['malformed-article', 'bare-number', 'out-of-range', 'negativ
       upstreamMode = mode
       const before = priorOrderSnapshot(), writesBefore = writes.length
       let message = ''
-      try { await syncDraftOrder(2027) } catch (error) { message = String(error) }
+      try { await syncDraftOrder(2027, DRAFT_WINDOW) } catch (error) { message = String(error) }
       if (!/Could not load a complete/.test(message)) throw new Error(`Malformed row accepted: ${message}`)
       if (writes.length !== writesBefore) throw new Error('Malformed provider response caused an import')
       if (JSON.stringify(priorOrderSnapshot()) !== JSON.stringify(before)) throw new Error('Prior board changed')
@@ -200,7 +202,7 @@ Deno.test({
   fn: async () => {
     upstreamMode = 'gapped-article'
     const writesBefore = writes.length
-    const result = await syncDraftOrder(2027)
+    const result = await syncDraftOrder(2027, DRAFT_WINDOW)
     if (result.draftPickCount !== 59 || result.source !== 'nba.com' || writes.length !== writesBefore + 1) {
       throw new Error(`Valid gapped board rejected: ${JSON.stringify(result)}`)
     }
@@ -217,7 +219,7 @@ Deno.test({
   fn: async () => {
     upstreamMode = 'valid50'
     const writesBefore = writes.length
-    const result = await syncDraftOrder(2027)
+    const result = await syncDraftOrder(2027, DRAFT_WINDOW)
     if (result.draftPickCount !== 50 || result.source !== 'nba.com' || writes.length !== writesBefore + 1) {
       throw new Error(`Valid minimum board rejected: ${JSON.stringify(result)}`)
     }
@@ -234,7 +236,7 @@ Deno.test({
   fn: async () => {
     upstreamMode = 'article-fallback'
     const writesBefore = writes.length
-    const result = await syncDraftOrder(2027)
+    const result = await syncDraftOrder(2027, DRAFT_WINDOW)
     if (result.draftPickCount !== 60 || result.source !== 'stats.nba.com' || writes.length !== writesBefore + 1) {
       throw new Error(`Independent complete fallback not used: ${JSON.stringify(result)}`)
     }
@@ -254,6 +256,34 @@ Deno.test('the June/July window guard refuses other months without a seasonYear'
   if (!threw) throw new Error('window guard did not refuse October')
   const year = defaultDraftOrderSeasonYear(new Date('2026-06-25T12:00:00Z'))
   if (year !== 2026) throw new Error(`unexpected June season year ${year}`)
+})
+
+Deno.test({
+  name: 'a past or future class board is refused before any provider request or write',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    upstreamMode = 'good'
+    const before = priorOrderSnapshot(), writesBefore = writes.length
+    for (const year of [2026, 2028]) {
+      let message = ''
+      try { await syncDraftOrder(year, DRAFT_WINDOW) } catch (error) { message = String(error) }
+      if (!/only the latest draft class \(2027\)/.test(message)) throw new Error(`${year} board was not refused: ${message}`)
+    }
+    if (writes.length !== writesBefore) throw new Error('A refused board caused an import')
+    if (JSON.stringify(priorOrderSnapshot()) !== JSON.stringify(before)) throw new Error('A refused board changed draft numbers')
+  },
+})
+
+Deno.test({
+  name: 'the latest class can still be re-synced outside the June/July window',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    upstreamMode = 'good'
+    const result = await syncDraftOrder(2027, new Date('2028-01-15T12:00:00Z'))
+    if (result.draftPickCount !== 60) throw new Error(`latest class re-sync failed: ${JSON.stringify(result)}`)
+  },
 })
 
 Deno.test({
