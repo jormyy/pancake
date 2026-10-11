@@ -90,7 +90,7 @@ serveInternal('live-poll', async () => {
     }
 
     if (!cdnGames.length) {
-      const decision = decideLivePoll({ cdnGameCount: 0, dbActiveGames: activeGames?.length ?? 0, nowActive: 0, allDone: false, missingFinalStats, leaseLost: heartbeat.lost })
+      const decision = decideLivePoll({ cdnGameCount: 0, dbActiveGames: activeGames?.length ?? 0, nowActive: 0, newlyFinal: 0, missingFinalStats, leaseLost: heartbeat.lost })
       if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
       if (decision.action === 'synced-db-active') {
         console.log(`[live-poll] CDN unavailable or empty; db-active=${activeGames?.length ?? 0} finalMissingStats=${missingFinalStats} — syncing stats + scores`)
@@ -101,6 +101,7 @@ serveInternal('live-poll', async () => {
     }
 
     let nowActive = 0
+    let newlyFinal = 0
     const allDone = cdnGames.length > 0 && cdnGames.every((game) => game.gameStatus === 3)
 
     const { data: existingGames, error: existingError } = await supabase
@@ -118,6 +119,7 @@ serveInternal('live-poll', async () => {
 
       const existing = existingByGameId.get(g.gameId)
       if (!existing) continue
+      if (newStatus === 'Final' && existing.status !== 'Final') newlyFinal++
 
       const homeScore = g.homeTeam.score ?? 0
       const awayScore = g.awayTeam.score ?? 0
@@ -154,7 +156,7 @@ serveInternal('live-poll', async () => {
     }
     const statusUpdates = gameUpdates.length
 
-    const decision = decideLivePoll({ cdnGameCount: cdnGames.length, dbActiveGames: activeGames?.length ?? 0, nowActive, allDone, missingFinalStats, leaseLost: heartbeat.lost })
+    const decision = decideLivePoll({ cdnGameCount: cdnGames.length, dbActiveGames: activeGames?.length ?? 0, nowActive, newlyFinal, missingFinalStats, leaseLost: heartbeat.lost })
     if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
     if (decision.action === 'synced') {
       console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}, finalMissingStats=${missingFinalStats}`)
