@@ -16,6 +16,7 @@ AS $$
 DECLARE
   v_claim waiver_claims%ROWTYPE;
   v_other waiver_claims%ROWTYPE;
+  v_waiver_mode text;
 BEGIN
   IF p_direction NOT IN ('up', 'down') THEN
     RAISE EXCEPTION 'Direction must be up or down.'
@@ -61,6 +62,8 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
+  SELECT waiver_mode INTO v_waiver_mode FROM leagues WHERE id = v_claim.league_id;
+
   -- Older submissions can share an order. Preserve the processor's tie order,
   -- then assign distinct positions so a requested swap always moves one claim.
   WITH ordered AS (
@@ -69,7 +72,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
-       AND bid_amount = v_claim.bid_amount
+       AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
   )
   UPDATE waiver_claims AS claim SET claim_order = ordered.position
     FROM ordered WHERE claim.id = ordered.id AND claim.claim_order <> ordered.position;
@@ -83,7 +86,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
-       AND bid_amount = v_claim.bid_amount
+       AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
        AND claim_order < v_claim.claim_order
      ORDER BY claim_order DESC, submitted_at DESC
      LIMIT 1
@@ -95,7 +98,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
-       AND bid_amount = v_claim.bid_amount
+       AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
        AND claim_order > v_claim.claim_order
      ORDER BY claim_order ASC, submitted_at ASC
      LIMIT 1
