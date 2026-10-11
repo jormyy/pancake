@@ -52,6 +52,33 @@ describe('local auth invalidation', () => {
         await expect(request).rejects.toThrow('Authentication changed')
         expect(auth.getItem(key)).toBeNull()
     })
+    it('drops a refresh that answers after another account signed in, whether it succeeded or failed', async () => {
+        const { auth, disk } = fixture()
+        disk.setItem(key, JSON.stringify({ access_token: 'a-access', refresh_token: 'a-refresh' }))
+        let finish!: (response: Response) => void
+        const pending = new Promise<Response>((resolve) => { finish = resolve })
+        const refresh = auth.fetch(vi.fn<typeof fetch>().mockReturnValue(pending))(
+            'http://local/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: 'a-refresh' }) })
+        // Account B signs in on this device before A's refresh answers.
+        await response(auth, 'b-access')
+        auth.setItem(key, JSON.stringify({ access_token: 'b-access', refresh_token: 'b-refresh' }))
+        finish(new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }))
+        await expect(refresh).rejects.toThrow('no longer holds')
+        expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'b-access', refresh_token: 'b-refresh' })
+
+        const late = auth.fetch(vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ access_token: 'a-late', refresh_token: 'a-next' }))))(
+            'http://local/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: 'a-refresh' }) })
+        await expect(late).rejects.toThrow('no longer holds')
+    })
+    it('passes a refresh for the session this device holds', async () => {
+        const { auth, disk } = fixture()
+        disk.setItem(key, JSON.stringify({ access_token: 'a-access', refresh_token: 'a-refresh' }))
+        const result = await auth.fetch(vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ access_token: 'a-next', refresh_token: 'a-refresh-2' }))))(
+            'http://local/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: 'a-refresh' }) })
+        expect(result.status).toBe(200)
+        auth.setItem(key, JSON.stringify({ access_token: 'a-next', refresh_token: 'a-refresh-2' }))
+        expect(JSON.parse(auth.getItem(key)!).access_token).toBe('a-next')
+    })
     it('keeps a tombstone in session storage when local removal and writes fail', () => {
         const { auth, disk, make } = fixture()
         vi.spyOn(disk, 'setItem').mockImplementation(() => { throw new Error('denied') })

@@ -3,6 +3,16 @@ import { createAuthStorage } from '@/lib/auth-storage'
 type Revision = { id: string; signedOut: boolean; generation: number }
 type Ticket = { revision: string; login: boolean }
 
+function sentRefreshToken(init: RequestInit | undefined): string | null {
+    if (typeof init?.body !== 'string') return null
+    try {
+        const token = (JSON.parse(init.body) as { refresh_token?: unknown }).refresh_token
+        return typeof token === 'string' ? token : null
+    } catch {
+        return null
+    }
+}
+
 // This records local logout, not server revocation. Only a new successful
 // password/signup response may replace the signed-out state.
 export function createAuthInvalidation(
@@ -42,6 +52,12 @@ export function createAuthInvalidation(
     const read = (name: string) => name === key && revision().signedOut
         ? { value: null, available: true }
         : storage.read(name)
+    // The refresh token of the session this device holds now, or undefined when storage cannot say.
+    const heldRefreshToken = (): string | null | undefined => {
+        const saved = read(key)
+        if (!saved.available) return undefined
+        try { return saved.value ? (JSON.parse(saved.value) as { refresh_token?: string }).refresh_token ?? null : null } catch { return null }
+    }
     const setItem = (name: string, value: string) => {
         if (name === key) {
             const session = JSON.parse(value) as { access_token?: string }
@@ -90,9 +106,17 @@ export function createAuthInvalidation(
             const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
             if (!url.pathname.startsWith('/auth/v1/')) return fetchImpl(input, init)
             const started = revision().id
+            const refreshing = url.searchParams.get('grant_type') === 'refresh_token' ? sentRefreshToken(init) : null
             const response = await fetchImpl(input, init)
             const body = response.status === 204 ? null : await response.text()
             if (revision().id !== started) throw new Error('Authentication changed while this request was in flight.')
+            // A refresh answers only for the session it was sent for. If another account signed in
+            // meanwhile, its result must not be saved and its failure must not sign the current
+            // account out, so it surfaces as a transient error the SDK retries and then drops.
+            const held = refreshing === null ? undefined : heldRefreshToken()
+            if (held !== undefined && held !== refreshing) {
+                throw new Error('A token refresh answered for a session this device no longer holds.')
+            }
             if (response.ok && body) {
                 try {
                     const data = JSON.parse(body) as { access_token?: string }
