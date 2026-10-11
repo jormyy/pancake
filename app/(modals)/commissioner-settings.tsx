@@ -71,7 +71,7 @@ export default function CommissionerSettingsScreen() {
         return <>
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
             {frame(<>
-                {loadState === 'error' ? <ErrorBanner message={loadError ?? 'Could not load league settings.'} onRetry={retryLoad} /> : null}
+                {loadState === 'error' ? <ErrorBanner message={`${loadError ?? 'Could not load league settings.'} Tap to retry.`} onRetry={retryLoad} /> : null}
                 {loadState === 'unauthorized' || loadState === 'error' ? (
                     <EmptyState fullScreen={false}
                         message={loadState === 'unauthorized' ? 'Commissioner access required' : 'Settings unavailable'}
