@@ -61,7 +61,8 @@ const root = new Session('inspect')
 const sessions = []
 const cohorts = []
 const open = name => { const s = new Session(name); sessions.push(s); return s }
-const metadata = {nba_team:'BOS',position:'G',eligible_positions:['G'],status:'ACT',injury_status:null,years_exp:3}
+// A rookie on the latest draft board has no NBA experience; a board matching an experienced player is refused.
+const metadata = {nba_team:'BOS',position:'G',eligible_positions:['G'],status:'ACT',injury_status:null,years_exp:0}
 function records(source, tag) {
   if(source==='nba_draft') return Array.from({length:50},(_,i)=>({display_name:`Athlete${i} ${tag}`,nba_draft_number:i+1}))
   if(source==='nba_cdn') return [{provider_id:`nba-${tag}`,display_name:`Athlete0 ${tag}`}]
