@@ -232,7 +232,12 @@ BEGIN
 
     IF COALESCE(v_league.trade_veto_mode, 'member_vote') = 'disabled'
        OR v_veto_window_hours = 0 THEN
-      PERFORM public.complete_accepted_trade_atomic(p_trade_id);
+      BEGIN
+        PERFORM public.complete_accepted_trade_atomic(p_trade_id);
+      EXCEPTION WHEN SQLSTATE 'PT002' THEN
+        -- A receiving player's game is in progress: the accepted trade settles on a later queue run.
+        NULL;
+      END;
     END IF;
   END IF;
 

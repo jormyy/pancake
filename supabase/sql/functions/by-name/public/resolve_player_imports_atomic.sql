@@ -184,6 +184,11 @@ BEGIN
           IF v_id = ANY(v_ids) THEN
             RAISE EXCEPTION 'Multiple draft picks resolve to the same player.' USING ERRCODE = '23514';
           END IF;
+          -- A board can only describe a class that has not played yet. An experienced match means a past
+          -- board or a wrong identity; refuse the whole board rather than rewriting history or class data.
+          IF EXISTS (SELECT 1 FROM players WHERE id = v_id AND coalesce(years_exp, 0) > 0) THEN
+            RAISE EXCEPTION 'Draft pick % matches an experienced player; refusing to replace the draft board.', v_pick USING ERRCODE = '23514';
+          END IF;
           UPDATE players SET years_exp = 0, nba_draft_number = v_pick, updated_at = clock_timestamp() WHERE id = v_id;
           v_ids := array_append(v_ids, v_id);
         END IF;

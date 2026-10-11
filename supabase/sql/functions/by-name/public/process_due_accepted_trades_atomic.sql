@@ -119,6 +119,23 @@ BEGIN
           'expired_terminal_failure'::text,
           v_error_code,
           v_error_message;
+      WHEN SQLSTATE 'PT002' THEN
+        -- Deferred, not failed: the trade stays accepted and settles once the game slate ends.
+        v_error_code := SQLSTATE;
+        v_error_message := SQLERRM;
+
+        RETURN QUERY
+        SELECT
+          v_trade.id,
+          v_trade.proposer_member_id,
+          v_trade.recipient_member_id,
+          CASE
+            WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
+            ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
+          END,
+          'deferred'::text,
+          v_error_code,
+          v_error_message;
       WHEN serialization_failure OR deadlock_detected OR lock_not_available THEN
         v_error_code := SQLSTATE;
         v_error_message := SQLERRM;

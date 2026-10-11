@@ -35,6 +35,7 @@ serveInternal('process-trades', async () => {
 
 async function processAcceptedTrades(): Promise<{
   processed: number
+  deferred: number
   failed: number
   failures: string[]
   notificationsDelivered: number
@@ -61,6 +62,7 @@ async function processAcceptedTrades(): Promise<{
 
   return {
     processed: partitioned.completed.length,
+    deferred: partitioned.deferred.length,
     failed: partitioned.terminalFailures.length,
     failures: partitioned.terminalFailures.map(tradeFailureMessage),
     notificationsDelivered: receiptResult.delivered,

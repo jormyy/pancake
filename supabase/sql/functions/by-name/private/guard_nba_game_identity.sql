@@ -11,6 +11,8 @@ BEGIN
       RAISE EXCEPTION 'Cannot replace a game provider identity without verified mapping.' USING ERRCODE='55000';
     END IF;
   ELSE
+    -- An upsert of an existing game becomes an update, whose path guards identity changes.
+    IF EXISTS (SELECT 1 FROM public.nba_games WHERE id=NEW.id) THEN RETURN NEW; END IF;
     PERFORM private.lock_nba_source(NEW.season_year);
   END IF;
   PERFORM private.assert_nba_game_candidate(NEW.nba_game_id,NEW.season_year,NEW.game_date,NEW.home_team,NEW.away_team,NEW.id);

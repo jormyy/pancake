@@ -56,7 +56,13 @@ BEGIN
           ON r.league_id=c.league_id AND r.league_season_id=c.league_season_id AND r.player_id=c.player_id
          WHERE c.transaction_id=pg_current_xact_id() AND c.source='merge' AND c.related_id=OLD.player_id
            AND c.league_id=OLD.league_id AND c.league_season_id=OLD.league_season_id
-           AND c.member_id=OLD.member_id AND r.member_id=OLD.member_id AND r.is_on_taxi);
+           AND c.member_id=OLD.member_id AND r.member_id=OLD.member_id AND r.is_on_taxi)
+        -- A commissioner's draft reset undoes the acquisition; the team did not move the player out.
+        OR EXISTS (
+        SELECT 1 FROM private.taxi_acquisition_context c
+         WHERE c.transaction_id=pg_current_xact_id() AND c.source='draft_reset'
+           AND c.league_id=OLD.league_id AND c.league_season_id=OLD.league_season_id
+           AND c.member_id=OLD.member_id AND c.player_id=OLD.player_id);
     END IF;
     IF NOT v_continuity AND (TG_OP='DELETE' OR NOT NEW.is_on_taxi OR v_entry) THEN
       INSERT INTO league_member_taxi_exits(league_id,member_id,player_id,exited_at)

@@ -208,6 +208,10 @@ BEGIN
 
       EXCEPTION WHEN SQLSTATE 'P0001' THEN
         IF NOT v_item.to_taxi THEN RAISE; END IF;
+        -- A game in progress only delays a taxi destination: keep the accepted trade for a later run.
+        IF SQLERRM LIKE 'This player''s game has already started%' THEN
+          RAISE EXCEPTION 'A taxi destination waits for the player''s game slate to end.' USING ERRCODE='PT002';
+        END IF;
         -- A changed destination precondition expires this trade, not the whole queue.
         RAISE EXCEPTION 'Taxi acquisition failed: %', SQLERRM USING ERRCODE='PT001';
       END;

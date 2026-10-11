@@ -59,10 +59,24 @@ BEGIN
     );
 
     IF NOT v_draft.is_mock THEN
+      -- Undoing the draft is not the team moving players out of taxi, so no taxi exit is recorded.
+      INSERT INTO private.taxi_acquisition_context(transaction_id,league_id,league_season_id,member_id,player_id,source,related_id)
+      SELECT pg_current_xact_id(), league_id, league_season_id, member_id, player_id, 'draft_reset', p_draft_id
+        FROM roster_players
+       WHERE league_season_id = v_draft.league_season_id
+         AND acquired_via = 'draft'
+         AND player_id = ANY(v_player_ids)
+         AND is_on_taxi
+      ON CONFLICT (transaction_id,league_id,league_season_id,member_id,player_id)
+        DO UPDATE SET source = EXCLUDED.source, related_id = EXCLUDED.related_id;
+
       DELETE FROM roster_players
        WHERE league_season_id = v_draft.league_season_id
          AND acquired_via = 'draft'
          AND player_id = ANY(v_player_ids);
+
+      DELETE FROM private.taxi_acquisition_context
+       WHERE transaction_id = pg_current_xact_id() AND source = 'draft_reset' AND related_id = p_draft_id;
 
       DELETE FROM roster_transactions
        WHERE league_season_id = v_draft.league_season_id
@@ -88,10 +102,24 @@ BEGIN
     );
 
     IF NOT v_draft.is_mock THEN
+      -- Undoing the draft is not the team moving players out of taxi, so no taxi exit is recorded.
+      INSERT INTO private.taxi_acquisition_context(transaction_id,league_id,league_season_id,member_id,player_id,source,related_id)
+      SELECT pg_current_xact_id(), league_id, league_season_id, member_id, player_id, 'draft_reset', p_draft_id
+        FROM roster_players
+       WHERE league_season_id = v_draft.league_season_id
+         AND acquired_via = 'draft'
+         AND player_id = ANY(v_player_ids)
+         AND is_on_taxi
+      ON CONFLICT (transaction_id,league_id,league_season_id,member_id,player_id)
+        DO UPDATE SET source = EXCLUDED.source, related_id = EXCLUDED.related_id;
+
       DELETE FROM roster_players
        WHERE league_season_id = v_draft.league_season_id
          AND acquired_via = 'draft'
          AND player_id = ANY(v_player_ids);
+
+      DELETE FROM private.taxi_acquisition_context
+       WHERE transaction_id = pg_current_xact_id() AND source = 'draft_reset' AND related_id = p_draft_id;
 
       DELETE FROM roster_transactions
        WHERE league_season_id = v_draft.league_season_id
