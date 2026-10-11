@@ -22,6 +22,15 @@ export function useCommissionerOverrides(
     const [saving, setSaving] = useState<{ ownerKey: string; token: number } | null>(null)
 
     useEffect(() => {
+        activeOwnerKeyRef.current = ownerKey
+        setSaving(null)
+        return () => {
+            activeOwnerKeyRef.current = null
+            activeMutationRef.current = null
+        }
+    }, [ownerKey])
+
+    useEffect(() => {
         setFieldsOwnerKey(ownerKey)
         setMemberId(membersRef.current[0]?.id ?? null)
         setFaab('')

@@ -88,6 +88,15 @@ export function useCommissionerSettingsResource({
     const ownsDraft = hydratedOwnerKey.current === ownerKey
 
     useEffect(() => {
+        activeOwnerKey.current = ownerKey
+        setSavingOwnerKey(null)
+        return () => {
+            activeOwnerKey.current = null
+            mutation.current = null
+        }
+    }, [ownerKey])
+
+    useEffect(() => {
         let cancelled = false
         setLoadOwnerKey(ownerKey)
         if (!isCommissioner) {
@@ -154,11 +163,12 @@ export function useCommissionerSettingsResource({
     }
 
     const save = async () => {
-        if (!league || !ownerKey || mutation.current?.ownerKey === ownerKey) return
+        if (!league || !ownerKey || activeOwnerKey.current !== ownerKey || mutation.current?.ownerKey === ownerKey) return
         const mutationOwnerKey = ownerKey
         const mutationToken = Symbol('commissioner-settings-save')
         const submittedDraft = draft
         mutation.current = { ownerKey: mutationOwnerKey, token: mutationToken }
+        const ownsMutation = () => activeOwnerKey.current === mutationOwnerKey && mutation.current?.token === mutationToken
         const change = buildCommissionerSettingsChange(
             submittedDraft,
             baseline,
@@ -176,13 +186,13 @@ export function useCommissionerSettingsResource({
             if (Object.keys(change.updates).length > 0 || change.slotsChanged) {
                 await updateLeagueConfiguration(league.id, change.updates, change.slotUpdates)
             }
-            if (activeOwnerKey.current !== mutationOwnerKey) return
+            if (!ownsMutation()) return
             setBaseline(submittedDraft)
             await refresh()
-            if (activeOwnerKey.current !== mutationOwnerKey) return
+            if (!ownsMutation()) return
             onSaved()
         } catch (error) {
-            if (activeOwnerKey.current === mutationOwnerKey) showAlert('Error', getErrorMessage(error))
+            if (ownsMutation()) showAlert('Error', getErrorMessage(error))
         } finally {
             if (mutation.current?.token === mutationToken) {
                 mutation.current = null

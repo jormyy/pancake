@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LeagueInfo } from '@/types/app'
 import { apiPost } from '@/lib/shared/api'
 import { advanceSeason } from '@/lib/rookieDraft'
@@ -35,6 +35,15 @@ export function useCommissionerAdminActions({
         action: CommissionerActionId
         token: number
     } | null>(null)
+
+    useEffect(() => {
+        activeOwnerKeyRef.current = ownerKey
+        setBusy(null)
+        return () => {
+            activeOwnerKeyRef.current = null
+            activeMutationRef.current = null
+        }
+    }, [ownerKey])
 
     const beginMutation = useCallback((capturedOwnerKey: string, action: CommissionerActionId) => {
         if (activeOwnerKeyRef.current !== capturedOwnerKey) return null

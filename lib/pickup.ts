@@ -46,7 +46,7 @@ export function addLimitSummary(state: AddLimitSource | null | undefined, now = 
 }
 
 type ReportOptions = {
-    /** Reloads the weekly add state after a limit rejection. */
+    /** Reloads ownership or the weekly add state after a server rejection. */
     refresh?: () => void
     /** Local cleanup once the server says the limit is reached (close a drop picker, etc.). */
     onLimitReached?: () => void
@@ -79,5 +79,6 @@ export function reportPickupError(error: unknown, { refresh, onLimitReached, cla
         onIneligibleIr(message)
         return
     }
+    if (code === '23505') refresh?.()
     showAlert(code === RULE_CODES.onWaivers ? ON_WAIVERS_TITLE : 'Error', message)
 }
