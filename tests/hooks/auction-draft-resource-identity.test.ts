@@ -124,6 +124,51 @@ describe('auction draft resource identity', () => {
         await act(async () => { renderer.unmount() })
     })
 
+    it('builds a new live channel after CLOSED so bids and nominations can resume', async () => {
+        vi.useFakeTimers()
+        mocks.getDraftState.mockResolvedValue(state('draft-a'))
+        const { subscribeToDraft } = await import('@/lib/draft')
+        let latest!: ReturnType<typeof useAuctionDraftRoomController>
+        const Probe = () => {
+            latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        await act(async () => { mocks.statusCallback?.('SUBSCRIBED') })
+        expect(latest.realtimeConnected).toBe(true)
+        const subscribed = vi.mocked(subscribeToDraft).mock.calls.length
+        const removed = mocks.unsubscribeFromDraft.mock.calls.length
+
+        await act(async () => { mocks.statusCallback?.('CLOSED') })
+        expect(latest.realtimeConnected).toBe(false)
+        await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+        expect(subscribeToDraft).toHaveBeenCalledTimes(subscribed + 1)
+        expect(mocks.unsubscribeFromDraft).toHaveBeenCalledTimes(removed + 1)
+        await act(async () => { mocks.statusCallback?.('SUBSCRIBED') })
+        expect(latest.realtimeConnected).toBe(true)
+        expect(latest.loadError).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('rebuilds a closed live channel when the user taps retry', async () => {
+        mocks.getDraftState.mockResolvedValue(state('draft-a'))
+        const { subscribeToDraft } = await import('@/lib/draft')
+        let latest!: ReturnType<typeof useAuctionDraftRoomController>
+        const Probe = () => {
+            latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+        await act(async () => { mocks.statusCallback?.('CLOSED') })
+        expect(latest.loadError).toBe('Live draft connection lost. Tap to retry.')
+        const subscribed = vi.mocked(subscribeToDraft).mock.calls.length
+        await act(async () => { await latest.refresh() })
+        expect(subscribeToDraft).toHaveBeenCalledTimes(subscribed + 1)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('clears the previous draft while the next draft is loading', async () => {
         let resolveNext!: (value: DraftState) => void
         const next = new Promise<DraftState>((resolve) => { resolveNext = resolve })

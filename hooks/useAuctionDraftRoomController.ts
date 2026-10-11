@@ -22,6 +22,9 @@ import {
     type RealtimeSubscriptionStatus,
 } from '@/lib/realtime'
 
+
+/** Short enough for a live auction countdown; the rejoin reloads the room to catch up. */
+const AUCTION_REJOIN_DELAY_MS = 3_000
 export type DraftTab = 'budgets' | 'history'
 
 export function useAuctionDraftRoomController({
@@ -46,6 +49,8 @@ export function useAuctionDraftRoomController({
 
     const [realtimeStatus, setRealtimeStatus] =
         useState<RealtimeSubscriptionStatus | 'CONNECTING'>('CONNECTING')
+    // A CLOSED channel never rejoins on its own; a new epoch builds a fresh subscription.
+    const [subscriptionEpoch, setSubscriptionEpoch] = useState(0)
     const activeDraftIdRef = useRef<string | undefined>(draftId)
 
     // Nomination / player search
@@ -169,15 +174,27 @@ export function useAuctionDraftRoomController({
         // A bidding war fires several inserts per second and every one of them
         // reloads the whole draft state; coalesce the burst into one reload.
         const refresh = debounceRealtimeRefresh(() => { void load() })
+        let rejoin: ReturnType<typeof setTimeout> | null = null
         const channel = subscribeToDraft(draftId, draftLeagueId, refresh.trigger, (status) => {
-            if (active) setRealtimeStatus(status)
+            if (!active) return
+            setRealtimeStatus(status)
+            // CHANNEL_ERROR and TIMED_OUT rejoin inside the client; CLOSED is terminal, so subscribe again.
+            if (status === 'CLOSED' && !rejoin) {
+                rejoin = setTimeout(() => {
+                    rejoin = null
+                    if (!active) return
+                    setRealtimeStatus('CONNECTING')
+                    setSubscriptionEpoch((epoch) => epoch + 1)
+                }, AUCTION_REJOIN_DELAY_MS)
+            }
         })
         return () => {
             active = false
+            if (rejoin) clearTimeout(rejoin)
             refresh.cancel()
             reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
         }
-    }, [draftId, draftLeagueId, load])
+    }, [draftId, draftLeagueId, load, subscriptionEpoch])
 
     // Realtime is primary. The fallback probes only current mutable rows and
     // reloads history/ages when their revision actually changes.
@@ -396,7 +413,14 @@ export function useAuctionDraftRoomController({
         return counts
     }, [closedNominations])
 
-    const refresh = useCallback(async () => { await load() }, [load])
+    const refresh = useCallback(async () => {
+        // Tap to retry also rebuilds a closed live channel, not only the room data.
+        if (realtimeStatus === 'CLOSED') {
+            setRealtimeStatus('CONNECTING')
+            setSubscriptionEpoch((epoch) => epoch + 1)
+        }
+        await load()
+    }, [load, realtimeStatus])
 
     return {
         state: visibleState,
