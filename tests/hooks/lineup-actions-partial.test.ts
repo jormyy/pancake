@@ -116,3 +116,82 @@ it('keeps optimization busy while the same owner refreshes action authority', as
     expect(actions.autoSetting).toBe(false)
     await act(async () => { renderer.unmount() })
 })
+
+it.each(['resolve', 'reject'] as const)('keeps a delayed old-date optimization out of the current editor on %s', async (outcome) => {
+    let finish!: () => void
+    mocks.autoSetLineup.mockImplementationOnce(() => new Promise<null>((resolve, reject) => {
+        finish = () => outcome === 'resolve' ? resolve(null) : reject(new Error('old request failed'))
+    }))
+    let actions!: ReturnType<typeof useLineupActions>
+    const reload = vi.fn(async () => undefined)
+    const owner = { memberId: 'member-1', leagueId: 'league-1', seasonId: 'season-1', weekNumber: 1, seasonYear: 2026 }
+    const Probe = ({ date }: { date: string }) => {
+        actions = useLineupActions({
+            actionContext: owner, myLineup: { starters: [], bench: [] },
+            league: { roster_size: 20 }, selectedDate: date, startedTeams: new Set(), reloadLineup: reload,
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    let pending!: Promise<void>
+    await act(async () => { renderer = create(React.createElement(Probe, { date: '2026-07-09' })) })
+    const delayedEnableContinuation = actions.doAutoSet
+    await act(async () => { renderer.update(React.createElement(Probe, { date: '2026-07-10' })) })
+    await act(async () => { actions.setSelected({ kind: 'bench', index: 0 }) })
+    try {
+        await act(async () => { pending = delayedEnableContinuation(null, true) })
+        expect(mocks.autoSetLineup).toHaveBeenCalledWith('member-1', 'league-1', 'season-1', 1, 2026, null, true, undefined)
+        await act(async () => { finish(); await pending })
+        expect(actions.autoSetting).toBe(false)
+        expect(actions.selected).toEqual({ kind: 'bench', index: 0 })
+        expect(reload).not.toHaveBeenCalled()
+        expect(mocks.showAlert).not.toHaveBeenCalled()
+        expect(mocks.showSuccess).not.toHaveBeenCalled()
+    } finally {
+        await act(async () => { renderer.unmount() })
+    }
+})
+
+it('does not publish optimization feedback after its editor unmounts', async () => {
+    mocks.autoSetLineup.mockResolvedValueOnce(null)
+    let actions!: ReturnType<typeof useLineupActions>
+    const Probe = () => {
+        actions = useLineupActions({
+            actionContext: { memberId: 'member-1', leagueId: 'league-1', seasonId: 'season-1', weekNumber: 1, seasonYear: 2026 },
+            myLineup: { starters: [], bench: [] }, league: { roster_size: 20 },
+            selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: vi.fn(async () => undefined),
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    const delayedEnableContinuation = actions.doAutoSet
+    await act(async () => { renderer.unmount() })
+    await act(async () => { await delayedEnableContinuation(null, true) })
+    expect(mocks.autoSetLineup).toHaveBeenCalledTimes(1)
+    expect(mocks.showSuccess).not.toHaveBeenCalled()
+    expect(mocks.showAlert).not.toHaveBeenCalled()
+})
+
+it('suppresses optimization feedback when the editor leaves during reload', async () => {
+    mocks.autoSetLineup.mockResolvedValueOnce(null)
+    let finishReload!: () => void
+    const reload = vi.fn(() => new Promise<void>((resolve) => { finishReload = resolve }))
+    let actions!: ReturnType<typeof useLineupActions>
+    const Probe = () => {
+        actions = useLineupActions({
+            actionContext: { memberId: 'member-1', leagueId: 'league-1', seasonId: 'season-1', weekNumber: 1, seasonYear: 2026 },
+            myLineup: { starters: [], bench: [] }, league: { roster_size: 20 },
+            selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: reload,
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    let pending!: Promise<void>
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { pending = actions.doAutoSet(null, true) })
+    expect(reload).toHaveBeenCalledTimes(1)
+    await act(async () => { renderer.unmount() })
+    await act(async () => { finishReload(); await pending })
+    expect(mocks.showSuccess).not.toHaveBeenCalled()
+})

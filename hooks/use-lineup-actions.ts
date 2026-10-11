@@ -65,6 +65,7 @@ export function useLineupActions({
         mutationGenerationRef.current === generation && activeOwnerRef.current === identity
 
     useEffect(() => {
+        activeOwnerRef.current = ownerIdentity
         mutationGenerationRef.current += 1
         setStateOwnerIdentity(ownerIdentity)
         setSelected(null)
@@ -73,6 +74,10 @@ export function useLineupActions({
         setAutoSetModalVisible(false)
         setActivationOverflowPending(null)
         setActivationOverflowSaving(false)
+        return () => {
+            activeOwnerRef.current = null
+            mutationGenerationRef.current += 1
+        }
     }, [ownerIdentity])
 
     const handleTap = useCallback(async (newSel: Sel) => {
@@ -214,10 +219,12 @@ export function useLineupActions({
 
     async function doAutoSet(date: string | null, restOfSeason?: boolean, retryDates?: string[]) {
         if (!actionContext || !league || autoSetting || saving || activationOverflowSaving) return
-        setSelected(null)
-        setAutoSetting(true)
         const mutationGeneration = mutationGenerationRef.current
         const mutationOwner = ownerIdentity
+        if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+            setSelected(null)
+            setAutoSetting(true)
+        }
         try {
             const result = await autoSetLineup(
                 actionContext.memberId, actionContext.leagueId, actionContext.seasonId,
@@ -225,6 +232,7 @@ export function useLineupActions({
             )
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             await reloadLineup(selectedDate)
+            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             if (restOfSeason && result?.failed) {
                 confirmAction(
                     'Lineup partly optimized',

@@ -413,6 +413,17 @@ export default function LineupScreen() {
         seasonYear: visibleCtx.seasonYear,
     } : null
     const actionContext = readOnly ? null : actionOwner
+    const optimizerOwner = actionOwner ? `${ownerKey}:${actionOwner.seasonId}` : null
+    const optimizerOwnerRef = useRef(optimizerOwner)
+    const optimizerRequestRef = useRef(0)
+    if (optimizerOwnerRef.current !== optimizerOwner) {
+        optimizerOwnerRef.current = optimizerOwner
+        optimizerRequestRef.current += 1
+    }
+    useEffect(() => () => { optimizerRequestRef.current += 1 }, [])
+    const optimizerRequestIsCurrent = (requestId: number, generation: number) =>
+        optimizerRequestRef.current === requestId && optimizerOwnerRef.current === optimizerOwner
+        && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId
     const lineupForActions = useMemo(
         () => visibleCtx ? { starters: visibleStarters, bench: visibleBench } : null,
         [visibleBench, visibleCtx, visibleStarters],
@@ -510,6 +521,8 @@ export default function LineupScreen() {
 
     async function handleEnableSeasonOptimizer() {
         if (!actionContext) return
+        const requestId = ++optimizerRequestRef.current
+        const generation = sessionGeneration()
         setAutoSetModalVisible(false)
         try {
             await setLineupOptimizerEnabled(
@@ -518,15 +531,17 @@ export default function LineupScreen() {
                 actionContext.seasonId,
                 true,
             )
-            setSeasonOptimizerEnabled(true)
+            if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(true)
             await doAutoSet(null, true)
         } catch (e) {
-            showAlert('Optimizer failed', getErrorMessage(e))
+            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Optimizer failed', getErrorMessage(e))
         }
     }
 
     async function handleDisableSeasonOptimizer() {
         if (!actionContext) return
+        const requestId = ++optimizerRequestRef.current
+        const generation = sessionGeneration()
         setAutoSetModalVisible(false)
         try {
             await setLineupOptimizerEnabled(
@@ -535,9 +550,9 @@ export default function LineupScreen() {
                 actionContext.seasonId,
                 false,
             )
-            setSeasonOptimizerEnabled(false)
+            if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(false)
         } catch (e) {
-            showAlert('Optimizer failed', getErrorMessage(e))
+            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Optimizer failed', getErrorMessage(e))
         }
     }
 
