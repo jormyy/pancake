@@ -15,11 +15,7 @@ DECLARE
   v_league_id uuid;
   v_player_id uuid;
   v_member_id uuid;
-  v_draft_number int;
-  v_years_exp int;
   v_roster_size int;
-  v_taxi_slots int;
-  v_other_taxi_count int;
   v_active_count int;
   v_rows int;
 BEGIN
@@ -94,37 +90,20 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  IF private.roster_status_game_started(v_rp.player_id) THEN
+    RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF NOT p_to_taxi AND NOT v_rp.is_on_taxi THEN
+    RETURN;
+  END IF;
+
   v_roster_size := COALESCE(v_league.roster_size, 20);
-  v_taxi_slots := COALESCE(v_league.taxi_slots, 0);
 
   IF p_to_taxi THEN
-    IF v_rp.is_on_ir THEN
-      RAISE EXCEPTION 'Activate the player from IR before moving them to taxi.'
-        USING ERRCODE = 'P0001';
-    END IF;
-
-    SELECT p.nba_draft_number, p.years_exp
-      INTO v_draft_number, v_years_exp
-      FROM players p
-     WHERE p.id = v_rp.player_id;
-
-    IF v_draft_number IS NULL OR v_years_exp IS DISTINCT FROM 0 THEN
-      RAISE EXCEPTION 'Only current rookies can be placed on the taxi squad.'
-        USING ERRCODE = 'P0001';
-    END IF;
-
-    SELECT count(*)
-      INTO v_other_taxi_count
-      FROM roster_players
-     WHERE member_id = v_rp.member_id
-       AND league_season_id = v_rp.league_season_id
-       AND is_on_taxi = true
-       AND id <> p_roster_player_id;
-
-    IF v_other_taxi_count >= v_taxi_slots THEN
-      RAISE EXCEPTION 'You only have % taxi squad slot%.', v_taxi_slots, CASE WHEN v_taxi_slots = 1 THEN '' ELSE 's' END
-        USING ERRCODE = 'P0001';
-    END IF;
+    RAISE EXCEPTION 'Players can enter taxi only through a draft or trade acquisition.'
+      USING ERRCODE = 'P0001';
   ELSE
     SELECT count(*)
       INTO v_active_count

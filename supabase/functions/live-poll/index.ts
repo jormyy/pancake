@@ -16,6 +16,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
 import { syncStatsForDates } from '../_shared/syncStats.ts'
+import { syncStatsThenScores } from '../_shared/syncStatsThenScores.ts'
 import { syncScores } from '../_shared/syncScores.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { errorMessage } from '../_shared/responses.ts'
@@ -82,27 +83,25 @@ serveInternal('live-poll', async () => {
 
     const syncForMissingStats = async () => {
       try {
-        await syncStatsForDates(candidateDates)
-      } catch (error) {
+        return await syncStatsForDates(candidateDates)
+      } finally {
         await touchGames(missingStatGameIds)
-        throw error
       }
-      await touchGames(missingStatGameIds)
     }
 
     if (!cdnGames.length) {
-      const decision = decideLivePoll({ cdnGameCount: 0, dbActiveGames: activeGames?.length ?? 0, nowActive: 0, allDone: false, missingFinalStats, leaseLost: heartbeat.lost })
+      const decision = decideLivePoll({ cdnGameCount: 0, dbActiveGames: activeGames?.length ?? 0, nowActive: 0, newlyFinal: 0, missingFinalStats, leaseLost: heartbeat.lost })
       if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
       if (decision.action === 'synced-db-active') {
         console.log(`[live-poll] CDN unavailable or empty; db-active=${activeGames?.length ?? 0} finalMissingStats=${missingFinalStats} — syncing stats + scores`)
-        await syncForMissingStats()
-        await syncScores()
+        await syncStatsThenScores(syncForMissingStats, syncScores)
         return Response.json({ ok: true, action: 'synced-db-active', activeGames: activeGames?.length ?? 0, missingFinalStats })
       }
       return Response.json({ ok: true, action: 'idle' })
     }
 
     let nowActive = 0
+    let newlyFinal = 0
     const allDone = cdnGames.length > 0 && cdnGames.every((game) => game.gameStatus === 3)
 
     const { data: existingGames, error: existingError } = await supabase
@@ -120,6 +119,7 @@ serveInternal('live-poll', async () => {
 
       const existing = existingByGameId.get(g.gameId)
       if (!existing) continue
+      if (newStatus === 'Final' && existing.status !== 'Final') newlyFinal++
 
       const homeScore = g.homeTeam.score ?? 0
       const awayScore = g.awayTeam.score ?? 0
@@ -156,12 +156,11 @@ serveInternal('live-poll', async () => {
     }
     const statusUpdates = gameUpdates.length
 
-    const decision = decideLivePoll({ cdnGameCount: cdnGames.length, dbActiveGames: activeGames?.length ?? 0, nowActive, allDone, missingFinalStats, leaseLost: heartbeat.lost })
+    const decision = decideLivePoll({ cdnGameCount: cdnGames.length, dbActiveGames: activeGames?.length ?? 0, nowActive, newlyFinal, missingFinalStats, leaseLost: heartbeat.lost })
     if (decision.action === 'lease-lost') return Response.json({ ok: false, action: 'lease-lost' }, { status: 409 })
     if (decision.action === 'synced') {
       console.log(`[live-poll] syncing stats + scores; active=${nowActive}, allDone=${allDone}, priorDbActive=${activeGames?.length ?? 0}, finalMissingStats=${missingFinalStats}`)
-      await syncForMissingStats()
-      await syncScores()
+      await syncStatsThenScores(syncForMissingStats, syncScores)
       return Response.json({ ok: true, action: 'synced', statusUpdates, activeGames: nowActive, allDone })
     }
 

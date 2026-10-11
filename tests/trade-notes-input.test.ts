@@ -57,6 +57,7 @@ const renderBuilder = async (notes: string) => {
             onRetry: vi.fn(),
             onTogglePlayer: vi.fn(),
             onTogglePick: vi.fn(),
+            onRemoveAsset: vi.fn(),
             onDestinationChange: vi.fn(),
             onPlayerDestinationChange: vi.fn(),
             onPickDestinationChange: vi.fn(),

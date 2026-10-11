@@ -57,6 +57,7 @@ type MultiTeamTradeAction =
     | { type: 'set-participants'; actorMemberId: string; participantIds: string[] }
     | { type: 'toggle-asset'; asset: 'player' | 'pick'; memberId: string; assetId: string }
     | { type: 'select-asset'; asset: 'player' | 'pick'; memberId: string; assetId: string }
+    | { type: 'remove-asset'; asset: 'player' | 'pick'; memberId: string; assetId: string }
     | { type: 'set-default-destination'; memberId: string; toMemberId: string }
     | { type: 'set-asset-destination'; asset: 'player' | 'pick'; memberId: string; assetId: string; toMemberId: string }
     | { type: 'set-faab'; memberId: string; toMemberId: string; value: string }
@@ -201,6 +202,7 @@ export function multiTeamTradeReducer(
                 const destinations = { ...participant[key] }
                 if (action.assetId in destinations) delete destinations[action.assetId]
                 else {
+                    if (Object.values(state.participants).some((entry) => action.assetId in entry[key])) return participant
                     if (draftItemCount(state) >= MAX_TRADE_ITEMS) return participant
                     destinations[action.assetId] = null
                 }
@@ -211,8 +213,18 @@ export function multiTeamTradeReducer(
             return updateParticipant(state, action.memberId, (participant) => {
                 const key = action.asset === 'player' ? 'playerDestinations' : 'pickDestinations'
                 if (action.assetId in participant[key]) return participant
+                if (Object.values(state.participants).some((entry) => action.assetId in entry[key])) return participant
                 if (draftItemCount(state) >= MAX_TRADE_ITEMS) return participant
                 return { ...participant, [key]: { ...participant[key], [action.assetId]: null } }
+            })
+        }
+        case 'remove-asset': {
+            return updateParticipant(state, action.memberId, (participant) => {
+                const key = action.asset === 'player' ? 'playerDestinations' : 'pickDestinations'
+                if (!(action.assetId in participant[key])) return participant
+                const destinations = { ...participant[key] }
+                delete destinations[action.assetId]
+                return { ...participant, [key]: destinations }
             })
         }
         case 'set-default-destination': {

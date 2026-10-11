@@ -4,6 +4,9 @@
 -- edge_invocations; the GUCs point at an unreachable loopback port, so pg_net
 -- only enqueues. Runs inside one transaction and rolls back.
 BEGIN;
+-- Existing local drafts can have due timers. Isolate the global gate cases;
+-- this transaction restores their exact state when it rolls back.
+UPDATE public.drafts SET status = 'paused', paused_at = now() WHERE status = 'in_progress';
 SELECT set_config('app.supabase_url', 'http://127.0.0.1:1', true);
 SELECT set_config('app.edge_internal_token', 'cron-gate-test-token', true);
 

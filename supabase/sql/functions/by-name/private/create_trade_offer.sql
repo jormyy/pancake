@@ -82,6 +82,12 @@ BEGIN
     RAISE EXCEPTION 'Duplicate requested picks are not allowed.';
   END IF;
 
+  PERFORM private.lock_trade_offer_assets(
+    p_league_id,
+    ARRAY[p_proposer_member_id, p_recipient_member_id],
+    v_offer_player_ids || v_request_player_ids
+  );
+
   SELECT *
     INTO v_league
     FROM leagues

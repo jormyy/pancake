@@ -25,6 +25,10 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  IF p_game_date < (now() AT TIME ZONE 'America/New_York')::date THEN
+    RAISE EXCEPTION 'Past lineups cannot be changed.' USING ERRCODE = 'P0001';
+  END IF;
+
   PERFORM public.assert_current_league_season_for_lineup(p_league_id, p_league_season_id);
   PERFORM private.assert_roster_within_active_limit(p_league_id, p_league_season_id, p_member_id);
   PERFORM public.auto_set_lineup_atomic_unchecked(

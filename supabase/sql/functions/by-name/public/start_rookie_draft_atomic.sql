@@ -94,6 +94,10 @@ BEGIN
     RAISE EXCEPTION 'Need at least 2 managers to start a draft';
   END IF;
 
+  IF NOT v_is_mock THEN
+    PERFORM private.playoff_round_plan(v_member_count, v_league.playoff_total_weeks, v_league.playoff_round_weeks);
+  END IF;
+
   SELECT id
     INTO v_last_season_id
     FROM league_seasons

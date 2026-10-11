@@ -59,7 +59,7 @@ async function ensureSeasonMatchups(
     .select('id', { count: 'exact', head: true })
     .eq('league_season_id', leagueSeasonId)
   if (error) throw error
-  if ((count ?? 0) > 0) return []
+  if ((count ?? 0) > 0 || playoffStartWeek === 1) return []
   await generateMatchups(leagueId, leagueSeasonId, playoffStartWeek - 1)
   return ['matchups-generated']
 }
@@ -174,7 +174,7 @@ async function processLeagueBoundary(
   if (matchupError) throw matchupError
 
   const matchups = (matchupRows ?? []) as BoundaryMatchup[]
-  if (matchups.length === 0) {
+  if (matchups.length === 0 && playoffStartWeek > 1) {
     // A manually-advanced league can reach 'active' (rookie draft completed)
     // before any tick saw it in 'offseason', leaving a season with no
     // schedule at all. Backfill instead of silently never scoring.
@@ -190,13 +190,9 @@ async function processLeagueBoundary(
   const bracketExists = quarterfinals.length > 0 || semifinals.length > 0 || finals.length > 0
 
   if (!bracketExists) {
-    if (!allFinalized(regular) || !graceElapsed(regular, referenceDate)) return actions
-    const { error } = await supabase.rpc('generate_playoff_bracket_atomic', {
-      p_league_id: leagueId,
-    })
-    if (error) throw error
-    await setLeagueStatusPlayoffs(leagueId)
-    actions.push('bracket-generated')
+    if (playoffStartWeek > 1 && (!allFinalized(regular) || !graceElapsed(regular, referenceDate))) return actions
+    const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'generate', referenceDate)
+    if (result.applied === true) actions.push('bracket-generated')
     return actions
   }
 
@@ -213,29 +209,43 @@ async function processLeagueBoundary(
     if (currentRound.length === 0 || !roundDecided || !graceElapsed(currentRound, referenceDate)) {
       return actions
     }
-    const { error } = await supabase.rpc('advance_playoff_bracket_atomic', {
-      p_league_id: leagueId,
-    })
-    if (error) throw error
-    actions.push(semifinals.length > 0 ? 'final-created' : 'semifinals-created')
+    const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'advance', referenceDate)
+    if (result.applied === true) actions.push(semifinals.length > 0 ? 'final-created' : 'semifinals-created')
     return actions
   }
 
   const finalDecided = finals.every((m) => m.is_finalized && m.winner_member_id != null)
   if (!finalDecided || !graceElapsed(finals, referenceDate)) return actions
 
-  const { data: advanceRows, error: advanceError } = await supabase.rpc('advance_season_atomic', {
-    p_league_id: leagueId,
-  })
-  if (advanceError) throw advanceError
+  const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'rollover', referenceDate)
+  if (result.applied !== true) return actions
   actions.push('season-advanced')
 
-  const newSeasonId = advanceRows?.[0]?.new_season_id
-  if (typeof newSeasonId === 'string') {
+  const newSeasonId = result.new_season_id
+  if (typeof newSeasonId === 'string' && playoffStartWeek > 1) {
     await generateMatchups(leagueId, newSeasonId, playoffStartWeek - 1)
     actions.push('matchups-generated')
   }
   return actions
+}
+
+async function applyBoundaryAfterGrace(
+  leagueId: string,
+  seasonId: string,
+  action: 'generate' | 'advance' | 'rollover',
+  referenceDate: Date,
+) {
+  const { data, error } = await supabase.rpc('apply_season_boundary_after_grace', {
+    p_league_id: leagueId,
+    p_league_season_id: seasonId,
+    p_action: action,
+    p_reference_at: referenceDate.toISOString(),
+  })
+  if (error) throw error
+  if (data == null || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Automatic season boundary returned no result.')
+  }
+  return data
 }
 
 // Season-boundary automation: per current league season, generate the playoff
@@ -248,13 +258,31 @@ export async function runSeasonBoundary(
   referenceDate = new Date(),
   leagueId?: string,
 ): Promise<BoundaryLeagueReport[]> {
-  let query = supabase
-    .from('league_seasons')
-    .select('id, league_id, leagues!league_seasons_league_id_fkey ( status, playoff_start_week )')
-    .eq('is_current', true)
-  if (leagueId) query = query.eq('league_id', leagueId)
-  const { data: seasons, error } = await query
-  if (error) throw error
+  type CurrentSeason = {
+    id: string
+    league_id: string
+    leagues: { status: string; playoff_start_week: number } | null
+  }
+  const seasons: CurrentSeason[] = []
+  let afterId: string | undefined
+  while (true) {
+    let query = supabase
+      .from('league_seasons')
+      .select('id, league_id, leagues!league_seasons_league_id_fkey!inner ( status, playoff_start_week )')
+      .eq('is_current', true)
+      .in('leagues.status', ['active', 'playoffs', 'offseason'])
+      .order('id')
+      .limit(1000)
+    if (leagueId) query = query.eq('league_id', leagueId)
+    if (afterId) query = query.gt('id', afterId)
+    const { data, error } = await query
+    if (error) throw error
+    const page = data as CurrentSeason[]
+    if (!page?.length) break
+    seasons.push(...page)
+    afterId = page[page.length - 1].id
+    if (page.length < 1000) break
+  }
 
   const reports: BoundaryLeagueReport[] = []
   const jobs = (seasons ?? []).flatMap((season) => {

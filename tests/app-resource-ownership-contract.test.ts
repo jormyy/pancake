@@ -11,7 +11,7 @@ describe('route resource ownership contracts', () => {
         expect(lineup).toContain('const visibleCtx = ownsLineup ? ctx : null')
         expect(lineup).toContain('generation === sessionGeneration()')
         expect(lineup).toContain('readStoredAuthState().session?.user.id === userId')
-        expect(lineup).toContain('disabled={readOnly || saving || lineupRefreshing || lineupLoading}')
+        expect(lineup).toContain('disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}')
     })
 
     it('cancels roster confirmations and action effects when membership changes', () => {

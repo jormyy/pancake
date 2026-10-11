@@ -53,8 +53,13 @@ function apiErrorMessage(json: { error?: unknown; message?: unknown } | null, st
     return error ?? message ?? `API error: ${status}`
 }
 
-async function authHeaders(accessToken?: string): Promise<Record<string, string>> {
-    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token
+async function authHeaders(options: { accessToken?: string; expectedUserId?: string }): Promise<Record<string, string>> {
+    let token = options.accessToken
+    if (!token) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (options.expectedUserId && session?.user.id !== options.expectedUserId) throw new Error('Your account changed. Please retry.')
+        token = session?.access_token
+    }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (token) {
         headers['Authorization'] = `Bearer ${token}`
@@ -68,6 +73,9 @@ export interface ApiRequestOptions {
     timeoutMs?: number
     /** Act as this session instead of the stored one (cleanup after local sign-out). */
     accessToken?: string
+    /** Refuse to send when the stored session belongs to someone else (ignored with accessToken). */
+    expectedUserId?: string
+    beforeSend?: () => Promise<void>
 }
 
 function isAbortError(err: unknown): boolean {
@@ -101,9 +109,11 @@ export async function apiPost<T = unknown>(
     const request = async (): Promise<T> => {
         let res: Response
         try {
+            const headers = await authHeaders(options)
+            await options.beforeSend?.()
             res = await fetch(`${apiUrl()}${path}`, {
                 method: 'POST',
-                headers: await authHeaders(options.accessToken),
+                headers,
                 body: JSON.stringify(body),
                 signal: controller.signal,
             })

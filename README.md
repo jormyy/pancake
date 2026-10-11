@@ -151,9 +151,12 @@ The Dynasty Hub loads 5-year Points, 3-year Points, and Rookie ranks in one auth
 batch. It preserves the published Hashtag order and filters each tab in memory. The
 service-role-only `replace_dynasty_rankings` RPC replaces each source atomically.
 Retention (`prune_unbounded_history`, weekly cron)
-prunes only rows the product never reads: ops telemetry past its window, lineups older
-than two seasons, old-season non-final standings snapshots, and transactions older than
-three seasons.
+removes ops telemetry past its window, lineups older than two seasons, old-season
+non-final standings snapshots, and transactions older than three seasons. Retirement
+marks those older seasons before removing replay inputs. Scoring preserves their saved
+results instead of recomputing from missing lineups. The migration also protects legacy
+seasons outside that same window. Correcting retired results requires verified restoration
+of their original inputs; present rosters or saved totals cannot reconstruct them.
 
 Roster-linked state (trade-block listings, future lineup slots, pending waiver drops,
 pending offers) is kept consistent by database triggers whenever a player leaves a

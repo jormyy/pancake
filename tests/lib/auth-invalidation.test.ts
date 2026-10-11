@@ -9,13 +9,13 @@ function store() {
 }
 function fixture() {
     const disk = store(), backup = store(), changed = vi.fn()
-    disk.setItem(key, JSON.stringify({ access_token: 'old' }))
+    disk.setItem(key, JSON.stringify({ access_token: 'old', refresh_token: 'refresh-original' }))
     const make = () => createAuthInvalidation(createAuthStorage(() => disk), createAuthStorage(() => backup), key, changed)
     return { disk, backup, changed, make, auth: make() }
 }
 async function response(auth: ReturnType<typeof createAuthInvalidation>, token: string, grant = 'password') {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ access_token: token })))
-    await auth.fetch(fetcher)(`http://local/auth/v1/token?grant_type=${grant}`)
+    await auth.fetch(fetcher)(`http://local/auth/v1/token?grant_type=${grant}`, { body: JSON.stringify({ refresh_token: 'refresh-original' }) })
 }
 
 describe('local auth invalidation', () => {
@@ -35,12 +35,11 @@ describe('local auth invalidation', () => {
         await response(auth, 'late')
         auth.invalidate()
         expect(() => auth.setItem(key, JSON.stringify({ access_token: 'late' }))).toThrow('after local sign-out')
-        await response(auth, 'refresh', 'refresh_token')
-        expect(() => auth.setItem(key, JSON.stringify({ access_token: 'refresh' }))).toThrow('after local sign-out')
+        await expect(response(auth, 'refresh', 'refresh_token')).rejects.toThrow('Authentication changed')
         await response(auth, 'new')
         auth.setItem(key, JSON.stringify({ access_token: 'new' }))
         expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'new' })
-        expect(() => auth.setItem(key, JSON.stringify({ access_token: 'old' }))).toThrow('after local sign-out')
+        expect(() => auth.setItem(key, JSON.stringify({ access_token: 'old', refresh_token: 'refresh-original' }))).toThrow('after local sign-out')
     })
     it('fences a response whose body arrives after logout', async () => {
         const { auth } = fixture()
@@ -109,6 +108,48 @@ describe('local auth invalidation', () => {
         await response(tab, 'second')
         tab.setItem(key, JSON.stringify({ access_token: 'second' }))
         expect(auth.getItem(key)).toBe(tab.getItem(key))
+    })
+    it('rejects an old refresh response after another tab signs in without logout', async () => {
+        const { auth, make } = fixture(), tab = make()
+        let finish!: (value: Response) => void
+        const pending = new Promise<Response>(resolve => { finish = resolve })
+        const oldRefresh = auth.fetch(vi.fn<typeof fetch>().mockReturnValue(pending))('http://local/auth/v1/token?grant_type=refresh_token', { body: JSON.stringify({ refresh_token: 'refresh-original' }) })
+        await response(tab, 'B')
+        tab.setItem(key, JSON.stringify({ access_token: 'B' }))
+        finish(new Response(JSON.stringify({ access_token: 'A-refreshed' })))
+        await expect(oldRefresh).rejects.toThrow('Authentication changed')
+        expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'B' })
+    })
+    it('blocks retries with an old account refresh token before any HTTP request', async () => {
+        const { auth, make } = fixture(), tab = make()
+        await response(tab, 'B')
+        tab.setItem(key, JSON.stringify({ access_token: 'B', refresh_token: 'refresh-B' }))
+        const fetcher = vi.fn<typeof fetch>()
+        await expect(auth.fetch(fetcher)('http://local/auth/v1/token?grant_type=refresh_token', {
+            body: JSON.stringify({ refresh_token: 'refresh-original' }),
+        })).rejects.toThrow('Authentication changed')
+        expect(fetcher).not.toHaveBeenCalled()
+        expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'B', refresh_token: 'refresh-B' })
+    })
+    it('rejects an already admitted refresh save after another tab signs in', async () => {
+        const { auth, make } = fixture(), tab = make()
+        await response(auth, 'A-refreshed', 'refresh_token')
+        await response(tab, 'B')
+        tab.setItem(key, JSON.stringify({ access_token: 'B' }))
+        expect(() => auth.setItem(key, JSON.stringify({ access_token: 'A-refreshed' }))).toThrow('after local sign-out')
+        expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'B' })
+    })
+    it('keeps a tab-only logout from clearing another tab when shared storage is unreadable', async () => {
+        const { auth, disk } = fixture()
+        const separateBackup = store()
+        const other = createAuthInvalidation(createAuthStorage(() => disk), createAuthStorage(() => separateBackup), key, () => {})
+        await response(other, 'B')
+        other.setItem(key, JSON.stringify({ access_token: 'B' }))
+        const before = [...disk.values]
+        auth.invalidate(false)
+        expect([...disk.values]).toEqual(before)
+        expect(auth.getItem(key)).toBeNull()
+        expect(JSON.parse(other.getItem(key)!)).toEqual({ access_token: 'B' })
     })
     it('fails closed on a corrupt logout marker and keeps unrelated HTTP errors intact', async () => {
         const { auth, disk } = fixture()

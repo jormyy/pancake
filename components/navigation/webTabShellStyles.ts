@@ -157,7 +157,6 @@ export const styles = StyleSheet.create({
     leagueMenu: {
         position: 'absolute',
         zIndex: 100,
-        padding: spacing.sm,
         borderRadius: radii.xl,
         borderWidth: 1,
         borderColor: colors.border,

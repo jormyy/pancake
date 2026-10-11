@@ -33,11 +33,32 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found.' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Include the source assets even when the replacement removes them. A drop
+  -- expires that source while holding the same team and player locks.
+  PERFORM private.lock_trade_offer_assets(
+    v_trade.league_id,
+    ARRAY(SELECT member_id FROM trade_participants WHERE trade_id = p_trade_id) || ARRAY(SELECT member_id FROM private.multi_team_trade_participants(p_member_id, p_participant_member_ids)),
+    ARRAY(SELECT player_id FROM trade_items WHERE trade_id = p_trade_id AND player_id IS NOT NULL) ||
+      ARRAY(SELECT player_id FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL)
+  );
+
+  -- Accepted completion owns its trade row before team locks. A stale pending
+  -- action must not wait on that row while holding its team locks.
   SELECT *
     INTO v_trade
     FROM trades
    WHERE id = p_trade_id
+     AND status = 'pending'::trade_status
    FOR UPDATE;
+
+  IF NOT FOUND THEN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  END IF;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Trade not found.'
@@ -63,15 +84,6 @@ BEGIN
     v_actor_error := 'Only the proposer can edit this offer.';
   END IF;
 
-  IF v_trade.status <> 'pending'::trade_status THEN
-    RAISE EXCEPTION '%', v_pending_error
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
-    UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
-    RETURN NULL;
-  END IF;
 
   IF p_action = 'counter' THEN
     IF v_trade.proposer_member_id = p_member_id OR NOT EXISTS (
@@ -100,6 +112,16 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  IF v_trade.status <> 'pending'::trade_status THEN
+    RAISE EXCEPTION '%', v_pending_error
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
+    UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
+    RETURN NULL;
+  END IF;
+
   v_parent_trade_id := COALESCE(v_trade.parent_trade_id, v_trade.id);
 
   v_new_trade_id := private.create_multi_team_trade_offer(
@@ -109,16 +131,14 @@ BEGIN
     p_participant_member_ids,
     p_items,
     p_notes,
-    p_expires_at
+    p_expires_at,
+    v_parent_trade_id,
+    v_countered_from_trade_id,
+    v_edited_from_trade_id,
+    v_trade.version + 1
   );
 
-  UPDATE trades
-     SET parent_trade_id = v_parent_trade_id,
-         countered_from_trade_id = v_countered_from_trade_id,
-         edited_from_trade_id = v_edited_from_trade_id,
-         version = v_trade.version + 1
-   WHERE id = v_new_trade_id
-   RETURNING * INTO v_new_trade;
+  SELECT * INTO v_new_trade FROM trades WHERE id = v_new_trade_id;
 
   DELETE FROM league_activity
    WHERE related_trade_id = v_new_trade_id

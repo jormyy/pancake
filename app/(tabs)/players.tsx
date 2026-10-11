@@ -21,6 +21,7 @@ import { NoLeagueState } from '@/components/NoLeagueState'
 import { FilterSelect, MultiSelect, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
 import { Sheet } from '@/components/ui/Sheet'
 import { DynastyHub } from '@/components/dynasty/DynastyHub'
+import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
 import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -184,16 +185,19 @@ function PlayerSearchSection() {
                 transactionState: null,
             }
         }
-        const support = await loadPlayerSupport(current?.id, leagueId)
-        if (current?.id) {
-            writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
-                ownedEntries: Array.from(support.ownedMap.entries()),
-                waiverIds: Array.from(support.waiverIds),
-                transactionState: support.transactionState,
-            })
-        }
-        return support
-    }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
+        return loadPlayerSupport(current?.id, leagueId)
+    }, [current?.id, leagueId], {
+        initialData: cachedSupport, staleMs: 300_000,
+        onLoaded: (support) => {
+            if (current?.id && leagueId) {
+                writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
+                    ownedEntries: Array.from(support.ownedMap.entries()),
+                    waiverIds: Array.from(support.waiverIds),
+                    transactionState: support.transactionState,
+                })
+            }
+        },
+    })
 
 
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
@@ -576,15 +580,15 @@ export default function PlayersScreen() {
             />
             <View style={localStyles.panel} nativeID="players-section-panel" role="tabpanel">
                 {opened.has('players') ? (
-                    <View style={[localStyles.panel, section !== 'players' && localStyles.hidden]}>
+                    <RetainedPanel active={section === 'players'}>
                         <PlayerSearchSection />
-                    </View>
+                    </RetainedPanel>
                 ) : null}
                 {/* Rankings and News share one instance, so each loads its data once. */}
                 {opened.has('rankings') || opened.has('news') ? (
-                    <View style={[localStyles.panel, section === 'players' && localStyles.hidden]}>
+                    <RetainedPanel active={section !== 'players'}>
                         <DynastyHub section={section === 'news' || (section === 'players' && lastDynasty === 'news') ? 'news' : 'rankings'} />
-                    </View>
+                    </RetainedPanel>
                 ) : null}
             </View>
         </Page>
@@ -595,7 +599,6 @@ const localStyles = StyleSheet.create({
     freshness: { paddingVertical: spacing.sm },
     freshnessText: { fontSize: fontSize.sm, color: colors.textSecondary },
     panel: { flex: 1, minHeight: 0 },
-    hidden: { display: 'none' },
     toolbar: {
         gap: spacing.xs,
         paddingVertical: spacing.md,

@@ -458,7 +458,7 @@ BEGIN
     INTO v_accept_trigger_definition;
   SELECT pg_get_functiondef('public.complete_accepted_trade_atomic(uuid)'::regprocedure)
     INTO v_complete_definition;
-  SELECT pg_get_functiondef('private.create_multi_team_trade_offer(uuid,uuid,uuid,uuid[],jsonb,text,timestamptz)'::regprocedure)
+  SELECT pg_get_functiondef('private.create_multi_team_trade_offer(uuid,uuid,uuid,uuid[],jsonb,text,timestamptz,uuid,uuid,uuid,integer)'::regprocedure)
     INTO v_create_definition;
   IF v_accept_definition ILIKE '%COALESCE(item.from_member_id%'
      OR v_complete_definition ILIKE '%COALESCE(item.from_member_id%'

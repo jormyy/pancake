@@ -76,7 +76,7 @@ describe('persistent cache across sign-out', () => {
         const response = deferred<string[]>()
         const lateWrite = response.promise.then((rows) => writePersistentCache('pancake:roster:member-a:league', rows))
 
-        await act(async () => auth.callback!('SIGNED_OUT', null))
+        await act(async () => { auth.seeded = null; auth.callback!('SIGNED_OUT', null) })
         response.resolve(['user a roster'])
         await lateWrite
 
@@ -84,7 +84,7 @@ describe('persistent cache across sign-out', () => {
     })
 
     it('caches again once the next user signs in', async () => {
-        await act(async () => auth.callback!('SIGNED_OUT', null))
+        await act(async () => { auth.seeded = null; auth.callback!('SIGNED_OUT', null) })
         await act(async () => { auth.seeded = session('user-b'); auth.callback!('SIGNED_IN', session('user-b')) })
 
         writePersistentCache('pancake:roster:member-b:league', ['user b roster'])
@@ -97,7 +97,7 @@ describe('persistent cache across sign-out', () => {
         await getCurrentSeason('league')
         expect(auth.seasonReads).toBe(1)
 
-        await act(async () => auth.callback!('SIGNED_OUT', null))
+        await act(async () => { auth.seeded = null; auth.callback!('SIGNED_OUT', null) })
         await act(async () => { auth.seeded = session('user-b'); auth.callback!('SIGNED_IN', session('user-b')) })
         await getCurrentSeason('league')
 

@@ -44,21 +44,23 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true)
             setError(null)
             setLoading(false)
             setHasMore(false)
-            return
+            return false
         }
         setError(null)
         try {
             const result = await getTradesForScreen(memberId, leagueId, TRADES_PAGE_SIZE)
-            if (loadSequence.current !== requestId) return
+            if (loadSequence.current !== requestId) return false
             nextCursor.current = result.nextCursor
             setResource({ key: resourceKey, trades: result.trades })
             setValidatedKey(resourceKey)
             setHasMore(result.hasMore)
             writePersistentCache(tradesCacheKey(memberId, leagueId), result.trades)
+            return true
         } catch (cause) {
-            if (loadSequence.current !== requestId) return
+            if (loadSequence.current !== requestId) return false
             console.error(cause)
             setError(getErrorMessage(cause) ?? 'Unknown error')
+            return false
         } finally {
             if (loadSequence.current === requestId) setLoading(false)
         }

@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     rowPressed: { opacity: motion.pressedOpacity },
     rowDisabled: { opacity: 0.5 },
     labelBlock: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    value: { flexShrink: 1, textAlign: 'right', color: colors.textSecondary },
+    value: { flexShrink: 1, maxWidth: '60%', textAlign: 'right', color: colors.textSecondary },
     danger: { color: colors.dangerDark },
     toggle: {
         width: 44,

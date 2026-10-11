@@ -12,6 +12,8 @@ DECLARE
   v_draft            drafts%ROWTYPE;
   v_remaining_seconds int;
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext(p_draft_id::text), 0);
+
   SELECT * INTO v_draft FROM drafts WHERE id = p_draft_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Draft not found.';

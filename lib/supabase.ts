@@ -7,7 +7,10 @@ import { authStorageKey, inspectSession, readStoredAuth, type StoredAuthState } 
 import { createAuthStorage } from '@/lib/auth-storage'
 import { createAuthInvalidation } from '@/lib/auth-invalidation'
 import { setSessionOwner } from '@/lib/session-cache-registry'
-import { authNavigatorLock } from '@/lib/auth-lock'
+import { authNavigatorLock, createAuthClientLock } from '@/lib/auth-lock'
+import { createAuthStorageLock } from '@/lib/auth-storage-lock'
+import { createAuthLogoutGuard } from '@/lib/auth-logout-guard'
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const supabasePublicKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -58,15 +61,28 @@ if (logoutChannel) logoutChannel.onmessage = (event) => {
     }
 }
 
-export async function invalidateLocalAuthSession(): Promise<void> {
+const writeAuthStorage = createAuthStorageLock(supabaseAuthStorageKey)
+const logoutGuard = createAuthLogoutGuard(authStorage, supabaseAuthStorageKey, resolvedSupabaseUrl, writeAuthStorage)
+export const captureLocalAuthSession = logoutGuard.capture
+export const localAuthSessionMatches = logoutGuard.matches
+
+export async function invalidateLocalAuthSession(expected: ReturnType<typeof captureLocalAuthSession>, stillCurrent: () => boolean): Promise<boolean> {
     const clear = async () => {
-        authStorage.invalidate()
-        setSessionOwner(null)
-        logoutChannel?.postMessage(authStorage.current())
+        const work = () => {
+            if (!stillCurrent() || !logoutGuard.matches(expected)) return false
+            clearPersistentCaches()
+            authStorage.invalidate(expected.available)
+            setSessionOwner(null)
+            if (expected.available) logoutChannel?.postMessage(authStorage.current())
+            return true
+        }
+        // Unreadable shared storage cannot authorize clearing another tab's identity.
+        return expected.available ? writeAuthStorage(work) : work()
     }
     if (typeof navigator !== 'undefined' && navigator.locks) {
-        await authNavigatorLock(`lock:${supabaseAuthStorageKey}`, 10_000, clear)
-    } else await clear()
+        return authNavigatorLock(`lock:${supabaseAuthStorageKey}`, 10_000, clear)
+    }
+    return clear()
 }
 
 export function inspectAuthSession(value: unknown): StoredAuthState {
@@ -87,11 +103,11 @@ export const supabase = createClient<Database>(
     {
         auth: {
             storageKey: supabaseAuthStorageKey,
-            storage: authStorage,
+            storage: logoutGuard.sdkStorage,
             autoRefreshToken: true,
             persistSession: true,
             detectSessionInUrl: false,
-            ...(typeof navigator !== 'undefined' && navigator.locks ? { lock: authNavigatorLock } : {}),
+            ...(typeof navigator !== 'undefined' && navigator.locks ? { lock: createAuthClientLock() } : {}),
         },
         global: { fetch: authStorage.fetch(fenceDataRequests((input, init) => fetch(input, init))) },
     },

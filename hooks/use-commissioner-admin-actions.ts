@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LeagueInfo } from '@/types/app'
 import { apiPost } from '@/lib/shared/api'
 import { advanceSeason } from '@/lib/rookieDraft'
@@ -35,6 +35,15 @@ export function useCommissionerAdminActions({
         action: CommissionerActionId
         token: number
     } | null>(null)
+
+    useEffect(() => {
+        activeOwnerKeyRef.current = ownerKey
+        setBusy(null)
+        return () => {
+            activeOwnerKeyRef.current = null
+            activeMutationRef.current = null
+        }
+    }, [ownerKey])
 
     const beginMutation = useCallback((capturedOwnerKey: string, action: CommissionerActionId) => {
         if (activeOwnerKeyRef.current !== capturedOwnerKey) return null
@@ -101,12 +110,12 @@ export function useCommissionerAdminActions({
         const playoffActions: CommissionerAction[] = [
             {
                 id: 'generate-playoffs', label: 'Generate Playoff Bracket',
-                onPress: () => league ? runAdmin('/playoffs/generate', 'Semifinal bracket generated.', 'generate-playoffs', { leagueId: league.id }) : undefined,
+                onPress: () => league ? runAdmin('/playoffs/generate', 'Playoff bracket is ready.', 'generate-playoffs', { leagueId: league.id }) : undefined,
             },
             {
-                id: 'advance-playoffs', label: 'Advance to Championship',
-                onPress: () => league ? runAdmin('/playoffs/advance', 'Championship matchup created.', 'advance-playoffs', { leagueId: league.id }) : undefined,
-                description: 'Finalizes the semifinal results and creates the championship matchup. Semifinal scores cannot change after this.',
+                id: 'advance-playoffs', label: 'Advance Playoff Round',
+                onPress: () => league ? runAdmin('/playoffs/advance', 'Next playoff round is ready.', 'advance-playoffs', { leagueId: league.id }) : undefined,
+                description: 'Uses completed round results to create the next round. Those results cannot change after advancing.',
             },
         ]
         const annualCycleActions: CommissionerAction[] = [{

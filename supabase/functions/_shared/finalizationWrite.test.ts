@@ -31,9 +31,9 @@ Deno.test('an unfinalized matchup is always written', () => {
 })
 
 // The regression: a closed playoff round re-synced every live-poll tick for the
-// following week. Unchanged rows must not go back to the RPC, or finalized_at
-// is re-stamped and the 48h boundary grace never elapses.
-Deno.test('a finalized matchup with an unchanged decision is not rewritten', () => {
+// following week. Unchanged decisions must preserve finalized_at so the
+// 48h boundary grace can elapse while the read boundary advances.
+Deno.test('a finalized matchup with an unchanged decision keeps its grace timestamp', () => {
   assert(!finalizationWriteNeeded(candidate()), 'unchanged decision must not write')
 })
 

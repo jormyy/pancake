@@ -16,6 +16,8 @@ export interface LeagueInfo {
     auction_budget: number
     scoring_settings: Json
     playoff_start_week: number
+    playoff_total_weeks?: number | null
+    playoff_round_weeks?: number[] | null
     roster_size: number
     ir_slots: number
     taxi_slots?: number

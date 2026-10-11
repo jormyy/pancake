@@ -408,13 +408,25 @@ export default function LineupScreen() {
         return result
     }, [weekDays, selectedDate])
     const displayedMatchups = readOnly ? savedMatchups : teamMatchups
-    const actionContext = !readOnly && current && visibleCtx && currentLeague ? {
+    const actionOwner = current && visibleCtx && currentLeague ? {
         memberId: current.id,
         leagueId: currentLeague.id,
         seasonId: visibleCtx.seasonId,
         weekNumber: visibleCtx.weekNumber,
         seasonYear: visibleCtx.seasonYear,
     } : null
+    const actionContext = readOnly ? null : actionOwner
+    const optimizerOwner = actionOwner ? `${ownerKey}:${actionOwner.seasonId}` : null
+    const optimizerOwnerRef = useRef(optimizerOwner)
+    const optimizerRequestRef = useRef(0)
+    if (optimizerOwnerRef.current !== optimizerOwner) {
+        optimizerOwnerRef.current = optimizerOwner
+        optimizerRequestRef.current += 1
+    }
+    useEffect(() => () => { optimizerRequestRef.current += 1 }, [])
+    const optimizerRequestIsCurrent = (requestId: number, generation: number) =>
+        optimizerRequestRef.current === requestId && optimizerOwnerRef.current === optimizerOwner
+        && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId
     const lineupForActions = useMemo(
         () => visibleCtx ? { starters: visibleStarters, bench: visibleBench } : null,
         [visibleBench, visibleCtx, visibleStarters],
@@ -465,6 +477,7 @@ export default function LineupScreen() {
         handleAutoSet,
     } = useLineupActions({
         actionContext,
+        actionOwner,
         myLineup: lineupForActions,
         league: currentLeague,
         selectedDate,
@@ -511,6 +524,8 @@ export default function LineupScreen() {
 
     async function handleEnableSeasonOptimizer() {
         if (!actionContext) return
+        const requestId = ++optimizerRequestRef.current
+        const generation = sessionGeneration()
         setAutoSetModalVisible(false)
         try {
             await setLineupOptimizerEnabled(
@@ -519,15 +534,17 @@ export default function LineupScreen() {
                 actionContext.seasonId,
                 true,
             )
-            setSeasonOptimizerEnabled(true)
+            if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(true)
             await doAutoSet(null, true)
         } catch (e) {
-            showAlert('Optimizer failed', getErrorMessage(e))
+            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Optimizer failed', getErrorMessage(e))
         }
     }
 
     async function handleDisableSeasonOptimizer() {
         if (!actionContext) return
+        const requestId = ++optimizerRequestRef.current
+        const generation = sessionGeneration()
         setAutoSetModalVisible(false)
         try {
             await setLineupOptimizerEnabled(
@@ -536,9 +553,9 @@ export default function LineupScreen() {
                 actionContext.seasonId,
                 false,
             )
-            setSeasonOptimizerEnabled(false)
+            if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(false)
         } catch (e) {
-            showAlert('Optimizer failed', getErrorMessage(e))
+            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Optimizer failed', getErrorMessage(e))
         }
     }
 
@@ -598,7 +615,7 @@ export default function LineupScreen() {
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} />
+                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
             )}
 
             {readOnly ? (
@@ -666,7 +683,7 @@ export default function LineupScreen() {
                             liveTeamsRef={liveTeamsRef}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
-                            disabled={readOnly || saving || lineupRefreshing || lineupLoading}
+                            disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'starter', index: i })}
                         />
@@ -698,7 +715,7 @@ export default function LineupScreen() {
                                 liveTeamsRef={liveTeamsRef}
                                 teamMatchups={displayedMatchups}
                                 onPress={() => handleTap({ kind: 'bench', index: i })}
-                                disabled={readOnly || saving || lineupRefreshing || lineupLoading}
+                                disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
                             readOnly={readOnly}
                                 targetState={targetState({ kind: 'bench', index: i })}
                             />

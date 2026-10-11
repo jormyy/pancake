@@ -7,6 +7,7 @@ const PLAYER_ID = '55555555-5555-4555-8555-555555555555'
 const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
 
 const postgrestRequests: string[] = []
+const tradeRpcRequests: Record<string, unknown>[] = []
 const pushRpcRequests: { path: string; body: unknown }[] = []
 const legacyPushMutations: { query: string; body: unknown }[] = []
 const optimizerRequests: { internalToken: string | null; body: unknown }[] = []
@@ -79,7 +80,8 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
         { date: '2027-01-03', status: 'failed', reason: 'optimization_failed' },
       ],
     }
-  } else if (url.pathname === '/rest/v1/rpc/propose_trade_atomic') {
+  } else if (url.pathname === '/rest/v1/rpc/submit_trade_offer_atomic') {
+    tradeRpcRequests.push(await req.json())
     body = UUID
   } else if (url.pathname === '/rest/v1/rpc/make_snake_pick_atomic') {
     body = {
@@ -214,6 +216,26 @@ Deno.test({
         })) {
       throw new Error(`optimizer request was not scoped/authenticated: ${JSON.stringify(optimizerRequests[0])}`)
     }
+  },
+})
+
+Deno.test({
+  name: 'season retry preserves explicit dates and rejects invalid scopes before dispatch',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    optimizerRequests.length = 0
+    const identity = { memberId: MEMBER_ID, leagueId: LEAGUE_ID, leagueSeasonId: '88888888-8888-4888-8888-888888888888' }
+    const dates = ['2027-01-03', '2027-01-04']
+    const response = await handleApiRoute(authedRequest('POST', '/league/lineup/auto-set-season', { ...identity, dates }))
+    if (response.status !== 200 || JSON.stringify(optimizerRequests[0]?.body) !== JSON.stringify({ mode: 'rest_of_season', dates, ...identity })) {
+      throw new Error('retry date scope did not reach the optimizer')
+    }
+    for (const invalid of [[], ['2027-02-30'], ['bad'], Array(181).fill('2027-01-03')]) {
+      const result = await handleApiRoute(authedRequest('POST', '/league/lineup/auto-set-season', { ...identity, dates: invalid }))
+      if (result.status !== 400) throw new Error(`invalid retry returned ${result.status}`)
+    }
+    if (optimizerRequests.length !== 1) throw new Error('invalid retry dispatched work')
   },
 })
 
@@ -391,6 +413,7 @@ Deno.test({
     const otherMemberId = '77777777-7777-4777-8777-777777777777'
     const thirdMemberId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     const baseBody = {
+      requestId: UUID,
       leagueId: LEAGUE_ID,
       leagueSeasonId: '88888888-8888-4888-8888-888888888888',
       memberId: MEMBER_ID,
@@ -457,6 +480,7 @@ Deno.test({
       ['offerFaabAmount', 1_000_001, 'offerFaabAmount must be at most 1000000'],
     ] as const) {
       const response = await handleApiRoute(authedRequest('POST', '/trades/propose', {
+      requestId: UUID,
         leagueId: LEAGUE_ID,
         leagueSeasonId: baseBody.leagueSeasonId,
         memberId: MEMBER_ID,
@@ -494,6 +518,7 @@ Deno.test({
       {
         path: '/trades/propose',
         body: {
+          requestId: UUID,
           leagueId: LEAGUE_ID,
           leagueSeasonId,
           memberId: MEMBER_ID,
@@ -505,6 +530,7 @@ Deno.test({
       {
         path: '/trades/propose-multi',
         body: {
+          requestId: UUID,
           leagueId: LEAGUE_ID,
           leagueSeasonId,
           memberId: MEMBER_ID,
@@ -588,12 +614,58 @@ Deno.test({
 })
 
 Deno.test({
+  name: 'all offer routes require and forward the user request key with authenticated ownership',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    authenticatedUserId = USER_ID
+    const third = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const actions = ['propose', 'propose-multi', 'edit', 'edit-multi', 'counter', 'counter-multi']
+    for (const action of actions) {
+      const isProposal = action.startsWith('propose')
+      const path = isProposal ? `/trades/${action}` : `/trades/${UUID}/${action}`
+      const payload = {
+        memberId: MEMBER_ID, userId: OTHER_USER_ID,
+        ...(isProposal ? { leagueId: LEAGUE_ID, leagueSeasonId: DRAFT_ID, recipientMemberId: OTHER_MEMBER_ID } : {}),
+        ...(action.endsWith('-multi')
+          ? { participantMemberIds: [MEMBER_ID, OTHER_MEMBER_ID, third], items: [
+              { fromMemberId: MEMBER_ID, toMemberId: OTHER_MEMBER_ID, faabAmount: 1 },
+              { fromMemberId: MEMBER_ID, toMemberId: third, faabAmount: 1 },
+            ] }
+          : { offerFaabAmount: 1, requestFaabAmount: 1 }),
+        expiresAt: '2000-01-01T00:00:00.000Z', notes: 'Frozen terms',
+      }
+      for (const requestId of [undefined, '', 'bad-key']) {
+        const before = tradeRpcRequests.length
+        const response = await handleApiRoute(authedRequest('POST', path, { ...payload, requestId }))
+        if (response.status !== 400 || tradeRpcRequests.length !== before) {
+          throw new Error(`${action} must reject missing or malformed request keys before RPC`)
+        }
+      }
+      for (let retry = 0; retry < 2; retry++) {
+        const response = await handleApiRoute(authedRequest('POST', path, { ...payload, requestId: PLAYER_ID }))
+        if (response.status !== 200) throw new Error(`${action} failed: ${await response.text()}`)
+      }
+      const first = tradeRpcRequests.at(-2)!, second = tradeRpcRequests.at(-1)!
+      if (JSON.stringify(first) !== JSON.stringify(second) || first.p_user_id !== USER_ID ||
+          first.p_request_id !== PLAYER_ID || first.p_member_id !== MEMBER_ID || first.p_action !== action) {
+        throw new Error(`${action} changed retry terms or trusted the claimed user`)
+      }
+      const terms = first.p_payload as Record<string, unknown>
+      if (terms.expiresAt !== payload.expiresAt || terms.notes !== payload.notes ||
+          (!isProposal && terms.tradeId !== UUID)) throw new Error(`${action} changed frozen payload`)
+    }
+  },
+})
+
+Deno.test({
   name: 'trade routes leave notification delivery to the transactional outbox',
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
     pushStarted = false
     const response = await handleApiRoute(authedRequest('POST', '/trades/propose', {
+      requestId: UUID,
       leagueId: LEAGUE_ID,
       leagueSeasonId: '88888888-8888-4888-8888-888888888888',
       memberId: MEMBER_ID,

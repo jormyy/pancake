@@ -7,6 +7,7 @@ export type BracketMatchup = {
     id: string
     round: BracketRound
     weekNumber: number
+    endWeekNumber?: number
     homeId: string
     homeName: string
     homePoints: number | null
@@ -39,7 +40,7 @@ export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracke
         .from('matchups')
         .select(
             `
-            id, week_number, matchup_type, home_member_id, away_member_id, home_points, away_points, winner_member_id, is_finalized,
+            id, week_number, end_week_number, matchup_type, home_member_id, away_member_id, home_points, away_points, winner_member_id, is_finalized,
             home:league_members!matchups_home_member_id_fkey(id, team_name),
             away:league_members!matchups_away_member_id_fkey(id, team_name),
             winner:league_members!matchups_winner_member_id_fkey(id, team_name)
@@ -61,6 +62,7 @@ export async function getPlayoffBracket(leagueId: string): Promise<PlayoffBracke
         id: r.id,
         round,
         weekNumber: r.week_number,
+        endWeekNumber: r.end_week_number ?? r.week_number,
         homeId: r.home_member_id,
         homeName: r.home?.team_name ?? 'TBD',
         homePoints: r.home_points != null ? Number(r.home_points) : null,

@@ -8,6 +8,7 @@ import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflic
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { reportPickupError } from '@/lib/pickup'
 import { showAlert, showSuccess } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import type { MemberTransactionState } from '@/lib/league'
 
 /** What a pickup needs to know about its player. */
@@ -49,6 +50,7 @@ export function useQuickAdd({
     const renderedOwnerRef = useRef(ownerIdentity)
     const activeOwnerRef = useRef(ownerIdentity)
     const generationRef = useRef(0)
+    const pendingAdds = useRef(new Map<string, symbol>())
     const [stateOwnerIdentity, setStateOwnerIdentity] = useState(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
     if (renderedOwnerRef.current !== ownerIdentity) {
@@ -61,6 +63,7 @@ export function useQuickAdd({
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: onChanged })
 
     useEffect(() => {
+        activeOwnerRef.current = ownerIdentity
         generationRef.current += 1
         setStateOwnerIdentity(ownerIdentity)
         setAdding(null)
@@ -68,6 +71,12 @@ export function useQuickAdd({
         setMyRoster([])
         setDropping(null)
         setIrModal(null)
+        const reservations = pendingAdds.current
+        return () => {
+            generationRef.current += 1
+            activeOwnerRef.current = null
+            reservations.clear()
+        }
     }, [ownerIdentity])
 
     // Resolves to the roster when it has no ineligible IR players; otherwise
@@ -77,13 +86,18 @@ export function useQuickAdd({
             if (!memberId) return null
             const generation = generationRef.current
             const identity = ownerIdentity
-            const { roster, ineligible } = await loadRosterAddGate(memberId, lid, excludeRosterId)
-            if (!isCurrent(generation, identity)) return null
-            if (ineligible.length > 0) {
-                setIrModal({ ineligible, roster, pendingPlayer: player, action })
+            try {
+                const { roster, ineligible } = await loadRosterAddGate(memberId, lid, excludeRosterId)
+                if (!isCurrent(generation, identity)) return null
+                if (ineligible.length > 0) {
+                    setIrModal({ ineligible, roster, pendingPlayer: player, action })
+                    return null
+                }
+                return roster
+            } catch (error) {
+                if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
                 return null
             }
-            return roster
         },
         [memberId, ownerIdentity, isCurrent]
     )
@@ -117,7 +131,7 @@ export function useQuickAdd({
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, player)
         } finally {
-            if (isCurrent(generation, identity)) setAdding(null)
+            if (isCurrent(generation, identity)) setAdding((current) => current === player.id ? null : current)
         }
     }, [memberId, ownerIdentity, onChanged, isCurrent, report])
 
@@ -137,11 +151,22 @@ export function useQuickAdd({
     }, [irModal, addFreeAgent, explainBlock, onClaimInstead])
 
     const handleAdd = useCallback(async (player: QuickAddPlayer) => {
-        if (!memberId || !leagueId) return
+        if (!memberId || !leagueId || activeOwnerRef.current !== ownerIdentity) return
         if (explainBlock()) return
-        const roster = await checkIR(player, leagueId, 'add')
-        if (roster) await addFreeAgent(player, leagueId, roster)
-    }, [memberId, leagueId, checkIR, addFreeAgent, explainBlock])
+        if (pendingAdds.current.has(player.id)) return
+        const token = Symbol('pending-player-add')
+        const generation = generationRef.current
+        const identity = ownerIdentity
+        pendingAdds.current.set(player.id, token)
+        setAdding(player.id)
+        try {
+            const roster = await checkIR(player, leagueId, 'add')
+            if (roster) await addFreeAgent(player, leagueId, roster)
+        } finally {
+            if (pendingAdds.current.get(player.id) === token) pendingAdds.current.delete(player.id)
+            if (isCurrent(generation, identity)) setAdding((current) => current === player.id ? null : current)
+        }
+    }, [memberId, leagueId, ownerIdentity, checkIR, addFreeAgent, explainBlock, isCurrent])
 
     // A claim runs the same IR gate as an add and then hands off to the claim
     // flow, which owns the add-limit gate with fresh state.
@@ -179,12 +204,16 @@ export function useQuickAdd({
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
-        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: rp })
-        if (!isCurrent(generation, identity)) return
-        if (result.status === 'locked') {
-            showAlert('Roster locked', result.message)
-        } else {
-            await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+        try {
+            const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: rp })
+            if (!isCurrent(generation, identity)) return
+            if (result.status === 'locked') {
+                showAlert('Roster locked', result.message)
+            } else {
+                await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+            }
+        } catch (error) {
+            if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
         }
     }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent])
 
@@ -192,12 +221,16 @@ export function useQuickAdd({
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
-        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer, dropPlayer: toDrop })
-        if (!isCurrent(generation, identity)) return
-        if (result.status === 'locked') {
-            showAlert('Roster locked', result.message)
-        } else {
-            await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+        try {
+            const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer, dropPlayer: toDrop })
+            if (!isCurrent(generation, identity)) return
+            if (result.status === 'locked') {
+                showAlert('Roster locked', result.message)
+            } else {
+                await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+            }
+        } catch (error) {
+            if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
         }
     }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent])
 

@@ -72,7 +72,8 @@ SELECT
   pg_temp.oid('player-' || n),
   'Oracle',
   'Player ' || n,
-  (ARRAY['ATL', 'BOS', 'DAL', 'DEN', 'LAL', 'MIA'])[1 + n % 6],
+  -- Split rookies between a started team and an unstarted team.
+  CASE WHEN n % 12 = 7 THEN 'XTX' ELSE (ARRAY['XAT', 'BOS', 'XDA', 'XDE', 'LAL', 'XTX'])[1 + n % 6] END,
   (ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]::nba_position,
   CASE WHEN n % 6 = 1 THEN 0 ELSE 2 + n % 5 END,
   ARRAY[(ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]],
@@ -484,13 +485,13 @@ BEGIN
          ORDER BY random() LIMIT 1;
       END IF;
       IF v_roster IS NULL THEN CONTINUE; END IF;
-      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster) OR (NOT v_flag AND pg_temp.pending_drop_row(v_roster));
+      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster) OR (NOT v_flag AND pg_temp.pending_drop_row(v_roster))
+        OR EXISTS (SELECT 1 FROM roster_players rp JOIN players p ON p.id = rp.player_id WHERE rp.id = v_roster AND p.nba_team IN ('LAL', 'BOS'));
       v_sql := format('SELECT public.toggle_ir_atomic(%L, %L, %L)', v_roster, NOT v_flag, v_user);
       v_detail := CASE WHEN v_flag THEN 'activate from IR' ELSE 'move to IR' END || ' ' || left(v_roster::text, 8);
     ELSIF v_roll < 0.56 THEN
       v_op := 'toggle_taxi';
-      -- Mostly rows the taxi rule allows (already on taxi, or a drafted rookie
-      -- not on IR); a move that breaks the rule must be rejected.
+      -- Activation may succeed; every ordinary taxi entry must be rejected.
       SELECT rp.id, rp.is_on_taxi, true INTO v_roster, v_flag, v_eligible
         FROM public.roster_players rp JOIN public.players p ON p.id = rp.player_id
        WHERE rp.member_id = v_member AND rp.league_season_id = v_season
@@ -505,7 +506,8 @@ BEGIN
          ORDER BY random() LIMIT 1;
       END IF;
       IF v_roster IS NULL THEN CONTINUE; END IF;
-      v_expect_failure := NOT v_eligible OR pg_temp.reserved_row(v_roster) OR (NOT v_flag AND pg_temp.pending_drop_row(v_roster));
+      v_expect_failure := NOT v_flag OR NOT v_eligible OR pg_temp.reserved_row(v_roster) OR (NOT v_flag AND pg_temp.pending_drop_row(v_roster))
+        OR EXISTS (SELECT 1 FROM roster_players rp JOIN players p ON p.id = rp.player_id WHERE rp.id = v_roster AND p.nba_team IN ('LAL', 'BOS'));
       v_sql := format('SELECT public.toggle_taxi_atomic(%L, %L, %L)', v_roster, NOT v_flag, v_user);
       v_detail := CASE WHEN v_flag THEN 'activate from taxi' ELSE 'move to taxi' END || ' ' || left(v_roster::text, 8);
     ELSIF v_roll < 0.64 THEN

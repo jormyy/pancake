@@ -200,6 +200,21 @@ describe('release E2E contracts', () => {
     }
   })
 
+  it('binds the protected CLI credential in every Edge deployment and rollback job', async () => {
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
+    const jobs = workflow.split(/^jobs:\n/m)[1].split(/^(?= {2}[a-z0-9-]+:\n)/m)
+    const deploymentJobs = jobs.filter((job) => job.includes('supabase functions deploy'))
+    expect(deploymentJobs.map((job) => job.split(':')[0].trim()))
+      .toEqual(['deploy-edge', 'rollback-edge', 'rollback-after-promotion'])
+    for (const job of deploymentJobs) {
+      const jobSettings = job.split(/^    steps:\n/m)[0]
+      expect(jobSettings, job.split(':')[0].trim()).toMatch(/^    environment: production$/m)
+      const jobEnvironment = jobSettings.split(/^    env:\n/m)[1] ?? ''
+      expect(jobEnvironment, job.split(':')[0].trim())
+        .toMatch(/^      SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}$/m)
+    }
+  })
+
   it('provides a protected fail-closed hosted production gate', async () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-readiness.yml'), 'utf8')
     expect(workflow).toContain('environment: production')

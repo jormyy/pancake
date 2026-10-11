@@ -21,6 +21,8 @@ DECLARE
   v_taxi_slots int;
   v_auction_budget int;
   v_playoff_start_week int;
+  v_playoff_total_weeks int;
+  v_playoff_round_weeks int[];
   v_trade_deadline date;
   v_trade_deadline_set boolean := false;
   v_trade_deadline_text text;
@@ -95,11 +97,40 @@ BEGIN
     END IF;
   END IF;
 
-  IF p_settings ? 'playoff_start_week' AND jsonb_typeof(p_settings -> 'playoff_start_week') = 'number' THEN
+  IF p_settings ? 'playoff_start_week' THEN
+    IF jsonb_typeof(p_settings -> 'playoff_start_week') <> 'number'
+       OR (p_settings ->> 'playoff_start_week') !~ '^[0-9]+$' THEN
+      RAISE EXCEPTION 'Playoff start week must be a positive whole number.' USING ERRCODE = '22023';
+    END IF;
     v_playoff_start_week := (p_settings ->> 'playoff_start_week')::int;
     IF v_playoff_start_week <= 0 THEN
       RAISE EXCEPTION 'playoff_start_week must be a positive integer.'
         USING ERRCODE = '22023';
+    END IF;
+  END IF;
+
+  IF p_settings ? 'playoff_total_weeks' THEN
+    IF jsonb_typeof(p_settings -> 'playoff_total_weeks') <> 'number'
+       OR (p_settings ->> 'playoff_total_weeks') !~ '^[0-9]+$' THEN
+      RAISE EXCEPTION 'Total playoff weeks must be a positive whole number.' USING ERRCODE = '22023';
+    END IF;
+    v_playoff_total_weeks := (p_settings ->> 'playoff_total_weeks')::int;
+    IF v_playoff_total_weeks < 1 THEN
+      RAISE EXCEPTION 'Total playoff weeks must be a positive whole number.' USING ERRCODE = '22023';
+    END IF;
+  END IF;
+  IF p_settings ? 'playoff_round_weeks' THEN
+    IF jsonb_typeof(p_settings -> 'playoff_round_weeks') <> 'array' THEN
+      RAISE EXCEPTION 'Enter positive whole weeks for each playoff round.' USING ERRCODE = '22023';
+    END IF;
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_settings -> 'playoff_round_weeks') AS value
+      WHERE jsonb_typeof(value) <> 'number' OR value::text !~ '^[0-9]+$') THEN
+      RAISE EXCEPTION 'Enter positive whole weeks for each playoff round.' USING ERRCODE = '22023';
+    END IF;
+    SELECT array_agg(value::text::int ORDER BY ordinality) INTO v_playoff_round_weeks
+      FROM jsonb_array_elements(p_settings -> 'playoff_round_weeks') WITH ORDINALITY AS entry(value, ordinality);
+    IF v_playoff_round_weeks IS NULL THEN
+      RAISE EXCEPTION 'Enter positive whole weeks for each playoff round.' USING ERRCODE = '22023';
     END IF;
   END IF;
 
@@ -218,6 +249,8 @@ BEGIN
          taxi_slots = COALESCE(v_taxi_slots, taxi_slots),
          auction_budget = COALESCE(v_auction_budget, auction_budget),
          playoff_start_week = COALESCE(v_playoff_start_week, playoff_start_week),
+         playoff_total_weeks = COALESCE(v_playoff_total_weeks, playoff_total_weeks),
+         playoff_round_weeks = COALESCE(v_playoff_round_weeks, playoff_round_weeks),
          trade_deadline = CASE WHEN v_trade_deadline_set THEN v_trade_deadline ELSE trade_deadline END,
          weekly_add_limit = CASE
            WHEN v_weekly_add_unlimited IS TRUE THEN NULL

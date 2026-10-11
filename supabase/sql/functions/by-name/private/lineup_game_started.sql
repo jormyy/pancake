@@ -15,7 +15,13 @@ AS $$
       FROM players AS p
       JOIN nba_games AS g
         ON g.game_date = p_game_date
-       AND (g.home_team = p.nba_team OR g.away_team = p.nba_team)
+       AND (
+         g.home_team = p.nba_team OR g.away_team = p.nba_team
+         OR EXISTS (
+           SELECT 1 FROM player_game_stats AS stats
+            WHERE stats.player_id = p.id AND stats.game_id = g.id
+         )
+       )
      WHERE p.id = p_player_id
        AND (
          g.status IN ('InProgress', 'Final')

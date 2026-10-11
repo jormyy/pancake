@@ -2,7 +2,7 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.drop_player_atomic(p_roster_player_id uuid)
+CREATE OR REPLACE FUNCTION public.drop_player_atomic(p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -49,6 +49,12 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
+  IF p_expected_league_season_id IS NOT NULL
+     AND v_rp.league_season_id <> p_expected_league_season_id THEN
+    RAISE EXCEPTION 'The roster season has changed. Refresh before dropping a player.'
+      USING ERRCODE = 'P0001';
+  END IF;
+
   SELECT *
     INTO v_league
     FROM leagues
@@ -85,6 +91,26 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Could not drop player - you may not have permission or they are no longer on your roster.'
       USING ERRCODE = 'P0002';
+  END IF;
+
+  IF p_rookie_draft_id IS NOT NULL THEN
+    IF p_expected_league_season_id IS NULL OR NOT EXISTS (
+      SELECT 1 FROM drafts
+       WHERE id = p_rookie_draft_id
+         AND league_id = v_rp.league_id
+         AND league_season_id = v_rp.league_season_id
+         AND draft_type = 'snake' AND NOT is_mock
+         AND status IN ('in_progress', 'paused', 'completed')
+    ) THEN
+      RAISE EXCEPTION 'The draft has changed. Refresh before trimming the roster.' USING ERRCODE = 'P0001';
+    END IF;
+    IF v_rp.is_on_ir OR v_rp.is_on_taxi OR (
+      SELECT count(*) FROM roster_players
+       WHERE league_id = v_rp.league_id AND league_season_id = v_rp.league_season_id
+         AND member_id = v_rp.member_id AND NOT is_on_ir AND NOT is_on_taxi
+    ) <= v_league.roster_size THEN
+      RAISE EXCEPTION 'The active roster no longer needs this drop. Refresh the roster.' USING ERRCODE = 'P0001';
+    END IF;
   END IF;
 
   DELETE FROM roster_players

@@ -46,6 +46,7 @@ type GameRow = {
     started_at: string | null
 }
 type WeeklyLineupRow = {
+    players?: { nba_team: string | null } | null
     player_id: string
     slot_type: RosterSlotType
 }
@@ -84,12 +85,14 @@ export async function autoSetLineup(
     seasonYear: number,
     gameDate: string | null, // null = whole week
     restOfSeason?: boolean,
+    retryDates?: string[],
 ): Promise<AutoSetSeasonResult | null> {
     if (restOfSeason) {
         return apiPost<AutoSetSeasonResult>('/league/lineup/auto-set-season', {
             memberId,
             leagueId,
             leagueSeasonId: seasonId,
+            ...(retryDates ? { dates: retryDates } : {}),
         })
     }
 
@@ -143,14 +146,11 @@ export async function autoSetLineup(
         .filter((d) => d >= today)
         .map((d) => ({ date: d, weekNumber }))
 
-    // Each date's writes target a distinct game_date and use only read-only inputs
-    // (players, starterTemplates) — safe to parallelize. Chunk to bound concurrent
-    // Supabase requests; Promise.all still rejects on first failure, preserving
-    // the original throw semantics of the serial for-loop.
+    // Wait for every started write before releasing the UI to manual edits.
     const CHUNK = 5
     for (let i = 0; i < datesToProcess.length; i += CHUNK) {
         const chunk = datesToProcess.slice(i, i + CHUNK)
-        await Promise.all(
+        const results = await Promise.allSettled(
             chunk.map(({ date, weekNumber: wn }) =>
                 autoSetForDate(
                     memberId, leagueId, seasonId, wn, seasonYear,
@@ -158,6 +158,8 @@ export async function autoSetLineup(
                 ),
             ),
         )
+        const failure = results.find((result) => result.status === 'rejected')
+        if (failure?.status === 'rejected') throw failure.reason
     }
     return null
 }
@@ -187,7 +189,7 @@ async function autoSetForDate(
             .eq('game_date', gameDate),
         supabase
             .from('weekly_lineups')
-            .select('player_id, slot_type')
+            .select('player_id, slot_type, players(nba_team)')
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId)
@@ -235,7 +237,7 @@ async function autoSetForDate(
             .map((player) => player.playerId),
     )
     for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
-        const team = playerTeamMap.get(entry.player_id)
+        const team = entry.players?.nba_team ?? playerTeamMap.get(entry.player_id)
         if (team && startedTeams.has(team)) {
             lockedPlayerIds.add(entry.player_id)
             const isStarter = entry.slot_type !== 'BE' && entry.slot_type !== 'IR'

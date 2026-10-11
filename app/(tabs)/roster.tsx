@@ -15,7 +15,7 @@ import * as Haptics from 'expo-haptics'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
-import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
+import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible,  RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
@@ -154,7 +154,6 @@ function RosterTablePlayerItem({
     avgFpts,
     stats,
     isBusy,
-    taxiSlotsAvailable,
     onPress,
     onLongPress,
     onToggleIR,
@@ -178,7 +177,6 @@ function RosterTablePlayerItem({
           : []
     const slot = section === 'ir' ? 'IR' : section === 'taxi' ? 'TX' : positions[0] ?? 'BE'
     const canIR = item.is_on_ir || isIREligible(item.players.injury_status)
-    const canTaxi = !item.is_on_ir && !item.is_on_taxi && taxiSlotsAvailable && isTaxiEligible(item.players)
 
     return (
         <View style={styles.rosterTableRow}>
@@ -236,12 +234,6 @@ function RosterTablePlayerItem({
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
                         accessibilityState={{ disabled: isBusy }}>
                         <Text style={styles.tableActionText}>{item.is_on_ir ? 'Activate' : 'IR'}</Text>
-                    </Pressable>
-                ) : canTaxi ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}
-                        accessibilityRole="button" accessibilityLabel={`Move ${item.players.display_name} to taxi`}
-                        accessibilityState={{ disabled: isBusy }}>
-                        <Text style={styles.tableActionText}>Taxi</Text>
                     </Pressable>
                 ) : null}
                 <Pressable
@@ -325,9 +317,13 @@ export default function RosterScreen() {
         ])
         const { avgMap, avgStatsMap } = await getRosterStatsMaps(roster.map((r) => r.players.id), leagueId)
         const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority }
-        writeRosterCache(current.id, leagueId, result)
         return result
-    }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined, staleMs: 300_000 })
+    }, [current?.id, user?.id, leagueId], {
+        initialData: cachedRosterData ?? undefined, staleMs: 300_000,
+        onLoaded: (result) => {
+            if (current?.id && leagueId && result) writeRosterCache(current.id, leagueId, result)
+        },
+    })
 
     useEffect(() => {
         if (!current?.id || !leagueId) return
@@ -355,6 +351,7 @@ export default function RosterScreen() {
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
     const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])
     const claims = useMemo(() => data?.claims ?? EMPTY_CLAIMS, [data?.claims])
+    const pendingClaimCount = claims.filter((claim) => claim.status === 'pending').length
     const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
     const avgStatsMap = useMemo(() => data?.avgStatsMap ?? EMPTY_STATS_MAP, [data?.avgStatsMap])
     const waiverPriority = data?.waiverPriority ?? null
@@ -488,32 +485,15 @@ export default function RosterScreen() {
             return
         }
 
-        const taxiSlots = currentLeague?.taxi_slots ?? 3
+        if (!item.is_on_taxi) return
         const activeSlots = currentLeague?.roster_size ?? 20
-        const name = item.players.display_name
-
-        if (!item.is_on_taxi) {
-            if (!isTaxiEligible(item.players)) {
-                showAlert('Not Eligible', 'Only rookies (NBA draft picks) can be placed on the taxi squad.')
-                return
-            }
-            const currentTaxi = roster.filter((p) => p.is_on_taxi).length
-            if (currentTaxi >= taxiSlots) {
-                showAlert('Taxi Full', `You only have ${countLabel(taxiSlots, 'taxi squad slot')}.`)
-                return
-            }
-        } else {
-            const activeCount = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi).length
-            if (activeCount >= activeSlots) {
-                showAlert('Roster Full', `Your active roster is full (${activeSlots} players).`)
-                return
-            }
+        const activeCount = roster.filter((p) => !p.is_on_ir && !p.is_on_taxi).length
+        if (activeCount >= activeSlots) {
+            showAlert('Roster Full', `Your active roster is full (${activeSlots} players).`)
+            return
         }
-
-        const title = item.is_on_taxi ? 'Activate from Taxi?' : 'Move to Taxi Squad?'
-        const message = item.is_on_taxi
-            ? `Move ${name} to your active roster?`
-            : `Move ${name} to the taxi squad?`
+        const title = 'Activate from Taxi?'
+        const message = `Move ${item.players.display_name} to your active roster? They cannot return to your team’s taxi, even after reacquisition or a season change. Another team can still acquire them into taxi if eligible.`
 
         confirmAction(title, message, async () => {
             if (!isCurrentAction(generation, identity)) return
@@ -521,7 +501,7 @@ export default function RosterScreen() {
                 if (!isCurrentAction(generation, identity)) return
                 setTaxiingId(item.id)
                 try {
-                    await toggleTaxi(item.id, !item.is_on_taxi)
+                    await toggleTaxi(item.id, false)
                     if (isCurrentAction(generation, identity)) await load()
                 } catch (e) {
                     if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
@@ -626,7 +606,6 @@ export default function RosterScreen() {
             await editWaiverClaim(claim.id, current.id, {
                 dropPlayerId: claim.dropPlayerId,
                 bidAmount,
-                claimOrder: claim.claimOrder,
             })
             if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
@@ -689,9 +668,6 @@ export default function RosterScreen() {
                     onPress: run(() => { void handleToggleIR(item) }),
                 })
             }
-            if (!item.is_on_ir && taxi.length < taxiSlots && isTaxiEligible(item.players)) {
-                actions.push({ key: 'taxi', label: 'Move to taxi squad', icon: 'airport-shuttle', onPress: run(() => { void handleToggleTaxi(item) }) })
-            }
         }
         if (!isTradingClosed(currentLeague)) {
             actions.push({ key: 'trade', label: 'Propose a trade', icon: 'swap-horiz', onPress: run(() => push('/(modals)/propose-trade')) })
@@ -706,7 +682,7 @@ export default function RosterScreen() {
             onPress: run(() => handleDropPrompt(item)),
         })
         return actions
-    }, [sheetPlayer, online, push, rosterOverflow, taxi.length, taxiSlots, currentLeague, handleToggleIR, handleToggleTaxi, handleDropPrompt])
+    }, [sheetPlayer, online, push, rosterOverflow, currentLeague, handleToggleIR, handleToggleTaxi, handleDropPrompt])
 
     const renderRosterContent = useCallback((item: RosterListItem) => {
         if (item._isHeader) {
@@ -894,15 +870,15 @@ export default function RosterScreen() {
                         <Text style={styles.summaryText}>
                             {active.length}/{rosterSize} active · {ir.length}/{irSlots} IR · {taxi.length}/{taxiSlots} taxi
                         </Text>
-                        {claims.length > 0 && !twoPane ? (
+                        {pendingClaimCount > 0 && !twoPane ? (
                             <Pressable
                                 style={styles.claimsChip}
                                 onPress={scrollToClaims}
                                 accessibilityRole="button"
-                                accessibilityLabel={`${claims.length} waiver claim${claims.length === 1 ? '' : 's'} pending, jump to claims`}
+                                accessibilityLabel={`${pendingClaimCount} waiver claim${pendingClaimCount === 1 ? '' : 's'} pending, jump to claims`}
                             >
                                 <Text style={styles.claimsChipText}>
-                                    {claims.length} claim{claims.length === 1 ? '' : 's'} pending
+                                    {pendingClaimCount} claim{pendingClaimCount === 1 ? '' : 's'} pending
                                 </Text>
                             </Pressable>
                         ) : null}
@@ -928,12 +904,10 @@ export default function RosterScreen() {
                 players={active}
                 excess={rosterOverflow}
                 irAvailable={ir.length < irSlots}
-                taxiAvailable={taxi.length < taxiSlots}
                 busyId={trimBusyId}
                 onDrop={handleDropPrompt}
                 dropDisabled={!online}
                 onMoveToIR={(player) => { void handleToggleIR(player) }}
-                onMoveToTaxi={(player) => { void handleToggleTaxi(player) }}
             />
 
             {roster.length === 0 ? (

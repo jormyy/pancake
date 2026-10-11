@@ -7,7 +7,7 @@ const assert = (condition: unknown, message: string): void => {
 }
 
 const KEYS: VapidKeys = { publicKey: 'pub', privateKey: 'priv', subject: 'mailto:ops@pancake.test' }
-const sub = (userId: string, endpoint: string) => ({ user_id: userId, endpoint, p256dh: 'p', auth: 'a' })
+const sub = (userId: string, endpoint: string) => ({ user_id: userId, endpoint, p256dh: 'p', auth: 'a', updated_at: '2026-01-01T00:00:00Z' })
 const message = (userId: string, overrides: Partial<WebPushFanoutMessage> = {}): WebPushFanoutMessage => ({
   userId,
   title: 'Trade accepted',
@@ -26,7 +26,7 @@ Deno.test('web push fanout delivers to every subscription and prunes gone endpoi
       error: null,
     }),
     prune: async (endpoints) => {
-      pruned = endpoints
+      pruned = endpoints.map((entry) => entry.endpoint)
       return { error: null }
     },
     send: async (subscription: WebPushSubscription, payload, _keys, options): Promise<WebPushResult> => {
@@ -40,7 +40,7 @@ Deno.test('web push fanout delivers to every subscription and prunes gone endpoi
   assert(sent.length === 3, `expected 3 sends, got ${sent.length}`)
   assert(pruned.length === 1 && pruned[0] === 'https://a2', 'gone endpoint was not pruned')
   assert(sent.find((entry) => entry.endpoint === 'https://b1')?.urgency === 'high', 'draft pushes should be high urgency')
-  assert((sent[0].payload as { url: string }).url === '/trades', 'trade push should open the trades tab')
+  assert((sent[0].payload as { url: string }).url === '/', 'browser push should open the current account home')
 })
 
 Deno.test('web push fanout is a no-op without VAPID keys and never throws', async () => {
@@ -73,10 +73,9 @@ Deno.test('web push fanout is a no-op without VAPID keys and never throws', asyn
   assert(contained.sent === 0 && contained.failed === 1, 'throwing sender should be contained and counted')
 })
 
-Deno.test('web push payload maps categories to in-app routes', () => {
-  assert(webPushPayload(message('u', { category: 'waiver' })).url === '/roster', 'waiver url')
-  assert(webPushPayload(message('u', { category: 'draft' })).url === '/draft-room', 'draft url')
-  assert(webPushPayload(message('u', { category: 'activity' })).url === '/', 'activity url')
+Deno.test('web push payload contains only generic public text and a home target', () => {
+  const payload = webPushPayload()
+  assert(JSON.stringify(payload) === JSON.stringify({ title: 'Pancake', body: 'Open Pancake to check for updates.', url: '/' }), 'unexpected private or unrecognized payload fields')
 })
 
 const preferences = { trade_enabled: true, waiver_enabled: false, draft_enabled: true, activity_enabled: true }
@@ -150,4 +149,18 @@ Deno.test('notifyMembers still awaits web push when Expo delivery throws', async
   }
   assert(threw, 'Expo failure should still propagate for outbox retry')
   assert(finished, 'web push was abandoned when Expo failed')
+})
+
+Deno.test('web push delivery excludes account details from provider payloads', async () => {
+  const payloads: unknown[] = []
+  const fanout = createWebPushFanout({
+    vapid: () => KEYS,
+    subscriptions: async () => ({ data: [sub('user-a', 'https://a1')], error: null }),
+    prune: async () => ({ error: null }),
+    send: async (_subscription, payload) => { payloads.push(payload); return { outcome: 'sent' } },
+  })
+  await fanout([message('user-a', { title: 'Secret title', body: 'Secret player', data: { tradeId: 'private-trade' } })])
+  const encoded = JSON.stringify(payloads)
+  assert(!encoded.includes('Secret') && !encoded.includes('private-trade') && !encoded.includes('user-a'), 'provider receives account details')
+  assert(payloads.length === 1 && (payloads[0] as { url: string }).url === '/', 'generic notification must open the current account home')
 })

@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
           return Response.json({ ok: true, jobId, retryBefore: run.retryBefore })
         }
         handedOff = await runChunk(run, offset)
-        if (!handedOff && run.retryBefore) await endBackfillRetry(run, job.metadata)
+        if (!handedOff && run.retryBefore) await endBackfillRetry(run)
       } finally {
         if (!handedOff) await releaseBackfillJob(jobId, claimToken)
       }

@@ -112,7 +112,7 @@ export default function HomeScreen() {
         selected, setSelected, saving, autoSetting,
         autoSetModalVisible, setAutoSetModalVisible,
         activationOverflowPending, setActivationOverflowPending, activationOverflowSaving,
-        handleTap, handleOverflowDrop, handleOverflowMoveToIR, handleOverflowMoveToTaxi,
+        handleTap, handleOverflowDrop, handleOverflowMoveToIR,
         doAutoSet, handleAutoSet,
     } = useLineupActions({ actionContext, myLineup, league, selectedDate, startedTeams, reloadLineup: reloadLineupForActions })
 
@@ -252,7 +252,7 @@ export default function HomeScreen() {
                             selected={selected}
                             getTargetState={getTargetState}
                             onTap={handleTap}
-                            saving={saving}
+                            saving={saving || autoSetting}
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
@@ -268,7 +268,7 @@ export default function HomeScreen() {
                             compact={narrow}
                             dense={dense}
                             daySelector={weekDays.length > 0 ? (
-                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
+                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
                             ) : null}
                             autoSetControl={
                                 <MotionPressable
@@ -301,13 +301,13 @@ export default function HomeScreen() {
                     ) : matchupLoading || lineupLoading ? (
                         <MatchupLineupLoadingState
                             daySelector={weekDays.length > 0 ? (
-                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
+                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
                             ) : null}
                         />
                     ) : (
                         <>
                             {weekDays.length > 0 && (
-                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
+                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
                             )}
                             {lineupError ? (
                                 <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} />
@@ -377,11 +377,9 @@ export default function HomeScreen() {
             <ActivationOverflowModal
                 pending={activationOverflowPending}
                 myLineup={myLineup}
-                leagueTaxiSlots={league?.taxi_slots ?? 0}
                 saving={activationOverflowSaving}
                 onDrop={handleOverflowDrop}
                 onMoveToIR={handleOverflowMoveToIR}
-                onMoveToTaxi={handleOverflowMoveToTaxi}
                 onCancel={() => setActivationOverflowPending(null)}
             />
 

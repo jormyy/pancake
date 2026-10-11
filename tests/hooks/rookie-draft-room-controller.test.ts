@@ -6,6 +6,7 @@ import type { RookieDraftState } from '@/lib/rookieDraft'
 
 const mocks = vi.hoisted(() => ({
     activate: vi.fn(),
+    drop: vi.fn(),
     appStateListener: vi.fn(),
     getRevision: vi.fn(),
     getRoster: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock('@/lib/rookieDraft', () => ({
     subscribeToRookieDraft: mocks.subscribe,
     unsubscribeFromRookieDraft: mocks.unsubscribe,
 }))
-vi.mock('@/lib/roster', () => ({ dropPlayer: vi.fn(), getRoster: mocks.getRoster, toggleTaxi: vi.fn() }))
+vi.mock('@/lib/roster', () => ({ dropPlayer: mocks.drop, getRoster: mocks.getRoster, toggleTaxi: vi.fn() }))
 vi.mock('@/lib/roster-locks', () => ({ getRosterStatusChangeLockMessage: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
@@ -45,7 +46,7 @@ vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error insta
 
 const draftState = (id: string, status = 'in_progress'): RookieDraftState => ({
     draft: {
-        id, leagueId: 'league', status, isMock: false, pickTimerSeconds: 60,
+        id, leagueId: 'league', leagueSeasonId: 'draft-season', isCurrentSeason: true, status, isMock: false, pickTimerSeconds: 60,
         timerExpiryBehavior: 'auto_pick', rounds: 3, startedAt: null, completedAt: null,
         pauseReason: null, pausedAt: null, pausedRemainingSeconds: null,
     },
@@ -54,8 +55,9 @@ const draftState = (id: string, status = 'in_progress'): RookieDraftState => ({
 
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
-    const promise = new Promise<Value>((done) => { resolve = done })
-    return { promise, resolve }
+    let reject!: (reason: Error) => void
+    const promise = new Promise<Value>((done, fail) => { resolve = done; reject = fail })
+    return { promise, resolve, reject }
 }
 
 beforeEach(() => {
@@ -64,10 +66,251 @@ beforeEach(() => {
     mocks.getRevision.mockResolvedValue('stable')
     mocks.getRoster.mockResolvedValue([])
     mocks.activate.mockResolvedValue(true)
+    mocks.drop.mockResolvedValue(undefined)
     mocks.subscribe.mockReturnValue({})
 })
 
 describe('useRookieDraftRoomController', () => {
+    it('keeps a completed historical room read-only while the current room can trim', async () => {
+        let current = false
+        mocks.getState.mockImplementation(() => Promise.resolve({ ...draftState('draft', 'completed'), draft: {
+            ...draftState('draft', 'completed').draft, leagueSeasonId: 'draft-season', isCurrentSeason: current,
+        } }))
+        mocks.getRoster.mockResolvedValue([{ id: 'current-veteran', is_on_ir: false, is_on_taxi: false },
+            { id: 'current-rookie', is_on_ir: false, is_on_taxi: false }])
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        expect(latest.state?.draft.id).toBe('draft')
+        expect(latest.trimOverflow).toBeNull()
+        expect(mocks.getRoster).not.toHaveBeenCalled()
+        await act(async () => { await latest.handleTrimDrop('current-veteran'); await latest.resolveByDrop('current-veteran') })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        current = true
+        await act(async () => { await latest.refresh() })
+        expect(latest.trimOverflow?.excess).toBe(1)
+        await act(async () => { await latest.handleTrimDrop('current-veteran') })
+        expect(mocks.drop).toHaveBeenCalledWith('current-veteran', 'draft-season', 'draft')
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('removes completion actions when the same draft is reset, then checks its next completion', async () => {
+        let status = 'completed'
+        mocks.getState.mockImplementation(() => Promise.resolve(draftState('draft', status)))
+        mocks.getRoster.mockResolvedValue([{ id: 'veteran', is_on_ir: false, is_on_taxi: false },
+            { id: 'rookie', is_on_ir: false, is_on_taxi: false }])
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        expect(latest.trimOverflow?.excess).toBe(1)
+        const previousTrim = latest.handleTrimDrop
+        status = 'in_progress'
+        mocks.getRoster.mockResolvedValue([{ id: 'veteran', is_on_ir: false, is_on_taxi: false }])
+        await act(async () => { await latest.refresh() })
+        expect(latest.trimOverflow).toBeNull()
+        await act(async () => { await previousTrim('veteran'); await latest.handleTrimDrop('veteran') })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        status = 'completed'
+        await act(async () => { mocks.appStateListener('background'); mocks.appStateListener('active') })
+        expect(mocks.activate).toHaveBeenCalledWith('draft')
+        await act(async () => { renderer.unmount() })
+    })
+    it('discards a completed roster read that finishes after same-draft reset', async () => {
+        const roster = deferred<any[]>()
+        let status = 'completed'
+        mocks.getState.mockImplementation(() => Promise.resolve(draftState('draft', status)))
+        mocks.getRoster.mockReturnValue(roster.promise)
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        status = 'in_progress'
+        await act(async () => { await latest.refresh() })
+        await act(async () => { roster.resolve([]); await roster.promise })
+        expect(mocks.activate).not.toHaveBeenCalled()
+        expect(latest.trimOverflow).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+    it('discards roster completion and old drop callbacks when its season retires', async () => {
+        const pending = deferred<any[]>()
+        let isCurrentSeason = true
+        mocks.getState.mockImplementation(() => Promise.resolve({ ...draftState('draft', 'completed'), draft: {
+            ...draftState('draft', 'completed').draft, isCurrentSeason,
+        } }))
+        mocks.getRoster.mockReturnValue(pending.promise)
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        const oldDrop = latest.handleTrimDrop
+        expect(mocks.getRoster).toHaveBeenCalledWith('member', 'league', 'draft-season')
+        isCurrentSeason = false
+        await act(async () => { await latest.refresh() })
+        await act(async () => { pending.resolve([{ id: 'a' }, { id: 'b' }]); await pending.promise; await oldDrop('a') })
+        expect(latest.trimOverflow).toBeNull()
+        expect(mocks.activate).not.toHaveBeenCalled()
+        expect(mocks.drop).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+    it('clears a stale trim list when the read after a successful drop fails', async () => {
+        const roster = ['a', 'b', 'c'].map((id) => ({ id, is_on_ir: false, is_on_taxi: false }))
+        mocks.getState.mockImplementation(() => Promise.resolve(draftState('draft', 'completed')))
+        mocks.getRoster.mockResolvedValueOnce(roster).mockRejectedValue(new Error('read failed'))
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 2 })
+            return null
+        })) })
+        expect(latest.trimOverflow?.excess).toBe(1)
+        await act(async () => { await latest.handleTrimDrop('a') })
+        expect(mocks.drop).toHaveBeenCalledTimes(1)
+        expect(latest.trimOverflow).toBeNull()
+        const recoveryMessage = 'Player dropped. Refresh the roster before making another change.'
+        expect(latest.completionError).toBe(recoveryMessage)
+        await act(async () => {
+            mocks.appStateListener('background')
+            mocks.appStateListener('active')
+        })
+        expect(latest.completionError).toBe(recoveryMessage)
+        expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+        expect(mocks.drop).toHaveBeenCalledTimes(1)
+        mocks.getRoster.mockResolvedValue(roster.slice(1))
+        await act(async () => { await latest.refresh() })
+        expect(mocks.getRoster).toHaveBeenCalledTimes(3)
+        expect(latest.trimOverflow).toBeNull()
+        expect(mocks.activate).toHaveBeenCalledWith('draft')
+        await act(async () => { renderer.unmount() })
+    })
+    it('requires a fresh roster after a lost drop reply before another trim action', async () => {
+        const roster = ['a', 'b'].map((id) => ({ id, is_on_ir: false, is_on_taxi: false }))
+        mocks.getState.mockImplementation(async () => draftState('draft', 'completed'))
+        mocks.getRoster.mockImplementation(async () => [...roster])
+        mocks.drop.mockImplementationOnce(async () => {
+            roster.shift()
+            throw new Error('Reply lost after commit')
+        })
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        expect(latest.trimOverflow?.excess).toBe(1)
+        await act(async () => { await latest.handleTrimDrop('a') })
+        expect(latest.trimOverflow).toBeNull()
+        expect(latest.completionError).toBe('Could not confirm the drop. Refresh the roster before making another change.')
+        await act(async () => { await latest.handleTrimDrop('b') })
+        expect(mocks.drop).toHaveBeenCalledTimes(1)
+        await act(async () => { await latest.refresh() })
+        expect(latest.trimOverflow).toBeNull()
+        expect(latest.completionError).toBeNull()
+        expect(mocks.activate).toHaveBeenCalledWith('draft')
+        await act(async () => { renderer.unmount() })
+    })
+    it('refreshes filtered prospects on a changed HTTP revision and retries failed reads', async () => {
+        vi.useFakeTimers()
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const players = ['a', 'b'].map((id) => ({ id, display_name: id, nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 }))
+        const board = draftState('draft')
+        mocks.getState.mockImplementation(async () => ({ ...board }))
+        mocks.getPlayers.mockResolvedValue(players)
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+                return null
+            })) })
+            await act(async () => { latest.setQuery('Rookie'); await vi.advanceTimersByTimeAsync(300) })
+            await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+            expect(latest.prospects.map(p => p.id)).toEqual(['a', 'b'])
+            const before = mocks.getPlayers.mock.calls.length
+            board.picks = [{ overallPick: 1, round: 1, pickInRound: 1, memberId: 'other', teamName: 'Other', pickedAt: 'now',
+                skippedAt: null, skipReason: null, timerExpiresAt: null,
+                player: { id: 'a', displayName: 'a', nbaTeam: null, position: 'PG', nbaId: null } }]
+            mocks.getRevision.mockResolvedValue('picked-a')
+            mocks.getPlayers.mockRejectedValueOnce(new Error('Prospects unavailable')).mockResolvedValue([players[1]])
+            await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+            expect(mocks.getPlayers.mock.calls.length).toBe(before + 1)
+            expect(latest.prospects.map(p => p.id)).toEqual(['b'])
+            await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+            expect(mocks.getPlayers.mock.calls.length).toBe(before + 2)
+            expect(mocks.getPlayers).toHaveBeenLastCalledWith('draft', 'Rookie')
+            await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+            expect(mocks.getPlayers.mock.calls.length).toBe(before + 2)
+            expect(latest.prospects.map(p => p.id)).toEqual(['b'])
+        } finally {
+            await act(async () => { renderer?.unmount() })
+            vi.useRealTimers()
+            consoleError.mockRestore()
+        }
+    })
+    it('never checks or drops another selected league roster from this draft', async () => {
+        mocks.getState.mockImplementation(() => Promise.resolve(draftState('draft', 'completed')))
+        mocks.getRoster.mockResolvedValue([{ id: 'other-roster', is_on_ir: false, is_on_taxi: false }])
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'other-member', leagueId: 'other-league', rosterSize: 0 })
+            return null
+        })) })
+        expect(mocks.getRoster).not.toHaveBeenCalled()
+        expect(latest.trimOverflow).toBeNull()
+        await act(async () => { await latest.handleTrimDrop('other-roster') })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+    it('never reads or trims the real roster when a mock completes', async () => {
+        const completed = draftState('mock', 'completed')
+        completed.draft.isMock = true
+        mocks.getState.mockResolvedValue(completed)
+        mocks.getRoster.mockResolvedValue([{ id: 'real-player', is_on_ir: false, is_on_taxi: false }])
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'mock', memberId: 'member', leagueId: 'league', rosterSize: 0 })
+                return null
+            }))
+        })
+        expect(mocks.getRoster).not.toHaveBeenCalled()
+        expect(mocks.activate).not.toHaveBeenCalled()
+        expect(latest.trimOverflow).toBeNull()
+        await act(async () => {
+            await latest.handleTrimDrop('real-player')
+            await latest.resolveByDrop('real-player')
+        })
+        expect(mocks.drop).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+    it('retries a failed completed-roster check after refresh', async () => {
+        mocks.getState.mockImplementation(() => Promise.resolve(draftState('a', 'completed')))
+        mocks.getRoster.mockRejectedValueOnce(new Error('roster unavailable')).mockResolvedValue([])
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'a', memberId: 'member', leagueId: 'league', rosterSize: 20 })
+                return null
+            }))
+        })
+        expect(mocks.activate).not.toHaveBeenCalled()
+        await act(async () => { await latest.refresh() })
+        expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+        expect(mocks.activate).toHaveBeenCalledWith('a')
+        await act(async () => { renderer.unmount() })
+    })
     it('gates the previous board on the first render after the draft changes', async () => {
         const second = deferred<RookieDraftState | null>()
         mocks.getState.mockImplementation((id: string) => id === 'a' ? Promise.resolve(draftState('a')) : second.promise)
@@ -111,10 +354,10 @@ describe('useRookieDraftRoomController', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('uses a foreground-only revision poll and reloads the board only on change', async () => {
+    it('binds the first revision to a board read, then skips unchanged and background polls', async () => {
         vi.useFakeTimers()
         mocks.getState.mockResolvedValue(draftState('a'))
-        mocks.getRevision.mockResolvedValueOnce('same').mockResolvedValueOnce('changed')
+        mocks.getRevision.mockResolvedValueOnce('same').mockResolvedValueOnce('same').mockResolvedValueOnce('changed')
         let renderer!: ReactTestRenderer
         await act(async () => {
             renderer = create(React.createElement(() => {
@@ -127,13 +370,15 @@ describe('useRookieDraftRoomController', () => {
 
         await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
         expect(mocks.getRevision).toHaveBeenCalledTimes(1)
-        expect(mocks.getState).toHaveBeenCalledTimes(1)
+        expect(mocks.getState).toHaveBeenCalledTimes(2)
         await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
         expect(mocks.getState).toHaveBeenCalledTimes(2)
+        await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+        expect(mocks.getState).toHaveBeenCalledTimes(3)
 
         mocks.appStateListener('background')
         await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-        expect(mocks.getRevision).toHaveBeenCalledTimes(2)
+        expect(mocks.getRevision).toHaveBeenCalledTimes(3)
         await act(async () => { renderer.unmount() })
         vi.useRealTimers()
     })
@@ -165,5 +410,98 @@ describe('useRookieDraftRoomController', () => {
         expect(latest.picking).toBe(false)
         expect(mocks.getRoster).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
+    })
+})
+
+
+describe('annual draft overflow completion', () => {
+    it('uses one final trim and removes it after the actual remaining roster fits', async () => {
+        const roster = [
+            { id: 'old-roster', is_on_ir: false, is_on_taxi: false, players: { id: 'old', display_name: 'Old' } },
+            { id: 'new-roster', is_on_ir: false, is_on_taxi: false, players: { id: 'rookie', display_name: 'Rookie' } },
+        ]
+        mocks.getState.mockResolvedValue(draftState('annual'))
+        mocks.getRoster.mockImplementation(async () => [...roster])
+        mocks.drop.mockImplementation(async (id: string) => { roster.splice(roster.findIndex((r) => r.id === id), 1) })
+        mocks.makePick.mockImplementation(async () => {
+            mocks.getState.mockResolvedValue(draftState('annual', 'completed'))
+            return { rosterOverflow: true, taxiSlotsAvailable: false }
+        })
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'annual', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+                return null
+            }))
+        })
+        await act(async () => {
+            await latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 })
+        })
+        expect(latest.trimOverflow?.excess).toBe(1)
+        expect(latest.rosterOverflow).toBeNull()
+        await act(async () => { await latest.handleTrimDrop('old-roster') })
+        expect(mocks.drop).toHaveBeenCalledWith('old-roster', 'draft-season', 'annual')
+        expect(latest.trimOverflow).toBeNull()
+        expect(latest.rosterOverflow).toBeNull()
+        expect(latest.rosterForDrop).toEqual([])
+        expect(mocks.activate).toHaveBeenCalledWith('annual')
+        await act(async () => { renderer.unmount() })
+    })
+})
+
+
+describe('annual draft late roster lookup', () => {
+    it('discards an old rejected roster lookup after changing drafts', async () => {
+        const roster = deferred<never[]>()
+        mocks.getState.mockImplementation(async (id: string) => draftState(id))
+        mocks.getRoster.mockReturnValue(roster.promise)
+        mocks.makePick.mockResolvedValue({ rosterOverflow: true, taxiSlotsAvailable: false })
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        const Probe = ({ draftId }: { draftId: string }) => {
+            latest = useRookieDraftRoomController({ draftId, memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'old' })) })
+        let pending!: Promise<void>
+        await act(async () => {
+            pending = latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 })
+        })
+        expect(mocks.getRoster).toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'new' })) })
+        await act(async () => { roster.reject(new Error('Old roster failed')); await pending })
+        expect(latest.state?.draft.id).toBe('new')
+        expect(latest.rosterOverflow).toBeNull()
+        expect(latest.rosterForDrop).toEqual([])
+        await act(async () => { renderer.unmount() })
+        consoleError.mockRestore()
+    })
+})
+
+
+describe('annual draft roster read recovery', () => {
+    it('keeps navigation available and explains recovery when an acquired roster cannot load', async () => {
+        mocks.getState.mockResolvedValue(draftState('annual'))
+        mocks.getRoster.mockRejectedValue(new Error('Roster unavailable'))
+        mocks.makePick.mockResolvedValue({ rosterOverflow: true, taxiSlotsAvailable: false })
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(() => {
+                latest = useRookieDraftRoomController({ draftId: 'annual', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+                return null
+            }))
+        })
+        await act(async () => {
+            await latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 })
+        })
+        expect(latest.rosterOverflow).toBeNull()
+        expect(latest.pickError).toBe('Player drafted, but roster details could not load. Open Roster to resolve any overflow.')
+        expect(latest.picking).toBe(false)
+        await act(async () => { renderer.unmount() })
+        consoleError.mockRestore()
     })
 })

@@ -1,3 +1,5 @@
+import { assertGameUnambiguous } from './gameIdentity.ts'
+import { saveGameStats } from './syncStats.ts'
 import { supabase } from './supabase.ts'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, sleep } from './bbref.ts'
 import { errorMessage } from './responses.ts'
@@ -7,6 +9,8 @@ import {
   failBackfillJob,
   invokeBackfill,
   loadBackfillRetryGameKeys,
+  loadClaimedBackfillMetadata,
+  updateClaimedBackfillMetadata,
   loadBackfillTerminalGameKeys,
   markBackfillGameCompleted,
   markBackfillGameFailed,
@@ -45,21 +49,24 @@ export async function runBBRefChunk(run: BackfillRun, offset: number): Promise<b
   const { jobId, seasonYear } = run
   const resolver = await loadNamePlayerResolver()
 
-  // An explicit retry reuses the season already initialized by this job.
-  if (offset === 0 && !run.retryBefore) {
-    const initialized = await initializeBBRefSeason(seasonYear, jobId)
-    if (!initialized) return false
+  const metadata = await loadClaimedBackfillMetadata(run)
+  const needsInitialization = metadata.phase !== 'boxscores'
+  if (needsInitialization && offset !== 0) throw new Error('BBRef schedule initialization requires offset zero.')
+  if (offset === 0 && (!run.retryBefore || needsInitialization)) {
+    await initializeBBRefSeason(run)
   }
 
   const dbGames = await loadSeasonGames(seasonYear)
   const dbGameMap = new Map(dbGames.map((game) => [game.nba_game_id, game]))
-  const skip = run.retryBefore ? null : await loadBackfillTerminalGameKeys(jobId, 'bbref')
+  const terminal = await loadBackfillTerminalGameKeys(jobId, 'bbref')
   const retry = run.retryBefore ? await loadBackfillRetryGameKeys(run) : null
   const pendingGameIds = dbGames
     .map((game) => game.nba_game_id)
-    .filter((id) => dbGameMap.has(id) && (retry ? retry.has(id) : !skip!.has(id)))
+    .filter((id) => !terminal.has(id) || Boolean(retry?.has(id)))
 
-  if (offset === 0 && !run.retryBefore) await updateBackfillJob(jobId, { total_items: pendingGameIds.length })
+  if (offset === 0) {
+    await updateBackfillJob(jobId, { total_items: dbGames.length })
+  }
 
   const chunkGameIds = pendingGameIds.slice(0, BBREF_CHUNK)
   if (!chunkGameIds.length) {
@@ -104,7 +111,8 @@ export async function runBBRefChunk(run: BackfillRun, offset: number): Promise<b
   return !isDone
 }
 
-async function initializeBBRefSeason(seasonYear: number, jobId: string): Promise<boolean> {
+async function initializeBBRefSeason(run: BackfillRun): Promise<void> {
+  const { seasonYear, jobId } = run
   console.log(`[backfill/bbref] Scraping schedule for ${seasonYear}...`)
   const scheduleGames = await fetchBBRefSchedule(seasonYear)
 
@@ -114,26 +122,16 @@ async function initializeBBRefSeason(seasonYear: number, jobId: string): Promise
 
   const gameRecords = buildGameRecords(scheduleGames, seasonYear)
 
-  for (let i = 0; i < gameRecords.length; i += 500) {
-    const chunk = gameRecords.slice(i, i + 500)
-    await mustSupabase(
-      'upsert BBRef schedule games',
-      supabase.from('nba_games').upsert(chunk, { onConflict: 'nba_game_id' }),
-    )
-  }
-
-  const weeks = buildSeasonWeeks(gameRecords, seasonYear)
-  await mustSupabase(
-    'upsert BBRef season weeks',
-    supabase.from('season_weeks').upsert(weeks, { onConflict: 'season_year,week_number' }),
-  )
-
-  await updateBackfillJob(jobId, {
-    total_items: scheduleGames.length,
-    metadata: { source: 'bbref', seasonYear, phase: 'boxscores' },
+  const { error } = await supabase.rpc('publish_nba_schedule_atomic', {
+    p_season_year: seasonYear,
+    p_games: gameRecords,
+    p_weeks: buildSeasonWeeks(gameRecords, seasonYear),
   })
+  if (error) throw error
 
-  return true
+  const metadata = await loadClaimedBackfillMetadata(run)
+  await updateClaimedBackfillMetadata(run, { ...metadata, source: 'bbref', seasonYear, phase: 'boxscores' })
+  await updateBackfillJob(jobId, { total_items: scheduleGames.length })
 }
 
 function buildGameRecords(
@@ -188,6 +186,8 @@ async function loadSeasonGames(seasonYear: number): Promise<DbGame[]> {
         .from('nba_games')
         .select('id, nba_game_id, bbref_home_team, bbref_away_team, week_number')
         .eq('season_year', seasonYear)
+        .not('bbref_home_team', 'is', null)
+        .not('bbref_away_team', 'is', null)
         .order('game_date', { ascending: true })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
     )
@@ -211,12 +211,13 @@ async function upsertBBRefStats(
     throw new Error(`BBRef team codes missing for ${gameId}`)
   }
 
+  await assertGameUnambiguous(dbGame.id)
   const boxScore = await fetchBBRefBoxScore(gameId, homeTeamBBRef, awayTeamBBRef)
   const stats = []
 
   for (const stat of [...boxScore.home, ...boxScore.away]) {
     const playerId = await resolveNamedPlayer(resolver, stat.playerName)
-    if (!playerId) continue
+    if (!playerId) throw new Error(`No canonical player match for BBRef player: ${stat.playerName}`)
 
     const minutesPlayed = stat.minutesDecimal
     const didNotPlay = stat.dnp || minutesPlayed == null
@@ -251,10 +252,6 @@ async function upsertBBRefStats(
     })
   }
 
-  if (stats.length) {
-    await mustSupabase(
-      'upsert BBRef player game stats',
-      supabase.from('player_game_stats').upsert(stats, { onConflict: 'player_id,game_id' }),
-    )
-  }
+  if (!stats.length) throw new Error(`BBRef box score has no resolved players for ${gameId}`)
+  await saveGameStats(dbGame.id, gameId, stats, true)
 }

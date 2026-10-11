@@ -63,7 +63,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
             setActionError(null)
             setLoading(false)
             setDataKey(null)
-            return
+            return false
         }
         setLoading(true)
         setError(null)
@@ -75,17 +75,19 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
                 getTradeBlockItems(leagueId),
                 getRoster(memberId, leagueId),
             ])
-            if (loadSequence.current !== requestId) return
+            if (loadSequence.current !== requestId) return false
             const nextRoster = memberRoster.filter(isTradeableRosterPlayer)
             setItems(nextItems)
             setRoster(nextRoster)
             setAvgMap(EMPTY_AVG_MAP)
             setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
+            return true
         } catch (cause) {
-            if (loadSequence.current !== requestId) return
+            if (loadSequence.current !== requestId) return false
             console.error(cause)
             setError(getErrorMessage(cause) ?? 'Unknown error')
+            return false
         } finally {
             if (loadSequence.current === requestId) setLoading(false)
         }

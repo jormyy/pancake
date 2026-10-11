@@ -62,8 +62,9 @@ const sortedLeagueMembers = async (admin, leagueId) => {
  * @param {string} leagueSeasonId
  * @param {number} count
  * @param {(id: string) => void} [registerCreatedPlayer]
+ * @param {{ createOnly?: boolean }} [options]
  */
-export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count, registerCreatedPlayer = () => {}) => {
+export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, count, registerCreatedPlayer = () => {}, { createOnly = false } = {}) => {
   const [{ data: rosterRows, error: rosterError }, { data: players, error: playersError }] = await Promise.all([
     admin.from('roster_players').select('player_id').eq('league_id', leagueId).eq('league_season_id', leagueSeasonId),
     admin.from('players').select('id, display_name, position, nba_team').not('display_name', 'is', null)
@@ -73,7 +74,7 @@ export const findAvailablePlayers = async (admin, leagueId, leagueSeasonId, coun
   if (playersError) throw new Error(`players lookup: ${playersError.message}`)
   const rosteredIds = new Set((rosterRows ?? []).map((row) => row.player_id))
   const available = (players ?? []).filter((player) => (
-    player.display_name &&
+    !createOnly && player.display_name &&
     !rosteredIds.has(player.id) &&
     !fixtureCreatedPlayerIds.has(player.id)
   ))
@@ -206,12 +207,12 @@ export const createFixtureResourceOwner = (admin, { ambient = true } = {}) => {
 /**
  * @param {FixtureEnv} env
  * @param {number} season
- * @param {{ memberCount?: number, includeFuturePicks?: boolean }} [options]
+ * @param {{ memberCount?: number, includeFuturePicks?: boolean, isolatedPlayers?: boolean }} [options]
  */
 export const setupTradeGameplayFixture = async (
   env,
   season,
-  { memberCount = 2, includeFuturePicks = true } = {},
+  { memberCount = 2, includeFuturePicks = true, isolatedPlayers = false } = {},
 ) => {
   fixtureSequence += 1
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}-${fixtureSequence}`
@@ -275,6 +276,7 @@ export const setupTradeGameplayFixture = async (
       currentSeason.id,
       2,
       resources.registerPlayer,
+      { createOnly: isolatedPlayers },
     )
     if (!proposerPlayer?.display_name || !recipientPlayer?.display_name) {
       throw new Error('trade fixture players require display names')
@@ -308,9 +310,9 @@ export const setupTradeGameplayFixture = async (
     }
 }
 
-/** @param {FixtureEnv} env @param {number} season */
-export const setupMultiTeamTradeGameplayFixture = async (env, season) => {
-  const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3, includeFuturePicks: false })
+/** @param {FixtureEnv} env @param {number} season @param {{ isolatedPlayers?: boolean }} [options] */
+export const setupMultiTeamTradeGameplayFixture = async (env, season, { isolatedPlayers = false } = {}) => {
+  const fixture = await setupTradeGameplayFixture(env, season, { memberCount: 3, includeFuturePicks: false, isolatedPlayers })
     if (!fixture.observer?.team_name) throw new Error('browser multi-team trade fixture requires a named third member')
     /** @type {Omit<typeof fixture.observer, 'team_name'> & { team_name: string }} */
     const namedObserver = { ...fixture.observer, team_name: fixture.observer.team_name }
@@ -320,6 +322,7 @@ export const setupMultiTeamTradeGameplayFixture = async (env, season) => {
       fixture.currentSeason.id,
       1,
       fixture.registerCreatedPlayer,
+      { createOnly: isolatedPlayers },
     )
     if (!observerPlayer?.display_name) throw new Error('multi-team fixture player requires a display name')
     /** @type {Omit<typeof observerPlayer, 'display_name'> & { display_name: string }} */

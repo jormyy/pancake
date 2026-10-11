@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto'
+import { attestedMigrationFiles } from './helpers/attested-migrations'
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -12,10 +12,7 @@ import {
 
 const attestation = JSON.parse(readFileSync('tests/e2e/release-history-attestations.json', 'utf8'))
 const aliasVersions: string[] = attestation.aliases.map((alias: { version: string }) => alias.version)
-const files = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql')).sort().map((filename) => ({
-  filename,
-  sha256: createHash('sha256').update(readFileSync(path.join('supabase/migrations', filename))).digest('hex'),
-}))
+const files = attestedMigrationFiles
 const fixture = (applied = 0) => ({
   history: files.slice(0, attestation.baselineCount + applied).map(({ filename }) => {
     const version = filename.split('_')[0]

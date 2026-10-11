@@ -8,9 +8,20 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, private
 AS $$
+DECLARE v_completing_trade_id uuid;
 BEGIN
+  IF NOT OLD.is_on_ir AND NOT OLD.is_on_taxi AND NOT NEW.is_on_ir AND NEW.is_on_taxi AND OLD.member_id<>NEW.member_id THEN
+    SELECT c.related_id INTO v_completing_trade_id FROM private.taxi_acquisition_context c
+    JOIN trades t ON t.id=c.related_id AND t.status='accepted'
+    JOIN trade_items i ON i.trade_id=t.id AND i.player_id=NEW.player_id
+      AND i.from_member_id=OLD.member_id AND i.to_member_id=NEW.member_id AND i.to_taxi
+    WHERE c.transaction_id=pg_current_xact_id() AND c.source='trade'
+      AND c.league_id=NEW.league_id AND c.league_season_id=NEW.league_season_id
+      AND c.member_id=NEW.member_id AND c.player_id=NEW.player_id
+      AND t.league_id=NEW.league_id AND t.league_season_id=NEW.league_season_id;
+  END IF;
   IF OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi THEN
-    PERFORM private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id);
+    PERFORM private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id, NULL, v_completing_trade_id);
   END IF;
 
   IF (
@@ -33,7 +44,7 @@ BEGIN
     OLD.is_on_ir = true OR
     OLD.is_on_taxi = true OR
     NEW.is_on_ir = true OR
-    NEW.is_on_taxi = true
+    (NEW.is_on_taxi = true AND v_completing_trade_id IS NULL)
   ) THEN
     RAISE EXCEPTION 'Inactive roster players must be activated before they can be traded.'
       USING ERRCODE = 'P0001';

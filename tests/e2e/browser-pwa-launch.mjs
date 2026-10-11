@@ -234,14 +234,30 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
       `declared=${precache.declared.length} missing=${precache.missing.join(', ') || 'none'}`)
 
     // 7. Offline relaunch still reaches the app.
-    await browser(session, ['network', 'offline', 'on']).catch(() => {})
-    await openPage(session, joinUrl(env.frontendUrl, '/'), 'offline relaunch').catch(() => {})
+    await browser(session, ['set', 'offline', 'on'])
+    const offlineNetwork = await evaluate(session, `(async () => {
+      let blocked = false;
+      try { await fetch('/release-provenance.json?offline-probe=' + Date.now(), { cache: 'no-store' }); }
+      catch { blocked = true; }
+      return JSON.stringify({ online: navigator.onLine, blocked });
+    })()`)
+    record('offline mode disables real network access', !offlineNetwork.online && offlineNetwork.blocked,
+      JSON.stringify(offlineNetwork))
+    await openPage(session, joinUrl(env.frontendUrl, '/'), 'offline relaunch')
     await browser(session, ['wait', '4000'])
     const offline = await evaluate(session, LAUNCH_STATE).catch(() => null)
+    const offlineAfterReload = await evaluate(session, `(async () => {
+      let blocked = false;
+      try { await fetch('/release-provenance.json?offline-after=' + Date.now(), { cache: 'no-store' }); }
+      catch { blocked = true; }
+      return JSON.stringify({ online: navigator.onLine, blocked });
+    })()`)
+    record('network stays unavailable after offline relaunch', offlineAfterReload.blocked,
+      JSON.stringify(offlineAfterReload))
     await captureBrowserScreenshot(browser, session, artifactDir, 'offline.png').catch(() => {})
-    await browser(session, ['network', 'offline', 'off']).catch(() => {})
+    await browser(session, ['set', 'offline', 'off']).catch(() => {})
     record('an offline relaunch still reaches the app',
-      !!offline && offline.rootText.length > 0,
+      !!offline && offline.rootText.length > 0 && !offlineNetwork.online && offlineNetwork.blocked && offlineAfterReload.blocked,
       `text="${offline?.rootText?.slice(0, 60) ?? ''}"`)
 
     const report = {
@@ -269,7 +285,7 @@ export async function runBrowserPwaLaunchScenario({ season = 0 } = {}) {
     }
     return report
   } finally {
-    await browser(session, ['network', 'offline', 'off']).catch(() => {})
+    await browser(session, ['set', 'offline', 'off']).catch(() => {})
     await browser(session, ['close']).catch(() => {})
   }
 }

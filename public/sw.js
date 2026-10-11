@@ -193,7 +193,20 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type !== 'PANCAKE_WORKER_VERSION') return
-  event.ports?.[0]?.postMessage({ version: VERSION })
+  // controllerchange can precede activation. Keep the current page visible
+  // until the replacement worker can serve the reload without waiting.
+  event.waitUntil(new Promise((resolve) => {
+    const worker = self.registration.active
+    if (!worker) { resolve(); return }
+    const replyWhenActive = () => {
+      if (worker.state !== 'activated' && worker.state !== 'redundant') return
+      worker.removeEventListener('statechange', replyWhenActive)
+      if (worker.state === 'activated') event.ports?.[0]?.postMessage({ version: VERSION })
+      resolve()
+    }
+    worker.addEventListener('statechange', replyWhenActive)
+    replyWhenActive()
+  }))
 })
 
 async function assetResponse(request, event, immutable) {
@@ -235,39 +248,23 @@ self.addEventListener('fetch', (event) => {
 })
 
 // ---------------------------------------------------------------------------
-// Web Push (installed PWA). Payloads come from supabase/functions/_shared/
-// webPushDelivery.ts: { title, body, url, category, data }.
-// Every push must show a notification — Safari revokes push permission from
-// sites that receive pushes silently.
-// ---------------------------------------------------------------------------
-
-// Only same-origin in-app paths may be opened from a notification tap.
-function notificationPath(value) {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return '/'
-  return value
-}
-
+// A queued push can arrive after logout or an account switch. The worker
+// cannot trust that its recipient still owns this browser. Keep all browser
+// notifications generic, including payloads queued by an older server.
 self.addEventListener('push', (event) => {
-  let payload = {}
-  try {
-    payload = event.data ? event.data.json() : {}
-  } catch {
-    payload = { body: event.data ? event.data.text() : '' }
-  }
-  const title = typeof payload.title === 'string' && payload.title ? payload.title : 'Pancake'
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: typeof payload.body === 'string' ? payload.body : '',
+    self.registration.showNotification('Pancake', {
+      body: 'Open Pancake to check for updates.',
       icon: '/pwa-192.png',
       badge: '/pwa-192.png',
-      data: { url: notificationPath(payload.url) },
+      data: { url: '/' },
     }),
   )
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const path = notificationPath(event.notification.data && event.notification.data.url)
+  const path = '/'
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })

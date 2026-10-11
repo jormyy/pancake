@@ -4,6 +4,7 @@ import {
   MANUAL_DATE_LIMIT,
   MANUAL_INTERNAL_REQUEST_BUDGET,
   processManualDates,
+  parseManualDateFilter,
 } from './manual.ts'
 
 const contexts = Array.from({ length: 8 }, (_, index) => ({
@@ -48,5 +49,16 @@ Deno.test('manual season optimization has hard request and date budgets', () => 
   if (MANUAL_DATE_LIMIT !== 180 || MANUAL_DATE_CONCURRENCY !== 4 ||
       MANUAL_INTERNAL_REQUEST_BUDGET !== 1 || MANUAL_DATABASE_REQUEST_BUDGET !== 550) {
     throw new Error('manual optimizer budgets changed without updating the contract')
+  }
+})
+
+Deno.test('manual retry dates are explicit, valid, bounded and deduplicated', () => {
+  if (parseManualDateFilter(undefined) !== undefined) throw new Error('full-season request changed')
+  const dates = parseManualDateFilter(['2027-01-03', '2027-01-01', '2027-01-03'])
+  if (JSON.stringify(dates) !== '["2027-01-01","2027-01-03"]') throw new Error('retry date scope changed')
+  for (const value of [null, [], '2027-01-01', [1], ['2027-02-30'], ['2027-13-01'], Array(181).fill('2027-01-01')]) {
+    let rejected = false
+    try { parseManualDateFilter(value) } catch { rejected = true }
+    if (!rejected) throw new Error(`invalid retry scope accepted: ${JSON.stringify(value)}`)
   }
 })

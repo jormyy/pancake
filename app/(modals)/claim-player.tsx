@@ -390,8 +390,8 @@ export default function ClaimPlayerScreen() {
                     <EmptyState
                         icon="person-off"
                         message="Couldn't load this player"
-                        description="Check your connection, then try again from Players."
-                        actionLabel="Back to Players"
+                        description="Check your connection, then go back and try again."
+                        actionLabel="Back"
                         onAction={goBack}
                     />
                 ) : ineligibleIR.length > 0 ? renderIneligibleIR() : twoColumn ? (

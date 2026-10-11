@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProposeTradeScreen from '@/app/(modals)/propose-trade'
+import { RequestError } from '@/lib/shared/errors'
 import { MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 
 type MockTradeItem =
@@ -9,8 +10,14 @@ type MockTradeItem =
     | { kind: 'faab'; fromMemberId: string; toMemberId: string; faabAmount: number }
 
 const mocks = vi.hoisted(() => ({
+    userId: 'user-a',
+    selectedAssetsAvailable: true,
+    tradingClosed: false,
+    getCurrentSeasonId: vi.fn(),
+    invalidateSeasonCache: vi.fn(),
     back: vi.fn(),
     context: {
+        online: true,
         current: { id: 'member-a', team_name: 'Team A' },
         currentLeague: {
             id: 'league-a',
@@ -42,6 +49,8 @@ vi.mock('react-native', () => ({
     useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
+vi.mock('expo-modules-core', () => ({ uuid: { v4: () => crypto.randomUUID() } }))
+vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
 vi.mock('expo-router', () => ({
     useLocalSearchParams: () => mocks.params,
     useRouter: () => ({ back: mocks.back }),
@@ -52,6 +61,7 @@ vi.mock('@/contexts/league-context', () => ({
 vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
     useMultiTeamTradeComposer: () => ({
         assetsReady: true,
+        selectedAssetsAvailable: mocks.selectedAssetsAvailable,
         avgMap: new Map(),
         avgStatsMap: new Map(),
         buildMultiTeamItems: () => mocks.tradeItems,
@@ -66,6 +76,7 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         rosterError: null,
         rosterLoading: false,
         selectParticipantAsset: vi.fn(),
+        removeParticipantAsset: vi.fn(),
         selectedParticipantIds: new Set(mocks.participantIds.slice(1)),
         setParticipantDestination: vi.fn(),
         setParticipantFaab: vi.fn(),
@@ -88,7 +99,8 @@ vi.mock('@/lib/trade-composer', () => ({
         faabError: items.some((item) => item.kind === 'faab' && item.faabAmount > 1_000_000)
             ? 'FAAB amount cannot exceed 1,000,000.'
             : null,
-        payload: {},
+        payload: { offerPlayerIds: ['player-a'], requestPlayerIds: ['player-b'], offerPickIds: [], requestPickIds: [],
+            expiresAt: new Date(Date.now() + 3 * 86_400_000).toISOString() },
     }),
     getTradeComposerMode: (params: Record<string, string | undefined>) => ({
         mode: params.editTradeId ? 'edit' : params.counterTradeId ? 'counter' : 'propose',
@@ -115,12 +127,13 @@ vi.mock('@/lib/trade-composer', () => ({
             : null,
     }),
 }))
+vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: mocks.invalidateSeasonCache }))
 vi.mock('@/lib/trades', () => ({
     counterMultiTeamTrade: vi.fn(),
     counterTrade: vi.fn(),
     editMultiTeamTrade: vi.fn(),
     editTrade: vi.fn(),
-    getCurrentSeasonId: vi.fn(),
+    getCurrentSeasonId: mocks.getCurrentSeasonId,
     getTradeById: mocks.getTradeById,
     proposeMultiTeamTrade: vi.fn(),
     proposeTrade: vi.fn(),
@@ -132,7 +145,7 @@ vi.mock('@/lib/alert', () => ({
 }))
 vi.mock('@/lib/league', () => ({
     getLeagueMembers: mocks.getLeagueMembers,
-    isTradingClosed: () => false,
+    isTradingClosed: () => mocks.tradingClosed,
 }))
 vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: 'MultiTeamTradeBuilder' }))
 vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'TradeAnalysisSummary' }))
@@ -151,8 +164,13 @@ const deferred = <Value,>() => {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    mocks.userId = 'user-a'
+    mocks.selectedAssetsAvailable = true
+    mocks.tradingClosed = false
+    mocks.getCurrentSeasonId.mockResolvedValue('season-a')
     mocks.params = { recipientMemberId: 'member-b' }
     mocks.context = {
+        online: true,
         current: { id: 'member-a', team_name: 'Team A' },
         currentLeague: {
             id: 'league-a',
@@ -173,6 +191,179 @@ beforeEach(() => {
 })
 
 describe('propose trade async ownership', () => {
+    it.each(['two', 'multi'])('recovers %s-team proposal after a definite old-season rejection', async (form) => {
+        const send = form === 'multi' ? mocks.submitMultiTeamTradeComposer : mocks.submitTradeComposer
+        if (form === 'multi') {
+            mocks.participantIds = ['member-a', 'member-b', 'member-c']
+            mocks.tradeItems = [
+                { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
+                { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-c', playerId: 'player-b' },
+                { kind: 'player', fromMemberId: 'member-c', toMemberId: 'member-a', playerId: 'player-c' },
+            ]
+        }
+        send.mockImplementation(async (_input, deps) => {
+            if (await deps.getCurrentSeasonId() === 'season-a') {
+                throw new RequestError('No active season found.', { code: 'P0001' })
+            }
+        })
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        if (form === 'multi') await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        const rejectedKey = send.mock.calls[0][0].requestId
+        await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+        mocks.getCurrentSeasonId.mockResolvedValue('season-b')
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        expect(mocks.getCurrentSeasonId).toHaveBeenCalledTimes(2)
+        expect(mocks.invalidateSeasonCache).toHaveBeenCalledWith('league-a')
+        expect(send.mock.calls[1][0].requestId).not.toBe(rejectedKey)
+        expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it.each(['two', 'multi'])('regenerates %s-team expiration only after a definite expired-request rejection', async (form) => {
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+        const send = form === 'multi' ? mocks.submitMultiTeamTradeComposer : mocks.submitTradeComposer
+        if (form === 'multi') {
+            mocks.participantIds = ['member-a', 'member-b', 'member-c']
+            mocks.tradeItems.push({ kind: 'player', fromMemberId: 'member-c', toMemberId: 'member-a', playerId: 'player-c' })
+        }
+        send.mockRejectedValueOnce(new Error('Connection lost before response'))
+            .mockRejectedValueOnce(new RequestError('Trade expiration must be in the future.', { code: '22023' }))
+            .mockResolvedValue(undefined)
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+            if (form === 'multi') await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
+            await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+            await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+            const first = send.mock.calls[0][0]
+            clock.mockReturnValue(1_800_000_000_000 + 4 * 86_400_000)
+            await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+            await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+            expect(send.mock.calls[1][0]).toEqual(first)
+            await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+            await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+            const final = send.mock.calls[2][0]
+            expect(final.requestId).not.toBe(first.requestId)
+            if (form === 'multi') expect(final.nowMs).toBe(Date.now())
+            else expect(Date.parse(final.payload.expiresAt)).toBeGreaterThan(Date.now())
+            expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
+        } finally {
+            if (renderer) await act(async () => { renderer.unmount() })
+            clock.mockRestore()
+        }
+    })
+
+    it('retains a conflicting receipt instead of silently creating a second request', async () => {
+        mocks.submitTradeComposer.mockRejectedValue(new RequestError('This request key already belongs to different trade terms.', { code: '22023' }))
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        expect(mocks.submitTradeComposer.mock.calls[1][0]).toEqual(mocks.submitTradeComposer.mock.calls[0][0])
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('retains a request even when immediate failure batches away the busy render', async () => {
+        mocks.submitTradeComposer.mockRejectedValueOnce(new Error('Lost reply')).mockResolvedValue(undefined)
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        expect(mocks.submitTradeComposer.mock.calls[1][0]).toEqual(mocks.submitTradeComposer.mock.calls[0][0])
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('retries the same request and frozen terms after a lost reply, even when assets or trading change', async () => {
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+        mocks.submitTradeComposer.mockImplementation(async (_input, deps) => {
+            await deps.getCurrentSeasonId()
+            if (mocks.submitTradeComposer.mock.calls.length === 1) throw new Error('Reply lost')
+        })
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+            await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+            await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+            const first = mocks.submitTradeComposer.mock.calls[0][0]
+            expect(first.requestId).toMatch(/^[0-9a-f-]{36}$/)
+            clock.mockReturnValue(1_800_001_000_000)
+            mocks.selectedAssetsAvailable = false
+            mocks.tradingClosed = true
+            mocks.getCurrentSeasonId.mockResolvedValue('season-b')
+            await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+            expect(renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.disabled).toBe(false)
+            await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+            expect(mocks.submitTradeComposer.mock.calls[1][0]).toEqual(first)
+            expect(mocks.getCurrentSeasonId).toHaveBeenCalledTimes(1)
+            expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
+        } finally {
+            if (renderer) await act(async () => { renderer.unmount() })
+            clock.mockRestore()
+        }
+    })
+
+    it('gives changed trade terms a new request after a failed send', async () => {
+        mocks.submitTradeComposer.mockRejectedValue(new Error('Reply lost'))
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        const firstId = mocks.submitTradeComposer.mock.calls[0][0].requestId
+        mocks.tradeItems = [...mocks.tradeItems, { kind: 'faab', fromMemberId: 'member-a', toMemberId: 'member-b', faabAmount: 3 }]
+        await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        expect(mocks.submitTradeComposer.mock.calls[1][0].requestId).not.toBe(firstId)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('does not replay a failed attempt under a different signed-in user', async () => {
+        mocks.submitTradeComposer.mockRejectedValue(new Error('Reply lost'))
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        mocks.userId = 'user-b'
+        mocks.selectedAssetsAvailable = false
+        await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+        expect(renderer.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(true)
+        expect(mocks.submitTradeComposer).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('keeps the multi-team expiration clock and item routes on retry', async () => {
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+        mocks.participantIds = ['member-a', 'member-b', 'member-c']
+        mocks.tradeItems = [
+            { kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'player-a' },
+            { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-c', playerId: 'player-b' },
+            { kind: 'player', fromMemberId: 'member-c', toMemberId: 'member-a', playerId: 'player-c' },
+        ]
+        mocks.submitMultiTeamTradeComposer.mockRejectedValueOnce(new Error('Reply lost')).mockResolvedValue(undefined)
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+            await act(async () => { renderer.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress() })
+            await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+            await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+            const first = structuredClone(mocks.submitMultiTeamTradeComposer.mock.calls[0][0])
+            clock.mockReturnValue(1_800_001_000_000)
+            await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
+            await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+            expect(mocks.submitMultiTeamTradeComposer.mock.calls[1][0]).toEqual(first)
+            expect(first.nowMs).toBe(1_800_000_000_000)
+            expect(first.requestId).toMatch(/^[0-9a-f-]{36}$/)
+        } finally {
+            if (renderer) await act(async () => { renderer.unmount() })
+            clock.mockRestore()
+        }
+    })
+
     it('reviews a multi-team trade before confirming submission', async () => {
         mocks.participantIds = ['member-a', 'member-b', 'member-c']
         mocks.tradeItems = [
@@ -332,6 +523,7 @@ describe('propose trade async ownership', () => {
         await act(async () => { submit.props.onPress(); await Promise.resolve() })
         await act(async () => { pending = renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress(); await Promise.resolve() })
         mocks.context = {
+        online: true,
             current: { id: 'member-c', team_name: 'Team C' },
             currentLeague: {
                 id: 'league-c',

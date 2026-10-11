@@ -29,7 +29,7 @@ describe('Sleeper lazy roster-limit contracts', () => {
             'private/prevent_accepted_or_inactive_roster_move.sql',
             'private/prevent_conflicting_or_inactive_trade_accept.sql',
             'private/validate_waiver_claim_drop_player.sql',
-            'public/drop_player_atomic.sql',
+            'public/drop_player_atomic__uuid_uuid_uuid.sql',
             'public/toggle_ir_atomic.sql',
             'public/toggle_taxi_atomic.sql',
         ].map((file) => read(`supabase/sql/functions/by-name/${file}`)).join('\n')
@@ -57,7 +57,10 @@ describe('Sleeper lazy roster-limit contracts', () => {
         expect(migration).toContain('DROP TABLE public.trade_drop_reservations')
         expect(reservation).toContain("trade.status = 'accepted'::trade_status")
         expect(deleteGuard).toContain('private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id)')
-        expect(moveGuard).toContain('private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id)')
+        expect(moveGuard).toContain('private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id, NULL, v_completing_trade_id)')
+        expect(moveGuard).toContain("t.status='accepted'")
+        expect(moveGuard).toContain('i.from_member_id=OLD.member_id AND i.to_member_id=NEW.member_id AND i.to_taxi')
+        expect(moveGuard).toContain("c.transaction_id=pg_current_xact_id() AND c.source='trade'")
         expect(moveGuard).toContain('Inactive roster players must be activated before they can be traded.')
     })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { acceptTrade, rejectTrade, vetoTrade, withdrawTrade, type Trade } from '@/lib/trades'
+import { acceptTrade, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade } from '@/lib/trades'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 
@@ -11,7 +11,7 @@ export function useTradeActions({
 }: {
     memberId: string
     leagueId: string
-    onAction: () => void | Promise<void>
+    onAction: () => void | Promise<unknown>
     enabled?: boolean
 }) {
     const enabledRef = useRef(enabled)
@@ -87,6 +87,14 @@ export function useTradeActions({
         }
     }, [finishAction, identity, memberId])
 
+    const setTaxiDestination = useCallback((trade: Trade, playerId: string, toTaxi: boolean) => {
+        const playerIds = trade.routedItems.flatMap((item) => item.kind === 'player' && item.toMemberId === memberId &&
+            (item.playerId === playerId ? toTaxi : item.toTaxi) ? [item.playerId] : [])
+        return runTerminalAction(trade.id,
+            (tradeId, receiverId) => setTradeTaxiDestinations(tradeId, receiverId, playerIds),
+            'Could not save the taxi destination.')
+    }, [memberId, runTerminalAction])
+
     const reject = useCallback((tradeId: string) => {
         confirmAction('Reject Trade', 'Are you sure you want to reject this trade?',
             () => runTerminalAction(tradeId, rejectTrade, 'Could not reject trade.'), 'Reject')
@@ -102,6 +110,7 @@ export function useTradeActions({
 
     return {
         accept,
+        setTaxiDestination,
         busyTradeId,
         reject,
         veto,

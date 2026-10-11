@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
     appState: 'active',
     listeners: new Set<(state: string) => void>(),
     getDraftState: vi.fn(async () => null),
-    revision: vi.fn<(...args: string[]) => Promise<string>>(async () => 'revision-1'),
+    revision: vi.fn<(...args: string[]) => Promise<string | null>>(async () => 'revision-1'),
     status: null as ((status: string) => void) | null,
 }))
 vi.mock('react-native', () => ({
@@ -62,6 +62,15 @@ afterEach(() => {
     vi.useRealTimers()
 })
 describe('auction fallback polling across app visibility', () => {
+    it('reads a missing room on the first probe and then caches its absence', async () => {
+        mocks.revision.mockResolvedValue(null)
+        await mount()
+        const loads = mocks.getDraftState.mock.calls.length
+        await advance(5_000)
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(loads + 1)
+        await advance(5_000)
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(loads + 1)
+    })
     it('keeps visible fallback polling, stops hidden reads, and catches up on return', async () => {
         await mount()
         await advance(5_000)

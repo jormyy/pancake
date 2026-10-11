@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ from: vi.fn() }))
+const mocks = vi.hoisted(() => ({ from: vi.fn(), apiPost: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: mocks.from, removeChannel: vi.fn() } }))
-vi.mock('@/lib/shared/api', () => ({ apiPost: vi.fn() }))
+vi.mock('@/lib/shared/api', () => ({ apiPost: mocks.apiPost }))
 vi.mock('@/lib/realtime', () => ({ subscribeToTableChanges: vi.fn(), unsubscribeFromTableChanges: vi.fn() }))
 
-import { getRookieDraftPollRevision, getRookieDraftState, getRookiePlayers } from '@/lib/rookieDraft'
+import { getRookieDraftPollRevision, getRookieDraftState, getRookiePlayers, startRookieDraft } from '@/lib/rookieDraft'
 
 function query(result: { data: unknown; error: unknown }) {
     const chain: Record<string, unknown> & PromiseLike<typeof result> = {
@@ -56,5 +56,14 @@ describe('rookie draft reads', () => {
 
         await expect(getRookiePlayers('draft')).rejects.toThrow('picked ids unavailable')
         expect(mocks.from).not.toHaveBeenCalledWith('players')
+    })
+})
+
+
+describe('rookie draft startup', () => {
+    it('normalizes the real server draft type for room navigation', async () => {
+        mocks.apiPost.mockResolvedValue({ draft: { id: 'annual', draft_type: 'snake' } })
+        const result = await startRookieDraft('league', { timerSeconds: 600, rounds: 3 })
+        expect(result.draft).toMatchObject({ id: 'annual', draftType: 'snake' })
     })
 })

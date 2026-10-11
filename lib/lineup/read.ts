@@ -311,12 +311,11 @@ export async function getWeeklyLineup(
         })
     }
 
-    // For past dates: players may have been dropped since that day. Fetch their player
-    // data directly so their starter slots still render correctly. Also find which current
-    // roster players were added AFTER this date so they're excluded from bench.
+    // A drop preserves locked starters, including today's. Read those players
+    // directly so their occupied slots remain visible.
     let addedAfterDate = new Set<string>()
-    if (isPastDate) {
-        const missingPlayerIds = [...assignmentMap.keys()].filter((pid) => !rosterByPlayerId.has(pid))
+    const missingPlayerIds = [...assignmentMap.keys()].filter((pid) => !rosterByPlayerId.has(pid))
+    if (isPastDate || missingPlayerIds.length > 0) {
         type ExtraPlayer = Pick<PlayerRow, 'id' | 'display_name' | 'position' | 'eligible_positions' | 'nba_team' | 'injury_status' | 'nba_id'>
         const [extraPlayersResult, laterAddsResult] = await Promise.all([
             missingPlayerIds.length > 0
@@ -325,7 +324,7 @@ export async function getWeeklyLineup(
                     .select('id, display_name, position, eligible_positions, nba_team, injury_status, nba_id')
                     .in('id', missingPlayerIds)
                 : Promise.resolve({ data: [] as ExtraPlayer[], error: null }),
-            supabase
+            isPastDate ? supabase
                 .from('roster_transactions')
                 .select('player_id')
                 .eq('member_id', memberId)
@@ -334,7 +333,8 @@ export async function getWeeklyLineup(
                 .in('transaction_type', ['fa_add', 'waiver_add', 'trade_in', 'draft_won', 'carry_over'])
                 // gameDate is ET-keyed (YYYY-MM-DD). Use exact next local midnight
                 // so DST does not shift post-slate transaction history by an hour.
-                .gt('occurred_at', endOfETDayUTC(gameDate)),
+                .gt('occurred_at', endOfETDayUTC(gameDate))
+                : Promise.resolve({ data: [] as { player_id: string }[], error: null }),
         ])
         if (extraPlayersResult.error) throw extraPlayersResult.error
         if (laterAddsResult.error) throw laterAddsResult.error

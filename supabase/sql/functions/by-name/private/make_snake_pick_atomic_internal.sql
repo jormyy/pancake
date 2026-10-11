@@ -6,7 +6,8 @@ CREATE OR REPLACE FUNCTION private.make_snake_pick_atomic_internal(
   p_draft_id uuid,
   p_member_id uuid,
   p_player_id uuid,
-  p_allow_expired_timer boolean DEFAULT false
+  p_allow_expired_timer boolean DEFAULT false,
+  p_to_taxi boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -119,6 +120,7 @@ BEGIN
   UPDATE snake_draft_picks
      SET player_id = p_player_id,
          picked_at = v_now,
+         to_taxi = COALESCE(p_to_taxi,false),
          skipped_at = NULL,
          skip_reason = NULL,
          timer_expires_at = NULL
@@ -133,11 +135,15 @@ BEGIN
   END IF;
 
   IF NOT v_draft.is_mock THEN
+    IF p_to_taxi THEN
+      PERFORM private.authorize_taxi_acquisition(v_draft.league_id,v_draft.league_season_id,p_member_id,p_player_id,'draft',p_draft_id);
+    END IF;
     INSERT INTO roster_players (
       league_id,
       league_season_id,
       member_id,
       player_id,
+      is_on_taxi,
       acquired_via
     )
     VALUES (
@@ -145,6 +151,7 @@ BEGIN
       v_draft.league_season_id,
       p_member_id,
       p_player_id,
+      COALESCE(p_to_taxi,false),
       'draft'
     );
 
@@ -154,6 +161,7 @@ BEGIN
       member_id,
       player_id,
       transaction_type,
+      acquired_to_taxi,
       occurred_at
     )
     VALUES (
@@ -162,6 +170,7 @@ BEGIN
       p_member_id,
       p_player_id,
       'draft_won',
+      COALESCE(p_to_taxi,false),
       v_now
     );
 
@@ -212,6 +221,7 @@ BEGIN
       'draft_pick_id', v_next_pick.draft_pick_id
     ),
     'player_id', p_player_id,
+    'to_taxi', COALESCE(p_to_taxi,false),
     'remaining', v_remaining,
     'completed', v_completed,
     'activated', v_activated,

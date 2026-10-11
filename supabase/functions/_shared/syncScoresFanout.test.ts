@@ -1,6 +1,8 @@
 // Bounded league fan-out: one failing league must not abort or starve the
 // other leagues' score sync.
 
+import { strict as assert } from 'node:assert'
+
 const LEAGUE_A = '00000000-0000-4000-8000-00000000000a'
 const LEAGUE_B = '00000000-0000-4000-8000-00000000000b'
 const SEASON_A = '00000000-0000-4000-8000-0000000000aa'
@@ -45,8 +47,16 @@ Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 const { syncScores } = await import('./syncScores.ts')
 
 Deno.test('a failing league does not abort the other leagues', async () => {
-  // Must not throw: league A fails, league B still completes.
-  await syncScores(undefined, new Date('2101-01-07T18:00:00Z'))
+  await assert.rejects(
+    () => syncScores(undefined, new Date('2101-01-07T18:00:00Z')),
+    (error: unknown) => {
+      assert.ok(error instanceof AggregateError)
+      assert.match(error.message, /Score sync failed/)
+      assert.equal(error.errors.length, 1)
+      assert.equal(error.errors[0].message, 'simulated outage')
+      return true
+    },
+  )
 
   const leagueBRequests = requests.filter((request) =>
     request.includes(SEASON_B) || request.includes(LEAGUE_B))

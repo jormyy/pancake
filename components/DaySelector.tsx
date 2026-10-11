@@ -24,11 +24,13 @@ export function DaySelector({
     selectedDate,
     onSelect,
     compact = false,
+    disabled = false,
 }: {
     days: WeekDay[]
     selectedDate: string
     onSelect: (date: string) => void
     compact?: boolean
+    disabled?: boolean
 }) {
     return (
         <View style={[styles.row, styles.content, compact && styles.contentCompact]}>
@@ -47,9 +49,10 @@ export function DaySelector({
                             !day.hasGames && styles.cellNoGames,
                         ]}
                         onPress={() => onSelect(day.date)}
+                        disabled={disabled}
                         accessibilityRole="button"
                         accessibilityLabel={accessibleDayLabel(day)}
-                        accessibilityState={{ selected: isSelected }}
+                        accessibilityState={{ selected: isSelected, disabled }}
                         {...(isSelected ? ARIA_CURRENT_DATE : undefined)}
                         hitSlop={4}
                         pressedScale={0.92}

@@ -1,7 +1,10 @@
-import { supabase, invalidateLocalAuthSession, readStoredSessionTokens, revokeDetachedSession } from '@/lib/supabase'
+import {
+    supabase, captureLocalAuthSession, localAuthSessionMatches, invalidateLocalAuthSession, readStoredSessionTokens, revokeDetachedSession,
+} from '@/lib/supabase'
 import type { Profile } from '@/types/database'
-import { detachWebPushFromAccount } from '@/lib/web-push'
-import { clearPersistentCaches } from '@/lib/persistent-cache'
+import { completeWebPushLogin, detachWebPushFromAccount, prepareWebPushLogin } from '@/lib/web-push'
+import { waitForAuthInitialization } from '@/lib/auth-lock'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 export async function signUp(
     email: string,
@@ -9,49 +12,72 @@ export async function signUp(
     username: string,
     displayName: string,
 ) {
+    const pushIntent = await prepareWebPushLogin()
     const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { username, display_name: displayName } },
     })
     if (error) throw error
+    if (data.session) await completeWebPushLogin(pushIntent, data.session.user.id)
     return data
 }
 
 export async function signIn(email: string, password: string) {
+    const pushIntent = await prepareWebPushLogin()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    if (data.session) await completeWebPushLogin(pushIntent, data.session.user.id)
     return data
 }
 
 export async function signOut() {
-    // This device drops the account before any network call: a slow or offline server must
-    // not keep private screens visible. Server cleanup then uses the captured session.
+    const owner = sessionOwner()
+    const generation = sessionGeneration()
+    const expected = captureLocalAuthSession()
+    // The raw stored tokens survive an expired access token, so the server session can still be revoked.
     const tokens = readStoredSessionTokens()
-    clearPersistentCaches()
-    await invalidateLocalAuthSession()
+    const stillCurrent = () => sessionOwner() === owner && sessionGeneration() === generation
+        && (!expected.session || expected.session.user.id === owner) && localAuthSessionMatches(expected)
+    if (!stillCurrent()) throw new Error('Your account changed. Please retry.')
+
+    // This device drops the account before any network call: a slow or offline server must
+    // not keep private screens visible. Only the captured account is cleared, never a newer one.
+    if (!await invalidateLocalAuthSession(expected, stillCurrent)) throw new Error('Your account changed. Please retry.')
+    const cleanupGeneration = sessionGeneration()
+    const cleanupCurrent = () => sessionOwner() === null && sessionGeneration() === cleanupGeneration
     try {
+        const { error: startupError } = await waitForAuthInitialization(supabase.auth.initialize())
+        if (startupError) console.warn('Session startup failed during sign-out.', startupError)
         // No stored session remains, so this only clears the SDK and notifies auth and realtime listeners.
         await supabase.auth.signOut({ scope: 'local' })
     } catch (error) {
         console.warn('Local sign-out cleanup failed.', error)
     }
-    if (!tokens) return { serverSignOutConfirmed: true }
 
-    let serverSignOutConfirmed = false
-    try {
-        serverSignOutConfirmed = await revokeDetachedSession(tokens, async (accessToken) => {
-            try {
-                await detachWebPushFromAccount(accessToken)
-            } catch (error) {
-                // Not fatal: the next signed-in sync re-assigns this endpoint to its new owner.
-                console.warn('Web push detach failed.', error)
-            }
-        })
-        if (!serverSignOutConfirmed) console.warn('Server sign-out could not be confirmed.')
-    } catch (error) {
-        console.warn('Server sign-out could not be confirmed.', error)
+    // Notification cleanup acts for the captured account: with a usable session it removes the server
+    // registration, otherwise it still stops delivery to this browser.
+    let pushHandled = false
+    const detachPush = async (accessToken: string | null) => {
+        if (!owner || pushHandled) return
+        pushHandled = true
+        try {
+            await detachWebPushFromAccount({ ownerId: owner, accessToken }, cleanupCurrent)
+        } catch (error) {
+            console.warn('Web push detach failed.', error)
+        }
     }
+
+    let serverSignOutConfirmed = !tokens
+    if (tokens) {
+        try {
+            serverSignOutConfirmed = await revokeDetachedSession(tokens, detachPush)
+            if (!serverSignOutConfirmed) console.warn('Server sign-out could not be confirmed.')
+        } catch (error) {
+            console.warn('Server sign-out could not be confirmed.', error)
+        }
+    }
+    await detachPush(null)
     return { serverSignOutConfirmed }
 }
 

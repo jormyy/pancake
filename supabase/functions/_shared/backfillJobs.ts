@@ -1,3 +1,4 @@
+import { errorMessage } from './responses.ts'
 import { supabase } from './supabase.ts'
 import type { Database, Json } from './database.ts'
 
@@ -110,28 +111,47 @@ export async function releaseBackfillJob(jobId: string, claimToken: string): Pro
   )
 }
 
-/** Explicit retry: reopen the same job and rerun only games that had failed before now. */
+export async function loadClaimedBackfillMetadata(run: BackfillRun): Promise<Record<string, Json | undefined>> {
+  const row = await mustSupabase(
+    'load claimed backfill metadata',
+    supabase.from('sync_jobs').select('metadata').eq('id', run.jobId).eq('claim_token', run.claimToken).maybeSingle(),
+  )
+  if (!row) throw new BackfillAdmissionError('Backfill job ownership changed', 409)
+  return row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata : {}
+}
+
+export async function updateClaimedBackfillMetadata(run: BackfillRun, metadata: Record<string, Json | undefined>): Promise<void> {
+  const rows = await mustSupabase(
+    'update claimed backfill metadata',
+    supabase.from('sync_jobs').update({ metadata }).eq('id', run.jobId).eq('claim_token', run.claimToken).select('id'),
+  )
+  if (rows?.length !== 1) throw new BackfillAdmissionError('Backfill job ownership changed', 409)
+}
+
+/** Retry prior failures and resume any work that the failed job did not attempt. */
 export async function beginBackfillRetry(run: BackfillRun, metadata: Json | null): Promise<string> {
   const retryBefore = new Date().toISOString()
   const base = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {}
-  await mustSupabase(
+  const rows = await mustSupabase(
     'begin backfill retry',
     supabase
       .from('sync_jobs')
-      .update({ status: 'pending', completed_at: null, metadata: { ...base, retryBefore } })
+      .update({ status: 'pending', completed_at: null, metadata: {
+        ...base, retryBefore,
+      } })
       .eq('id', run.jobId)
-      .eq('claim_token', run.claimToken),
+      .eq('claim_token', run.claimToken)
+      .select('id'),
   )
+  if (rows?.length !== 1) throw new BackfillAdmissionError('Backfill job ownership changed', 409)
   return retryBefore
 }
 
-export async function endBackfillRetry(run: BackfillRun, metadata: Json | null): Promise<void> {
-  const base = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? { ...metadata } : {}
-  delete (base as Record<string, unknown>).retryBefore
-  await mustSupabase(
-    'end backfill retry',
-    supabase.from('sync_jobs').update({ metadata: base }).eq('id', run.jobId).eq('claim_token', run.claimToken),
-  )
+export async function endBackfillRetry(run: BackfillRun): Promise<void> {
+  const metadata = await loadClaimedBackfillMetadata(run)
+  delete metadata.retryBefore
+  delete metadata.bbrefRetryScope
+  await updateClaimedBackfillMetadata(run, metadata)
 }
 
 export async function loadBackfillRetryGameKeys(run: BackfillRun): Promise<Set<string>> {
@@ -194,7 +214,7 @@ export async function invokeBackfill(body: Record<string, unknown>): Promise<voi
 }
 
 export async function failBackfillJob(jobId: string, error: unknown): Promise<void> {
-  const message = String(error instanceof Error ? error.message : error)
+  const message = errorMessage(error)
   const existing = await mustSupabase(
     'load backfill job before failing',
     supabase
@@ -240,7 +260,9 @@ export async function syncBackfillLedgerProgress(
   return progress
 }
 
-export async function loadBackfillTerminalGameKeys(jobId: string, source: string): Promise<Set<string>> {
+export async function loadBackfillTerminalGameKeys(
+  jobId: string, source: string, statuses: ('completed' | 'failed' | 'missing')[] = ['completed', 'failed', 'missing'],
+): Promise<Set<string>> {
   const keys = new Set<string>()
   let page = 0
 
@@ -252,7 +274,7 @@ export async function loadBackfillTerminalGameKeys(jobId: string, source: string
         .select('game_key')
         .eq('job_id', jobId)
         .eq('source', source)
-        .in('status', ['completed', 'failed', 'missing'])
+        .in('status', statuses)
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
     )
 
@@ -311,7 +333,7 @@ export async function markBackfillGameFailed(
   error: unknown,
   gameDbId?: string | null,
 ): Promise<void> {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = errorMessage(error)
   await recordBackfillGameAttempt(jobId, source, seasonYear, gameKey, 'failed', message, gameDbId)
 }
 

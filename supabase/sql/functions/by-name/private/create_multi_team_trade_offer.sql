@@ -9,7 +9,11 @@ CREATE OR REPLACE FUNCTION private.create_multi_team_trade_offer(
   p_participant_member_ids uuid[],
   p_items jsonb,
   p_notes text DEFAULT NULL,
-  p_expires_at timestamptz DEFAULT NULL
+  p_expires_at timestamptz DEFAULT NULL,
+  p_parent_trade_id uuid DEFAULT NULL,
+  p_countered_from_trade_id uuid DEFAULT NULL,
+  p_edited_from_trade_id uuid DEFAULT NULL,
+  p_version int DEFAULT 1
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -101,6 +105,12 @@ BEGIN
      (SELECT count(DISTINCT pick_id) FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL) THEN
     RAISE EXCEPTION 'Duplicate traded picks are not allowed.';
   END IF;
+
+  PERFORM private.lock_trade_offer_assets(
+    p_league_id,
+    ARRAY(SELECT member_id FROM private.multi_team_trade_participants(p_proposer_member_id, p_participant_member_ids)),
+    ARRAY(SELECT player_id FROM private.parse_multi_team_trade_items(p_items) WHERE player_id IS NOT NULL)
+  );
 
   SELECT *
     INTO v_league
@@ -252,7 +262,11 @@ BEGIN
     notes,
     status,
     expires_at,
-    is_multi_team
+    is_multi_team,
+    parent_trade_id,
+    countered_from_trade_id,
+    edited_from_trade_id,
+    version
   )
   VALUES (
     p_league_id,
@@ -262,7 +276,11 @@ BEGIN
     NULLIF(BTRIM(COALESCE(p_notes, '')), ''),
     'pending',
     p_expires_at,
-    true
+    true,
+    p_parent_trade_id,
+    p_countered_from_trade_id,
+    p_edited_from_trade_id,
+    p_version
   )
   RETURNING id INTO v_trade_id;
 

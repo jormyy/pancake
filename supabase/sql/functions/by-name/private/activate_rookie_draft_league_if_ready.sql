@@ -17,6 +17,9 @@ DECLARE
   v_rows int;
   v_unfilled_picks int;
 BEGIN
+  -- Serialize with picks before taking draft, league or season row locks.
+  PERFORM pg_advisory_xact_lock(hashtext(p_draft_id::text), 0);
+
   SELECT *
     INTO v_draft
     FROM drafts

@@ -9,14 +9,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
-import { Button, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { Button, ErrorBanner, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { colors, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { useGoBack } from '@/components/ui/useGoBack'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
+const EMPTY_ROSTER: RosterPlayer[] = []
 
 function rosterSlotRank(player: RosterPlayer): number {
     const eligible = player.players.eligible_positions?.length
@@ -39,33 +40,46 @@ export default function TeamRosterScreen() {
     const back = useGoBack('/league')
     const { padX, compact } = usePageMetrics()
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
-    const { current, currentLeague } = useLeagueContext()
-    const [roster, setRoster] = useState<RosterPlayer[]>([])
-    const [avgMap, setAvgMap] = useState(EMPTY_AVG_MAP)
-    const [avgStatsMap, setAvgStatsMap] = useState(EMPTY_STATS_MAP)
+    const { current, currentLeague, membershipStatus, refresh } = useLeagueContext()
+    const scope = memberId && current && currentLeague ? `${current.id}:${currentLeague.id}:${memberId}` : null
+    const [resource, setResource] = useState<{ scope: string; roster: RosterPlayer[]; stats: RosterStatsMaps } | null>(null)
     const [loading, setLoading] = useState(true)
-    const canProposeTrade = !!memberId && memberId !== current?.id && !isTradingClosed(currentLeague)
+    const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null)
+    const [attempt, setAttempt] = useState(0)
+    const ownsRoster = scope !== null && resource?.scope === scope
+    const roster = ownsRoster ? resource.roster : EMPTY_ROSTER
+    const { avgMap, avgStatsMap } = ownsRoster ? resource.stats : { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP }
+    const loadError = failure?.scope === scope ? failure.message : null
+    const canProposeTrade = !!scope && memberId !== current?.id && !isTradingClosed(currentLeague)
 
     useEffect(() => {
-        if (!memberId || !current || !currentLeague) {
+        if (!memberId || !currentLeague || !scope) {
             setLoading(false)
             return
         }
         let cancelled = false
-        setRoster([])
-        setAvgMap(EMPTY_AVG_MAP)
-        setAvgStatsMap(EMPTY_STATS_MAP)
+        setFailure(null)
         setLoading(true)
+        let rosterLoaded = false
 
         void (async () => {
             const nextRoster = await getRoster(memberId, currentLeague.id)
+            if (cancelled) return
+            rosterLoaded = true
+            setResource((previous) => ({
+                scope, roster: nextRoster,
+                stats: previous?.scope === scope ? previous.stats : { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP },
+            }))
             const stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), currentLeague.id)
             if (cancelled) return
-            setRoster(nextRoster)
-            setAvgMap(stats.avgMap)
-            setAvgStatsMap(stats.avgStatsMap)
+            setResource((previous) => previous?.scope === scope ? { ...previous, stats } : previous)
         })()
-            .catch(console.error)
+            .catch((error) => {
+                console.error(error)
+                if (!cancelled) setFailure({ scope, message: rosterLoaded
+                    ? 'Failed to load player averages. Tap to retry.'
+                    : 'Failed to load roster. Tap to retry.' })
+            })
             .finally(() => {
                 if (!cancelled) setLoading(false)
             })
@@ -73,7 +87,7 @@ export default function TeamRosterScreen() {
         return () => {
             cancelled = true
         }
-    }, [memberId, current, currentLeague])
+    }, [memberId, currentLeague, scope, attempt])
 
     const active = useMemo(
         () => roster.filter((r) => !r.is_on_ir && !r.is_on_taxi).sort(compareRosterBySlot),
@@ -131,9 +145,18 @@ export default function TeamRosterScreen() {
                 style={styles.list}
                 contentContainerStyle={[styles.listContent, { paddingHorizontal: padX }]}
             >
-                {loading && roster.length === 0 ? (
+                {loadError ? <ErrorBanner message={loadError} onRetry={() => setAttempt((value) => value + 1)} /> : null}
+                {!memberId ? (
+                    <Text>Choose a team to view its roster.</Text>
+                ) : !scope ? (
+                    membershipStatus === 'loading' ? <LoadingState />
+                        : membershipStatus === 'unavailable'
+                            ? <ErrorBanner message="League access is unavailable. Tap to retry." onRetry={() => { void refresh() }} />
+                            : <Text>Join a league to view team rosters.</Text>
+                ) : (!ownsRoster && !loadError) || (loading && roster.length === 0) ? (
                     <LoadingState />
                 ) : roster.length === 0 ? (
+                    loadError ? null :
                     <EmptyState
                         icon="sports-basketball"
                         message="No players yet"

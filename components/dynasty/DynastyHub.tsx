@@ -17,6 +17,7 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { PosTag } from '@/components/PosTag'
 import { Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
 import { usePageMetrics } from '@/components/ui/Page'
+import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDynastyRankings, type DynastyRankingView } from '@/hooks/use-dynasty-rankings'
 import { useAuth } from '@/hooks/use-auth'
@@ -359,11 +360,12 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                 current && currentLeague ? getMyDynastyNews(current.id, currentLeague.id, 30) : Promise.resolve(EMPTY_NEWS),
             ])
             const result = { news, myNews }
-            writePersistentCache(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id), result)
             return result
         },
         [current?.id, currentLeague?.id, user?.id],
-        { staleMs: 5 * 60_000, initialData: cachedNews },
+        { staleMs: 5 * 60_000, initialData: cachedNews,
+            onLoaded: (result) => writePersistentCache(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id), result),
+        },
     )
     const news = newsData?.news ?? EMPTY_NEWS
     const myNews = newsData?.myNews ?? EMPTY_NEWS
@@ -387,8 +389,8 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     return (
             <View style={[styles.contentWrap, { paddingHorizontal: padX }]}>
                 <View style={styles.body}>
-                {section === 'rankings' ? (
-                    <>
+                <RetainedPanel active={section === 'rankings'}>
+                    <View style={styles.body}>
                         <View style={styles.controlRow}>
                             <SegmentedControl<DynastyRankingView>
                                 value={rankings.view}
@@ -449,8 +451,9 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 onEndReachedThreshold={0.4}
                             />
                         )}
-                    </>
-                ) : (
+                    </View>
+                </RetainedPanel>
+                <RetainedPanel active={section === 'news'}>
                     <ScrollView
                         contentContainerStyle={styles.newsContent}
                     >
@@ -487,7 +490,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                             </Card>
                         )}
                     </ScrollView>
-                )}
+                </RetainedPanel>
                 </View>
             </View>
     )

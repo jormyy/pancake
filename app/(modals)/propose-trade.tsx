@@ -1,6 +1,8 @@
+import { invalidateSeasonCache } from '@/lib/shared/season'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
+import { uuid } from 'expo-modules-core'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
@@ -11,12 +13,13 @@ import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
+import { useAuth } from '@/hooks/use-auth'
 import { useMultiTeamTradeComposer } from '@/hooks/use-multi-team-trade-composer'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import { isMultiTeamTradeSubmittable } from '@/lib/multi-team-trade-state'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
-import { getErrorMessage } from '@/lib/shared/errors'
+import { getErrorMessage, RequestError } from '@/lib/shared/errors'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import {
     buildTwoTeamTradeComposerPayload,
@@ -53,7 +56,8 @@ function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children:
 const BUILDER_WIDTH = 900
 
 export default function ProposeTradeScreen() {
-    const { current, currentLeague } = useLeagueContext()
+    const { user } = useAuth()
+    const { current, currentLeague, online } = useLeagueContext()
     const { usableWidth } = usePageMetrics()
     // The verdict moves beside the builder only when the builder keeps its columns.
     const sideBySide = usableWidth >= BUILDER_WIDTH + layout.railWidth
@@ -79,11 +83,12 @@ export default function ProposeTradeScreen() {
     const [reviewing, setReviewing] = useState(false)
     // The sender tab outlives the editor so Review and back lands on the same side.
     const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
-    const ownerIdentity = myMemberId && leagueId ? `${leagueId}:${myMemberId}` : null
+    const ownerIdentity = user?.id && myMemberId && leagueId ? `${user.id}:${leagueId}:${myMemberId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
     const mountedRef = useRef(false)
     const submissionRef = useRef<{ ownerIdentity: string; token: symbol } | null>(null)
+    const retainedAttemptRef = useRef<{ ownerIdentity: string; intent: string; send: () => Promise<void> } | null>(null)
     const routePrefillKeyRef = useRef<string | null>(null)
     const analyzerDraftKeyRef = useRef<string | null>(null)
     const membersRequestRef = useRef(0)
@@ -121,6 +126,7 @@ export default function ProposeTradeScreen() {
 
     useEffect(() => {
         submissionRef.current = null
+        retainedAttemptRef.current = null
         setSubmitting(false)
         setReviewing(false)
     }, [ownerIdentity])
@@ -269,12 +275,20 @@ export default function ProposeTradeScreen() {
             ? `This trade has ${participantIds.length} teams. Remove ${participantIds.length - MAX_TRADE_PARTICIPANTS} to meet the ${MAX_TRADE_PARTICIPANTS}-team limit.`
             : 'Trade team limit reached. Remove a team before selecting another.'
         : null
-    const canSubmit = !tradingClosed && !submitting && composer.assetsReady && withinItemLimit &&
+    const intent = JSON.stringify({ ownerIdentity, mode, sourceTradeId, multiTeamMode, selectedRecipientId,
+        participantIds, items, notes, expirationDays })
+    const retainedAttempt = retainedAttemptRef.current?.ownerIdentity === ownerIdentity &&
+        retainedAttemptRef.current.intent === intent ? retainedAttemptRef.current : null
+    useEffect(() => {
+        if (retainedAttemptRef.current?.intent !== intent) retainedAttemptRef.current = null
+    }, [intent])
+    const canSubmitNew = !tradingClosed && composer.selectedAssetsAvailable && withinItemLimit &&
         !notesError && !expirationError && (
         multiTeamMode
             ? isMultiTeamTradeSubmittable(participantIds, items)
             : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest && !twoTeamDraft.faabError)
     )
+    const canSubmit = online && !submitting && Boolean(retainedAttempt || canSubmitNew)
 
     const handleSubmit = useCallback(async () => {
         if (!ownerIdentity || !ownsOwner(ownerIdentity) || submissionRef.current || !canSubmit) return
@@ -282,37 +296,69 @@ export default function ProposeTradeScreen() {
         submissionRef.current = submission
         setSubmitting(true)
         try {
-            if (multiTeamMode) {
-                await submitMultiTeamTradeComposer({
-                    mode,
-                    editTradeId,
-                    counterTradeId,
-                    myMemberId,
-                    leagueId,
-                    participantMemberIds: participantIds,
-                    items,
-                    notes,
-                    expirationDays,
-                    leagueStatus: currentLeague?.status,
-                    tradeDeadline: currentLeague?.trade_deadline,
-                }, { getCurrentSeasonId, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })
-            } else if (selectedRecipientId && twoTeamDraft) {
-                await submitTradeComposer({
-                    mode,
-                    editTradeId,
-                    counterTradeId,
-                    myMemberId,
-                    leagueId,
-                    selectedRecipientId,
-                    payload: twoTeamDraft.payload,
-                }, { getCurrentSeasonId, proposeTrade, counterTrade, editTrade })
+            let attempt = retainedAttemptRef.current
+            if (attempt?.ownerIdentity !== ownerIdentity || attempt.intent !== intent) attempt = null
+            if (!attempt) {
+                const requestId = uuid.v4()
+                let seasonId: string | null = null
+                const resolvedSeason = async () => {
+                    if (!seasonId) seasonId = await getCurrentSeasonId(leagueId)
+                    return seasonId
+                }
+                let send: () => Promise<void>
+                if (multiTeamMode) {
+                    const input = {
+                        requestId,
+                        nowMs: Date.now(),
+                        mode,
+                        editTradeId,
+                        counterTradeId,
+                        myMemberId,
+                        leagueId,
+                        participantMemberIds: [...participantIds],
+                        items: items.map((item) => ({ ...item })),
+                        notes,
+                        expirationDays,
+                        leagueStatus: currentLeague?.status,
+                        tradeDeadline: currentLeague?.trade_deadline,
+                    }
+                    send = () => submitMultiTeamTradeComposer(input,
+                        { getCurrentSeasonId: resolvedSeason, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })
+                } else {
+                    if (!selectedRecipientId || !twoTeamDraft) return
+                    const payload = twoTeamDraft.payload
+                    const input = {
+                        requestId,
+                        mode,
+                        editTradeId,
+                        counterTradeId,
+                        myMemberId,
+                        leagueId,
+                        selectedRecipientId,
+                        payload: { ...payload, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
+                            offerPickIds: [...payload.offerPickIds], requestPickIds: [...payload.requestPickIds] },
+                    }
+                    send = () => submitTradeComposer(input,
+                        { getCurrentSeasonId: resolvedSeason, proposeTrade, counterTrade, editTrade })
+                }
+                attempt = { ownerIdentity, intent, send }
+                retainedAttemptRef.current = attempt
             }
+            await attempt.send()
             if (!ownsOwner(ownerIdentity) || submissionRef.current !== submission) return
+            retainedAttemptRef.current = null
             const successCopy = tradeComposerSuccessCopy(mode)
             showSuccess(successCopy.title, successCopy.message)
             back()
         } catch (error) {
             if (ownsOwner(ownerIdentity) && submissionRef.current === submission) {
+                // Rule and input rejections roll this request back. A conflicting receipt can be committed.
+                const rejected = error instanceof RequestError && (error.code === 'P0001' ||
+                    (error.code === '22023' && error.message !== 'This request key already belongs to different trade terms.'))
+                if (rejected) {
+                    retainedAttemptRef.current = null
+                    invalidateSeasonCache(leagueId)
+                }
                 showAlert('Error', getErrorMessage(error) ?? 'Could not propose trade.')
             }
         } finally {
@@ -330,6 +376,7 @@ export default function ProposeTradeScreen() {
         editTradeId,
         expirationDays,
         items,
+        intent,
         leagueId,
         mode,
         multiTeamMode,
@@ -361,6 +408,7 @@ export default function ProposeTradeScreen() {
         onRetry: composer.retry,
         onTogglePlayer: composer.toggleParticipantPlayer,
         onTogglePick: composer.toggleParticipantPick,
+        onRemoveAsset: composer.removeParticipantAsset,
         onDestinationChange: composer.setParticipantDestination,
         onPlayerDestinationChange: composer.setParticipantPlayerDestination,
         onPickDestinationChange: composer.setParticipantPickDestination,
@@ -397,6 +445,7 @@ export default function ProposeTradeScreen() {
                             style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
                             disabled={!canSubmit}
                             accessibilityRole="button"
+                            accessibilityState={{ disabled: !canSubmit }}
                             accessibilityLabel="Confirm and send trade"
                             testID="trade-confirm-submit"
                             id="trade-confirm-submit"
@@ -408,6 +457,7 @@ export default function ProposeTradeScreen() {
                 {/* Its own key, so review opens at the top instead of the editor's scroll position. */}
                 <ScrollView key="review" style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                     <View style={styles.reviewColumn}>
+                        {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
                         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
@@ -429,6 +479,7 @@ export default function ProposeTradeScreen() {
                         style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
                         disabled={!canSubmit}
                         accessibilityRole="button"
+                        accessibilityState={{ disabled: !canSubmit }}
                         accessibilityLabel="Review trade proposal"
                         testID="trade-submit"
                         id="trade-submit"

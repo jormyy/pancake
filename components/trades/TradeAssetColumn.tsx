@@ -15,6 +15,7 @@ function PlayerRow({
     avgFpts,
     avgMinutes,
     selected,
+    blocked,
     destinationLabel,
     onToggle,
     testID,
@@ -23,6 +24,7 @@ function PlayerRow({
     avgFpts?: number
     avgMinutes?: number | null
     selected: boolean
+    blocked: boolean
     destinationLabel?: string | null
     onToggle: () => void
     testID?: string
@@ -40,7 +42,9 @@ function PlayerRow({
         <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
+            disabled={blocked && !selected}
             accessibilityRole="button"
+            accessibilityState={{ disabled: blocked && !selected }}
             accessibilityLabel={`${action} ${p.display_name} for trade`}
             testID={testID}
             id={testID}
@@ -69,7 +73,7 @@ function PlayerRow({
                     {player.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
                 </View>
                 <Text style={styles.playerContext} numberOfLines={1}>
-                    {statText}
+                    {blocked && !selected ? 'Remove the earlier route to select this player.' : statText}
                 </Text>
                 {selected && destinationLabel ? (
                     <Text style={styles.routeMeta} numberOfLines={1}>
@@ -89,12 +93,14 @@ function PlayerRow({
 function PickRow({
     pick,
     selected,
+    blocked,
     destinationLabel,
     onToggle,
     testID,
 }: {
     pick: TradePickItem
     selected: boolean
+    blocked: boolean
     destinationLabel?: string | null
     onToggle: () => void
     testID?: string
@@ -104,7 +110,9 @@ function PickRow({
         <Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
+            disabled={blocked && !selected}
             accessibilityRole="button"
+            accessibilityState={{ disabled: blocked && !selected }}
             accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
             testID={testID}
             id={testID}
@@ -117,6 +125,7 @@ function PickRow({
                     {pick.seasonYear} Round {pick.round}
                 </Text>
                 <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
+                {blocked && !selected ? <Text style={styles.playerContext}>Remove the earlier route to select this pick.</Text> : null}
                 {selected && destinationLabel ? (
                     <Text style={styles.routeMeta} numberOfLines={1}>
                         To {destinationLabel}
@@ -143,6 +152,8 @@ export function TradeAssetColumn({
     avgStatsMap,
     selectedPlayerIds,
     selectedPickIds,
+    blockedPlayerIds,
+    blockedPickIds,
     playerDestinationLabel,
     pickDestinationLabel,
     onTogglePlayer,
@@ -160,6 +171,8 @@ export function TradeAssetColumn({
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
     selectedPlayerIds: Set<string>
     selectedPickIds: Set<string>
+    blockedPlayerIds?: ReadonlySet<string>
+    blockedPickIds?: ReadonlySet<string>
     playerDestinationLabel?: (id: string) => string | null
     pickDestinationLabel?: (id: string) => string | null
     onTogglePlayer: (id: string) => void
@@ -195,6 +208,7 @@ export function TradeAssetColumn({
                         avgFpts={avgMap.get(rp.players.id)}
                         avgMinutes={avgStatsMap.get(rp.players.id)?.avg_minutes_played}
                         selected={selectedPlayerIds.has(rp.players.id)}
+                        blocked={blockedPlayerIds?.has(rp.players.id) ?? false}
                         destinationLabel={playerDestinationLabel?.(rp.players.id)}
                         onToggle={() => onTogglePlayer(rp.players.id)}
                         testID={testIdPrefix ? `${testIdPrefix}-player-${rp.players.id}` : undefined}
@@ -210,6 +224,7 @@ export function TradeAssetColumn({
                             key={pick.pickId}
                             pick={pick}
                             selected={selectedPickIds.has(pick.pickId)}
+                            blocked={blockedPickIds?.has(pick.pickId) ?? false}
                             destinationLabel={pickDestinationLabel?.(pick.pickId)}
                             onToggle={() => onTogglePick(pick.pickId)}
                             testID={testIdPrefix ? `${testIdPrefix}-pick-${pick.pickId}` : undefined}

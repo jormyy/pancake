@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui'
 import { colors, spacing, textStyles } from '@/constants/tokens'
 import { showAlert } from '@/lib/alert'
+import { sessionGeneration } from '@/lib/session-cache-registry'
 import { getErrorMessage } from '@/lib/shared/errors'
 import {
     disableWebPush,
@@ -24,54 +25,67 @@ const STATUS_COPY: Partial<Record<WebPushStatus, string>> = {
 export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: WebPushStatus) => void }) {
     const [status, setStatus] = useState<WebPushStatus | null>(null)
     const [busy, setBusy] = useState(false)
+    const lifetime = useRef(0)
 
     useEffect(() => {
-        let active = true
+        const mounted = ++lifetime.current
+        const generation = sessionGeneration()
+        const current = () => lifetime.current === mounted && sessionGeneration() === generation
         // Warm the VAPID key so the tap handler can prompt before any network wait.
         getWebPushPublicKey().catch(() => null)
         getWebPushStatus()
-            .then((next) => { if (active) setStatus(next) })
-            .catch(() => { if (active) setStatus('unavailable') })
-        return () => { active = false }
+            .then((next) => { if (current()) setStatus(next) })
+            .catch(() => { if (current()) setStatus('unavailable') })
+        return () => { lifetime.current += 1 }
     }, [])
 
     useEffect(() => {
         if (status) onStatusChange?.(status)
     }, [status, onStatusChange])
 
+    function captureAction() {
+        const mounted = lifetime.current
+        const generation = sessionGeneration()
+        return () => lifetime.current === mounted && sessionGeneration() === generation
+    }
+
     function handleEnable() {
+        const current = captureAction()
         // No await before enableWebPush(): Safari only prompts inside the tap.
         setBusy(true)
         enableWebPush()
-            .then(setStatus)
-            .catch((error) => showAlert('Error', getErrorMessage(error)))
-            .finally(() => setBusy(false))
+            .then((next) => { if (current()) setStatus(next) })
+            .catch((error) => { if (current()) showAlert('Error', getErrorMessage(error)) })
+            .finally(() => { if (current()) setBusy(false) })
     }
 
     async function handleDisable() {
+        const current = captureAction()
         setBusy(true)
         try {
             await disableWebPush()
-            setStatus('off')
+            if (current()) setStatus('off')
         } catch (error) {
-            showAlert('Error', getErrorMessage(error))
+            if (current()) showAlert('Error', getErrorMessage(error))
         } finally {
-            setBusy(false)
+            if (current()) setBusy(false)
         }
     }
 
     async function handleTest() {
+        const current = captureAction()
         setBusy(true)
         try {
             const result = await sendTestWebPush()
-            if (result.sent === 0) {
+            if (current() && result.sent === 0) {
                 showAlert('No notification sent', 'This device is not registered anymore. Turn notifications off and on again.')
-                setStatus(await getWebPushStatus())
+                const next = await getWebPushStatus()
+                if (current()) setStatus(next)
             }
         } catch (error) {
-            showAlert('Error', getErrorMessage(error))
+            if (current()) showAlert('Error', getErrorMessage(error))
         } finally {
-            setBusy(false)
+            if (current()) setBusy(false)
         }
     }
 

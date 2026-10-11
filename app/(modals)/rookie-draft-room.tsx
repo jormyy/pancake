@@ -23,7 +23,9 @@ import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
+import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { PosTag } from '@/components/PosTag'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -42,10 +44,12 @@ export default function RookieDraftRoomScreen() {
         prospects,
         prospectsLoading,
         picking,
-        activeTab,
+        draftToTaxi,
+        setDraftToTaxi,        activeTab,
         setActiveTab,
         secondsLeft,
         pickError,
+        completionError,
         rosterOverflow,
         rosterForDrop,
         resolvingOverflow,
@@ -56,7 +60,6 @@ export default function RookieDraftRoomScreen() {
         handleTrimDrop,
         handlePick,
         handleCommissionerPick,
-        resolveByTaxi,
         resolveByDrop,
     } = useRookieDraftRoomController({
         draftId,
@@ -97,6 +100,15 @@ export default function RookieDraftRoomScreen() {
         )
     }
 
+    if (state.draft.leagueId !== currentLeague?.id) {
+        return <SafeAreaView style={styles.container}>
+            <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList(state.draft.isMock)} />
+            <View style={styles.center}>
+                <Text style={styles.emptyText}>This draft belongs to another league. Select its league to continue.</Text>
+            </View>
+        </SafeAreaView>
+    }
+
     const { draft, picks, nextPick } = state
     const isMyTurn = nextPick?.memberId === memberId
     const stopped = draft.status === 'cancelled'
@@ -130,22 +142,11 @@ export default function RookieDraftRoomScreen() {
                             {' '}but your active roster is over capacity. Resolve before continuing.
                         </Text>
 
-                        {rosterOverflow?.taxiSlotsAvailable && (
-                            <MotionPressable
-                                style={[styles.overflowBtn, styles.overflowBtnPrimary]}
-                                onPress={resolveByTaxi}
-                                disabled={resolvingOverflow}
-                                pressedScale={0.965}
-                            >
-                                <Text style={styles.overflowBtnPrimaryText}>
-                                    Move {rosterOverflow?.newPlayerName} to Taxi Squad
-                                </Text>
-                            </MotionPressable>
-                        )}
+
 
                         {rosterForDrop.length > 0 && (
                             <>
-                                <Text style={styles.overflowDropLabel}>Or drop a player:</Text>
+                                <Text style={styles.overflowDropLabel}>Drop a player:</Text>
                                 <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
                                     {rosterForDrop.map((rp) => (
                                         <MotionPressable
@@ -236,6 +237,9 @@ export default function RookieDraftRoomScreen() {
                         />
                     ) : null}
                 </DraftScreenHeader>
+                {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? <TaxiAcquisitionChoice
+                    value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking}
+                    label="Draft this pick directly into taxi" /> : null}
                 <KeyboardAvoidingView
                     style={[styles.body, isDesktop && styles.bodyDesktop]}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -318,6 +322,9 @@ export default function RookieDraftRoomScreen() {
                         ) : null}
                     </View>
 
+                    {completionError ? <ErrorBanner
+                        message={`Could not finish the roster check. ${completionError} Tap to retry.`}
+                        onRetry={() => { void refresh() }} /> : null}
                     {/* ── Tab switcher ─────────────────────────── */}
                     <View style={styles.tabs}>
                         <MotionPressable
