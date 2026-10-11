@@ -38,6 +38,7 @@ function runtimeSupabaseOverride(key: string): string | null {
 }
 
 const resolvedSupabaseUrl = runtimeSupabaseOverride(SUPABASE_URL_OVERRIDE_KEY) ?? supabaseUrl
+const resolvedSupabasePublicKey = runtimeSupabaseOverride(SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) ?? supabasePublicKey
 export const supabaseAuthStorageKey = authStorageKey(resolvedSupabaseUrl)
 export const localAuthChangeEvent = 'pancake-local-auth-change'
 const authStorage = createAuthInvalidation(
@@ -82,7 +83,7 @@ export function readStoredAuthState(): StoredAuthState {
 
 export const supabase = createClient<Database>(
     resolvedSupabaseUrl,
-    runtimeSupabaseOverride(SUPABASE_PUBLIC_KEY_OVERRIDE_KEY) ?? supabasePublicKey,
+    resolvedSupabasePublicKey,
     {
         auth: {
             storageKey: supabaseAuthStorageKey,
@@ -95,3 +96,44 @@ export const supabase = createClient<Database>(
         global: { fetch: authStorage.fetch(fenceDataRequests((input, init) => fetch(input, init))) },
     },
 )
+
+type SessionTokens = { access_token: string; refresh_token: string }
+
+/** The saved session's tokens, even after the access token expired, so sign-out can still revoke it. */
+export function readStoredSessionTokens(): SessionTokens | null {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return null
+    const stored = authStorage.read(supabaseAuthStorageKey)
+    if (!stored.available || !stored.value) return null
+    try {
+        const session = JSON.parse(stored.value) as Partial<SessionTokens>
+        return typeof session.access_token === 'string' && typeof session.refresh_token === 'string' && session.refresh_token
+            ? { access_token: session.access_token, refresh_token: session.refresh_token }
+            : null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Revoke a session this device already signed out of. A separate in-memory client refreshes an
+ * expired access token if needed and never writes the device's stored auth. `beforeRevoke` gets
+ * a usable access token for server cleanup that needs the old identity.
+ */
+export async function revokeDetachedSession(
+    tokens: SessionTokens,
+    beforeRevoke: (accessToken: string) => Promise<void>,
+): Promise<boolean> {
+    const detached = createClient<Database>(resolvedSupabaseUrl, resolvedSupabasePublicKey, {
+        auth: {
+            storageKey: `${supabaseAuthStorageKey}-revoke`,
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+        },
+    })
+    const { data, error } = await detached.auth.setSession(tokens)
+    if (error || !data.session) return false
+    await beforeRevoke(data.session.access_token)
+    const { error: signOutError } = await detached.auth.signOut()
+    return !signOutError
+}

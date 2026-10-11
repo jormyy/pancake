@@ -1,4 +1,4 @@
-import { supabase, invalidateLocalAuthSession } from '@/lib/supabase'
+import { supabase, invalidateLocalAuthSession, readStoredSessionTokens, revokeDetachedSession } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 import { detachWebPushFromAccount } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
@@ -25,25 +25,33 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
+    // This device drops the account before any network call: a slow or offline server must
+    // not keep private screens visible. Server cleanup then uses the captured session.
+    const tokens = readStoredSessionTokens()
+    clearPersistentCaches()
+    await invalidateLocalAuthSession()
     try {
-        await detachWebPushFromAccount()
+        // No stored session remains, so this only clears the SDK and notifies auth and realtime listeners.
+        await supabase.auth.signOut({ scope: 'local' })
     } catch (error) {
-        // Not fatal: the next signed-in sync re-assigns this endpoint to its new owner.
-        console.warn('Web push detach failed.', error)
+        console.warn('Local sign-out cleanup failed.', error)
     }
+    if (!tokens) return { serverSignOutConfirmed: true }
 
     let serverSignOutConfirmed = false
     try {
-        const { error } = await supabase.auth.signOut()
-        serverSignOutConfirmed = !error
-        if (error) console.warn('Server sign-out could not be confirmed.', error)
+        serverSignOutConfirmed = await revokeDetachedSession(tokens, async (accessToken) => {
+            try {
+                await detachWebPushFromAccount(accessToken)
+            } catch (error) {
+                // Not fatal: the next signed-in sync re-assigns this endpoint to its new owner.
+                console.warn('Web push detach failed.', error)
+            }
+        })
+        if (!serverSignOutConfirmed) console.warn('Server sign-out could not be confirmed.')
     } catch (error) {
         console.warn('Server sign-out could not be confirmed.', error)
-    } finally {
-        clearPersistentCaches()
     }
-
-    await invalidateLocalAuthSession()
     return { serverSignOutConfirmed }
 }
 

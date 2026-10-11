@@ -155,8 +155,8 @@ describe('web push client', () => {
         current = subscription
         const { detachWebPushFromAccount, disableWebPush } = await load()
 
-        await detachWebPushFromAccount()
-        expect(mocks.apiPost).toHaveBeenLastCalledWith('/profile/web-push/unsubscribe', { endpoint: 'https://web.push.apple.com/device' })
+        await detachWebPushFromAccount('signed-out-access')
+        expect(mocks.apiPost).toHaveBeenLastCalledWith('/profile/web-push/unsubscribe', { endpoint: 'https://web.push.apple.com/device' }, { accessToken: 'signed-out-access' })
         expect(subscription.unsubscribe).not.toHaveBeenCalled()
 
         mocks.apiPost.mockRejectedValueOnce(new Error('offline'))
@@ -169,7 +169,7 @@ describe('web push client', () => {
         vi.stubGlobal('window', {})
         const { syncWebPushSubscription, detachWebPushFromAccount, getWebPushStatus } = await load()
         await syncWebPushSubscription()
-        await detachWebPushFromAccount()
+        await detachWebPushFromAccount('signed-out-access')
         await expect(getWebPushStatus()).resolves.toBe('unsupported')
         expect(mocks.apiPost).not.toHaveBeenCalled()
     })

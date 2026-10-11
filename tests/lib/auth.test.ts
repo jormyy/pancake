@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({
     invalidateLocalAuthSession: vi.fn(),
+    readStoredSessionTokens: vi.fn(),
+    revokeDetachedSession: vi.fn(),
     supabase: {
         auth: {
             signUp: vi.fn(),
@@ -14,50 +16,75 @@ vi.mock('@/lib/web-push', () => ({ detachWebPushFromAccount: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: vi.fn() }))
 
 import { signOut, signUp } from '@/lib/auth'
-import { supabase, invalidateLocalAuthSession } from '@/lib/supabase'
+import { supabase, invalidateLocalAuthSession, readStoredSessionTokens, revokeDetachedSession } from '@/lib/supabase'
 import { detachWebPushFromAccount } from '@/lib/web-push'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 
 const mockAuth = vi.mocked(supabase.auth)
 const mockFrom = vi.mocked(supabase.from)
+const tokens = { access_token: 'stored-access', refresh_token: 'stored-refresh' }
 
 describe('signOut', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        vi.mocked(readStoredSessionTokens).mockReturnValue(tokens)
+        mockAuth.signOut.mockResolvedValue({ error: null } as never)
+        vi.mocked(revokeDetachedSession).mockImplementation(async (_tokens, beforeRevoke) => {
+            await beforeRevoke('fresh-access')
+            return true
+        })
     })
 
-    it('invalidates local identity and reports unconfirmed server logout on network failure', async () => {
-        mockAuth.signOut
-            .mockResolvedValueOnce({ error: new Error('network') } as never)
-            .mockResolvedValueOnce({ error: null } as never)
+    it('signs this device out before any server call', async () => {
+        const order: string[] = []
+        vi.mocked(invalidateLocalAuthSession).mockImplementation(async () => { order.push('local') })
+        vi.mocked(revokeDetachedSession).mockImplementation(async (_tokens, beforeRevoke) => {
+            order.push('revoke')
+            await beforeRevoke('fresh-access')
+            return true
+        })
+        vi.mocked(detachWebPushFromAccount).mockImplementation(async () => { order.push('push') })
+
+        expect(await signOut()).toEqual({ serverSignOutConfirmed: true })
+
+        expect(order).toEqual(['local', 'revoke', 'push'])
+        expect(clearPersistentCaches).toHaveBeenCalledOnce()
+        expect(mockAuth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+        expect(revokeDetachedSession).toHaveBeenCalledWith(tokens, expect.any(Function))
+        expect(detachWebPushFromAccount).toHaveBeenCalledWith('fresh-access')
+    })
+
+    it('keeps local sign-out and reports unconfirmed server logout on network failure', async () => {
+        vi.mocked(revokeDetachedSession).mockRejectedValueOnce(new Error('network'))
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
         expect(await signOut()).toEqual({ serverSignOutConfirmed: false })
 
-        expect(mockAuth.signOut).toHaveBeenNthCalledWith(1)
-        expect(mockAuth.signOut).toHaveBeenCalledOnce()
         expect(invalidateLocalAuthSession).toHaveBeenCalledOnce()
-        expect(detachWebPushFromAccount).toHaveBeenCalledOnce()
     })
 
-    it('preserves server sign-out and fences late sessions after successful revocation', async () => {
-        mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
-
-        await signOut()
-
-        expect(mockAuth.signOut).toHaveBeenCalledOnce()
-        expect(invalidateLocalAuthSession).toHaveBeenCalledOnce()
-        expect(detachWebPushFromAccount).toHaveBeenCalledOnce()
-    })
-
-    it('clears the authenticated session and caches when web push cleanup fails', async () => {
-        vi.mocked(detachWebPushFromAccount).mockRejectedValueOnce(new Error('offline'))
-        mockAuth.signOut.mockResolvedValueOnce({ error: null } as never)
+    it('reports unconfirmed server logout when revocation is refused', async () => {
+        vi.mocked(revokeDetachedSession).mockResolvedValueOnce(false)
         vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-        await signOut()
+        expect(await signOut()).toEqual({ serverSignOutConfirmed: false })
+    })
 
-        expect(mockAuth.signOut).toHaveBeenCalledOnce()
+    it('still revokes the server session when web push cleanup fails', async () => {
+        vi.mocked(detachWebPushFromAccount).mockRejectedValueOnce(new Error('offline'))
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+        expect(await signOut()).toEqual({ serverSignOutConfirmed: true })
         expect(clearPersistentCaches).toHaveBeenCalledOnce()
+    })
+
+    it('has nothing to revoke without a stored session', async () => {
+        vi.mocked(readStoredSessionTokens).mockReturnValue(null)
+
+        expect(await signOut()).toEqual({ serverSignOutConfirmed: true })
+
+        expect(invalidateLocalAuthSession).toHaveBeenCalledOnce()
+        expect(revokeDetachedSession).not.toHaveBeenCalled()
     })
 })
 
