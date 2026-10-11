@@ -1,8 +1,9 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProposeTradeScreen from '@/app/(modals)/propose-trade'
 import { RequestError } from '@/lib/shared/errors'
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import { MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 
 type MockTradeItem =
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     params: {} as Record<string, string | undefined>,
     participantIds: ['member-a', 'member-b'],
     prefillFromTrade: vi.fn(),
+    prefillFromItems: vi.fn(),
     showAlert: vi.fn(),
     showSuccess: vi.fn(),
     submitMultiTeamTradeComposer: vi.fn(),
@@ -70,7 +72,7 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         participantName: vi.fn(),
         participantViews: mocks.participantIds.map((memberId) => ({ memberId })),
         prefillFromTrade: mocks.prefillFromTrade,
-        prefillFromItems: vi.fn(),
+        prefillFromItems: mocks.prefillFromItems,
         reset: vi.fn(),
         retry: vi.fn(),
         rosterError: null,
@@ -537,6 +539,122 @@ describe('propose trade async ownership', () => {
 
         expect(mocks.showSuccess).not.toHaveBeenCalled()
         expect(mocks.back).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+})
+
+describe('unsent trade across a page reload', () => {
+    const draftKey = 'pancake:trade-composer-draft'
+    let stored: Map<string, string>
+    beforeEach(() => {
+        stored = new Map()
+        vi.stubGlobal('sessionStorage', {
+            getItem: (key: string) => stored.get(key) ?? null,
+            setItem: (key: string, value: string) => { stored.set(key, value) },
+            removeItem: (key: string) => { stored.delete(key) },
+        })
+    })
+    afterEach(() => { vi.unstubAllGlobals() })
+
+    const mount = async () => {
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+        return renderer
+    }
+    const builder = (renderer: ReactTestRenderer) => renderer.root.findByType('MultiTeamTradeBuilder' as never)
+    // A reload tears the page down without React cleanup, so the saved copy is still there afterwards.
+    const reload = async (renderer: ReactTestRenderer) => {
+        const saved = stored.get(draftKey)
+        await act(async () => { renderer.unmount() })
+        if (saved) stored.set(draftKey, saved)
+        return mount()
+    }
+
+    it('brings back the selected assets, notes and expiry for the same owner', async () => {
+        const first = await mount()
+        await act(async () => { builder(first).props.onNotesChange('Hold for the deadline') })
+        await act(async () => { builder(first).props.onExpirationDaysChange('5') })
+        expect(JSON.parse(stored.get(draftKey)!)).toMatchObject({ ownerIdentity: 'user-a:league-a:member-a', mode: 'propose',
+            selectedRecipientId: 'member-b', items: mocks.tradeItems, notes: 'Hold for the deadline', expirationDays: '5' })
+
+        const second = await reload(first)
+        expect(mocks.prefillFromItems).toHaveBeenCalledWith(['member-a', 'member-b'], mocks.tradeItems)
+        expect(builder(second).props.notes).toBe('Hold for the deadline')
+        expect(builder(second).props.expirationDays).toBe('5')
+        expect(second.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(false)
+        await act(async () => { second.unmount() })
+        expect(stored.has(draftKey)).toBe(false)
+    })
+
+    it('never restores another owner\'s trade and drops it', async () => {
+        const first = await mount()
+        await act(async () => { builder(first).props.onNotesChange('Private note') })
+        const saved = stored.get(draftKey)!
+        await act(async () => { first.unmount() })
+        stored.set(draftKey, saved)
+        mocks.userId = 'user-b'
+        const other = await mount()
+        expect(mocks.prefillFromItems).not.toHaveBeenCalled()
+        expect(builder(other).props.notes).toBe('')
+        expect(JSON.parse(stored.get(draftKey)!).ownerIdentity).toBe('user-b:league-a:member-a')
+        await act(async () => { other.unmount() })
+    })
+
+    it.each(['{bad', JSON.stringify({ ownerIdentity: 'user-a:league-a:member-a', mode: 'propose', sourceTradeId: null,
+        multiTeamMode: false, selectedRecipientId: 'member-b', participantIds: ['member-a', 'member-b'],
+        items: [{ kind: 'faab', fromMemberId: 'member-a', toMemberId: 'member-b', faabAmount: -5 }], notes: '', expirationDays: '3' })])(
+        'ignores a damaged saved copy %#', async (saved) => {
+            stored.set(draftKey, saved)
+            const renderer = await mount()
+            expect(mocks.prefillFromItems).not.toHaveBeenCalled()
+            expect(JSON.parse(stored.get(draftKey)!).items).toEqual(mocks.tradeItems)
+            await act(async () => { renderer.unmount() })
+        })
+
+    it('keeps a restored edit instead of reloading the saved trade over it', async () => {
+        mocks.params = { editTradeId: 'trade-1' }
+        mocks.getTradeById.mockResolvedValue({ id: 'trade-1', isMultiTeam: false })
+        const first = await mount()
+        await act(async () => { builder(first).props.onNotesChange('Edited terms') })
+        mocks.prefillFromTrade.mockClear()
+        const second = await reload(first)
+        await act(async () => { await Promise.resolve() })
+        expect(mocks.prefillFromTrade).not.toHaveBeenCalled()
+        expect(builder(second).props.notes).toBe('Edited terms')
+        await act(async () => { second.unmount() })
+    })
+
+    it('stops keeping a copy once Send starts and while the outcome is unknown', async () => {
+        const submission = deferred<void>()
+        mocks.submitTradeComposer.mockReturnValueOnce(submission.promise).mockResolvedValue(undefined)
+        const renderer = await mount()
+        expect(stored.has(draftKey)).toBe(true)
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        let pending!: Promise<void>
+        await act(async () => { pending = renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress(); await Promise.resolve() })
+        expect(stored.has(draftKey)).toBe(false)
+        await act(async () => { submission.reject(new Error('Reply lost')); await pending })
+        expect(stored.has(draftKey)).toBe(false)
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
+        expect(stored.has(draftKey)).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('keeps the copy again after a definite rejection', async () => {
+        mocks.submitTradeComposer.mockRejectedValueOnce(new RequestError('No active season found.', { code: 'P0001' }))
+        const renderer = await mount()
+        await act(async () => { renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress() })
+        await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
+        expect(stored.has(draftKey)).toBe(true)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('clears the copy when sign-out or an account switch clears session caches', async () => {
+        const renderer = await mount()
+        expect(stored.has(draftKey)).toBe(true)
+        clearSessionCaches()
+        expect(stored.has(draftKey)).toBe(false)
         await act(async () => { renderer.unmount() })
     })
 })

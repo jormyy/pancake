@@ -43,6 +43,7 @@ import {
     proposeTrade,
 } from '@/lib/trades'
 import { takeTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
+import { clearTradeComposerDraft, readTradeComposerDraft, saveTradeComposerDraft } from '@/lib/trade-composer-draft'
 import { useGoBack } from '@/components/ui/useGoBack'
 
 // Inside the web shell the page is already clear of the notch; only native needs the inset.
@@ -92,6 +93,10 @@ export default function ProposeTradeScreen() {
     const routePrefillKeyRef = useRef<string | null>(null)
     const analyzerDraftKeyRef = useRef<string | null>(null)
     const membersRequestRef = useRef(0)
+    // The owner whose unsent trade this editor holds; a later owner never inherits it.
+    const draftOwnerRef = useRef<string | null>(null)
+    const restoredDraftRef = useRef(false)
+    const [draftReady, setDraftReady] = useState(false)
     const { mode, editTradeId, counterTradeId, sourceTradeId } = getTradeComposerMode(params)
     const canUseMultiTeamMode = mode === 'propose'
     const faabEnabled = currentLeague?.waiver_mode === 'faab'
@@ -176,13 +181,40 @@ export default function ProposeTradeScreen() {
         prefillFromItems(draft.participantMemberIds, draft.items)
     }, [leagueId, myMemberId, params.analyzerDraftId, prefillFromItems])
 
+    // A page reload (an app update reloads the page) brings back the trade this tab had not sent.
+    useEffect(() => {
+        if (draftOwnerRef.current !== null) {
+            const sameOwner = draftOwnerRef.current === ownerIdentity
+            if (!sameOwner) clearTradeComposerDraft()
+            setDraftReady(sameOwner)
+            return
+        }
+        if (!ownerIdentity) return
+        draftOwnerRef.current = ownerIdentity
+        const draft = readTradeComposerDraft(ownerIdentity, mode, sourceTradeId)
+        if (draft) {
+            restoredDraftRef.current = true
+            setMultiTeamMode(draft.multiTeamMode)
+            setSelectedRecipientId(draft.selectedRecipientId)
+            setNotes(draft.notes)
+            setExpirationDays(draft.expirationDays)
+            prefillFromItems(draft.participantIds, draft.items)
+            // The requested asset was already applied before the reload; the user may have removed it since.
+            routePrefillKeyRef.current = `${draft.selectedRecipientId}:${params.requestPlayerId ?? ''}:${params.requestPickId ?? ''}`
+        }
+        setDraftReady(true)
+    }, [mode, ownerIdentity, params.requestPickId, params.requestPlayerId, prefillFromItems, sourceTradeId])
+
+    // Closing the editor ends the draft. A reload skips this cleanup, which is what keeps the draft.
+    useEffect(() => clearTradeComposerDraft, [])
+
     useEffect(() => {
         if (!sourceTradeId || !myMemberId) return
         const capturedOwner = ownerIdentity
         let cancelled = false
         getTradeById(sourceTradeId, myMemberId)
             .then((trade) => {
-                if (cancelled || !ownsOwner(capturedOwner) || !trade) return
+                if (cancelled || !ownsOwner(capturedOwner) || !trade || restoredDraftRef.current) return
                 const prefill = prefillTradeComposerFromTrade(mode, trade)
                 setMultiTeamMode(trade.isMultiTeam)
                 setSelectedRecipientId(trade.isMultiTeam ? null : prefill.selectedRecipientId)
@@ -282,6 +314,15 @@ export default function ProposeTradeScreen() {
     useEffect(() => {
         if (retainedAttemptRef.current?.intent !== intent) retainedAttemptRef.current = null
     }, [intent])
+    // Once Send starts, or a sent request's outcome is unknown, the server owns the trade: a restored
+    // copy would send again under a new request key.
+    const draftToKeep = draftReady && draftOwnerRef.current === ownerIdentity && !submitting && !retainedAttempt &&
+        (items.length > 0 || notes !== '') ? intent : null
+    useEffect(() => {
+        if (!draftReady) return
+        if (draftToKeep) saveTradeComposerDraft(draftToKeep)
+        else clearTradeComposerDraft()
+    }, [draftReady, draftToKeep])
     const canSubmitNew = !tradingClosed && composer.selectedAssetsAvailable && withinItemLimit &&
         !notesError && !expirationError && (
         multiTeamMode
@@ -347,6 +388,7 @@ export default function ProposeTradeScreen() {
             await attempt.send()
             if (!ownsOwner(ownerIdentity) || submissionRef.current !== submission) return
             retainedAttemptRef.current = null
+            clearTradeComposerDraft()
             const successCopy = tradeComposerSuccessCopy(mode)
             showSuccess(successCopy.title, successCopy.message)
             back()

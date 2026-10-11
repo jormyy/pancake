@@ -315,7 +315,7 @@ export function buildMultiTeamTradeItems(
     })
 }
 
-function isMultiTeamTradeItemPayload(value: unknown): value is MultiTeamTradeItemPayload {
+export function isMultiTeamTradeItemPayload(value: unknown): value is MultiTeamTradeItemPayload {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
     const item = value as Record<string, unknown>
     if (typeof item.fromMemberId !== 'string' || item.fromMemberId.length === 0 ||
