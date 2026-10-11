@@ -1,5 +1,6 @@
+import { assertGameImports, assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
-import { buildStatRow } from './syncStats.ts'
+import { buildStatRow, resolveBoxScorePlayers, saveGameStats, validateBoxScorePlayers } from './syncStats.ts'
 import { errorMessage } from './responses.ts'
 import {
   type BackfillRun,
@@ -15,11 +16,9 @@ import {
   syncBackfillLedgerProgress,
   updateBackfillJob,
 } from './backfillJobs.ts'
-import { loadCdnPlayerResolver, resolveCdnPlayer } from './playerResolver.ts'
-import type { Database } from './database.ts'
+import { loadCdnPlayerResolver } from './playerResolver.ts'
 import type { NBABoxScorePlayer } from './nba.ts'
 
-type PlayerGameStatInsert = Database['public']['Tables']['player_game_stats']['Insert']
 
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const CDN_CHUNK = 30
@@ -84,7 +83,9 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
         continue
       }
 
-      await upsertCdnStats(game, dbGame.id, seasonYear, dbGame.week_number, resolver)
+      await assertGameUnambiguous(dbGame.id)
+      const players = await resolveBoxScorePlayers(game, gameId, resolver)
+      await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
       await markBackfillGameCompleted(jobId, 'cdn', seasonYear, gameId, dbGame.id)
       completed++
     } catch (e) {
@@ -170,6 +171,7 @@ async function runCDNEnumRetryChunk(run: BackfillRun, allGameIds: string[], offs
   const pending = allGameIds.filter((gameId) => retryGameKeys.has(gameId))
   const chunk = pending.slice(0, CDN_CHUNK)
   if (!chunk.length) {
+    await recalcCdnEnumWeekNumbers(run.seasonYear)
     await completeBackfillJobFromLedger(run.jobId, 'cdn-enum')
     return false
   }
@@ -198,8 +200,10 @@ async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'co
       return 'failed'
     }
 
+    validateBoxScorePlayers(game, gameId)
     const dbGame = await upsertCdnGame(gameId, game, seasonYear)
-    await upsertCdnStats(game, dbGame.id, seasonYear, dbGame.week_number, resolver)
+    const players = await resolveBoxScorePlayers(game, gameId, resolver)
+    await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
     await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
     return 'completed'
   } catch (e) {
@@ -256,29 +260,6 @@ async function loadFinalCdnGames(seasonYear: number): Promise<DbGame[]> {
   return games
 }
 
-async function loadCdnSeasonGames(seasonYear: number): Promise<Array<{ id: string; nba_game_id: string; game_date: string }>> {
-  const games: Array<{ id: string; nba_game_id: string; game_date: string }> = []
-  let page = 0
-  while (true) {
-    const rows = await mustSupabase(
-      'load CDN season games for week repair',
-      supabase
-        .from('nba_games')
-        .select('id, nba_game_id, game_date')
-        .eq('season_year', seasonYear)
-        .eq('status', 'Final')
-        .like('nba_game_id', '002%')
-        .order('game_date', { ascending: true })
-        .range(page * 1000, (page + 1) * 1000 - 1),
-    )
-    if (!rows?.length) break
-    games.push(...rows as Array<{ id: string; nba_game_id: string; game_date: string }>)
-    if (rows.length < 1000) break
-    page++
-  }
-  return games
-}
-
 async function fetchCdnGame(gameId: string): Promise<CdnGame | null> {
   const result = await fetchCdnGameOrMiss(gameId)
   if (result === 'missing') throw new Error('CDN missing')
@@ -301,33 +282,16 @@ async function fetchCdnGameOrMiss(gameId: string): Promise<CdnGame | 'missing' |
 }
 
 async function upsertCdnStats(
-  game: CdnGame,
+  players: Awaited<ReturnType<typeof resolveBoxScorePlayers>>,
   dbGameId: string,
+  providerGameId: string,
   seasonYear: number,
   weekNumber: number,
-  resolver: Awaited<ReturnType<typeof loadCdnPlayerResolver>>,
 ): Promise<void> {
-  const stats: PlayerGameStatInsert[] = []
-  const allPlayers = [
-    ...(game.homeTeam?.players ?? []),
-    ...(game.awayTeam?.players ?? []),
-  ]
-
-  for (const player of allPlayers) {
-    if (!player.statistics) continue
-    const personId = String(player.personId)
-    const name = player.name ?? ''
-    const playerId = await resolveCdnPlayer(resolver, personId, name)
-    if (!playerId) continue
-    stats.push(buildStatRow(player, playerId, dbGameId, seasonYear, weekNumber) as PlayerGameStatInsert)
-  }
-
+  const stats = players.map(({ player, playerId }) =>
+    buildStatRow(player, playerId, dbGameId, seasonYear, weekNumber))
   if (!stats.length) throw new Error('No CDN player stats parsed from final box score')
-
-  await mustSupabase(
-    'upsert CDN player game stats',
-    supabase.from('player_game_stats').upsert(stats, { onConflict: 'player_id,game_id' }),
-  )
+  await saveGameStats(dbGameId, providerGameId, stats, true)
 }
 
 async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number): Promise<DbGame> {
@@ -335,7 +299,10 @@ async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number):
   const homeTeam = game.homeTeam?.teamTricode ?? ''
   const awayTeam = game.awayTeam?.teamTricode ?? ''
   if (!gameDate || !homeTeam || !awayTeam) throw new Error(`CDN game ${gameId} is missing date or teams`)
-  const weekNumber = estimateCdnWeekNumber(seasonYear, gameDate)
+  const calendar = await mustSupabase('locate CDN game week', supabase.from('season_weeks')
+    .select('week_number').eq('season_year', seasonYear).lte('week_start', gameDate).gte('week_end', gameDate).maybeSingle())
+  const weekNumber = calendar?.week_number ?? estimateCdnWeekNumber(seasonYear, gameDate)
+  await assertGameImports([{ nba_game_id: gameId, season_year: seasonYear, game_date: gameDate, home_team: homeTeam, away_team: awayTeam }])
 
   await mustSupabase(
     'upsert CDN game',
@@ -387,60 +354,10 @@ function findNextCandidateRangeOffset(gameIds: string[], currentOffset: number):
 }
 
 async function recalcCdnEnumWeekNumbers(seasonYear: number): Promise<void> {
-  const games = await loadCdnSeasonGames(seasonYear)
-  if (!games.length) return
-
-  const dateCounts = new Map<string, number>()
-  for (const game of games) dateCounts.set(game.game_date, (dateCounts.get(game.game_date) ?? 0) + 1)
-
-  const bulkStart = [...dateCounts.entries()].filter(([, count]) => count >= 5).map(([date]) => date).sort()[0]
-  const seasonStart = bulkStart ?? games.map((game) => game.game_date).sort()[0]
-  const startMs = new Date(seasonStart).getTime()
-  const weekMap: Record<number, { start: string; end: string; gameIds: string[]; dbGameIds: string[] }> = {}
-
-  for (const game of games) {
-    const daysDiff = Math.floor((new Date(game.game_date).getTime() - startMs) / 86_400_000)
-    const weekNumber = Math.max(1, Math.floor(daysDiff / 7) + 1)
-    const range = weekMap[weekNumber] ?? { start: game.game_date, end: game.game_date, gameIds: [], dbGameIds: [] }
-    if (game.game_date < range.start) range.start = game.game_date
-    if (game.game_date > range.end) range.end = game.game_date
-    range.gameIds.push(game.nba_game_id)
-    range.dbGameIds.push(game.id)
-    weekMap[weekNumber] = range
-  }
-
-  for (const [weekNumberText, range] of Object.entries(weekMap)) {
-    const weekNumber = parseInt(weekNumberText)
-    for (let i = 0; i < range.gameIds.length; i += 500) {
-      await mustSupabase(
-        'repair CDN enum game week numbers',
-        supabase
-          .from('nba_games')
-          .update({ week_number: weekNumber })
-          .in('nba_game_id', range.gameIds.slice(i, i + 500)),
-      )
-    }
-    for (let i = 0; i < range.dbGameIds.length; i += 500) {
-      await mustSupabase(
-        'repair CDN enum stat week numbers',
-        supabase
-          .from('player_game_stats')
-          .update({ week_number: weekNumber })
-          .in('game_id', range.dbGameIds.slice(i, i + 500)),
-      )
-    }
-  }
-
-  const weeks = Object.entries(weekMap).map(([weekNumber, range]) => ({
-    season_year: seasonYear,
-    week_number: parseInt(weekNumber),
-    week_start: range.start,
-    week_end: range.end,
-  }))
-  await mustSupabase(
-    'repair CDN enum season weeks',
-    supabase.from('season_weeks').upsert(weeks, { onConflict: 'season_year,week_number' }),
-  )
+  const { error } = await supabase.rpc('rebuild_nba_calendar_atomic', {
+    p_season_year: seasonYear,
+  })
+  if (error) throw error
 }
 
 function delay(ms: number): Promise<void> {

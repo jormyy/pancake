@@ -25,6 +25,7 @@ import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAd
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { PosTag } from '@/components/PosTag'
+import { ErrorBanner } from '@/components/ui/ErrorBanner'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -48,6 +49,7 @@ export default function RookieDraftRoomScreen() {
         setActiveTab,
         secondsLeft,
         pickError,
+        completionError,
         rosterOverflow,
         rosterForDrop,
         resolvingOverflow,
@@ -96,6 +98,15 @@ export default function RookieDraftRoomScreen() {
                 </SafeAreaView>
             </>
         )
+    }
+
+    if (state.draft.leagueId !== currentLeague?.id) {
+        return <SafeAreaView style={styles.container}>
+            <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList(state.draft.isMock)} />
+            <View style={styles.center}>
+                <Text style={styles.emptyText}>This draft belongs to another league. Select its league to continue.</Text>
+            </View>
+        </SafeAreaView>
     }
 
     const { draft, picks, nextPick } = state
@@ -311,6 +322,9 @@ export default function RookieDraftRoomScreen() {
                         ) : null}
                     </View>
 
+                    {completionError ? <ErrorBanner
+                        message={`Could not finish the roster check. ${completionError} Tap to retry.`}
+                        onRetry={() => { void refresh() }} /> : null}
                     {/* ── Tab switcher ─────────────────────────── */}
                     <View style={styles.tabs}>
                         <MotionPressable

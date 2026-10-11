@@ -317,9 +317,13 @@ export default function RosterScreen() {
         ])
         const { avgMap, avgStatsMap } = await getRosterStatsMaps(roster.map((r) => r.players.id), leagueId)
         const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority }
-        writeRosterCache(current.id, leagueId, result)
         return result
-    }, [current?.id, user?.id, leagueId], { initialData: cachedRosterData ?? undefined, staleMs: 300_000 })
+    }, [current?.id, user?.id, leagueId], {
+        initialData: cachedRosterData ?? undefined, staleMs: 300_000,
+        onLoaded: (result) => {
+            if (current?.id && leagueId && result) writeRosterCache(current.id, leagueId, result)
+        },
+    })
 
     useEffect(() => {
         if (!current?.id || !leagueId) return

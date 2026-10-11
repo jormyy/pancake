@@ -17,7 +17,8 @@ BEGIN
   FOR v_player_id IN SELECT DISTINCT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL ORDER BY player_id LOOP
     PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_player_id::text));
   END LOOP;
-  SELECT * INTO v_trade FROM trades WHERE id=p_trade_id FOR UPDATE;
+  SELECT * INTO v_trade FROM trades WHERE id=p_trade_id AND status='pending' FOR UPDATE;
+  IF NOT FOUND THEN SELECT * INTO v_trade FROM trades WHERE id=p_trade_id; END IF;
   IF NOT FOUND THEN RAISE EXCEPTION 'Trade not found' USING ERRCODE='P0002'; END IF;
   IF v_trade.status<>'pending' OR (v_trade.expires_at IS NOT NULL AND v_trade.expires_at<=now()) THEN
     RAISE EXCEPTION 'Choose roster destinations while the trade offer is pending.' USING ERRCODE='P0001';

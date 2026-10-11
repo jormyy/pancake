@@ -11,6 +11,7 @@ AS $$
 DECLARE
   r RECORD;
 BEGIN
+  PERFORM pg_advisory_xact_lock(1347174745, 1);
   FOR r IN
     SELECT
       (array_agg(id ORDER BY (sleeper_id IS NOT NULL) DESC, created_at ASC))[1] AS winner_id,

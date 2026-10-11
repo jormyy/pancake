@@ -73,7 +73,7 @@ export function useAuctionDraftRoomController({
     // fire load() concurrently, so drop any result that a newer load supersedes.
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
-    const pollRevisionRef = useRef<string | null>(null)
+    const pollRevisionRef = useRef<string | null | undefined>(undefined)
 
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
@@ -102,7 +102,7 @@ export function useAuctionDraftRoomController({
         setRealtimeStatus('CONNECTING')
         lastNomIdRef.current = null
         closeTriggeredForNomRef.current = null
-        pollRevisionRef.current = null
+        pollRevisionRef.current = undefined
         return () => {
             loadSeqRef.current += 1
             searchSeqRef.current += 1
@@ -110,19 +110,17 @@ export function useAuctionDraftRoomController({
     }, [draftId])
 
     const load = useCallback(async () => {
-        if (!draftId) return
+        if (!draftId) return false
         const requestedDraftId = draftId
-        if (activeDraftIdRef.current !== requestedDraftId) return
+        if (activeDraftIdRef.current !== requestedDraftId) return false
         const seq = ++loadSeqRef.current
         try {
             const s = await getDraftState(requestedDraftId)
             // Ignore a stale, out-of-order result once a newer load has started.
-            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return
+            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
             setLoadError(null)
-            // Only commit a DEFINITE state. getDraftState() returns null (not a
-            // throw) on a transient fetch failure; committing null would blank the
-            // whole live auction room for seconds during bidding,
-            // and would also reseed the bid field on the next good poll.
+            // A successful empty read means the room is gone. Read failures throw
+            // and keep the last usable state in the catch path below.
             if (s) {
                 setStateDraftId(requestedDraftId)
                 setState(s)
@@ -146,11 +144,20 @@ export function useAuctionDraftRoomController({
                     lastNomIdRef.current = nomId
                     if (nom) setBidText(String(minBid))
                 }
+            } else {
+                setStateDraftId(requestedDraftId)
+                setState(null)
+                setTimeLeft(0)
+                setNominating(false)
+                lastNomIdRef.current = null
+                closeTriggeredForNomRef.current = null
             }
+            return true
         } catch (e) {
             if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) {
                 setLoadError(getErrorMessage(e))
             }
+            return false
         }
     }, [draftId])
 
@@ -188,8 +195,8 @@ export function useAuctionDraftRoomController({
                 const revision = await getDraftPollRevision(draftId)
                 if (!active || appState !== 'active' || activeDraftIdRef.current !== draftId) return
                 if (pollRevisionRef.current === revision) return
-                pollRevisionRef.current = revision
-                await load()
+                const loaded = await load()
+                if (loaded && active && activeDraftIdRef.current === draftId) pollRevisionRef.current = revision
             } catch (error) {
                 if (active && activeDraftIdRef.current === draftId) {
                     console.error('Could not poll the live draft revision.', error)
@@ -389,6 +396,8 @@ export function useAuctionDraftRoomController({
         return counts
     }, [closedNominations])
 
+    const refresh = useCallback(async () => { await load() }, [load])
+
     return {
         state: visibleState,
         tab,
@@ -414,7 +423,7 @@ export function useAuctionDraftRoomController({
         budgetByMember,
         wonCountByMember,
         realtimeConnected,
-        refresh: load,
+        refresh,
         handleBid,
         handleWithdraw,
         handleNominate,

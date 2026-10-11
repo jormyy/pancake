@@ -12,12 +12,20 @@ DECLARE
   v_winner players%ROWTYPE;
   v_loser players%ROWTYPE;
 BEGIN
+  PERFORM pg_advisory_xact_lock(1347174745, 1);
   IF winner_id = loser_id THEN RETURN; END IF;
   PERFORM id FROM players WHERE id IN (winner_id, loser_id) ORDER BY id FOR UPDATE;
   SELECT * INTO v_winner FROM players WHERE id = winner_id;
   IF NOT FOUND THEN RETURN; END IF;
   SELECT * INTO v_loser FROM players WHERE id = loser_id;
   IF NOT FOUND THEN RETURN; END IF;
+
+  IF (v_winner.nba_id IS NOT NULL AND v_loser.nba_id IS NOT NULL AND v_winner.nba_id <> v_loser.nba_id)
+    OR (v_winner.espn_id IS NOT NULL AND v_loser.espn_id IS NOT NULL AND v_winner.espn_id <> v_loser.espn_id)
+    OR (v_winner.sleeper_id IS NOT NULL AND v_loser.sleeper_id IS NOT NULL AND v_winner.sleeper_id <> v_loser.sleeper_id)
+    OR (v_winner.sportsdata_id IS NOT NULL AND v_loser.sportsdata_id IS NOT NULL AND v_winner.sportsdata_id <> v_loser.sportsdata_id) THEN
+    RAISE EXCEPTION 'Cannot merge conflicting provider identities.' USING ERRCODE = '23514';
+  END IF;
 
   -- Release unique provider links before moving them to the surviving identity.
   UPDATE players SET
@@ -191,6 +199,9 @@ BEGIN
     SELECT league_id,member_id,winner_id,exited_at FROM league_member_taxi_exits WHERE player_id=loser_id
     ON CONFLICT(league_id,member_id,player_id) DO UPDATE SET exited_at=LEAST(league_member_taxi_exits.exited_at,EXCLUDED.exited_at);
   DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND source='merge' AND related_id=loser_id;
+
+  UPDATE dynasty_news SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE league_activity SET related_player_id = winner_id WHERE related_player_id = loser_id;
 
   DELETE FROM players WHERE id = loser_id;
 END;

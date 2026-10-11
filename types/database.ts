@@ -3747,6 +3747,11 @@ export type Database = {
         Args: { p_league_id: string; p_league_season_id: string }
         Returns: undefined
       }
+      assert_nba_game_imports: { Args: { p_games: Json }; Returns: undefined }
+      assert_nba_game_unambiguous: {
+        Args: { p_game_id: string }
+        Returns: undefined
+      }
       assign_player_nba_id_atomic: {
         Args: { p_nba_id: string; p_player_id: string }
         Returns: string
@@ -3793,6 +3798,10 @@ export type Database = {
       cancel_waiver_claim_atomic: {
         Args: { p_claim_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined
+      }
+      capture_score_inputs: {
+        Args: { p_league_season_id: string; p_week_number: number }
+        Returns: Json
       }
       checkpoint_stats_sync_job_atomic: {
         Args: {
@@ -4059,10 +4068,23 @@ export type Database = {
         }
         Returns: undefined
       }
-      drop_player_atomic: {
-        Args: { p_roster_player_id: string }
-        Returns: undefined
-      }
+      drop_player_atomic:
+        | { Args: { p_roster_player_id: string }; Returns: undefined }
+        | {
+            Args: {
+              p_expected_league_season_id: string
+              p_roster_player_id: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_expected_league_season_id: string
+              p_rookie_draft_id: string
+              p_roster_player_id: string
+            }
+            Returns: undefined
+          }
       edit_multi_team_trade_atomic: {
         Args: {
           p_expires_at?: string
@@ -4277,6 +4299,12 @@ export type Database = {
         Args: { p_league_id: string; p_member_id: string }
         Returns: number
       }
+      get_stale_score_weeks: {
+        Args: { p_league_season_id: string; p_through_week: number }
+        Returns: {
+          week_number: number
+        }[]
+      }
       get_trade_page_refs: {
         Args: {
           p_cursor?: string
@@ -4479,6 +4507,14 @@ export type Database = {
         Returns: string
       }
       prune_unbounded_history: { Args: never; Returns: Json }
+      publish_nba_schedule_atomic: {
+        Args: { p_games: Json; p_season_year: number; p_weeks: Json }
+        Returns: number
+      }
+      rebuild_nba_calendar_atomic: {
+        Args: { p_season_year: number }
+        Returns: number
+      }
       record_notification_outbox_ticket_atomic: {
         Args: {
           p_claim_token: string
@@ -4561,6 +4597,10 @@ export type Database = {
         Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
       }
+      resolve_player_imports_atomic: {
+        Args: { p_records: Json; p_source: string }
+        Returns: Json
+      }
       resume_draft_atomic: {
         Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
@@ -4572,6 +4612,15 @@ export type Database = {
       revoke_push_token_atomic: {
         Args: { p_revocation_hash: string; p_token: string }
         Returns: boolean
+      }
+      save_game_stats_atomic: {
+        Args: {
+          p_game_id: string
+          p_is_final: boolean
+          p_provider_game_id: string
+          p_stats: Json
+        }
+        Returns: number
       }
       search_players: {
         Args: {
@@ -4757,6 +4806,16 @@ export type Database = {
       stop_draft_atomic: {
         Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
+      }
+      submit_trade_offer_atomic: {
+        Args: {
+          p_action: string
+          p_member_id: string
+          p_payload: Json
+          p_request_id: string
+          p_user_id: string
+        }
+        Returns: string
       }
       toggle_ir_atomic: {
         Args: {

@@ -1,13 +1,12 @@
 import { supabase } from '../_shared/supabase.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
-import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
+import { resolvePlayerImports } from '../_shared/playerImports.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 
 const NBA_STATS_URL = `${Deno.env.get('NBA_STATS_BASE_URL') ?? 'https://stats.nba.com'}/stats/drafthistory`
 const NBA_COM_BASE_URL = Deno.env.get('NBA_COM_BASE_URL') ?? 'https://www.nba.com'
 const MIN_COMPLETE_DRAFT_PICKS = 50
-const PLAYER_UPDATE_CONCURRENCY = 10
 
 type DraftOrderSource = 'stats.nba.com' | 'nba.com'
 
@@ -17,19 +16,6 @@ type NBADraftPick = {
   roundNumber: number
   roundPick: number
   teamName: string
-}
-
-type PlayerRow = {
-  id: string
-  display_name: string | null
-  first_name: string
-  last_name: string
-  nba_draft_number: number | null
-}
-
-type PlayerDraftFields = {
-  years_exp?: number
-  nba_draft_number?: number | null
 }
 
 const HTTP_HEADERS = {
@@ -67,28 +53,9 @@ export async function syncDraftOrder(seasonYear: number) {
     throw new Error(`Refusing to sync incomplete draft board: ${picks.length} picks found`)
   }
 
-  const existingPlayers = await loadPlayers()
-  const { resolved, unmatched } = await resolveDraftPlayers(picks, existingPlayers)
-  if (unmatched.length > 0) {
-    throw new Error(`Could not resolve every pick: ${unmatched.join(', ')}`)
-  }
-
-  const draftPlayerIds = new Set(resolved.map((row) => row.playerId))
-  const staleDraftNumbers = existingPlayers.filter(
-    (player) => player.nba_draft_number != null && !draftPlayerIds.has(player.id),
-  )
-
-  await updatePlayers(resolved.map((row) => ({
-    id: row.playerId,
-    years_exp: 0,
-    nba_draft_number: row.pick.overallPick,
+  const imported = await resolvePlayerImports('nba_draft', picks.map((pick) => ({
+    display_name: pick.playerName, nba_draft_number: pick.overallPick,
   })))
-  if (staleDraftNumbers.length > 0) {
-    await updatePlayers(staleDraftNumbers.map((player) => ({
-      id: player.id,
-      nba_draft_number: null,
-    })))
-  }
 
   await verifySyncedDraftBoard(picks)
 
@@ -96,10 +63,10 @@ export async function syncDraftOrder(seasonYear: number) {
     seasonYear,
     source,
     draftPickCount: picks.length,
-    updated: resolved.length,
-    inserted: resolved.filter((row) => row.inserted).length,
-    staleDraftNumbersCleared: staleDraftNumbers.length,
-    unmatched,
+    updated: imported.results.length,
+    inserted: imported.results.filter((row) => row.action === 'inserted').length,
+    staleDraftNumbersCleared: imported.staleDraftNumbersCleared,
+    unmatched: [],
   }
   console.log('[sync-draft-order] Done', result)
   return result
@@ -316,101 +283,6 @@ function validateDraftPicks(picks: NBADraftPick[]): NBADraftPick[] {
     byOverall.set(pick.overallPick, pick)
   }
   return [...byOverall.values()].sort((a, b) => a.overallPick - b.overallPick)
-}
-
-async function loadPlayers(): Promise<PlayerRow[]> {
-  const rows: PlayerRow[] = []
-  const pageSize = 1000
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('id, display_name, first_name, last_name, nba_draft_number')
-      .range(from, from + pageSize - 1)
-    if (error) throw error
-    rows.push(...(data ?? []))
-    if (!data || data.length < pageSize) break
-  }
-  return rows
-}
-
-async function resolveDraftPlayers(picks: NBADraftPick[], existingPlayers: PlayerRow[]) {
-  const byNormName = new Map<string, string>()
-  for (const player of existingPlayers) {
-    const displayName = player.display_name ?? `${player.first_name} ${player.last_name}`
-    setUnique(byNormName, normalizeName(displayName), player.id)
-  }
-
-  const resolved: Array<{ pick: NBADraftPick; playerId: string; inserted: boolean }> = []
-  const missing: NBADraftPick[] = []
-  const unmatched: string[] = []
-
-  for (const pick of picks) {
-    const playerId = byNormName.get(normalizeName(pick.playerName))
-    if (playerId && playerId !== AMBIGUOUS) {
-      resolved.push({ pick, playerId, inserted: false })
-    } else if (playerId === AMBIGUOUS) {
-      unmatched.push(`#${pick.overallPick} ${pick.playerName} (ambiguous player name)`)
-    } else {
-      missing.push(pick)
-    }
-  }
-
-  if (missing.length > 0) {
-    const inserted = await insertMissingDraftPlayers(missing)
-    for (const row of inserted) {
-      byNormName.set(normalizeName(row.display_name ?? `${row.first_name} ${row.last_name}`), row.id)
-    }
-    for (const pick of missing) {
-      const playerId = byNormName.get(normalizeName(pick.playerName))
-      if (playerId && playerId !== AMBIGUOUS) resolved.push({ pick, playerId, inserted: true })
-      else unmatched.push(`#${pick.overallPick} ${pick.playerName}`)
-    }
-  }
-
-  return {
-    resolved: resolved.sort((a, b) => a.pick.overallPick - b.pick.overallPick),
-    unmatched,
-  }
-}
-
-async function insertMissingDraftPlayers(picks: NBADraftPick[]): Promise<PlayerRow[]> {
-  const rows = picks.map((pick) => {
-    const { firstName, lastName } = splitPlayerName(pick.playerName)
-    return {
-      first_name: firstName,
-      last_name: lastName,
-      nba_team: null,
-      position: null,
-      status: 'ACT',
-      years_exp: 0,
-      updated_at: new Date().toISOString(),
-    }
-  })
-  const { data, error } = await supabase
-    .from('players')
-    .insert(rows)
-    .select('id, display_name, first_name, last_name, nba_draft_number')
-  if (error) throw error
-  return data ?? []
-}
-
-function splitPlayerName(displayName: string): { firstName: string; lastName: string } {
-  const parts = displayName.trim().split(/\s+/)
-  return {
-    firstName: parts[0] ?? displayName,
-    lastName: parts.slice(1).join(' ') || parts[0] || displayName,
-  }
-}
-
-async function updatePlayers(rows: ({ id: string } & PlayerDraftFields)[]): Promise<void> {
-  for (let i = 0; i < rows.length; i += PLAYER_UPDATE_CONCURRENCY) {
-    const chunk = rows.slice(i, i + PLAYER_UPDATE_CONCURRENCY)
-    await Promise.all(chunk.map(async (row) => {
-      const { id, ...fields } = row
-      const { error } = await supabase.from('players').update(fields).eq('id', id)
-      if (error) throw error
-    }))
-  }
 }
 
 async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {

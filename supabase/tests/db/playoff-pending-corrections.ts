@@ -267,10 +267,39 @@ try {
         }
         reports.push(report)
         console.log(JSON.stringify(report))
-        assert.ok(
-          boundary.every((row: any) => !row.error),
-          JSON.stringify(boundary),
-        )
+        if (phase === 'pending-calendar') {
+          assert.ok(
+            boundary.some((row: any) => row.error?.includes('Calendar resolution required')),
+            'an out-of-calendar correction reports recoverable missing coverage',
+          )
+          assert.deepEqual(await readSemis(), before, 'missing coverage preserves exact semifinal results')
+          await assert.rejects(() => syncScores(league), (error: unknown) =>
+            error instanceof AggregateError && error.errors.some((cause) =>
+              cause?.message?.includes('Calendar resolution required')))
+          assert.deepEqual(await readSemis(), before, 'unsafe replay preserves exact semifinal results')
+          // The provider confirms a corrected date in an already recorded later week.
+          // This actual publisher repairs game/stat dates atomically without changing week bounds.
+          const correctedWeek = span + 1
+          const correctedDate = addDays(first, span * 7 + 2)
+          const weeksBefore = await query(supabase.from('season_weeks').select('*')
+            .eq('season_year', year).order('week_number'))
+          await query(supabase.rpc('publish_nba_schedule_atomic', {
+            p_season_year: year,
+            p_games: [{ nba_game_id: `002-consume-${token}`, season_year: year,
+              game_date: correctedDate, week_number: correctedWeek,
+              game_time: `${correctedDate}T19:00:00Z`, home_team: 'XCO', away_team: 'XCP', status: 'Final' }],
+            p_weeks: [],
+          }))
+          assert.deepEqual(await query(supabase.from('season_weeks').select('*')
+            .eq('season_year', year).order('week_number')), weeksBefore,
+          'recorded source and destination week ranges stay exact')
+          const correctedStats = await query(supabase.from('player_game_stats')
+            .select('week_number,game_date').eq('game_id', game))
+          assert.equal(correctedStats.length, 4)
+          assert.ok(correctedStats.every((row: any) => row.week_number === correctedWeek && row.game_date === correctedDate))
+        } else {
+          assert.ok(boundary.every((row: any) => !row.error), JSON.stringify(boundary))
+        }
         if (finals.length) {
           failures.push(
             `span${span}/${phase}: saved correction consumed before replay`,

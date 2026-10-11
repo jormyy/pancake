@@ -59,6 +59,15 @@ function routedTrade(items: RoutedTradeItem[], participantIds = ['A', 'B', 'C'])
 }
 
 describe('multi-team trade state', () => {
+    it.each(['player', 'pick'] as const)('does not value the same %s twice under different senders', (asset) => {
+        let state = addParticipant(addParticipant(createMultiTeamTradeState('A'), 'B'), 'C')
+        state = multiTeamTradeReducer(state, { type: 'select-asset', memberId: 'A', asset, assetId: 'moved' })
+        state = multiTeamTradeReducer(state, { type: 'toggle-asset', memberId: 'B', asset, assetId: 'moved' })
+        state = multiTeamTradeReducer(state, { type: 'select-asset', memberId: 'C', asset, assetId: 'moved' })
+        expect(buildMultiTeamTradeItems(state, false)).toHaveLength(1)
+        expect(buildMultiTeamTradeItems(state, false)[0].fromMemberId).toBe('A')
+    })
+
     it('accepts 12 participants, prevents a 13th selection, and fails closed on oversized prefills', () => {
         const participantIds = Array.from({ length: MAX_TRADE_PARTICIPANTS + 1 }, (_, index) => `member-${index}`)
         const routedItems = participantIds.map((memberId, index) => ({

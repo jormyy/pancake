@@ -118,6 +118,10 @@ export function useMultiTeamTradeComposer({
         dispatch({ type: 'select-asset', asset, memberId, assetId })
     }, [])
 
+    const removeParticipantAsset = useCallback((memberId: string, asset: 'player' | 'pick', assetId: string) => {
+        dispatch({ type: 'remove-asset', memberId, asset, assetId })
+    }, [])
+
     const setParticipantFaab = useCallback((memberId: string, toMemberId: string, value: string) => {
         dispatch({ type: 'set-faab', memberId, toMemberId, value })
     }, [])
@@ -265,6 +269,9 @@ export function useMultiTeamTradeComposer({
     const assetsReady = enabled && !rosterLoading && !rosterError &&
         loadedParticipantKey === selectedParticipantKey &&
         participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
+    const selectedAssetsAvailable = assetsReady && participantViews.every((participant) =>
+        [...participant.selectedPlayerIds].every((id) => participant.roster.some((row) => row.players.id === id)) &&
+        [...participant.selectedPickIds].every((id) => participant.picks.some((pick) => pick.pickId === id)))
 
     return {
         selectedParticipantIds,
@@ -278,6 +285,7 @@ export function useMultiTeamTradeComposer({
         rosterError,
         loadedParticipantKey,
         assetsReady,
+        selectedAssetsAvailable,
         reset,
         prefillFromTrade,
         prefillFromItems,
@@ -287,6 +295,7 @@ export function useMultiTeamTradeComposer({
         toggleParticipantPlayer,
         toggleParticipantPick,
         selectParticipantAsset,
+        removeParticipantAsset,
         setParticipantDestination,
         setParticipantPlayerDestination,
         setParticipantPickDestination,

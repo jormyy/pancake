@@ -19,6 +19,75 @@ const deferred = <Value,>() => {
 }
 
 describe('useFocusAsyncData', () => {
+    it('does not start a queued read after unmount or publish its late result', async () => {
+        const read = deferred<string>()
+        const fetcher = vi.fn().mockReturnValueOnce(read.promise).mockResolvedValue('obsolete queued result')
+        let latest!: ReturnType<typeof useFocusAsyncData<string>>
+        const Probe = () => { latest = useFocusAsyncData(fetcher, ['owner']); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        let first!: Promise<boolean>, queued!: Promise<boolean>
+        await act(async () => { first = latest.refresh(); queued = latest.refresh() })
+        const detachedRefresh = latest.refresh
+        await act(async () => { renderer.unmount() })
+        await act(async () => { read.resolve('old result'); await Promise.all([first, queued]) })
+        expect(fetcher).toHaveBeenCalledTimes(1)
+        expect(await first).toBe(false)
+        expect(await queued).toBe(false)
+        expect(await detachedRefresh()).toBe(false)
+        expect(fetcher).toHaveBeenCalledTimes(1)
+    })
+
+    it('publishes only current mounted results to the saved snapshot callback', async () => {
+        const old = deferred<string>()
+        const save = vi.fn()
+        let latest!: ReturnType<typeof useFocusAsyncData<string>>
+        const Probe = ({ owner }: { owner: string }) => {
+            latest = useFocusAsyncData(() => owner === 'a' ? old.promise : Promise.resolve('current'), [owner], { onLoaded: save })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { owner: 'a' })) })
+        let oldRead!: Promise<boolean>
+        await act(async () => { oldRead = latest.refresh() })
+        await act(async () => { renderer.update(React.createElement(Probe, { owner: 'b' })) })
+        await act(async () => { await latest.refresh() })
+        expect(save.mock.calls).toEqual([['current']])
+        await act(async () => { renderer.unmount(); old.resolve('old'); await oldRead })
+        expect(save.mock.calls).toEqual([['current']])
+    })
+
+    it('rereads after a new change arrives during the queued refresh', async () => {
+        const reads = [deferred<string>(), deferred<string>(), deferred<string>()]
+        const fetcher = vi.fn().mockReturnValueOnce(reads[0].promise)
+            .mockReturnValueOnce(reads[1].promise).mockReturnValueOnce(reads[2].promise)
+        let latest!: ReturnType<typeof useFocusAsyncData<string>>
+        const Probe = () => { latest = useFocusAsyncData(fetcher, ['owner']); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        let first!: Promise<boolean>, queued!: Promise<boolean>, newer!: Promise<boolean>
+        await act(async () => {
+            first = latest.refresh()
+            queued = latest.refresh()
+            reads[0].resolve('initial')
+            await first
+        })
+        expect(fetcher).toHaveBeenCalledTimes(2)
+        let newerSettled = false
+        await act(async () => {
+            newer = latest.refresh()
+            void newer.then(() => { newerSettled = true })
+            reads[1].resolve('before-latest-change')
+            await Promise.resolve()
+        })
+        expect(fetcher).toHaveBeenCalledTimes(3)
+        expect(newerSettled).toBe(false)
+        await act(async () => { reads[2].resolve('latest'); await Promise.all([queued, newer]) })
+        expect(latest.data).toBe('latest')
+        expect(latest.isSnapshot).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('keeps saved content as a snapshot through a failed refresh, then replaces it with confirmed empty', async () => {
         const fetcher = vi.fn<() => Promise<string[]>>()
             .mockRejectedValueOnce(new Error('offline'))
@@ -32,11 +101,11 @@ describe('useFocusAsyncData', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
         expect(latest.isSnapshot).toBe(true)
-        await act(async () => { await latest.refresh() })
+        await act(async () => { expect(await latest.refresh()).toBe(false) })
         expect(latest.data).toEqual(['saved'])
         expect(latest.error?.message).toBe('offline')
         expect(latest.isSnapshot).toBe(true)
-        await act(async () => { await latest.refresh() })
+        await act(async () => { expect(await latest.refresh()).toBe(true) })
         expect(latest.data).toEqual([])
         expect(latest.error).toBeNull()
         expect(latest.isSnapshot).toBe(false)
@@ -77,8 +146,8 @@ describe('useFocusAsyncData', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
 
-        let initial!: Promise<void> | undefined
-        let refresh!: Promise<void> | undefined
+        let initial!: Promise<boolean> | undefined
+        let refresh!: Promise<boolean> | undefined
         await act(async () => {
             initial = latest.refresh()
             refresh = latest.refresh()

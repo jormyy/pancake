@@ -34,16 +34,17 @@ export function useDynastyTradeAnalysis(input: Input): {
 } {
     const [rows, setRows] = useState<DynastyDecisionInput[]>([])
     const [seasonYear, setSeasonYear] = useState<number | null>(null)
+    const [resultScope, setResultScope] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const sequence = useRef(0)
-    const scopeKey = `${input.enabled}:${input.leagueId}:${input.memberId}`
-    const activeScopeRef = useRef(scopeKey)
-    activeScopeRef.current = scopeKey
     const playerIds = useMemo(() => [...new Set(input.items.flatMap((item) =>
         item.kind === 'player' ? [item.playerId] : [],
     ))].sort(), [input.items])
     const playerKey = playerIds.join(',')
+    const scopeKey = `${input.enabled}:${input.leagueId}:${input.memberId}:${playerKey}`
+    const activeScopeRef = useRef(scopeKey)
+    activeScopeRef.current = scopeKey
 
     useEffect(() => {
         const requestId = ++sequence.current
@@ -72,6 +73,7 @@ export function useDynastyTradeAnalysis(input: Input): {
                 if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
                 setSeasonYear(season.seasonYear)
                 setRows(nextRows)
+                setResultScope(scopeKey)
             } catch (cause) {
                 if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
                 setSeasonYear(null)
@@ -85,8 +87,8 @@ export function useDynastyTradeAnalysis(input: Input): {
         }
     }, [input.enabled, input.leagueId, input.memberId, playerKey, scopeKey])
 
-    const analysis = useMemo(() => {
-        if (!input.enabled || input.items.length === 0 || seasonYear == null) return null
+    const result = useMemo(() => {
+        if (!input.enabled || loading || error || input.items.length === 0 || seasonYear == null || resultScope !== scopeKey) return { analysis: null, error: null }
         const rowByPlayer = new Map(rows.map((row) => [row.player_id, row]))
         const picks = new Map(input.participants.flatMap((participant) =>
             participant.picks.map((pick) => [pick.pickId, pick] as const),
@@ -94,6 +96,14 @@ export function useDynastyTradeAnalysis(input: Input): {
         const rosters = new Map(input.participants.flatMap((participant) =>
             participant.roster.map((roster) => [roster.players.id, roster] as const),
         ))
+        for (const item of input.items) {
+            if (item.kind === 'pick' && !picks.has(item.pickId)) {
+                return { analysis: null, error: 'A selected draft pick is unavailable. Remove it to analyze the remaining routes.' }
+            }
+            if (item.kind === 'player' && !rowByPlayer.has(item.playerId) && !rosters.has(item.playerId)) {
+                return { analysis: null, error: 'A selected player is unavailable. Remove it to analyze the remaining routes.' }
+            }
+        }
         const routes = input.items.flatMap((item): DynastyTradeRoute[] => {
             if (item.kind === 'player') {
                 const row = rowByPlayer.get(item.playerId)
@@ -145,13 +155,13 @@ export function useDynastyTradeAnalysis(input: Input): {
                 },
             }]
         })
-        return analyzeDynastyTrade(
+        return { analysis: analyzeDynastyTrade(
             dynastyEngineContext(input.leagueId, seasonYear, input.scoringSettings),
             'overall',
             routes,
-        )
+        ), error: null }
     }, [input.enabled, input.faabBudget, input.items, input.leagueId, input.participants,
-        input.scoringSettings, input.teams, rows, seasonYear])
+        input.scoringSettings, input.teams, rows, seasonYear, resultScope, scopeKey, loading, error])
 
-    return { analysis, seasonYear, loading, error }
+    return { analysis: result.analysis, seasonYear: resultScope === scopeKey ? seasonYear : null, loading, error: error ?? result.error }
 }

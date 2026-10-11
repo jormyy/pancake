@@ -51,6 +51,19 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
 
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
+  if (url.pathname === '/rest/v1/rpc/resolve_player_imports_atomic') {
+    const body = await req.json()
+    if (body.p_source !== 'nba_draft') throw new Error('Unexpected import source')
+    writes.push('atomic draft import')
+    const results = body.p_records.map((pick: {display_name: string; nba_draft_number: number}, index: number) => {
+      const player = players.find((row) => row.display_name === pick.display_name)
+      if (!player) throw new Error('Fixture player missing')
+      player.nba_draft_number = pick.nba_draft_number
+      player.years_exp = 0
+      return { index, player_id: player.id, action: 'updated' }
+    })
+    return Response.json({ results, stale_draft_numbers_cleared: 0 })
+  }
   if (url.pathname !== '/rest/v1/players') return Response.json([])
 
   if (req.method === 'PATCH') {

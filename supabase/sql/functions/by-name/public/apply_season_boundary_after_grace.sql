@@ -18,6 +18,8 @@ DECLARE
   v_latest timestamptz;
   v_result jsonb;
   v_next record;
+  v_week int;
+  v_input_token jsonb;
 BEGIN
   IF p_action IS NULL OR p_action NOT IN ('generate', 'advance', 'rollover') OR p_reference_at IS NULL THEN
     RAISE EXCEPTION 'Invalid automatic season boundary request.' USING ERRCODE = '22023';
@@ -55,28 +57,18 @@ BEGIN
     RETURN jsonb_build_object('applied', false);
   END IF;
 
-  -- A saved correction must be replayed before its old decision becomes immutable.
-  IF EXISTS (
-    SELECT 1
-      FROM public.matchups matchup
-      JOIN public.season_weeks week ON week.season_year = v_year
-        AND week.week_number BETWEEN matchup.week_number AND COALESCE(matchup.end_week_number, matchup.week_number)
-      JOIN (
-        SELECT stats.game_id, stats.season_year, stats.game_date, stats.updated_at
-          FROM public.player_game_stats stats WHERE stats.season_year = v_year
-        UNION ALL
-        SELECT correction.game_id, correction.season_year, correction.game_date, correction.updated_at
-          FROM public.game_calendar_corrections correction WHERE correction.season_year = v_year
-      ) changed ON changed.game_date BETWEEN week.week_start AND week.week_end
-      JOIN public.nba_games game ON game.id = changed.game_id
-      WHERE matchup.league_season_id = p_league_season_id AND matchup.matchup_type = v_type
-        AND (v_type <> 'regular_season' OR matchup.week_number < v_start)
-        AND changed.updated_at > COALESCE(matchup.score_read_started_at, matchup.finalized_at, '-infinity'::timestamptz)
-        AND btrim(game.nba_game_id) <> ''
-        AND (btrim(game.nba_game_id) LIKE '002%' OR btrim(game.nba_game_id) !~ '^00[0-9]')
-  ) THEN
-    RETURN jsonb_build_object('applied', false);
-  END IF;
+  -- Keep input revisions locked through the transition. Missing legacy
+  -- certificates require an actual replay, never a timestamp backfill.
+  FOR v_week IN SELECT DISTINCT week_number FROM public.matchups
+      WHERE league_season_id = p_league_season_id
+        AND (matchup_type = v_type OR (p_action = 'rollover' AND matchup_type = 'regular_season'))
+        AND (matchup_type <> 'regular_season' OR week_number < v_start) ORDER BY week_number LOOP
+    SELECT input_token INTO v_input_token FROM private.score_week_certificates
+      WHERE league_season_id = p_league_season_id AND week_number = v_week;
+    IF NOT private.lock_current_score_inputs(p_league_season_id, v_week, v_input_token) THEN
+      RETURN jsonb_build_object('applied', false);
+    END IF;
+  END LOOP;
 
   IF p_action = 'generate' THEN
     v_result := public.generate_playoff_bracket_atomic(p_league_id);

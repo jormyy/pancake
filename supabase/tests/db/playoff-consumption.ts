@@ -4,13 +4,18 @@ const api = Deno.env.get('SUPABASE_URL')
 assert.ok(api && ['127.0.0.1', 'localhost'].includes(new URL(api).hostname))
 const nativeFetch = globalThis.fetch.bind(globalThis)
 let intercept: ((url: URL, method: string, body: string) => Promise<void>) | undefined
+const rejectedFinalizations: { code: string; message: string }[] = []
 globalThis.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
   assert.equal(url.origin, api, 'Only the isolated database may receive requests')
   const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
   const body = typeof init?.body === 'string' ? init.body : ''
   await intercept?.(url, method, body)
-  return nativeFetch(input, init)
+  const response = await nativeFetch(input, init)
+  if (!response.ok && url.pathname.endsWith('/rpc/finalize_score_week_atomic')) {
+    rejectedFinalizations.push(await response.clone().json())
+  }
+  return response
 }
 const { supabase } = await import('../../functions/_shared/supabase.ts')
 const { syncScores } = await import('../../functions/_shared/syncScores.ts')
@@ -93,7 +98,15 @@ try {
           consumed = await readSemis()
         }
         // Delay only the actual scorer write. Every response remains the real server response.
-        await syncScores(league)
+        if (phase === 'decision') {
+          const beforeRejections = rejectedFinalizations.length
+          await assert.rejects(() => syncScores(league), (error: unknown) => error instanceof AggregateError &&
+            error.errors.length === 1 && error.errors[0].message === 'Score inputs changed or were not certified. Retry scoring.')
+          assert.deepEqual(rejectedFinalizations.slice(beforeRejections).map(({ code }) => code), ['40001'],
+            'The actual database must reject the stale certificate after concurrent advancement')
+        } else {
+          await syncScores(league)
+        }
         intercept = undefined
         assert.equal(intercepted, 1, 'The intended production write must reach the overlap barrier')
         const after = await readSemis()

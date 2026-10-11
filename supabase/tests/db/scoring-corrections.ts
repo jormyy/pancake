@@ -184,11 +184,20 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
     let correction: any
     let firstReplay: any
     if (!historical) {
-      await new Promise((resolve) => setTimeout(resolve, 40))
-      const eligible = await query(supabase.from('player_game_stats').update({ points: 30 })
-        .eq('game_id', games[0]).select('updated_at').single())
-      assert.ok(Date.parse(eligible.updated_at) > Date.parse(before.standing.created_at),
-        'The first scoring pass must select week one through an actual newer stat write')
+      const inputBefore = await query(supabase.rpc('capture_score_inputs', {
+        p_league_season_id: season, p_week_number: weekNumber,
+      }))
+      // Rebounds are a real tracked input, but this league only awards points.
+      await query(supabase.from('player_game_stats').update({ rebounds: 1 }).eq('game_id', games[0]))
+      const inputAfter = await query(supabase.rpc('capture_score_inputs', {
+        p_league_season_id: season, p_week_number: weekNumber,
+      }))
+      assert.notDeepEqual(inputAfter, inputBefore, 'A real input change must invalidate the week certificate')
+      const staleWeeks = await query(supabase.rpc('get_stale_score_weeks', {
+        p_league_season_id: season, p_through_week: weekNumber,
+      }))
+      assert.ok(staleWeeks.some((week: { week_number: number }) => week.week_number === weekNumber),
+        'The first scoring pass must select week one through an actual input revision')
       barrier = async () => {
         correction = await move(year, addDays(gameDate, 7), weekNumber + 1)
         await new Promise((resolve) => setTimeout(resolve, 40))

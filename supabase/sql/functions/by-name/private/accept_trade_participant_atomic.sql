@@ -89,11 +89,22 @@ BEGIN
     );
   END LOOP;
 
+  -- Accepted completion owns its trade row before team locks. A stale pending
+  -- action must not wait on that row while holding its team locks.
   SELECT *
     INTO v_trade
     FROM trades
    WHERE id = p_trade_id
+     AND status = 'pending'::trade_status
    FOR UPDATE;
+
+  IF NOT FOUND THEN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  END IF;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
+  END IF;
 
   IF v_trade.status <> 'pending'::trade_status THEN
     RAISE EXCEPTION 'This trade is no longer pending.'

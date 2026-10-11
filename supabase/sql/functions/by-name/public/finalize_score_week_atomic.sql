@@ -21,6 +21,7 @@ DECLARE
   v_distinct_count int;
   v_locked_count int;
   v_notifications jsonb := '[]'::jsonb;
+  v_input_token jsonb;
 BEGIN
   IF p_matchups IS NULL OR jsonb_typeof(p_matchups) <> 'array' THEN
     RAISE EXCEPTION 'p_matchups must be a JSON array.'
@@ -53,7 +54,16 @@ BEGIN
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
   PERFORM 1 FROM public.league_seasons WHERE id = p_league_season_id AND league_id = p_league_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'League season not found.' USING ERRCODE = '22023'; END IF;
+  IF EXISTS(SELECT 1 FROM private.retired_score_inputs WHERE league_season_id = p_league_season_id) THEN
+    RAISE EXCEPTION 'Historical score inputs have been retired. Existing results are preserved.' USING ERRCODE = '55000';
+  END IF;
   PERFORM pg_advisory_xact_lock(hashtext('playoff-bracket'), hashtext(p_league_season_id::text));
+
+  v_input_token := p_matchups->0->'input_token';
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(p_matchups) item WHERE item->'input_token' IS DISTINCT FROM v_input_token)
+      OR NOT private.lock_current_score_inputs(p_league_season_id, p_week_number, v_input_token) THEN
+    RAISE EXCEPTION 'Score inputs changed or were not certified. Retry scoring.' USING ERRCODE = '40001';
+  END IF;
 
   WITH requested AS (
     SELECT *
@@ -141,7 +151,9 @@ BEGIN
                'playoff_quarterfinal'::matchup_type,
                'playoff_semifinal'::matchup_type,
                'playoff_final'::matchup_type
-             ) AND COALESCE(locked.requested_reconcile_decision, true) THEN p_reconciliation_at
+             ) AND (locked.winner_member_id IS DISTINCT FROM locked.requested_winner_member_id
+               OR locked.home_max_possible_points IS DISTINCT FROM locked.requested_home_max_possible_points
+               OR locked.away_max_possible_points IS DISTINCT FROM locked.requested_away_max_possible_points) THEN p_reconciliation_at
              ELSE matchup.finalized_at
            END
       FROM locked
@@ -226,6 +238,10 @@ BEGIN
     points_against = EXCLUDED.points_against,
     max_possible_points = EXCLUDED.max_possible_points,
     waiver_priority = EXCLUDED.waiver_priority;
+
+  INSERT INTO private.score_week_certificates(league_season_id, week_number, input_token)
+    VALUES(p_league_season_id, p_week_number, private.score_input_token(p_league_season_id, p_week_number))
+    ON CONFLICT(league_season_id, week_number) DO UPDATE SET input_token = EXCLUDED.input_token;
 
   RETURN v_notifications;
 END;

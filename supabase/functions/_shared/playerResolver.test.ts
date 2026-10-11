@@ -4,77 +4,61 @@ Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:9')
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'local-resolver-test')
 const { loadCdnPlayerResolver, resolveCdnPlayer } = await import('./playerResolver.ts')
 
-type Player = { id: string; display_name: string; nba_id: string | null }
-
-async function withPlayers(rows: Player[], run: () => Promise<void>, failCreate = false) {
+// HTTP contract tests only. Matching, claims, and rollback run against real SQL
+// in tests/db/player-imports.sql and the concurrent importer regression.
+async function withImports(replies: (string | Error)[], run: () => Promise<void>) {
   const original = globalThis.fetch
+  let calls = 0
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)
     const url = new URL(request.url)
-    assert.equal(url.pathname, '/rest/v1/players')
-    if (request.method === 'POST') {
-      assert.equal(failCreate, true)
-      return Response.json({ message: 'creation unavailable', code: 'TEST' }, { status: 400 })
+    if (request.method === 'GET' && url.pathname === '/rest/v1/players') {
+      return Response.json([{ id: 'before-merge', display_name: 'Shared Name', nba_id: 'nba-id' }])
     }
-    const matched = rows.filter((row) =>
-      (!url.searchParams.has('id') || url.searchParams.get('id') === `eq.${row.id}`)
-      && (!url.searchParams.has('nba_id')
-        || url.searchParams.get('nba_id') === `eq.${row.nba_id}`
-        || (url.searchParams.get('nba_id') === 'is.null' && row.nba_id === null))
-    )
-    if (request.method === 'PATCH') {
-      const update = await request.json()
-      for (const row of matched) row.nba_id = update.nba_id
-    } else {
-      assert.equal(request.method, 'GET')
-    }
-    return Response.json(request.headers.get('Accept')?.includes('vnd.pgrst.object')
-      ? matched[0] ?? null : matched)
+    assert.equal(url.pathname, '/rest/v1/rpc/resolve_player_imports_atomic')
+    assert.equal(request.method, 'POST')
+    const body = await request.json()
+    assert.equal(body.p_source, 'nba_cdn')
+    assert.equal(body.p_records.length, 1)
+    assert.equal(body.p_records[0].provider_id, 'nba-id')
+    const reply = replies[calls++]
+    assert.ok(reply, 'Unexpected extra import request')
+    return reply instanceof Error
+      ? Response.json({ message: reply.message, code: 'TEST' }, { status: 400 })
+      : Response.json({ results: [{ index: 0, player_id: reply, action: 'updated' }], stale_draft_numbers_cleared: 0 })
   }
-  try {
-    await run()
-  } finally {
-    globalThis.fetch = original
-  }
+  try { await run(); assert.equal(calls, replies.length) }
+  finally { globalThis.fetch = original }
 }
 
-Deno.test('CDN name matching rejects a different assigned provider identity', async () => {
-  const row = { id: 'existing', display_name: 'Shared Name', nba_id: 'old-id' }
-  await withPlayers([row], async () => {
+Deno.test('CDN resolution propagates a provider conflict without returning a cached player', async () => {
+  await withImports([new Error('Conflicting provider identity')], async () => {
     const resolver = await loadCdnPlayerResolver()
-    await assert.rejects(() => resolveCdnPlayer(resolver, 'new-id', 'Shared Name'), /Conflicting NBA identity/)
-    assert.equal(row.nba_id, 'old-id')
-    assert.equal(resolver.byNbaId.has('new-id'), false)
+    await assert.rejects(() => resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), /Conflicting provider identity/)
   })
 })
 
-Deno.test('CDN name matching persists an unassigned identity before returning it for stats', async () => {
-  const row: Player = { id: 'existing', display_name: 'Shared Name', nba_id: null }
-  await withPlayers([row], async () => {
+Deno.test('CDN resolution confirms the canonical identity on every call', async () => {
+  await withImports(['current', 'current'], async () => {
     const resolver = await loadCdnPlayerResolver()
-    assert.equal(await resolveCdnPlayer(resolver, 'new-id', 'Shared Name'), row.id)
-    assert.equal(row.nba_id, 'new-id')
-    assert.equal(await resolveCdnPlayer(resolver, 'new-id', 'New Display'), row.id)
-    await assert.rejects(() => resolveCdnPlayer(resolver, 'other-id', 'Shared Name'), /Conflicting NBA identity/)
-    assert.equal(row.nba_id, 'new-id')
+    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'current')
+    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'New Display'), 'current')
   })
 })
 
-Deno.test('a stale resolver cannot replace an identity claimed by another worker', async () => {
-  const row: Player = { id: 'existing', display_name: 'Shared Name', nba_id: null }
-  await withPlayers([row], async () => {
+Deno.test('a stale CDN resolver returns the survivor after an intervening merge', async () => {
+  await withImports(['first', 'survivor'], async () => {
     const resolver = await loadCdnPlayerResolver()
-    row.nba_id = 'other-worker-id'
-    await assert.rejects(() => resolveCdnPlayer(resolver, 'new-id', 'Shared Name'), /Conflicting NBA identity/)
-    assert.equal(row.nba_id, 'other-worker-id')
+    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'first')
+    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'survivor')
+    assert.equal(resolver.byNbaId.get('nba-id'), 'survivor')
   })
 })
 
-Deno.test('failed creation cannot recover through a namesake with a different provider ID', async () => {
-  const rows: Player[] = []
-  await withPlayers(rows, async () => {
+Deno.test('failed CDN resolution never recovers through an earlier cached success', async () => {
+  await withImports(['first', new Error('creation unavailable')], async () => {
     const resolver = await loadCdnPlayerResolver()
-    rows.push({ id: 'namesake', display_name: 'Shared Name', nba_id: 'other-id' })
-    await assert.rejects(() => resolveCdnPlayer(resolver, 'new-id', 'Shared Name'), /creation unavailable/)
-  }, true)
+    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'first')
+    await assert.rejects(() => resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), /creation unavailable/)
+  })
 })

@@ -1,6 +1,6 @@
 import * as cheerio from 'npm:cheerio@1.2.0'
 import type { AnyNode } from 'npm:domhandler@5.0.3'
-import { errorMessage, errorStatus } from './responses.ts'
+import { errorMessage } from './responses.ts'
 
 const BBREF_BASE = 'https://www.basketball-reference.com'
 const BBREF_HEADERS = {
@@ -40,10 +40,10 @@ const BBREF_TO_TRICODE: Record<string, string> = {
   WAS: 'WAS', WSB: 'WAS',
 }
 
-const SCHEDULE_MONTHS = [
-  'october', 'november', 'december', 'january',
-  'february', 'march', 'april', 'may', 'june',
-]
+const SCHEDULE_MONTHS = new Set([
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+])
 
 // Real NBA franchise codes BBRef uses. Both "teams" of an All-Star / exhibition
 // game (e.g. East/West, Team LeBron/Team Giannis) fall outside this set.
@@ -148,25 +148,29 @@ export interface BBRefPlayerStat {
 }
 
 export async function fetchBBRefSchedule(seasonEndYear: number): Promise<BBRefGame[]> {
+  const indexPath = `/leagues/NBA_${seasonEndYear}_games.html`
+  const $ = cheerio.load(await bbrefGet(indexPath))
+  const paths = new Set<string>()
+  $('a[href]').each((_, anchor) => {
+    let url: URL
+    try { url = new URL($(anchor).attr('href')!, `${BBREF_BASE}${indexPath}`) } catch { return }
+    if (url.origin !== BBREF_BASE || url.search || url.hash) return
+    const match = url.pathname.match(/^\/leagues\/NBA_(\d+)_games-([a-z]+)\.html$/)
+    if (match && Number(match[1]) === seasonEndYear && SCHEDULE_MONTHS.has(match[2])) paths.add(url.pathname)
+  })
+  if (!paths.size) throw new Error(`BBRef schedule index ${seasonEndYear} advertises no supported month pages`)
+
   const games: BBRefGame[] = []
   const state: ScheduleParseState = { playoffsReached: false }
-
-  for (const month of SCHEDULE_MONTHS) {
-    // Once the postseason starts every later month is entirely playoffs.
-    if (state.playoffsReached) break
-
-    const path = `/leagues/NBA_${seasonEndYear}_games-${month}.html`
+  for (const path of paths) {
+    await sleep(3000)
     try {
       const html = await bbrefGet(path)
-      games.push(...parseBBRefScheduleHtml(html, seasonEndYear, month, state))
-    } catch (e) {
-      if (errorStatus(e) !== 404) {
-        throw new Error(`BBRef schedule ${seasonEndYear}/${month}: ${errorMessage(e)}`)
-      }
+      games.push(...parseBBRefScheduleHtml(html, seasonEndYear, path, state))
+    } catch (error) {
+      throw new Error(`BBRef schedule ${seasonEndYear}/${path}: ${errorMessage(error)}`)
     }
-    await sleep(3000)
   }
-
   return games
 }
 
@@ -195,19 +199,21 @@ export async function fetchBBRefBoxScore(
 
 function parseTeamTable($: ReturnType<typeof cheerio.load>, teamCode: string): BBRefPlayerStat[] {
   const stats: BBRefPlayerStat[] = []
-  const $tbody = $(`#box-${teamCode}-game-basic tbody`)
+  const $table = $(`#box-${teamCode}-game-basic`)
+  const $tbody = $table.find('tbody')
   if (!$tbody.length) return stats
 
   $tbody.find('tr').each((_: number, row: AnyNode) => {
     const $row = $(row)
     if ($row.hasClass('thead')) return
 
-    const playerName = $row.find('th[data-stat="player"] a').text().trim()
-    if (!playerName || playerName === 'Team Totals') return
+    const playerName = $row.find('th[data-stat="player"]').text().trim()
+    if (playerName === 'Team Totals') return
+    if (!playerName) throw new Error(`BBRef player name missing for ${teamCode}`)
 
     const mp = $row.find('td[data-stat="mp"]').text().trim()
     const reason = $row.find('td[data-stat="reason"]').text().trim()
-    const dnp = !mp || reason.length > 0
+    const dnp = reason.length > 0
 
     if (dnp) {
       stats.push({
@@ -226,10 +232,10 @@ function parseTeamTable($: ReturnType<typeof cheerio.load>, teamCode: string): B
 
     const n = (stat: string) => {
       const v = $row.find(`td[data-stat="${stat}"]`).text().trim()
-      if (!/^[+-]?\d+$/.test(v)) {
+      if (!/^\d+$/.test(v) || !Number.isSafeInteger(Number(v))) {
         throw new Error(`Malformed BBRef stat ${stat} for ${teamCode}/${playerName}: ${v}`)
       }
-      return parseInt(v, 10)
+      return Number(v)
     }
     const nOrNull = (stat: string) => {
       const v = $row.find(`td[data-stat="${stat}"]`).text().trim()
@@ -252,17 +258,52 @@ function parseTeamTable($: ReturnType<typeof cheerio.load>, teamCode: string): B
     })
   })
 
+  const isTotal = (_: number, row: AnyNode) => $(row).find('[data-stat="player"]').text().trim() === 'Team Totals'
+  const footer = $table.find('tfoot tr').filter(isTotal)
+  const totals = footer.length ? footer : $tbody.find('tr').filter(isTotal)
+  if (totals.length !== 1) throw new Error(`BBRef team totals missing or ambiguous for ${teamCode}`)
+
+  const additive: [keyof BBRefPlayerStat, string][] = [
+    ['pts', 'pts'], ['fgm', 'fg'], ['fga', 'fga'], ['tpm', 'fg3'], ['tpa', 'fg3a'],
+    ['ftm', 'ft'], ['fta', 'fta'], ['ast', 'ast'], ['stl', 'stl'], ['blk', 'blk'],
+    ['reb', 'trb'], ['orb', 'orb'], ['drb', 'drb'],
+  ]
+  for (const [key, column] of additive) {
+    const raw = totals.find(`[data-stat="${column}"]`).text().trim()
+    const declared = Number(raw)
+    const actual = stats.reduce((sum, player) => sum + Number(player[key]), 0)
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(declared) || actual !== declared) {
+      throw new Error(`BBRef team total ${column} does not match player rows for ${teamCode}`)
+    }
+  }
+
+  const teamTurnovers = totals.find('[data-stat="tov"]').text().trim()
+  const playerTurnovers = stats.reduce((sum, player) => sum + player.tov, 0)
+  // Team turnovers include events that are not assigned to a player.
+  if (!/^\d+$/.test(teamTurnovers) || !Number.isSafeInteger(Number(teamTurnovers)) ||
+      !Number.isSafeInteger(playerTurnovers) || playerTurnovers > Number(teamTurnovers)) {
+    throw new Error(`BBRef team total tov is below player rows or malformed for ${teamCode}`)
+  }
+
+  const totalMp = totals.find('[data-stat="mp"]').text().trim()
+  const wholeMinutes = /^\d+$/.test(totalMp)
+  const declaredMinutes = wholeMinutes ? Number(totalMp) : parseMpToDecimal(totalMp)
+  const active = stats.filter((player) => !player.dnp)
+  const actualSeconds = active.reduce((sum, player) => sum + Math.round(player.minutesDecimal! * 60), 0)
+  // Integer team minutes declare a duration; only player seconds introduce rounding.
+  const roundingSeconds = active.length / 2 + 0.5
+  if (declaredMinutes === null || !Number.isFinite(declaredMinutes) ||
+      Math.abs(actualSeconds - declaredMinutes * 60) > roundingSeconds) {
+    throw new Error(`BBRef team total minutes do not match player rows for ${teamCode}`)
+  }
   return stats
 }
 
 function parseMpToDecimal(mp: string): number | null {
-  if (!mp) return null
-  const parts = mp.split(':')
-  if (parts.length !== 2) return null
-  const mins = parseInt(parts[0])
-  const secs = parseInt(parts[1])
-  if (isNaN(mins) || isNaN(secs)) return null
-  return mins + secs / 60
+  const match = /^(\d+):([0-5]\d)$/.exec(mp)
+  if (!match) return null
+  const mins = Number(match[1])
+  return Number.isSafeInteger(mins) ? mins + Number(match[2]) / 60 : null
 }
 
 export function sleep(ms: number): Promise<void> {

@@ -360,11 +360,12 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                 current && currentLeague ? getMyDynastyNews(current.id, currentLeague.id, 30) : Promise.resolve(EMPTY_NEWS),
             ])
             const result = { news, myNews }
-            writePersistentCache(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id), result)
             return result
         },
         [current?.id, currentLeague?.id, user?.id],
-        { staleMs: 5 * 60_000, initialData: cachedNews },
+        { staleMs: 5 * 60_000, initialData: cachedNews,
+            onLoaded: (result) => writePersistentCache(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id), result),
+        },
     )
     const news = newsData?.news ?? EMPTY_NEWS
     const myNews = newsData?.myNews ?? EMPTY_NEWS

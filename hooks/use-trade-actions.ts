@@ -11,7 +11,7 @@ export function useTradeActions({
 }: {
     memberId: string
     leagueId: string
-    onAction: () => void | Promise<void>
+    onAction: () => void | Promise<unknown>
     enabled?: boolean
 }) {
     const enabledRef = useRef(enabled)

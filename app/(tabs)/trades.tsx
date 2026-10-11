@@ -82,11 +82,20 @@ export default function TradesScreen() {
     const { padX, usableWidth } = usePageMetrics()
     const [tab, setTab] = useState<TradeTabKey>('offers')
     const [openTradeId, setOpenTradeId] = useState<string | null>(null)
-    const [analyzerTrade, setAnalyzerTrade] = useState<Trade | null>(null)
+    const [analyzerTrade, setAnalyzerTrade] = useState<{
+        trade: Trade
+        userId: string | undefined
+        memberId: string
+        leagueId: string
+    } | null>(null)
     const openAnalyzer = useCallback((trade: Trade) => {
-        setAnalyzerTrade(trade)
+        setAnalyzerTrade({ trade, userId: user?.id, memberId: myMemberId, leagueId })
         setTab('analyzer')
-    }, [])
+    }, [leagueId, myMemberId, user?.id])
+    useEffect(() => { setAnalyzerTrade(null) }, [leagueId, myMemberId, user?.id])
+    const ownedAnalyzerTrade = analyzerTrade?.userId === user?.id &&
+        analyzerTrade?.memberId === myMemberId && analyzerTrade?.leagueId === leagueId
+        ? analyzerTrade.trade : null
     const {
         trades,
         loading,
@@ -135,10 +144,13 @@ export default function TradesScreen() {
     )), [blockItems, myMemberId])
     const { data: picks, loading: picksLoading, error: picksError, isSnapshot: picksSnapshot, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
-        const result = await getPicksForMember(current.id, leagueId)
-        if (user?.id) writePersistentCache(picksCacheKey(user.id, current.id, leagueId), result)
-        return result
-    }, [current?.id, leagueId, user?.id], { initialData: cachedPicks ?? undefined, staleMs: 300_000 })
+        return getPicksForMember(current.id, leagueId)
+    }, [current?.id, leagueId, user?.id], {
+        initialData: cachedPicks ?? undefined, staleMs: 300_000,
+        onLoaded: (result) => {
+            if (user?.id && current?.id && leagueId) writePersistentCache(picksCacheKey(user.id, current.id, leagueId), result)
+        },
+    })
 
     useTradeScreenRealtime({
         online,
@@ -329,7 +341,7 @@ export default function TradesScreen() {
             onRetry={() => { void retryActiveResource() }} /> : null}
         {tab === 'analyzer' ? (
             <Suspense fallback={<View style={styles.emptyState}><Text style={styles.emptyStateText}>Loading Analyzer…</Text></View>}>
-                <TradeAnalyzer prefillTrade={analyzerTrade} />
+                <TradeAnalyzer key={`${user?.id}:${leagueId}:${myMemberId}`} prefillTrade={ownedAnalyzerTrade} />
             </Suspense>
         ) : activeTabLoading ? null
             : tab === 'picks' && picksError && picks === null ? null

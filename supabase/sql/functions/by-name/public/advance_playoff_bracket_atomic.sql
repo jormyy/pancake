@@ -77,9 +77,7 @@ BEGIN
      FOR UPDATE;
 
     IF v_seed_ids IS NULL THEN
-      SELECT array_agg(seed.member_id ORDER BY seed.seed_rank)
-        INTO v_seed_ids
-        FROM private.playoff_seed_rankings(p_league_id, v_season_id, v_quarterfinal_week) AS seed;
+      RAISE EXCEPTION 'Original playoff seed order is missing. Semifinals cannot be generated until verified original seeds are restored. Existing results are unchanged.';
     END IF;
 
     -- Generated quarterfinals have seed 3 and seed 4 at home. Preserve

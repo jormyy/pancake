@@ -8,12 +8,6 @@ export function errorMessage(error: unknown): string {
   return 'Request failed'
 }
 
-export function errorStatus(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object' || !('status' in error)) return undefined
-  const status = (error as { status?: unknown }).status
-  return typeof status === 'number' ? status : undefined
-}
-
 export function internalServerError(scope: string, error: unknown): Response {
   const requestId = crypto.randomUUID()
   console.error(`[${scope}]`, { requestId, error })

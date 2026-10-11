@@ -182,7 +182,7 @@ describe('trade resource identity', () => {
             await Promise.resolve()
         })
         expect(getTradesForScreen).toHaveBeenCalledTimes(2)
-        let refresh!: Promise<void>
+        let refresh!: Promise<boolean>
         await act(async () => { refresh = latest.refresh(); await Promise.resolve() })
         expect(latest.loadingMore).toBe(false)
         await act(async () => { page.resolve({ trades: [trade('stale-page')], nextCursor: null, hasMore: false }); await firstPage })

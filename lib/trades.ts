@@ -181,6 +181,7 @@ type TradeQueryRow = {
 }
 
 export type TradeProposalOptions = {
+    requestId?: string
     notes?: string | null
     expiresAt?: string | null
     offerFaabAmount?: number
@@ -208,7 +209,7 @@ export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
-} & Pick<TradeProposalOptions, 'notes' | 'expiresAt'>
+} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId'>
 
 function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
     return items.map((item) => {
@@ -282,6 +283,7 @@ export async function proposeTrade(
     options: Omit<TradeProposalOptions, 'notes'> = {},
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose', {
+        requestId: options.requestId,
         memberId,
         leagueId,
         leagueSeasonId: seasonId,
@@ -306,6 +308,7 @@ export async function proposeMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose-multi', {
+        requestId: payload.requestId,
         memberId,
         leagueId,
         leagueSeasonId: seasonId,
@@ -324,6 +327,7 @@ export async function counterMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
+        requestId: payload.requestId,
         memberId,
         participantMemberIds: payload.participantMemberIds,
         items: multiTeamTradeWireItems(payload.items),
@@ -340,6 +344,7 @@ export async function editMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
+        requestId: payload.requestId,
         memberId,
         participantMemberIds: payload.participantMemberIds,
         items: multiTeamTradeWireItems(payload.items),

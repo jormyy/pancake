@@ -185,16 +185,19 @@ function PlayerSearchSection() {
                 transactionState: null,
             }
         }
-        const support = await loadPlayerSupport(current?.id, leagueId)
-        if (current?.id) {
-            writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
-                ownedEntries: Array.from(support.ownedMap.entries()),
-                waiverIds: Array.from(support.waiverIds),
-                transactionState: support.transactionState,
-            })
-        }
-        return support
-    }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
+        return loadPlayerSupport(current?.id, leagueId)
+    }, [current?.id, leagueId], {
+        initialData: cachedSupport, staleMs: 300_000,
+        onLoaded: (support) => {
+            if (current?.id && leagueId) {
+                writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
+                    ownedEntries: Array.from(support.ownedMap.entries()),
+                    waiverIds: Array.from(support.waiverIds),
+                    transactionState: support.transactionState,
+                })
+            }
+        },
+    })
 
 
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null

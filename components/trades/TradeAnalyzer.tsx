@@ -48,6 +48,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const online = useOnlineStatus()
     const [members, setMembers] = useState<TradeComposerMember[]>([])
     const [networkUnavailable, setNetworkUnavailable] = useState(false)
+    const [membersRetryToken, setMembersRetryToken] = useState(0)
     const [multiTeamMode, setMultiTeamMode] = useState(false)
     const [notes, setNotes] = useState('')
     const [expirationDays, setExpirationDays] = useState('3')
@@ -108,16 +109,20 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const snapshotKey = analyzerCacheScope && cacheRouteSignature
         ? dynastyAnalyzerSnapshotCacheKey(analyzerCacheScope, cacheRouteSignature)
         : null
-    const cachedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
+    const storedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
+    const cachedSnapshot = storedSnapshot?.leagueId === leagueId && storedSnapshot.memberId === myMemberId ? storedSnapshot : null
 
     useEffect(() => {
-        let active = true
-        if (!leagueId) return
         setMembers([])
         setNetworkUnavailable(false)
         setConfirming(false)
         prefillRef.current = ''
         resetComposer()
+    }, [leagueId, myMemberId, resetComposer, user?.id])
+
+    useEffect(() => {
+        let active = true
+        if (!leagueId || !online) return
         void getLeagueMembers(leagueId).then((rows) => {
             if (active) {
                 setMembers(rows.filter((member) => member.id !== myMemberId))
@@ -127,7 +132,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             if (active) setNetworkUnavailable(true)
         })
         return () => { active = false }
-    }, [leagueId, myMemberId, resetComposer, user?.id])
+    }, [leagueId, myMemberId, online, membersRetryToken, user?.id])
 
     useEffect(() => {
         if (networkUnavailable || members.length === 0) return
@@ -145,7 +150,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
 
     useEffect(() => {
         if (!liveCacheScope || !latestScopeKey || !snapshotKey || !latestRouteKey || !routeSignature ||
-            !analysis || analysis.assets.length === 0) return
+            loading || error || !analysis || analysis.assets.length === 0) return
         writePersistentCache(snapshotKey, {
             analysis,
             participantNames: Object.fromEntries(analysis.teams.map((team) => [team.memberId, participantName(team.memberId)])),
@@ -156,7 +161,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         writePersistentCache(latestRouteKey, routeSignature)
         writePersistentCache(latestScopeKey, liveCacheScope)
     }, [analysis, latestRouteKey, latestScopeKey, leagueId, liveCacheScope, myMemberId, participantName,
-        routeSignature, snapshotKey])
+        routeSignature, snapshotKey, loading, error])
 
     const setMode = useCallback((nextMulti: boolean) => {
         setMultiTeamMode(nextMulti)
@@ -171,10 +176,12 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const routeIsComplete = items.length > 0 &&
         participantCountReady &&
         composer.participantIds.every((memberId) => twoTeamInvolved.has(memberId))
-    const canMakeOffer = networkAvailable && !isTradingClosed(currentLeague) && composer.assetsReady && routeIsComplete
-    const offerHelp = !networkAvailable ? 'Connect to make an offer.'
+    const canMakeOffer = networkAvailable && !isTradingClosed(currentLeague) && composer.selectedAssetsAvailable && routeIsComplete
+    const offerHelp = !online ? 'Connect to make an offer.'
+        : networkUnavailable ? 'Retry loading league teams to make an offer.'
         : isTradingClosed(currentLeague) ? 'Trades are locked for this league.'
             : !composer.assetsReady ? 'Trade assets are still loading.'
+                : !composer.selectedAssetsAvailable ? 'Remove unavailable routes before making an offer.'
                 : !routeIsComplete ? 'Add at least one asset from or to every selected team.'
                     : null
     const makeOffer = useCallback(() => {
@@ -208,15 +215,16 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         notesError: null,
         expirationDays,
         expirationError: null,
-        rosterError: composer.rosterError ?? error,
+        rosterError: composer.rosterError,
         rosterLoading: composer.rosterLoading,
         avgMap: composer.avgMap,
         avgStatsMap: composer.avgStatsMap,
         assetLabels,
         participantName,
-        onRetry: composer.retry,
+        onRetry: () => { setMembersRetryToken((value) => value + 1); composer.retry() },
         onTogglePlayer: composer.toggleParticipantPlayer,
         onTogglePick: composer.toggleParticipantPick,
+        onRemoveAsset: composer.removeParticipantAsset,
         onDestinationChange: composer.setParticipantDestination,
         onPlayerDestinationChange: composer.setParticipantPlayerDestination,
         onPickDestinationChange: composer.setParticipantPickDestination,
@@ -227,6 +235,13 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
 
     const verdict = (
         <View style={styles.verdict}>
+            {error ? <View style={styles.analysisError}>
+                <Text accessibilityRole="alert" style={styles.offline}>{error}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Retry trade analysis"
+                    onPress={() => { setMembersRetryToken((value) => value + 1); composer.retry() }}>
+                    <Text style={styles.copy}>Retry analysis</Text>
+                </Pressable>
+            </View> : null}
             <TradeAnalysisSummary analysis={shownAnalysis} participantName={analysisParticipantName}
                 loading={loading && !shownAnalysis} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
             <View style={[styles.offerBlock, !sideBySide && styles.offerBlockInset]}>
@@ -245,7 +260,16 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             <View style={[styles.main, sideBySide && styles.mainWide]}>
                 <View style={styles.intro}>
                     <Text style={styles.copy}>Private experiments with the 5-year dynasty outlook. Nothing is sent.</Text>
-                    {!networkAvailable ? <Text style={styles.offline}>Offline: the last safe result stays visible. Offer creation is disabled.</Text> : null}
+                    {!online ? <Text style={styles.offline}>Offline: the last safe result stays visible. Offer creation is disabled.</Text>
+                        : networkUnavailable ? (
+                            <View>
+                                <Text style={styles.offline}>Could not load league teams. Offer creation is disabled.</Text>
+                                <Pressable onPress={() => setMembersRetryToken((value) => value + 1)} accessibilityRole="button"
+                                    accessibilityLabel="Retry loading league teams" style={styles.cancel}>
+                                    <Text style={styles.cancelText}>Retry</Text>
+                                </Pressable>
+                            </View>
+                        ) : null}
                 </View>
                 <View style={styles.modeRow}>
                     <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
@@ -300,6 +324,7 @@ const styles = StyleSheet.create({
     // Keeps the verdict in view while the builder scrolls (web only).
     railSticky: { position: 'sticky', top: 0 } as unknown as ViewStyle,
     verdict: { gap: spacing.md },
+    analysisError: { paddingHorizontal: spacing.xl, gap: spacing.sm },
     intro: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg, gap: spacing.xs },
     title: { ...textStyles.pageTitle },
     copy: { ...textStyles.body },

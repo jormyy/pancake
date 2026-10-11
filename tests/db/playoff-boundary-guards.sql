@@ -1,4 +1,18 @@
 BEGIN;
+-- This SQL test checks transition guards using explicit synthetic results.
+-- The actual scorer and its certificates are exercised in the scoring E2E tests.
+CREATE FUNCTION pg_temp.certify_boundary_fixture(p_league uuid,p_season uuid,p_week int)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE token jsonb; payload jsonb;
+BEGIN
+  token:=public.capture_score_inputs(p_season,p_week);
+  SELECT jsonb_agg(jsonb_build_object('id',id,'winner_member_id',winner_member_id,
+    'home_points',home_points,'away_points',away_points,
+    'home_max_possible_points',home_max_possible_points,'away_max_possible_points',away_max_possible_points,
+    'input_token',token)) INTO payload FROM matchups WHERE league_season_id=p_season AND week_number=p_week;
+  PERFORM public.finalize_score_week_atomic(p_league,p_season,p_week,payload,'[]');
+END;
+$$;
 SET LOCAL ROLE authenticated;
 DO $$
 BEGIN
@@ -55,6 +69,9 @@ BEGIN
   END IF;
   UPDATE matchups SET finalized_at=now()-interval '49 hours' WHERE league_season_id=season;
   result:=public.apply_season_boundary_after_grace(league,season,'generate',now());
+  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Generation accepted uncertified legacy scores'; END IF;
+  PERFORM pg_temp.certify_boundary_fixture(league,season,1);
+  result:=public.apply_season_boundary_after_grace(league,season,'generate',now());
   IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Generation did not proceed after grace'; END IF;
   UPDATE matchups SET is_finalized=true,winner_member_id=home_member_id,home_points=10,away_points=5,finalized_at=now()
     WHERE league_season_id=season AND matchup_type='playoff_semifinal';
@@ -70,6 +87,7 @@ BEGIN
   result:=public.apply_season_boundary_after_grace(league,season,'advance',now());
   IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement ignored renewed semifinal grace'; END IF;
   UPDATE matchups SET finalized_at=now()-interval '49 hours' WHERE league_season_id=season AND matchup_type='playoff_semifinal';
+  PERFORM pg_temp.certify_boundary_fixture(league,season,2);
   result:=public.apply_season_boundary_after_grace(league,season,'advance',now());
   IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement did not proceed after grace'; END IF;
   UPDATE matchups SET is_finalized=true,winner_member_id=home_member_id,home_points=10,away_points=5,finalized_at=now()
@@ -79,6 +97,12 @@ BEGIN
     RAISE EXCEPTION 'Rollover ignored renewed final grace';
   END IF;
   UPDATE matchups SET finalized_at=now()-interval '49 hours' WHERE league_season_id=season AND matchup_type='playoff_final';
+  PERFORM pg_temp.certify_boundary_fixture(league,season,3);
+  result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
+  IF (result->>'applied')::boolean OR (SELECT count(*) FROM league_seasons WHERE league_id=league)<>1 THEN
+    RAISE EXCEPTION 'Rollover consumed a stale regular-season certificate';
+  END IF;
+  PERFORM pg_temp.certify_boundary_fixture(league,season,1);
   result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
   IF NOT (result->>'applied')::boolean OR (SELECT count(*) FROM league_seasons WHERE league_id=league)<>2 THEN
     RAISE EXCEPTION 'Rollover did not proceed after grace';

@@ -43,6 +43,8 @@ const renderPanel = async (value: string, onFaabChange = vi.fn()) => {
             participantName: (memberId: string) => memberId,
             onTogglePlayer: vi.fn(),
             onTogglePick: vi.fn(),
+            blockedPlayerIds: new Set<string>(),
+            blockedPickIds: new Set<string>(),
             onDestinationChange: vi.fn(),
             onPlayerDestinationChange: vi.fn(),
             onPickDestinationChange: vi.fn(),

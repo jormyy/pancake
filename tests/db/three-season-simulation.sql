@@ -177,7 +177,10 @@ BEGIN
   SELECT count(*) INTO v_count FROM (
     SELECT r.member_id FROM public.roster_players r JOIN public.league_seasons s ON s.id = r.league_season_id AND s.is_current
       JOIN public.leagues l ON l.id = r.league_id
-     WHERE r.is_on_ir = false AND r.is_on_taxi = false GROUP BY r.member_id, l.roster_size HAVING count(*) > l.roster_size) AS o;
+     -- These two simulated leagues trim before each checkpoint. Other leagues
+     -- may be in the supported draft-overflow correction flow.
+     WHERE r.league_id IN (pg_temp.oid('league-A'),pg_temp.oid('league-B'))
+       AND r.is_on_ir = false AND r.is_on_taxi = false GROUP BY r.member_id, l.roster_size HAVING count(*) > l.roster_size) AS o;
   PERFORM pg_temp.assert(v_count = 0, format('%s: %s roster(s) above the league size', p_label, v_count));
   -- I10 a rostered player is not clearing waivers in the same season.
   SELECT count(*) INTO v_count FROM public.waiver_wire_log w JOIN public.roster_players r
@@ -278,6 +281,16 @@ CREATE FUNCTION pg_temp.any_player(p_member uuid, p_rookie boolean) RETURNS uuid
    ORDER BY r.id LIMIT 1
 $$;
 
+-- Prove the scoped capacity assertion still detects an invalid simulated roster.
+DO $$ BEGIN
+  BEGIN
+    UPDATE leagues SET roster_size=2 WHERE id=pg_temp.oid('league-B');
+    PERFORM pg_temp.checkpoint('capacity-negative-control');
+    RAISE EXCEPTION 'Capacity assertion missed its own overflowing roster' USING ERRCODE='P9999';
+  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+    IF SQLERRM NOT LIKE 'capacity-negative-control: % roster(s) above the league size' THEN RAISE; END IF;
+  END;
+END $$;
 SELECT pg_temp.checkpoint('seed');
 
 -- Season 1: auction start with full-budget bids and open slots ----------------

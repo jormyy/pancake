@@ -14,6 +14,8 @@ type ParticipantTradePanelProps = {
     participantName: (memberId: string) => string
     onTogglePlayer: (memberId: string, playerId: string) => void
     onTogglePick: (memberId: string, pickId: string) => void
+    blockedPlayerIds: ReadonlySet<string>
+    blockedPickIds: ReadonlySet<string>
     onDestinationChange: (memberId: string, toMemberId: string) => void
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
@@ -72,6 +74,8 @@ export function ParticipantTradePanel({
     participantName,
     onTogglePlayer,
     onTogglePick,
+    blockedPlayerIds,
+    blockedPickIds,
     onDestinationChange,
     onPlayerDestinationChange,
     onPickDestinationChange,
@@ -156,6 +160,8 @@ export function ParticipantTradePanel({
                 avgStatsMap={avgStatsMap}
                 selectedPlayerIds={participant.selectedPlayerIds}
                 selectedPickIds={participant.selectedPickIds}
+                blockedPlayerIds={blockedPlayerIds}
+                blockedPickIds={blockedPickIds}
                 playerDestinationLabel={(playerId) => participantName(participant.playerDestinationIds[playerId])}
                 pickDestinationLabel={(pickId) => participantName(participant.pickDestinationIds[pickId])}
                 onTogglePlayer={(playerId) => onTogglePlayer(participant.memberId, playerId)}

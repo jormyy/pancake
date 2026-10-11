@@ -8,6 +8,7 @@ import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflic
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { reportPickupError } from '@/lib/pickup'
 import { showAlert, showSuccess } from '@/lib/alert'
+import { getErrorMessage } from '@/lib/shared/errors'
 import type { MemberTransactionState } from '@/lib/league'
 
 /** What a pickup needs to know about its player. */
@@ -77,13 +78,18 @@ export function useQuickAdd({
             if (!memberId) return null
             const generation = generationRef.current
             const identity = ownerIdentity
-            const { roster, ineligible } = await loadRosterAddGate(memberId, lid, excludeRosterId)
-            if (!isCurrent(generation, identity)) return null
-            if (ineligible.length > 0) {
-                setIrModal({ ineligible, roster, pendingPlayer: player, action })
+            try {
+                const { roster, ineligible } = await loadRosterAddGate(memberId, lid, excludeRosterId)
+                if (!isCurrent(generation, identity)) return null
+                if (ineligible.length > 0) {
+                    setIrModal({ ineligible, roster, pendingPlayer: player, action })
+                    return null
+                }
+                return roster
+            } catch (error) {
+                if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
                 return null
             }
-            return roster
         },
         [memberId, ownerIdentity, isCurrent]
     )
@@ -179,12 +185,16 @@ export function useQuickAdd({
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
-        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: rp })
-        if (!isCurrent(generation, identity)) return
-        if (result.status === 'locked') {
-            showAlert('Roster locked', result.message)
-        } else {
-            await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+        try {
+            const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer: rp })
+            if (!isCurrent(generation, identity)) return
+            if (result.status === 'locked') {
+                showAlert('Roster locked', result.message)
+            } else {
+                await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+            }
+        } catch (error) {
+            if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
         }
     }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent])
 
@@ -192,12 +202,16 @@ export function useQuickAdd({
         if (!memberId || !leagueId) return
         const generation = generationRef.current
         const identity = ownerIdentity
-        const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer, dropPlayer: toDrop })
-        if (!isCurrent(generation, identity)) return
-        if (result.status === 'locked') {
-            showAlert('Roster locked', result.message)
-        } else {
-            await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+        try {
+            const result = await resolveRosterAddIRConflict({ memberId, leagueId, activatePlayer, dropPlayer: toDrop })
+            if (!isCurrent(generation, identity)) return
+            if (result.status === 'locked') {
+                showAlert('Roster locked', result.message)
+            } else {
+                await continueAfterIRResolution(leagueId, result.roster, result.remaining)
+            }
+        } catch (error) {
+            if (isCurrent(generation, identity)) showAlert('Error', getErrorMessage(error))
         }
     }, [memberId, leagueId, ownerIdentity, continueAfterIRResolution, isCurrent])
 

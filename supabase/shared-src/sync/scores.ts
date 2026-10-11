@@ -116,18 +116,7 @@ type MatchupWinnerInput = {
     away_member_id: string
 }
 
-type StandingSnapshotTimestamp = {
-    week_number: number
-    created_at: string | null
-}
 
-type StatUpdateTimestamp = {
-    game_date: string | null
-    updated_at: string | null
-    nba_games?: {
-        nba_game_id: string | null
-    } | null
-}
 
 type GameDateForRefresh = {
     stats_synced_at: string | null
@@ -141,13 +130,6 @@ type FinalizedRegularSeasonMatchupWeek = {
     is_finalized: boolean | null
 }
 
-type FinalizedPlayoffMatchupTimestamp = {
-    week_number: number
-    end_week_number: number | null
-    matchup_type: string
-    finalized_at: string | null
-    score_read_started_at: string | null
-}
 
 type StandingSnapshotMember = {
     week_number: number
@@ -463,11 +445,19 @@ async function finalizeWeekIfComplete(
     leagueSeasonId: string,
     weekNumber: number,
     seasonYear: number,
-    settings: Record<string, number>,
     scoringReadStartedAt: string,
     referenceDate: Date,
     failedRecoveryDates: ReadonlySet<string>,
 ) {
+    const { data: inputToken, error: tokenError } = await supabase.rpc('capture_score_inputs', {
+        p_league_season_id: leagueSeasonId, p_week_number: weekNumber,
+    })
+    if (tokenError) throw tokenError
+    const { data: league, error: settingsError } = await supabase.from('leagues')
+        .select('scoring_settings').eq('id', leagueId).single()
+    if (settingsError) throw settingsError
+    const settings = scoringSettingsFromJson(league.scoring_settings)
+
     // Get the week's date range from season_weeks (authoritative)
     const { data: weekData, error: weekErr } = await supabase
         .from('season_weeks')
@@ -504,9 +494,8 @@ async function finalizeWeekIfComplete(
         .eq('season_year', seasonYear)
         .gte('game_date', weekData.week_start)
         .lte('game_date', endDate)
-        // stats_synced_at is the CDN completion marker. BBRef imports use their
-        // backfill ledger and existing Final rows do not carry this marker.
-        .or('status.in.(Scheduled,InProgress),and(nba_game_id.like.002*,status.eq.Final,stats_synced_at.is.null)')
+        // Final status alone does not prove that a complete box score exists.
+        .or('status.in.(Scheduled,InProgress),and(status.eq.Final,stats_synced_at.is.null)')
     if (pendingGamesError) throw pendingGamesError
     if ((pendingGames ?? []).some((game) => isRegularSeasonGameId(game.nba_game_id))) return
 
@@ -520,33 +509,34 @@ async function finalizeWeekIfComplete(
         ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
     const maxPossiblePointsByMember = new Map<string, number>()
-    const playoffPointsByMember = new Map<string, number>()
+    const pointsByMember = new Map<string, number>()
     for (const week of weeks) {
         addMemberPoints(maxPossiblePointsByMember, await calcWeekMaxPossiblePointsByMember(
             memberIds, leagueId, leagueSeasonId, seasonYear, settings, week.week_start, week.week_end,
         ))
-        if (matchups.some((matchup) => isPlayoffMatchupType(matchup.matchup_type))) {
-            addMemberPoints(playoffPointsByMember, await calcWeekPointsByMember(
-                memberIds, leagueSeasonId, seasonYear, week.week_number, settings, week.week_start, week.week_end,
-            ))
-        }
+        addMemberPoints(pointsByMember, await calcWeekPointsByMember(
+            memberIds, leagueSeasonId, seasonYear, week.week_number, settings, week.week_start, week.week_end,
+        ))
     }
 
+    const scoredMatchups = matchups.map((matchup) => ({
+        ...matchup,
+        home_points: pointsByMember.get(matchup.home_member_id) ?? 0,
+        away_points: pointsByMember.get(matchup.away_member_id) ?? 0,
+    }))
     const standingsRows = await buildStandingsSnapshotRows(
         leagueId,
         leagueSeasonId,
         weekNumber,
-        matchups,
+        scoredMatchups,
         maxPossiblePointsByMember,
         scoringReadStartedAt,
     )
     if (standingsRows == null) return
 
     const matchupResults: MatchupResult[] = decidableMatchups.map((m) => {
-        const homePoints = isPlayoffMatchupType(m.matchup_type)
-            ? playoffPointsByMember.get(m.home_member_id) ?? 0 : Number(m.home_points ?? 0)
-        const awayPoints = isPlayoffMatchupType(m.matchup_type)
-            ? playoffPointsByMember.get(m.away_member_id) ?? 0 : Number(m.away_points ?? 0)
+        const homePoints = pointsByMember.get(m.home_member_id) ?? 0
+        const awayPoints = pointsByMember.get(m.away_member_id) ?? 0
         const homeMaxPossiblePoints = maxPossiblePointsByMember.get(m.home_member_id) ?? 0
         const awayMaxPossiblePoints = maxPossiblePointsByMember.get(m.away_member_id) ?? 0
         const winnerId = resolveMatchupWinnerForScore(
@@ -579,7 +569,7 @@ async function finalizeWeekIfComplete(
             home_points: m.homePoints,
             away_points: m.awayPoints,
             score_read_started_at: scoringReadStartedAt,
-            reconcile_decision: finalizationWriteNeeded(m),
+            input_token: inputToken,
             winner_member_id: m.winnerId,
             home_max_possible_points: m.homeMaxPossiblePoints,
             away_max_possible_points: m.awayMaxPossiblePoints,
@@ -721,7 +711,7 @@ async function loadWeeksToSync(
         }
     }
 
-    const staleWeek = await loadEarliestStatCorrectionWeek(leagueId, seasonId, seasonYear, currentWeek)
+    const staleWeek = await loadEarliestStatCorrectionWeek(seasonId, currentWeek)
     if (staleWeek != null) {
         earliestWeek = Math.min(earliestWeek, staleWeek)
     }
@@ -797,117 +787,14 @@ async function loadEarliestMissingFinalizedSnapshotWeek(
 }
 
 async function loadEarliestStatCorrectionWeek(
-    leagueId: string,
     seasonId: string,
-    seasonYear: number,
     currentWeek: number,
 ): Promise<number | null> {
-    const weekBounds = await loadSeasonWeekBounds(seasonYear, currentWeek)
-    if (weekBounds.length === 0) return null
-
-    const snapshots = await fetchAllPages<StandingSnapshotTimestamp>((from, to) => supabase
-        .from('standings')
-        .select('week_number, created_at')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .lte('week_number', currentWeek)
-        .order('week_number')
-        .range(from, to))
-
-    const snapshotTimeByWeek = new Map<number, number>()
-    for (const row of snapshots) {
-        const weekNumber = Number(row.week_number)
-        const createdAt = row.created_at ? Date.parse(row.created_at) : NaN
-        if (!Number.isInteger(weekNumber) || Number.isNaN(createdAt)) continue
-        snapshotTimeByWeek.set(
-            weekNumber,
-            Math.min(snapshotTimeByWeek.get(weekNumber) ?? Number.POSITIVE_INFINITY, createdAt),
-        )
-    }
-
-    const playoffRows = await fetchAllPages<FinalizedPlayoffMatchupTimestamp>((from, to) => supabase
-        .from('matchups')
-        .select('week_number, end_week_number, matchup_type, finalized_at, score_read_started_at')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', seasonId)
-        .in('matchup_type', ['playoff_quarterfinal', 'playoff_semifinal', 'playoff_final'])
-        .eq('is_finalized', true)
-        .lte('week_number', currentWeek)
-        .order('week_number')
-        .range(from, to))
-
-    const lockedPlayoffTypes = await loadLockedPlayoffTypes(leagueId, seasonId)
-    const playoffFinalizationTimeByWeek = new Map<number, number>()
-    const playoffAnchorByWeek = new Map<number, number>()
-    for (const row of playoffRows) {
-        if (lockedPlayoffTypes.has(row.matchup_type)) continue
-        const weekNumber = Number(row.week_number)
-        const readStartedAt = row.score_read_started_at ?? row.finalized_at
-        const finalizedAt = readStartedAt ? Date.parse(readStartedAt) : NaN
-        if (!Number.isInteger(weekNumber) || Number.isNaN(finalizedAt)) continue
-        for (let coveredWeek = weekNumber; coveredWeek <= (row.end_week_number ?? weekNumber); coveredWeek++) {
-            playoffFinalizationTimeByWeek.set(coveredWeek,
-                Math.min(playoffFinalizationTimeByWeek.get(coveredWeek) ?? Number.POSITIVE_INFINITY, finalizedAt))
-            playoffAnchorByWeek.set(coveredWeek, weekNumber)
-        }
-    }
-
-    if (snapshotTimeByWeek.size === 0 && playoffFinalizationTimeByWeek.size === 0) return null
-
-    const firstWeekStart = weekBounds[0]?.week_start
-    const lastWeekEnd = weekBounds[weekBounds.length - 1]?.week_end
-    if (!firstWeekStart || !lastWeekEnd) return null
-
-    // A stat row can only flag a week stale when its updated_at exceeds that
-    // week's reference time, so rows at or before the earliest reference time
-    // across all weeks can never match. Filtering server-side keeps this from
-    // paging the whole season's stats on every tick; stat writes are diffed, so
-    // in steady state this returns near-zero rows.
-    const referenceFloor = Math.min(
-        ...snapshotTimeByWeek.values(),
-        ...playoffFinalizationTimeByWeek.values(),
-    )
-
-    const statRows = await fetchAllPages<StatUpdateTimestamp>((from, to) => supabase
-        .from('player_game_stats')
-        .select('game_date, updated_at, nba_games!inner(nba_game_id)')
-        .eq('season_year', seasonYear)
-        .gte('game_date', firstWeekStart)
-        .lte('game_date', lastWeekEnd)
-        .gt('updated_at', new Date(referenceFloor).toISOString())
-        .order('game_date')
-        .range(from, to))
-
-    // A moved game also invalidates the date it left, which no stat row retains.
-    const calendarCorrections = await fetchAllPages<StatUpdateTimestamp>((from, to) => supabase
-        .from('game_calendar_corrections')
-        .select('game_date, updated_at, nba_games!inner(nba_game_id)')
-        .eq('season_year', seasonYear)
-        .gte('game_date', firstWeekStart)
-        .lte('game_date', lastWeekEnd)
-        .gt('updated_at', new Date(referenceFloor).toISOString())
-        .order('game_date')
-        .order('game_id')
-        .range(from, to))
-
-    let earliest: number | null = null
-    for (const row of [...statRows, ...calendarCorrections]) {
-        if (!row.game_date || !isRegularSeasonGameId(row.nba_games?.nba_game_id)) continue
-        const weekNumber = weekNumberForGameDate(row.game_date, weekBounds)
-        if (weekNumber == null) continue
-        const updatedAt = row.updated_at ? Date.parse(row.updated_at) : NaN
-        const referenceTimes = [
-            snapshotTimeByWeek.get(weekNumber),
-            playoffFinalizationTimeByWeek.get(weekNumber),
-        ].filter((time): time is number => time != null)
-        if (referenceTimes.length === 0 || Number.isNaN(updatedAt)) continue
-        const referenceTime = Math.min(...referenceTimes)
-        if (updatedAt > referenceTime) {
-            const replayWeek = playoffAnchorByWeek.get(weekNumber) ?? weekNumber
-            earliest = earliest == null ? replayWeek : Math.min(earliest, replayWeek)
-        }
-    }
-    return earliest
+    const { data, error } = await supabase.rpc('get_stale_score_weeks', {
+        p_league_season_id: seasonId, p_through_week: currentWeek,
+    })
+    if (error) throw error
+    return data?.[0]?.week_number ?? null
 }
 
 async function syncStatsForCompletedWeeks(
@@ -1000,7 +887,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
         }
         let weeksToSync: number[]
         if (season.is_current === false) {
-            const staleWeek = await loadEarliestStatCorrectionWeek(season.league_id, season.id, season.season_year, weekNumber)
+            const staleWeek = await loadEarliestStatCorrectionWeek(season.id, weekNumber)
             if (staleWeek == null) return
             weeksToSync = weekRange(staleWeek, weekNumber)
         } else {
@@ -1062,7 +949,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
             // Finalize older weeks before newer weeks so cumulative standings for
             // week N always build on the week N-1 snapshot when both close late.
             for (const finalizeWeek of weeksToSync) {
-                await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year, settings,
+                await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year,
                     scoringReadStartedAt, referenceDate, failedRecoveryDates.get(season.season_year) ?? new Set())
             }
             syncedLeagues += 1

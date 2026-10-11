@@ -16,7 +16,7 @@ function dependenciesEqual(previous: React.DependencyList, next: React.Dependenc
 export function useFocusAsyncData<T>(
     fetcher: () => Promise<T>,
     deps: React.DependencyList = [],
-    options: { staleMs?: number; initialData?: T } = {},
+    options: { staleMs?: number; initialData?: T; onLoaded?: (data: T) => void } = {},
 ) {
     const hasInitialData = options.initialData !== undefined
     const [data, setData] = useState<T | null>(hasInitialData ? options.initialData as T : null)
@@ -24,14 +24,27 @@ export function useFocusAsyncData<T>(
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const lastLoadedAtRef = useRef(0)
-    const inFlightRef = useRef<Promise<void> | null>(null)
+    const inFlightRef = useRef<Promise<boolean> | null>(null)
     const hasDataRef = useRef(hasInitialData)
     const genRef = useRef(0)
     const renderedDepsRef = useRef(deps)
     const stateGenerationRef = useRef(0)
     const forceQueuedRef = useRef(false)
-    const queuedRefreshRef = useRef<Promise<void> | null>(null)
+    const queuedRefreshRef = useRef<Promise<boolean> | null>(null)
     const staleMs = options.staleMs ?? 30_000
+    const mountedRef = useRef(true)
+    const onLoadedRef = useRef(options.onLoaded)
+    onLoadedRef.current = options.onLoaded
+    useEffect(() => {
+        mountedRef.current = true
+        return () => {
+            mountedRef.current = false
+            genRef.current += 1
+            forceQueuedRef.current = false
+            queuedRefreshRef.current = null
+            inFlightRef.current = null
+        }
+    }, [])
 
     // Effects run after a render. Advance ownership during render so consumers
     // never observe the previous identity's data for one committed frame.
@@ -61,17 +74,20 @@ export function useFocusAsyncData<T>(
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [...deps, generation])
 
-    const load = useCallback(async (loadOptions: { force?: boolean } = {}): Promise<void> => {
+    const load = useCallback(async (loadOptions: { force?: boolean } = {}): Promise<boolean> => {
+        if (!mountedRef.current) return false
         if (inFlightRef.current) {
             if (!loadOptions.force) return inFlightRef.current
             forceQueuedRef.current = true
             if (!queuedRefreshRef.current) {
                 const queuedGeneration = genRef.current
                 queuedRefreshRef.current = inFlightRef.current
-                    .then(async () => {
-                        if (queuedGeneration !== genRef.current || !forceQueuedRef.current) return
-                        forceQueuedRef.current = false
-                        await load({ force: true })
+                    .then(async (result) => {
+                        while (queuedGeneration === genRef.current && forceQueuedRef.current) {
+                            forceQueuedRef.current = false
+                            result = await load({ force: true })
+                        }
+                        return queuedGeneration === genRef.current && result
                     })
                     .finally(() => {
                         if (queuedGeneration === genRef.current) queuedRefreshRef.current = null
@@ -81,7 +97,7 @@ export function useFocusAsyncData<T>(
         }
         const hasData = hasDataRef.current
         const isFresh = Date.now() - lastLoadedAtRef.current < staleMs
-        if (!loadOptions.force && hasData && isFresh) return
+        if (!loadOptions.force && hasData && isFresh) return true
 
         if (hasData) setRefreshing(true)
         else setLoading(true)
@@ -90,15 +106,18 @@ export function useFocusAsyncData<T>(
         const task = (async () => {
             try {
                 const result = await fetcher()
-                if (gen !== genRef.current) return // deps changed mid-fetch — drop stale result
+                if (gen !== genRef.current) return false // deps changed mid-fetch — drop stale result
+                onLoadedRef.current?.(result)
                 setData(result)
                 stateGenerationRef.current = gen
                 hasDataRef.current = true
                 lastLoadedAtRef.current = Date.now()
+                return true
             } catch (e) {
-                if (gen !== genRef.current) return
+                if (gen !== genRef.current) return false
                 setError(e instanceof Error ? e : new Error(String(e)))
                 console.error(e)
+                return false
             } finally {
                 if (gen === genRef.current) {
                     setLoading(false)

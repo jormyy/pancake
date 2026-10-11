@@ -233,7 +233,7 @@ export async function getDraftState(draftId: string): Promise<DraftState | null>
                     'id, league_id, status, draft_type, is_mock, current_nomination_order, nomination_order_mode, budget_per_team, scheduled_at, room_name, created_by_member_id, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, pause_reason, paused_at, timer_paused_remaining_seconds',
                 )
                 .eq('id', draftId)
-                .single(),
+                .maybeSingle(),
             supabase
                 .from('draft_orders')
                 .select('position, member_id, league_members(team_name)')

@@ -12,6 +12,7 @@ DECLARE
   v_current_nba_id text;
   v_owner_id uuid;
 BEGIN
+  PERFORM pg_advisory_xact_lock(1347174745, 1);
   IF p_nba_id IS NULL OR btrim(p_nba_id) = '' THEN
     RAISE EXCEPTION 'NBA identity is required' USING ERRCODE = '22023';
   END IF;

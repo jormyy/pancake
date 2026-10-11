@@ -1,3 +1,4 @@
+import { assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
@@ -7,7 +8,6 @@ import {
   type CdnPlayerResolver,
 } from './playerResolver.ts'
 import { dateFromETDate } from './scoreShared.ts'
-import { COMPARED_STAT_COLUMNS, changedStatRows } from './statDiff.ts'
 import type { Database } from './database.ts'
 
 export type StatsSyncGame = Pick<
@@ -140,72 +140,70 @@ async function syncStatsGameWithResolver(
   }
   if (skipScheduled && boxScore.gameStatus === 1) return 0
 
+  await assertGameUnambiguous(game.id)
+  const resolved = await resolveBoxScorePlayers(boxScore, game.nba_game_id, resolver)
+  const stats = resolved.map(({ player, playerId }) =>
+    buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
+  const changed = await saveGameStats(game.id, game.nba_game_id, stats, boxScore.gameStatus === 3)
+  if (changed > 0) console.log(`[sync-stats] Game ${game.nba_game_id}: ${changed}/${stats.length} stat line(s) changed.`)
+  return stats.length
+}
+
+type BoxScorePlayers = {
+  gameStatus?: number
+  homeTeam?: { players?: NBABoxScorePlayer[] }
+  awayTeam?: { players?: NBABoxScorePlayer[] }
+}
+
+export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameId: string): NBABoxScorePlayer[] {
   const allPlayers = [
     ...(boxScore.homeTeam?.players ?? []),
     ...(boxScore.awayTeam?.players ?? []),
   ]
   if (boxScore.gameStatus === 3 &&
       (!boxScore.homeTeam?.players?.length || !boxScore.awayTeam?.players?.length)) {
-    throw new Error(`Final box score has an empty team for ${game.nba_game_id}`)
+    throw new Error(`Final box score has an empty team for ${providerGameId}`)
   }
   if (boxScore.gameStatus === 3 && allPlayers.some((player) =>
     !player.statistics || typeof player.statistics.minutes !== 'string' ||
     FINAL_NUMERIC_STATS.some((key) => !Number.isFinite(player.statistics[key])))) {
-    throw new Error(`Final box score has incomplete statistics for ${game.nba_game_id}`)
+    throw new Error(`Final box score has incomplete statistics for ${providerGameId}`)
   }
-  const stats: PlayerGameStatsInsert[] = []
-  for (const player of allPlayers) {
-    const playerId = await resolveCdnPlayer(resolver, String(player.personId), player.name ?? '')
-    if (playerId && player.statistics) {
-      stats.push(buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
-    }
-  }
-
-  if (boxScore.gameStatus === 3 && stats.length !== allPlayers.length) {
-    throw new Error(`Final box score has unresolved player stats for ${game.nba_game_id}`)
-  }
-  const changed = await unchangedStatRowsRemoved(game.id, stats)
-  if (changed.length > 0) {
-    const { error } = await supabase
-      .from('player_game_stats')
-      .upsert(changed, { onConflict: 'player_id,game_id' })
-    if (error) throw error
-    console.log(`[sync-stats] Game ${game.nba_game_id}: ${changed.length}/${stats.length} stat line(s) changed.`)
-  }
-  // Callers report this as stat lines synced for the game; keep that meaning
-  // rather than silently redefining the metric as "rows written".
-  if (boxScore.gameStatus === 3) {
-    // Stamp stats_synced_at so statsGamesForDate can skip this Final game for
-    // the next FINAL_STATS_RECHECK_MS instead of re-fetching every tick.
-    const update: Database['public']['Tables']['nba_games']['Update'] = {
-      stats_synced_at: new Date().toISOString(),
-    }
-    if (game.status !== 'Final') {
-      update.status = 'Final'
-      update.updated_at = new Date().toISOString()
-    }
-    const { error } = await supabase
-      .from('nba_games')
-      .update(update)
-      .eq('id', game.id)
-    if (error) throw error
-  }
-  return stats.length
+  return allPlayers
 }
 
-async function unchangedStatRowsRemoved(
+// Final imports must map every complete provider row before any stats are saved.
+export async function resolveBoxScorePlayers(
+  boxScore: BoxScorePlayers,
+  providerGameId: string,
+  resolver: CdnPlayerResolver,
+): Promise<Array<{ player: NBABoxScorePlayer; playerId: string }>> {
+  const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
+  const resolved: Array<{ player: NBABoxScorePlayer; playerId: string }> = []
+  for (const player of allPlayers) {
+    const playerId = await resolveCdnPlayer(resolver, String(player.personId), player.name ?? '')
+    if (playerId && player.statistics) resolved.push({ player, playerId })
+  }
+  if (boxScore.gameStatus === 3 && resolved.length !== allPlayers.length) {
+    throw new Error(`Final box score has unresolved player stats for ${providerGameId}`)
+  }
+  return resolved
+}
+
+export async function saveGameStats(
   gameId: string,
-  rows: PlayerGameStatsInsert[],
-): Promise<PlayerGameStatsInsert[]> {
-  if (rows.length === 0) return rows
-
-  const { data, error } = await supabase
-    .from('player_game_stats')
-    .select(COMPARED_STAT_COLUMNS.join(','))
-    .eq('game_id', gameId)
+  providerGameId: string,
+  stats: PlayerGameStatsInsert[],
+  isFinal: boolean,
+): Promise<number> {
+  const { data, error } = await supabase.rpc('save_game_stats_atomic', {
+    p_game_id: gameId,
+    p_provider_game_id: providerGameId,
+    p_stats: stats,
+    p_is_final: isFinal,
+  })
   if (error) throw error
-
-  return changedStatRows(rows, (data ?? []) as unknown as Record<string, unknown>[])
+  return data
 }
 
 export function buildStatRow(

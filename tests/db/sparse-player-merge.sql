@@ -48,6 +48,14 @@ BEGIN
  INSERT INTO players(id,first_name,last_name,nba_team,position,eligible_positions,espn_id,years_exp,injury_status)
  VALUES(v_winner,'Populated','Winner','XWB','SG',ARRAY['SG'],'f6d4-populated-espn',3,NULL),
        (v_loser,'Old','Loser','XLB','PG',ARRAY['PG'],'f6d4-old-espn',0,'Out');
+ BEGIN
+  PERFORM merge_players(v_winner,v_loser);
+  RAISE EXCEPTION 'Different ESPN identities merged';
+ EXCEPTION WHEN check_violation THEN NULL; END;
+ IF (SELECT count(*) FROM players WHERE id IN(v_winner,v_loser)) <> 2 THEN
+   RAISE EXCEPTION 'Rejected merge changed identities';
+ END IF;
+ UPDATE players SET espn_id=NULL WHERE id=v_loser;
  PERFORM merge_players(v_winner,v_loser);
  IF (SELECT (nba_team,position,eligible_positions,espn_id,years_exp,injury_status) IS DISTINCT FROM
     ('XWB'::text,'SG'::nba_position,ARRAY['SG'],'f6d4-populated-espn'::text,3,NULL::text)

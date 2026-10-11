@@ -8,6 +8,7 @@ SET search_path = public
 AS $$
 DECLARE v_updated int;
 BEGIN
+  PERFORM pg_advisory_xact_lock(1347174745, 1);
   IF p_updates IS NULL OR jsonb_typeof(p_updates) <> 'array' OR jsonb_array_length(p_updates) > 500 THEN
     RAISE EXCEPTION 'Player updates must be an array of at most 500 rows.' USING ERRCODE = '22023';
   END IF;

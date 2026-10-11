@@ -29,7 +29,7 @@ describe('Sleeper lazy roster-limit contracts', () => {
             'private/prevent_accepted_or_inactive_roster_move.sql',
             'private/prevent_conflicting_or_inactive_trade_accept.sql',
             'private/validate_waiver_claim_drop_player.sql',
-            'public/drop_player_atomic.sql',
+            'public/drop_player_atomic__uuid_uuid_uuid.sql',
             'public/toggle_ir_atomic.sql',
             'public/toggle_taxi_atomic.sql',
         ].map((file) => read(`supabase/sql/functions/by-name/${file}`)).join('\n')

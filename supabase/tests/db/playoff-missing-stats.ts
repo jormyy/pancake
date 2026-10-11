@@ -335,12 +335,8 @@ try {
   await query(
     supabase.from('player_game_stats').delete().eq('game_id', games[0]),
   )
-  await query(
-    supabase.from('nba_games').update({ stats_synced_at: null }).eq(
-      'id',
-      games[0],
-    ),
-  )
+  const deletedGame = await query(supabase.from('nba_games').select('stats_synced_at').eq('id', games[0]).single())
+  assert.equal(deletedGame.stats_synced_at, null, 'Deletion invalidates completion without a manual reset')
   await assert.rejects(() => syncScores(league), /Stats recovery failed/)
   const missing = await readSemis()
   console.log(JSON.stringify({
@@ -583,8 +579,8 @@ try {
     }),
   )
   check(
-    bbref.every((m: any) => m.is_finalized),
-    'non-CDN Final marker does not block finalization',
+    bbref.every((m: any) => !m.is_finalized),
+    'non-CDN Final without verified completion remains unfinalized even when some stats exist',
   )
   reachedAssertions = true
   console.log(
