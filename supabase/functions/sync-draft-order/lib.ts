@@ -134,13 +134,19 @@ async function fetchStatsDraftOrder(seasonYear: number): Promise<NBADraftPick[]>
     throw new Error('NBA Stats draft history response is missing required columns')
   }
 
-  return validateDraftPicks((resultSet.rowSet as unknown[][]).map((row) => ({
-    overallPick: Number(row[idx.overall]),
-    playerName: String(row[idx.playerName]),
-    roundNumber: Number(row[idx.round]),
-    roundPick: Number(row[idx.roundPick]),
-    teamName: String(row[idx.teamName] ?? ''),
-  })))
+  if (!Array.isArray(resultSet.rowSet)) throw new Error('NBA Stats draft history has no record array')
+  return validateDraftPicks(resultSet.rowSet.map((row: unknown) => {
+    if (!Array.isArray(row) || typeof row[idx.playerName] !== 'string') {
+      throw new Error('NBA Stats draft history has a malformed player record')
+    }
+    return {
+      overallPick: Number(row[idx.overall]),
+      playerName: row[idx.playerName].trim(),
+      roundNumber: Number(row[idx.round]),
+      roundPick: Number(row[idx.roundPick]),
+      teamName: String(row[idx.teamName] ?? ''),
+    }
+  }))
 }
 
 async function fetchNbaComDraftOrder(seasonYear: number): Promise<NBADraftPick[]> {
@@ -194,16 +200,19 @@ function parseDraftPicksFromArticleText(articleText: string): NBADraftPick[] {
     .filter(Boolean)
 
   for (const line of lines) {
-    const match = line.match(/^(\d{1,2})\.\s+(.+)$/)
-    if (!match) continue
+    const match = line.match(/^([+-]?\d+)\.\s+(.+)$/)
+    if (!match) {
+      if (/^(?:[-*•#(]\s*)?[+-]?\s*\d+(?:$|[.)\s:–—-])/.test(line)) throw new Error('Unrecognized numbered NBA draft entry')
+      continue
+    }
 
     const overallPick = Number(match[1])
     const beforeParenthetical = match[2].replace(/\s+\(.+$/, '').trim()
     const pickMatch = beforeParenthetical.match(/^(.+?)\s+(?:drafts?|selects?|takes?|picks?|from)\s+(.+)$/i)
-    if (!pickMatch) continue
+    if (!pickMatch) throw new Error(`Unrecognized NBA draft pick #${overallPick}`)
 
     const playerName = cleanPlayerName(pickMatch[2])
-    if (!playerName) continue
+    if (!playerName) throw new Error(`Missing player for NBA draft pick #${overallPick}`)
     picks.push({
       overallPick,
       playerName,
@@ -277,8 +286,8 @@ function validateDraftPicks(picks: NBADraftPick[]): NBADraftPick[] {
       !Number.isInteger(pick.overallPick) ||
       pick.overallPick < 1 ||
       pick.overallPick > 60 ||
-      !pick.playerName
-    ) continue
+      !pick.playerName.trim()
+    ) throw new Error('Malformed NBA draft pick; refusing a partial board')
     if (byOverall.has(pick.overallPick)) throw new Error(`Duplicate NBA draft pick #${pick.overallPick}`)
     byOverall.set(pick.overallPick, pick)
   }
@@ -305,4 +314,3 @@ async function verifySyncedDraftBoard(picks: NBADraftPick[]): Promise<void> {
     )
   }
 }
-

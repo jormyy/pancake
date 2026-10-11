@@ -23,7 +23,8 @@ const players: MockPlayer[] = Array.from({ length: 60 }, (_, index) => ({
 }))
 const priorOrderSnapshot = () => players.map((player) => player.nba_draft_number)
 
-let upstreamMode: 'down' | 'partial' | 'good' = 'down'
+type UpstreamMode = 'down' | 'partial' | 'good' | 'malformed-article' | 'bare-number' | 'out-of-range' | 'negative-number' | 'large-unpunctuated' | 'numbered-bullet' | 'invalid-stats' | 'empty-name' | 'malformed-row' | 'gapped-article' | 'valid50' | 'article-fallback'
+let upstreamMode: UpstreamMode = 'down'
 const writes: string[] = []
 
 const statsPayload = (count: number) => ({
@@ -43,9 +44,35 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
   const url = new URL(req.url)
   if (upstreamMode === 'down') return new Response('nope', { status: 503 })
   if (url.pathname.startsWith('/stats/drafthistory')) {
-    return Response.json(statsPayload(upstreamMode === 'partial' ? 20 : 60))
+    if (upstreamMode === 'malformed-article' || upstreamMode === 'bare-number' || upstreamMode === 'out-of-range' || upstreamMode === 'negative-number' || upstreamMode === 'large-unpunctuated' || upstreamMode === 'numbered-bullet' || upstreamMode === 'gapped-article' || upstreamMode === 'valid50') {
+      return new Response('not found', { status: 404 })
+    }
+    const payload = statsPayload(upstreamMode === 'partial' ? 20 : 60)
+    const rows = payload.resultSets[0].rowSet as unknown[][]
+    if (upstreamMode === 'invalid-stats') rows[36][1] = null
+    if (upstreamMode === 'empty-name') rows[36][0] = '   '
+    if (upstreamMode === 'malformed-row') rows[36] = []
+    return Response.json(payload)
   }
-  // nba.com article pages: not found so the stats fallback is exercised.
+  if (['malformed-article', 'bare-number', 'out-of-range', 'negative-number', 'large-unpunctuated', 'numbered-bullet', 'gapped-article', 'valid50', 'article-fallback'].includes(upstreamMode)) {
+    const articlePlayers = upstreamMode === 'valid50' ? players.slice(0, 50) : players
+    const verbs = ['draft', 'drafts', 'select', 'selects', 'take', 'takes', 'pick', 'picks', 'from']
+    const lines = articlePlayers.flatMap((player, index) => {
+      if (upstreamMode === 'gapped-article' && index === 36) return []
+      if (upstreamMode === 'bare-number' && index === 36) return ['37']
+      if (upstreamMode === 'out-of-range' && index === 36) return ['137. Mock Team selects Mock Rookie 37']
+      if (upstreamMode === 'negative-number' && index === 36) return ['-37. Mock Team selects Mock Rookie 37']
+      if (upstreamMode === 'large-unpunctuated' && index === 36) return ['137 Mock Team selects Mock Rookie 37']
+      if (upstreamMode === 'numbered-bullet' && index === 36) return ['- 37. Mock Team selects Mock Rookie 37']
+      const malformed = upstreamMode === 'malformed-article' || upstreamMode === 'article-fallback'
+      const verb = index === 36 && malformed ? 'chooses' : upstreamMode === 'valid50' ? verbs[index % verbs.length] : 'selects'
+      return [`${index + 1}. Mock Team ${verb} ${player.display_name}`]
+    })
+    return new Response(`<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+      props: { pageProps: { article: { contentText: lines.join('\n') } } },
+    })}</script>`, { headers: { 'content-type': 'text/html' } })
+  }
+  // Other article pages are missing so the stats fallback is exercised.
   return new Response('not found', { status: 404 })
 })
 
@@ -55,6 +82,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     const body = await req.json()
     if (body.p_source !== 'nba_draft') throw new Error('Unexpected import source')
     writes.push('atomic draft import')
+    for (const player of players) player.nba_draft_number = null
     const results = body.p_records.map((pick: {display_name: string; nba_draft_number: number}, index: number) => {
       const player = players.find((row) => row.display_name === pick.display_name)
       if (!player) throw new Error('Fixture player missing')
@@ -145,6 +173,74 @@ Deno.test({
     }
     const numbered = players.filter((row) => row.nba_draft_number != null)
     if (numbered.length !== 60) throw new Error(`board half-written: ${numbered.length} players numbered`)
+  },
+})
+
+for (const mode of ['malformed-article', 'bare-number', 'out-of-range', 'negative-number', 'large-unpunctuated', 'numbered-bullet', 'invalid-stats', 'empty-name', 'malformed-row'] as const) {
+  Deno.test({
+    name: `${mode}: one malformed row in a 60-pick response preserves the whole prior board`,
+    sanitizeOps: false,
+    sanitizeResources: false,
+    fn: async () => {
+      upstreamMode = mode
+      const before = priorOrderSnapshot(), writesBefore = writes.length
+      let message = ''
+      try { await syncDraftOrder(2027) } catch (error) { message = String(error) }
+      if (!/Could not load a complete/.test(message)) throw new Error(`Malformed row accepted: ${message}`)
+      if (writes.length !== writesBefore) throw new Error('Malformed provider response caused an import')
+      if (JSON.stringify(priorOrderSnapshot()) !== JSON.stringify(before)) throw new Error('Prior board changed')
+    },
+  })
+}
+
+Deno.test({
+  name: 'a valid 59-pick board with a numbering gap remains supported',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    upstreamMode = 'gapped-article'
+    const writesBefore = writes.length
+    const result = await syncDraftOrder(2027)
+    if (result.draftPickCount !== 59 || result.source !== 'nba.com' || writes.length !== writesBefore + 1) {
+      throw new Error(`Valid gapped board rejected: ${JSON.stringify(result)}`)
+    }
+    if (players[36].nba_draft_number !== null || players[59].nba_draft_number !== 60) {
+      throw new Error('Valid gapped board was renumbered')
+    }
+  },
+})
+
+Deno.test({
+  name: 'the 50-record minimum and all recognized selection words remain supported',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    upstreamMode = 'valid50'
+    const writesBefore = writes.length
+    const result = await syncDraftOrder(2027)
+    if (result.draftPickCount !== 50 || result.source !== 'nba.com' || writes.length !== writesBefore + 1) {
+      throw new Error(`Valid minimum board rejected: ${JSON.stringify(result)}`)
+    }
+    if (players.some((player, index) => player.nba_draft_number !== (index < 50 ? index + 1 : null))) {
+      throw new Error('Minimum board changed pick identities')
+    }
+  },
+})
+
+Deno.test({
+  name: 'malformed article retries a complete independent stats source',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    upstreamMode = 'article-fallback'
+    const writesBefore = writes.length
+    const result = await syncDraftOrder(2027)
+    if (result.draftPickCount !== 60 || result.source !== 'stats.nba.com' || writes.length !== writesBefore + 1) {
+      throw new Error(`Independent complete fallback not used: ${JSON.stringify(result)}`)
+    }
+    if (players.some((player, index) => player.nba_draft_number !== index + 1)) {
+      throw new Error('Fallback lost a pick')
+    }
   },
 })
 
