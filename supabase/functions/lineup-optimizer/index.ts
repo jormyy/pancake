@@ -62,6 +62,7 @@ type GameRow = {
   away_team: string | null
   status: string | null
   game_time: string | null
+  started_at: string | null
 }
 type WeeklyLineupRow = {
   players?: { nba_team: string | null } | null
@@ -246,7 +247,7 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
   const end = addDays(today, 7)
   let query = supabase
     .from('nba_games')
-    .select('season_year, game_date, home_team, away_team, status, game_time')
+    .select('season_year, game_date, home_team, away_team, status, game_time, started_at')
     .order('game_date', { ascending: true })
     .order('game_time', { ascending: true })
 
@@ -274,7 +275,8 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
   for (const [date, games] of byDate) {
     const anyStarted = games.some((game) =>
       ['InProgress', 'Final'].includes(game.status ?? '') ||
-      (game.game_time != null && game.game_time <= now)
+      (game.game_time != null && game.game_time <= now) ||
+      (game.started_at != null && game.started_at <= now)
     )
     if (anyStarted) continue
 
@@ -294,7 +296,7 @@ async function loadRemainingSeasonDateContexts(seasonYear: number): Promise<Date
   for (let from = 0; games.length <= 3000; from += SCHEDULE_PAGE_SIZE) {
     const { data, error } = await supabase
       .from('nba_games')
-      .select('season_year, game_date, home_team, away_team, status, game_time')
+      .select('season_year, game_date, home_team, away_team, status, game_time, started_at')
       .eq('season_year', seasonYear)
       .gte('game_date', today)
       .order('game_date', { ascending: true })
@@ -443,7 +445,8 @@ async function autoSetMemberDate(
     if (game.away_team) playingTeams.add(game.away_team)
     const hasStarted =
       ['InProgress', 'Final'].includes(game.status ?? '') ||
-      (game.game_time != null && game.game_time <= now)
+      (game.game_time != null && game.game_time <= now) ||
+      (game.started_at != null && game.started_at <= now)
     if (hasStarted) {
       if (game.home_team) startedTeams.add(game.home_team)
       if (game.away_team) startedTeams.add(game.away_team)
