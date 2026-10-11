@@ -1,6 +1,7 @@
 -- Convert ordinary scoring coefficients once per league, before the hot aggregate.
 -- The validated schema permits numeric values and missing keys; bonus casts remain conditional.
 -- Per-game rounding, shared-settings grouping, indexes, RLS and refresh authority are unchanged.
+BEGIN;
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '120s';
 
@@ -114,3 +115,5 @@ WHERE NOT EXISTS (
 
 DROP MATERIALIZED VIEW analytics.mv_player_avg_fantasy_points_previous;
 ANALYZE analytics.mv_player_avg_fantasy_points;
+
+COMMIT;

@@ -1,5 +1,6 @@
 -- Keep owner and service writes within the same league/member/season tuple.
 -- Refuse inconsistent legacy rows; this migration never repairs or deletes them.
+BEGIN;
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '30s';
 
@@ -43,3 +44,5 @@ ALTER TABLE public.lineup_optimizer_settings
 GRANT INSERT (league_id, league_season_id, member_id, enabled, enabled_at),
   UPDATE (league_id, league_season_id, member_id, enabled, enabled_at)
   ON public.lineup_optimizer_settings TO authenticated;
+
+COMMIT;

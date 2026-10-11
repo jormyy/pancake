@@ -333,30 +333,30 @@
     {
       "name": "share_scoring_cache_aggregation",
       "version": "20261006000001",
-      "statementCount": 12,
-      "statementsSha256": "b04e7678f3fb87c19998f56d092bddc709b0441405cf73c4e78765b3d10ed6bd",
-      "sha256": "673b9ded8f58df587525711dae2c38b3f5377a000d5a32e43f3632c41346f9df"
+      "statementCount": 14,
+      "statementsSha256": "0e6252ce94f8116b58d349274176964905dd8d2ff4fd4cd9a084ac5d365af77e",
+      "sha256": "bc274e903a0c6006b43229e524d75d7ed569607930ccd50ac11f6e047cce31db"
     },
     {
       "name": "extract_scoring_cache_coefficients",
       "version": "20261007000001",
-      "statementCount": 12,
-      "statementsSha256": "349d743dd5daee87ac6263328f9d13ac16ed53eb5fed88f71895d1bf738b8a34",
-      "sha256": "58392a7d21db63246dd9cf929ee76961ff01255411b4909ab80a983f813f560b"
+      "statementCount": 14,
+      "statementsSha256": "ad8aad45907dc549fc25ad9d6ed6ade52755419706c5a256bac3a59e63598791",
+      "sha256": "b495fe9940f4896e47e63dd294f7da9177ad7c30997e98d784b759726aeb6b9e"
     },
     {
       "name": "reuse_numeric_scoring_coefficients",
       "version": "20261008000001",
-      "statementCount": 13,
-      "statementsSha256": "f939f17b7bd91df8f8658fd60b6e13c5942b6ee103c228399c034be490b5446a",
-      "sha256": "89364bb739366e151f060bce309cfe5b7e83331781bea487b0c1a8e0ea1149d7"
+      "statementCount": 15,
+      "statementsSha256": "3f7d87f7a35d5a903d46d9297e38ad40d7f23a18d2f791a6cc9326197f65513d",
+      "sha256": "5e230acb5e3d989f3a2c4f9526e57bcf53ef6c5031bd5214bed160aafc8767cb"
     },
     {
       "name": "optimizer_setting_context_writes",
       "version": "20261008000002",
-      "statementCount": 9,
-      "statementsSha256": "5edb1efdaeb65c508860d9c9668b4a803eb1291aa2cf044d28eeddb00f84594b",
-      "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
+      "statementCount": 11,
+      "statementsSha256": "bcc0088415967c498ea14402ea0b4ab71ecca8ba012f46b9299536e0a41a0165",
+      "sha256": "50b207494aabcb05437702b6bec735412cf0dc10177567a11f0cf603f1c3513e"
     },
     {
       "name": "health_search_score_reuse",
@@ -375,9 +375,9 @@
     {
       "name": "trade_veto_read_policy",
       "version": "20261010000001",
-      "statementCount": 2,
-      "statementsSha256": "b561f07f93bb456ae72d2712b974ba42c21fb54fd362979f5d761b16c27fa260",
-      "sha256": "16907cc0841e032a39e318e48630b916b7ccebaa61ee0bb6b90d6e9c5f7cb9ff"
+      "statementCount": 6,
+      "statementsSha256": "25abc945314b315dbe6a6d329ad713d813786247f4c820c9076d223ddb191ab4",
+      "sha256": "eab5ff35effb7d6bf13d8e6358205ca63e0b05c9160a11673443b63407a5b984"
     }
   ]
 }

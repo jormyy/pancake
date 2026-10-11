@@ -1,6 +1,7 @@
 -- Build one set of exact per-game averages for each distinct scoring configuration.
 -- Reuse v_fantasy_points so rounding, bonuses and eligible games keep one owner.
 -- Rename and replace within the migration transaction; preserve the public view's ACL.
+BEGIN;
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '120s';
 
@@ -60,3 +61,5 @@ WHERE NOT EXISTS (
 
 DROP MATERIALIZED VIEW analytics.mv_player_avg_fantasy_points_previous;
 ANALYZE analytics.mv_player_avg_fantasy_points;
+
+COMMIT;

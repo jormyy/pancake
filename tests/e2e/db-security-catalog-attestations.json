@@ -750,11 +750,11 @@
     },
     {
       "filename": "20261008000001_reuse_numeric_scoring_coefficients.sql",
-      "sha256": "89364bb739366e151f060bce309cfe5b7e83331781bea487b0c1a8e0ea1149d7"
+      "sha256": "5e230acb5e3d989f3a2c4f9526e57bcf53ef6c5031bd5214bed160aafc8767cb"
     },
     {
       "filename": "20261008000002_optimizer_setting_context_writes.sql",
-      "sha256": "33d230f0e26b311ed04a07cb375cac716a751f1576840a106bf92d599d0ae80b"
+      "sha256": "50b207494aabcb05437702b6bec735412cf0dc10177567a11f0cf603f1c3513e"
     },
     {
       "filename": "20261009000002_health_search_score_reuse.sql",
@@ -766,7 +766,7 @@
     },
     {
       "filename": "20261010000001_trade_veto_read_policy.sql",
-      "sha256": "16907cc0841e032a39e318e48630b916b7ccebaa61ee0bb6b90d6e9c5f7cb9ff"
+      "sha256": "eab5ff35effb7d6bf13d8e6358205ca63e0b05c9160a11673443b63407a5b984"
     }
   ]
 }

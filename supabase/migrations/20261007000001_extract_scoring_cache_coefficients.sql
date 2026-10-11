@@ -3,6 +3,7 @@
 -- tests/db/player-search-cache-refresh.sql compares this expression with v_fantasy_points.
 -- Shared settings still score one representative; settings equality remains JSONB equality.
 -- Rename and replace within the migration transaction; preserve the public view's ACL.
+BEGIN;
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '120s';
 
@@ -109,3 +110,5 @@ WHERE NOT EXISTS (
 
 DROP MATERIALIZED VIEW analytics.mv_player_avg_fantasy_points_previous;
 ANALYZE analytics.mv_player_avg_fantasy_points;
+
+COMMIT;
