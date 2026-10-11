@@ -4620,6 +4620,10 @@ export type Database = {
         Args: { p_lock_key: number; p_ttl_seconds?: number }
         Returns: string
       }
+      update_existing_player_metadata: {
+        Args: { p_updates: Json }
+        Returns: number
+      }
       update_league_configuration_atomic: {
         Args: { p_league_id: string; p_settings: Json; p_slots?: Json }
         Returns: undefined

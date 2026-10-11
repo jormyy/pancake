@@ -122,14 +122,14 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
   for (const p of toUpdate) seenIds.set(p.id as string, p)
   const dedupedUpdate = Array.from(seenIds.values())
 
+  let updated = 0
   for (let i = 0; i < dedupedUpdate.length; i += CHUNK) {
     // Strip espn_id from updates — a name-matched row could collide with a
     // different row that already owns that espn_id.
     const chunk = dedupedUpdate.slice(i, i + CHUNK).map(({ espn_id: _eid, ...rest }) => rest)
-    const { error } = await supabase
-      .from('players')
-      .upsert(chunk, { onConflict: 'id' })
+    const { data, error } = await supabase.rpc('update_existing_player_metadata', { p_updates: chunk })
     if (error) throw error
+    updated += data ?? 0
   }
 
   // Claim espn_id for id-stripped updates separately so future syncs match by
@@ -154,8 +154,8 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
     if (error) failures.push(`insert chunk ${i}: ${error.message}`)
   }
 
-  console.log(`[sync-players] ESPN: ${dedupedUpdate.length} updated, ${toInsert.length} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} failed chunk(s).`)
-  return { updated: dedupedUpdate.length, inserted: toInsert.length, ambiguousSkipped, failures }
+  console.log(`[sync-players] ESPN: ${updated} updated, ${toInsert.length} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} failed chunk(s).`)
+  return { updated, inserted: toInsert.length, ambiguousSkipped, failures }
 }
 
 // Dormant Sleeper fallback path (PLAYER_SYNC_SOURCE=sleeper).
@@ -226,14 +226,14 @@ async function syncPlayers(): Promise<{ updated: number; inserted: number; failu
   for (const p of toUpdate) seenIds.set(p.id, p)
   const dedupedUpdate = Array.from(seenIds.values())
 
+  let updated = 0
   for (let i = 0; i < dedupedUpdate.length; i += CHUNK) {
     // Strip sleeper_id from updates — it may conflict if a player was matched by
     // name but a different player already owns that sleeper_id.
     const chunk = dedupedUpdate.slice(i, i + CHUNK).map(({ sleeper_id: _sid, ...rest }) => rest)
-    const { error } = await supabase
-      .from('players')
-      .upsert(chunk, { onConflict: 'id' })
+    const { data, error } = await supabase.rpc('update_existing_player_metadata', { p_updates: chunk })
     if (error) throw error
+    updated += data ?? 0
   }
 
   const failures: string[] = []
@@ -244,8 +244,8 @@ async function syncPlayers(): Promise<{ updated: number; inserted: number; failu
     if (error) failures.push(`insert chunk ${i}: ${error.message}`)
   }
 
-  console.log(`[sync-players] ${dedupedUpdate.length} updated, ${toInsert.length} inserted, ${failures.length} failed chunk(s).`)
-  return { updated: dedupedUpdate.length, inserted: toInsert.length, failures }
+  console.log(`[sync-players] ${updated} updated, ${toInsert.length} inserted, ${failures.length} failed chunk(s).`)
+  return { updated, inserted: toInsert.length, failures }
 }
 
 // Fetch the NBA CDN player index and populate nba_id for any players missing it.
