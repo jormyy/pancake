@@ -62,7 +62,7 @@ BEGIN
   v_input_token := p_matchups->0->'input_token';
   IF EXISTS(SELECT 1 FROM jsonb_array_elements(p_matchups) item WHERE item->'input_token' IS DISTINCT FROM v_input_token)
       OR NOT private.lock_current_score_inputs(p_league_season_id, p_week_number, v_input_token) THEN
-    RAISE EXCEPTION 'Score inputs changed or were not certified. Retry scoring.' USING ERRCODE = '40001';
+    RAISE EXCEPTION 'Score inputs changed or were not certified. Retry scoring.' USING ERRCODE = 'PT409';
   END IF;
 
   WITH requested AS (

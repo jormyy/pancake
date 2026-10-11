@@ -14,11 +14,11 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'NBA game not found.' USING ERRCODE='P0002'; END IF;
   PERFORM private.lock_nba_source(v_year);
   SELECT * INTO v_game FROM public.nba_games WHERE id = p_game_id FOR UPDATE;
-  IF v_game.season_year IS DISTINCT FROM v_year THEN RAISE EXCEPTION 'Game inputs changed. Retry.' USING ERRCODE='40001'; END IF;
+  IF v_game.season_year IS DISTINCT FROM v_year THEN RAISE EXCEPTION 'Game inputs changed. Retry.' USING ERRCODE = 'PT409'; END IF;
   PERFORM public.assert_nba_game_unambiguous(p_game_id);
   IF NOT FOUND THEN RAISE EXCEPTION 'NBA game not found.' USING ERRCODE = 'P0002'; END IF;
   IF v_game.nba_game_id IS DISTINCT FROM p_provider_game_id THEN
-    RAISE EXCEPTION 'Game provider identity changed. Fetch the game again.' USING ERRCODE = '40001';
+    RAISE EXCEPTION 'Game provider identity changed. Fetch the game again.' USING ERRCODE = 'PT409';
   END IF;
   IF jsonb_typeof(p_stats) IS DISTINCT FROM 'array' THEN
     RAISE EXCEPTION 'A complete parsed box score is required.' USING ERRCODE = '22023';

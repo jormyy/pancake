@@ -4,7 +4,7 @@ BEGIN
   IF p_year IS NULL THEN RAISE EXCEPTION 'Game season is required.' USING ERRCODE='22023'; END IF;
   IF (p_shared AND NOT pg_try_advisory_xact_lock_shared(hashtext('nba-source'),p_year))
      OR (NOT p_shared AND NOT pg_try_advisory_xact_lock(hashtext('nba-source'),p_year)) THEN
-    RAISE EXCEPTION 'Game inputs are being updated. Retry this operation.' USING ERRCODE='40001';
+    RAISE EXCEPTION 'Game inputs are being updated. Retry this operation.' USING ERRCODE = 'PT409';
   END IF;
 END;
 $$;

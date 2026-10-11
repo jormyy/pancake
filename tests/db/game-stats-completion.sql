@@ -138,7 +138,7 @@ BEGIN
     'foreign-key failure preserves prior rows and exact stamp');
 
   PERFORM pg_temp.expect_error(format('SELECT public.save_game_stats_atomic(%L::uuid,%L,%L::jsonb,true)',
-    v_a,v_pa||'-stale',v_payload), ARRAY['40001'], 'old provider identity rejected');
+    v_a,v_pa||'-stale',v_payload), ARRAY['PT409'], 'old provider identity rejected');
   PERFORM pg_temp.must((SELECT stats_synced_at=v_stamp FROM public.nba_games WHERE id=v_a),
     'identity rejection preserves stamp');
   PERFORM pg_temp.expect_error(format('SELECT public.save_game_stats_atomic(%L::uuid,%L,%L::jsonb,true)',

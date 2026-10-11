@@ -102,7 +102,7 @@ try {
           const beforeRejections = rejectedFinalizations.length
           await assert.rejects(() => syncScores(league), (error: unknown) => error instanceof AggregateError &&
             error.errors.length === 1 && error.errors[0].message === 'Score inputs changed or were not certified. Retry scoring.')
-          assert.deepEqual(rejectedFinalizations.slice(beforeRejections).map(({ code }) => code), ['40001'],
+          assert.deepEqual(rejectedFinalizations.slice(beforeRejections).map(({ code }) => code), ['PT409'],
             'The actual database must reject the stale certificate after concurrent advancement')
         } else {
           await syncScores(league)

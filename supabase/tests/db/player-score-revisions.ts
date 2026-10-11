@@ -119,7 +119,7 @@ const expectDeferredScore = async (table: string) => {
   } finally { observe = false }
   assertOldRead(table)
   assert.ok(rejected, 'The real scorer must reject certification while the eligibility writer remains open')
-  assert.ok(finalizationResponses.some((response) => response.status >= 400 && response.body?.code === '40001'), 'A real database certification conflict must cause the deferral')
+  assert.ok(finalizationResponses.some((response) => response.status >= 400 && response.body?.code === 'PT409'), 'A real database certification conflict must cause the deferral')
   console.log(JSON.stringify({ scenario: table, oldEligibilityRead: true, certificationDeferred: true }))
 }
 
@@ -231,7 +231,7 @@ try {
   assert.equal(freshMaximum.get(memberIds[0]), 0, 'Equal-time transaction IDs affect actual taxi history order')
   const beforeIdRejection = await matchup(0)
   const rejectedId = await supabase.rpc('finalize_score_week_atomic', oldPayload)
-  assert.equal(rejectedId.error?.code, '40001', 'An ID-only transaction reorder must invalidate certification')
+  assert.equal(rejectedId.error?.code, 'PT409', 'An ID-only transaction reorder must invalidate certification')
   assert.deepEqual(await matchup(0), beforeIdRejection)
   await syncScores(leagueIds[0])
   assert.equal(Number((await matchup(0)).home_max_possible_points), 0)
