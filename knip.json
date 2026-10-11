@@ -33,7 +33,8 @@
     "supabase/tests/db/player-name-parity.ts",
     "supabase/tests/db/cdn-continuation.ts",
     "supabase/tests/db/taxi-acquisition-scoring.ts",
-    "supabase/tests/db/cdn-http-retry.ts"
+    "supabase/tests/db/cdn-http-retry.ts",
+    "supabase/tests/db/optimizer-settings-pagination.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

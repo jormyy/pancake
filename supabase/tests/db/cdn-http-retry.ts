@@ -5,8 +5,11 @@ import { createHash } from 'node:crypto'
 const checkout = Deno.cwd()
 const expected = 'repaired'
 const mode = Deno.args.find((arg) => arg.startsWith('--mode='))?.split('=')[1] ?? 'enum403'
-assert.ok(['enum403', 'enum404', 'normal403', 'normal503'].includes(mode))
+assert.ok(['enum403', 'enum404', 'normal403', 'normal503', 'enumBody', 'normalBody'].includes(mode))
 const source = mode.startsWith('normal') ? 'cdn' : 'cdn-enum'
+const stalledBody = mode.endsWith('Body')
+const failedCount = stalledBody ? 1 : 26
+const stalledStreams = new Set<ReadableStreamDefaultController<Uint8Array>>()
 let restored = false
 const api = Deno.env.get('SUPABASE_URL'), db = Deno.env.get('SUPABASE_DB_URL')
 assert.ok(api && db, 'Owner must inject isolated local API and SQL settings')
@@ -35,9 +38,15 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
   const number = Number(match[1].slice(-4))
   assert.ok(number >= 1 && number <= 1300)
   const blockedStatus = mode.endsWith('503') ? 503 : mode.endsWith('404') ? 404 : 403
-  const status = number <= 26 && !restored ? blockedStatus : number <= 27 ? 200 : 404
+  const status = number <= failedCount && !restored && !stalledBody ? blockedStatus : number <= 27 ? 200 : 404
   hits.push({ key: match[1], status })
   if (status !== 200) return new Response('Owned synthetic provider response', { status })
+  if (stalledBody && !restored && number === 1) {
+    return new Response(new ReadableStream<Uint8Array>({ start(controller) {
+      stalledStreams.add(controller)
+      controller.enqueue(new TextEncoder().encode('{"game":'))
+    } }), { headers: { 'Content-Type': 'application/json' } })
+  }
   return Response.json({ game: { gameId: match[1], gameStatus: 3, gameEt: `${date(number)}T19:00:00`,
     homeTeam: { teamTricode: 'XCH', players: [player(0)] }, awayTeam: { teamTricode: 'XCA', players: [player(1)] } } })
 })
@@ -187,9 +196,9 @@ try {
     assert.equal(first.stats.length, 0)
     assert.ok(first.games.every((game: any) => game.stats_synced_at === null))
   } else {
-    assert.equal(first.attempts.filter((row: any) => row.status === 'failed').length, 26)
-    assert.equal(first.attempts.filter((row: any) => row.status === 'completed').length, 1)
-    assert.equal(first.stats.length, 2)
+    assert.equal(first.attempts.filter((row: any) => row.status === 'failed').length, failedCount)
+    assert.equal(first.attempts.filter((row: any) => row.status === 'completed').length, 27 - failedCount)
+    assert.equal(first.stats.length, (27 - failedCount) * 2)
     assert.ok(first.games.find((game: any) => game.nba_game_id === key(27)).stats_synced_at)
     if (source === 'cdn') {
       assert.equal(firstResult.error, undefined)
@@ -200,6 +209,10 @@ try {
       assert.equal(firstHits.length, 30)
       assert.equal(first.attempts.filter((row: any) => row.status === 'missing').length, 3)
     }
+  }
+  if (stalledBody) {
+    assert.ok(Date.now() - began >= 12000, 'Exercise the real body deadline')
+    assert.ok(Date.now() - began < 30000, 'The worker continues after the bounded body failure')
   }
   console.log(JSON.stringify({ stage: 'initial-response-classification', mode, expected,
     requests: firstHits, stats: first.stats.length,
@@ -230,13 +243,14 @@ try {
     assert.equal(final.stats.length, 54)
     assert.equal(final.attempts.filter((row: any) => row.status === 'completed').length, 27)
     assert.ok(final.games.every((game: any) => game.stats_synced_at !== null))
-    for (let number = 1; number <= 26; number++) assert.equal(recoveryHits.filter((hit) => hit.key === key(number)).length, 1)
-    assert.equal(recoveryHits.some((hit) => hit.key === key(27)), false, 'The successful import is not replayed')
-    assert.deepEqual(final.stats.filter((stat: any) => stat.game_id === first.games.find((game: any) => game.nba_game_id === key(27)).id), first.stats)
+    for (let number = 1; number <= failedCount; number++) assert.equal(recoveryHits.filter((hit) => hit.key === key(number)).length, 1)
+    assert.equal(recoveryHits.some((hit) => Number(hit.key.slice(-4)) > failedCount && Number(hit.key.slice(-4)) <= 27), false, 'Successful imports are not replayed')
+    const previousGames = new Set(first.games.filter((game: any) => Number(game.nba_game_id.slice(-4)) > failedCount).map((game: any) => game.id))
+    assert.deepEqual(final.stats.filter((stat: any) => previousGames.has(stat.game_id)), first.stats)
     if (source === 'cdn-enum') {
       assert.equal(final.attempts.filter((row: any) => row.status === 'missing').length, 26)
-      assert.equal(hits.length, 26 + 27 + 26, 'Failed requests + completed imports + missing tail')
-    } else assert.equal(hits.length, 53)
+      assert.equal(hits.length, failedCount + 27 + 26, 'Failed requests + completed imports + missing tail')
+    } else assert.equal(hits.length, failedCount + 27)
   }
   assert.ok(Date.now() - began < 55000, 'Bound the worker phase below 55 seconds')
   console.log(JSON.stringify({ stage: 'explicit-retry-after-restored200', mode, expected,
@@ -298,6 +312,7 @@ try {
   if (previousProvider === undefined) Deno.env.delete('NBA_CDN_BASE_URL')
   else Deno.env.set('NBA_CDN_BASE_URL', previousProvider)
   await clean('release cooperative reservation', async () => { await sql?.close() })
+  for (const stream of stalledStreams) { try { stream.close() } catch { /* The body may already be aborted. */ } }
   await clean('close local provider', () => provider.shutdown())
   console.log(JSON.stringify({ cleanupErrors: errors, execution: 'Actual isolated local worker and database'  }))
   assert.equal(errors.length, 0, 'Owned fixture cleanup must succeed')

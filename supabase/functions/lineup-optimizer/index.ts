@@ -7,12 +7,7 @@ import { toETDate } from '../_shared/date.ts'
 // lacks the BE entry, which is filtered out before slot filling anyway.
 import { chooseBestAssignments } from './assignments.ts'
 import { MANUAL_DATE_LIMIT, parseManualDateFilter, processManualDates, type ManualOptimizationResult } from './manual.ts'
-
-type OptimizerSetting = {
-  league_id: string
-  league_season_id: string
-  member_id: string
-}
+import { loadEnabledOptimizerSettings, type OptimizerSetting } from './settings.ts'
 type LeagueRow = {
   status: string
 }
@@ -176,16 +171,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   const dateContexts = await loadDateContexts(requestedDate)
   if (dateContexts.length === 0) return { settings: 0, dates: 0, optimized: 0, skipped: 0, failed: 0 }
 
-  const { data: settings, error: settingsError } = await supabase
-    .from('lineup_optimizer_settings')
-    .select('league_id, league_season_id, member_id')
-    .eq('enabled', true)
-    // Least recently optimized first: the loop has no deadline, so a run the
-    // platform kills partway would otherwise redo the same head on every tick
-    // and never reach the tail. With this order the tail goes first next time.
-    .order('last_optimized_at', { ascending: true, nullsFirst: true })
-    .order('member_id', { ascending: true })
-  if (settingsError) throw settingsError
+  const settings = await loadEnabledOptimizerSettings(supabase, [...new Set(dateContexts.map((context) => context.seasonYear))])
 
   // Many enabled members share a league; load each league and season once.
   const leagues = new Map<string, LeagueRow | null>()
@@ -194,7 +180,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   let optimized = 0
   let skipped = 0
   let failed = 0
-  for (const setting of (settings ?? []) as OptimizerSetting[]) {
+  for (const setting of settings) {
     let league = leagues.get(setting.league_id)
     if (league === undefined) {
       league = await loadLeague(setting.league_id)
@@ -236,7 +222,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   }
 
   return {
-    settings: (settings ?? []).length,
+    settings: settings.length,
     dates: dateContexts.length,
     optimized,
     skipped,

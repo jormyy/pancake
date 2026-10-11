@@ -17,34 +17,17 @@ import {
   updateBackfillJob,
 } from './backfillJobs.ts'
 import { loadCdnPlayerResolver } from './playerResolver.ts'
-import type { NBABoxScorePlayer } from './nba.ts'
+import { fetchCdnGameOrMiss as fetchGameOrMiss, type CdnGame } from './cdnGameFetch.ts'
 
 
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const CDN_CHUNK = 30
 const CDN_DELAY_MS = 200
-const CDN_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-  'Accept': 'application/json, text/plain, */*',
-  'Origin': 'https://www.nba.com',
-  'Referer': 'https://www.nba.com/',
-}
 
 type DbGame = {
   id: string
   nba_game_id: string
   week_number: number
-}
-
-type CdnGame = {
-  gameStatus?: number
-  gameEt?: string
-  homeTeam?: { teamTricode?: string; players?: NBABoxScorePlayer[] }
-  awayTeam?: { teamTricode?: string; players?: NBABoxScorePlayer[] }
-}
-
-type CdnBoxScore = {
-  game?: CdnGame
 }
 
 /** Returns true when the next chunk was queued with this run's claim. */
@@ -241,20 +224,8 @@ async function fetchCdnGame(gameId: string): Promise<CdnGame | null> {
 }
 
 async function fetchCdnGameOrMiss(gameId: string): Promise<CdnGame | 'missing' | null> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 12_000)
-  const res = await fetch(
-    `${NBA_CDN_BASE_URL}/liveData/boxscore/boxscore_${gameId}.json`,
-    { headers: CDN_HEADERS, signal: controller.signal },
-  ).finally(() => clearTimeout(timeout))
-
-  if (res.status === 404) return 'missing'
-  if (!res.ok) throw new Error(`CDN ${res.status}`)
-
-  const data = await res.json() as CdnBoxScore
-  return data.game ?? null
+  return await fetchGameOrMiss(gameId, NBA_CDN_BASE_URL)
 }
-
 async function upsertCdnStats(
   players: Awaited<ReturnType<typeof resolveBoxScorePlayers>>,
   dbGameId: string,
