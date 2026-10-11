@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import process from 'node:process'
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { findAvailablePlayers, setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
@@ -195,6 +196,7 @@ const assertLazyRosterEnforcement = async (fixture) => {
     fixture.currentSeason.id,
     3,
     fixture.registerCreatedPlayer,
+    { createOnly: true },
   )
   await expectRpcError(recipientClient, 'add_free_agent_atomic', {
     p_member_id: fixture.recipient.id,
@@ -323,6 +325,7 @@ const assertCompetingStandardAndMultiTeamTradesSerialize = async (fixture) => {
     fixture.currentSeason.id,
     1,
     fixture.registerCreatedPlayer,
+    { createOnly: true },
   )
   const { error: rosterError } = await fixture.admin.from('roster_players').insert({
     league_id: fixture.league.id,
@@ -422,13 +425,20 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     [fixture.proposer.id, 100],
     [fixture.recipient.id, 100],
   ])
-  const [player] = await findAvailablePlayers(
-    fixture.admin,
-    fixture.league.id,
-    fixture.currentSeason.id,
-    1,
-    fixture.registerCreatedPlayer,
-  )
+  const playerId = randomUUID()
+  fixture.registerCreatedPlayer(playerId)
+  const { data: player, error: playerError } = await fixture.admin.from('players').insert({
+    id: playerId,
+    first_name: 'E2E',
+    last_name: `Inactive trade ${playerId}`,
+    position: 'PG',
+    eligible_positions: ['PG'],
+    nba_team: 'XTX',
+    status: 'Active',
+    years_exp: 0,
+    nba_draft_number: 1,
+  }).select('id').single()
+  if (playerError) throw new Error(`inactive acceptance player insert: ${playerError.message}`)
   const { error: insertError } = await fixture.admin.from('roster_players').insert({
     league_id: fixture.league.id,
     league_season_id: fixture.currentSeason.id,
@@ -448,7 +458,6 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     const ids = [fixture.league.id, fixture.currentSeason.id, fixture.proposer.id, player.id, roster.id]
     for (const id of ids) assert.match(id, /^[0-9a-f-]{36}$/i)
     executeRecoverySql(`BEGIN;
-      UPDATE players SET years_exp=0,nba_draft_number=1,nba_team='XTX' WHERE id='${player.id}';
       DELETE FROM league_member_taxi_exits WHERE league_id='${fixture.league.id}' AND player_id='${player.id}';
       SELECT private.authorize_taxi_acquisition('${fixture.league.id}','${fixture.currentSeason.id}',
         '${fixture.proposer.id}','${player.id}','draft','${roster.id}');
@@ -674,7 +683,7 @@ const assertTwoTeamUsesCanonicalRoutes = async (fixture) => {
 }
 
 const run = async () => {
-  const fixture = await setupMultiTeamTradeGameplayFixture(env, 0)
+  const fixture = await setupMultiTeamTradeGameplayFixture(env, 0, { isolatedPlayers: true })
   await assertMultiTeamPayloadBounds(fixture)
   await assertAggregateFaabRejectionIsAtomic(fixture)
   await assertExpiredAcceptanceCommits(fixture)
