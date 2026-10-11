@@ -1,0 +1,108 @@
+CREATE OR REPLACE FUNCTION public.set_player_slot_moves_atomic(
+  p_member_id uuid,
+  p_league_id uuid,
+  p_league_season_id uuid,
+  p_game_date date,
+  p_week_number int,
+  p_moves jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF p_moves IS NULL OR jsonb_typeof(p_moves) <> 'array' THEN
+    RAISE EXCEPTION 'p_moves must be a JSONB array.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF jsonb_array_length(p_moves) > 64 THEN
+    RAISE EXCEPTION 'Too many lineup moves.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_game_date < (now() AT TIME ZONE 'America/New_York')::date THEN
+    RAISE EXCEPTION 'Past lineups cannot be changed.' USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM public.assert_current_league_season_for_lineup(p_league_id, p_league_season_id);
+  PERFORM private.assert_roster_within_active_limit(p_league_id, p_league_season_id, p_member_id);
+  PERFORM public.set_player_slot_moves_atomic_unchecked(
+    p_member_id,
+    p_league_id,
+    p_league_season_id,
+    p_game_date,
+    p_week_number,
+    p_moves
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.auto_set_lineup_atomic(
+  p_member_id uuid,
+  p_league_id uuid,
+  p_league_season_id uuid,
+  p_game_date date,
+  p_assignments jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF p_assignments IS NULL OR jsonb_typeof(p_assignments) <> 'array' THEN
+    RAISE EXCEPTION 'p_assignments must be a JSONB array.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF jsonb_array_length(p_assignments) > 64 THEN
+    RAISE EXCEPTION 'Too many lineup assignments.'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_game_date < (now() AT TIME ZONE 'America/New_York')::date THEN
+    RAISE EXCEPTION 'Past lineups cannot be changed.' USING ERRCODE = 'P0001';
+  END IF;
+
+  PERFORM public.assert_current_league_season_for_lineup(p_league_id, p_league_season_id);
+  PERFORM private.assert_roster_within_active_limit(p_league_id, p_league_season_id, p_member_id);
+  PERFORM public.auto_set_lineup_atomic_unchecked(
+    p_member_id,
+    p_league_id,
+    p_league_season_id,
+    p_game_date,
+    p_assignments
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.lineup_game_started(p_player_id uuid, p_game_date date)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  -- A lineup slot locks once the player's game that day has started: the feed
+  -- says so, its scheduled tip-off has passed, or a start time is recorded.
+  SELECT EXISTS (
+    SELECT 1
+      FROM players AS p
+      JOIN nba_games AS g
+        ON g.game_date = p_game_date
+       AND (
+         g.home_team = p.nba_team OR g.away_team = p.nba_team
+         OR EXISTS (
+           SELECT 1 FROM player_game_stats AS stats
+            WHERE stats.player_id = p.id AND stats.game_id = g.id
+         )
+       )
+     WHERE p.id = p_player_id
+       AND (
+         g.status IN ('InProgress', 'Final')
+         OR (g.game_time IS NOT NULL AND g.game_time <= now())
+         OR (g.started_at IS NOT NULL AND g.started_at <= now())
+       )
+  )
+$$;

@@ -828,8 +828,20 @@ async function loadEarliestStatCorrectionWeek(
         .order('game_date')
         .range(from, to))
 
+    // A moved game also invalidates the date it left, which no stat row retains.
+    const calendarCorrections = await fetchAllPages<StatUpdateTimestamp>((from, to) => supabase
+        .from('game_calendar_corrections')
+        .select('game_date, updated_at, nba_games!inner(nba_game_id)')
+        .eq('season_year', seasonYear)
+        .gte('game_date', firstWeekStart)
+        .lte('game_date', lastWeekEnd)
+        .gt('updated_at', new Date(referenceFloor).toISOString())
+        .order('game_date')
+        .order('game_id')
+        .range(from, to))
+
     let earliest: number | null = null
-    for (const row of statRows) {
+    for (const row of [...statRows, ...calendarCorrections]) {
         if (!row.game_date || !isRegularSeasonGameId(row.nba_games?.nba_game_id)) continue
         const weekNumber = weekNumberForGameDate(row.game_date, weekBounds)
         if (weekNumber == null) continue

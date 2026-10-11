@@ -846,6 +846,35 @@ export type Database = {
           },
         ]
       }
+      game_calendar_corrections: {
+        Row: {
+          game_date: string
+          game_id: string
+          season_year: number
+          updated_at: string
+        }
+        Insert: {
+          game_date: string
+          game_id: string
+          season_year: number
+          updated_at?: string
+        }
+        Update: {
+          game_date?: string
+          game_id?: string
+          season_year?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_calendar_corrections_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "nba_games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_activity: {
         Row: {
           actor_member_id: string | null

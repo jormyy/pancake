@@ -85,9 +85,15 @@ BEGIN
     v_slot_type := (v_entry ->> 'slot_type')::public.roster_slot_type;
     v_slot_count := (v_entry ->> 'slot_count')::int;
 
-    IF v_slot_count IS NULL OR v_slot_count <= 0 THEN
-      RAISE EXCEPTION 'slot_count must be a positive integer.'
+    IF v_slot_count IS NULL OR v_slot_count < 0 THEN
+      RAISE EXCEPTION 'slot_count must be a nonnegative integer.'
         USING ERRCODE = '22023';
+    END IF;
+
+    IF v_slot_count = 0 THEN
+      DELETE FROM public.lineup_slot_templates
+       WHERE league_id = p_league_id AND slot_type = v_slot_type;
+      CONTINUE;
     END IF;
 
     INSERT INTO public.lineup_slot_templates (league_id, slot_type, slot_count)
