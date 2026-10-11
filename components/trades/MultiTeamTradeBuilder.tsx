@@ -21,6 +21,7 @@ type MultiTeamTradeBuilderProps = {
     rosterLoading: boolean
     avgMap: Map<string, number>
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
+    assetLabels?: ReadonlyMap<string, string>
     participantName: (memberId: string) => string
     onRetry: () => void
     onTogglePlayer: (memberId: string, playerId: string) => void
@@ -50,6 +51,7 @@ export function MultiTeamTradeBuilder({
     rosterLoading,
     avgMap,
     avgStatsMap,
+    assetLabels,
     participantName,
     onRetry,
     onTogglePlayer,
@@ -81,24 +83,26 @@ export function MultiTeamTradeBuilder({
     }, [activeParticipantId, participants, setActiveParticipantId])
 
     const overviewItems = useMemo<TradeFlowItem[]>(() => items.map((item) => {
-        const participant = participants.find((entry) => entry.memberId === item.fromMemberId)
         const player = item.kind === 'player'
-            ? participant?.roster.find((entry) => entry.players.id === item.playerId)
+            ? participants.flatMap((entry) => entry.roster).find((entry) => entry.players.id === item.playerId)
             : null
         const pick = item.kind === 'pick'
-            ? participant?.picks.find((entry) => entry.pickId === item.pickId)
+            ? participants.flatMap((entry) => entry.picks).find((entry) => entry.pickId === item.pickId)
             : null
-        const label = player?.players.display_name ??
-            (pick ? `${pick.seasonYear} Round ${pick.round}` : `$${item.kind === 'faab' ? item.faabAmount : 0} FAAB`)
         const assetKey = item.kind === 'player' ? `player:${item.playerId}`
             : item.kind === 'pick' ? `pick:${item.pickId}` : 'faab'
+        const label = item.kind === 'player'
+            ? player?.players.display_name ?? assetLabels?.get(assetKey) ?? 'Player'
+            : item.kind === 'pick'
+                ? pick ? `${pick.seasonYear} Round ${pick.round}` : assetLabels?.get(assetKey) ?? 'Draft pick'
+                : `$${item.faabAmount} FAAB`
         return {
             key: `${assetKey}:${item.fromMemberId}:${item.toMemberId}`,
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label,
         }
-    }), [items, participants])
+    }), [assetLabels, items, participants])
 
     if (rosterError) {
         return (

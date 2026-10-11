@@ -189,6 +189,12 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         push({ pathname: '/(modals)/propose-trade', params: { analyzerDraftId: draftId } })
     }, [canMakeOffer, composer.participantIds, items, leagueId, myMemberId, push])
     const shownAnalysis = analysis ?? (!networkAvailable ? cachedSnapshot?.analysis ?? null : null)
+    const assetLabels = useMemo(() => new Map([
+        ...(prefillTrade?.routedItems ?? []).flatMap((item): [string, string][] => item.kind === 'player'
+            ? [[`player:${item.playerId}`, item.playerName]]
+            : item.kind === 'pick' ? [[`pick:${item.pickId}`, `${item.seasonYear} Round ${item.round}`]] : []),
+        ...(shownAnalysis?.assets ?? []).map((asset): [string, string] => [`${asset.kind}:${asset.assetId}`, asset.label]),
+    ]), [prefillTrade?.routedItems, shownAnalysis?.assets])
     const analysisParticipantName = useCallback((memberId: string) => {
         const liveName = participantName(memberId)
         return liveName === 'Unnamed' ? cachedSnapshot?.participantNames?.[memberId] ?? liveName : liveName
@@ -206,6 +212,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         rosterLoading: composer.rosterLoading,
         avgMap: composer.avgMap,
         avgStatsMap: composer.avgStatsMap,
+        assetLabels,
         participantName,
         onRetry: composer.retry,
         onTogglePlayer: composer.toggleParticipantPlayer,

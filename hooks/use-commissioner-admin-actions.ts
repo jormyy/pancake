@@ -101,12 +101,12 @@ export function useCommissionerAdminActions({
         const playoffActions: CommissionerAction[] = [
             {
                 id: 'generate-playoffs', label: 'Generate Playoff Bracket',
-                onPress: () => league ? runAdmin('/playoffs/generate', 'Semifinal bracket generated.', 'generate-playoffs', { leagueId: league.id }) : undefined,
+                onPress: () => league ? runAdmin('/playoffs/generate', 'Playoff bracket is ready.', 'generate-playoffs', { leagueId: league.id }) : undefined,
             },
             {
-                id: 'advance-playoffs', label: 'Advance to Championship',
-                onPress: () => league ? runAdmin('/playoffs/advance', 'Championship matchup created.', 'advance-playoffs', { leagueId: league.id }) : undefined,
-                description: 'Finalizes the semifinal results and creates the championship matchup. Semifinal scores cannot change after this.',
+                id: 'advance-playoffs', label: 'Advance Playoff Round',
+                onPress: () => league ? runAdmin('/playoffs/advance', 'Next playoff round is ready.', 'advance-playoffs', { leagueId: league.id }) : undefined,
+                description: 'Uses completed round results to create the next round. Those results cannot change after advancing.',
             },
         ]
         const annualCycleActions: CommissionerAction[] = [{
