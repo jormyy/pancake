@@ -248,7 +248,7 @@ SELECT pg_temp.oid('vet-' || n), 'Vet', 'Player ' || n, (ARRAY['ATL', 'BOS', 'DA
        CASE WHEN n BETWEEN 13 AND 18 THEN 'Out' END, NULL
   FROM generate_series(1, 40) AS n;
 INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions, injury_status, nba_draft_number)
-SELECT pg_temp.oid('rookie-' || n), 'Rookie', 'Class ' || n, 'MIA', 'SF'::nba_position, 0, ARRAY['SF'], NULL, n FROM generate_series(1, 12) AS n;
+SELECT pg_temp.oid('rookie-' || n), 'Rookie', 'Class ' || n, 'XTX', 'SF'::nba_position, 0, ARRAY['SF'], NULL, n FROM generate_series(1, 12) AS n;
 -- Rookie draft assets for 2099 and 2100, two rounds per member.
 INSERT INTO public.draft_picks (id, league_id, season_year, round, original_owner_id, current_owner_id)
 SELECT pg_temp.oid('pick-' || m.key || '-' || y || '-' || r), m.league, y, r, m.id, m.id

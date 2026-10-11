@@ -30,7 +30,6 @@ DECLARE
   v_lock_player_id uuid;
   v_target_league_id uuid;
   v_target_season_id uuid;
-  v_target_player_id uuid;
   v_ineligible text;
   v_faab_balance int;
   v_player_name text;
@@ -66,7 +65,7 @@ BEGIN
        ORDER BY candidate_groups.league_id, candidate_groups.league_season_id,
          candidate_groups.process_date, candidate_groups.player_id
     )
-    SELECT league_candidates.league_id, league_candidates.league_season_id, league_candidates.player_id
+    SELECT league_candidates.league_id, league_candidates.league_season_id
       FROM league_candidates
      ORDER BY league_candidates.process_date, league_candidates.league_id,
        league_candidates.league_season_id, league_candidates.player_id
@@ -75,7 +74,6 @@ BEGIN
     IF pg_try_advisory_xact_lock(hashtext(v_candidate.league_id::text), hashtext(v_candidate.league_season_id::text)) THEN
       v_target_league_id := v_candidate.league_id;
       v_target_season_id := v_candidate.league_season_id;
-      v_target_player_id := v_candidate.player_id;
       EXIT;
     END IF;
   END LOOP;
@@ -114,8 +112,8 @@ BEGIN
      AND wc.process_date <= p_process_date
      AND wc.league_id = v_target_league_id
      AND wc.league_season_id = v_target_season_id
-     AND wc.player_id = v_target_player_id
    ORDER BY
+     wc.process_date ASC,
      CASE WHEN claim_league.waiver_mode = 'faab' THEN wc.bid_amount END DESC NULLS LAST,
      wp.priority ASC,
      wc.claim_order ASC,

@@ -43,7 +43,7 @@ BEGIN
     WHERE trade.status = 'accepted'::public.trade_status
       AND trade.veto_window_expires_at <= now()
       AND season.is_current = true
-      AND league.status <> 'archived'::public.league_status
+      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status)
     ORDER BY trade.veto_window_expires_at, trade.proposed_at, trade.id
     LIMIT v_limit
     FOR UPDATE OF trade SKIP LOCKED

@@ -82,6 +82,14 @@ BEGIN
       INTO v_seed_ids
       FROM private.playoff_seed_rankings(p_league_id, v_season_id, v_quarterfinal_week) AS seed;
 
+    -- Generated quarterfinals have seed 3 and seed 4 at home. Preserve
+    -- those bracket branches regardless of row IDs or which team wins.
+    SELECT array_agg(matchup.winner_member_id ORDER BY array_position(v_seed_ids, matchup.home_member_id))
+      INTO v_quarterfinal_winners
+      FROM public.matchups AS matchup
+     WHERE matchup.league_season_id = v_season_id
+       AND matchup.matchup_type = 'playoff_quarterfinal'::public.matchup_type;
+
     WITH inserted AS (
       INSERT INTO public.matchups (
         league_id,

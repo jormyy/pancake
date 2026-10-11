@@ -40,11 +40,12 @@ VALUES
   ('00000000-0000-0000-0000-0000000a0101', '00000000-0000-0000-0000-0000000a0301', '00000000-0000-0000-0000-0000000a0202', 2),
   ('00000000-0000-0000-0000-0000000a0101', '00000000-0000-0000-0000-0000000a0301', '00000000-0000-0000-0000-0000000a0203', 3);
 
+-- IR/taxi cleanup uses unscheduled teams; unrelated NBA fixtures must not lock these players.
 INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions, injury_status, nba_draft_number)
 VALUES
   ('00000000-0000-0000-0000-0000000a0401', 'Cooper', 'Flagg', 'DAL', 'SF', 0, ARRAY['SF', 'PF'], NULL, 1),
-  ('00000000-0000-0000-0000-0000000a0402', 'Injured', 'Wing', 'BOS', 'SG', 3, ARRAY['SG'], 'Out', 20),
-  ('00000000-0000-0000-0000-0000000a0403', 'Taxi', 'Rookie', 'MIA', 'PG', 0, ARRAY['PG'], NULL, 30),
+  ('00000000-0000-0000-0000-0000000a0402', 'Injured', 'Wing', 'XIR', 'SG', 3, ARRAY['SG'], 'Out', 20),
+  ('00000000-0000-0000-0000-0000000a0403', 'Taxi', 'Rookie', 'XTX', 'PG', 0, ARRAY['PG'], NULL, 30),
   ('00000000-0000-0000-0000-0000000a0404', 'Waiver', 'Drop', 'LAL', 'C', 4, ARRAY['C'], NULL, 40),
   ('00000000-0000-0000-0000-0000000a0405', 'Trade', 'Piece', 'DEN', 'PF', 5, ARRAY['PF'], NULL, 50),
   ('00000000-0000-0000-0000-0000000a0406', 'Offer', 'Asset', 'GSW', 'SG', 2, ARRAY['SG'], NULL, 60),

@@ -73,7 +73,7 @@ SELECT
   'Oracle',
   'Player ' || n,
   -- Split rookies between a started team and an unstarted team.
-  CASE WHEN n % 12 = 7 THEN 'MIA' ELSE (ARRAY['ATL', 'BOS', 'DAL', 'DEN', 'LAL', 'MIA'])[1 + n % 6] END,
+  CASE WHEN n % 12 = 7 THEN 'XTX' ELSE (ARRAY['XAT', 'BOS', 'XDA', 'XDE', 'LAL', 'XTX'])[1 + n % 6] END,
   (ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]::nba_position,
   CASE WHEN n % 6 = 1 THEN 0 ELSE 2 + n % 5 END,
   ARRAY[(ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]],

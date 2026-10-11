@@ -14,11 +14,34 @@ AS $$
 DECLARE
   v_draft drafts%ROWTYPE;
   v_player_ids uuid[];
+  v_current_season_id uuid;
 BEGIN
+  SELECT * INTO v_draft FROM drafts WHERE id = p_draft_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Draft not found.';
+  END IF;
+
+  -- Match season advancement's lock order before inspecting mutable context.
+  PERFORM 1 FROM leagues WHERE id = v_draft.league_id FOR UPDATE;
+  SELECT id INTO v_current_season_id
+    FROM league_seasons
+   WHERE league_id = v_draft.league_id AND is_current = true
+   FOR UPDATE;
   SELECT * INTO v_draft FROM drafts WHERE id = p_draft_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Draft not found.';
   END IF;
+  IF NOT v_draft.is_mock AND v_draft.league_season_id IS DISTINCT FROM v_current_season_id THEN
+    RAISE EXCEPTION 'Only current season drafts can be reset.';
+  END IF;
+
+  IF NOT v_draft.is_mock AND EXISTS (
+    SELECT 1 FROM trades
+     WHERE league_id = v_draft.league_id AND status = 'accepted'::trade_status
+  ) THEN
+    RAISE EXCEPTION 'Resolve accepted trades before resetting the draft.';
+  END IF;
+
   IF v_draft.status NOT IN ('pending', 'in_progress', 'paused', 'completed', 'cancelled') THEN
     RAISE EXCEPTION 'Draft cannot be reset from status %.', v_draft.status;
   END IF;
