@@ -13,6 +13,7 @@ import {
 } from '@/lib/dynasty-decisions'
 import { getCurrentSeason, currentSeasonYear } from '@/lib/shared/season'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { getErrorMessage } from '@/lib/shared/errors'
 import type { DynastyRankPlayer } from '@/lib/dynasty'
 import type { Json } from '@/types/database'
 import {
@@ -424,7 +425,7 @@ export function useDynastyRankings({
             } catch (cause) {
                 if (requestSeqRef.current !== requestId || epoch !== networkEpochRef.current) return
                 failedRef.current = true
-                const nextError = cause instanceof Error ? cause : new Error(String(cause))
+                const nextError = cause instanceof Error ? cause : new Error(getErrorMessage(cause))
                 setError(nextError)
                 console.error(nextError)
             } finally {
