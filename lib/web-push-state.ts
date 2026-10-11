@@ -84,8 +84,10 @@ export function admitWebPushIntent(previous: WebPushIntent, ownerId: string, act
     }))
 }
 
-export function closeWebPushIntent(ownerId: string | null, reason: 'logout' | 'disabled'): Promise<WebPushIntent> {
+export function closeWebPushIntent(ownerId: string | null, reason: 'logout' | 'disabled', expected: WebPushIntent, stillCurrent: () => boolean): Promise<WebPushIntent | null> {
     return transaction('readwrite', (store, done) => readIntent(store, (current) => {
+        if (!stillCurrent() || current.revision !== expected.revision
+            || (current.ownerId !== null && current.ownerId !== ownerId)) { done(null); return }
         const next: WebPushIntent = {
             revision: crypto.randomUUID(), ownerId: ownerId ?? current.ownerId, allowed: false,
             pushEnabled: reason === 'disabled' ? false : current.pushEnabled, reason,

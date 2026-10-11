@@ -203,18 +203,22 @@ export async function completeWebPushLogin(previous: WebPushIntent | null, owner
     } catch (error) { console.warn('Notification registration remains off.', error) }
 }
 
-async function detach(reason: 'logout' | 'disabled'): Promise<void> {
-    if (!hasPushApi()) return
+async function detach(reason: 'logout' | 'disabled', authCurrent: () => boolean = () => true): Promise<void> {
+    if (!hasPushApi() || !authCurrent()) return
     operationGeneration += 1
     const ownerId = sessionOwner() ?? null
     const capturedGeneration = sessionGeneration()
     const capturedOperation = operationGeneration
     let closedIntent: WebPushIntent | null = null
     let closeError: unknown
-    try { closedIntent = await closeWebPushIntent(ownerId, reason) }
-    catch (error) { closeError = error }
     const stillOwner = () => sessionOwner() === ownerId && sessionGeneration() === capturedGeneration
-        && operationGeneration === capturedOperation
+        && operationGeneration === capturedOperation && authCurrent()
+    try {
+        const expected = await captureWebPushIntent()
+        if (!stillOwner()) return
+        closedIntent = await closeWebPushIntent(ownerId, reason, expected, stillOwner)
+        if (!closedIntent) return
+    } catch (error) { closeError = error }
     const stillCurrent = async () => {
         if (!stillOwner()) return false
         if (!closedIntent) return true
@@ -250,7 +254,7 @@ async function detach(reason: 'logout' | 'disabled'): Promise<void> {
 }
 
 /** Logout closes registration in every tab before clearing the account binding. */
-export async function detachWebPushFromAccount(): Promise<void> { await detach('logout') }
+export async function detachWebPushFromAccount(stillCurrent?: () => boolean): Promise<void> { await detach('logout', stillCurrent) }
 
 export async function disableWebPush(): Promise<void> { await detach('disabled') }
 

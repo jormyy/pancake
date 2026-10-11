@@ -5,8 +5,9 @@ import ProfileScreen from '@/app/(tabs)/profile'
 import { Button } from '@/components/ui'
 import { SettingsRow } from '@/components/settings/SettingsGroup'
 import { setSessionOwner } from '@/lib/session-cache-registry'
+import { signOut } from '@/lib/auth'
 import { enableWebPush, getWebPushStatus } from '@/lib/web-push'
-import { showAlert } from '@/lib/alert'
+import { showAlert, confirmAction } from '@/lib/alert'
 
 const auth = vi.hoisted(() => ({ user: { id: 'owner-a', email: 'synthetic@example.invalid' } }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => auth }))
@@ -110,4 +111,43 @@ it('hides the old subscription preferences while the next owner status is unreso
     expect(button(renderer, 'Turn on')).toBeDefined()
     expect(preferenceRows(renderer)).toHaveLength(0)
     await act(async () => { renderer.unmount() })
+})
+
+
+it('does not show a failed old logout on the next owner screen', async () => {
+    const pending = deferred<{ serverSignOutConfirmed: boolean }>()
+    vi.mocked(signOut).mockReturnValueOnce(pending.promise)
+    vi.mocked(getWebPushStatus).mockResolvedValue('off')
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProfileScreen)); mounted = renderer })
+    await act(async () => { renderer.root.findAllByType(SettingsRow).find(node => node.props.label === 'Sign out')!.props.onPress() })
+    let action!: Promise<unknown>
+    await act(async () => { action = Promise.resolve(vi.mocked(confirmAction).mock.calls.at(-1)![2]()) })
+    setSessionOwner('owner-b')
+    auth.user = { id: 'owner-b', email: 'synthetic-next@example.invalid' }
+    await act(async () => { renderer.update(React.createElement(ProfileScreen)) })
+    await act(async () => { pending.reject(new Error('Your account changed')); await action })
+    expect(showAlert).not.toHaveBeenCalled()
+})
+
+it('does not confirm logout for an account that replaced the confirmation owner', async () => {
+    vi.mocked(getWebPushStatus).mockResolvedValue('off')
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProfileScreen)); mounted = renderer })
+    await act(async () => { renderer.root.findAllByType(SettingsRow).find(node => node.props.label === 'Sign out')!.props.onPress() })
+    setSessionOwner('owner-b')
+    auth.user = { id: 'owner-b', email: 'synthetic-next@example.invalid' }
+    await act(async () => { renderer.update(React.createElement(ProfileScreen)) })
+    await act(async () => { await vi.mocked(confirmAction).mock.calls.at(-1)![2]() })
+    expect(signOut).not.toHaveBeenCalled()
+})
+
+it('keeps the local-only logout warning after the initiating account signs out', async () => {
+    vi.mocked(signOut).mockImplementationOnce(async () => { setSessionOwner(null); return { serverSignOutConfirmed: false } })
+    vi.mocked(getWebPushStatus).mockResolvedValue('off')
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProfileScreen)); mounted = renderer })
+    await act(async () => { renderer.root.findAllByType(SettingsRow).find(node => node.props.label === 'Sign out')!.props.onPress() })
+    await act(async () => { await vi.mocked(confirmAction).mock.calls.at(-1)![2]() })
+    expect(showAlert).toHaveBeenCalledWith('Signed out on this device', expect.stringContaining('Other sessions may still be signed in'))
 })

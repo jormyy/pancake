@@ -39,9 +39,10 @@ export function createAuthInvalidation(
         storage.setItem(revisionKey, JSON.stringify(next))
         fallback.setItem(revisionKey, JSON.stringify(next))
     }
-    const read = (name: string) => name === key && revision().signedOut
-        ? { value: null, available: true }
-        : storage.read(name)
+    const read = (name: string) => {
+        const stored = storage.read(name)
+        return name === key && revision().signedOut ? { ...stored, value: null } : stored
+    }
     const setItem = (name: string, value: string) => {
         if (name === key) {
             const session = JSON.parse(value) as { access_token?: string }
@@ -56,8 +57,9 @@ export function createAuthInvalidation(
                 throw new Error('An authentication response arrived after local sign-out.')
             }
             storage.setItem(name, value)
-            if (current.signedOut && ticket?.login && storage.read(name).value === value) {
-                save({ ...current, signedOut: false })
+            if (ticket?.login && storage.read(name).value === value) {
+                // A refresh started before this explicit login cannot replace its account.
+                save({ id: crypto.randomUUID(), generation: current.generation + 1, signedOut: false })
                 changed()
             }
             return
@@ -70,11 +72,15 @@ export function createAuthInvalidation(
         getItem: (name: string) => read(name).value,
         setItem,
         removeItem: storage.removeItem,
-        invalidate: () => {
-            save({ id: crypto.randomUUID(), signedOut: true, generation: revision().generation + 1 })
-            storage.removeItem(key)
-            storage.removeItem(`${key}-code-verifier`)
-            storage.removeItem(`${key}-user`)
+        invalidate: (shared = true) => {
+            const next = { id: crypto.randomUUID(), signedOut: true, generation: revision().generation + 1 }
+            if (shared) save(next)
+            else { memory = next; fallback.setItem(revisionKey, JSON.stringify(next)) }
+            if (shared) {
+                storage.removeItem(key)
+                storage.removeItem(`${key}-code-verifier`)
+                storage.removeItem(`${key}-user`)
+            }
             tickets.clear()
             changed()
         },
@@ -90,6 +96,12 @@ export function createAuthInvalidation(
             const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
             if (!url.pathname.startsWith('/auth/v1/')) return fetchImpl(input, init)
             const started = revision().id
+            if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'refresh_token') {
+                const requested = typeof init?.body === 'string' ? JSON.parse(init.body).refresh_token : null
+                const stored = JSON.parse(read(key).value ?? 'null')?.refresh_token
+                // The SDK retries fetch rejections with the original refresh token.
+                if (!requested || requested !== stored) throw new Error('Authentication changed before token refresh.')
+            }
             const response = await fetchImpl(input, init)
             const body = response.status === 204 ? null : await response.text()
             if (revision().id !== started) throw new Error('Authentication changed while this request was in flight.')

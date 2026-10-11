@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const stored = readStoredAuthState()
             if (next.session && stored.status !== 'unavailable'
                 && stored.session?.access_token !== next.session.access_token) return
+            if (!next.session && stored.session) return
             commit(next, event === 'SIGNED_OUT')
         })
 

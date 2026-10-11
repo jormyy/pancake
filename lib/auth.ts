@@ -1,7 +1,8 @@
-import { supabase, invalidateLocalAuthSession } from '@/lib/supabase'
+import { supabase, captureLocalAuthSession, localAuthSessionMatches, invalidateLocalAuthSession } from '@/lib/supabase'
 import type { Profile } from '@/types/database'
 import { completeWebPushLogin, detachWebPushFromAccount, prepareWebPushLogin } from '@/lib/web-push'
-import { clearPersistentCaches } from '@/lib/persistent-cache'
+import { waitForAuthInitialization } from '@/lib/auth-lock'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 export async function signUp(
     email: string,
@@ -29,25 +30,39 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
+    const owner = sessionOwner()
+    const generation = sessionGeneration()
+    const expected = captureLocalAuthSession()
+    const stillCurrent = () => sessionOwner() === owner && sessionGeneration() === generation
+        && (!expected.session || expected.session.user.id === owner) && localAuthSessionMatches(expected)
+    const assertCurrent = () => {
+        if (!stillCurrent()) throw new Error('Your account changed. Please retry.')
+    }
+    assertCurrent()
+    const { error: startupError } = await waitForAuthInitialization(supabase.auth.initialize())
+    if (startupError) console.warn('Session startup failed; continuing local sign-out.', startupError)
+    assertCurrent()
     try {
-        await detachWebPushFromAccount()
+        await detachWebPushFromAccount(stillCurrent)
     } catch (error) {
         // Local sign-out still completes when notification cleanup fails.
         console.warn('Web push detach failed.', error)
     }
+    assertCurrent()
 
     let serverSignOutConfirmed = false
     try {
-        const { error } = await supabase.auth.signOut()
-        serverSignOutConfirmed = !error
-        if (error) console.warn('Server sign-out could not be confirmed.', error)
+        if (expected.session) {
+            // This SDK method revokes the captured user without removing a newer stored session.
+            const { error } = await supabase.auth.admin.signOut(expected.session.access_token, 'global')
+            serverSignOutConfirmed = !error
+            if (error) console.warn('Server sign-out could not be confirmed.', error)
+        }
     } catch (error) {
         console.warn('Server sign-out could not be confirmed.', error)
-    } finally {
-        clearPersistentCaches()
     }
 
-    await invalidateLocalAuthSession()
+    if (!await invalidateLocalAuthSession(expected, stillCurrent)) throw new Error('Your account changed. Please retry.')
     return { serverSignOutConfirmed }
 }
 

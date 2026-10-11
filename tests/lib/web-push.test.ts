@@ -137,6 +137,27 @@ describe('web push client', () => {
         }, expect.objectContaining({ expectedUserId: 'owner-a', beforeSend: expect.any(Function) }))
     })
 
+    it('does not close a new owner intent when the initiating auth action expires during capture', async () => {
+        const { detachWebPushFromAccount } = await load()
+        let currentAuth = true
+        mocks.captureWebPushIntent.mockImplementationOnce(async () => {
+            currentAuth = false
+            intent = { ...intent, ownerId: 'owner-b', revision: 'new-B' }
+            return { ...intent }
+        })
+        await detachWebPushFromAccount(() => currentAuth)
+        expect(mocks.closeWebPushIntent).not.toHaveBeenCalled()
+        expect(intent.allowed).toBe(true)
+        expect(intent.ownerId).toBe('owner-b')
+        expect(pushManager.getSubscription).not.toHaveBeenCalled()
+    })
+    it('does not touch subscriptions when shared intent comparison rejects closure', async () => {
+        const { detachWebPushFromAccount } = await load()
+        mocks.closeWebPushIntent.mockResolvedValueOnce(null)
+        await detachWebPushFromAccount()
+        expect(pushManager.getSubscription).not.toHaveBeenCalled()
+        expect(mocks.apiPost).not.toHaveBeenCalled()
+    })
     it('reports denied permission without subscribing', async () => {
         vi.mocked(Notification.requestPermission).mockImplementationOnce(async () => {
             permission = 'denied'

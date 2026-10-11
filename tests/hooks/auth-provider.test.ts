@@ -146,8 +146,27 @@ describe('AuthProvider bootstrap ownership', () => {
         expect(mocks.clearPersistentCaches).not.toHaveBeenCalled()
         await act(async () => { mocks.readStoredSessionSync.mockReturnValue(authSession('user-b')); mocks.authCallback?.('SIGNED_IN', authSession('user-b')) })
         expect(mocks.clearPersistentCaches).toHaveBeenCalledOnce()
-        await act(async () => { mocks.authCallback?.('SIGNED_OUT', null) })
+        await act(async () => { mocks.readStoredSessionSync.mockReturnValue(null); mocks.authCallback?.('SIGNED_OUT', null) })
         expect(mocks.clearPersistentCaches).toHaveBeenCalledTimes(2)
+        await act(async () => { renderer.unmount() })
+    })
+    it('ignores old null auth events after a new owner is saved', async () => {
+        const stored = authSession('owner-B')
+        mocks.readStoredSessionSync.mockReturnValue(stored)
+        mocks.getSession.mockReturnValue(new Promise(() => {}))
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(AuthProvider, null, React.createElement(Probe))) })
+        await act(async () => { mocks.authCallback?.('SIGNED_OUT', null) })
+        expect(snapshots.at(-1)).toEqual({ userId: 'owner-B', loading: false })
+        expect(mocks.clearPersistentCaches).not.toHaveBeenCalled()
+        await act(async () => { mocks.authCallback?.('INITIAL_SESSION', null) })
+        expect(snapshots.at(-1)?.userId).toBe('owner-B')
+        await act(async () => {
+            mocks.readStoredSessionSync.mockReturnValue(null)
+            mocks.authCallback?.('SIGNED_OUT', null)
+        })
+        expect(snapshots.at(-1)?.userId).toBeNull()
+        expect(mocks.clearPersistentCaches).toHaveBeenCalledOnce()
         await act(async () => { renderer.unmount() })
     })
     it('does not infer identity from an async session when storage is unavailable', async () => {
