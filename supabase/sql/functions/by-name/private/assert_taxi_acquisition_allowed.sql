@@ -7,8 +7,8 @@ CREATE OR REPLACE FUNCTION private.assert_taxi_acquisition_allowed(
 RETURNS void LANGUAGE plpgsql SET search_path = public, private AS $$
 DECLARE v_slots int; v_count int;
 BEGIN
-  IF EXISTS (SELECT 1 FROM league_player_taxi_exits WHERE league_id=p_league_id AND player_id=p_player_id) THEN
-    RAISE EXCEPTION 'This player has left taxi and cannot return, even after a trade or season change.' USING ERRCODE='P0001';
+  IF EXISTS (SELECT 1 FROM league_member_taxi_exits WHERE league_id=p_league_id AND member_id=p_member_id AND player_id=p_player_id) THEN
+    RAISE EXCEPTION 'This player has left your team''s taxi squad and cannot return to it, even after reacquisition or a season change.' USING ERRCODE='P0001';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM players WHERE id=p_player_id AND years_exp=0 AND nba_draft_number IS NOT NULL) THEN
     RAISE EXCEPTION 'Only current rookies can be placed on the taxi squad.' USING ERRCODE='P0001';

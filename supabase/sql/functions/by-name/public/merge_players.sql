@@ -52,7 +52,19 @@ BEGIN
       THEN v_loser.dynasty_rank_fetched_at ELSE v_winner.dynasty_rank_fetched_at END
   WHERE id = winner_id;
 
-  -- A member who already holds the winner on the active roster keeps that row,
+  -- The same team's existing taxi acquisition survives a duplicate active/IR
+  -- identity. Normal delete guards and cleanup apply to the redundant row.
+  DELETE FROM roster_players AS canonical
+  USING roster_players AS taxi
+  WHERE canonical.player_id = winner_id
+    AND taxi.player_id = loser_id
+    AND canonical.league_id = taxi.league_id
+    AND canonical.league_season_id = taxi.league_season_id
+    AND canonical.member_id = taxi.member_id
+    AND NOT canonical.is_on_taxi
+    AND taxi.is_on_taxi;
+
+  -- Otherwise, a member who already holds the winner active keeps that row,
   -- so their listings, lineups, pending drops and offers move to the winner
   -- before their loser row goes; the roster lifecycle trigger then finds
   -- nothing of theirs under the old identity. Every other member's state is
@@ -137,10 +149,13 @@ BEGIN
       );
   UPDATE player_projections SET player_id = winner_id WHERE player_id = loser_id;
 
-  -- nominations: UNIQUE(draft_id, player_id) — drop loser dupes per draft first.
-  DELETE FROM nominations
-    WHERE player_id = loser_id
-      AND draft_id IN (SELECT draft_id FROM nominations WHERE player_id = winner_id);
+  -- Keep both original auctions and their bid/transaction links when identities collide.
+  -- One unmarked nomination per draft/player still guards ordinary entry.
+  UPDATE nominations AS loser
+     SET merged_from_player_id = COALESCE(loser.merged_from_player_id,loser_id)
+   WHERE loser.player_id = loser_id
+     AND EXISTS (SELECT 1 FROM nominations AS winner
+       WHERE winner.draft_id=loser.draft_id AND winner.player_id=winner_id);
   UPDATE nominations SET player_id = winner_id WHERE player_id = loser_id;
 
   UPDATE waiver_claims       SET player_id = winner_id WHERE player_id = loser_id;
@@ -168,9 +183,13 @@ BEGIN
       AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = winner_id);
   UPDATE player_game_stats SET player_id = winner_id WHERE player_id = loser_id;
 
+  -- Retain unattributed legacy evidence without using it for eligibility.
   INSERT INTO league_player_taxi_exits(league_id,player_id,exited_at)
     SELECT league_id,winner_id,exited_at FROM league_player_taxi_exits WHERE player_id=loser_id
     ON CONFLICT(league_id,player_id) DO UPDATE SET exited_at=LEAST(league_player_taxi_exits.exited_at,EXCLUDED.exited_at);
+  INSERT INTO league_member_taxi_exits(league_id,member_id,player_id,exited_at)
+    SELECT league_id,member_id,winner_id,exited_at FROM league_member_taxi_exits WHERE player_id=loser_id
+    ON CONFLICT(league_id,member_id,player_id) DO UPDATE SET exited_at=LEAST(league_member_taxi_exits.exited_at,EXCLUDED.exited_at);
   DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND source='merge' AND related_id=loser_id;
 
   DELETE FROM players WHERE id = loser_id;

@@ -16,9 +16,9 @@ BEGIN
   INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
   VALUES(blocked,'Taxi','Blocked','PG',ARRAY['PG'],0,1),
         (eligible,'Taxi','Eligible','PG',ARRAY['PG'],0,2147483647);
-  -- League-local historical bans isolate the pool without changing existing player metadata.
-  INSERT INTO league_player_taxi_exits(league_id,player_id)
-  SELECT l,id FROM players WHERE years_exp=0 AND nba_draft_number IS NOT NULL AND id<>eligible;
+  -- Team-local historical exits isolate the pool without changing existing player metadata.
+  INSERT INTO league_member_taxi_exits(league_id,member_id,player_id)
+  SELECT l,m,id FROM players WHERE years_exp=0 AND nba_draft_number IS NOT NULL AND id<>eligible;
   INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
   VALUES(asset,l,2150,1,m,m);
   INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds)
@@ -33,7 +33,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE 'P0001' THEN err := SQLERRM;
   END;
   IF err IS NOT NULL THEN
-    IF err <> 'This player has left taxi and cannot return, even after a trade or season change.' THEN
+    IF err <> 'This player has left your team''s taxi squad and cannot return to it, even after reacquisition or a season change.' THEN
       RAISE EXCEPTION 'Unexpected auto-pick failure: %',err;
     END IF;
     -- The same on-clock slot succeeds through the real draft acquisition path.

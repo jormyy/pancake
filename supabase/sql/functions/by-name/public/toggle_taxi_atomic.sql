@@ -95,6 +95,10 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  IF NOT p_to_taxi AND NOT v_rp.is_on_taxi THEN
+    RETURN;
+  END IF;
+
   v_roster_size := COALESCE(v_league.roster_size, 20);
 
   IF p_to_taxi THEN

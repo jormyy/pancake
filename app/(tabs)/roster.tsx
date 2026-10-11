@@ -488,7 +488,7 @@ export default function RosterScreen() {
             return
         }
         const title = 'Activate from Taxi?'
-        const message = `Move ${item.players.display_name} to your active roster? They cannot return to taxi, even after a trade or season change.`
+        const message = `Move ${item.players.display_name} to your active roster? They cannot return to your team’s taxi, even after reacquisition or a season change. Another team can still acquire them into taxi if eligible.`
 
         confirmAction(title, message, async () => {
             if (!isCurrentAction(generation, identity)) return

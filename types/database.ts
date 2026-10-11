@@ -1032,6 +1032,56 @@ export type Database = {
           },
         ]
       }
+      league_member_taxi_exits: {
+        Row: {
+          exited_at: string
+          league_id: string
+          member_id: string
+          player_id: string
+        }
+        Insert: {
+          exited_at?: string
+          league_id: string
+          member_id: string
+          player_id: string
+        }
+        Update: {
+          exited_at?: string
+          league_id?: string
+          member_id?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_member_taxi_exits_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_member_taxi_exits_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_member_taxi_exits_league_id_member_id_fkey"
+            columns: ["league_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["league_id", "id"]
+          },
+          {
+            foreignKeyName: "league_member_taxi_exits_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_members: {
         Row: {
           id: string
@@ -1595,6 +1645,7 @@ export type Database = {
           draft_id: string
           final_price: number | null
           id: string
+          merged_from_player_id: string | null
           nominated_at: string
           nominating_member_id: string
           nomination_order: number
@@ -1611,6 +1662,7 @@ export type Database = {
           draft_id: string
           final_price?: number | null
           id?: string
+          merged_from_player_id?: string | null
           nominated_at?: string
           nominating_member_id: string
           nomination_order: number
@@ -1627,6 +1679,7 @@ export type Database = {
           draft_id?: string
           final_price?: number | null
           id?: string
+          merged_from_player_id?: string | null
           nominated_at?: string
           nominating_member_id?: string
           nomination_order?: number
@@ -3889,6 +3942,7 @@ export type Database = {
           draft_id: string
           final_price: number | null
           id: string
+          merged_from_player_id: string | null
           nominated_at: string
           nominating_member_id: string
           nomination_order: number

@@ -449,7 +449,7 @@ const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => 
     for (const id of ids) assert.match(id, /^[0-9a-f-]{36}$/i)
     executeRecoverySql(`BEGIN;
       UPDATE players SET years_exp=0,nba_draft_number=1,nba_team='XTX' WHERE id='${player.id}';
-      DELETE FROM league_player_taxi_exits WHERE league_id='${fixture.league.id}' AND player_id='${player.id}';
+      DELETE FROM league_member_taxi_exits WHERE league_id='${fixture.league.id}' AND player_id='${player.id}';
       SELECT private.authorize_taxi_acquisition('${fixture.league.id}','${fixture.currentSeason.id}',
         '${fixture.proposer.id}','${player.id}','draft','${roster.id}');
       UPDATE roster_players SET is_on_taxi=true WHERE id='${roster.id}';

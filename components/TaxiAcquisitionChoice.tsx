@@ -12,7 +12,7 @@ export function TaxiAcquisitionChoice({ value, onChange, disabled = false, label
             <Text style={styles.label}>{label}</Text>
             <Switch value={value} onValueChange={onChange} disabled={disabled} accessibilityLabel={label} />
         </View>
-        <Text style={textStyles.meta}>Rookies enter taxi only through drafts or trades. Once activated or removed, they cannot return.</Text>
+        <Text style={textStyles.meta}>Eligible rookies enter taxi only through drafts or trades. Once a player leaves your team’s taxi, they cannot return to it. Another team’s exit does not block your acquisition.</Text>
     </View>
 }
 

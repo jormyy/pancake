@@ -159,7 +159,7 @@ BEGIN
     pg_temp.taxi_id('user-a')),'P0001','active roster is full','taxi activation preserves active capacity rule');
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_id=pg_temp.taxi_id('snake-league')
     AND player_id=pg_temp.taxi_id('snake-first') AND is_on_taxi)
-    AND NOT EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('snake-league')
+    AND NOT EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('snake-league')
       AND player_id=pg_temp.taxi_id('snake-first')),'failed full-roster activation keeps taxi and no exit mark');
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_ir_atomic(%L,true,%L)',
     (SELECT id FROM roster_players WHERE league_id=pg_temp.taxi_id('snake-league') AND player_id=pg_temp.taxi_id('snake-first')),
@@ -211,7 +211,7 @@ BEGIN
     AND member_id=pg_temp.taxi_id('life-a') AND is_on_taxi),'four real acquisitions establish lifecycle fixtures');
   PERFORM pg_temp.taxi_check((SELECT status='completed' FROM drafts WHERE id=v_draft)
     AND (SELECT status='active' FROM leagues WHERE id=pg_temp.taxi_id('life-league')),'taxi draft completion activates league');
-  PERFORM pg_temp.taxi_check(NOT EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')),
+  PERFORM pg_temp.taxi_check(NOT EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')),
     'first taxi acquisitions create no exit marks');
 END;
 $$;
@@ -227,12 +227,18 @@ BEGIN
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_taxi_atomic(%L,false,%L)',v_activate,pg_temp.taxi_id('user-outsider')),
     '42501','Not authorized','outsider cannot activate another roster');
   PERFORM pg_temp.taxi_check((SELECT is_on_taxi FROM roster_players WHERE id=v_activate)
-    AND NOT EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
-    AND player_id=pg_temp.taxi_id('life-activate')),'unauthorized activation preserves taxi and exit state');
+    AND NOT EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-activate')),'unauthorized activation preserves taxi and exit state');
+  SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb) INTO v_before
+    FROM roster_transactions t WHERE league_id=pg_temp.taxi_id('life-league') AND player_id=pg_temp.taxi_id('life-manual');
+  PERFORM public.toggle_taxi_atomic(v_manual,false,pg_temp.taxi_id('user-a'));
+  PERFORM pg_temp.taxi_check(v_before=(SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY t.id),'[]'::jsonb)
+    FROM roster_transactions t WHERE league_id=pg_temp.taxi_id('life-league') AND player_id=pg_temp.taxi_id('life-manual')),
+    'already-active activation makes no false taxi exit history');
   PERFORM public.toggle_taxi_atomic(v_activate,false,pg_temp.taxi_id('user-a'));
   PERFORM pg_temp.taxi_check((SELECT NOT is_on_taxi AND NOT is_on_ir FROM roster_players WHERE id=v_activate)
-    AND EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
-    AND player_id=pg_temp.taxi_id('life-activate')),'real activation creates permanent exit');
+    AND EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-activate')),'real activation records that team exit');
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_taxi_atomic(%L,true,%L)',v_activate,pg_temp.taxi_id('user-a')),
     'P0001','only through a draft or trade','manual taxi reentry is denied');
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_taxi_atomic(%L,true,%L)',v_manual,pg_temp.taxi_id('user-a')),
@@ -245,8 +251,8 @@ BEGIN
     'P0001','only through a draft or trade','draft provenance alone cannot forge taxi capability');
   PERFORM public.toggle_ir_atomic(v_ir,true,pg_temp.taxi_id('user-a'));
   PERFORM pg_temp.taxi_check((SELECT is_on_ir AND NOT is_on_taxi FROM roster_players WHERE id=v_ir)
-    AND EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
-    AND player_id=pg_temp.taxi_id('life-ir')),'real taxi to IR move creates permanent exit');
+    AND EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-ir')),'real taxi to IR move creates permanent exit');
   SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) INTO v_before FROM roster_players r WHERE r.id IN(v_ir,v_manual);
   PERFORM set_config('request.jwt.claim.sub',pg_temp.taxi_id('user-a')::text,true);
   PERFORM pg_temp.taxi_fails(format('SELECT public.activate_roster_player_with_overflow_atomic(%L,''ir'',%L,''taxi'')',v_ir,v_manual),
@@ -258,8 +264,8 @@ BEGIN
     'both compound denials leave both roster rows unchanged');
   PERFORM public.drop_player_atomic(v_drop);
   PERFORM pg_temp.taxi_check(NOT EXISTS(SELECT 1 FROM roster_players WHERE id=v_drop)
-    AND EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
-    AND player_id=pg_temp.taxi_id('life-drop')),'real taxi drop creates permanent exit');
+    AND EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-drop')),'real taxi drop creates permanent exit');
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_id=pg_temp.taxi_id('life-league')
     AND player_id=pg_temp.taxi_id('life-drop') AND cleared_at IS NULL)
     AND EXISTS(SELECT 1 FROM roster_transactions WHERE league_id=pg_temp.taxi_id('life-league')
@@ -300,14 +306,21 @@ BEGIN
   v_back:=public.propose_trade_atomic(pg_temp.taxi_id('life-league'),pg_temp.taxi_id('life-season'),
     pg_temp.taxi_id('life-b'),pg_temp.taxi_id('life-a'),ARRAY[pg_temp.taxi_id('life-trade-in')],
     ARRAY[pg_temp.taxi_id('life-return')],ARRAY[]::uuid[],ARRAY[]::uuid[]);
-  PERFORM pg_temp.taxi_fails(format('SELECT public.set_trade_taxi_destinations_atomic(%L,%L,ARRAY[%L::uuid],%L)',
-    v_back,pg_temp.taxi_id('life-a'),pg_temp.taxi_id('life-trade-in'),pg_temp.taxi_id('user-a')),
-    'P0001','left taxi and cannot return','permanent taxi exit blocks new receiving owner');
+  PERFORM public.set_trade_taxi_destinations_atomic(v_back,pg_temp.taxi_id('life-a'),
+    ARRAY[pg_temp.taxi_id('life-trade-in')],pg_temp.taxi_id('user-a'));
   PERFORM public.accept_trade_atomic(v_back,pg_temp.taxi_id('life-a'));
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_id=pg_temp.taxi_id('life-league')
-    AND player_id=pg_temp.taxi_id('life-trade-in') AND member_id=pg_temp.taxi_id('life-a') AND NOT is_on_taxi)
-    AND EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
-    AND player_id=pg_temp.taxi_id('life-trade-in')),'ordinary trade succeeds while permanent taxi exit follows player');
+    AND player_id=pg_temp.taxi_id('life-trade-in') AND member_id=pg_temp.taxi_id('life-a') AND is_on_taxi),
+    'a different team acquires taxi after the prior team exited');
+  PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-b') AND player_id=pg_temp.taxi_id('life-trade-in'))
+    AND NOT EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-trade-in')),
+    'only the team that exited receives an exit mark');
+  PERFORM public.toggle_taxi_atomic((SELECT id FROM roster_players WHERE league_id=pg_temp.taxi_id('life-league')
+    AND player_id=pg_temp.taxi_id('life-trade-in')),false,pg_temp.taxi_id('user-a'));
+  PERFORM pg_temp.taxi_check((SELECT count(*)=2 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND player_id=pg_temp.taxi_id('life-trade-in')),'both teams retain their own independent exits after activation');
 END;
 $$;
 
@@ -315,7 +328,7 @@ $$;
 DO $$
 DECLARE v_new uuid; v_new_year int; v_trade uuid; v_drop_mark timestamptz;
 BEGIN
-  SELECT exited_at INTO STRICT v_drop_mark FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+  SELECT exited_at INTO STRICT v_drop_mark FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
     AND player_id=pg_temp.taxi_id('life-drop');
   UPDATE leagues SET status='playoffs' WHERE id=pg_temp.taxi_id('life-league');
   PERFORM pg_temp.taxi_fails(format('SELECT public.advance_season_atomic(%L)',pg_temp.taxi_id('life-league')),
@@ -328,17 +341,17 @@ BEGIN
   INSERT INTO taxi_acceptance_ids VALUES('life-new-season',v_new);
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=v_new
     AND player_id=pg_temp.taxi_id('life-carry') AND is_on_taxi AND acquired_via='carry_over')
-    AND NOT EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND NOT EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
     AND player_id=pg_temp.taxi_id('life-carry')),'real rollover keeps continuous taxi without marking exit');
-  PERFORM pg_temp.taxi_check((SELECT count(*)=4 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league'))
-    AND (SELECT exited_at=v_drop_mark FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
-      AND player_id=pg_temp.taxi_id('life-drop')),'rollover preserves all activation IR drop and trade exit marks');
+  PERFORM pg_temp.taxi_check((SELECT count(*)=5 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league'))
+    AND (SELECT exited_at=v_drop_mark FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+      AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-drop')),'rollover preserves all activation IR drop and trade exit marks');
   v_trade:=public.propose_trade_atomic(pg_temp.taxi_id('life-league'),v_new,
     pg_temp.taxi_id('life-a'),pg_temp.taxi_id('life-b'),ARRAY[pg_temp.taxi_id('life-trade-in')],
     ARRAY[pg_temp.taxi_id('life-return')],ARRAY[]::uuid[],ARRAY[]::uuid[]);
   PERFORM pg_temp.taxi_fails(format('SELECT public.set_trade_taxi_destinations_atomic(%L,%L,ARRAY[%L::uuid],%L)',
     v_trade,pg_temp.taxi_id('life-b'),pg_temp.taxi_id('life-trade-in'),pg_temp.taxi_id('user-b')),
-    'P0001','left taxi and cannot return','trade acquisition cannot erase exit after real rollover');
+    'P0001','left your team.s taxi squad','same-team reacquisition cannot erase its exit after real rollover');
   PERFORM public.accept_trade_atomic(v_trade,pg_temp.taxi_id('life-b'));
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=v_new
     AND player_id=pg_temp.taxi_id('life-trade-in') AND member_id=pg_temp.taxi_id('life-b') AND NOT is_on_taxi),
@@ -432,6 +445,58 @@ BEGIN
     AND EXISTS(SELECT 1 FROM roster_players WHERE league_id=pg_temp.taxi_id('late-league')
       AND player_id=pg_temp.taxi_id('late-offer') AND member_id=pg_temp.taxi_id('late-b') AND NOT is_on_taxi),
     'healthy ordinary trade succeeds after terminal taxi failure');
+END;
+$$;
+
+-- Exit evidence is readable only within a member's league and cannot be erased by clients.
+DO $$
+DECLARE v_count bigint;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub',pg_temp.taxi_id('user-outsider')::text,true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  SELECT count(*) INTO v_count FROM public.league_member_taxi_exits;
+  BEGIN
+    UPDATE public.league_member_taxi_exits SET exited_at=now() WHERE false;
+    RAISE EXCEPTION 'Client rewrites exit history' USING ERRCODE='P9999';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN
+    DELETE FROM public.league_member_taxi_exits WHERE false;
+    RAISE EXCEPTION 'Client deletes exit history' USING ERRCODE='P9999';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  EXECUTE 'RESET ROLE';
+  PERFORM pg_temp.taxi_check(v_count=0,'outsider sees no other league taxi exit history');
+  PERFORM pg_temp.taxi_check(true,'client cannot update or delete team taxi exit history');
+  PERFORM pg_temp.taxi_fails(format('INSERT INTO league_member_taxi_exits(league_id,member_id,player_id) VALUES(%L,%L,%L)',
+    pg_temp.taxi_id('snake-league'),pg_temp.taxi_id('life-a'),pg_temp.taxi_id('life-drop')),
+    '23503','foreign key','exit evidence cannot associate a team with a different league');
+  PERFORM set_config('request.jwt.claim.sub','',true);
+END;
+$$;
+
+-- Identity merge preserves the departing team's exit even if another team keeps taxi.
+DO $$
+DECLARE v_trade uuid; v_winner uuid:=pg_temp.taxi_id('life-manual'); v_loser uuid:=pg_temp.taxi_id('life-carry');
+BEGIN
+  v_trade:=public.propose_trade_atomic(pg_temp.taxi_id('life-league'),pg_temp.taxi_id('life-new-season'),
+    pg_temp.taxi_id('life-a'),pg_temp.taxi_id('life-b'),ARRAY[v_winner],
+    ARRAY[pg_temp.taxi_id('life-trade-in')],ARRAY[]::uuid[],ARRAY[]::uuid[]);
+  PERFORM public.set_trade_taxi_destinations_atomic(v_trade,pg_temp.taxi_id('life-b'),ARRAY[v_winner],pg_temp.taxi_id('user-b'));
+  PERFORM public.accept_trade_atomic(v_trade,pg_temp.taxi_id('life-b'));
+  INSERT INTO league_player_taxi_exits(league_id,player_id,exited_at)
+    VALUES(pg_temp.taxi_id('life-league'),v_loser,now()-interval '2 days');
+  PERFORM public.merge_players(v_winner,v_loser);
+  PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=pg_temp.taxi_id('life-new-season')
+    AND player_id=v_winner AND member_id=pg_temp.taxi_id('life-b') AND is_on_taxi),
+    'merge preserves another team existing taxi roster');
+  PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-a') AND player_id=v_winner),
+    'another team taxi row cannot hide the departing team exit during merge');
+  PERFORM pg_temp.taxi_check(NOT EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND member_id=pg_temp.taxi_id('life-b') AND player_id=v_winner),
+    'merge does not inherit a different team exit');
+  PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM league_player_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
+    AND player_id=v_winner AND exited_at=now()-interval '2 days'),
+    'merge preserves unknown historical evidence without using it for eligibility');
 END;
 $$;
 
