@@ -5,9 +5,9 @@ import assert from 'node:assert/strict'
 const db = process.env.SUPABASE_DB_URL
 assert(db && new URL(db).hostname === '127.0.0.1')
 async function verify(action) {
-assert.ok(['activate','pause','resume','stop'].includes(action))
-const initialStatus = action === 'activate' ? 'completed' : action === 'resume' ? 'paused' : 'in_progress'
-const prefix = 'owned-draft163-' + randomUUID()
+assert.ok(['activate','pause','resume','stop','absence_pause','absence_resume','reseed'].includes(action))
+const initialStatus = action === 'activate' ? 'completed' : ['resume','absence_resume'].includes(action) ? 'paused' : 'in_progress'
+const prefix = 'owned-d163x-' + randomUUID()
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'"
 const parse = value => JSON.parse(value)
 class Session {
@@ -63,18 +63,23 @@ class Session {
 
 const root = new Session('inspect');
 const a = new Session('activation'), b = new Session('reset');
-const user=randomUUID(), league=randomUUID(), season=randomUUID(), member=randomUUID(), draft=randomUUID();
+const user=randomUUID(), league=randomUUID(), season=randomUUID(), member=randomUUID(), draft=randomUUID(), user2=randomUUID(), member2=randomUUID();
 const ownRows=`SELECT jsonb_build_object('league',(SELECT status FROM leagues WHERE id=${quote(league)}),'draft',(SELECT status FROM drafts WHERE id=${quote(draft)}),'audit',(SELECT count(*) FROM draft_audit_logs WHERE draft_id=${quote(draft)}))`;
-const actionHelper=`CREATE FUNCTION pg_temp.run_action(action text,d uuid,u uuid) RETURNS jsonb LANGUAGE plpgsql AS $f$ DECLARE activated boolean; BEGIN IF action='activate' THEN activated:=public.activate_rookie_draft_league_atomic(d); ELSIF action='pause' THEN PERFORM public.pause_draft_atomic(d,u); ELSIF action='resume' THEN PERFORM public.resume_draft_atomic(d,u); ELSIF action='stop' THEN PERFORM public.stop_draft_atomic(d,u); ELSE PERFORM public.reset_draft_atomic(d,u); END IF; RETURN jsonb_build_object('ok',true,'action',action,'activated',activated); EXCEPTION WHEN OTHERS THEN RETURN jsonb_build_object('ok',false,'action',action,'code',SQLSTATE,'message',SQLERRM); END $f$;`;
+const actionHelper=`CREATE FUNCTION pg_temp.run_action(action text,d uuid,u uuid) RETURNS jsonb LANGUAGE plpgsql AS $f$ DECLARE activated boolean; reseeded int; BEGIN IF action='activate' THEN activated:=public.activate_rookie_draft_league_atomic(d); ELSIF action='absence_pause' THEN PERFORM public.pause_draft_for_absence_atomic(d,u); ELSIF action='absence_resume' THEN PERFORM public.resume_draft_if_absent_atomic(d,u); ELSIF action='reseed' THEN reseeded:=public.reseed_rookie_draft_picks_atomic(d,1); ELSIF action='pause' THEN PERFORM public.pause_draft_atomic(d,u); ELSIF action='resume' THEN PERFORM public.resume_draft_atomic(d,u); ELSIF action='stop' THEN PERFORM public.stop_draft_atomic(d,u); ELSE PERFORM public.reset_draft_atomic(d,u); END IF; RETURN jsonb_build_object('ok',true,'action',action,'activated',activated,'reseeded',reseeded); EXCEPTION WHEN OTHERS THEN RETURN jsonb_build_object('ok',false,'action',action,'code',SQLSTATE,'message',SQLERRM); END $f$;`;
 let reached=false, originalFailure;
-console.log(JSON.stringify({ownedFixture:{user,league,season,member,draft}}));
+console.log(JSON.stringify({ownedFixture:{user,user2,league,season,member,member2,draft}}));
 try {
   await root.query(`INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES(${quote(user)},'authenticated','authenticated',${quote(user+'@example.test')},'synthetic-unusable',now(),'{}','{}',now(),now());
   INSERT INTO leagues(id,name,slug,commissioner_id,status) VALUES(${quote(league)},'Synthetic draft lock',${quote(league)},${quote(user)},'drafting');
   INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(member)},${quote(league)},${quote(user)},'commissioner','Synthetic owner');
   INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},9173,true);
-  INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds) VALUES(${quote(draft)},${quote(league)},${quote(season)},'snake',${quote(initialStatus)},false,1);
+  INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds) VALUES(${quote(draft)},${quote(league)},${quote(season)},${quote(action.startsWith('absence')?'auction':'snake')},${quote(initialStatus)},false,1);
   INSERT INTO snake_draft_picks(draft_id,overall_pick,round,pick_in_round,member_id,skipped_at,skip_reason) VALUES(${quote(draft)},1,1,1,${quote(member)},now(),'No eligible players');`);
+  await root.query(`UPDATE drafts SET pause_reason='member_absent' WHERE id=${quote(draft)};
+    INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES(${quote(user2)},'authenticated','authenticated',${quote(user2+'@example.test')},'synthetic-unusable',now(),'{}','{}',now(),now());
+    INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(member2)},${quote(league)},${quote(user2)},'manager','Synthetic second');
+    INSERT INTO draft_orders(draft_id,member_id,position) VALUES(${quote(draft)},${quote(member)},1),(${quote(draft)},${quote(member2)},2);
+    INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) VALUES(${quote(league)},9173,1,${quote(member)},${quote(member)}),(${quote(league)},9173,1,${quote(member2)},${quote(member2)});`);
   await a.query(actionHelper); await b.query(actionHelper);
   const apid=Number(await a.query('SELECT pg_backend_pid();')), bpid=Number(await b.query('SELECT pg_backend_pid();'));
   const gatePid=Number(await root.query('SELECT pg_backend_pid();'));
@@ -92,7 +97,7 @@ try {
   const actionWait=await blocked(apid,gatePid);
   const reset=b.query(`BEGIN; SET LOCAL ROLE service_role; SELECT pg_temp.run_action('reset',${quote(draft)},${quote(user)});`);
   reset.catch(() => {});
-  const wait=await blocked(bpid,apid);
+  const wait=await blocked(bpid,[apid,gatePid]);
   console.log(JSON.stringify({case:'actual function entry gates',action,actionWait,resetWait:wait}));
   await root.query('COMMIT;');
   const resultA=parse(await actionRun);
@@ -103,12 +108,13 @@ try {
   console.log(JSON.stringify({case:'current actual functions lock overlap',resultA,resultB,after,limit:'Third own transaction delays draft row; both competing operations enter actual functions without injected advisory locks; service-role SQL, not browser/HTTP concurrency'}));
   assert.ok(resultA.ok&&resultB.ok);
   assert.equal(wait.event,'advisory');
-  assert.equal(after.audit,action==='activate'?1:2);
+  assert.equal(after.audit,['activate','reseed'].includes(action)?1:2);
   assert.equal(after.draft,'in_progress');
   assert.equal(after.league,'drafting');
   if(action==='activate') assert.equal(resultA.activated,true);
+  if(action==='reseed') assert.equal(resultA.reseeded,2);
   // Restore this new fixture to completed and prove both legal operations succeed sequentially.
-  await root.query(`UPDATE drafts SET status=${quote(initialStatus)},completed_at=NULL,pause_reason='manual' WHERE id=${quote(draft)}; UPDATE snake_draft_picks SET skipped_at=now(),skip_reason='No eligible players' WHERE draft_id=${quote(draft)};UPDATE leagues SET status='drafting' WHERE id=${quote(league)};`);
+  await root.query(`UPDATE drafts SET status=${quote(initialStatus)},completed_at=NULL,pause_reason='member_absent' WHERE id=${quote(draft)}; UPDATE snake_draft_picks SET skipped_at=now(),skip_reason='No eligible players' WHERE draft_id=${quote(draft)};UPDATE leagues SET status='drafting' WHERE id=${quote(league)};`);
   await root.query(actionHelper);
   const controlA=parse(await root.query(`SELECT pg_temp.run_action(${quote(action)},${quote(draft)},${quote(user)});`));
   const controlB=parse(await root.query(`SELECT pg_temp.run_action('reset',${quote(draft)},${quote(user)});`));
@@ -123,8 +129,8 @@ try {
   try { await root.query('ROLLBACK;'); } catch(e) { errors.push(String(e)); }
   for(const s of [a,b])try{await s.close()}catch(e){errors.push(String(e))}
   const cleanup=new Session('cleanup');
-  try {await cleanup.query(`DELETE FROM snake_draft_picks WHERE draft_id=${quote(draft)}; DELETE FROM drafts WHERE id=${quote(draft)}; DELETE FROM leagues WHERE id=${quote(league)};DELETE FROM auth.users WHERE id=${quote(user)};DELETE FROM private.score_input_revisions WHERE scope IN (${quote('league:'+league)},${quote('season:'+season)});`);
-    const remaining=Number(await cleanup.query(`SELECT (SELECT count(*) FROM leagues WHERE id=${quote(league)})+(SELECT count(*) FROM auth.users WHERE id=${quote(user)})+(SELECT count(*) FROM drafts WHERE id=${quote(draft)})+(SELECT count(*) FROM league_members WHERE id=${quote(member)});`));assert.equal(remaining,0);
+  try {await cleanup.query(`DELETE FROM snake_draft_picks WHERE draft_id=${quote(draft)}; DELETE FROM drafts WHERE id=${quote(draft)}; DELETE FROM leagues WHERE id=${quote(league)};DELETE FROM auth.users WHERE id IN (${quote(user)},${quote(user2)});DELETE FROM private.score_input_revisions WHERE scope IN (${quote('league:'+league)},${quote('season:'+season)});`);
+    const remaining=Number(await cleanup.query(`SELECT (SELECT count(*) FROM leagues WHERE id=${quote(league)})+(SELECT count(*) FROM auth.users WHERE id IN (${quote(user)},${quote(user2)}))+(SELECT count(*) FROM drafts WHERE id=${quote(draft)})+(SELECT count(*) FROM league_members WHERE id=${quote(member)});`));assert.equal(remaining,0);
     console.log(JSON.stringify({cleanup:'own fixtures0, own SQL sessions closed; temp wrappers end with sessions',reached}));
   } catch(e){errors.push(String(e))} finally {await cleanup.close();await root.close()}
   if(errors.length) throw new AggregateError([...(originalFailure?[originalFailure]:[]),...errors],'Owned fixture cleanup errors');
@@ -133,4 +139,4 @@ try {
 if(originalFailure) throw originalFailure;
 
 }
-for (const action of ['activate', 'pause', 'resume', 'stop']) await verify(action)
+for (const action of ['activate','pause','resume','stop','absence_pause','absence_resume','reseed']) await verify(action)
