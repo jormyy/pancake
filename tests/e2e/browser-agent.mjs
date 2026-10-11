@@ -295,7 +295,8 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /** @param {Browser} browser @param {string} session @param {string} role @param {string} name */
 const refForRoleByName = async (browser, session, role, name) => {
-  const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`)
+  // State such as [expanded=false, ref=e5] precedes the ref.
+  const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[(?:[^\\]]*, )?ref=([^\\],]+)\\]`)
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const match = (await browser(session, ['snapshot'])).match(pattern)
     if (match) return match[1]
