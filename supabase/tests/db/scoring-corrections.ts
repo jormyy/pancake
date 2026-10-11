@@ -126,7 +126,7 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
       id: uuid(), player_id: player, member_id: members[side], league_id: league,
       league_season_id: season, week_number: weekNumber, game_date: gameDate, slot_type: 'PG' as const, is_auto_set: false,
     }))))
-    await query(supabase.from('matchups').insert(weeks.filter((week) => !playoff || consumed || week.week_number <= 3).map((week) => ({
+    await query(supabase.from('matchups').insert(weeks.filter((week) => !playoff || week.week_number <= 3).map((week) => ({
       id: uuid(), league_id: league, league_season_id: season, week_number: week.week_number,
       home_member_id: members[0], away_member_id: members[1], matchup_type: !playoff || week.week_number < 3 ? 'regular_season' as const : week.week_number === 3 ? 'playoff_quarterfinal' as const : week.week_number === 4 ? 'playoff_semifinal' as const : 'playoff_final' as const, is_finalized: false,
     }))))
@@ -150,6 +150,18 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
       const unchanged = await readState()
       assert.equal(unchanged.matchup.finalized_at, before.matchup.finalized_at, 'Unchanged replay preserves playoff grace')
       assert.ok(Date.parse(unchanged.matchup.score_read_started_at) >= Date.parse(before.matchup.score_read_started_at))
+    }
+    if (consumed) {
+      // This historical fixture adds each consumer only after its prior result
+      // finalizes. Creating all rounds up front would freeze an unscored result.
+      for (const week of weeks.filter((row) => row.week_number > 3)) {
+        await query(supabase.from('matchups').insert({
+          id: uuid(), league_id: league, league_season_id: season, week_number: week.week_number,
+          home_member_id: members[0], away_member_id: members[1],
+          matchup_type: week.week_number === 4 ? 'playoff_semifinal' : 'playoff_final', is_finalized: false,
+        }))
+        await syncScores(league, reference)
+      }
     }
     const move = async (targetYear: number, targetDate: string, targetWeek: number) => {
       await query(supabase.from('nba_games').update({ season_year: targetYear, game_date: targetDate,
@@ -196,9 +208,9 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
       const replayMarker = requestLog.length
       await syncScores(league)
       repeatedReplayCalls = requestLog.slice(replayMarker).filter((r) =>
-        (r.table === 'matchups' && r.method !== 'GET') || r.table === 'finalize_score_week_atomic')
+        (r.table === 'matchups' && r.method !== 'GET') || r.table === 'update_score_points_atomic' || r.table === 'finalize_score_week_atomic')
       firstReplay = { scoreWrites: requestLog.slice(marker).filter((r) =>
-        (r.table === 'matchups' && r.method !== 'GET') || r.table === 'finalize_score_week_atomic') }
+        (r.table === 'matchups' && r.method !== 'GET') || r.table === 'update_score_points_atomic' || r.table === 'finalize_score_week_atomic') }
     }
     const fresh = await calcWeekPointsByMember(members, season, year, weekNumber, { points: 1 },
       oldWeek.week_start, oldWeek.week_end)

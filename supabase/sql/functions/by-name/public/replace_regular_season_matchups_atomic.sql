@@ -15,15 +15,21 @@ SET search_path = public
 AS $$
 DECLARE
   v_existing_count int;
+  v_start int;
+  v_year int;
+  v_league public.leagues%ROWTYPE;
+  v_rounds int[];
+  v_member_count int;
   v_inserted_count int := 0;
 BEGIN
   IF p_matchups IS NULL OR jsonb_typeof(p_matchups) <> 'array' THEN
     RAISE EXCEPTION 'p_matchups must be a JSON array.';
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext('regular-season-matchups'), hashtext(p_league_season_id::text));
+  SELECT * INTO v_league FROM public.leagues WHERE id = p_league_id FOR UPDATE;
+  v_start := v_league.playoff_start_week;
 
-  PERFORM 1
+  SELECT season.season_year INTO v_year
     FROM public.league_seasons AS season
    WHERE season.id = p_league_season_id
      AND season.league_id = p_league_id
@@ -33,6 +39,8 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Current league season not found for matchup generation.';
   END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('regular-season-matchups'), hashtext(p_league_season_id::text));
 
   IF EXISTS (
     SELECT 1
@@ -48,6 +56,7 @@ BEGIN
         OR requested.league_season_id IS DISTINCT FROM p_league_season_id
         OR requested.week_number IS NULL
         OR requested.week_number < 1
+        OR requested.week_number >= v_start
         OR requested.matchup_type IS DISTINCT FROM 'regular_season'
         OR requested.home_member_id IS NULL
         OR requested.away_member_id IS NULL
@@ -90,6 +99,14 @@ BEGIN
     RAISE EXCEPTION 'p_matchups contains duplicate weekly pairings.';
   END IF;
 
+  SELECT count(*) INTO v_member_count FROM public.league_members WHERE league_id = p_league_id;
+  IF v_member_count >= 2 AND (
+    (SELECT count(DISTINCT (value->>'week_number')::int) FROM jsonb_array_elements(p_matchups)) <> v_start - 1
+    OR jsonb_array_length(p_matchups) <> (v_start - 1)::bigint * (v_member_count / 2)
+  ) THEN
+    RAISE EXCEPTION 'The proposed regular schedule does not match the saved playoff start. Reload settings and retry.';
+  END IF;
+
   SELECT count(*)
     INTO v_existing_count
     FROM public.matchups
@@ -99,7 +116,11 @@ BEGIN
     RETURN jsonb_build_object('inserted', 0, 'skipped', true);
   END IF;
 
+  v_rounds := private.playoff_round_plan(v_member_count, v_league.playoff_total_weeks, v_league.playoff_round_weeks);
+  PERFORM private.assert_playoff_window(v_year, v_start, v_rounds, true);
+
   IF v_existing_count > 0 THEN
+    PERFORM private.assert_schedule_not_started(p_league_season_id);
     IF EXISTS (
       SELECT 1
         FROM public.matchups

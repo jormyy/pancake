@@ -19,6 +19,8 @@ function draft(overrides: Partial<CommissionerSettingsDraft> = {}): Commissioner
         taxiSlots: '0',
         auctionBudget: '200',
         playoffWeek: '20',
+        playoffTotalWeeks: '2',
+        playoffRoundWeeks: ['1', '1'],
         weeklyAddLimit: '0',
         faabBudget: '100',
         tradeVetoWindowHours: '24',
@@ -79,11 +81,24 @@ describe('commissioner settings draft', () => {
     it('rejects invalid values and lineup changes outside setup', () => {
         const baseline = draft()
         expect(buildCommissionerSettingsChange(
-            draft({ playoffWeek: '30' }), baseline, 'setup', ['points'], ['PG'],
-        )).toEqual({ error: 'Playoff start week must be between 18 and 24.' })
+            draft({ playoffWeek: '0' }), baseline, 'setup', ['points'], ['PG'],
+        )).toEqual({ error: 'Playoff start week must be a positive whole number.' })
         expect(buildCommissionerSettingsChange(
             draft({ slots: { PG: 2 } }), baseline, 'active', ['points'], ['PG'],
         )).toEqual({ error: 'Lineup slots can only be changed during league setup.' })
+    })
+
+    it('accepts positive custom starts and explicit round durations without clamping', () => {
+        const baseline = draft()
+        for (const start of ['1', '8', '16', '25', '30']) {
+            expect(buildCommissionerSettingsChange(draft({ playoffWeek: start, playoffTotalWeeks: '5',
+                playoffRoundWeeks: ['2', '3'] }), baseline, 'setup', ['points'], ['PG']))
+                .toMatchObject({ updates: { playoff_start_week: Number(start), playoff_total_weeks: 5, playoff_round_weeks: [2, 3] } })
+        }
+        expect(buildCommissionerSettingsChange(draft({ playoffTotalWeeks: '5' }), baseline, 'setup', ['points'], ['PG']))
+            .toEqual({ error: 'Round weeks must add up to total playoff weeks.' })
+        expect(buildCommissionerSettingsChange(draft({ playoffRoundWeeks: ['1.5', '0.5'] }), baseline, 'setup', ['points'], ['PG']))
+            .toEqual({ error: 'Enter positive whole weeks for each playoff round.' })
     })
 
     it('rejects partial integers and malformed decimals instead of truncating or zeroing them', () => {

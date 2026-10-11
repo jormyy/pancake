@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import type { LeagueInfo } from '@/types/app'
-import { getLeagueMembers, getLineupSlots, updateLeagueConfiguration } from '@/lib/league'
+import { getLeagueMembers, getLeaguePlayoffCalendar, getLineupSlots, updateLeagueConfiguration } from '@/lib/league'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { COMMISSIONER_SCORING_FIELDS } from '@/lib/commissioner-settings-fields'
@@ -20,16 +20,24 @@ type MemberOption = { id: string; team_name: string | null }
 function remoteDraft(
     league: LeagueInfo,
     slotData: Awaited<ReturnType<typeof getLineupSlots>>,
+    memberCount: number,
 ): CommissionerSettingsDraft {
     const slots = Object.fromEntries(slotData.map((slot) => [slot.slot_type, slot.slot_count]))
     const source = league.scoring_settings && typeof league.scoring_settings === 'object' &&
         !Array.isArray(league.scoring_settings) ? league.scoring_settings : {}
+    const rounds = league.playoff_round_weeks ?? Array.from({ length: memberCount >= 10 ? 3 : 2 }, () => 1)
+    const roundCount = memberCount >= 10 ? 3 : 2
+    const roundInputs = rounds.map(String)
+    if (roundInputs.length < roundCount) roundInputs.unshift('')
+    if (roundInputs.length > roundCount) roundInputs.shift()
     return {
         rosterSize: String(league.roster_size ?? 20),
         irSlots: String(league.ir_slots ?? 2),
         taxiSlots: String(league.taxi_slots ?? 0),
         auctionBudget: String(league.auction_budget ?? 200),
         playoffWeek: String(league.playoff_start_week ?? 20),
+        playoffTotalWeeks: String(league.playoff_total_weeks ?? rounds.reduce((sum, value) => sum + value, 0)),
+        playoffRoundWeeks: roundInputs,
         weeklyAddLimit: String(league.weekly_add_limit ?? 0),
         waiverMode: waiverModeFromValue(league.waiver_mode),
         faabBudget: String(league.faab_starting_budget ?? 100),
@@ -67,6 +75,7 @@ export function useCommissionerSettingsResource({
     draftRef.current = draft
     baselineRef.current = baseline
     const [members, setMembers] = useState<MemberOption[]>([])
+    const [playoffCalendar, setPlayoffCalendar] = useState<Awaited<ReturnType<typeof getLeaguePlayoffCalendar>>>(null)
     const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'unauthorized'>('loading')
     const [loadOwnerKey, setLoadOwnerKey] = useState<string | null>(null)
     const [loadError, setLoadError] = useState<string | null>(null)
@@ -92,10 +101,10 @@ export function useCommissionerSettingsResource({
         }
         setLoadState('loading')
         setLoadError(null)
-        Promise.all([getLineupSlots(league.id), getLeagueMembers(league.id)])
-            .then(([slotData, memberData]) => {
+        Promise.all([getLineupSlots(league.id), getLeagueMembers(league.id), getLeaguePlayoffCalendar(league.id)])
+            .then(([slotData, memberData, calendar]) => {
                 if (cancelled) return
-                const nextDraft = remoteDraft(league, slotData)
+                const nextDraft = remoteDraft(league, slotData, memberData.length)
                 const hydration = commissionerHydrationDecision({
                     incomingLeagueId: ownerKey ?? league.id,
                     hydratedLeagueId: hydratedOwnerKey.current,
@@ -106,6 +115,7 @@ export function useCommissionerSettingsResource({
                 })
                 forceHydrate.current = false
                 setMembers(memberData)
+                setPlayoffCalendar(calendar)
                 if (hydration === 'conflict') {
                     setLoadError('League settings changed while you were editing. Reload before making more changes.')
                     setLoadState('error')
@@ -187,6 +197,9 @@ export function useCommissionerSettingsResource({
         loadError: loadOwnerKey === ownerKey ? loadError : null,
         loadState: ownerKey && loadOwnerKey !== ownerKey ? 'loading' : loadState,
         members: ownsDraft ? members : [],
+        playoffCalendar: ownsDraft ? playoffCalendar : null,
+        playoffRoundsNeedReview: ownsDraft && league?.playoff_round_weeks != null &&
+            league.playoff_round_weeks.length !== (members.length >= 10 ? 3 : 2),
         retryLoad: () => {
             forceHydrate.current = true
             setLoadAttempt((attempt) => attempt + 1)

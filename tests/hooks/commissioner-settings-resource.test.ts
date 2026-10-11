@@ -9,6 +9,7 @@ import { useCommissionerOverrides } from '@/hooks/use-commissioner-overrides'
 const mocks = vi.hoisted(() => ({
     apiPost: vi.fn(),
     getLeagueMembers: vi.fn(),
+    getLeaguePlayoffCalendar: vi.fn(),
     getLineupSlots: vi.fn(),
     updateLeagueConfiguration: vi.fn(),
     adjustFaabBalance: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('@/lib/league', () => ({
     adjustFaabBalance: mocks.adjustFaabBalance,
     deleteLeague: vi.fn(),
     getLeagueMembers: mocks.getLeagueMembers,
+    getLeaguePlayoffCalendar: mocks.getLeaguePlayoffCalendar,
     getLineupSlots: mocks.getLineupSlots,
     overrideWeeklyAddCount: mocks.overrideWeeklyAddCount,
     updateLeagueConfiguration: mocks.updateLeagueConfiguration,
@@ -67,11 +69,31 @@ const deferred = <Value,>() => {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    mocks.getLeaguePlayoffCalendar.mockResolvedValue({ seasonYear: 2027, weeks: Array.from({ length: 26 }, (_, index) => index + 1) })
     mocks.getLeagueMembers.mockResolvedValue([{ id: 'member', team_name: 'Team' }])
     mocks.updateLeagueConfiguration.mockResolvedValue(undefined)
 })
 
 describe('commissioner settings resource', () => {
+    it('keeps semifinal and final lengths when a tenth member needs a quarterfinal', async () => {
+        mocks.getLineupSlots.mockResolvedValue([])
+        mocks.getLeagueMembers.mockResolvedValue(Array.from({ length: 10 }, (_, index) => ({ id: String(index), team_name: `Team ${index}` })))
+        const testLeague = { ...league('ten'), playoff_total_weeks: 5, playoff_round_weeks: [2, 3] }
+        let latest!: ReturnType<typeof useCommissionerSettingsResource>
+        const Probe = () => {
+            latest = useCommissionerSettingsResource({ league: testLeague, ownerId: 'user', isCommissioner: true,
+                refresh: vi.fn(), onSaved: vi.fn() })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.draft.playoffRoundWeeks).toEqual(['', '2', '3'])
+        expect(latest.draft.playoffTotalWeeks).toBe('5')
+        expect(latest.playoffRoundsNeedReview).toBe(true)
+        expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+
     it('shows a cold load failure and recovers through retry', async () => {
         mocks.getLineupSlots.mockRejectedValueOnce(new Error('Could not load slots')).mockResolvedValue([])
         const testLeague = league('cold-load')

@@ -1128,6 +1128,9 @@ export type Database = {
           is_current: boolean
           league_id: string
           nba_trade_deadline: string | null
+          playoff_round_weeks: number[] | null
+          playoff_seed_member_ids: string[] | null
+          playoff_start_week: number | null
           regular_season_end: string | null
           regular_season_start: string | null
           rookie_draft_scheduled_at: string | null
@@ -1139,6 +1142,9 @@ export type Database = {
           is_current?: boolean
           league_id: string
           nba_trade_deadline?: string | null
+          playoff_round_weeks?: number[] | null
+          playoff_seed_member_ids?: string[] | null
+          playoff_start_week?: number | null
           regular_season_end?: string | null
           regular_season_start?: string | null
           rookie_draft_scheduled_at?: string | null
@@ -1150,6 +1156,9 @@ export type Database = {
           is_current?: boolean
           league_id?: string
           nba_trade_deadline?: string | null
+          playoff_round_weeks?: number[] | null
+          playoff_seed_member_ids?: string[] | null
+          playoff_start_week?: number | null
           regular_season_end?: string | null
           regular_season_start?: string | null
           rookie_draft_scheduled_at?: string | null
@@ -1184,7 +1193,9 @@ export type Database = {
           invite_code: string | null
           ir_slots: number
           name: string
+          playoff_round_weeks: number[] | null
           playoff_start_week: number
+          playoff_total_weeks: number | null
           roster_size: number
           scoring_settings: Json
           slug: string
@@ -1209,7 +1220,9 @@ export type Database = {
           invite_code?: string | null
           ir_slots?: number
           name: string
+          playoff_round_weeks?: number[] | null
           playoff_start_week?: number
+          playoff_total_weeks?: number | null
           roster_size?: number
           scoring_settings?: Json
           slug: string
@@ -1234,7 +1247,9 @@ export type Database = {
           invite_code?: string | null
           ir_slots?: number
           name?: string
+          playoff_round_weeks?: number[] | null
           playoff_start_week?: number
+          playoff_total_weeks?: number | null
           roster_size?: number
           scoring_settings?: Json
           slug?: string
@@ -1404,6 +1419,7 @@ export type Database = {
           away_member_id: string
           away_points: number | null
           created_at: string
+          end_week_number: number | null
           finalized_at: string | null
           home_max_possible_points: number | null
           home_member_id: string
@@ -1422,6 +1438,7 @@ export type Database = {
           away_member_id: string
           away_points?: number | null
           created_at?: string
+          end_week_number?: number | null
           finalized_at?: string | null
           home_max_possible_points?: number | null
           home_member_id: string
@@ -1440,6 +1457,7 @@ export type Database = {
           away_member_id?: string
           away_points?: number | null
           created_at?: string
+          end_week_number?: number | null
           finalized_at?: string | null
           home_max_possible_points?: number | null
           home_member_id?: string
@@ -3663,6 +3681,15 @@ export type Database = {
           new_year: number
         }[]
       }
+      apply_season_boundary_after_grace: {
+        Args: {
+          p_action: string
+          p_league_id: string
+          p_league_season_id: string
+          p_reference_at?: string
+        }
+        Returns: Json
+      }
       assert_current_league_season_for_lineup: {
         Args: { p_league_id: string; p_league_season_id: string }
         Returns: undefined
@@ -4716,6 +4743,15 @@ export type Database = {
       update_lineup_slots_atomic_unchecked: {
         Args: { p_league_id: string; p_slots: Json }
         Returns: undefined
+      }
+      update_score_points_atomic: {
+        Args: {
+          p_league_id: string
+          p_league_season_id: string
+          p_matchups: Json
+          p_week_number: number
+        }
+        Returns: number
       }
       veto_trade_atomic: {
         Args: { p_member_id: string; p_trade_id: string }
