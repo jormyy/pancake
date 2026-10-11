@@ -337,7 +337,15 @@ try {
   )
   const deletedGame = await query(supabase.from('nba_games').select('stats_synced_at').eq('id', games[0]).single())
   assert.equal(deletedGame.stats_synced_at, null, 'Deletion invalidates completion without a manual reset')
-  await assert.rejects(() => syncScores(league), /Stats recovery failed/)
+  await assert.rejects(() => syncScores(league), (error: unknown) => {
+    assert.ok(error instanceof AggregateError)
+    assert.match(error.message, /Score sync failed/)
+    assert.equal(error.errors.length, 1)
+    assert.ok(error.errors[0] instanceof Error)
+    assert.ok(error.errors[0].message.startsWith(`${year}/${dateForWeek(1)}:`))
+    assert.match(error.errors[0].message, /Final game box score is not final/)
+    return true
+  })
   const missing = await readSemis()
   console.log(JSON.stringify({
     scenario: 'older-missing-boxscore',

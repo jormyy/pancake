@@ -926,7 +926,6 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     }
 
     const syncFailures: string[] = []
-    let syncedLeagues = 0
     await runBounded(
         plans.map(({ season, weekNumber, weeksToSync }) => async () => {
             if (failedRecoveryYears.has(season.season_year)) return
@@ -952,7 +951,6 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
                 await finalizeWeekIfComplete(season.league_id, season.id, finalizeWeek, season.season_year,
                     scoringReadStartedAt, referenceDate, failedRecoveryDates.get(season.season_year) ?? new Set())
             }
-            syncedLeagues += 1
         }),
         LEAGUE_SYNC_CONCURRENCY,
     ).catch((error) => {
@@ -960,18 +958,10 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
         console.error(`[scores] sync failed for some league(s): ${errorText(error)}`)
     })
 
-    // Preserve healthy scoring work, but report failed recovery so the caller
-    // can retry the affected dates instead of claiming a complete sync.
-    if (recoveryFailures.length) throw new AggregateError(recoveryFailures, 'Stats recovery failed for some dates; healthy scoring completed')
-
-    // Partial scoring failures are logged and the healthy leagues complete; only a
-    // total wipeout (every league failed) surfaces as a failed sync run.
-    if (seasons.length > 0 && syncedLeagues === 0 && planFailures.length + syncFailures.length > 0) {
-        throw new AggregateError(
-            [...planFailures, ...syncFailures].map((message) => new Error(message)),
-            'score sync failed for every league',
-        )
-    }
+    // Finish independent healthy work before reporting any incomplete scoring.
+    const failures = [...recoveryFailures, ...planFailures.map((message) => new Error(message)),
+        ...syncFailures.map((message) => new Error(message))]
+    if (failures.length) throw new AggregateError(failures, 'Score sync failed for some inputs; healthy scoring completed')
 
     console.log('[scores] Sync complete.')
 }

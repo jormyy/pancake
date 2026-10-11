@@ -68,7 +68,8 @@ try {
     }))))
     await q(supabase.from('lineup_optimizer_settings').insert(ids.map((league_id, index) => ({
       league_id, league_season_id: seasons[offset + index], member_id: members[offset + index], enabled: true,
-      last_optimized_at: offset + index === 1000 ? null : '2025-01-01T00:00:00Z',
+      last_optimized_at: offset + index === 1000 ? null
+        : new Date(Date.UTC(2025, 0, 1) - (offset + index) * 60_000).toISOString(),
     }))))
   }
   observe = true
@@ -76,6 +77,8 @@ try {
   assert.equal(all.length, 1001)
   assert.equal(new Set(all.map((setting) => setting.league_id)).size, 1001)
   assert.equal(all[0].league_id, leagues[1000], 'Untouched setting on the second page gets first priority')
+  assert.deepEqual(all.map((setting) => setting.league_id), leagues.slice(0, 1001).reverse(),
+    'Never-attempted settings precede all dated settings, then oldest attempts run first across both pages')
   assert.ok(all.every((setting) => setting.league_id !== leagues[1001] && setting.league_id !== leagues[1002]))
   assert.deepEqual(pages, [1000, 1], 'Actual PostgREST pages include the tail beyond its row cap')
   console.log(JSON.stringify({ case: '1001-current-eligible-plus-ineligible', settings: all.length, pages, tailFirst: true }))

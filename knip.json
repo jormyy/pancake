@@ -34,7 +34,8 @@
     "supabase/tests/db/cdn-continuation.ts",
     "supabase/tests/db/taxi-acquisition-scoring.ts",
     "supabase/tests/db/cdn-http-retry.ts",
-    "supabase/tests/db/optimizer-settings-pagination.ts"
+    "supabase/tests/db/optimizer-settings-pagination.ts",
+    "supabase/tests/db/scoring-partial-failure.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

@@ -12,9 +12,10 @@ describe('scheduling wiring', () => {
         expect(source.indexOf('heartbeat.stop()')).toBeGreaterThan(source.indexOf('} finally {'))
     })
 
-    it('the optimizer visits the least recently optimized members first', async () => {
+    it('scheduled optimization loads eligible settings through the paginated loader', async () => {
         const source = await readFile('supabase/functions/lineup-optimizer/index.ts', 'utf8')
-        expect(source).toMatch(/\.eq\('enabled', true\)[\s\S]*\.order\('last_optimized_at', \{ ascending: true, nullsFirst: true \}\)/)
+        expect(source).toContain("import { loadEnabledOptimizerSettings, type OptimizerSetting } from './settings.ts'")
+        expect(source).toContain('await loadEnabledOptimizerSettings(supabase, [...new Set(dateContexts.map((context) => context.seasonYear))])')
     })
 
     it('the cron job list schedules the invocation reconciler', async () => {
