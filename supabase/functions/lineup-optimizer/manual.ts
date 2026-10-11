@@ -27,6 +27,17 @@ export type ManualOptimizationResult = {
   results: ManualDateResult[]
 }
 
+export function parseManualDateFilter(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length === 0 || value.length > MANUAL_DATE_LIMIT ||
+      !value.every((date): date is string => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+        Number.isFinite(Date.parse(`${date}T12:00:00Z`)) &&
+        new Date(`${date}T12:00:00Z`).toISOString().slice(0, 10) === date)) {
+    throw new TypeError(`dates must contain between 1 and ${MANUAL_DATE_LIMIT} valid calendar dates.`)
+  }
+  return [...new Set(value)].sort()
+}
+
 export async function processManualDates<Context extends ManualDateContext>(
   contexts: Context[],
   seasonYear: number,

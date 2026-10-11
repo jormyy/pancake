@@ -1,3 +1,4 @@
+import { parseManualDateFilter } from '../lineup-optimizer/manual.ts'
 import { todayET } from '../_shared/date.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
@@ -29,8 +30,16 @@ async function autoSetRestOfSeason(
   const membership = await requireOwnMember(userId, memberId)
   if (membership.leagueId !== leagueId) throw new ValidationError('Access denied')
 
+  let dates: string[] | undefined
+  try {
+    dates = parseManualDateFilter(body.dates)
+  } catch (error) {
+    throw new ValidationError(error instanceof Error ? error.message : 'Invalid retry dates.')
+  }
+
   return invokeInternalFunction('lineup-optimizer', {
     mode: 'rest_of_season',
+    ...(dates ? { dates } : {}),
     memberId,
     leagueId,
     leagueSeasonId,

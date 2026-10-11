@@ -134,6 +134,7 @@ interface MockOpts {
     templates?: { slot_type: string; slot_count: number }[]
     existingEntries?: { player_id: string; slot_type: string; players?: { nba_team: string | null } }[]
     seasonWeeks?: any   // single object for getWeekDays (weekly), array for getRemainingSeasonDates (season)
+    gameQuery?: (index: number) => ReturnType<typeof q> | undefined
     weekGames?: ReturnType<typeof game>[] // override nba_games for the first (week-level) query
 }
 
@@ -165,6 +166,10 @@ function setupMocks(opts: MockOpts) {
             case 'leagues':                return q({ scoring_settings: SCORING })
             case 'season_weeks':           return q(seasonWeeks)
             case 'nba_games':
+                if (opts.gameQuery) {
+                    const query = opts.gameQuery(idx)
+                    if (query) return query
+                }
                 // When weekGames provided, first call is getWeekDays week-overview query
                 if (weekGames !== null && idx === 0) return q(weekGames)
                 return q(games)
@@ -323,6 +328,41 @@ describe('autoSetLineup — daily', () => {
 // ── autoSetLineup — weekly ────────────────────────────────────────────────────
 
 describe('autoSetLineup — weekly', () => {
+    it('waits for started date writes before reporting a weekly failure', async () => {
+        const games = [game('LAL', 'GSW')]
+        let release!: () => void
+        const held = new Promise<void>((resolve) => { release = resolve })
+        const { insertSpy } = setupMocks({
+            roster: [rp('pPG', 'PG', ['PG'], 'LAL')],
+            avgs: [avg('pPG', 30)], games,
+            templates: [{ slot_type: 'PG', slot_count: 1 }],
+            seasonWeeks: { week_start: '2026-04-22' },
+            weekGames: games,
+            gameQuery: (index) => {
+                if (index === 1) {
+                    const delayed = q(games)
+                    const then = delayed.then
+                    delayed.then = (resolve: () => unknown, reject: () => unknown) => held.then(() => then(resolve, reject))
+                    return delayed
+                }
+                if (index === 2) return q(null, new Error('one date failed'))
+                return undefined
+            },
+        })
+        let finished = false
+        const operation = autoSetLineup('m1', 'lg1', 's1', 20, 2026, null)
+            .catch((error: unknown) => error)
+            .finally(() => { finished = true })
+        try {
+            await vi.waitFor(() => expect(insertSpy).toHaveBeenCalledTimes(3))
+            expect(finished).toBe(false)
+        } finally {
+            release()
+            expect(await operation).toMatchObject({ message: 'one date failed' })
+        }
+        expect(insertSpy).toHaveBeenCalledTimes(4)
+    })
+
     it('processes all future dates in the current week and skips past dates', async () => {
         // today = 2026-04-22 (Wednesday). week_start = '2026-04-22' snaps to Monday April 20.
         // Week dates: April 20–26. Filtered to >= April 22: April 22, 23, 24, 25, 26 = 5 days.
@@ -346,6 +386,13 @@ describe('autoSetLineup — weekly', () => {
 // ── autoSetLineup — season ────────────────────────────────────────────────────
 
 describe('autoSetLineup — season', () => {
+    it('sends only the explicitly failed dates on a season retry', async () => {
+        await autoSetLineup('m1', 'lg1', 's1', 20, 2026, null, true, ['2026-04-23'])
+        expect(apiPost).toHaveBeenCalledWith('/league/lineup/auto-set-season', {
+            memberId: 'm1', leagueId: 'lg1', leagueSeasonId: 's1', dates: ['2026-04-23'],
+        })
+    })
+
     it('uses one bounded authenticated server operation', async () => {
         await autoSetLineup('m1', 'lg1', 's1', 20, 2026, null, true)
 

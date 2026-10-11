@@ -6,7 +6,7 @@ import { toETDate } from '../_shared/date.ts'
 // bundler cannot resolve; use the generated edge-shared map instead. It only
 // lacks the BE entry, which is filtered out before slot filling anyway.
 import { chooseBestAssignments } from './assignments.ts'
-import { MANUAL_DATE_LIMIT, processManualDates, type ManualOptimizationResult } from './manual.ts'
+import { MANUAL_DATE_LIMIT, parseManualDateFilter, processManualDates, type ManualOptimizationResult } from './manual.ts'
 
 type OptimizerSetting = {
   league_id: string
@@ -88,6 +88,7 @@ const SCHEDULE_PAGE_SIZE = 1000
 
 type ManualRequest = {
   mode: 'rest_of_season'
+  dates?: string[]
   leagueId: string
   leagueSeasonId: string
   memberId: string
@@ -123,6 +124,7 @@ function manualRequest(body: Record<string, unknown>): ManualRequest | null {
   }
   return {
     mode: 'rest_of_season',
+    dates: parseManualDateFilter(body.dates),
     leagueId: body.leagueId as string,
     leagueSeasonId: body.leagueSeasonId as string,
     memberId: body.memberId as string,
@@ -140,7 +142,7 @@ async function processManualRestOfSeason(request: ManualRequest): Promise<
     throw new Error('Lineups can only be optimized for the current active or playoff season.')
   }
 
-  const contexts = await loadRemainingSeasonDateContexts(season.season_year)
+  const contexts = await loadRemainingSeasonDateContexts(season.season_year, request.dates)
   const setting: OptimizerSetting = {
     league_id: request.leagueId,
     league_season_id: request.leagueSeasonId,
@@ -290,11 +292,11 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
   return contexts
 }
 
-async function loadRemainingSeasonDateContexts(seasonYear: number): Promise<DateContext[]> {
+async function loadRemainingSeasonDateContexts(seasonYear: number, requestedDates?: string[]): Promise<DateContext[]> {
   const today = toETDate(new Date())
   const games: GameRow[] = []
   for (let from = 0; games.length <= 3000; from += SCHEDULE_PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('nba_games')
       .select('season_year, game_date, home_team, away_team, status, game_time, started_at')
       .eq('season_year', seasonYear)
@@ -302,6 +304,8 @@ async function loadRemainingSeasonDateContexts(seasonYear: number): Promise<Date
       .order('game_date', { ascending: true })
       .order('game_time', { ascending: true })
       .range(from, from + SCHEDULE_PAGE_SIZE - 1)
+    if (requestedDates) query = query.in('game_date', requestedDates)
+    const { data, error } = await query
     if (error) throw error
     const page = (data ?? []) as GameRow[]
     games.push(...page)

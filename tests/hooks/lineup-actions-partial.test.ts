@@ -38,7 +38,12 @@ it('reports partial season optimization and exposes an explicit retry', async ()
         optimized: 7,
         skipped: 1,
         failed: 2,
-        results: [],
+        results: [
+            { date: '2026-07-09', status: 'optimized' },
+            { date: '2026-07-10', status: 'failed' },
+            { date: '2026-07-11', status: 'skipped' },
+            { date: '2026-07-12', status: 'failed' },
+        ],
     })
     let actions!: ReturnType<typeof useLineupActions>
     const Probe = () => {
@@ -69,6 +74,12 @@ it('reports partial season optimization and exposes an explicit retry', async ()
         expect.any(Function),
         'Retry failed dates',
         false,
+    )
+    mocks.autoSetLineup.mockResolvedValueOnce({ dates: 2, optimized: 2, skipped: 0, failed: 0, results: [] })
+    await act(async () => { await mocks.confirmAction.mock.calls[0][2]() })
+    expect(mocks.autoSetLineup).toHaveBeenLastCalledWith(
+        'member-1', 'league-1', 'season-1', 1, 2026, null, true,
+        ['2026-07-10', '2026-07-12'],
     )
     await act(async () => { renderer.unmount() })
 })

@@ -595,7 +595,7 @@ export default function LineupScreen() {
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} />
+                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
             )}
 
             {readOnly ? (
@@ -663,7 +663,7 @@ export default function LineupScreen() {
                             liveTeamsRef={liveTeamsRef}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
-                            disabled={readOnly || saving || lineupRefreshing || lineupLoading}
+                            disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'starter', index: i })}
                         />
@@ -695,7 +695,7 @@ export default function LineupScreen() {
                                 liveTeamsRef={liveTeamsRef}
                                 teamMatchups={displayedMatchups}
                                 onPress={() => handleTap({ kind: 'bench', index: i })}
-                                disabled={readOnly || saving || lineupRefreshing || lineupLoading}
+                                disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
                             readOnly={readOnly}
                                 targetState={targetState({ kind: 'bench', index: i })}
                             />

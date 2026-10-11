@@ -218,6 +218,26 @@ Deno.test({
 })
 
 Deno.test({
+  name: 'season retry preserves explicit dates and rejects invalid scopes before dispatch',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    optimizerRequests.length = 0
+    const identity = { memberId: MEMBER_ID, leagueId: LEAGUE_ID, leagueSeasonId: '88888888-8888-4888-8888-888888888888' }
+    const dates = ['2027-01-03', '2027-01-04']
+    const response = await handleApiRoute(authedRequest('POST', '/league/lineup/auto-set-season', { ...identity, dates }))
+    if (response.status !== 200 || JSON.stringify(optimizerRequests[0]?.body) !== JSON.stringify({ mode: 'rest_of_season', dates, ...identity })) {
+      throw new Error('retry date scope did not reach the optimizer')
+    }
+    for (const invalid of [[], ['2027-02-30'], ['bad'], Array(181).fill('2027-01-03')]) {
+      const result = await handleApiRoute(authedRequest('POST', '/league/lineup/auto-set-season', { ...identity, dates: invalid }))
+      if (result.status !== 400) throw new Error(`invalid retry returned ${result.status}`)
+    }
+    if (optimizerRequests.length !== 1) throw new Error('invalid retry dispatched work')
+  },
+})
+
+Deno.test({
   name: 'UUID validation accepts canonical Postgres UUIDs',
   sanitizeOps: false,
   sanitizeResources: false,
