@@ -330,10 +330,12 @@ describe('web push ownership admission', () => {
         current = subscription
         mocks.closeWebPushIntent.mockRejectedValueOnce(new Error('storage unavailable'))
         const { detachWebPushFromAccount } = await load()
-        await expect(detachWebPushFromAccount()).rejects.toThrow('storage unavailable')
+        afterLocalSignOut()
+        await expect(detachWebPushFromAccount(LOGOUT)).rejects.toThrow('storage unavailable')
         expect(mocks.apiPost).toHaveBeenCalledWith('/profile/web-push/unsubscribe', expect.any(Object), expect.any(Object))
         expect(mocks.saveWebPushAuthority).not.toHaveBeenCalled()
         expect(subscription.unsubscribe).toHaveBeenCalledOnce()
+        mocks.sessionOwner.mockReturnValue('owner-a')
     })
 
     it('stops an Enable permission wait when the account changes', async () => {

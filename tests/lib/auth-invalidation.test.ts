@@ -62,12 +62,13 @@ describe('local auth invalidation', () => {
         await response(auth, 'b-access')
         auth.setItem(key, JSON.stringify({ access_token: 'b-access', refresh_token: 'b-refresh' }))
         finish(new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }))
-        await expect(refresh).rejects.toThrow('no longer holds')
+        await expect(refresh).rejects.toThrow(/no longer holds|changed while this request was in flight/)
         expect(JSON.parse(auth.getItem(key)!)).toEqual({ access_token: 'b-access', refresh_token: 'b-refresh' })
 
         const late = auth.fetch(vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ access_token: 'a-late', refresh_token: 'a-next' }))))(
             'http://local/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: 'a-refresh' }) })
-        await expect(late).rejects.toThrow('no longer holds')
+        // A refresh sent after B holds the device is refused before it leaves (pre-send guard).
+        await expect(late).rejects.toThrow('Authentication changed before token refresh')
     })
     it('passes a refresh for the session this device holds', async () => {
         const { auth, disk } = fixture()
