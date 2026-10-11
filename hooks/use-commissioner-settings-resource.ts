@@ -68,6 +68,7 @@ export function useCommissionerSettingsResource({
     baselineRef.current = baseline
     const [members, setMembers] = useState<MemberOption[]>([])
     const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error' | 'unauthorized'>('loading')
+    const [loadOwnerKey, setLoadOwnerKey] = useState<string | null>(null)
     const [loadError, setLoadError] = useState<string | null>(null)
     const [loadAttempt, setLoadAttempt] = useState(0)
     const ownerKey = league && ownerId && isCommissioner ? `${ownerId}:${league.id}` : null
@@ -79,6 +80,7 @@ export function useCommissionerSettingsResource({
 
     useEffect(() => {
         let cancelled = false
+        setLoadOwnerKey(ownerKey)
         if (!isCommissioner) {
             setLoadState('unauthorized')
             setLoadError(null)
@@ -182,8 +184,8 @@ export function useCommissionerSettingsResource({
     return {
         adjustSlot,
         draft: ownsDraft ? draft : EMPTY_COMMISSIONER_SETTINGS_DRAFT,
-        loadError,
-        loadState: ownerKey && !ownsDraft ? 'loading' : loadState,
+        loadError: loadOwnerKey === ownerKey ? loadError : null,
+        loadState: ownerKey && loadOwnerKey !== ownerKey ? 'loading' : loadState,
         members: ownsDraft ? members : [],
         retryLoad: () => {
             forceHydrate.current = true

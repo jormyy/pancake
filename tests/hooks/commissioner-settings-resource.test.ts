@@ -72,6 +72,28 @@ beforeEach(() => {
 })
 
 describe('commissioner settings resource', () => {
+    it('shows a cold load failure and recovers through retry', async () => {
+        mocks.getLineupSlots.mockRejectedValueOnce(new Error('Could not load slots')).mockResolvedValue([])
+        const testLeague = league('cold-load')
+        let latest!: ReturnType<typeof useCommissionerSettingsResource>
+        const Probe = () => {
+            latest = useCommissionerSettingsResource({
+                league: testLeague, ownerId: 'user', isCommissioner: true,
+                refresh: vi.fn(), onSaved: vi.fn(),
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.loadState).toBe('error')
+        expect(latest.loadError).toBe('Could not load slots')
+        await act(async () => { latest.retryLoad() })
+        expect(latest.loadState).toBe('ready')
+        expect(latest.loadError).toBeNull()
+        expect(latest.draft.rosterSize).toBe('20')
+        await act(async () => { renderer.unmount() })
+    })
+
     it('ignores a stale settings load after the league changes', async () => {
         const first = deferred<never[]>()
         const second = deferred<never[]>()

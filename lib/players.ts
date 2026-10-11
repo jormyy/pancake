@@ -323,8 +323,9 @@ export async function getPlayer(id: string): Promise<PlayerDetailRow> {
         .from('players')
         .select(PLAYER_DETAIL_SELECT)
         .eq('id', id)
-        .single()
+        .maybeSingle()
     if (error) throw error
+    if (!data) throw new Error('Player not found.')
     return mapPlayerDetail(data)
 }
 
