@@ -27,7 +27,7 @@ const runPsql = (args, { allowFailure = false } = {}) => new Promise((resolve, r
   })
 })
 
-const upsertStatus = (status) => runPsql(['--tuples-only', '--no-align', '--command', `
+const upsertStatus = (status) => runPsql(['--quiet', '--tuples-only', '--no-align', '--command', `
   INSERT INTO public.nba_games (id, game_date, home_team, away_team, season_year, week_number, status, home_score, away_score, game_status_text, updated_at)
   VALUES ('${gameId}', '${today}', 'ZUA', 'ZUB', ${season}, 1, '${status}', 12, 10, 'Q2 5:00', now())
   ON CONFLICT (id) DO UPDATE SET game_date = EXCLUDED.game_date, home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team,
@@ -55,7 +55,8 @@ try {
   if (!held) throw new Error('Timed out waiting for the scoring-side shared lock')
 
   const write = await upsertStatus('InProgress')
-  if (write.code !== 0 || write.stdout.trim() !== 'InProgress') {
+  // Some psql builds still print the INSERT tag; the status read is the last line.
+  if (write.code !== 0 || write.stdout.trim().split('\n').at(-1) !== 'InProgress') {
     throw new Error(`Live status upsert failed while scoring held its shared lock:\n${write.stdout}${write.stderr}`)
   }
   const identity = await runPsql(['--command', `UPDATE public.nba_games SET game_date = game_date + 1 WHERE id = '${gameId}'`], { allowFailure: true })
