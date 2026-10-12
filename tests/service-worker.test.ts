@@ -58,8 +58,8 @@ type Harness = {
 }
 
 async function loadWorker(
-    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {}, allowed }:
-    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string>; allowed?: string[] } = {},
+    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {}, allowed, storage }:
+    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string>; allowed?: string[]; storage?: FakeCaches } = {},
 ): Promise<Harness> {
     let source = await readFile(path.join(process.cwd(), 'public/sw.js'), 'utf8')
     source = source
@@ -71,7 +71,8 @@ async function loadWorker(
     source = source.replace(/const PUBLIC_ASSET_HASHES = \{[^\n]*\}/, `const PUBLIC_ASSET_HASHES = ${JSON.stringify({ ...Object.fromEntries(precache.map(url => [url, createHash('sha256').update(`body:https://app.test${url}`).digest('hex')])), ...hashes })}`)
 
     const listeners = new Map<string, Listener>()
-    const cacheStorage = new FakeCaches()
+    // Successive releases share one Cache Storage, as they do in a browser.
+    const cacheStorage = storage ?? new FakeCaches()
     const fetches: string[] = []
     const harness = { listeners, caches: cacheStorage, fetches, skipWaitingCalls: 0, claimCalls: 0 } as Harness
 
@@ -601,12 +602,106 @@ describe('service worker', () => {
         expect(await (await current.match(url))?.text()).toBe(body)
     })
 
-    it('keeps the old release when carryover exceeds its generation bound', async () => {
-        const worker = await loadWorker()
-        for (let i = 0; i < 9; i++) await worker.caches.open(`pancake-old-${i}-public-v1-assets`)
-        await expect(worker.install()).rejects.toThrow('too many prior public caches')
-        expect(worker.skipWaitingCalls).toBe(0)
-        expect((await worker.caches.keys()).filter(name => name.startsWith('pancake-old-'))).toHaveLength(9)
+    it('carries from at most the eight newest prior generations', async () => {
+        const url = '/_expo/static/js/web/chunk.js'
+        const body = 'verified lazy module'
+        const hashes = { [url]: createHash('sha256').update(body).digest('hex') }
+        const storage = new FakeCaches()
+        // Creation order is oldest first; only the oldest generation holds the module.
+        for (let i = 0; i < 10; i++) await storage.open(`pancake-old-${i}-public-v1-assets`)
+        await (await storage.open('pancake-old-0-public-v1-assets')).put(url, script(body))
+        const worker = await loadWorker({ hashes, storage })
+        const opened: string[] = []
+        const open = storage.open.bind(storage)
+        vi.spyOn(storage, 'open').mockImplementation(async (name) => { opened.push(name); return open(name) })
+        await worker.install()
+        expect(worker.skipWaitingCalls).toBe(1)
+        const prior = opened.filter(name => name.startsWith('pancake-old-'))
+        expect(prior).toEqual(Array.from({ length: 8 }, (_, i) => `pancake-old-${9 - i}-public-v1-assets`))
+        expect(await (await storage.open('pancake-test-1-public-v1-assets')).match(url)).toBeUndefined()
+        // Nothing is removed before activation commits the new release.
+        expect((await storage.keys()).filter(name => name.startsWith('pancake-old-'))).toHaveLength(10)
+    })
+
+    it('recovers a healthy update after nine distinct failed release installs', async () => {
+        const storage = new FakeCaches()
+        const open = storage.open.bind(storage)
+        let failingVersion: string | undefined
+        // Emulated storage quota: the failing release's own cache writes are refused.
+        vi.spyOn(storage, 'open').mockImplementation(async (name) => {
+            const cache = await open(name)
+            if (failingVersion && name.startsWith(`${failingVersion}-`)) {
+                cache.put = async () => { throw new Error('QuotaExceededError') }
+            }
+            return cache
+        })
+        const active = await loadWorker({ version: 'pancake-active', storage })
+        await active.install()
+        await active.activate()
+        const activeShell = await (await storage.open('pancake-active-public-v1-shell')).match('/')
+        const activeShellText = await activeShell!.text()
+
+        for (let i = 1; i <= 9; i++) {
+            failingVersion = `pancake-failed-${i}`
+            const candidate = await loadWorker({ version: failingVersion, storage })
+            await expect(candidate.install()).rejects.toThrow('QuotaExceededError')
+            expect(candidate.skipWaitingCalls).toBe(0)
+            expect(await storage.keys()).toContain(`${failingVersion}-public-v1-assets`)
+            expect(await (await (await storage.open('pancake-active-public-v1-shell')).match('/'))!.text()).toBe(activeShellText)
+            expect(await (await (await storage.open('pancake-active-public-v1-assets')).match('/_expo/static/js/web/app.js'))!.text())
+                .toBe('body:https://app.test/_expo/static/js/web/app.js')
+            // The installed release keeps serving while the candidate is stuck.
+            expect(await (await active.respond(navigation('/'))).text()).toBe(activeShellText)
+        }
+        failingVersion = undefined
+        expect((await storage.keys()).filter(name => name.endsWith('-public-v1-assets'))).toHaveLength(10)
+
+        const healthy = await loadWorker({ version: 'pancake-healthy', storage })
+        await healthy.install()
+        expect(healthy.skipWaitingCalls).toBe(1)
+        expect(await (await (await storage.open('pancake-healthy-public-v1-shell')).match('/'))!.text()).toBe('body:https://app.test/')
+        expect(await (await (await storage.open('pancake-healthy-public-v1-assets')).match('/_expo/static/js/web/app.js'))!.text())
+            .toBe('body:https://app.test/_expo/static/js/web/app.js')
+        expect(await storage.keys()).toContain('pancake-active-public-v1-shell')
+        expect(await storage.keys()).toContain('pancake-failed-1-public-v1-assets')
+        await healthy.activate()
+        expect(healthy.claimCalls).toBe(1)
+        expect((await storage.keys()).sort()).toEqual(['pancake-healthy-public-v1-assets', 'pancake-healthy-public-v1-shell'])
+        expect(await (await healthy.respond(navigation('/'))).text()).toBe('body:https://app.test/')
+    })
+
+    it('creates no release caches when the network fails before the boot download', async () => {
+        const storage = new FakeCaches()
+        const active = await loadWorker({ version: 'pancake-active', storage })
+        await active.install()
+        await active.activate()
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const offline = await loadWorker({ version: `pancake-offline-${attempt}`, storage, fetchImpl: async () => { throw new TypeError('Failed to fetch') } })
+            await expect(offline.install()).rejects.toThrow('Failed to fetch')
+            expect(offline.skipWaitingCalls).toBe(0)
+        }
+        expect((await storage.keys()).sort()).toEqual(['pancake-active-public-v1-assets', 'pancake-active-public-v1-shell'])
+    })
+
+    it('reuses one cache pair when the same release retries a failed install', async () => {
+        const storage = new FakeCaches()
+        const open = storage.open.bind(storage)
+        let refuse = true
+        vi.spyOn(storage, 'open').mockImplementation(async (name) => {
+            const cache = await open(name)
+            if (refuse && name.startsWith('pancake-retry-')) cache.put = async () => { throw new Error('QuotaExceededError') }
+            return cache
+        })
+        for (let attempt = 0; attempt < 12; attempt++) {
+            const retry = await loadWorker({ version: 'pancake-retry', storage })
+            await expect(retry.install()).rejects.toThrow('QuotaExceededError')
+        }
+        expect((await storage.keys()).sort()).toEqual(['pancake-retry-public-v1-assets', 'pancake-retry-public-v1-shell'])
+        refuse = false
+        storage.stores.clear()
+        const recovered = await loadWorker({ version: 'pancake-retry', storage })
+        await recovered.install()
+        expect(recovered.skipWaitingCalls).toBe(1)
     })
 
     it('waits for a pending carry write before requesting activation', async () => {

@@ -104,8 +104,10 @@ async function bootResponse(url, signal) {
 async function carryPublicAssets(assets) {
   const names = (await caches.keys()).filter((name) => name.startsWith('pancake-') &&
     name.endsWith('-public-v1-assets') && name !== ASSET_CACHE)
-  if (names.length > CARRY_GENERATION_LIMIT) throw new Error('too many prior public caches')
-  const previous = await Promise.all(names.reverse().map((name) => caches.open(name)))
+  // Failed installs can leave their caches until a later activation removes them.
+  // Inspect only the newest prior generations, so old leftovers never block an update.
+  const previous = await Promise.all(names.reverse().slice(0, CARRY_GENERATION_LIMIT)
+    .map((name) => caches.open(name)))
   let remaining = CARRY_BYTES_LIMIT
   // Only current manifest entries can cross a release boundary. Revalidate
   // headers and bytes, including orphan entries from an interrupted install.

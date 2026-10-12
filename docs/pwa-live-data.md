@@ -114,6 +114,12 @@ and strand a launch with no assets.
 
 Activation deletes older Pancake caches. The new worker takes control immediately.
 
+A failed install can leave its own release caches behind, for example after a
+storage-quota error while writing them. Install never deletes them, so the
+installed release keeps working. Carryover reads only the eight newest earlier
+asset caches, with the same 64 MiB bound and header and hash checks. Older leftovers
+therefore never block a later healthy update; its activation removes them.
+
 The page checks for a new worker on every return to the foreground, on the browser `online`
 event, and hourly while it stays visible. The page reloads once after a new worker takes
 control. The first worker install does not reload the page.
