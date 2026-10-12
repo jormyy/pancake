@@ -447,7 +447,7 @@ export const webBackgrounds = {
 
 export const webOverlays = {
     brandPreview: 'rgba(255, 248, 234, 0.08)',
-    mobileTopbar: webColor('overlay-mobile-topbar', 'rgba(255, 253, 247, 0.90)'),
+    mobileTopbar: webColor('overlay-mobile-topbar', palette.cream50),
     mobileBottomNav: webColor('overlay-mobile-bottom-nav', 'rgba(255, 253, 247, 0.94)'),
     navBadgeActive: 'rgba(255, 255, 255, 0.28)',
     sheetScrim: 'rgba(16, 23, 19, 0.48)',
@@ -476,9 +476,9 @@ const darkThemeSelector = (selectors: string) => themedSelector('dark', selector
 const systemThemeSelector = (selectors: string) => themedSelector('system', selectors)
 
 export const webChrome = {
-    themeColor: palette.cream100,
+    themeColor: palette.cream50,
     themeColorDark: night.bgScreen,
-    rootBackgroundCss: `html,body,#root{background-color:${palette.cream100};}`
+    rootBackgroundCss: `html,body,#root{background-color:${palette.cream50};}`
         + `${darkThemeSelector('html,body,#root')}{background-color:${night.bgScreen};}`
         + `@media (prefers-color-scheme: dark){${systemThemeSelector('html,body,#root')}{background-color:${night.bgScreen};}}`,
 } as const
@@ -685,7 +685,7 @@ export const WEB_THEME_VARS_DARK: Record<string, string> = {
     'image-app-content': darkImage(''),
     'image-auth-screen': darkImage('radial-gradient(circle at 84% 8%, rgba(79, 178, 134, 0.06), transparent 32%), '),
     'image-no-league': darkImage(''),
-    'overlay-mobile-topbar': 'rgba(18, 22, 20, 0.90)',
+    'overlay-mobile-topbar': night.bgScreen,
     'overlay-mobile-bottom-nav': 'rgba(18, 22, 20, 0.94)',
     'ui-accent-danger': night.red,
     'ui-accent-pick': night.indigo,

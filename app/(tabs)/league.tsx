@@ -183,11 +183,9 @@ export default function LeagueScreen() {
                 aria-labelledby={activeTabId}
                 accessibilityLabel={`${activeTabLabel} league section`}
             >
-                    {screen.tab !== 'auctions' && screen.isTabLoaded && (!screen.isOnline || screen.isTabRefreshing) ? (
+                    {screen.tab !== 'auctions' && screen.isTabLoaded && !screen.isOnline ? (
                         <Text style={styles.freshness} accessibilityLiveRegion="polite">
-                            {!screen.isOnline
-                                ? `Offline. Showing saved ${activeTabLabel} data.`
-                                : `Refreshing ${activeTabLabel}. Showing saved data.`}
+                            {`Offline. Showing saved ${activeTabLabel} data.`}
                         </Text>
                     ) : screen.tabErr && !screen.isTabLoading ? (
                         <ErrorBanner

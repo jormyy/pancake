@@ -36,6 +36,7 @@ export function Scoreboard({
         : null
 
     const sorted = sortGames(games)
+    const scoresAvailable = freshness === 'fresh' || freshness === 'refreshing'
 
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>
@@ -50,7 +51,7 @@ export function Scoreboard({
                 {sorted.map((g, index) => {
                     const hasScore = g.status === 'InProgress' || g.status === 'Final'
                     const isInProgress = g.status === 'InProgress'
-                    const isLive = isInProgress && freshness === 'fresh'
+                    const isLive = isInProgress && scoresAvailable
                     const isFinal = g.status === 'Final'
                     const myAway = myTeamSet.has(g.away_team)
                     const myHome = myTeamSet.has(g.home_team)
@@ -96,13 +97,12 @@ export function Scoreboard({
                             {/* Status */}
                             <View style={styles.statusRow}>
                                 {isLive && <LivePulse color={colors.primary} size={5} />}
-                                <Text numberOfLines={1} accessibilityLabel={freshness === 'fresh' ? undefined : freshness === 'failed' ? 'Refresh failed. Saved scores.' : `${freshness === 'offline' ? 'Offline' : 'Updating'}. Saved scores.`} style={[
+                                <Text numberOfLines={1} accessibilityLabel={scoresAvailable ? undefined : freshness === 'failed' ? 'Refresh failed. Saved scores.' : 'Offline. Saved scores.'} style={[
                                     styles.status,
-                                    freshness !== 'fresh' && styles.statusSaved,
                                     isLive && styles.statusLive,
                                     isFinal && styles.statusFinal,
                                 ]}>
-                                    {freshness === 'fresh' ? statusLabel(g) : freshness === 'offline' ? 'Offline' : freshness === 'failed' ? 'Failed' : 'Updating'}
+                                    {scoresAvailable ? statusLabel(g) : freshness === 'offline' ? 'Offline' : 'Failed'}
                                 </Text>
                             </View>
                         </MotionView>
@@ -214,9 +214,6 @@ const styles = StyleSheet.create({
         color: scoreboardColors.textMuted,
         textAlign: 'center',
         letterSpacing: 0.3,
-    },
-    statusSaved: {
-        color: scoreboardColors.textMuted,
     },
     statusLive: {
         color: scoreboardColors.accent,
