@@ -1,4 +1,4 @@
-import { attestedMigrationFiles, copyAttestedMigrations } from './helpers/attested-migrations'
+import { attestedMigrationFiles, convergenceAfter, copyAttestedMigrations } from './helpers/attested-migrations'
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -26,7 +26,7 @@ const fixture = (phase: Phase) => {
     functions: section('functions'), triggers: section('triggers'), policies: section('policies'),
     tables: section('tables'), indexes: section('indexes') }
   return { phase, target: 'linked', projectRef: release.projectRef, repositoryFiles: structuredClone(files),
-    history: { history, functions: structuredClone(release.convergence), oldHelperCount: 0, oldHelperReferenceCount: 0 }, catalog }
+    history: { history, functions: convergenceAfter(history.map(({ version }) => version)), oldHelperCount: 0, oldHelperReferenceCount: 0 }, catalog }
 }
 
 it.each(['pre-migration', 'post-migration'] as const)('accepts the exact %s schema, including its cron contract', (phase) => {
@@ -59,6 +59,8 @@ it.skipIf(release.approvedMigrations.length < 2)('rejects a partial approved upg
     const input = fixture('post-migration')
     input.phase = phase
     input.history.history.splice(release.baselineCount + 1)
+    // The live helpers match the partial history, so only the phase contract can reject it.
+    input.history.functions = convergenceAfter(input.history.history.map(({ version }) => version))
     expect(() => validateSecurityCatalog(input)).toThrow(`exact ${phase} contract`)
   }
 })

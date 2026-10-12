@@ -67,6 +67,32 @@ export const planReleaseMigrationsFromHistory = (filenames, deployedRows) => {
   return { ...plan, deployedHistory: applied }
 }
 
+// An approved migration may replace a converged helper. Its expected definition follows the
+// applied history: the audited base until that migration is applied, its recorded body after.
+export const expectedConvergence = (appliedVersions) => {
+  const approvedVersions = new Set(attestations.approvedMigrations.map(({ version }) => version))
+  const redefinitions = attestations.convergenceRedefinitions ?? []
+  for (const [index, redefinition] of redefinitions.entries()) {
+    const keys = Object.keys(redefinition).sort().join(',')
+    if (keys !== 'bodySha256,identityArguments,name,version' || !approvedVersions.has(redefinition.version) ||
+        !/^[a-f0-9]{64}$/.test(redefinition.bodySha256) ||
+        (index > 0 && redefinitions[index - 1].version > redefinition.version) ||
+        !attestations.convergence.some((entry) =>
+          entry.name === redefinition.name && entry.identityArguments === redefinition.identityArguments)) {
+      throw new Error(`Production helper convergence redefinition ${index + 1} is not attested`)
+    }
+  }
+  return attestations.convergence.map((expected) => {
+    let current = expected
+    for (const { version, name, identityArguments, bodySha256 } of redefinitions) {
+      if (name === expected.name && identityArguments === expected.identityArguments && appliedVersions.has(version)) {
+        current = { ...current, bodySha256 }
+      }
+    }
+    return current
+  })
+}
+
 // The generic planner above stays strict. Only this production entry point
 // accepts the audited aliases, with both recorded SQL and live convergence.
 export const planAttestedProductionMigrations = (repositoryFiles, snapshot, projectRef) => {
@@ -115,7 +141,8 @@ export const planAttestedProductionMigrations = (repositoryFiles, snapshot, proj
       snapshot.functions.length !== attestations.convergence.length) {
     throw new Error('Production helper convergence is incomplete')
   }
-  for (const [index, expected] of attestations.convergence.entries()) {
+  const appliedVersions = new Set(canonicalRows.map(({ version }) => version))
+  for (const [index, expected] of expectedConvergence(appliedVersions).entries()) {
     const actual = snapshot.functions[index]
     if (Object.entries(expected).some(([key, value]) => JSON.stringify(actual?.[key]) !== JSON.stringify(value))) {
       throw new Error(`Production helper convergence failed at function ${index + 1}`)

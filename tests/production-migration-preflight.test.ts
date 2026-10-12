@@ -1,4 +1,4 @@
-import { attestedMigrationFiles, copyAttestedMigrations } from './helpers/attested-migrations'
+import { attestedMigrationFiles, convergenceAfter, copyAttestedMigrations } from './helpers/attested-migrations'
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -20,7 +20,7 @@ const snapshot = (applied = 0) => ({
       statementsSha256: fingerprint?.statementsSha256 ?? '',
     }
   }),
-  functions: structuredClone(attestation.convergence),
+  functions: convergenceAfter(files.slice(0, attestation.baselineCount + applied).map(({ filename }) => filename.split('_')[0])),
   oldHelperCount: 0, oldHelperReferenceCount: 0,
 })
 

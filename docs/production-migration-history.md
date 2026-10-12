@@ -41,23 +41,39 @@ the original labels in its result. Missing, duplicate, reordered, or foreign
 versions fail. Changed attested SQL or source files fail. Changed helper bodies
 or grants fail. Unapproved pending files fail.
 
-The baseline is `20261005000002` (328 rows) and the approved range is
-`20261005000003_league_season_rules`, followed by
-`20261006000001_share_scoring_cache_aggregation`, then
-`20261007000001_extract_scoring_cache_coefficients`.
+The baseline is `20261005000003` (329 rows). The approved range is the 69 migrations
+`20261006000001_share_scoring_cache_aggregation` through
+`20261011000062_fail_fast_on_changed_game_and_score_inputs`.
 A partially applied approved range plans only its remaining suffix. Every applied
 member of the range must also match its statement count and stored-SQL fingerprint.
-The league-season fingerprint comes from a fresh local install with CLI 2.114.0,
-which also reproduced every earlier attested fingerprint. The integrated range
-was then applied in order to the isolated 328-migration local database with that
-CLI. Its recorded 14- and 12-statement fingerprints match the approved range.
-The before/after catalog checks and five affected SQL suites pass. This is local
-compatibility evidence; production still requires its own current history check.
+The range fingerprints are the actual ledger rows that Supabase CLI 2.114.0 recorded in
+isolated task databases: a fresh install of all 398 migrations, and an ordered upgrade
+from 329 to 341 to 398 migrations. Both produced identical ledgers. The same ledger
+reproduces all seven range fingerprints carried over from the previous attestation. An
+independent statement splitter agrees on all 62 new rows.
+This is local compatibility evidence; production still requires its own current history check.
 The scoring migration replaces a derived materialized cache and its public view.
 Apply it after the league-season migration. Its transaction protects against
 partial application; a frontend rollback leaves both migrations applied. Before
 production application, check view readers, lock contention and cache rebuild
 time, and prepare the previous view definition as a forward recovery migration.
+
+Four approved migrations replace converged lineup helpers:
+- `20261011000002` replaces `auto_set_lineup_atomic_unchecked`.
+- `20261011000010` replaces `auto_set_lineup_atomic` and `set_player_slot_moves_atomic`.
+- `20261011000012` replaces `update_lineup_slots_atomic_unchecked`.
+
+`convergenceRedefinitions` records each replacement body. The planner expects the audited
+base body until that migration appears in the applied history, then the replacement.
+A replacement body seen early, or a base body seen after the replacement, still fails.
+Each replacement must name an approved migration whose dollar-quoted SQL contains the
+recorded body. The partial 341-migration upgrade confirms the mixed state.
+
+Until 2026-10-11 the baseline was `20261005000002` (328 rows) and the range held
+`20261005000003` plus seven later migrations. Production applied `20261005000003`
+outside the deploy workflow. A read-only `release-schema-history.sql` snapshot on
+2026-10-11 showed its stored SQL matched the recorded 14-statement fingerprint, so it
+became a baseline row.
 
 Until 2026-10-06 the baseline was `20260926000001` (326 rows) and the range held
 `20261005000001` and `20261005000002`. Production applied both with an owner-approved

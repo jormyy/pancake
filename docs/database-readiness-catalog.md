@@ -4,8 +4,8 @@ The catalog gate validates the database phase explicitly. It does not apply migr
 
 | Phase | Required applied history | Required cron wrapper |
 | --- | --- | --- |
-| `pre-migration` | Exactly 328 migrations through `20261005000002`; all three approved migrations remain pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
-| `post-migration` | Exactly 331 migrations through `20261007000001`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
+| `pre-migration` | Exactly 329 migrations through `20261005000003`; all 69 approved migrations remain pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
+| `post-migration` | Exactly 398 migrations through `20261011000062`; none pending | `invoke_edge_function_at_et_time(text, integer, integer, timestamptz)` |
 
 Partial upgrades, reordered history, unknown aliases, changed approved SQL, unexpected overloads and wrong project links fail. The production history planner retains its audited historical-alias checks. Local databases require canonical migration names and no production link.
 
@@ -45,6 +45,11 @@ The candidate/current-backend deployment pairing requests `pre-migration`. All l
 ## Attestation maintenance
 
 `tests/e2e/db-security-catalog-attestations.json` contains the reviewed contracts. The candidate snapshot comes from applying the first five approved migrations of the earlier range locally; the `web_push_subscriptions` table and index entries were captured read-only from production after `20260926000001` was applied. On 2026-10-05 the baseline moved from `20260828000002` (320) to `20260926000001` (326): production had applied those six migrations outside this workflow, with stored SQL matching their attested fingerprints. The pre-migration contract is therefore the converged schema; read-only production metadata and a fresh local install reset to `20260926000001` both match it. `20261005000001` and `20261005000002` add only cron jobs and two service_role-only cron gate functions outside the attested catalog, so both phases share one object set and differ only in applied history. On 2026-10-06 the baseline moved to `20261005000002` (328) after production applied those two migrations; their stored SQL matched the attested fingerprints, and read-only production metadata matched the former post-migration contract, which became the pre-migration contract. `20261005000003` changes `invoke_season_boundary_if_due`, the only attested object it touches, so the post-migration contract pins that body from a fresh local install, and the migration joins the source pins. No production rows or credentials enter the manifest.
+
+On 2026-10-11 the contract moved to baseline `20261005000003` and candidate `20261011000062`.
+- **Pre-migration:** entries equal production's read-only catalog. A local replica stopped at the same 329 migrations shows the same catalog. `invoke_season_boundary_if_due` changed because `20261005000003` is now applied.
+- **Post-migration:** entries come from an isolated CLI upgrade from 329 to 398 migrations, which matches a fresh 398-migration install. They replace the bodies of `lineup_game_started`, `activate_rookie_draft_league_atomic`, `drop_player_atomic(uuid)` and `edit_waiver_claim_atomic`. They add two `drop_player_atomic` overloads and the `enforce_taxi_lifecycle`, `score_revision_season` and `z_clear_taxi_acquisition_context` roster triggers.
+- **Source pins:** seven migrations that define those objects are now pinned.
 
 Pinned source migration hashes bind the function contracts to repository SQL. A regression test also proves every attested body hash occurs in those pinned sources. Future schema changes require reviewed phase and source-pin updates with fresh database evidence; regenerating pins from an unexplained live difference is not an accepted update procedure.
 

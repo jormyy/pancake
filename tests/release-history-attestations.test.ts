@@ -1,5 +1,6 @@
-import { attestedMigrationFiles } from './helpers/attested-migrations'
+import { attestedMigrationFiles, convergenceAfter } from './helpers/attested-migrations'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -26,13 +27,18 @@ const fixture = (applied = 0) => ({
       statementsSha256: fingerprint?.statementsSha256 ?? '',
     }
   }),
-  functions: structuredClone(attestation.convergence),
+  functions: convergenceAfter(files.slice(0, attestation.baselineCount + applied).map(({ filename }) => filename.split('_')[0])),
   oldHelperCount: 0,
   oldHelperReferenceCount: 0,
 })
+const redefinitionCases: [string, string][] = attestation.convergenceRedefinitions
+  .map((row: { version: string, name: string }) => [row.version, row.name])
+const approvedIndex = (version: string) => attestation.approvedMigrations.findIndex((row: { version: string }) => row.version === version)
+const helperIndex = (row: { name: string, identityArguments: string }) => attestation.convergence.findIndex(
+  (helper: { name: string, identityArguments: string }) => helper.name === row.name && helper.identityArguments === row.identityArguments)
 
 describe('attested production migration history', () => {
-  it.each([0, 1, 2, 3, 4, 5])('plans only the approved suffix after %i applied migrations', (applied) => {
+  it.each([...Array(attestation.approvedMigrations.length + 1).keys()])('plans only the approved suffix after %i applied migrations', (applied) => {
     const snapshot = fixture(applied)
     const before = structuredClone(snapshot)
     const result = planAttestedProductionMigrations(files, snapshot, attestation.projectRef)
@@ -164,6 +170,39 @@ describe('attested production migration history', () => {
       snapshot.functions[index].bodySha256 = 'f'.repeat(64)
       expect(() => planAttestedProductionMigrations(files, snapshot, attestation.projectRef)).toThrow('convergence failed')
     }
+  })
+
+  it.each(redefinitionCases)(
+    'expects the %s redefinition of %s only once that migration is applied', (version: string, _name: string) => {
+      const redefinition = attestation.convergenceRedefinitions.find((row: { version: string }) => row.version === version)
+      const helper = helperIndex(redefinition)
+      const applied = approvedIndex(version)
+      expect(applied).toBeGreaterThanOrEqual(0)
+      expect(helper).toBeGreaterThanOrEqual(0)
+      expect(fixture(applied).functions[helper].bodySha256).toBe(attestation.convergence[helper].bodySha256)
+      expect(fixture(applied + 1).functions[helper].bodySha256).toBe(redefinition.bodySha256)
+      const early = fixture(applied)
+      early.functions[helper].bodySha256 = redefinition.bodySha256
+      expect(() => planAttestedProductionMigrations(files, early, attestation.projectRef)).toThrow(`convergence failed at function ${helper + 1}`)
+      const stale = fixture(applied + 1)
+      stale.functions[helper].bodySha256 = attestation.convergence[helper].bodySha256
+      expect(() => planAttestedProductionMigrations(files, stale, attestation.projectRef)).toThrow(`convergence failed at function ${helper + 1}`)
+    },
+  )
+
+  it('binds every helper redefinition to its approved migration SQL', () => {
+    expect(attestation.convergenceRedefinitions.length).toBeGreaterThan(0)
+    for (const row of attestation.convergenceRedefinitions) {
+      const approved = attestation.approvedMigrations.find((entry: { version: string }) => entry.version === row.version)
+      expect(approved, row.version).toBeTruthy()
+      const sql = readFileSync(`supabase/migrations/${approved.version}_${approved.name}.sql`, 'utf8')
+      expect(createHash('sha256').update(sql).digest('hex')).toBe(approved.sha256)
+      const bodies = [...sql.matchAll(/\$(\w*)\$([\s\S]*?)\$\1\$/g)].map((match) => createHash('sha256').update(match[2]).digest('hex'))
+      expect(bodies, `${row.version} ${row.name}`).toContain(row.bodySha256)
+      expect(helperIndex(row)).toBeGreaterThanOrEqual(0)
+    }
+    const versions = attestation.convergenceRedefinitions.map((row: { version: string }) => row.version)
+    expect(versions).toEqual([...versions].sort())
   })
 
   it('rejects absent convergence, old helper objects and stale helper calls', () => {

@@ -2,8 +2,8 @@
   "projectRef": "ceeytbfmwsnzalxlkalc",
   "auditSourceCommit": "c271b58e7abfcfaccd6d7d47fecb3771c9095c71",
   "renameCommit": "c083075fe75976852fa2307c54d8fc7b3b33e9a6",
-  "baselineVersion": "20261005000002",
-  "baselineCount": 328,
+  "baselineVersion": "20261005000003",
+  "baselineCount": 329,
   "aliases": [
     {
       "version": "20260627000003",
@@ -322,14 +322,33 @@
       "serviceRoleExecute": false
     }
   ],
-  "approvedMigrations": [
+  "convergenceRedefinitions": [
     {
-      "version": "20261005000003",
-      "name": "league_season_rules",
-      "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d",
-      "statementCount": 14,
-      "statementsSha256": "78bd410df2613e4bb3eb6747943d1e05ecfbec5372e36315429fc3e71dfad797"
+      "version": "20261011000002",
+      "name": "auto_set_lineup_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "3a71e193359ae8bf13d4e3f8f898d23da185dceac0fd35ca97703f4f47519c0e"
     },
+    {
+      "version": "20261011000010",
+      "name": "auto_set_lineup_atomic",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "06a841c7f229eebb2eff7464e50332154de05d37cea54ffae6f85ba53b1f7fc3"
+    },
+    {
+      "version": "20261011000010",
+      "name": "set_player_slot_moves_atomic",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_week_number integer, p_moves jsonb",
+      "bodySha256": "b25f8ddefdddbc25dd4ca3b16425be7cb93ec88ba91e1316d4516a03f259326a"
+    },
+    {
+      "version": "20261011000012",
+      "name": "update_lineup_slots_atomic_unchecked",
+      "identityArguments": "p_league_id uuid, p_slots jsonb",
+      "bodySha256": "a730164dea8e0b7daba32478ebba40276e5d1ef5aa82dbb085727bf2ce6ab263"
+    }
+  ],
+  "approvedMigrations": [
     {
       "name": "share_scoring_cache_aggregation",
       "version": "20261006000001",
@@ -378,6 +397,440 @@
       "statementCount": 6,
       "statementsSha256": "25abc945314b315dbe6a6d329ad713d813786247f4c820c9076d223ddb191ab4",
       "sha256": "eab5ff35effb7d6bf13d8e6358205ca63e0b05c9160a11673443b63407a5b984"
+    },
+    {
+      "version": "20261011000001",
+      "name": "enforce_compound_roster_game_locks",
+      "sha256": "1c0a4065d33bad94f5cc7955acc9451965de733d874fbb12d33fd7403d4821f6",
+      "statementCount": 4,
+      "statementsSha256": "16e5263f3effc800154feb7ee6f727387a5d7b63a820948ce4991d8b098213f6"
+    },
+    {
+      "version": "20261011000002",
+      "name": "preserve_departed_locked_lineups",
+      "sha256": "0ab4f4271038c930be8c2e9c044c28437b37a2247eda9abce558c2380d5a8d2e",
+      "statementCount": 1,
+      "statementsSha256": "b99d052a2ca7c5bcf561d233012fe58605c46b10a7a94e801add509e738f128f"
+    },
+    {
+      "version": "20261011000003",
+      "name": "respect_waiver_claim_preference",
+      "sha256": "0bffecbc55714c8a45af672f6712d896d7167f2d5e759bd5468b8ae21a6c12aa",
+      "statementCount": 1,
+      "statementsSha256": "7c478c3f916cf13733eb31eb97e9aafd9728284925bc8f3ee29811378af60b4c"
+    },
+    {
+      "version": "20261011000004",
+      "name": "preserve_playoff_branches",
+      "sha256": "562cbd7f48186f9c5d454e2bd3a72ee552bc3bb58711acd1f3f8f362cfe1f884",
+      "statementCount": 1,
+      "statementsSha256": "8e5cf709d2ea47edc20d53d7ffb15fe2cb23cd26dd50ebb407d7bbe8134f179c"
+    },
+    {
+      "version": "20261011000005",
+      "name": "guard_historical_draft_reset",
+      "sha256": "dc76651e5753d6711b61a8b4d19efd76a82b32fc66f932172f2d43c900eb5718",
+      "statementCount": 1,
+      "statementsSha256": "c37cf316a7b4d70a6963a3728935f5af92ebe2ed5ddaa078c6de63a7e38bca50"
+    },
+    {
+      "version": "20261011000006",
+      "name": "authorize_trade_expiry_under_lock",
+      "sha256": "98da6dd5fb2a0e8feb64748529964929d10f6a95580fa926343115e998bd6713",
+      "statementCount": 1,
+      "statementsSha256": "215c5aa9b9c91fe4292b2afa0fe9431b93ffb6bc187a731152820eb15db80c9f"
+    },
+    {
+      "version": "20261011000007",
+      "name": "keep_draft_reset_out_of_trade_settlement",
+      "sha256": "14457eead95ae82a36ce99e870f054984c1b93133c1cea91e1fc35104f9bcd39",
+      "statementCount": 2,
+      "statementsSha256": "7b2969745290073b270bde5bbc014ab77d3935d6acf4a7615ca55e1fd726ef93"
+    },
+    {
+      "version": "20261011000008",
+      "name": "serialize_waiver_preference_changes",
+      "sha256": "9bb54482c8d68b48f5d625a1ee7bbd3f677373eb63ceda05d97995179aabe5a4",
+      "statementCount": 2,
+      "statementsSha256": "bb12f4b69da221c57f922faba0e1cf14cdb0e627e25d8a8a37c015146be36bb9"
+    },
+    {
+      "version": "20261011000009",
+      "name": "assign_player_identity_under_lock",
+      "sha256": "1f92859369d49bd63934b75cd9633a3085e1caaa877054ca4ce79fa6be061e9b",
+      "statementCount": 3,
+      "statementsSha256": "a4b0978695de613e72e4d11040f331a623696835249a9d3f356b264b3f184226"
+    },
+    {
+      "version": "20261011000010",
+      "name": "lock_historical_lineups_and_game_participation",
+      "sha256": "a439116da86a73ed278118dccaa1f0d23449ce125a73d0e57ff45366057c0108",
+      "statementCount": 3,
+      "statementsSha256": "46471691b214c333b229f32dc8a893a9bded94cbd983ac2712d7ee6666f436fa"
+    },
+    {
+      "version": "20261011000011",
+      "name": "keep_scoring_dates_aligned_with_schedule",
+      "sha256": "85819e888969c59e84c25ab40bc7f0acd769a13d6c219eb4e90ee6de22e183b4",
+      "statementCount": 13,
+      "statementsSha256": "04905352f4e05b9bcfce12df3c71b031e83dfcabd29d930ba4c13f5b4de9a592"
+    },
+    {
+      "version": "20261011000012",
+      "name": "allow_removing_setup_lineup_slots",
+      "sha256": "1e6f35534d46f13d1e2ae3127156a114b113db090cf25c3d9ee5cea947600609",
+      "statementCount": 1,
+      "statementsSha256": "b8317d99728f9bf68f594458b16a29de322e70d5ddb0cd057597914900613e4a"
+    },
+    {
+      "version": "20261011000013",
+      "name": "preserve_sparse_player_metadata_on_merge",
+      "sha256": "221390d3e19bc4a3fab843d39ff774d204aa10bf307304b4de647cc9d931ccca",
+      "statementCount": 1,
+      "statementsSha256": "45f9891a20a302be45755caae0f83046072c8cb08dd9b63fe7d9fbdfb7838bb0"
+    },
+    {
+      "version": "20261011000014",
+      "name": "recover_tied_waiver_preferences",
+      "sha256": "2c0dd08074d27f066e54e1c4c071324ae649e9daff1e433c01a59cd513f4be44",
+      "statementCount": 1,
+      "statementsSha256": "ab2e3717e852c3196ee4a4713737f60abe18ddfc7534b1067ec39dade4ab94c5"
+    },
+    {
+      "version": "20261011000015",
+      "name": "reorder_rolling_claims_across_former_bids",
+      "sha256": "ddf55cd372429c5f407e15d7372a03cf3c97a638116994009fd36d46f399d346",
+      "statementCount": 1,
+      "statementsSha256": "4acb69df4113940dde9d30718a1b08d8e36e78a5efef87312397b2b8dff7af24"
+    },
+    {
+      "version": "20261011000016",
+      "name": "do_not_recreate_merged_player_identities",
+      "sha256": "fa49aeff252b59a80596c98428c7e3f57adc558e078880faaecbdc7547249f45",
+      "statementCount": 3,
+      "statementsSha256": "087e437ae50754122aa5cd1d60a5282f4132c77a711a69fe3e3c6060174dd8b9"
+    },
+    {
+      "version": "20261011000017",
+      "name": "permanent_taxi_exit_policy",
+      "sha256": "634191e211f9d6c893ce266bdfb64189f33a5497822ca3f56a2e786706330402",
+      "statementCount": 22,
+      "statementsSha256": "3467d616042b80a301e160d9d5d08f7cc98e08ed7e11e67c86ec02efa827c10e"
+    },
+    {
+      "version": "20261011000018",
+      "name": "draft_directly_into_taxi",
+      "sha256": "56d4ce1c7652b4ed9198f103a1fd63e7ab1b3c3760745afa966968c6ef06bd31",
+      "statementCount": 25,
+      "statementsSha256": "a85bfb09a41a808bb29b66826f64385048290533e9299d809831a96d2c653a8e"
+    },
+    {
+      "version": "20261011000019",
+      "name": "receive_traded_players_into_taxi",
+      "sha256": "e40f377efa13d67ec6d149cbdfc767d61196f61540ebd744b0be244757d3a912",
+      "statementCount": 7,
+      "statementsSha256": "cb76cd031952ef4260e26474646ee6e4feb51ed69f3ee141e50f7f6b43d6a62e"
+    },
+    {
+      "version": "20261011000020",
+      "name": "preserve_taxi_draft_and_trade_progress",
+      "sha256": "c4d35f67063d3a9fc4f331f918ff50099decd468a2a16a04b7f9d0e8d565721c",
+      "statementCount": 6,
+      "statementsSha256": "532b878cf6ddf6be748331537c86c0f2f1c988ca63caf9338d48a6b44c4fb013"
+    },
+    {
+      "version": "20261011000021",
+      "name": "order_taxi_destination_trade_locks",
+      "sha256": "4b01de2d138b43054c6274e1d2d3deaf2a1ed1f436769a4f273dd32da346a1d7",
+      "statementCount": 1,
+      "statementsSha256": "2e6aaa845328508c6d8072e232f48cf050836e74bd2589a41ce575e47909e62a"
+    },
+    {
+      "version": "20261011000022",
+      "name": "track_scoring_read_boundaries",
+      "sha256": "4801da74be1e35098d344e5b953a53d5dfbcf842be91eae2bcf912602722054d",
+      "statementCount": 3,
+      "statementsSha256": "e6b239eb3ffed44f024574d4493d2013b71310ccf2f0fa3590f7df67447d5802"
+    },
+    {
+      "version": "20261011000023",
+      "name": "configurable_playoff_windows",
+      "sha256": "228435de16e6d58f97e1af7fcbdbfd71b6a5fb51f7799921dfacecf371c1e3f4",
+      "statementCount": 25,
+      "statementsSha256": "f5e8f911e40686a5c92fc36fc7cef06d183af4005eead6e824223e7abe9a329a"
+    },
+    {
+      "version": "20261011000024",
+      "name": "validate_playoff_transitions",
+      "sha256": "3971c375b270d901ca14ba5486dcc1a73f369e30ccbc894ca581204349a36519",
+      "statementCount": 6,
+      "statementsSha256": "69c23d81280808f22f4d9920d694dd346aef9ff4ec5313a7476c6d0dff55424f"
+    },
+    {
+      "version": "20261011000025",
+      "name": "serialize_playoff_scoring",
+      "sha256": "db94828dd60f4c0a0097acb690f970765a6f5ba2d16c39265f2cc8b4a46ae832",
+      "statementCount": 6,
+      "statementsSha256": "19a538457d5daec6316301a9dc291bb9f5d7d175d946068684396c7537abe5bc"
+    },
+    {
+      "version": "20261011000026",
+      "name": "snapshot_playoff_seeds",
+      "sha256": "24ad178960db0b4e9a15e4295173080980e6ab087015ecd4225bc18caee496c8",
+      "statementCount": 5,
+      "statementsSha256": "bf8e7c3b0306ace3b52eb0683d9ee8642b742123f1c2ae327504c6695afda20d"
+    },
+    {
+      "version": "20261011000027",
+      "name": "guard_automatic_playoff_boundaries",
+      "sha256": "b1c58e9e78d2be8bc6fe5f5abb376167251d11ebcbbd5c435fe3c1d7666d4b6b",
+      "statementCount": 4,
+      "statementsSha256": "ad03a0d7d3168e3f8a6104894a802cb1c18406c848181afaf9cbcdcc92cdb02c"
+    },
+    {
+      "version": "20261011000028",
+      "name": "wait_for_saved_score_corrections",
+      "sha256": "46eec6933e914ce7d35c0d1f4a9c6b75d250550c72dcf950f5f111a08e02f652",
+      "statementCount": 1,
+      "statementsSha256": "78efc7e1f5cadc3e12fb0d66197d1588cfeb3c315e7c1d19ed0b86f0bc8db705"
+    },
+    {
+      "version": "20261011000029",
+      "name": "certify_score_input_revisions",
+      "sha256": "96108d4623e28f2418f9d7d958c524629474b38108b35491607e54da40844d12",
+      "statementCount": 37,
+      "statementsSha256": "493a78290250078e14d9c9a8fadd18066ccdf6eb5e991cd40dd3f70fa63a6419"
+    },
+    {
+      "version": "20261011000030",
+      "name": "scope_taxi_exits_to_team",
+      "sha256": "1ddb1a67ed81d4ad5f72b6c3fac8cc124a825a87c4fb7cbc60a302b8dd834c2e",
+      "statementCount": 14,
+      "statementsSha256": "3a2e5abc3c9707005858f7ace8bec9bb11235483c002a123dcfc888b973a4233"
+    },
+    {
+      "version": "20261011000031",
+      "name": "preserve_merged_auction_history",
+      "sha256": "ab081d539b23f0f31ebd9a58d62b43497ab0a46b24f2c12bd0b11dcc7a5245cc",
+      "statementCount": 5,
+      "statementsSha256": "3c0d6746a5a59908377ad83cb66c28d14e4b39016fe7ec86f76d710d91c66ca1"
+    },
+    {
+      "version": "20261011000032",
+      "name": "guard_missing_legacy_playoff_seeds",
+      "sha256": "ab021f27ffae90a857863f725c185b3921d470826f788df94d089e3b22938119",
+      "statementCount": 1,
+      "statementsSha256": "55be3e67feadf59a0c17c9e74721e50e3c2b7a810f11bbdf750dbfd117ea5d26"
+    },
+    {
+      "version": "20261011000033",
+      "name": "scope_player_score_revisions",
+      "sha256": "1c277fbd14524a4db09c89f615479217970a5e1e7bc6688eaef7d04175f95f75",
+      "statementCount": 6,
+      "statementsSha256": "3632526bbfcecc687d223acee9a4943e2b76f14183f745c53036a08bb0cf01a3"
+    },
+    {
+      "version": "20261011000034",
+      "name": "certify_rollover_regular_standings",
+      "sha256": "023f76131ec0b03e1abb3f57b46bc5f01f0974097f4c6ad7164b827eb50b5378",
+      "statementCount": 3,
+      "statementsSha256": "ff342eef91561bebc397bf8920aebdafe4bf92a206b5b28aa416ee1aede2db5a"
+    },
+    {
+      "version": "20261011000035",
+      "name": "preserve_retired_score_results",
+      "sha256": "dd347804007633d6db78f3cf373b21f07af30cdb424348c66cff71418b73b11d",
+      "statementCount": 11,
+      "statementsSha256": "8103fc7146d2cb4d1364b2fc2bf37f498fd479cd020ef8eb7d93660698bd718b"
+    },
+    {
+      "version": "20261011000036",
+      "name": "bind_roster_drop_to_expected_season",
+      "sha256": "c51096a7cf28b4e314c1370ffb367be03592339fbfbfb7d6480d2369942a840e",
+      "statementCount": 5,
+      "statementsSha256": "9dd05e9291211a24301bde933a28090477cc11d25d81c2e4df320c33260aa240"
+    },
+    {
+      "version": "20261011000037",
+      "name": "save_complete_game_stats_atomically",
+      "sha256": "de8d10ac2b8ce3393844e7959b710b4e5652ad6658d7275f184e87c21926095f",
+      "statementCount": 8,
+      "statementsSha256": "006f389a57bedb3c3e58e49c65ca5052c9c5a87b2376775589325b0163504c3b"
+    },
+    {
+      "version": "20261011000038",
+      "name": "guard_rookie_overflow_drops",
+      "sha256": "eaa962143e809ebf7b2deb790fb0966ce10e85460ef489a57adb4da37d5828a0",
+      "statementCount": 4,
+      "statementsSha256": "05651f34f390f4932c9bcbdd5b11090b40edb65a219c4a83aea04ae4d7a3d6b0"
+    },
+    {
+      "version": "20261011000039",
+      "name": "guard_unresolved_game_identity",
+      "sha256": "e628edce6cb65ad3856a7e6a2657be88e4cbabc9cd01eda3047c04b808f8fb5f",
+      "statementCount": 17,
+      "statementsSha256": "2e51006a31b1dbb4de62c2005a37dd8186285dfa619a9ddfe461f011185b679a"
+    },
+    {
+      "version": "20261011000040",
+      "name": "preserve_shared_nba_calendar",
+      "sha256": "95fa2ec365c9475a239e796e9620409ac6611ce5befd8fe5e11bea8bbf33f8e9",
+      "statementCount": 8,
+      "statementsSha256": "8cef81382667d87102f6c9d1d6c6a56b624cb9ff9471e94bd7dcaccaeda7ff74"
+    },
+    {
+      "version": "20261011000041",
+      "name": "allow_recorded_game_rescheduling",
+      "sha256": "5f1d8b55e3c8e0517ff446c2fdd02b461cdc38f7146f914a740966a0f065621c",
+      "statementCount": 2,
+      "statementsSha256": "a76ad926bc441c3ea53aba23f194a70798a73d04243528e7c83638189255c6d4"
+    },
+    {
+      "version": "20261011000042",
+      "name": "require_calendar_before_enumeration",
+      "sha256": "a461d4d6c502d4d6599a91a59168cc1b4d29bab56f50a1a6ed2f97d60b9526c3",
+      "statementCount": 5,
+      "statementsSha256": "5dbbd029f97aa6092fa7047f3429759b8c7deecf8b550816d30dfdf1f9ffa7ed"
+    },
+    {
+      "version": "20261011000043",
+      "name": "authorize_trade_replacement_before_expiry",
+      "sha256": "334af821cb589ce48fcac13eee5dce4b1921a3a8ee35fe608c2eeb86e60c7a5e",
+      "statementCount": 2,
+      "statementsSha256": "b10fbcf7b4caff4bb77a550aa0ff33db24483a92051086e1d168a1a19217425a"
+    },
+    {
+      "version": "20261011000044",
+      "name": "replay_trade_offer_requests",
+      "sha256": "b8fc0eeab14b536a986969b75de24ea96c4e6fe52ac338cc520a1e095ffec7ae",
+      "statementCount": 6,
+      "statementsSha256": "d971f3231e3b76130fc44003fe8dbbf3f090f7ccc8b732bbd77e18c2071d4f45"
+    },
+    {
+      "version": "20261011000045",
+      "name": "keep_multi_trade_replacements_in_multi_path",
+      "sha256": "9e4b8d42686efb5fcd735363aec1c8bb3a2bf34a988d3373de855ede66e8513f",
+      "statementCount": 1,
+      "statementsSha256": "6dd8b9dfe16ee95036a5794d6204cc980eb7e06e01fe55fe83a504a1969e8042"
+    },
+    {
+      "version": "20261011000046",
+      "name": "set_multi_trade_lineage_before_notifications",
+      "sha256": "4b06fc6d47138d1d7d56fece48ff51452c29067102a343c06e1dfdae4c60a692",
+      "statementCount": 6,
+      "statementsSha256": "aa6ec499d0307a5fc757533cfb5bf2361e1901f605597e8fbd501bdfb39f6842"
+    },
+    {
+      "version": "20261011000047",
+      "name": "order_trade_offer_roster_locks",
+      "sha256": "8cdba9a56a3bed625184e289912017d8a5626e086ca1bde7d9e851e9153b7929",
+      "statementCount": 8,
+      "statementsSha256": "d4e065814a28f30ee116315883baea3a13728e15aaa1b6e42faf5494c23daa8d"
+    },
+    {
+      "version": "20261011000048",
+      "name": "reject_stale_pending_trade_actions_without_completion_wait",
+      "sha256": "6594c2ec56447dfb3c9d61b6bfe9bdb8a9747ee69dc520a31bef4ee025c9368b",
+      "statementCount": 6,
+      "statementsSha256": "341e21117cb881702c7ab5212153272cc225c60e00b50fd3c988f36213e6088a"
+    },
+    {
+      "version": "20261011000049",
+      "name": "lock_trade_queue_batch_before_completion",
+      "sha256": "10c8b1418426e47c2740200c51df37eae6b4f5105d5fbf4ff7be88bda7054384",
+      "statementCount": 3,
+      "statementsSha256": "e8065c96f9bb9f539ff03d38ac8bda4dc274ff525039980dcc635b530d121149"
+    },
+    {
+      "version": "20261011000050",
+      "name": "defer_busy_waiver_teams_without_priority_bypass",
+      "sha256": "0850af35f00255764706337768363598c4f7d60d02bbe34a5e3b4c407caf1d73",
+      "statementCount": 3,
+      "statementsSha256": "60e009fb8d6b431c7383f60ff83e38a751d30953ea0a840c85945a55c1494d5e"
+    },
+    {
+      "version": "20261011000051",
+      "name": "validate_compound_activation_before_freeing_roster",
+      "sha256": "e24e2d2f139bcd29e192409e6a6da6198b77e2a8eb55b79f0d6ba8513fd2ee39",
+      "statementCount": 6,
+      "statementsSha256": "b841530e758414692c63b74ec20b907d22610480d34d8e1db6a1dc6c2e85fe95"
+    },
+    {
+      "version": "20261011000052",
+      "name": "resolve_player_imports_atomically",
+      "sha256": "b2064afa4b72bd9467b4adca3d3a360976fcea8d9383d31ef9fa8b1ca4fe05b9",
+      "statementCount": 14,
+      "statementsSha256": "b5d1a019465cbf1445c34c7391054593bfd2055d76224e2a53e3dc534c8238f1"
+    },
+    {
+      "version": "20261011000053",
+      "name": "defer_busy_waiver_leagues",
+      "sha256": "bbca51c6a14f1976d758064c010f37f822d69cc07e176bdcbe5a7559165fc885",
+      "statementCount": 3,
+      "statementsSha256": "8fb5664d5c56a5385f03bdd039b28780b8971bfdd581c246e2aaa58439fc9f04"
+    },
+    {
+      "version": "20261011000054",
+      "name": "read_transaction_state_without_write_locks",
+      "sha256": "3448d907b36e41606619d9d98360be70e02013919da2212f4bd5cdf915ef29dc",
+      "statementCount": 6,
+      "statementsSha256": "c4bd7cb4438aa98fd386f66b02586d64d0327a486907a56d246ea378d9edc0aa"
+    },
+    {
+      "version": "20261011000055",
+      "name": "fence_web_push_ownership",
+      "sha256": "5f6a75c4aa44026a1c30d49b242870a74fec4219533bbcdbbaea58ea39b2922a",
+      "statementCount": 17,
+      "statementsSha256": "45d8545b40e919b1112412c9768257565795b440ba60182ed232df1739bc8a8d"
+    },
+    {
+      "version": "20261011000056",
+      "name": "serialize_waiver_edits_with_roster_moves",
+      "sha256": "21311924889de5cd71b973401379e128505f99626dc2ced543a9eddcc30cf24a",
+      "statementCount": 1,
+      "statementsSha256": "03cc709e83bfcbcb3abaef7b24daefe2ddbfd5ce014bf3c0a1f50a345f29bb32"
+    },
+    {
+      "version": "20261011000057",
+      "name": "record_acquisition_roster_destination",
+      "sha256": "8db014ef883db2ef8533778238927cf05fd0f11ca955348596b1cb26e25d47c2",
+      "statementCount": 17,
+      "statementsSha256": "52a3296af03eb19cbfcf78489bdc9b662f77b65b020b8ed90910143f1615a2ab"
+    },
+    {
+      "version": "20261011000058",
+      "name": "draft_reset_activation_serialization",
+      "sha256": "de2c007d614d376448a743dd34ebc879ff72585ac283fd170e1cf95a7b8ec7d6",
+      "statementCount": 6,
+      "statementsSha256": "50b1f23b02998ca3f880eba2787ee102490957859c5eb441f9b63c125d668136"
+    },
+    {
+      "version": "20261011000059",
+      "name": "draft_control_serialization",
+      "sha256": "49f8732dd7185e77f9580e622f1949da81ec384818a49f6d32089f3f97ebad49",
+      "statementCount": 5,
+      "statementsSha256": "d4e8fb69c026362ad0d831916b0a9f9e9cc547e08ff91a4110c43f8216935104"
+    },
+    {
+      "version": "20261011000060",
+      "name": "draft_remaining_control_serialization",
+      "sha256": "d831468289af30097f83fcca63339ad85ce4168978c22ac56abf13d80b89bd87",
+      "statementCount": 5,
+      "statementsSha256": "5008dbf5eb6f7280e36263dbcc8fdd7616c98cb3af243ee25c9feb8bf8f00132"
+    },
+    {
+      "version": "20261011000061",
+      "name": "taxi_reset_trade_lock_and_board_fences",
+      "sha256": "d7078ad52fcafac85bb77e5cfebc4ca7d6ba2dc7837404a6dfd736b37f8f6467",
+      "statementCount": 12,
+      "statementsSha256": "e7f9a816e80fcbf2000314d8bd04a799f12d4a8870f3f86803015dd882958ac8"
+    },
+    {
+      "version": "20261011000062",
+      "name": "fail_fast_on_changed_game_and_score_inputs",
+      "sha256": "e5923485429ee02eb027e977fa20648d2b4ee7b3403a879817b4750f02039f29",
+      "statementCount": 6,
+      "statementsSha256": "f34a09a43192eefb793629b44a1f650de1019a804700dcdd81e004a91fdb4b8d"
     }
   ]
 }
