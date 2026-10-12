@@ -334,8 +334,8 @@ export default function TradesScreen() {
             ? `${resourceLabel[0].toUpperCase() + resourceLabel.slice(1)} refresh failed. Showing a saved snapshot.${online ? ' Tap to retry.' : ' Reconnect to update.'}`
             : `${online ? 'Could not load' : 'Offline. No saved'} ${resourceLabel}.${online ? ' Tap to retry.' : ' Reconnect to load.'}`}
             onRetry={() => { if (online) void retryActiveResource() }} />
-            : hasSavedData && isSnapshot ? <Text style={styles.freshness} accessibilityLiveRegion="polite">
-                {online ? `Refreshing ${resourceLabel}. Showing a saved snapshot.` : `Offline. Showing a saved ${resourceLabel} snapshot.`}
+            : hasSavedData && isSnapshot && !online ? <Text style={styles.freshness} accessibilityLiveRegion="polite">
+                {`Offline. Showing a saved ${resourceLabel} snapshot.`}
             </Text> : null}
         {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError.replace(/[.!]?\s*$/, '.')} Tap to refresh.`}
             onRetry={() => { void retryActiveResource() }} /> : null}

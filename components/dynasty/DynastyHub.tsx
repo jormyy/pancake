@@ -27,7 +27,7 @@ import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { getLeagueMembers } from '@/lib/league'
-import { colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, table } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { readableSourceName } from '@/lib/source-names'
 
@@ -415,9 +415,6 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 accessibilityLabel="Search dynasty rankings"
                                 containerStyle={styles.searchField}
                             />
-                            <Text style={styles.syncText} numberOfLines={1}>
-                                {rankings.refreshing ? 'Refreshing…' : latestSync ? `Updated ${formatDate(latestSync)}` : 'Not synced yet'}
-                            </Text>
                         </View>
                         {rankings.error && rankings.players.length === 0 ? (
                             <View style={styles.errorState}>
@@ -505,7 +502,7 @@ const styles = StyleSheet.create({
         paddingTop: spacing.md,
     },
     body: { flex: 1, gap: spacing.md },
-    // Ranking views or news feeds on the left, freshness on the right. Full
+    // Ranking views or news feeds use the full
     // width so the scrollable track has a definite size when it overflows.
     controlRow: {
         width: '100%',
@@ -513,7 +510,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.lg,
     },
-    syncText: { ...textStyles.meta, flexShrink: 0 },
     searchField: { flex: 1, maxWidth: 420 },
     searchRow: {
         flexDirection: 'row',
@@ -690,4 +686,3 @@ const styles = StyleSheet.create({
     },
     footerRetryText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })
-

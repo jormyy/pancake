@@ -75,7 +75,6 @@ const NAV: BootNavItem[] = [...PRIMARY_NAV, LEAGUE_NAV]
 
 export const BOOT_SHELL_CSS = `
 ${themeVariablesCss()}
-html,body{background-color:var(--pancake-bg-screen);}
 #${BOOT_SHELL_ID}{position:fixed;inset:0;z-index:1;display:none;font-family:${SANS};
   background-color:var(--pancake-bg-screen);background-image:${webBackgrounds.appRoot};}
 #${BOOT_SHELL_ID}[data-visible="1"]{display:block;}

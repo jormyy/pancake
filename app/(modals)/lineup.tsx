@@ -618,9 +618,9 @@ export default function LineupScreen() {
                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
             )}
 
-            {readOnly ? (
+            {readOnly && (!matchingDay || !online || lineupError) ? (
                 <View style={styles.statusBanner}>
-                    <Text style={styles.statusBannerText}>{!matchingDay ? 'Lineup unavailable for this day' : !online ? 'Saved lineup · Offline · Read only' : lineupError ? 'Saved lineup · Refresh failed · Read only' : 'Updating lineup · Read only'}</Text>
+                    <Text style={styles.statusBannerText}>{!matchingDay ? 'Lineup unavailable for this day' : !online ? 'Saved lineup · Offline · Read only' : 'Saved lineup · Refresh failed · Read only'}</Text>
                 </View>
             ) : null}
 

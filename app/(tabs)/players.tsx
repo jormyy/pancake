@@ -174,7 +174,6 @@ function PlayerSearchSection() {
         data: playerSupport,
         loading: playerSupportFetchLoading,
         error: playerSupportError,
-        isSnapshot: playerSupportSnapshot,
         refresh: refreshPlayerSupport,
     } = useFocusAsyncData<PlayerSupport>(async () => {
         if (!leagueId) {
@@ -419,7 +418,7 @@ function PlayerSearchSection() {
                 ) : null}
             </View>
 
-            {search.results.players.length > 0 && (!online || search.results.isSnapshot || playerSupportSnapshot || playerSupportError) && <Pressable
+            {search.results.players.length > 0 && (!online || search.results.error || playerSupportError) && <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Refresh player data"
                 disabled={!online || search.results.refreshing}
@@ -428,8 +427,7 @@ function PlayerSearchSection() {
             >
                 <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">
                     {!online ? 'Offline. Saved player results may be out of date.'
-                        : search.results.error || playerSupportError ? 'Player refresh failed. Saved results may be out of date. Tap to retry.'
-                        : 'Saved player results. Updating…'}
+                        : 'Player refresh failed. Saved results may be out of date. Tap to retry.'}
                 </Text>
             </Pressable>}
             <Sheet visible={compactToolbar && filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
