@@ -109,7 +109,9 @@ BEGIN
          AND COALESCE(is_on_ir, false) = false
          AND COALESCE(is_on_taxi, false) = false;
 
-      IF v_active_roster_count >= v_roster_size THEN
+      IF v_nom.current_bid_to_taxi THEN
+        v_can_sell := private.can_acquire_draft_taxi(v_draft.league_id,v_draft.league_season_id,v_nom.current_bidder_id,v_nom.player_id);
+      ELSIF v_active_roster_count >= v_roster_size THEN
         v_can_sell := false;
       ELSE
         v_can_sell := true;
@@ -127,12 +129,16 @@ BEGIN
        WHERE id = v_budget.id;
 
       IF NOT v_draft.is_mock THEN
+        IF v_nom.current_bid_to_taxi THEN
+          PERFORM private.authorize_taxi_acquisition(v_draft.league_id,v_draft.league_season_id,v_nom.current_bidder_id,v_nom.player_id,'draft',v_draft.id);
+        END IF;
         INSERT INTO roster_players (
           league_id,
           league_season_id,
           member_id,
           player_id,
           acquired_via,
+          is_on_taxi,
           acquisition_cost
         )
         VALUES (
@@ -141,6 +147,7 @@ BEGIN
           v_nom.current_bidder_id,
           v_nom.player_id,
           'draft',
+          v_nom.current_bid_to_taxi,
           v_nom.current_bid_amount
         );
 
@@ -150,6 +157,7 @@ BEGIN
           member_id,
           player_id,
           transaction_type,
+          acquired_to_taxi,
           related_nomination_id
         )
         VALUES (
@@ -158,6 +166,7 @@ BEGIN
           v_nom.current_bidder_id,
           v_nom.player_id,
           'draft_won',
+          v_nom.current_bid_to_taxi,
           v_nom.id
         );
       END IF;
@@ -199,6 +208,7 @@ BEGIN
               AND COALESCE(rp.is_on_ir, false) = false
               AND COALESCE(rp.is_on_taxi, false) = false
          ) < v_roster_size
+         OR private.can_acquire_draft_taxi(v_draft.league_id,v_draft.league_season_id,lm.id,NULL,v_draft.id)
        )
   ) THEN
     UPDATE drafts

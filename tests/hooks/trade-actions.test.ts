@@ -68,6 +68,31 @@ const trade = (id: string): Trade => ({
 })
 
 describe('useTradeActions', () => {
+    it('does not send or queue decisions after online authority is lost, including an open confirmation', async () => {
+        let latest!: ReturnType<typeof useTradeActions>
+        let confirm!: () => Promise<void>
+        mocks.confirmAction.mockImplementation((_title, _message, action) => { confirm = action })
+        const onAction = vi.fn()
+        const Probe = ({ enabled }: { enabled: boolean }) => {
+            latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', enabled, onAction })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { enabled: true })) })
+        act(() => { latest.reject('pending') })
+        await act(async () => { renderer.update(React.createElement(Probe, { enabled: false })) })
+        await act(async () => { await confirm(); await latest.accept(trade('pending')) })
+        expect(mocks.rejectTrade).not.toHaveBeenCalled()
+        expect(mocks.acceptTrade).not.toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { enabled: true })) })
+        expect(mocks.acceptTrade).not.toHaveBeenCalled()
+        expect(onAction).not.toHaveBeenCalled()
+        await act(async () => { await latest.accept(trade('pending')) })
+        expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('pending', 'member-a')
+        expect(onAction).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('accepts without a client-side roster-cap or drop workflow', async () => {
         mocks.acceptTrade.mockResolvedValue(undefined)
         let latest!: ReturnType<typeof useTradeActions>

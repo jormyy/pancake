@@ -21,6 +21,7 @@ DECLARE
   v_distinct_count int;
   v_locked_count int;
   v_notifications jsonb := '[]'::jsonb;
+  v_input_token jsonb;
 BEGIN
   IF p_matchups IS NULL OR jsonb_typeof(p_matchups) <> 'array' THEN
     RAISE EXCEPTION 'p_matchups must be a JSON array.'
@@ -50,21 +51,43 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
+  PERFORM 1 FROM public.league_seasons WHERE id = p_league_season_id AND league_id = p_league_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'League season not found.' USING ERRCODE = '22023'; END IF;
+  IF EXISTS(SELECT 1 FROM private.retired_score_inputs WHERE league_season_id = p_league_season_id) THEN
+    RAISE EXCEPTION 'Historical score inputs have been retired. Existing results are preserved.' USING ERRCODE = '55000';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtext('playoff-bracket'), hashtext(p_league_season_id::text));
+
+  v_input_token := p_matchups->0->'input_token';
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(p_matchups) item WHERE item->'input_token' IS DISTINCT FROM v_input_token)
+      OR NOT private.lock_current_score_inputs(p_league_season_id, p_week_number, v_input_token) THEN
+    RAISE EXCEPTION 'Score inputs changed or were not certified. Retry scoring.' USING ERRCODE = 'PT409';
+  END IF;
+
   WITH requested AS (
     SELECT *
       FROM jsonb_to_recordset(p_matchups) AS requested(
         id uuid,
         winner_member_id uuid,
+        home_points numeric,
+        away_points numeric,
         home_max_possible_points numeric,
-        away_max_possible_points numeric
+        away_max_possible_points numeric,
+        score_read_started_at timestamptz,
+        reconcile_decision boolean
       )
   ),
   locked AS (
     SELECT
       matchup.*,
       requested.winner_member_id AS requested_winner_member_id,
+      requested.home_points AS requested_home_points,
+      requested.away_points AS requested_away_points,
       requested.home_max_possible_points AS requested_home_max_possible_points,
-      requested.away_max_possible_points AS requested_away_max_possible_points
+      requested.away_max_possible_points AS requested_away_max_possible_points,
+      requested.score_read_started_at AS requested_score_read_started_at,
+      requested.reconcile_decision AS requested_reconcile_decision
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id
@@ -87,16 +110,24 @@ BEGIN
       FROM jsonb_to_recordset(p_matchups) AS requested(
         id uuid,
         winner_member_id uuid,
+        home_points numeric,
+        away_points numeric,
         home_max_possible_points numeric,
-        away_max_possible_points numeric
+        away_max_possible_points numeric,
+        score_read_started_at timestamptz,
+        reconcile_decision boolean
       )
   ),
   locked AS (
     SELECT
       matchup.*,
       requested.winner_member_id AS requested_winner_member_id,
+      requested.home_points AS requested_home_points,
+      requested.away_points AS requested_away_points,
       requested.home_max_possible_points AS requested_home_max_possible_points,
-      requested.away_max_possible_points AS requested_away_max_possible_points
+      requested.away_max_possible_points AS requested_away_max_possible_points,
+      requested.score_read_started_at AS requested_score_read_started_at,
+      requested.reconcile_decision AS requested_reconcile_decision
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id
@@ -108,20 +139,26 @@ BEGIN
   updated AS (
     UPDATE public.matchups AS matchup
        SET winner_member_id = locked.requested_winner_member_id,
+           home_points = COALESCE(locked.requested_home_points, locked.home_points),
+           away_points = COALESCE(locked.requested_away_points, locked.away_points),
            home_max_possible_points = locked.requested_home_max_possible_points,
            away_max_possible_points = locked.requested_away_max_possible_points,
            is_finalized = true,
+           score_read_started_at = COALESCE(locked.requested_score_read_started_at, p_finalized_at),
            finalized_at = CASE
              WHEN locked.is_finalized IS FALSE THEN p_finalized_at
              WHEN locked.matchup_type IN (
                'playoff_quarterfinal'::matchup_type,
                'playoff_semifinal'::matchup_type,
                'playoff_final'::matchup_type
-             ) THEN p_reconciliation_at
+             ) AND (locked.winner_member_id IS DISTINCT FROM locked.requested_winner_member_id
+               OR locked.home_max_possible_points IS DISTINCT FROM locked.requested_home_max_possible_points
+               OR locked.away_max_possible_points IS DISTINCT FROM locked.requested_away_max_possible_points) THEN p_reconciliation_at
              ELSE matchup.finalized_at
            END
       FROM locked
      WHERE matchup.id = locked.id
+       AND NOT private.playoff_round_is_consumed(p_league_season_id, locked.matchup_type)
      RETURNING
        matchup.id,
        locked.is_finalized AS was_finalized,
@@ -201,6 +238,10 @@ BEGIN
     points_against = EXCLUDED.points_against,
     max_possible_points = EXCLUDED.max_possible_points,
     waiver_priority = EXCLUDED.waiver_priority;
+
+  INSERT INTO private.score_week_certificates(league_season_id, week_number, input_token)
+    VALUES(p_league_season_id, p_week_number, private.score_input_token(p_league_season_id, p_week_number))
+    ON CONFLICT(league_season_id, week_number) DO UPDATE SET input_token = EXCLUDED.input_token;
 
   RETURN v_notifications;
 END;

@@ -5,14 +5,9 @@ import { toETDate } from '../_shared/date.ts'
 // The app-side constants/slots.ts pulls in @pancake/core, which the Deno
 // bundler cannot resolve; use the generated edge-shared map instead. It only
 // lacks the BE entry, which is filtered out before slot filling anyway.
-import { SLOT_ALLOWED_POSITIONS as SLOT_ELIGIBLE } from '../_shared/scoreLineups.ts'
-import { MANUAL_DATE_LIMIT, processManualDates, type ManualOptimizationResult } from './manual.ts'
-
-type OptimizerSetting = {
-  league_id: string
-  league_season_id: string
-  member_id: string
-}
+import { chooseBestAssignments } from './assignments.ts'
+import { MANUAL_DATE_LIMIT, parseManualDateFilter, processManualDates, type ManualOptimizationResult } from './manual.ts'
+import { loadEnabledOptimizerSettings, type OptimizerSetting } from './settings.ts'
 type LeagueRow = {
   status: string
 }
@@ -62,22 +57,14 @@ type GameRow = {
   away_team: string | null
   status: string | null
   game_time: string | null
+  started_at: string | null
 }
 type WeeklyLineupRow = {
+  players?: { nba_team: string | null } | null
   player_id: string
   slot_type: string
   is_auto_set: boolean | null
   week_number: number
-}
-type AssignmentScore = {
-  filled: number
-  healthy: number
-  game: number
-  projected: number
-}
-type AssignmentResult = {
-  assignments: { playerId: string; slotType: string }[]
-  score: AssignmentScore
 }
 type ProjectionRow = {
   player_id: string
@@ -96,6 +83,7 @@ const SCHEDULE_PAGE_SIZE = 1000
 
 type ManualRequest = {
   mode: 'rest_of_season'
+  dates?: string[]
   leagueId: string
   leagueSeasonId: string
   memberId: string
@@ -131,6 +119,7 @@ function manualRequest(body: Record<string, unknown>): ManualRequest | null {
   }
   return {
     mode: 'rest_of_season',
+    dates: parseManualDateFilter(body.dates),
     leagueId: body.leagueId as string,
     leagueSeasonId: body.leagueSeasonId as string,
     memberId: body.memberId as string,
@@ -148,7 +137,7 @@ async function processManualRestOfSeason(request: ManualRequest): Promise<
     throw new Error('Lineups can only be optimized for the current active or playoff season.')
   }
 
-  const contexts = await loadRemainingSeasonDateContexts(season.season_year)
+  const contexts = await loadRemainingSeasonDateContexts(season.season_year, request.dates)
   const setting: OptimizerSetting = {
     league_id: request.leagueId,
     league_season_id: request.leagueSeasonId,
@@ -182,16 +171,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   const dateContexts = await loadDateContexts(requestedDate)
   if (dateContexts.length === 0) return { settings: 0, dates: 0, optimized: 0, skipped: 0, failed: 0 }
 
-  const { data: settings, error: settingsError } = await supabase
-    .from('lineup_optimizer_settings')
-    .select('league_id, league_season_id, member_id')
-    .eq('enabled', true)
-    // Least recently optimized first: the loop has no deadline, so a run the
-    // platform kills partway would otherwise redo the same head on every tick
-    // and never reach the tail. With this order the tail goes first next time.
-    .order('last_optimized_at', { ascending: true, nullsFirst: true })
-    .order('member_id', { ascending: true })
-  if (settingsError) throw settingsError
+  const settings = await loadEnabledOptimizerSettings(supabase, [...new Set(dateContexts.map((context) => context.seasonYear))])
 
   // Many enabled members share a league; load each league and season once.
   const leagues = new Map<string, LeagueRow | null>()
@@ -200,7 +180,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   let optimized = 0
   let skipped = 0
   let failed = 0
-  for (const setting of (settings ?? []) as OptimizerSetting[]) {
+  for (const setting of settings) {
     let league = leagues.get(setting.league_id)
     if (league === undefined) {
       league = await loadLeague(setting.league_id)
@@ -242,7 +222,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   }
 
   return {
-    settings: (settings ?? []).length,
+    settings: settings.length,
     dates: dateContexts.length,
     optimized,
     skipped,
@@ -255,7 +235,7 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
   const end = addDays(today, 7)
   let query = supabase
     .from('nba_games')
-    .select('season_year, game_date, home_team, away_team, status, game_time')
+    .select('season_year, game_date, home_team, away_team, status, game_time, started_at')
     .order('game_date', { ascending: true })
     .order('game_time', { ascending: true })
 
@@ -283,7 +263,8 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
   for (const [date, games] of byDate) {
     const anyStarted = games.some((game) =>
       ['InProgress', 'Final'].includes(game.status ?? '') ||
-      (game.game_time != null && game.game_time <= now)
+      (game.game_time != null && game.game_time <= now) ||
+      (game.started_at != null && game.started_at <= now)
     )
     if (anyStarted) continue
 
@@ -297,18 +278,20 @@ async function loadDateContexts(requestedDate: string | null): Promise<DateConte
   return contexts
 }
 
-async function loadRemainingSeasonDateContexts(seasonYear: number): Promise<DateContext[]> {
+async function loadRemainingSeasonDateContexts(seasonYear: number, requestedDates?: string[]): Promise<DateContext[]> {
   const today = toETDate(new Date())
   const games: GameRow[] = []
   for (let from = 0; games.length <= 3000; from += SCHEDULE_PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('nba_games')
-      .select('season_year, game_date, home_team, away_team, status, game_time')
+      .select('season_year, game_date, home_team, away_team, status, game_time, started_at')
       .eq('season_year', seasonYear)
       .gte('game_date', today)
       .order('game_date', { ascending: true })
       .order('game_time', { ascending: true })
       .range(from, from + SCHEDULE_PAGE_SIZE - 1)
+    if (requestedDates) query = query.in('game_date', requestedDates)
+    const { data, error } = await query
     if (error) throw error
     const page = (data ?? []) as GameRow[]
     games.push(...page)
@@ -420,7 +403,7 @@ async function autoSetMemberDate(
       }),
       supabase
         .from('weekly_lineups')
-        .select('player_id, slot_type, is_auto_set, week_number')
+        .select('player_id, slot_type, is_auto_set, week_number, players(nba_team)')
         .eq('member_id', setting.member_id)
         .eq('league_id', setting.league_id)
         .eq('league_season_id', setting.league_season_id)
@@ -452,7 +435,8 @@ async function autoSetMemberDate(
     if (game.away_team) playingTeams.add(game.away_team)
     const hasStarted =
       ['InProgress', 'Final'].includes(game.status ?? '') ||
-      (game.game_time != null && game.game_time <= now)
+      (game.game_time != null && game.game_time <= now) ||
+      (game.started_at != null && game.started_at <= now)
     if (hasStarted) {
       if (game.home_team) startedTeams.add(game.home_team)
       if (game.away_team) startedTeams.add(game.away_team)
@@ -467,7 +451,7 @@ async function autoSetMemberDate(
       .map((player) => player.playerId),
   )
   for (const entry of (existingEntries ?? []) as WeeklyLineupRow[]) {
-    const team = playerTeamMap.get(entry.player_id)
+    const team = entry.players?.nba_team ?? playerTeamMap.get(entry.player_id)
     if (team && startedTeams.has(team)) {
       lockedPlayerIds.add(entry.player_id)
       const isStarter = entry.slot_type !== 'BE' && entry.slot_type !== 'IR'
@@ -609,62 +593,4 @@ function slotsForTemplates(
     for (let i = 0; i < remaining; i++) result.push(slotType)
   }
   return result
-}
-
-function emptyScore(): AssignmentScore {
-  return { filled: 0, healthy: 0, game: 0, projected: 0 }
-}
-
-function addScore(score: AssignmentScore, player: AutoSetPlayer, hasGame: boolean): AssignmentScore {
-  return {
-    filled: score.filled + 1,
-    healthy: score.healthy + (player.avoidInLineup ? 0 : 1),
-    game: score.game + (hasGame ? 1 : 0),
-    projected: score.projected + player.projected,
-  }
-}
-
-function compareScore(a: AssignmentScore, b: AssignmentScore): number {
-  return a.filled - b.filled || a.healthy - b.healthy || a.game - b.game || a.projected - b.projected
-}
-
-function chooseBestAssignments(
-  slots: string[],
-  players: AutoSetPlayer[],
-  hasGame: (player: AutoSetPlayer) => boolean,
-): { playerId: string; slotType: string }[] {
-  const memo = new Map<string, AssignmentResult>()
-
-  function used(mask: number, index: number): boolean {
-    const bit = 2 ** index
-    return Math.floor(mask / bit) % 2 === 1
-  }
-
-  function search(slotIndex: number, mask: number): AssignmentResult {
-    if (slotIndex >= slots.length) return { assignments: [], score: emptyScore() }
-    const key = `${slotIndex}:${mask}`
-    const cached = memo.get(key)
-    if (cached) return cached
-
-    let best = search(slotIndex + 1, mask)
-    const slotType = slots[slotIndex]
-    const eligible = SLOT_ELIGIBLE[slotType] ?? []
-    for (let playerIndex = 0; playerIndex < players.length; playerIndex++) {
-      if (used(mask, playerIndex)) continue
-      const player = players[playerIndex]
-      if (!player.eligiblePositions.some((position) => eligible.includes(position))) continue
-
-      const next = search(slotIndex + 1, mask + 2 ** playerIndex)
-      const candidate: AssignmentResult = {
-        assignments: [{ playerId: player.playerId, slotType }, ...next.assignments],
-        score: addScore(next.score, player, hasGame(player)),
-      }
-      if (compareScore(candidate.score, best.score) > 0) best = candidate
-    }
-
-    memo.set(key, best)
-    return best
-  }
-
-  return search(0, 0).assignments
 }

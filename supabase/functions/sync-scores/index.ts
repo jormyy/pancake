@@ -1,6 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { syncScores } from '../_shared/syncScores.ts'
 import { syncStatsForDates } from '../_shared/syncStats.ts'
+import { syncStatsThenScores } from '../_shared/syncStatsThenScores.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import {
@@ -39,8 +40,7 @@ serveInternal('sync-scores', async (req) => {
 
   try {
     await recordSyncRun('sync-scores', async () => {
-      const statLines = await syncStatsForScoreCandidateDates()
-      await syncScores()
+      const statLines = await syncStatsThenScores(syncStatsForScoreCandidateDates, syncScores)
       return { result: undefined, rowsAffected: statLines }
     })
     return Response.json({ ok: true })

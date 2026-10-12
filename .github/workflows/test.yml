@@ -108,6 +108,11 @@ jobs:
         with:
           version: 2.109.1
 
+      # Scoring, CDN and BBRef database recipes in test:db run under Deno.
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.7.14
+
       - name: Start Supabase from repository migrations
         run: supabase start
 
@@ -135,8 +140,10 @@ jobs:
           psql "$DB_URL" -Atc "select version || '_' || name from supabase_migrations.schema_migrations order by version" > /tmp/applied-migrations
           diff -u /tmp/expected-migrations /tmp/applied-migrations
           E2E_SUPABASE_URL="$API_URL" \
+          SUPABASE_URL="$API_URL" \
           SUPABASE_DB_URL="$DB_URL" \
           E2E_PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
+          PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY" \
           E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
           PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token \
           npm run test:db

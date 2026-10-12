@@ -13,6 +13,8 @@ export type LeagueSettingsUpdate = {
     taxi_slots?: number
     auction_budget?: number
     playoff_start_week?: number
+    playoff_total_weeks?: number
+    playoff_round_weeks?: number[]
     weekly_add_limit?: number | null
     weekly_add_unlimited?: boolean
     waiver_mode?: WaiverMode
@@ -49,6 +51,8 @@ function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     if (updates.taxi_slots != null) payload.taxi_slots = updates.taxi_slots
     if (updates.auction_budget != null) payload.auction_budget = updates.auction_budget
     if (updates.playoff_start_week != null) payload.playoff_start_week = updates.playoff_start_week
+    if (updates.playoff_total_weeks != null) payload.playoff_total_weeks = updates.playoff_total_weeks
+    if (updates.playoff_round_weeks != null) payload.playoff_round_weeks = updates.playoff_round_weeks
     if (updates.weekly_add_unlimited != null) payload.weekly_add_unlimited = updates.weekly_add_unlimited
     if (updates.weekly_add_limit != null) payload.weekly_add_limit = updates.weekly_add_limit
     if (updates.waiver_mode != null) payload.waiver_mode = updates.waiver_mode
@@ -131,6 +135,8 @@ export async function fetchUserLeagues(userId: string) {
         auction_budget,
         scoring_settings,
         playoff_start_week,
+        playoff_total_weeks,
+        playoff_round_weeks,
         roster_size,
         ir_slots,
         taxi_slots,
@@ -307,4 +313,15 @@ export async function overrideWeeklyAddCount(
     })
     if (error) throw error
     return Number(data)
+}
+
+export async function getLeaguePlayoffCalendar(leagueId: string) {
+    const { data: season, error: seasonError } = await supabase.from('league_seasons')
+        .select('season_year').eq('league_id', leagueId).eq('is_current', true).maybeSingle()
+    if (seasonError) throw seasonError
+    if (!season) return null
+    const { data: weeks, error } = await supabase.from('season_weeks')
+        .select('week_number').eq('season_year', season.season_year).order('week_number')
+    if (error) throw error
+    return { seasonYear: season.season_year, weeks: (weeks ?? []).map((week) => week.week_number) }
 }

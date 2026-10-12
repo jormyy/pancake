@@ -19,7 +19,6 @@ vi.mock('@/lib/supabase', () => ({
         },
     },
 }))
-vi.mock('@/lib/push-token', () => ({ unregisterCurrentDevicePushToken: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ clearPersistentCaches: vi.fn() }))
 
 import { uploadAvatar } from '@/lib/auth'
@@ -39,7 +38,7 @@ describe('avatar upload validation', () => {
             { status: 200 },
         )))
 
-        await uploadAvatar('user-1', { uri: 'blob:https://app.example/opaque-id' })
+        await uploadAvatar('user-1', { uri: 'blob:https://app.example/opaque-id', width: 128, height: 128 })
 
         expect(mocks.upload).toHaveBeenCalledWith(
             'user-1/avatar.png',
@@ -53,13 +52,27 @@ describe('avatar upload validation', () => {
             ok: true,
             blob: async () => ({ type: 'image/svg+xml', size: 100 }),
         })))
-        await expect(uploadAvatar('user-1', { uri: 'blob:svg' })).rejects.toThrow('JPEG, PNG, or WebP')
+        await expect(uploadAvatar('user-1', { uri: 'blob:svg', width: 128, height: 128 })).rejects.toThrow('JPEG, PNG, or WebP')
 
         vi.stubGlobal('fetch', vi.fn(async () => ({
             ok: true,
             blob: async () => ({ type: 'image/jpeg', size: 5 * 1024 * 1024 + 1 }),
         })))
-        await expect(uploadAvatar('user-1', { uri: 'blob:large' })).rejects.toThrow('smaller than 5 MB')
+        await expect(uploadAvatar('user-1', { uri: 'blob:large', width: 128, height: 128 })).rejects.toThrow('smaller than 5 MB')
         expect(mocks.upload).not.toHaveBeenCalled()
     })
+
+    it.each([[0, 0], [0, 128], [128, 0], [-1, 128], [NaN, 128], [128, Infinity]])(
+        'preserves the saved avatar when decoded dimensions are %s by %s', async (width, height) => {
+            const fetchImage = vi.fn()
+            vi.stubGlobal('fetch', fetchImage)
+
+            await expect(uploadAvatar('user-1', { uri: 'blob:broken', width, height }))
+                .rejects.toThrow('Could not read the selected image. Choose another photo.')
+
+            expect(fetchImage).not.toHaveBeenCalled()
+            expect(mocks.upload).not.toHaveBeenCalled()
+            expect(mocks.update).not.toHaveBeenCalled()
+        },
+    )
 })

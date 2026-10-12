@@ -37,15 +37,40 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found.' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Include the source assets even when the replacement removes them. A drop
+  -- expires that source while holding the same team and player locks.
+  PERFORM private.lock_trade_offer_assets(
+    v_trade.league_id,
+    ARRAY(SELECT member_id FROM trade_participants WHERE trade_id = p_trade_id) || ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id],
+    ARRAY(SELECT player_id FROM trade_items WHERE trade_id = p_trade_id AND player_id IS NOT NULL) ||
+      COALESCE(p_offer_player_ids, ARRAY[]::uuid[]) || COALESCE(p_request_player_ids, ARRAY[]::uuid[])
+  );
+
+  -- Accepted completion owns its trade row before team locks. A stale pending
+  -- action must not wait on that row while holding its team locks.
   SELECT *
     INTO v_trade
     FROM trades
    WHERE id = p_trade_id
+     AND status = 'pending'::trade_status
    FOR UPDATE;
+
+  IF NOT FOUND THEN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  END IF;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Trade not found.'
       USING ERRCODE = 'P0002';
+  END IF;
+
+  IF COALESCE(v_trade.is_multi_team, false) THEN
+    RAISE EXCEPTION 'Use the multi-team action for this trade.' USING ERRCODE = '22023';
   END IF;
 
   IF p_action = 'counter' THEN
@@ -64,15 +89,6 @@ BEGIN
     v_actor_error := 'Only the proposer can edit this offer.';
   END IF;
 
-  IF v_trade.status <> 'pending'::trade_status THEN
-    RAISE EXCEPTION '%', v_pending_error
-      USING ERRCODE = 'P0001';
-  END IF;
-
-  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
-    UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
-    RETURN NULL;
-  END IF;
 
   IF (
     (p_action = 'counter' AND v_trade.recipient_member_id <> p_member_id)
@@ -91,6 +107,16 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Not authorized to act for this member.'
       USING ERRCODE = '42501';
+  END IF;
+
+  IF v_trade.status <> 'pending'::trade_status THEN
+    RAISE EXCEPTION '%', v_pending_error
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
+    UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
+    RETURN NULL;
   END IF;
 
   v_parent_trade_id := COALESCE(v_trade.parent_trade_id, v_trade.id);

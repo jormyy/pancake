@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AppState } from 'react-native'
 import {
     closeExpiredNominations,
     getDraftPollRevision,
@@ -21,6 +22,9 @@ import {
     type RealtimeSubscriptionStatus,
 } from '@/lib/realtime'
 
+
+/** Short enough for a live auction countdown; the rejoin reloads the room to catch up. */
+const AUCTION_REJOIN_DELAY_MS = 3_000
 export type DraftTab = 'budgets' | 'history'
 
 export function useAuctionDraftRoomController({
@@ -38,11 +42,15 @@ export function useAuctionDraftRoomController({
     // Bidding — held as raw text so the field can be cleared/typed freely;
     // the value is validated and clamped only on submit (handleBid).
     const [bidText, setBidText] = useState('1')
+    const [bidToTaxi, setBidToTaxi] = useState(false)
+    useEffect(() => { setBidToTaxi(false) }, [draftId, memberId])
     const [bidding, setBidding] = useState(false)
     const [withdrawing, setWithdrawing] = useState(false)
 
     const [realtimeStatus, setRealtimeStatus] =
         useState<RealtimeSubscriptionStatus | 'CONNECTING'>('CONNECTING')
+    // A CLOSED channel never rejoins on its own; a new epoch builds a fresh subscription.
+    const [subscriptionEpoch, setSubscriptionEpoch] = useState(0)
     const activeDraftIdRef = useRef<string | undefined>(draftId)
 
     // Nomination / player search
@@ -70,8 +78,7 @@ export function useAuctionDraftRoomController({
     // fire load() concurrently, so drop any result that a newer load supersedes.
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
-    const pollRevisionRef = useRef<string | null>(null)
-    const pollInFlightRef = useRef(false)
+    const pollRevisionRef = useRef<string | null | undefined>(undefined)
 
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
@@ -100,8 +107,7 @@ export function useAuctionDraftRoomController({
         setRealtimeStatus('CONNECTING')
         lastNomIdRef.current = null
         closeTriggeredForNomRef.current = null
-        pollRevisionRef.current = null
-        pollInFlightRef.current = false
+        pollRevisionRef.current = undefined
         return () => {
             loadSeqRef.current += 1
             searchSeqRef.current += 1
@@ -109,19 +115,17 @@ export function useAuctionDraftRoomController({
     }, [draftId])
 
     const load = useCallback(async () => {
-        if (!draftId) return
+        if (!draftId) return false
         const requestedDraftId = draftId
-        if (activeDraftIdRef.current !== requestedDraftId) return
+        if (activeDraftIdRef.current !== requestedDraftId) return false
         const seq = ++loadSeqRef.current
         try {
             const s = await getDraftState(requestedDraftId)
             // Ignore a stale, out-of-order result once a newer load has started.
-            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return
+            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
             setLoadError(null)
-            // Only commit a DEFINITE state. getDraftState() returns null (not a
-            // throw) on a transient fetch failure; committing null would blank the
-            // whole live auction room for seconds during bidding,
-            // and would also reseed the bid field on the next good poll.
+            // A successful empty read means the room is gone. Read failures throw
+            // and keep the last usable state in the catch path below.
             if (s) {
                 setStateDraftId(requestedDraftId)
                 setState(s)
@@ -145,11 +149,20 @@ export function useAuctionDraftRoomController({
                     lastNomIdRef.current = nomId
                     if (nom) setBidText(String(minBid))
                 }
+            } else {
+                setStateDraftId(requestedDraftId)
+                setState(null)
+                setTimeLeft(0)
+                setNominating(false)
+                lastNomIdRef.current = null
+                closeTriggeredForNomRef.current = null
             }
+            return true
         } catch (e) {
             if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) {
                 setLoadError(getErrorMessage(e))
             }
+            return false
         }
     }, [draftId])
 
@@ -161,38 +174,72 @@ export function useAuctionDraftRoomController({
         // A bidding war fires several inserts per second and every one of them
         // reloads the whole draft state; coalesce the burst into one reload.
         const refresh = debounceRealtimeRefresh(() => { void load() })
+        let rejoin: ReturnType<typeof setTimeout> | null = null
         const channel = subscribeToDraft(draftId, draftLeagueId, refresh.trigger, (status) => {
-            if (active) setRealtimeStatus(status)
+            if (!active) return
+            setRealtimeStatus(status)
+            // CHANNEL_ERROR and TIMED_OUT rejoin inside the client; CLOSED is terminal, so subscribe again.
+            if (status === 'CLOSED' && !rejoin) {
+                rejoin = setTimeout(() => {
+                    rejoin = null
+                    if (!active) return
+                    setRealtimeStatus('CONNECTING')
+                    setSubscriptionEpoch((epoch) => epoch + 1)
+                }, AUCTION_REJOIN_DELAY_MS)
+            }
         })
         return () => {
             active = false
+            if (rejoin) clearTimeout(rejoin)
             refresh.cancel()
             reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
         }
-    }, [draftId, draftLeagueId, load])
+    }, [draftId, draftLeagueId, load, subscriptionEpoch])
 
     // Realtime is primary. The fallback probes only current mutable rows and
     // reloads history/ages when their revision actually changes.
     useEffect(() => {
         if (!draftId) return
-        const poll = setInterval(async () => {
-            if (pollInFlightRef.current) return
-            pollInFlightRef.current = true
+        let active = true
+        let appState = AppState.currentState
+        let inFlight = false
+        let resumePending = false
+        const pollRevision = async () => {
+            if (!active || appState !== 'active' || inFlight) return
+            inFlight = true
+            resumePending = false
             try {
                 const revision = await getDraftPollRevision(draftId)
-                if (activeDraftIdRef.current !== draftId) return
+                if (!active || appState !== 'active' || activeDraftIdRef.current !== draftId) return
                 if (pollRevisionRef.current === revision) return
-                pollRevisionRef.current = revision
-                await load()
+                const loaded = await load()
+                if (loaded && active && activeDraftIdRef.current === draftId) pollRevisionRef.current = revision
             } catch (error) {
-                if (activeDraftIdRef.current === draftId) {
+                if (active && activeDraftIdRef.current === draftId) {
                     console.error('Could not poll the live draft revision.', error)
                 }
             } finally {
-                pollInFlightRef.current = false
+                inFlight = false
+                if (active && resumePending && appState === 'active') {
+                    resumePending = false
+                    void pollRevision()
+                }
             }
-        }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
-        return () => clearInterval(poll)
+        }
+        const poll = setInterval(() => { void pollRevision() }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            const becameActive = appState !== 'active' && nextState === 'active'
+            appState = nextState
+            if (!becameActive) return
+            // A probe started before sleep may miss changes made while asleep.
+            if (inFlight) resumePending = true
+            else void pollRevision()
+        })
+        return () => {
+            active = false
+            clearInterval(poll)
+            subscription.remove()
+        }
     }, [draftId, load, realtimeStatus])
 
     // Countdown tick
@@ -287,7 +334,7 @@ export function useAuctionDraftRoomController({
         }
         setBidding(true)
         try {
-            await placeBid(draftId, memberId, visibleState.openNomination.id, amount)
+            await placeBid(draftId, memberId, visibleState.openNomination.id, amount, bidToTaxi)
             if (activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
@@ -366,6 +413,15 @@ export function useAuctionDraftRoomController({
         return counts
     }, [closedNominations])
 
+    const refresh = useCallback(async () => {
+        // Tap to retry also rebuilds a closed live channel, not only the room data.
+        if (realtimeStatus === 'CLOSED') {
+            setRealtimeStatus('CONNECTING')
+            setSubscriptionEpoch((epoch) => epoch + 1)
+        }
+        await load()
+    }, [load, realtimeStatus])
+
     return {
         state: visibleState,
         tab,
@@ -374,7 +430,8 @@ export function useAuctionDraftRoomController({
             ? 'Live draft connection lost. Tap to retry.'
             : null),
         bidText,
-        setBidText,
+        bidToTaxi,
+        setBidToTaxi,        setBidText,
         bidding,
         withdrawing,
         nominating,
@@ -390,7 +447,7 @@ export function useAuctionDraftRoomController({
         budgetByMember,
         wonCountByMember,
         realtimeConnected,
-        refresh: load,
+        refresh,
         handleBid,
         handleWithdraw,
         handleNominate,

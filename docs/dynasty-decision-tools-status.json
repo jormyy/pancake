@@ -221,5 +221,6 @@
     "SOAK: Each dynasty season probe now refreshes its Supabase session before scoped reads."
   ],
   "notReproducibleFindings": [],
-  "blockers": []
+  "blockers": [],
+  "supported_client_scope": "iPhone Safari and installed iPhone PWA only; prior native connectivity acceptance is historical and explicitly excluded, not a current gate."
 }

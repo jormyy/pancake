@@ -12,9 +12,10 @@ describe('scheduling wiring', () => {
         expect(source.indexOf('heartbeat.stop()')).toBeGreaterThan(source.indexOf('} finally {'))
     })
 
-    it('the optimizer visits the least recently optimized members first', async () => {
+    it('scheduled optimization loads eligible settings through the paginated loader', async () => {
         const source = await readFile('supabase/functions/lineup-optimizer/index.ts', 'utf8')
-        expect(source).toMatch(/\.eq\('enabled', true\)[\s\S]*\.order\('last_optimized_at', \{ ascending: true, nullsFirst: true \}\)/)
+        expect(source).toContain("import { loadEnabledOptimizerSettings, type OptimizerSetting } from './settings.ts'")
+        expect(source).toContain('await loadEnabledOptimizerSettings(supabase, [...new Set(dateContexts.map((context) => context.seasonYear))])')
     })
 
     it('the cron job list schedules the invocation reconciler', async () => {
@@ -31,11 +32,18 @@ describe('scheduling wiring', () => {
         }
     })
 
-    it('score sync sends only changed playoff rows back to the finalization RPC', async () => {
+    it('score sync certifies inputs and SQL owns playoff grace resets', async () => {
         for (const file of ['supabase/shared-src/sync/scores.ts', 'supabase/functions/_shared/syncScores.ts']) {
             const source = await readFile(file, 'utf8')
-            expect(source, file).toMatch(/const matchupWrites = matchupResults\.filter\(\(m\) =>\s*!isPlayoffMatchupType\(m\.matchup_type\) \|\| finalizationWriteNeeded\(m\)/)
-            expect(source, file).toContain('p_matchups: matchupWrites.map(')
+            expect(source, file).toContain('score_read_started_at: scoringReadStartedAt')
+            expect(source, file).toContain("supabase.rpc('capture_score_inputs'")
+            expect(source, file).toContain('input_token: inputToken,')
         }
+        const sql = await readFile('supabase/sql/functions/by-name/public/finalize_score_week_atomic.sql', 'utf8')
+        expect(sql).toContain('private.lock_current_score_inputs(p_league_season_id, p_week_number, v_input_token)')
+        expect(sql).toContain('locked.winner_member_id IS DISTINCT FROM locked.requested_winner_member_id')
+        expect(sql).toContain('locked.home_max_possible_points IS DISTINCT FROM locked.requested_home_max_possible_points')
+        expect(sql).toContain('locked.away_max_possible_points IS DISTINCT FROM locked.requested_away_max_possible_points')
+        expect(sql).not.toContain('COALESCE(locked.requested_reconcile_decision, true) THEN p_reconciliation_at')
     })
 })

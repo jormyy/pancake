@@ -9,6 +9,7 @@ export {
 
 type TradePlayerItem = {
     kind: 'player'
+    toTaxi?: boolean
     playerId: string
     playerName: string
     position: string | null
@@ -130,6 +131,7 @@ type TradePlayerQueryRow = {
     years_exp: number | null
 } | null
 type TradeItemQueryRow = {
+    to_taxi: boolean
     side: 'proposer' | 'recipient'
     player_id: string | null
     pick_id: string | null
@@ -179,6 +181,7 @@ type TradeQueryRow = {
 }
 
 export type TradeProposalOptions = {
+    requestId?: string
     notes?: string | null
     expiresAt?: string | null
     offerFaabAmount?: number
@@ -206,7 +209,7 @@ export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
-} & Pick<TradeProposalOptions, 'notes' | 'expiresAt'>
+} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId'>
 
 function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
     return items.map((item) => {
@@ -280,6 +283,7 @@ export async function proposeTrade(
     options: Omit<TradeProposalOptions, 'notes'> = {},
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose', {
+        requestId: options.requestId,
         memberId,
         leagueId,
         leagueSeasonId: seasonId,
@@ -304,6 +308,7 @@ export async function proposeMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose-multi', {
+        requestId: payload.requestId,
         memberId,
         leagueId,
         leagueSeasonId: seasonId,
@@ -322,6 +327,7 @@ export async function counterMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
+        requestId: payload.requestId,
         memberId,
         participantMemberIds: payload.participantMemberIds,
         items: multiTeamTradeWireItems(payload.items),
@@ -338,6 +344,7 @@ export async function editMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
+        requestId: payload.requestId,
         memberId,
         participantMemberIds: payload.participantMemberIds,
         items: multiTeamTradeWireItems(payload.items),
@@ -378,6 +385,10 @@ export async function editTrade(
         requestFaabAmount: payload.requestFaabAmount ?? 0,
     })
     return result.tradeId
+}
+
+export async function setTradeTaxiDestinations(tradeId: string, memberId: string, playerIds: string[]) {
+    await apiPost(`/trades/${tradeId}/taxi-destinations`, { memberId, playerIds })
 }
 
 export async function acceptTrade(
@@ -434,6 +445,7 @@ const TRADE_SELECT = `
                 id,
                 side,
                 player_id,
+                to_taxi,
                 pick_id,
                 from_member_id,
                 to_member_id,
@@ -458,6 +470,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         if (item.player_id != null && item.players) {
             tradeItem = {
                 kind: 'player',
+                toTaxi: item.to_taxi,
                 playerId: item.player_id,
                 playerName: item.players?.display_name ?? 'Unknown',
                 position: item.players?.position ?? null,

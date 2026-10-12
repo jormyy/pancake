@@ -24,7 +24,9 @@ const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v2:'
 const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
     `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
-export function useTradeBlock(memberId: string, leagueId: string) {
+export function useTradeBlock(memberId: string, leagueId: string, canMutate = true) {
+    const canMutateRef = useRef(canMutate)
+    canMutateRef.current = canMutate
     const resourceKey = memberId && leagueId ? tradeBlockCacheKey(memberId, leagueId) : null
     const cached = useMemo(
         () => memberId && leagueId
@@ -61,7 +63,7 @@ export function useTradeBlock(memberId: string, leagueId: string) {
             setActionError(null)
             setLoading(false)
             setDataKey(null)
-            return
+            return false
         }
         setLoading(true)
         setError(null)
@@ -73,17 +75,19 @@ export function useTradeBlock(memberId: string, leagueId: string) {
                 getTradeBlockItems(leagueId),
                 getRoster(memberId, leagueId),
             ])
-            if (loadSequence.current !== requestId) return
+            if (loadSequence.current !== requestId) return false
             const nextRoster = memberRoster.filter(isTradeableRosterPlayer)
             setItems(nextItems)
             setRoster(nextRoster)
             setAvgMap(EMPTY_AVG_MAP)
             setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
+            return true
         } catch (cause) {
-            if (loadSequence.current !== requestId) return
+            if (loadSequence.current !== requestId) return false
             console.error(cause)
             setError(getErrorMessage(cause) ?? 'Unknown error')
+            return false
         } finally {
             if (loadSequence.current === requestId) setLoading(false)
         }
@@ -151,9 +155,10 @@ export function useTradeBlock(memberId: string, leagueId: string) {
     }, [])
 
     const mutate = useCallback(async (id: string, operation: () => Promise<unknown>) => {
+        if (!canMutateRef.current) return
         const generation = mutationGeneration.current
         const task = mutationQueue.current.then(async () => {
-            if (mutationGeneration.current !== generation) return
+            if (mutationGeneration.current !== generation || !canMutateRef.current) return
             setBusyId(id)
             try {
                 await operation()

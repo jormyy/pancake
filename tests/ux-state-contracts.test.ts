@@ -44,9 +44,11 @@ describe('edge job bookkeeping', () => {
 
     it('process-waivers notifies each committed batch instead of buffering the whole drain', async () => {
         const source = await read('supabase/functions/process-waivers/index.ts')
-        const loop = source.slice(source.indexOf('for (let batch = 0'), source.indexOf("expire_waiver_wire_logs"))
-        expect(loop).toContain('await notifyClaimResults(batchRows)')
+        expect(source).toMatch(/drainDueClaims<WaiverProcessRow>\([\s\S]*\}, notifyClaimResults\)/)
         expect(source).not.toContain('notifyClaimResults(rows)')
+        const drain = await read('supabase/functions/process-waivers/drain.ts')
+        const loop = drain.slice(drain.indexOf('for (let batch = 0'), drain.indexOf('return rows'))
+        expect(loop).toContain('await onBatch(batchRows)')
     })
 
     it('the backfill progress poll projects columns instead of select(*)', async () => {

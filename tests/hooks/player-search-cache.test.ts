@@ -136,3 +136,79 @@ describe('weekly availability refresh ordering', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+describe('search response authority', () => {
+    it.each(['support-first', 'search-first'])('keeps a failed refresh through equivalent support rerenders: %s', async (order) => {
+        let owned = new Map()
+        const waivers = new Set<string>()
+        mocks.searchPlayers.mockReset().mockResolvedValueOnce([player('revision11')])
+        let latest!: ReturnType<typeof usePlayerSearch>
+        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        let reject!: (e: Error) => void
+        const failed = new Promise<ReturnType<typeof player>[]>((_resolve, no) => { reject = no })
+        mocks.searchPlayers.mockReturnValueOnce(failed)
+        await act(async () => { latest.results.retry() })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
+        if (order === 'support-first') await act(async () => { owned = new Map(); renderer.update(React.createElement(Probe)) })
+        await act(async () => { reject(new Error('search503')); await failed.catch(() => {}) })
+        await act(async () => { owned = new Map(); renderer.update(React.createElement(Probe)) })
+        expect(latest.results.error?.message).toBe('search503')
+        expect(latest.results.isSnapshot).toBe(true)
+        expect(latest.results.players.map(p => p.id)).toEqual(['revision11'])
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
+        mocks.searchPlayers.mockResolvedValueOnce([player('revision12')])
+        await act(async () => { latest.results.retry() })
+        expect(latest.results.error).toBeNull()
+        expect(latest.results.isSnapshot).toBe(false)
+        expect(latest.results.players.map(p => p.id)).toEqual(['revision12'])
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(3)
+        await act(async () => { renderer.unmount() })
+    })
+})
+
+describe('search lifecycle ownership', () => {
+    it('retains the same-query scroll position and fences hidden, old-query and old-account results', async () => {
+        const owned = new Map()
+        const waivers = new Set<string>()
+        let focused = true
+        let ownerId = 'first'
+        let online = true
+        mocks.searchPlayers.mockReset().mockResolvedValue([player('initial')])
+        let latest!: ReturnType<typeof usePlayerSearch>
+        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member', { focused, online, ownerId }); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        const scroll = vi.fn()
+        latest.results.listRef.current = { scrollToOffset: scroll } as unknown as NonNullable<typeof latest.results.listRef.current>
+        const late = deferred<ReturnType<typeof player>[]>()
+        mocks.searchPlayers.mockReturnValueOnce(late.promise)
+        await act(async () => { latest.results.retry() })
+        expect(scroll).not.toHaveBeenCalled()
+        await act(async () => { focused = false; renderer.update(React.createElement(Probe)) })
+        await act(async () => { late.resolve([player('hidden-old')]); await late.promise })
+        expect(latest.results.players.map(p => p.id)).toEqual(['initial'])
+        expect(latest.results.isSnapshot).toBe(true)
+        const before = mocks.searchPlayers.mock.calls.length
+        await act(async () => { online = false; renderer.update(React.createElement(Probe)); latest.results.retry() })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before)
+        await act(async () => { online = true; focused = true; renderer.update(React.createElement(Probe)) })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before + 1)
+        const oldIdentity = deferred<ReturnType<typeof player>[]>()
+        mocks.searchPlayers.mockReturnValueOnce(oldIdentity.promise)
+        await act(async () => { latest.search.setQuery('old') })
+        const next = deferred<ReturnType<typeof player>[]>()
+        mocks.searchPlayers.mockReturnValueOnce(next.promise)
+        await act(async () => { ownerId = 'second'; renderer.update(React.createElement(Probe)) })
+        expect(latest.results.players).toEqual([])
+        await act(async () => { oldIdentity.resolve([player('first-private')]); await oldIdentity.promise })
+        expect(latest.results.players).toEqual([])
+        await act(async () => { next.resolve([player('second-current')]); await next.promise })
+        expect(latest.results.players.map(p => p.id)).toEqual(['second-current'])
+        const unmounted = deferred<ReturnType<typeof player>[]>()
+        mocks.searchPlayers.mockReturnValueOnce(unmounted.promise)
+        await act(async () => { latest.results.retry(); renderer.unmount() })
+        await act(async () => { unmounted.resolve([player('unmounted')]); await unmounted.promise })
+    })
+})

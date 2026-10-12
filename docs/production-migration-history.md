@@ -41,12 +41,39 @@ the original labels in its result. Missing, duplicate, reordered, or foreign
 versions fail. Changed attested SQL or source files fail. Changed helper bodies
 or grants fail. Unapproved pending files fail.
 
-The baseline is `20261005000002` (328 rows) and the approved range is
-`20261005000003_league_season_rules`.
+The baseline is `20261005000003` (329 rows). The approved range is the 69 migrations
+`20261006000001_share_scoring_cache_aggregation` through
+`20261011000062_fail_fast_on_changed_game_and_score_inputs`.
 A partially applied approved range plans only its remaining suffix. Every applied
 member of the range must also match its statement count and stored-SQL fingerprint.
-Both fingerprints come from fresh local installs with CLI 2.114.0, which also
-reproduced every earlier attested fingerprint.
+The range fingerprints are the actual ledger rows that Supabase CLI 2.114.0 recorded in
+isolated task databases: a fresh install of all 398 migrations, and an ordered upgrade
+from 329 to 341 to 398 migrations. Both produced identical ledgers. The same ledger
+reproduces all seven range fingerprints carried over from the previous attestation. An
+independent statement splitter agrees on all 62 new rows.
+This is local compatibility evidence; production still requires its own current history check.
+The scoring migration replaces a derived materialized cache and its public view.
+Apply it after the league-season migration. Its transaction protects against
+partial application; a frontend rollback leaves both migrations applied. Before
+production application, check view readers, lock contention and cache rebuild
+time, and prepare the previous view definition as a forward recovery migration.
+
+Four approved migrations replace converged lineup helpers:
+- `20261011000002` replaces `auto_set_lineup_atomic_unchecked`.
+- `20261011000010` replaces `auto_set_lineup_atomic` and `set_player_slot_moves_atomic`.
+- `20261011000012` replaces `update_lineup_slots_atomic_unchecked`.
+
+`convergenceRedefinitions` records each replacement body. The planner expects the audited
+base body until that migration appears in the applied history, then the replacement.
+A replacement body seen early, or a base body seen after the replacement, still fails.
+Each replacement must name an approved migration whose dollar-quoted SQL contains the
+recorded body. The partial 341-migration upgrade confirms the mixed state.
+
+Until 2026-10-11 the baseline was `20261005000002` (328 rows) and the range held
+`20261005000003` plus seven later migrations. Production applied `20261005000003`
+outside the deploy workflow. A read-only `release-schema-history.sql` snapshot on
+2026-10-11 showed its stored SQL matched the recorded 14-statement fingerprint, so it
+became a baseline row.
 
 Until 2026-10-06 the baseline was `20260926000001` (326 rows) and the range held
 `20261005000001` and `20261005000002`. Production applied both with an owner-approved
@@ -79,3 +106,41 @@ migration planner compares versions and does not enforce these extra checks.
 A successful CLI dry run does not replace release-soak or compatibility gates.
 The coordinated deployment workflow also deploys frontend and Edge artifacts;
 running this read-only check does not authorize those actions or apply migrations.
+
+The scoring coefficient migration `20261007000001` follows `20261006000001`.
+It extracts JSON coefficient text once per league during the derived-cache build.
+Numeric casts stay inside the original scoring expression, including bonus guards.
+JSONB equality still selects one representative for each shared settings group.
+No source stats, settings, grants, RLS rules, or refresh scheduling change.
+The database scoring test compares every refreshed row with `v_fantasy_points`,
+including changed settings, corrected scores, DNP, deletion and game eligibility.
+
+This migration takes the same replacement locks as the previous cache migration.
+Its transaction has a three-second lock timeout and a 120-second statement timeout.
+Check current readers and rebuild time before production application. A timeout or
+interruption rolls back the replacement. Do not remove either timeout to force it.
+A frontend rollback keeps this compatible derived-cache migration applied.
+For database recovery, add a new forward migration containing the unchanged body
+of `20261006000001_share_scoring_cache_aggregation.sql`. It rebuilds the previous
+cache definition with current source data and preserves the public view and ACL.
+Use the same transaction and lock limits. Do not delete migration history or
+restore stale materialized rows. Verify the definition, indexes, ACL, RLS and
+canonical score equality after recovery. Local recovery proof does not establish
+production lock availability or device performance.
+
+
+The numeric coefficient migration `20261008000001` follows `20261007000001`.
+It converts eleven ordinary coefficients to numeric values once per league.
+The existing validated `scoring_settings_schema` requires numeric JSON values;
+missing coefficients still yield zero through the original COALESCE expressions.
+Bonus casts remain inside their existing conditions. Per-game rounding, DNP
+filtering, shared-settings equality, output columns and refresh scheduling stay unchanged.
+The migration refuses an unvalidated or missing scoring constraint.
+
+Replacement uses the same three-second lock and 120-second statement limits.
+A timeout or interruption rolls back the transaction. For recovery, append a
+forward migration containing `20261007000001_extract_scoring_cache_coefficients.sql`.
+Rebuild from current source data, then check canonical scores, indexes, grants
+and the public security-invoker view. Do not restore old materialized rows.
+Check production readers, data size and dependencies before application.
+The local benchmark proves no production lock availability or device performance.

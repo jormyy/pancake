@@ -1,4 +1,6 @@
 const MAX_EMPTY_DATE_SCANS = 31
+const MAX_EMPTY_DATE_BATCHES = 4
+const EMPTY_DATE_SCAN_BUDGET_MS = 1_000
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -87,8 +89,9 @@ export async function runStatsSyncJobUnit(
   dependencies: StatsSyncJobDependencies,
 ): Promise<StatsSyncJobUnitResult> {
   let metadata = parseStatsSyncJobMetadata(initialMetadata)
+  const startedAt = performance.now()
 
-  for (let scanned = 0; scanned < MAX_EMPTY_DATE_SCANS; scanned += 1) {
+  for (let scanned = 0; scanned < MAX_EMPTY_DATE_SCANS * MAX_EMPTY_DATE_BATCHES; scanned += 1) {
     if (metadata.nextDate > metadata.endDate) {
       await dependencies.complete(completedItems, metadata)
       return { completedItems, completed: true, processedGame: false, metadata }
@@ -108,6 +111,15 @@ export async function runStatsSyncJobUnit(
       startDate: metadata.startDate,
       endDate: metadata.endDate,
       nextDate: addStatsSyncDays(metadata.nextDate, 1),
+    }
+
+    if ((scanned + 1) % MAX_EMPTY_DATE_SCANS === 0 && metadata.nextDate <= metadata.endDate) {
+      if (scanned + 1 === MAX_EMPTY_DATE_SCANS * MAX_EMPTY_DATE_BATCHES
+        || performance.now() - startedAt >= EMPTY_DATE_SCAN_BUDGET_MS) break
+
+      // Renew the fenced claim before reading another batch. A failed checkpoint
+      // must stop this invocation before it reads or writes any later date.
+      await dependencies.checkpoint(completedItems, metadata)
     }
   }
 

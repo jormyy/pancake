@@ -34,6 +34,8 @@ export function computeLiveFantasyPoints(
 export type Matchup = {
     id: string
     weekNumber: number
+    roundStartWeek?: number
+    roundEndWeek?: number
     myPoints: number | null
     opponentPoints: number | null
     myTeamName: string
@@ -116,12 +118,12 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
     const { data, error } = await supabase
         .from('matchups')
         .select(
-            'id, week_number, home_points, away_points, winner_member_id, is_finalized, home_member_id, away_member_id',
+            'id, week_number, end_week_number, home_points, away_points, winner_member_id, is_finalized, home_member_id, away_member_id',
         )
         .eq('league_id', leagueId)
         .eq('league_season_id', season.id)
-        .eq('week_number', weekNumber)
-        .or(`home_member_id.eq.${memberId},away_member_id.eq.${memberId}`)
+        .lte('week_number', weekNumber)
+        .or(`and(home_member_id.eq.${memberId},or(end_week_number.gte.${weekNumber},week_number.eq.${weekNumber})),and(away_member_id.eq.${memberId},or(end_week_number.gte.${weekNumber},week_number.eq.${weekNumber}))`)
         .maybeSingle()
 
     if (error) throw error
@@ -170,7 +172,9 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
 
     return {
         id: data.id,
-        weekNumber: data.week_number,
+        weekNumber,
+        roundStartWeek: data.week_number,
+        roundEndWeek: data.end_week_number ?? data.week_number,
         myPoints: isHome ? data.home_points : data.away_points,
         opponentPoints: isHome ? data.away_points : data.home_points,
         myTeamName: memberMap[memberId]?.teamName ?? 'My Team',
@@ -207,7 +211,8 @@ export async function getLeagueWeekMatchups(
         )
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
-        .eq('week_number', weekNumber)
+        .lte('week_number', weekNumber)
+        .or(`end_week_number.gte.${weekNumber},week_number.eq.${weekNumber}`)
 
     if (error) throw error
     if (!rows?.length) return []

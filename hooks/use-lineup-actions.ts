@@ -7,7 +7,7 @@ import {
     type LineupPlayer,
     type LineupSelection,
 } from '@/lib/lineup'
-import { activateRosterPlayerWithLineup, toggleIR, toggleTaxi } from '@/lib/roster'
+import { activateRosterPlayerWithLineup, toggleIR } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
@@ -27,6 +27,7 @@ export type LineupActionContext = {
 
 export function useLineupActions({
     actionContext,
+    actionOwner = actionContext,
     myLineup,
     league,
     selectedDate,
@@ -34,6 +35,7 @@ export function useLineupActions({
     reloadLineup,
 }: {
     actionContext: LineupActionContext | null | undefined
+    actionOwner?: Pick<LineupActionContext, 'memberId' | 'leagueId' | 'seasonId'> | null
     myLineup: LineupData | null
     league: { roster_size?: number; taxi_slots?: number } | null
     selectedDate: string
@@ -46,8 +48,8 @@ export function useLineupActions({
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
-    const ownerIdentity = actionContext
-        ? `${actionContext.memberId}:${actionContext.leagueId}:${actionContext.seasonId}:${selectedDate}`
+    const ownerIdentity = actionOwner
+        ? `${actionOwner.memberId}:${actionOwner.leagueId}:${actionOwner.seasonId}:${selectedDate}`
         : null
     const renderedOwnerRef = useRef(ownerIdentity)
     const activeOwnerRef = useRef(ownerIdentity)
@@ -63,6 +65,7 @@ export function useLineupActions({
         mutationGenerationRef.current === generation && activeOwnerRef.current === identity
 
     useEffect(() => {
+        activeOwnerRef.current = ownerIdentity
         mutationGenerationRef.current += 1
         setStateOwnerIdentity(ownerIdentity)
         setSelected(null)
@@ -71,9 +74,14 @@ export function useLineupActions({
         setAutoSetModalVisible(false)
         setActivationOverflowPending(null)
         setActivationOverflowSaving(false)
+        return () => {
+            activeOwnerRef.current = null
+            mutationGenerationRef.current += 1
+        }
     }, [ownerIdentity])
 
     const handleTap = useCallback(async (newSel: Sel) => {
+        if (autoSetting || saving) return
         if (selectedDate < todayET()) {
             showAlert('Past lineup', 'Lineups for past days cannot be changed.', 'info')
             setSelected(null)
@@ -138,8 +146,7 @@ export function useLineupActions({
                 })
             } else if (plan.kind === 'toggle-ir') {
                 await toggleIR(plan.rosterPlayerId, true)
-            } else if (plan.kind === 'toggle-taxi') {
-                await toggleTaxi(plan.rosterPlayerId, true)
+
             } else {
                 await setPlayerSlotMoves(
                     {
@@ -158,9 +165,9 @@ export function useLineupActions({
         } finally {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
         }
-    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity])
+    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity, autoSetting, saving])
 
-    async function resolveOverflow(freeAction: 'drop' | 'ir' | 'taxi', rosterPlayerId: string) {
+    async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return
         const starterPlayers = myLineup?.starters
             .map((slot) => slot.player)
@@ -209,25 +216,28 @@ export function useLineupActions({
 
     const handleOverflowDrop = (id: string) => resolveOverflow('drop', id)
     const handleOverflowMoveToIR = (id: string) => resolveOverflow('ir', id)
-    const handleOverflowMoveToTaxi = (id: string) => resolveOverflow('taxi', id)
 
-    async function doAutoSet(date: string | null, restOfSeason?: boolean) {
-        if (!actionContext || !league) return
-        setAutoSetting(true)
+    async function doAutoSet(date: string | null, restOfSeason?: boolean, retryDates?: string[]) {
+        if (!actionContext || !league || autoSetting || saving || activationOverflowSaving) return
         const mutationGeneration = mutationGenerationRef.current
         const mutationOwner = ownerIdentity
+        if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+            setSelected(null)
+            setAutoSetting(true)
+        }
         try {
             const result = await autoSetLineup(
                 actionContext.memberId, actionContext.leagueId, actionContext.seasonId,
-                actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason,
+                actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason, retryDates,
             )
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             await reloadLineup(selectedDate)
+            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             if (restOfSeason && result?.failed) {
                 confirmAction(
                     'Lineup partly optimized',
                     `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`,
-                    () => { void doAutoSet(null, true) },
+                    () => { void doAutoSet(null, true, result.results.filter((entry) => entry.status === 'failed').map((entry) => entry.date)) },
                     'Retry failed dates',
                     false,
                 )
@@ -238,7 +248,8 @@ export function useLineupActions({
             }
         } catch (e) {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
-                showAlert('Auto-set failed', getErrorMessage(e) ?? String(e))
+                await reloadLineup(selectedDate).catch(() => undefined)
+                if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Auto-set failed', getErrorMessage(e) ?? String(e))
             }
         } finally {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) setAutoSetting(false)
@@ -262,7 +273,6 @@ export function useLineupActions({
         handleTap,
         handleOverflowDrop,
         handleOverflowMoveToIR,
-        handleOverflowMoveToTaxi,
         doAutoSet,
         handleAutoSet,
     }

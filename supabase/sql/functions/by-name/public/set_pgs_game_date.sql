@@ -8,7 +8,9 @@ LANGUAGE plpgsql
 SET search_path = public
 AS $$
 BEGIN
-  SELECT game_date INTO NEW.game_date FROM nba_games WHERE id = NEW.game_id;
+  SELECT game_date, season_year, week_number
+    INTO NEW.game_date, NEW.season_year, NEW.week_number
+    FROM nba_games WHERE id = NEW.game_id FOR SHARE;
   RETURN NEW;
 END;
 $$;

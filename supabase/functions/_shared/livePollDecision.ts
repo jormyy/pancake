@@ -4,7 +4,7 @@ export type LivePollInputs = {
   cdnGameCount: number
   dbActiveGames: number
   nowActive: number
-  allDone: boolean
+  newlyFinal: number
   missingFinalStats: number
   leaseLost: boolean
 }
@@ -17,7 +17,7 @@ export type LivePollDecision =
   | { action: 'status-check' }
 
 export function decideLivePoll(input: LivePollInputs): LivePollDecision {
-  const wantsSync = input.nowActive > 0 || input.allDone || input.dbActiveGames > 0 || input.missingFinalStats > 0
+  const wantsSync = input.nowActive > 0 || input.newlyFinal > 0 || input.dbActiveGames > 0 || input.missingFinalStats > 0
   if (input.cdnGameCount === 0) {
     if (input.dbActiveGames > 0 || input.missingFinalStats > 0) {
       return input.leaseLost ? { action: 'lease-lost' } : { action: 'synced-db-active' }

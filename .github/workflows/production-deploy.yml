@@ -399,6 +399,7 @@ jobs:
     timeout-minutes: 45
     environment: production
     env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       E2E_PRODUCTION_FRONTEND_URL: ${{ secrets.PANCAKE_FRONTEND_URL }}
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}

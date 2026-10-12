@@ -6,7 +6,7 @@ type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['
 // on purpose: it is the signal loadEarliestStatCorrectionWeek uses to detect a
 // stat correction, so rewriting it on an unchanged re-sync would make every
 // re-sync look like a correction and drag the scoring reach-back back to week 1.
-export const COMPARED_STAT_COLUMNS = [
+const COMPARED_STAT_COLUMNS = [
   'player_id',
   'game_id',
   'season_year',

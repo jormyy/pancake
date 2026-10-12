@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -32,6 +33,9 @@ afterEach(async () => {
 const WORKER_TEMPLATE = [
   "const VERSION = 'pancake-dev'",
   "const PRECACHE_URLS = ['/']",
+  "const PUBLIC_ASSET_URLS = []",
+  "const PUBLIC_ASSET_HASHES = {}",
+  "const SHELL_ROUTES = ['/']",
   '',
 ].join('\n')
 
@@ -196,6 +200,21 @@ describe('release E2E contracts', () => {
     }
   })
 
+  it('binds the protected CLI credential in every Edge deployment and rollback job', async () => {
+    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
+    const jobs = workflow.split(/^jobs:\n/m)[1].split(/^(?= {2}[a-z0-9-]+:\n)/m)
+    const deploymentJobs = jobs.filter((job) => job.includes('supabase functions deploy'))
+    expect(deploymentJobs.map((job) => job.split(':')[0].trim()))
+      .toEqual(['deploy-edge', 'rollback-edge', 'rollback-after-promotion'])
+    for (const job of deploymentJobs) {
+      const jobSettings = job.split(/^    steps:\n/m)[0]
+      expect(jobSettings, job.split(':')[0].trim()).toMatch(/^    environment: production$/m)
+      const jobEnvironment = jobSettings.split(/^    env:\n/m)[1] ?? ''
+      expect(jobEnvironment, job.split(':')[0].trim())
+        .toMatch(/^      SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}$/m)
+    }
+  })
+
   it('provides a protected fail-closed hosted production gate', async () => {
     const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-readiness.yml'), 'utf8')
     expect(workflow).toContain('environment: production')
@@ -302,6 +321,17 @@ describe('release E2E contracts', () => {
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("release")\n')
     await writeFile(path.join(root, 'dist', 'sw.js'), WORKER_TEMPLATE)
     await writeFile(path.join(root, 'dist', 'index.html'), SHELL_HTML)
+    for (const [file, body] of Object.entries({
+      '_expo/static/js/web/entry-abc.js': 'console.log("boot")',
+      'sign-in.html': '<script src="/_expo/static/js/web/sign-in-abc.js"></script>',
+      '_expo/static/js/web/sign-in-abc.js': 'console.log("public login")',
+      '_expo/static/css/app.css': 'body{margin:0}',
+      'manifest.webmanifest': '{}',
+      'pwa-192.png': 'fixture image',
+    })) {
+      await mkdir(path.dirname(path.join(root, 'dist', file)), { recursive: true })
+      await writeFile(path.join(root, 'dist', file), body)
+    }
     await mkdir(path.join(root, 'dist', 'assets', 'fonts'), { recursive: true })
     await writeFile(path.join(root, 'dist', 'assets', 'fonts', 'MaterialIcons.abc123.ttf'), 'font')
     // A font the app never names must stay out, even though it is in the build.
@@ -326,6 +356,23 @@ describe('release E2E contracts', () => {
     expect(JSON.parse(await readFile(path.join(root, 'dist', 'release-provenance.json'), 'utf8'))).toEqual(marker)
 
     const firstWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
+    const publicAssets = JSON.parse(/const PUBLIC_ASSET_URLS = (\[[^\n]*\])/.exec(firstWorker)![1])
+    expect(publicAssets).toEqual([
+      '/_expo/static/css/app.css',
+      '/_expo/static/js/web/entry-abc.js',
+      '/_expo/static/js/web/sign-in-abc.js',
+      '/assets/fonts/MaterialIcons.abc123.ttf',
+      '/assets/fonts/Outfit_900Black.def456.ttf',
+      '/manifest.webmanifest',
+      '/pwa-192.png',
+    ])
+    const publicHashes = JSON.parse(/const PUBLIC_ASSET_HASHES = (\{[^\n]*\})/.exec(firstWorker)![1])
+    expect(Object.keys(publicHashes)).toEqual(['/', ...publicAssets])
+    expect(Object.values(publicHashes)).toEqual(Array.from({ length: publicAssets.length + 1 }, () => expect.stringMatching(/^[a-f0-9]{64}$/)))
+    expect(publicHashes['/']).toBe(createHash('sha256').update(SHELL_HTML).digest('hex'))
+    expect(publicAssets).not.toContain('/app.js')
+    expect(firstWorker).toContain('const SHELL_ROUTES = ["/","/index.html","/sign-in","/sign-in.html"]')
+
     expect(firstWorker).toMatch(/pancake-aaaaaaaaaaaa-[a-f0-9]{12}/)
     // The worker must precache what the shell boots from, or the reload that
     // follows an update re-downloads the whole bundle over the network.
@@ -334,6 +381,7 @@ describe('release E2E contracts', () => {
         '/',
         '/_expo/static/css/app.css',
         '/_expo/static/js/web/entry-abc.js',
+        '/_expo/static/js/web/sign-in-abc.js',
         // The bundle fetches the icon font, so the document never lists it; the
         // real chrome renders empty boxes until it lands.
         '/assets/fonts/MaterialIcons.abc123.ttf',
@@ -353,6 +401,11 @@ describe('release E2E contracts', () => {
     expect(routingDigest).not.toBe(rebuiltMarker.bundleDigest)
     await writeFile(path.join(root, 'package-lock.json'), '{"lockfileVersion":3}\n')
     expect(await digestReleaseBundle(root)).not.toBe(routingDigest)
+    await rm(path.join(root, 'dist', '_expo/static/js/web/sign-in-abc.js'))
+    await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(/Required boot asset is missing/)
+    await writeFile(path.join(root, 'dist', '_expo/static/js/web/sign-in-abc.js'), 'console.log("public login")')
+    await rm(path.join(root, 'dist', '_expo/static/js/web/entry-abc.js'))
+    await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(/Required boot asset is missing/)
   })
 
   it('rejects release provenance for a SHA other than the checked-out commit', () => {
@@ -1061,6 +1114,28 @@ describe('release E2E contracts', () => {
         routeJsLedger: [{ url: 'https://app.test/route.js', encodedBodySize: 43008, decodedBodySize: 43008 }],
       }],
     }, 'report.json')).toEqual([])
+  })
+
+  it('accepts a ready route served entirely by the shared bundle, and only when it was ready', () => {
+    const manifest = {
+      globalBudgets: { maxInitialWebJsKb: 350, maxRouteWebJsKb: 220 },
+      workflows: [{
+        id: 'workflow',
+        budgets: { feedbackMs: 100, cachedRequestMs: 300, fullLoadMs: 1000 },
+        measurement: { report: 'report.json' },
+      }],
+    }
+    const measurement = {
+      id: 'workflow', feedbackMs: 1, warmCachedRequestMs: 2, warmRequestCount: 1,
+      warmRequestEvidence: 'fetch-or-xhr-duration', coldFullLoadMs: 3, readyState: true,
+      feedbackObserved: true, feedbackInteraction: 'real-action', routeWebJsKb: 0,
+      routeJsCacheHit: false, routeJsEntryCount: 0, routeJsNetworkEntryCount: 0,
+      routeJsDecodedKb: 0, routeJsEncodedKb: 0, routeJsLedger: [],
+    }
+    expect(validateWorkflowReportKeys(manifest, { status: 'PASS', workflowMeasurements: [measurement] }, 'report.json')).toEqual([])
+    expect(validateWorkflowReportKeys(manifest, {
+      status: 'PASS', workflowMeasurements: [{ ...measurement, readyState: false }],
+    }, 'report.json')).toContain('workflow: report.json is missing route JS transfer or cache-hit evidence')
   })
 
   it('rejects missing, nonnumeric, and negative workflow timing evidence', () => {

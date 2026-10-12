@@ -41,21 +41,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
-    UPDATE trades SET status = 'expired'::trade_status WHERE id = p_trade_id;
-    RETURN jsonb_build_object(
-      'expired', true,
-      'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
-      'allAccepted', false,
-      'proposerMemberId', v_trade.proposer_member_id,
-      'recipientMemberId', v_trade.recipient_member_id,
-      'participantMemberIds', (
-        SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
-          FROM trade_participants AS participant
-         WHERE participant.trade_id = p_trade_id
-      )
-    );
-  END IF;
 
   PERFORM 1
     FROM trade_participants
@@ -104,16 +89,45 @@ BEGIN
     );
   END LOOP;
 
+  -- Accepted completion owns its trade row before team locks. A stale pending
+  -- action must not wait on that row while holding its team locks.
   SELECT *
     INTO v_trade
     FROM trades
    WHERE id = p_trade_id
+     AND status = 'pending'::trade_status
    FOR UPDATE;
+
+  IF NOT FOUND THEN
+    SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
+  END IF;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Trade not found' USING ERRCODE = 'P0002';
+  END IF;
 
   IF v_trade.status <> 'pending'::trade_status THEN
     RAISE EXCEPTION 'This trade is no longer pending.'
       USING ERRCODE = 'P0001';
   END IF;
+
+  IF v_trade.expires_at IS NOT NULL AND v_trade.expires_at <= now() THEN
+    UPDATE trades SET status = 'expired'::trade_status
+     WHERE id = p_trade_id AND status = 'pending'::trade_status;
+    RETURN jsonb_build_object(
+      'expired', true,
+      'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
+      'allAccepted', false,
+      'proposerMemberId', v_trade.proposer_member_id,
+      'recipientMemberId', v_trade.recipient_member_id,
+      'participantMemberIds', (
+        SELECT jsonb_agg(participant.member_id ORDER BY participant.sort_order, participant.member_id)
+          FROM trade_participants AS participant
+         WHERE participant.trade_id = p_trade_id
+      )
+    );
+  END IF;
+
 
   SELECT *
     INTO v_league
@@ -218,7 +232,12 @@ BEGIN
 
     IF COALESCE(v_league.trade_veto_mode, 'member_vote') = 'disabled'
        OR v_veto_window_hours = 0 THEN
-      PERFORM public.complete_accepted_trade_atomic(p_trade_id);
+      BEGIN
+        PERFORM public.complete_accepted_trade_atomic(p_trade_id);
+      EXCEPTION WHEN SQLSTATE 'PT002' THEN
+        -- A receiving player's game is in progress: the accepted trade settles on a later queue run.
+        NULL;
+      END;
     END IF;
   END IF;
 

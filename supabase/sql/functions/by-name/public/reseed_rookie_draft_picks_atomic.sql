@@ -18,6 +18,8 @@ DECLARE
   v_order_count int;
   v_pick_count int;
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext(p_draft_id::text), 0);
+
   SELECT *
     INTO v_draft
     FROM drafts

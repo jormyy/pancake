@@ -9,39 +9,70 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_loser_sleeper_id text;
-  v_loser_nba_id text;
+  v_winner players%ROWTYPE;
+  v_loser players%ROWTYPE;
 BEGIN
+  PERFORM pg_advisory_xact_lock(1347174745, 1);
   IF winner_id = loser_id THEN RETURN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM players WHERE id = winner_id) THEN RETURN; END IF;
-  IF NOT EXISTS (SELECT 1 FROM players WHERE id = loser_id)  THEN RETURN; END IF;
+  PERFORM id FROM players WHERE id IN (winner_id, loser_id) ORDER BY id FOR UPDATE;
+  SELECT * INTO v_winner FROM players WHERE id = winner_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  SELECT * INTO v_loser FROM players WHERE id = loser_id;
+  IF NOT FOUND THEN RETURN; END IF;
 
-  SELECT sleeper_id, nba_id
-    INTO v_loser_sleeper_id, v_loser_nba_id
-    FROM players
-   WHERE id = loser_id;
+  IF (v_winner.nba_id IS NOT NULL AND v_loser.nba_id IS NOT NULL AND v_winner.nba_id <> v_loser.nba_id)
+    OR (v_winner.espn_id IS NOT NULL AND v_loser.espn_id IS NOT NULL AND v_winner.espn_id <> v_loser.espn_id)
+    OR (v_winner.sleeper_id IS NOT NULL AND v_loser.sleeper_id IS NOT NULL AND v_winner.sleeper_id <> v_loser.sleeper_id)
+    OR (v_winner.sportsdata_id IS NOT NULL AND v_loser.sportsdata_id IS NOT NULL AND v_winner.sportsdata_id <> v_loser.sportsdata_id) THEN
+    RAISE EXCEPTION 'Cannot merge conflicting provider identities.' USING ERRCODE = '23514';
+  END IF;
 
-  UPDATE players
-    SET sleeper_id = NULL
-    WHERE id = loser_id AND v_loser_sleeper_id IS NOT NULL
-      AND (SELECT sleeper_id FROM players WHERE id = winner_id) IS NULL;
+  -- Release unique provider links before moving them to the surviving identity.
+  UPDATE players SET
+    sleeper_id = CASE WHEN v_winner.sleeper_id IS NULL THEN NULL ELSE sleeper_id END,
+    nba_id = CASE WHEN v_winner.nba_id IS NULL THEN NULL ELSE nba_id END,
+    espn_id = CASE WHEN v_winner.espn_id IS NULL THEN NULL ELSE espn_id END,
+    sportsdata_id = CASE WHEN v_winner.sportsdata_id IS NULL THEN NULL ELSE sportsdata_id END
+  WHERE id = loser_id;
 
-  UPDATE players
-    SET sleeper_id = v_loser_sleeper_id
-    WHERE id = winner_id AND sleeper_id IS NULL
-      AND v_loser_sleeper_id IS NOT NULL;
+  UPDATE players SET
+    sleeper_id = COALESCE(v_winner.sleeper_id, v_loser.sleeper_id),
+    nba_id = COALESCE(v_winner.nba_id, v_loser.nba_id),
+    espn_id = COALESCE(v_winner.espn_id, v_loser.espn_id),
+    sportsdata_id = COALESCE(v_winner.sportsdata_id, v_loser.sportsdata_id),
+    nba_team = COALESCE(v_winner.nba_team, v_loser.nba_team),
+    position = COALESCE(v_winner.position, v_loser.position),
+    eligible_positions = CASE WHEN cardinality(v_winner.eligible_positions) = 0
+      THEN v_loser.eligible_positions ELSE v_winner.eligible_positions END,
+    headshot_url = COALESCE(v_winner.headshot_url, v_loser.headshot_url),
+    jersey_number = COALESCE(v_winner.jersey_number, v_loser.jersey_number),
+    years_exp = COALESCE(v_winner.years_exp, v_loser.years_exp),
+    nba_draft_number = COALESCE(v_winner.nba_draft_number, v_loser.nba_draft_number),
+    -- A backfill stub has no team or position. Its empty injury status is unknown.
+    injury_status = CASE WHEN v_winner.nba_team IS NULL AND v_winner.position IS NULL
+      THEN COALESCE(v_winner.injury_status, v_loser.injury_status) ELSE v_winner.injury_status END,
+    status = CASE WHEN v_winner.nba_team IS NULL AND v_winner.position IS NULL
+      THEN COALESCE(v_loser.status, v_winner.status) ELSE v_winner.status END,
+    dynasty_rank = COALESCE(v_winner.dynasty_rank, v_loser.dynasty_rank),
+    dynasty_rank_source = CASE WHEN v_winner.dynasty_rank IS NULL
+      THEN v_loser.dynasty_rank_source ELSE v_winner.dynasty_rank_source END,
+    dynasty_rank_fetched_at = CASE WHEN v_winner.dynasty_rank IS NULL
+      THEN v_loser.dynasty_rank_fetched_at ELSE v_winner.dynasty_rank_fetched_at END
+  WHERE id = winner_id;
 
-  UPDATE players
-    SET nba_id = NULL
-    WHERE id = loser_id AND v_loser_nba_id IS NOT NULL
-      AND (SELECT nba_id FROM players WHERE id = winner_id) IS NULL;
+  -- The same team's existing taxi acquisition survives a duplicate active/IR
+  -- identity. Normal delete guards and cleanup apply to the redundant row.
+  DELETE FROM roster_players AS canonical
+  USING roster_players AS taxi
+  WHERE canonical.player_id = winner_id
+    AND taxi.player_id = loser_id
+    AND canonical.league_id = taxi.league_id
+    AND canonical.league_season_id = taxi.league_season_id
+    AND canonical.member_id = taxi.member_id
+    AND NOT canonical.is_on_taxi
+    AND taxi.is_on_taxi;
 
-  UPDATE players
-    SET nba_id = v_loser_nba_id
-    WHERE id = winner_id AND nba_id IS NULL
-      AND v_loser_nba_id IS NOT NULL;
-
-  -- A member who already holds the winner on the active roster keeps that row,
+  -- Otherwise, a member who already holds the winner active keeps that row,
   -- so their listings, lineups, pending drops and offers move to the winner
   -- before their loser row goes; the roster lifecycle trigger then finds
   -- nothing of theirs under the old identity. Every other member's state is
@@ -102,6 +133,9 @@ BEGIN
           AND own.is_on_ir = false AND own.is_on_taxi = false
      );
 
+  PERFORM private.authorize_taxi_acquisition(league_id,league_season_id,member_id,winner_id,'merge',loser_id)
+    FROM roster_players WHERE player_id=loser_id AND is_on_taxi;
+
   -- roster_players: drop the loser's rows that already have a winner row in the
   -- same (league, season), then re-point the rest.
   DELETE FROM roster_players
@@ -123,10 +157,13 @@ BEGIN
       );
   UPDATE player_projections SET player_id = winner_id WHERE player_id = loser_id;
 
-  -- nominations: UNIQUE(draft_id, player_id) — drop loser dupes per draft first.
-  DELETE FROM nominations
-    WHERE player_id = loser_id
-      AND draft_id IN (SELECT draft_id FROM nominations WHERE player_id = winner_id);
+  -- Keep both original auctions and their bid/transaction links when identities collide.
+  -- One unmarked nomination per draft/player still guards ordinary entry.
+  UPDATE nominations AS loser
+     SET merged_from_player_id = COALESCE(loser.merged_from_player_id,loser_id)
+   WHERE loser.player_id = loser_id
+     AND EXISTS (SELECT 1 FROM nominations AS winner
+       WHERE winner.draft_id=loser.draft_id AND winner.player_id=winner_id);
   UPDATE nominations SET player_id = winner_id WHERE player_id = loser_id;
 
   UPDATE waiver_claims       SET player_id = winner_id WHERE player_id = loser_id;
@@ -153,6 +190,18 @@ BEGIN
     WHERE player_id = loser_id
       AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = winner_id);
   UPDATE player_game_stats SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- Retain unattributed legacy evidence without using it for eligibility.
+  INSERT INTO league_player_taxi_exits(league_id,player_id,exited_at)
+    SELECT league_id,winner_id,exited_at FROM league_player_taxi_exits WHERE player_id=loser_id
+    ON CONFLICT(league_id,player_id) DO UPDATE SET exited_at=LEAST(league_player_taxi_exits.exited_at,EXCLUDED.exited_at);
+  INSERT INTO league_member_taxi_exits(league_id,member_id,player_id,exited_at)
+    SELECT league_id,member_id,winner_id,exited_at FROM league_member_taxi_exits WHERE player_id=loser_id
+    ON CONFLICT(league_id,member_id,player_id) DO UPDATE SET exited_at=LEAST(league_member_taxi_exits.exited_at,EXCLUDED.exited_at);
+  DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND source='merge' AND related_id=loser_id;
+
+  UPDATE dynasty_news SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE league_activity SET related_player_id = winner_id WHERE related_player_id = loser_id;
 
   DELETE FROM players WHERE id = loser_id;
 END;

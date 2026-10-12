@@ -43,7 +43,6 @@ type CachedPage = {
 const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
 const ROOKIE_SEARCH_MAX_PAGES = 20
 const MAX_MEMORY_PAGES = 12
-const MEMORY_PAGE_STALE_MS = 30_000
 const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
@@ -121,9 +120,19 @@ export function usePlayerSearch(
     ownedMap: Map<string, OwnedEntry>,
     waiverIds: Set<string>,
     currentMemberId?: string,
-    options: { enabled?: boolean } = {},
+    options: { enabled?: boolean; online?: boolean; focused?: boolean; ownerId?: string } = {},
 ) {
     const enabled = options.enabled ?? true
+    const online = options.online ?? true
+    const focused = options.focused ?? true
+    const [visible, setVisible] = useState(true)
+    useEffect(() => {
+        if (typeof document === 'undefined') return
+        const update = () => setVisible(document.visibilityState !== 'hidden')
+        update()
+        document.addEventListener('visibilitychange', update)
+        return () => document.removeEventListener('visibilitychange', update)
+    }, [])
     const [query, setQuery] = useState('')
     const [position, setPosition] = useState('ALL')
     const [selectedTeams, setSelectedTeams] = useState<string[]>([])
@@ -134,6 +143,8 @@ export function usePlayerSearch(
     const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('free_agents')
     const [rookiesOnly, setRookiesOnly] = useState(false)
     const [players, setPlayers] = useState<PlayerRow[]>([])
+    const [dataKey, setDataKey] = useState<string | null>(null)
+    const [validatedKey, setValidatedKey] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
@@ -144,7 +155,6 @@ export function usePlayerSearch(
     const offsetRef = useRef(0)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
     const pendingScrollTopRef = useRef(false)
-    const lastLeagueIdRef = useRef(leagueId)
     const currentKeyRef = useRef(playerSearchParamsKey(DEFAULT_PLAYER_SEARCH_PARAMS))
     const requestSeqRef = useRef(0)
     const loadMoreSeqRef = useRef(0)
@@ -182,7 +192,7 @@ export function usePlayerSearch(
         [availabilityFilter, ownedMap, waiverIds, currentMemberId],
     )
 
-    const searchParams = useMemo<PlayerSearchParams>(() => ({
+    const paramsCandidate = useMemo<PlayerSearchParams>(() => ({
         query: debouncedQuery,
         position,
         selectedTeams,
@@ -208,7 +218,18 @@ export function usePlayerSearch(
         sortMode,
         sortDir,
     ])
-    const searchParamsKey = useMemo(() => playerSearchParamsKey(searchParams), [searchParams])
+    const searchParamsKey = JSON.stringify([options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate)])
+    // Support refreshes can replace Maps without changing the actual search.
+    // Only semantic query or identity changes start a different request.
+    const stableParamsRef = useRef({ key: searchParamsKey, params: paramsCandidate })
+    if (stableParamsRef.current.key !== searchParamsKey) {
+        stableParamsRef.current = { key: searchParamsKey, params: paramsCandidate }
+    }
+    const searchParams = stableParamsRef.current.params
+    const renderedKeyRef = useRef(searchParamsKey)
+    renderedKeyRef.current = searchParamsKey
+    const activeRef = useRef(false)
+    activeRef.current = enabled && online && focused && visible
 
     const fetchPage = useCallback((params: PlayerSearchParams, offset: number) =>
         searchPlayers(
@@ -273,97 +294,83 @@ export function usePlayerSearch(
     }, [players])
 
     useEffect(() => {
-        if (!enabled) {
+        const requestId = ++requestSeqRef.current
+        loadMoreSeqRef.current += 1
+        const changedQuery = currentKeyRef.current !== searchParamsKey
+        currentKeyRef.current = searchParamsKey
+        searchParamsRef.current = searchParams
+        setLoadingMore(false)
+        setValidatedKey(null)
+        const cancel = () => {
             requestSeqRef.current += 1
             loadMoreSeqRef.current += 1
-            lastLeagueIdRef.current = leagueId
-            searchParamsRef.current = searchParams
-            currentKeyRef.current = searchParamsKey
-            offsetRef.current = 0
-            pendingScrollTopRef.current = false
+        }
+        if (!enabled) {
+            pageCacheRef.current.clear()
             playersRef.current = []
             setPlayers([])
+            setDataKey(null)
             setHasMore(false)
             setLoading(false)
             setRefreshing(false)
-            setLoadingMore(false)
             setError(null)
-            return
+            return cancel
         }
-
-        searchParamsRef.current = searchParams
-        currentKeyRef.current = searchParamsKey
-        offsetRef.current = 0
-        setLoadingMore(false)
-        setHasMore(false)
-        setError(null)
-        pendingScrollTopRef.current = true
-        listRef.current?.scrollToOffset({ offset: 0, animated: false })
-
-        const cached = pageCacheRef.current.get(searchParamsKey)
-        const leagueChanged = lastLeagueIdRef.current !== leagueId
-        lastLeagueIdRef.current = leagueId
-        if (cached) {
-            // Re-selecting the params already on screen yields a reference-equal
-            // array, so the [players] effect won't re-run to consume the flag.
-            // The immediate scroll above already reset it and no re-anchor is
-            // coming (data unchanged), so retire the flag here instead of letting
-            // it leak onto the next loadMore.
-            if (playersRef.current === cached.players) pendingScrollTopRef.current = false
-            setPlayers(cached.players)
-            playersRef.current = cached.players
-            setHasMore(cached.hasMore)
-            offsetRef.current = cached.offset
+        if (changedQuery) {
+            setError(null)
+            pendingScrollTopRef.current = true
+            listRef.current?.scrollToOffset({ offset: 0, animated: false })
+            const cached = pageCacheRef.current.get(searchParamsKey)
+                ?? readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
+            const rows = cached?.players ?? []
+            playersRef.current = rows
+            setPlayers(rows)
+            setDataKey(searchParamsKey)
+            setHasMore(cached?.hasMore ?? false)
+            offsetRef.current = cached?.offset ?? 0
+        }
+        if (!online || !focused || !visible) {
             setLoading(false)
             setRefreshing(false)
-            if (cached.savedAt != null && Date.now() - cached.savedAt < MEMORY_PAGE_STALE_MS) return
+            return cancel
         }
-
-        const persisted = cached ? null : readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
-        if (persisted) {
-            cachePage(searchParamsKey, persisted)
-            setPlayers(persisted.players)
-            playersRef.current = persisted.players
-            setHasMore(persisted.hasMore)
-            offsetRef.current = persisted.offset
-            setLoading(false)
-        } else if (leagueChanged) {
-            setPlayers([])
-            playersRef.current = []
-            setHasMore(false)
-            offsetRef.current = 0
-        }
-
-        const requestId = ++requestSeqRef.current
         setRefreshing(true)
-        setLoading(!cached && !persisted && playersRef.current.length === 0)
-
+        setLoading(playersRef.current.length === 0)
+        // Cache replay is useful content, never a successful revalidation.
+        // A same-query failure stays visible through retries and support reads.
+        const ownsRequest = () => requestSeqRef.current === requestId
+            && renderedKeyRef.current === searchParamsKey && activeRef.current
         fetchCompleteResults(searchParams)
             .then((results) => {
-                if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
+                if (!ownsRequest()) return
                 const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE
                 const page = { players: results, hasMore: hasNext, offset: 0, savedAt: Date.now() }
                 cachePage(searchParamsKey, page)
                 writePersistentCache(playerSearchCacheKey(searchParamsKey), page)
                 playersRef.current = results
+                offsetRef.current = 0
+                setDataKey(searchParamsKey)
                 setPlayers(results)
                 setHasMore(hasNext)
+                setError(null)
+                setValidatedKey(searchParamsKey)
             })
             .catch((cause) => {
-                if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
+                if (!ownsRequest()) return
                 const nextError = cause instanceof Error ? cause : new Error(String(cause))
                 setError(nextError)
                 console.error(nextError)
             })
             .finally(() => {
-                if (requestSeqRef.current !== requestId || currentKeyRef.current !== searchParamsKey) return
+                if (!ownsRequest()) return
                 setLoading(false)
                 setRefreshing(false)
             })
-    }, [cachePage, enabled, leagueId, retryToken, searchParams, searchParamsKey, fetchCompleteResults])
+        return cancel
+    }, [cachePage, enabled, online, focused, visible, retryToken, searchParams, searchParamsKey, fetchCompleteResults])
 
     const loadMore = useCallback(async () => {
-        if (!enabled || loadingMore || !hasMore) return
+        if (!enabled || !online || !focused || !visible || refreshing || loadingMore || !hasMore) return
         const params = searchParamsRef.current
         const paramsKey = currentKeyRef.current
         const nextOffset = offsetRef.current + PLAYER_SEARCH_PAGE_SIZE
@@ -371,22 +378,20 @@ export function usePlayerSearch(
         setLoadingMore(true)
         try {
             const results = await fetchPage(params, nextOffset)
-            if (loadMoreSeqRef.current !== requestId || currentKeyRef.current !== paramsKey) return
+            if (loadMoreSeqRef.current !== requestId || renderedKeyRef.current !== paramsKey || !activeRef.current) return
             if (results.length > 0) {
                 offsetRef.current = nextOffset
-                setPlayers((prev) => {
-                    const merged = [...prev, ...results]
-                    playersRef.current = merged
-                    const page = {
-                        players: merged,
-                        hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE,
-                        offset: nextOffset,
-                        savedAt: Date.now(),
-                    }
-                    cachePage(paramsKey, page)
-                    writePersistentCache(playerSearchCacheKey(paramsKey), page)
-                    return merged
-                })
+                const merged = [...playersRef.current, ...results]
+                playersRef.current = merged
+                const page = {
+                    players: merged,
+                    hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE,
+                    offset: nextOffset,
+                    savedAt: Date.now(),
+                }
+                cachePage(paramsKey, page)
+                writePersistentCache(playerSearchCacheKey(paramsKey), page)
+                setPlayers(merged)
             }
             setHasMore(results.length === PLAYER_SEARCH_PAGE_SIZE)
         } catch (e) {
@@ -396,7 +401,7 @@ export function usePlayerSearch(
                 setLoadingMore(false)
             }
         }
-    }, [cachePage, enabled, loadingMore, hasMore, fetchPage])
+    }, [cachePage, enabled, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
 
     const retry = useCallback(() => setRetryToken((token) => token + 1), [])
 
@@ -439,7 +444,7 @@ export function usePlayerSearch(
         health: { value: health, setValue: setHealth },
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
-        results: { players, loading, refreshing, loadingMore, error, listRef, loadMore, retry },
+        results: { players: enabled && dataKey === searchParamsKey ? players : [], loading, refreshing, loadingMore, error, listRef, loadMore, retry, isSnapshot: !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
         activeFilterCount,
         clearAllFilters,
     }

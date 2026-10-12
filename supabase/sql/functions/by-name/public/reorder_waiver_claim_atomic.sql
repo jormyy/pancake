@@ -16,6 +16,7 @@ AS $$
 DECLARE
   v_claim waiver_claims%ROWTYPE;
   v_other waiver_claims%ROWTYPE;
+  v_waiver_mode text;
 BEGIN
   IF p_direction NOT IN ('up', 'down') THEN
     RAISE EXCEPTION 'Direction must be up or down.'
@@ -27,8 +28,7 @@ BEGIN
     FROM waiver_claims
    WHERE id = p_claim_id
      AND member_id = p_member_id
-     AND status = 'pending'
-   FOR UPDATE;
+     AND status = 'pending';
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Pending waiver claim not found.'
@@ -46,6 +46,39 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
+
+  SELECT *
+    INTO v_claim
+    FROM waiver_claims
+   WHERE id = p_claim_id
+     AND member_id = p_member_id
+     AND status = 'pending'
+   FOR UPDATE;
+
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pending waiver claim not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT waiver_mode INTO v_waiver_mode FROM leagues WHERE id = v_claim.league_id;
+
+  -- Older submissions can share an order. Preserve the processor's tie order,
+  -- then assign distinct positions so a requested swap always moves one claim.
+  WITH ordered AS (
+    SELECT id, row_number() OVER (ORDER BY claim_order, submitted_at, id)::int AS position
+      FROM waiver_claims
+     WHERE member_id = p_member_id
+       AND league_season_id = v_claim.league_season_id
+       AND status = 'pending'
+       AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
+  )
+  UPDATE waiver_claims AS claim SET claim_order = ordered.position
+    FROM ordered WHERE claim.id = ordered.id AND claim.claim_order <> ordered.position;
+
+  SELECT * INTO v_claim FROM waiver_claims WHERE id = p_claim_id;
+
   IF p_direction = 'up' THEN
     SELECT *
       INTO v_other
@@ -53,7 +86,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
-       AND bid_amount = v_claim.bid_amount
+       AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
        AND claim_order < v_claim.claim_order
      ORDER BY claim_order DESC, submitted_at DESC
      LIMIT 1
@@ -65,7 +98,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
-       AND bid_amount = v_claim.bid_amount
+       AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
        AND claim_order > v_claim.claim_order
      ORDER BY claim_order ASC, submitted_at ASC
      LIMIT 1

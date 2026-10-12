@@ -363,7 +363,8 @@ export const runWorkerUpdateProof = async ({
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const refForAccessibleNode = (snapshot, role, name) => {
-  const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[ref=([^\\]]+)\\]`)
+  // State such as [expanded=false, ref=e5] precedes the ref.
+  const pattern = new RegExp(`${escapeRegExp(role)} "${escapeRegExp(name)}" \\[(?:[^\\]]*, )?ref=([^\\],]+)\\]`)
   const match = snapshot.match(pattern)
   if (!match) throw new Error(`Could not find ${role} "${name}" in browser snapshot.`)
   return match[1]

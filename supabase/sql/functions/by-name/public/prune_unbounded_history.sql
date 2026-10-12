@@ -31,7 +31,20 @@ BEGIN
     row_number() OVER (PARTITION BY league_id ORDER BY season_year DESC) AS rn
   FROM public.league_seasons;
 
-  -- Lineups are only read for the current matchup views; keep two seasons.
+  -- Serialize retirement with scoring before any replay inputs disappear.
+  PERFORM 1 FROM public.leagues league
+    WHERE EXISTS (SELECT 1 FROM public.league_seasons season
+      JOIN pruning_season_ranks ranked ON ranked.id = season.id
+      WHERE season.league_id = league.id AND ranked.rn > 2)
+    ORDER BY league.id FOR UPDATE;
+  PERFORM 1 FROM public.league_seasons season
+    JOIN pruning_season_ranks ranked ON ranked.id = season.id
+    WHERE ranked.rn > 2 ORDER BY season.id FOR UPDATE OF season;
+  INSERT INTO private.retired_score_inputs(league_season_id)
+    SELECT id FROM pruning_season_ranks WHERE rn > 2
+    ON CONFLICT(league_season_id) DO NOTHING;
+
+  -- Keep two seasons of replay inputs. Older results remain authoritative.
   DELETE FROM public.weekly_lineups AS wl
    USING pruning_season_ranks AS ranked
    WHERE wl.league_season_id = ranked.id

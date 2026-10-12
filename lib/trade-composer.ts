@@ -59,6 +59,7 @@ type ComposerPayloadDraft = {
 }
 
 type SubmitComposerInput = {
+    requestId?: string
     mode: TradeComposerMode
     editTradeId: string | null
     counterTradeId: string | null
@@ -81,6 +82,7 @@ type SubmitComposerDeps = {
         requestPickIds: string[],
         notes?: string,
         options?: {
+            requestId?: string
             expiresAt?: string | null
             offerFaabAmount?: number
             requestFaabAmount?: number
@@ -91,6 +93,8 @@ type SubmitComposerDeps = {
 }
 
 type SubmitMultiTeamComposerInput = {
+    requestId?: string
+    nowMs?: number
     mode: TradeComposerMode
     editTradeId: string | null
     counterTradeId: string | null
@@ -291,12 +295,12 @@ export async function submitTradeComposer(
     if (notesError) throw new Error(notesError)
 
     if (input.mode === 'counter' && input.counterTradeId) {
-        await deps.counterTrade(input.counterTradeId, input.myMemberId, input.payload)
+        await deps.counterTrade(input.counterTradeId, input.myMemberId, { ...input.payload, requestId: input.requestId })
         return
     }
 
     if (input.mode === 'edit' && input.editTradeId) {
-        await deps.editTrade(input.editTradeId, input.myMemberId, input.payload)
+        await deps.editTrade(input.editTradeId, input.myMemberId, { ...input.payload, requestId: input.requestId })
         return
     }
 
@@ -314,6 +318,7 @@ export async function submitTradeComposer(
         input.payload.requestPickIds,
         input.payload.notes ?? undefined,
         {
+            requestId: input.requestId,
             expiresAt: input.payload.expiresAt,
             offerFaabAmount: input.payload.offerFaabAmount,
             requestFaabAmount: input.payload.requestFaabAmount,
@@ -339,11 +344,12 @@ export async function submitMultiTeamTradeComposer(
         expirationDaysInput: input.expirationDays,
         leagueStatus: input.leagueStatus,
         tradeDeadline: input.tradeDeadline,
-    })
+    }, input.nowMs)
     if (draft.notesError) throw new Error(draft.notesError)
     if (draft.expirationError) throw new Error(draft.expirationError)
 
     const payload = {
+        requestId: input.requestId,
         participantMemberIds: input.participantMemberIds,
         items: input.items,
         notes: draft.payload.notes,

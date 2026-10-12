@@ -37,7 +37,8 @@ export type DynastyAnalyzerCacheIdentity = Pick<
 
 const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-forecast-snapshot:v1:'
 const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-forecast-latest:v1:'
-const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v4:'
+// Older snapshots can omit unavailable routes or contain another selection’s values.
+const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v6:'
 const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v3:'
 const DYNASTY_ANALYZER_SCOPE_PREFIX = 'pancake:dynasty-analyzer-scope:v1:'
 

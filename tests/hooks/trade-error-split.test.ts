@@ -26,6 +26,22 @@ vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writ
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve() }) }
 
 describe('useTradeBlock action errors', () => {
+    it('does not queue offline listing mutations for a later reconnect', async () => {
+        const { useTradeBlock } = await import('@/hooks/use-trade-block')
+        const before = mocks.addTradeBlockItem.mock.calls.length
+        let latest!: ReturnType<typeof useTradeBlock>
+        const Probe = ({ online }: { online: boolean }) => {
+            latest = useTradeBlock('member-offline', 'league-offline', online)
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { online: false })) })
+        await act(async () => { await latest.addPick({ kind: 'pick', pickId: 'pick', seasonYear: 2027, round: 1, originalTeamName: 'Own' }) })
+        await act(async () => { renderer.update(React.createElement(Probe, { online: true })) })
+        expect(mocks.addTradeBlockItem.mock.calls.length).toBe(before)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('reports a failed add as actionError, keeps error null, and clears it on refresh', async () => {
         const { useTradeBlock } = await import('@/hooks/use-trade-block')
         let latest!: ReturnType<typeof useTradeBlock>

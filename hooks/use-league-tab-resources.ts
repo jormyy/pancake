@@ -7,6 +7,7 @@ import { getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
+import { useOnlineStatus } from '@/hooks/use-online-status'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const ACTIVITY_LIMIT = 50
@@ -37,6 +38,9 @@ export function useLeagueTabResources(
     memberId: string | undefined,
     activeTab: LeagueTab,
 ) {
+    const isOnline = useOnlineStatus()
+    const wasOnline = useRef(isOnline)
+    const focused = useRef(false)
     const leagueKey = leagueId ?? null
     const memberKey = leagueId && memberId ? `${leagueId}:${memberId}` : null
     const standings = useKeyedResource(
@@ -119,6 +123,22 @@ export function useLeagueTabResources(
     }, [resetActivityPagination])
 
     useFocusEffect(useCallback(() => {
+        focused.current = true
+        return () => { focused.current = false }
+    }, []))
+
+    useEffect(() => {
+        const reconnected = !wasOnline.current && isOnline
+        wasOnline.current = isOnline
+        if (!reconnected) return
+        resetActivityPagination()
+        for (const tab of PREFETCH_TABS) {
+            if (tab === 'auctions') continue
+            resourcesRef.current[tab].invalidate(focused.current && activeTabRef.current === tab)
+        }
+    }, [isOnline, resetActivityPagination])
+
+    useFocusEffect(useCallback(() => {
         if (activeResourceKey) ensureTab(activeTab)
         // Prefetch the other tabs so switching to one shows content
         // immediately instead of a blank panel while its first load runs.
@@ -165,6 +185,8 @@ export function useLeagueTabResources(
         // keep existing content on screen instead of flashing loading UI.
         isTabLoading: activeResource ? activeResource.loading && !activeResource.loaded : false,
         isTabLoaded: activeResource ? activeResource.loaded : true,
+        isTabRefreshing: activeResource ? activeResource.loading && activeResource.loaded : false,
+        isOnline,
         loadMoreActivity,
         mockRooms: mockRooms.data,
         refreshTab,

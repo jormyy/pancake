@@ -7,16 +7,14 @@
  */
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames, fetchBoxScore, fetchSeasonSchedule } from '../_shared/nba.ts'
-import { currentSeasonYear } from '../_shared/season.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { errorMessage } from '../_shared/responses.ts'
+import { parseSeasonYear, SEASON_YEAR_ERROR, validateDatabase } from './database.ts'
 
 serveInternal('verify', async (req) => {
   const url = new URL(req.url)
   const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
   const action = url.searchParams.get('action') ?? body.action
-  const seasonYearParam = url.searchParams.get('seasonYear') ?? body.seasonYear
-  const seasonYear = seasonYearParam ? parseInt(seasonYearParam) : currentSeasonYear()
 
   if (action === '__edge_auth_probe__') {
     return Response.json({ ok: true, action })
@@ -27,13 +25,16 @@ serveInternal('verify', async (req) => {
     return Response.json({ ok: true, results })
   }
 
-  if (action === 'season-totals') {
-    const rows = await verifySeasonTotals(seasonYear)
-    return Response.json({ ok: true, seasonYear, rows })
-  }
+  if (action === 'season-totals' || action === 'validate-db') {
+    const seasonYear = parseSeasonYear(url.searchParams.get('seasonYear') ?? body.seasonYear)
+    if (seasonYear == null) return Response.json({ ok: false, error: SEASON_YEAR_ERROR }, { status: 400 })
 
-  if (action === 'validate-db') {
-    const report = await validateDatabase(seasonYear)
+    if (action === 'season-totals') {
+      const rows = await verifySeasonTotals(seasonYear)
+      return Response.json({ ok: true, seasonYear, rows })
+    }
+
+    const report = await validateDatabase(supabase, seasonYear)
     return Response.json({ ok: true, ...report })
   }
 
@@ -117,42 +118,4 @@ async function verifySeasonTotals(seasonYear: number) {
     .map(([id, t]) => ({ player: nameMap.get(id) ?? id, gp: t.gp, pts: t.pts, reb: t.reb, ast: t.ast, stl: t.stl, blk: t.blk, tpm: t.tpm }))
     .sort((a, b) => b.pts - a.pts)
     .slice(0, 20)
-}
-
-async function validateDatabase(seasonYear: number) {
-  const { count: totalGames } = await supabase
-    .from('nba_games')
-    .select('id', { count: 'exact', head: true })
-    .eq('season_year', seasonYear)
-
-  const { count: finalGames } = await supabase
-    .from('nba_games')
-    .select('id', { count: 'exact', head: true })
-    .eq('season_year', seasonYear)
-    .eq('status', 'Final')
-
-  // Use a raw SQL count to avoid PostgREST's 1000-row default limit
-  const { data: missingStatsRow } = await supabase
-    .rpc('count_final_games_missing_stats', { season_year_param: seasonYear })
-  const gamesWithStats = missingStatsRow ?? 0
-
-  const { count: missingNbaGameId } = await supabase
-    .from('nba_games')
-    .select('id', { count: 'exact', head: true })
-    .eq('season_year', seasonYear)
-    .is('nba_game_id', null)
-
-  const { count: playersWithoutNbaId } = await supabase
-    .from('players')
-    .select('id', { count: 'exact', head: true })
-    .is('nba_id', null)
-
-  return {
-    seasonYear,
-    totalGames,
-    finalGames,
-    finalGamesWithoutStats: Number(gamesWithStats),
-    gamesMissingNbaGameId: missingNbaGameId,
-    playersWithoutNbaId,
-  }
 }

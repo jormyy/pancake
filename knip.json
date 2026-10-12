@@ -12,7 +12,31 @@
     "hooks/use-color-scheme.web.ts",
     "public/sw.js",
     "supabase/functions/**/index.ts",
-    "supabase/functions/**/*.test.ts"
+    "supabase/functions/**/*.test.ts",
+    "supabase/tests/db/scoring-corrections.ts",
+    "supabase/tests/db/playoff-spans.ts",
+    "supabase/tests/db/playoff-consumption.ts",
+    "supabase/tests/db/playoff-boundary-races.ts",
+    "supabase/tests/db/playoff-missing-stats.ts",
+    "supabase/tests/db/season-boundary-pagination.ts",
+    "supabase/tests/db/stats-provider-status.ts",
+    "supabase/tests/db/playoff-pending-corrections.ts",
+    "supabase/tests/db/rollover-standings.ts",
+    "supabase/tests/db/player-score-revisions.ts",
+    "supabase/tests/db/bbref-completion.ts",
+    "supabase/tests/db/cdn-completion.ts",
+    "supabase/tests/db/retention-scoring.ts",
+    "supabase/tests/db/game-stats-concurrency.ts",
+    "supabase/tests/db/cdn-calendar-completeness.ts",
+    "supabase/tests/db/bbref-player-completeness.ts",
+    "supabase/tests/db/bbref-schedule-completeness.ts",
+    "supabase/tests/db/player-name-parity.ts",
+    "supabase/tests/db/cdn-continuation.ts",
+    "supabase/tests/db/taxi-acquisition-scoring.ts",
+    "supabase/tests/db/cdn-http-retry.ts",
+    "supabase/tests/db/optimizer-settings-pagination.ts",
+    "supabase/tests/db/scoring-partial-failure.ts",
+    "tests/e2e/draft-reset-activation-db.mjs"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"
@@ -37,7 +61,6 @@
   "ignoreDependencies": [
     "agent-browser",
     "cheerio",
-    "expo-symbols",
     "expo-updates",
     "npm",
     "prettier"

@@ -12,6 +12,10 @@ SET search_path = public
 AS $$
 DECLARE
   v_season_id uuid;
+  v_season_year int;
+  v_rounds int[];
+  v_next_start int;
+  v_next_end int;
   v_quarterfinal_count int;
   v_quarterfinal_week int;
   v_quarterfinal_winners uuid[];
@@ -23,15 +27,9 @@ DECLARE
   v_seed_ids uuid[];
   v_inserted_count int := 0;
 BEGIN
-  SELECT season.id
-    INTO v_season_id
-    FROM public.league_seasons AS season
-    JOIN public.leagues AS league
-      ON league.id = season.league_id
-   WHERE season.league_id = p_league_id
-     AND season.is_current = true
-   FOR UPDATE OF season, league;
-
+  PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
+  SELECT id, season_year, playoff_round_weeks, playoff_seed_member_ids INTO v_season_id, v_season_year, v_rounds, v_seed_ids
+    FROM public.league_seasons WHERE league_id = p_league_id AND is_current FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Current league season not found for playoff advancement.';
   END IF;
@@ -78,22 +76,36 @@ BEGIN
        AND matchup.is_finalized = true
      FOR UPDATE;
 
-    SELECT array_agg(seed.member_id ORDER BY seed.seed_rank)
-      INTO v_seed_ids
-      FROM private.playoff_seed_rankings(p_league_id, v_season_id, v_quarterfinal_week) AS seed;
+    IF v_seed_ids IS NULL THEN
+      RAISE EXCEPTION 'Original playoff seed order is missing. Semifinals cannot be generated until verified original seeds are restored. Existing results are unchanged.';
+    END IF;
+
+    -- Generated quarterfinals have seed 3 and seed 4 at home. Preserve
+    -- those bracket branches regardless of row IDs or which team wins.
+    SELECT array_agg(matchup.winner_member_id ORDER BY array_position(v_seed_ids, matchup.home_member_id))
+      INTO v_quarterfinal_winners
+      FROM public.matchups AS matchup
+     WHERE matchup.league_season_id = v_season_id
+       AND matchup.matchup_type = 'playoff_quarterfinal'::public.matchup_type;
+
+    SELECT max(COALESCE(end_week_number, week_number)) + 1 INTO v_next_start
+      FROM public.matchups WHERE league_season_id = v_season_id AND matchup_type = 'playoff_quarterfinal';
+    v_next_end := v_next_start + COALESCE(v_rounds[2], 1) - 1;
+    PERFORM private.assert_playoff_window(v_season_year, v_next_start, ARRAY[COALESCE(v_rounds[2], 1), COALESCE(v_rounds[3], 1)]);
 
     WITH inserted AS (
       INSERT INTO public.matchups (
         league_id,
         league_season_id,
         week_number,
+        end_week_number,
         matchup_type,
         home_member_id,
         away_member_id
       )
       VALUES
-        (p_league_id, v_season_id, v_quarterfinal_week + 1, 'playoff_semifinal'::public.matchup_type, v_seed_ids[1], v_quarterfinal_winners[2]),
-        (p_league_id, v_season_id, v_quarterfinal_week + 1, 'playoff_semifinal'::public.matchup_type, v_seed_ids[2], v_quarterfinal_winners[1])
+        (p_league_id, v_season_id, v_next_start, v_next_end, 'playoff_semifinal'::public.matchup_type, v_seed_ids[1], v_quarterfinal_winners[2]),
+        (p_league_id, v_season_id, v_next_start, v_next_end, 'playoff_semifinal'::public.matchup_type, v_seed_ids[2], v_quarterfinal_winners[1])
       ON CONFLICT (league_id, league_season_id, week_number, home_member_id, away_member_id)
       DO NOTHING
       RETURNING 1
@@ -122,11 +134,17 @@ BEGIN
     RAISE EXCEPTION 'Semifinals are not yet finalized.';
   END IF;
 
+  SELECT max(COALESCE(end_week_number, week_number)) + 1 INTO v_next_start
+    FROM public.matchups WHERE league_season_id = v_season_id AND matchup_type = 'playoff_semifinal';
+  v_next_end := v_next_start + COALESCE(v_rounds[cardinality(v_rounds)], 1) - 1;
+  PERFORM private.assert_playoff_window(v_season_year, v_next_start, ARRAY[COALESCE(v_rounds[cardinality(v_rounds)], 1)]);
+
   WITH inserted AS (
     INSERT INTO public.matchups (
       league_id,
       league_season_id,
       week_number,
+      end_week_number,
       matchup_type,
       home_member_id,
       away_member_id
@@ -134,7 +152,8 @@ BEGIN
     VALUES (
       p_league_id,
       v_season_id,
-      v_semifinal_week + 1,
+      v_next_start,
+      v_next_end,
       'playoff_final'::public.matchup_type,
       v_semifinal_winners[1],
       v_semifinal_winners[2]

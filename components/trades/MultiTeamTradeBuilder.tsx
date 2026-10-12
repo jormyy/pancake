@@ -21,10 +21,12 @@ type MultiTeamTradeBuilderProps = {
     rosterLoading: boolean
     avgMap: Map<string, number>
     avgStatsMap: Map<string, { avg_minutes_played: number | null }>
+    assetLabels?: ReadonlyMap<string, string>
     participantName: (memberId: string) => string
     onRetry: () => void
     onTogglePlayer: (memberId: string, playerId: string) => void
     onTogglePick: (memberId: string, pickId: string) => void
+    onRemoveAsset: (memberId: string, asset: 'player' | 'pick', assetId: string) => void
     onDestinationChange: (memberId: string, toMemberId: string) => void
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
@@ -50,10 +52,12 @@ export function MultiTeamTradeBuilder({
     rosterLoading,
     avgMap,
     avgStatsMap,
+    assetLabels,
     participantName,
     onRetry,
     onTogglePlayer,
     onTogglePick,
+    onRemoveAsset,
     onDestinationChange,
     onPlayerDestinationChange,
     onPickDestinationChange,
@@ -81,24 +85,39 @@ export function MultiTeamTradeBuilder({
     }, [activeParticipantId, participants, setActiveParticipantId])
 
     const overviewItems = useMemo<TradeFlowItem[]>(() => items.map((item) => {
-        const participant = participants.find((entry) => entry.memberId === item.fromMemberId)
         const player = item.kind === 'player'
-            ? participant?.roster.find((entry) => entry.players.id === item.playerId)
+            ? participants.flatMap((entry) => entry.roster).find((entry) => entry.players.id === item.playerId)
             : null
         const pick = item.kind === 'pick'
-            ? participant?.picks.find((entry) => entry.pickId === item.pickId)
+            ? participants.flatMap((entry) => entry.picks).find((entry) => entry.pickId === item.pickId)
             : null
-        const label = player?.players.display_name ??
-            (pick ? `${pick.seasonYear} Round ${pick.round}` : `$${item.kind === 'faab' ? item.faabAmount : 0} FAAB`)
         const assetKey = item.kind === 'player' ? `player:${item.playerId}`
             : item.kind === 'pick' ? `pick:${item.pickId}` : 'faab'
+        const label = item.kind === 'player'
+            ? player?.players.display_name ?? assetLabels?.get(assetKey) ?? 'Player'
+            : item.kind === 'pick'
+                ? pick ? `${pick.seasonYear} Round ${pick.round}` : assetLabels?.get(assetKey) ?? 'Draft pick'
+                : `$${item.faabAmount} FAAB`
+        const sender = participants.find((participant) => participant.memberId === item.fromMemberId)
+        const available = item.kind === 'player'
+            ? sender?.roster.some((entry) => entry.players.id === item.playerId)
+            : item.kind === 'pick' ? sender?.picks.some((entry) => entry.pickId === item.pickId) : true
         return {
             key: `${assetKey}:${item.fromMemberId}:${item.toMemberId}`,
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label,
+            detail: available ? null : 'Unavailable from this team',
         }
-    }), [items, participants])
+    }), [assetLabels, items, participants])
+
+    const removeItem = (key: string) => {
+        const item = items[overviewItems.findIndex((entry) => entry.key === key)]
+        if (!item) return
+        if (item.kind === 'player') onRemoveAsset(item.fromMemberId, 'player', item.playerId)
+        else if (item.kind === 'pick') onRemoveAsset(item.fromMemberId, 'pick', item.pickId)
+        else onFaabChange(item.fromMemberId, item.toMemberId, '')
+    }
 
     if (rosterError) {
         return (
@@ -131,6 +150,10 @@ export function MultiTeamTradeBuilder({
             participantName={participantName}
             onTogglePlayer={onTogglePlayer}
             onTogglePick={onTogglePick}
+            blockedPlayerIds={new Set(participants.filter((entry) => entry.memberId !== participant.memberId)
+                .flatMap((entry) => [...entry.selectedPlayerIds]))}
+            blockedPickIds={new Set(participants.filter((entry) => entry.memberId !== participant.memberId)
+                .flatMap((entry) => [...entry.selectedPickIds]))}
             onDestinationChange={onDestinationChange}
             onPlayerDestinationChange={onPlayerDestinationChange}
             onPickDestinationChange={onPickDestinationChange}
@@ -178,7 +201,7 @@ export function MultiTeamTradeBuilder({
             onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
         >
             {useColumns ? (
-                <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} columns />
+                <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
             ) : (
                 <>
                     <Pressable
@@ -203,10 +226,15 @@ export function MultiTeamTradeBuilder({
                         />
                     </Pressable>
                     {overviewExpanded ? (
-                        <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} compact />
+                        <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} />
                     ) : null}
                 </>
             )}
+            {overviewItems.some((item) => item.detail) ? (
+                <Text style={styles.routeWarning} accessibilityRole="alert">
+                    Remove unavailable routes from the deal summary before making an offer.
+                </Text>
+            ) : null}
             <Text style={styles.sectionLabel}>EDIT ASSETS SENT BY</Text>
             {!useColumns ? (
                 <View
@@ -326,6 +354,7 @@ export function MultiTeamTradeBuilder({
 }
 
 const styles = StyleSheet.create({
+    routeWarning: { marginHorizontal: spacing.xl, marginTop: spacing.md, color: colors.warningDark, fontSize: fontSize.sm },
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
     reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing['4xl'] },
     reviewHeading: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },

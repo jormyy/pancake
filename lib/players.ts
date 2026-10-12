@@ -319,12 +319,16 @@ export async function searchPlayers(
 
 
 export async function getPlayer(id: string): Promise<PlayerDetailRow> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        throw new Error('Player not found.')
+    }
     const { data, error } = await supabase
         .from('players')
         .select(PLAYER_DETAIL_SELECT)
         .eq('id', id)
-        .single()
+        .maybeSingle()
     if (error) throw error
+    if (!data) throw new Error('Player not found.')
     return mapPlayerDetail(data)
 }
 

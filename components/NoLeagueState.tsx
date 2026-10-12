@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router'
 import { colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
+import { useLeagueContext } from '@/contexts/league-context'
 
 const FEATURES: { icon: 'sports-basketball' | 'groups' | 'swap-horiz'; text: string }[] = [
     { icon: 'sports-basketball', text: 'Live weekly matchups & auto-set lineups' },
@@ -13,6 +14,19 @@ const FEATURES: { icon: 'sports-basketball' | 'groups' | 'swap-horiz'; text: str
 
 export function NoLeagueState() {
     const { push } = useRouter()
+    const { membershipStatus, online, loading, refresh } = useLeagueContext()
+    if (membershipStatus === 'signed-out') return null
+    if (membershipStatus !== 'empty') {
+        return (
+            <PromptFrame cardMaxWidth={520}>
+                <Text style={styles.noticeTitle} accessibilityLiveRegion="polite">League access is unavailable</Text>
+                <Text style={styles.sub}>
+                    {online ? "We couldn't check your leagues. Try again." : "You're offline. Reconnect to check your leagues."}
+                </Text>
+                <Button title="Retry league access" variant="outline" disabled={!online || loading} onPress={() => { void refresh() }} />
+            </PromptFrame>
+        )
+    }
     return (
         <PromptFrame
             cardMaxWidth={520}
@@ -45,6 +59,7 @@ export function NoLeagueState() {
 }
 
 const styles = StyleSheet.create({
+    noticeTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.textPrimary, textAlign: 'center' },
     containerWeb: {
         backgroundImage: webBackgrounds.noLeague,
     } as WebOnlyViewStyle,

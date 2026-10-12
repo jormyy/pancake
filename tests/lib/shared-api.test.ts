@@ -85,3 +85,23 @@ describe('apiPost timeout lifecycle', () => {
         expect(vi.getTimerCount()).toBe(0)
     })
 })
+
+describe('apiPost account binding', () => {
+    it('rejects a changed session before sending an account-bound request', async () => {
+        vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null })
+        const send = vi.fn()
+        vi.stubGlobal('fetch', send)
+        await expect(apiPost('/bound', {}, { expectedUserId: 'owner-a' })).rejects.toThrow('account changed')
+        expect(send).not.toHaveBeenCalled()
+    })
+
+    it('checks shared admission after session lookup and before HTTP dispatch', async () => {
+        vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null })
+        const send = vi.fn()
+        const beforeSend = vi.fn(async () => { throw new Error('shared logout closed') })
+        vi.stubGlobal('fetch', send)
+        await expect(apiPost('/bound', {}, { beforeSend })).rejects.toThrow('shared logout closed')
+        expect(beforeSend).toHaveBeenCalledOnce()
+        expect(send).not.toHaveBeenCalled()
+    })
+})

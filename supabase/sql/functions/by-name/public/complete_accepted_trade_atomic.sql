@@ -185,9 +185,14 @@ BEGIN
     v_to_member := v_item.to_member_id;
 
     IF v_item.player_id IS NOT NULL THEN
+      IF v_item.to_taxi THEN
+        PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_to_member,v_item.player_id,'trade',p_trade_id);
+      END IF;
+      BEGIN
       UPDATE roster_players
          SET member_id = v_to_member,
-             acquired_via = 'trade'
+             acquired_via = 'trade',
+             is_on_taxi = v_item.to_taxi
        WHERE league_id = v_trade.league_id
          AND league_season_id = v_trade.league_season_id
          AND member_id = v_from_member
@@ -201,17 +206,28 @@ BEGIN
           USING ERRCODE = 'PT001';
       END IF;
 
+      EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF NOT v_item.to_taxi THEN RAISE; END IF;
+        -- A game in progress only delays a taxi destination: keep the accepted trade for a later run.
+        IF SQLERRM LIKE 'This player''s game has already started%' THEN
+          RAISE EXCEPTION 'A taxi destination waits for the player''s game slate to end.' USING ERRCODE='PT002';
+        END IF;
+        -- A changed destination precondition expires this trade, not the whole queue.
+        RAISE EXCEPTION 'Taxi acquisition failed: %', SQLERRM USING ERRCODE='PT001';
+      END;
+
       INSERT INTO roster_transactions (
         league_id,
         league_season_id,
         member_id,
         player_id,
         transaction_type,
+        acquired_to_taxi,
         related_trade_id
       )
       VALUES
-        (v_trade.league_id, v_trade.league_season_id, v_from_member, v_item.player_id, 'trade_out', p_trade_id),
-        (v_trade.league_id, v_trade.league_season_id, v_to_member, v_item.player_id, 'trade_in', p_trade_id);
+        (v_trade.league_id, v_trade.league_season_id, v_from_member, v_item.player_id, 'trade_out', false, p_trade_id),
+        (v_trade.league_id, v_trade.league_season_id, v_to_member, v_item.player_id, 'trade_in', v_item.to_taxi, p_trade_id);
     ELSIF v_item.pick_id IS NOT NULL THEN
       UPDATE draft_picks
          SET current_owner_id = v_to_member

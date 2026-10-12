@@ -165,7 +165,8 @@ function MatchupCard({
     return (
         <View style={[styles.card, compact && styles.cardCompact, isFinal && styles.cardFinal]}>
             <View style={[styles.cardHeader, compact && styles.cardHeaderCompact]}>
-                <Text style={styles.weekLabel}>Week {matchup.weekNumber}</Text>
+                <Text style={styles.weekLabel}>{(matchup.endWeekNumber ?? matchup.weekNumber) === matchup.weekNumber
+                    ? `Week ${matchup.weekNumber}` : `Weeks ${matchup.weekNumber}–${matchup.endWeekNumber}`}</Text>
                 <View
                     style={[
                         styles.statusPill,

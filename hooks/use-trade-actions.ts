@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { acceptTrade, rejectTrade, vetoTrade, withdrawTrade, type Trade } from '@/lib/trades'
+import { acceptTrade, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade } from '@/lib/trades'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 
@@ -7,11 +7,15 @@ export function useTradeActions({
     memberId,
     leagueId,
     onAction,
+    enabled = true,
 }: {
     memberId: string
     leagueId: string
-    onAction: () => void | Promise<void>
+    onAction: () => void | Promise<unknown>
+    enabled?: boolean
 }) {
+    const enabledRef = useRef(enabled)
+    enabledRef.current = enabled
     const identity = `${leagueId}:${memberId}`
     const identityRef = useRef(identity)
     identityRef.current = identity
@@ -38,7 +42,7 @@ export function useTradeActions({
     }, [onAction])
 
     const accept = useCallback(async (trade: Trade) => {
-        if (!mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
+        if (!enabledRef.current || !mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
         mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
@@ -63,7 +67,7 @@ export function useTradeActions({
         operation: (tradeId: string, memberId: string) => Promise<void>,
         fallbackMessage: string,
     ) => {
-        if (!mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
+        if (!enabledRef.current || !mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
         mutationInFlight.current = true
         const requestId = ++requestSequence.current
         const ownerIdentity = identity
@@ -83,6 +87,14 @@ export function useTradeActions({
         }
     }, [finishAction, identity, memberId])
 
+    const setTaxiDestination = useCallback((trade: Trade, playerId: string, toTaxi: boolean) => {
+        const playerIds = trade.routedItems.flatMap((item) => item.kind === 'player' && item.toMemberId === memberId &&
+            (item.playerId === playerId ? toTaxi : item.toTaxi) ? [item.playerId] : [])
+        return runTerminalAction(trade.id,
+            (tradeId, receiverId) => setTradeTaxiDestinations(tradeId, receiverId, playerIds),
+            'Could not save the taxi destination.')
+    }, [memberId, runTerminalAction])
+
     const reject = useCallback((tradeId: string) => {
         confirmAction('Reject Trade', 'Are you sure you want to reject this trade?',
             () => runTerminalAction(tradeId, rejectTrade, 'Could not reject trade.'), 'Reject')
@@ -98,6 +110,7 @@ export function useTradeActions({
 
     return {
         accept,
+        setTaxiDestination,
         busyTradeId,
         reject,
         veto,

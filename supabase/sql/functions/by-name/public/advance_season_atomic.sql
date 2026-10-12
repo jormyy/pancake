@@ -67,6 +67,9 @@ BEGIN
   VALUES (p_league_id, v_new_year, true, now() + interval '60 days')
   RETURNING id INTO v_new_season_id;
 
+  PERFORM private.authorize_taxi_acquisition(p_league_id,v_new_season_id,member_id,player_id,'carry_over',v_current_season.id)
+    FROM roster_players WHERE league_id=p_league_id AND league_season_id=v_current_season.id AND is_on_taxi;
+
   INSERT INTO roster_players (
     league_id,
     league_season_id,

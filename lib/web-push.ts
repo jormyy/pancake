@@ -1,4 +1,11 @@
 import { apiPost } from '@/lib/shared/api'
+import { errorCode } from '@/lib/shared/errors'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
+import {
+    admitWebPushIntent, assertWebPushIntent, captureWebPushIntent, closeWebPushIntent,
+    readWebPushAuthority, retireWebPushEndpoint, saveWebPushAuthority,
+    type WebPushIntent,
+} from '@/lib/web-push-state'
 
 // Standards Web Push for the installed PWA. Native builds use Expo push
 // (lib/push-token.ts); everything here is a no-op off web.
@@ -70,24 +77,62 @@ async function registration(): Promise<ServiceWorkerRegistration | null> {
     return navigator.serviceWorker.ready
 }
 
-async function saveSubscription(subscription: PushSubscription): Promise<void> {
+let operationGeneration = 0
+
+type Identity = { ownerId: string; generation: number; operation: number }
+type Operation = Identity & { intent: WebPushIntent }
+type RegistrationReceipt = { applied: boolean; generation?: number; revocationCredential?: string }
+
+function identity(): Identity {
+    const ownerId = sessionOwner()
+    if (!ownerId) throw new Error('Sign in to manage notifications.')
+    return { ownerId, generation: sessionGeneration(), operation: operationGeneration }
+}
+
+function assertIdentity(captured: Identity): void {
+    if (captured.ownerId !== sessionOwner() || captured.generation !== sessionGeneration()
+        || captured.operation !== operationGeneration) throw new Error('Your notification action changed. Please retry.')
+}
+
+async function assertOperation(operation: Operation): Promise<void> {
+    assertIdentity(operation)
+    await assertWebPushIntent(operation.intent)
+    assertIdentity(operation)
+}
+
+async function remember(endpoint: string, receipt: RegistrationReceipt, ownerId: string | null): Promise<void> {
+    if (!receipt.applied) return
+    if (typeof receipt.generation !== 'number' || typeof receipt.revocationCredential !== 'string') {
+        throw new Error('Notification registration acknowledgement is missing.')
+    }
+    await saveWebPushAuthority(endpoint, { generation: receipt.generation, revocationCredential: receipt.revocationCredential, ownerId })
+}
+
+async function saveSubscription(subscription: PushSubscription, operation: Operation): Promise<void> {
+    await assertOperation(operation)
+    const authority = await readWebPushAuthority(subscription.endpoint, operation.intent, true)
+    if (!authority) throw new Error('Your notification action changed. Please retry.')
     const json = subscription.toJSON()
-    await apiPost('/profile/web-push/subscribe', {
+    const receipt = await apiPost<RegistrationReceipt>('/profile/web-push/subscribe', {
         endpoint: subscription.endpoint,
         p256dh: json.keys?.p256dh ?? '',
         auth: json.keys?.auth ?? '',
-    })
+        generation: authority.generation,
+        revocationCredential: authority.revocationCredential,
+    }, { expectedUserId: operation.ownerId, beforeSend: () => assertOperation(operation) })
+    if (!receipt.applied) throw new Error('Notification registration was not confirmed.')
+    await remember(subscription.endpoint, receipt, operation.ownerId)
+    await assertOperation(operation)
 }
 
-async function subscribe(worker: ServiceWorkerRegistration, publicKey: string): Promise<PushSubscription> {
-    const existing = await worker.pushManager.getSubscription()
-    if (existing && sameKey(existing, publicKey)) return existing
-    // A subscription minted for a rotated VAPID key can never be delivered to.
-    if (existing) await existing.unsubscribe().catch(() => false)
-    return worker.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: base64UrlToBytes(publicKey),
-    })
+async function replaceSubscription(worker: ServiceWorkerRegistration, previous: PushSubscription | null, publicKey: string, operation: Operation): Promise<PushSubscription> {
+    await assertOperation(operation)
+    if (previous && !await previous.unsubscribe()) throw new Error('Could not reset notifications. Please retry.')
+    await assertOperation(operation)
+    const next = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64UrlToBytes(publicKey) })
+    await assertOperation(operation)
+    if (next.endpoint === previous?.endpoint || next.endpoint === operation.intent.retiredEndpoint) throw new Error('The browser kept the old notification registration. Please retry.')
+    return next
 }
 
 export async function getWebPushStatus(): Promise<WebPushStatus> {
@@ -98,66 +143,152 @@ export async function getWebPushStatus(): Promise<WebPushStatus> {
     const worker = await registration()
     if (!worker) return 'unsupported'
     if (Notification.permission !== 'granted') return 'off'
-    return (await worker.pushManager.getSubscription()) ? 'on' : 'off'
+    try {
+        const captured = identity()
+        const intent = await captureWebPushIntent()
+        const operation = { ...captured, intent }
+        if (!intent.allowed || intent.ownerId !== captured.ownerId) return 'off'
+        const subscription = await worker.pushManager.getSubscription()
+        if (!subscription || subscription.endpoint === intent.retiredEndpoint || !sameKey(subscription, publicKey)) return 'off'
+        const authority = await readWebPushAuthority(subscription.endpoint, intent)
+        await assertOperation(operation)
+        return authority?.ownerId === captured.ownerId && authority.generation > 0 ? 'on' : 'off'
+    } catch { return 'off' }
 }
 
-/**
- * Must run directly from a tap: Safari only shows the permission prompt for a
- * user gesture, so the prompt is requested before any network round-trip.
- */
+/** The permission prompt starts in the tap, before any network request. */
 export async function enableWebPush(): Promise<WebPushStatus> {
     if (!hasPushApi()) return getWebPushStatus()
-    const permission = await Notification.requestPermission()
+    const captured = identity()
+    const previous = captureWebPushIntent()
+    const requestedPermission = Notification.requestPermission()
+    const prior = await previous
+    const permission = await requestedPermission
+    assertIdentity(captured)
     if (permission === 'denied') return 'denied'
     if (permission !== 'granted') return 'off'
+    const intent = await admitWebPushIntent(prior, captured.ownerId, 'enable')
+    if (!intent?.allowed) throw new Error('Sign in again before enabling notifications.')
+    const operation = { ...captured, intent }
+    await assertOperation(operation)
     const publicKey = await getWebPushPublicKey()
+    await assertOperation(operation)
     if (!publicKey) return 'unavailable'
     const worker = await registration()
+    await assertOperation(operation)
     if (!worker) return 'unsupported'
-    await saveSubscription(await subscribe(worker, publicKey))
+    let subscription = await worker.pushManager.getSubscription()
+    await assertOperation(operation)
+    if (!subscription || prior.reason === 'disabled' || subscription.endpoint === intent.retiredEndpoint || !sameKey(subscription, publicKey)) subscription = await replaceSubscription(worker, subscription, publicKey, operation)
+    try { await saveSubscription(subscription, operation) }
+    catch (error) {
+        if (errorCode(error) !== 'WEB_PUSH_STALE') throw error
+        subscription = await replaceSubscription(worker, subscription, publicKey, operation)
+        await saveSubscription(subscription, operation)
+    }
     return 'on'
 }
 
-/**
- * Sign-out: stop delivering this account's notifications here, but keep the
- * browser subscription so the next sign-in re-attaches it without a prompt
- * (matching native, which re-registers its Expo token on sign-in).
- */
-export async function detachWebPushFromAccount(): Promise<void> {
-    if (!hasPushApi()) return
-    const worker = await registration()
-    const subscription = await worker?.pushManager.getSubscription()
-    if (!subscription) return
-    await apiPost('/profile/web-push/unsubscribe', { endpoint: subscription.endpoint })
+export async function prepareWebPushLogin(): Promise<WebPushIntent | null> {
+    if (!hasPushApi()) return null
+    try { return await captureWebPushIntent() }
+    catch (error) { console.warn('Notification storage is unavailable.', error); return null }
 }
 
-export async function disableWebPush(): Promise<void> {
-    if (!hasPushApi()) return
-    const worker = await registration()
-    const subscription = await worker?.pushManager.getSubscription()
-    if (!subscription) return
+export async function completeWebPushLogin(previous: WebPushIntent | null, ownerId: string): Promise<void> {
+    if (!previous) return
     try {
-        await apiPost('/profile/web-push/unsubscribe', { endpoint: subscription.endpoint })
-    } finally {
-        // Even if the server call fails, a dead endpoint is pruned on the next send (410).
-        await subscription.unsubscribe().catch(() => false)
+        const intent = await admitWebPushIntent(previous, ownerId, 'login')
+        if (intent?.allowed) void syncWebPushSubscription().catch((error) => console.warn('Web push re-sync failed.', error))
+    } catch (error) { console.warn('Notification registration remains off.', error) }
+}
+
+/** Logout runs after this device already cleared its session: it acts for the captured account. */
+type LogoutCleanup = { ownerId: string; accessToken: string | null }
+
+async function detach(reason: 'logout' | 'disabled', authCurrent: () => boolean = () => true, logout?: LogoutCleanup): Promise<void> {
+    if (!hasPushApi() || !authCurrent()) return
+    operationGeneration += 1
+    const ownerId = logout ? logout.ownerId : sessionOwner() ?? null
+    // After local sign-out this tab holds no owner; a later sign-in changes the generation and stops the cleanup.
+    const sessionOwnerNow = logout ? null : ownerId
+    const capturedGeneration = sessionGeneration()
+    const capturedOperation = operationGeneration
+    let closedIntent: WebPushIntent | null = null
+    let closeError: unknown
+    const stillOwner = () => sessionOwner() === sessionOwnerNow && sessionGeneration() === capturedGeneration
+        && operationGeneration === capturedOperation && authCurrent()
+    try {
+        const expected = await captureWebPushIntent()
+        if (!stillOwner()) return
+        closedIntent = await closeWebPushIntent(ownerId, reason, expected, stillOwner)
+        if (!closedIntent) return
+    } catch (error) { closeError = error }
+    const stillCurrent = async () => {
+        if (!stillOwner()) return false
+        if (!closedIntent) return true
+        const current = await captureWebPushIntent()
+        return stillOwner() && current.revision === closedIntent.revision
     }
+    if (!await stillCurrent()) return
+    const worker = await registration()
+    if (!await stillCurrent()) return
+    const subscription = await worker?.pushManager.getSubscription()
+    if (!await stillCurrent()) return
+    if (!subscription) { if (closeError) throw closeError; return }
+    const unsubscribe = async () => {
+        if (!await stillCurrent()) return
+        if (closedIntent && !await retireWebPushEndpoint(closedIntent, subscription.endpoint)) return
+        if (!stillOwner()) return
+        if (!await subscription.unsubscribe()) throw new Error('Could not stop browser notifications. Please retry.')
+    }
+    try {
+        if (!ownerId) throw new Error('Sign in to remove this notification registration.')
+        // Without a usable session the server row cannot be removed; the local unsubscribe below still stops delivery here.
+        if (logout && !logout.accessToken) throw new Error('Server notification cleanup needs a session.')
+        const beforeSend = async () => { if (!await stillCurrent()) throw new Error('Your notification action changed. Please retry.') }
+        const receipt = await apiPost<RegistrationReceipt>('/profile/web-push/unsubscribe', { endpoint: subscription.endpoint },
+            logout ? { accessToken: logout.accessToken ?? undefined, beforeSend } : { expectedUserId: ownerId, beforeSend })
+        // Failed closure must never publish new authority to tabs that still see an open gate.
+        if (closedIntent) await remember(subscription.endpoint, receipt, null)
+    } catch (error) {
+        await unsubscribe()
+        throw error
+    }
+    if (reason === 'disabled' || !closedIntent) await unsubscribe()
+    if (closeError) throw closeError
 }
 
 /**
- * Re-registers this device on launch when permission is already granted. This
- * attaches the subscription to whoever is signed in and heals subscriptions the
- * browser rotated or the server pruned. Never prompts.
+ * Logout runs after local sign-out (lib/auth.ts): it closes this account's registration for every tab, removes the
+ * server row with the captured session when one is usable, and otherwise unsubscribes this browser locally.
  */
+export async function detachWebPushFromAccount(logout: LogoutCleanup, stillCurrent?: () => boolean): Promise<void> {
+    await detach('logout', stillCurrent, logout)
+}
+
+export async function disableWebPush(): Promise<void> { await detach('disabled') }
+
+/** Restored sessions use existing admitted state; only explicit actions can reopen it. */
 export async function syncWebPushSubscription(): Promise<void> {
     if (!hasPushApi() || Notification.permission !== 'granted') return
+    const captured = identity()
+    const intent = await captureWebPushIntent()
+    if (!intent.allowed || intent.ownerId !== captured.ownerId) return
+    const operation = { ...captured, intent }
+    await assertOperation(operation)
     const worker = await registration()
+    await assertOperation(operation)
     if (!worker) return
-    const existing = await worker.pushManager.getSubscription()
-    if (!existing) return // the user turned it off on this device; respect that
+    const subscription = await worker.pushManager.getSubscription()
+    await assertOperation(operation)
+    if (!subscription) return
+    if (subscription.endpoint === intent.retiredEndpoint) throw new Error('Enable notifications again to replace the previous registration.')
     const publicKey = await getWebPushPublicKey()
+    await assertOperation(operation)
     if (!publicKey) return
-    await saveSubscription(await subscribe(worker, publicKey))
+    if (!sameKey(subscription, publicKey)) throw new Error('Notification keys changed. Enable notifications again.')
+    await saveSubscription(subscription, operation)
 }
 
 export async function sendTestWebPush(): Promise<{ sent: number; pruned: number; failed: number }> {

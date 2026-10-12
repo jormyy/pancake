@@ -3,7 +3,7 @@ import { decideLivePoll, gamesDueForStatsRetry, MISSING_STATS_RETRY_MS } from '.
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message)
 }
-const base = { cdnGameCount: 0, dbActiveGames: 0, nowActive: 0, allDone: false, missingFinalStats: 0, leaseLost: false }
+const base = { cdnGameCount: 0, dbActiveGames: 0, nowActive: 0, newlyFinal: 0, missingFinalStats: 0, leaseLost: false }
 
 Deno.test('an empty slate with nothing pending is idle', () => {
   assert(decideLivePoll(base).action === 'idle', 'expected idle')
@@ -31,4 +31,14 @@ Deno.test('a missing box score is retried on a backoff, not every tick (round-4 
     { id: 'never-touched', updated_at: null },
   ], new Set(['covered']), now)
   assert(JSON.stringify(due) === JSON.stringify(['due', 'never-touched']), `unexpected due set ${JSON.stringify(due)}`)
+})
+
+Deno.test('an unchanged all-Final scoreboard respects missing-stat retry backoff', () => {
+  const decision = decideLivePoll({ ...base, cdnGameCount: 1 })
+  assert(decision.action === 'status-check', 'a Final scoreboard must not bypass the retry deadline')
+})
+
+Deno.test('a newly Final game imports immediately even without a prior live observation', () => {
+  assert(decideLivePoll({ ...base, cdnGameCount: 1, newlyFinal: 1 }).action === 'synced', 'Scheduled-to-Final must sync')
+  assert(decideLivePoll({ ...base, cdnGameCount: 1, newlyFinal: 1, leaseLost: true }).action === 'lease-lost', 'a transition cannot bypass a lost lease')
 })

@@ -26,6 +26,10 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  PERFORM private.lock_roster_activation(
+    p_activate_roster_player_id, p_activate_source, p_free_roster_player_id
+  );
+
   CASE p_free_action
     WHEN 'drop' THEN
       PERFORM public.drop_player_atomic(p_free_roster_player_id);

@@ -1,3 +1,4 @@
+import { useIsFocused } from '@react-navigation/native'
 import {
     View,
     Text,
@@ -20,6 +21,7 @@ import { NoLeagueState } from '@/components/NoLeagueState'
 import { FilterSelect, MultiSelect, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
 import { Sheet } from '@/components/ui/Sheet'
 import { DynastyHub } from '@/components/dynasty/DynastyHub'
+import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
 import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
@@ -145,7 +147,8 @@ function PlayerTableHeader({
 function PlayerSearchSection() {
     const { push } = useRouter()
     const { user, loading: authLoading } = useAuth()
-    const { memberships, current, currentLeague, loading: leagueLoading } = useLeagueContext()
+    const { memberships, current, currentLeague, loading: leagueLoading, online } = useLeagueContext()
+    const focused = useIsFocused()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
     const searchEnabled = !!user && !!current?.id && !!leagueId
@@ -171,6 +174,7 @@ function PlayerSearchSection() {
         data: playerSupport,
         loading: playerSupportFetchLoading,
         error: playerSupportError,
+        isSnapshot: playerSupportSnapshot,
         refresh: refreshPlayerSupport,
     } = useFocusAsyncData<PlayerSupport>(async () => {
         if (!leagueId) {
@@ -181,21 +185,39 @@ function PlayerSearchSection() {
                 transactionState: null,
             }
         }
-        const support = await loadPlayerSupport(current?.id, leagueId)
-        if (current?.id) {
-            writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
-                ownedEntries: Array.from(support.ownedMap.entries()),
-                waiverIds: Array.from(support.waiverIds),
-                transactionState: support.transactionState,
-            })
-        }
-        return support
-    }, [current?.id, leagueId], { initialData: cachedSupport, staleMs: 300_000 })
+        return loadPlayerSupport(current?.id, leagueId)
+    }, [current?.id, leagueId], {
+        initialData: cachedSupport, staleMs: 300_000,
+        onLoaded: (support) => {
+            if (current?.id && leagueId) {
+                writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
+                    ownedEntries: Array.from(support.ownedMap.entries()),
+                    waiverIds: Array.from(support.waiverIds),
+                    transactionState: support.transactionState,
+                })
+            }
+        },
+    })
+
+
+    const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
+    const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
+    const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
+    const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
+    const playerSupportReady = !leagueId || playerSupportForLeague != null
+    const transactionState = playerSupportForLeague?.transactionState ?? null
+
+    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, online, focused, ownerId: user?.id })
+    const retrySearch = search.results.retry
+    const refreshPlayers = useCallback(() => {
+        retrySearch()
+        return refreshPlayerSupport()
+    }, [retrySearch, refreshPlayerSupport])
 
     useEffect(() => {
         if (!leagueId) return
 
-        const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayerSupport() })
+        const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayers() })
         const channel = subscribeToTableChanges(
             `players-screen:${leagueId}`,
             { mode: 'fallback', watches: [
@@ -211,16 +233,8 @@ function PlayerSearchSection() {
             refreshSupport.cancel()
             reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }
-    }, [leagueId, refreshPlayerSupport])
+    }, [leagueId, refreshPlayers])
 
-    const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
-    const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
-    const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
-    const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
-    const playerSupportReady = !leagueId || playerSupportForLeague != null
-    const transactionState = playerSupportForLeague?.transactionState ?? null
-
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady })
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
     // descending (best first).
@@ -238,7 +252,7 @@ function PlayerSearchSection() {
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
-        onChanged: refreshPlayerSupport,
+        onChanged: refreshPlayers,
         transactionState,
         onClaimInstead: openClaim,
     })
@@ -249,9 +263,10 @@ function PlayerSearchSection() {
         .join(','), [search.availability.gamesLeft])
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
+        if (!online) return
         if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
         else void quickAddHandleAdd(player)
-    }, [waiverIds, quickAddHandleClaim, quickAddHandleAdd])
+    }, [online, waiverIds, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])
@@ -262,6 +277,7 @@ function PlayerSearchSection() {
             ownedMap={ownedMap}
             waiverIds={waiverIds}
             isAdding={quickAdd.adding === item.id}
+            addDisabled={!online}
             gamesLeft={search.availability.gamesLeft}
             showStats={showStatTable}
             showCompactStats={false}
@@ -270,7 +286,7 @@ function PlayerSearchSection() {
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, online, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -403,6 +419,19 @@ function PlayerSearchSection() {
                 ) : null}
             </View>
 
+            {search.results.players.length > 0 && (!online || search.results.isSnapshot || playerSupportSnapshot || playerSupportError) && <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Refresh player data"
+                disabled={!online || search.results.refreshing}
+                onPress={() => { void refreshPlayers() }}
+                style={localStyles.freshness}
+            >
+                <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">
+                    {!online ? 'Offline. Saved player results may be out of date.'
+                        : search.results.error || playerSupportError ? 'Player refresh failed. Saved results may be out of date. Tap to retry.'
+                        : 'Saved player results. Updating…'}
+                </Text>
+            </Pressable>}
             <Sheet visible={compactToolbar && filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
                 <View style={localStyles.sheetFields}>
                     {filterControls('field')}
@@ -447,7 +476,9 @@ function PlayerSearchSection() {
                     ) : null}
                     renderItem={renderPlayerItem}
                     ListEmptyComponent={
-                        listIsInitialLoading
+                        !online
+                            ? <EmptyState message="Offline. No saved player results." description="Reconnect to load this search." fullScreen={false} />
+                            : listIsInitialLoading
                             ? null
                             : search.results.error
                               ? <EmptyState message="Players could not load." description={search.results.error.message} actionLabel="Retry" onAction={search.results.retry} fullScreen={false} />
@@ -549,15 +580,15 @@ export default function PlayersScreen() {
             />
             <View style={localStyles.panel} nativeID="players-section-panel" role="tabpanel">
                 {opened.has('players') ? (
-                    <View style={[localStyles.panel, section !== 'players' && localStyles.hidden]}>
+                    <RetainedPanel active={section === 'players'}>
                         <PlayerSearchSection />
-                    </View>
+                    </RetainedPanel>
                 ) : null}
                 {/* Rankings and News share one instance, so each loads its data once. */}
                 {opened.has('rankings') || opened.has('news') ? (
-                    <View style={[localStyles.panel, section === 'players' && localStyles.hidden]}>
+                    <RetainedPanel active={section !== 'players'}>
                         <DynastyHub section={section === 'news' || (section === 'players' && lastDynasty === 'news') ? 'news' : 'rankings'} />
-                    </View>
+                    </RetainedPanel>
                 ) : null}
             </View>
         </Page>
@@ -565,8 +596,9 @@ export default function PlayersScreen() {
 }
 
 const localStyles = StyleSheet.create({
+    freshness: { paddingVertical: spacing.sm },
+    freshnessText: { fontSize: fontSize.sm, color: colors.textSecondary },
     panel: { flex: 1, minHeight: 0 },
-    hidden: { display: 'none' },
     toolbar: {
         gap: spacing.xs,
         paddingVertical: spacing.md,

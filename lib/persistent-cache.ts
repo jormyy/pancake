@@ -21,6 +21,7 @@ const PREFIX_LIMITS = [
     ['pancake:player-screen:', 12],
     ['pancake:player-support:', 4],
     ['pancake:home-matchup:', 4],
+    ['pancake:lineup-screen:', 4],
 ] as const
 
 const memoryCache = new Map<string, CacheEnvelope<unknown>>()

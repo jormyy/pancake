@@ -21,6 +21,7 @@ DECLARE
   v_bid_amount int := COALESCE(p_bid_amount, 0);
   v_balance int;
   v_drop_failure text;
+  v_lock_player_id uuid;
 BEGIN
   IF v_bid_amount < 0 THEN
     RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'
@@ -32,8 +33,7 @@ BEGIN
     FROM waiver_claims
    WHERE id = p_claim_id
      AND member_id = p_member_id
-     AND status = 'pending'
-   FOR UPDATE;
+     AND status = 'pending';
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Pending waiver claim not found.'
@@ -49,6 +49,42 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Access denied.'
       USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_claim.league_season_id::text));
+
+  -- Use the roster writers' lock order before any claim or league row lock.
+  PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(p_member_id::text));
+  FOR v_lock_player_id IN
+    SELECT DISTINCT player_id
+      FROM unnest(ARRAY[v_claim.player_id, v_claim.drop_player_id, p_drop_player_id]) AS players(player_id)
+     WHERE player_id IS NOT NULL
+     ORDER BY player_id
+  LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(v_claim.league_id::text), hashtext(v_lock_player_id::text));
+  END LOOP;
+
+  SELECT *
+    INTO v_claim
+    FROM waiver_claims
+   WHERE id = p_claim_id
+     AND member_id = p_member_id
+     AND status = 'pending'
+   FOR UPDATE;
+
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pending waiver claim not found.'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  PERFORM 1
+    FROM league_members
+   WHERE id = p_member_id
+     AND league_id = v_claim.league_id
+     AND user_id = p_user_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Access denied.' USING ERRCODE = '42501';
   END IF;
 
   SELECT *

@@ -67,6 +67,13 @@ export function IRResolutionModal({
         if (visible) reset()
     }, [visible])
 
+    useEffect(() => {
+        if (activatingPlayer && !ineligibleIR.some((player) => player.id === activatingPlayer.id)) {
+            setPhase('ineligible')
+            setActivatingPlayer(null)
+        }
+    }, [activatingPlayer, ineligibleIR])
+
     async function handleActivate(player: RosterPlayer) {
         if (hasRoom) {
             setLoadingId(player.id)
@@ -83,7 +90,7 @@ export function IRResolutionModal({
     }
 
     async function handleDropAndActivate(dropPlayer: RosterPlayer) {
-        if (!activatingPlayer) return
+        if (!activatingPlayer || !ineligibleIR.some((player) => player.id === activatingPlayer.id)) return
         setLoadingId(dropPlayer.id)
         try {
             await onDropAndActivate(dropPlayer, activatingPlayer)

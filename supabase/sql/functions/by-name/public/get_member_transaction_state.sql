@@ -19,6 +19,7 @@ RETURNS TABLE (
   add_limit_resets_label text
 )
 LANGUAGE plpgsql
+STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
@@ -27,7 +28,6 @@ DECLARE
   v_season_id uuid;
   v_week int;
   v_resets_at timestamptz;
-  v_balance int;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated.'
@@ -59,42 +59,28 @@ BEGIN
   SELECT week.week_number, week.resets_at
     INTO v_week, v_resets_at
     FROM private.current_add_week(p_league_id, v_season_id) AS week;
-  v_balance := private.ensure_faab_balance(p_league_id, v_season_id, p_member_id);
-
-  INSERT INTO weekly_add_counts (
-    league_id,
-    league_season_id,
-    member_id,
-    week_number,
-    add_count
-  )
-  VALUES (
-    p_league_id,
-    v_season_id,
-    p_member_id,
-    v_week,
-    0
-  )
-  ON CONFLICT ON CONSTRAINT weekly_add_counts_league_id_league_season_id_member_id_week_key DO NOTHING;
-
   RETURN QUERY
   SELECT
     v_season_id,
     v_week,
     league.weekly_add_limit,
-    count_row.add_count,
+    COALESCE(count_row.add_count, 0),
     league.waiver_mode,
     league.faab_starting_budget,
-    v_balance,
+    COALESCE(balance_row.balance, league.faab_starting_budget, 100),
     v_resets_at,
-    private.weekly_add_limit_message(count_row.add_count, league.weekly_add_limit, v_resets_at),
+    private.weekly_add_limit_message(COALESCE(count_row.add_count, 0), league.weekly_add_limit, v_resets_at),
     private.weekly_add_limit_reset_label(v_resets_at)
   FROM leagues AS league
-  JOIN weekly_add_counts AS count_row
+  LEFT JOIN weekly_add_counts AS count_row
     ON count_row.league_id = league.id
    AND count_row.league_season_id = v_season_id
    AND count_row.member_id = p_member_id
    AND count_row.week_number = v_week
+  LEFT JOIN faab_balances AS balance_row
+    ON balance_row.league_id = league.id
+   AND balance_row.league_season_id = v_season_id
+   AND balance_row.member_id = p_member_id
   WHERE league.id = p_league_id;
 END;
 $$;

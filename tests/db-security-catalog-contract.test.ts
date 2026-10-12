@@ -1,6 +1,7 @@
+import { attestedMigrationFiles, convergenceAfter, copyAttestedMigrations } from './helpers/attested-migrations'
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,9 +10,7 @@ import { parseCatalogOptions, validateCatalogTarget, validateSecurityCatalog } f
 
 const release = JSON.parse(readFileSync('tests/e2e/release-history-attestations.json', 'utf8'))
 const contract = JSON.parse(readFileSync('tests/e2e/db-security-catalog-attestations.json', 'utf8'))
-const files = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql')).sort().map((filename) => ({
-  filename, sha256: createHash('sha256').update(readFileSync(`supabase/migrations/${filename}`)).digest('hex'),
-}))
+const files = attestedMigrationFiles
 type Phase = 'pre-migration' | 'post-migration'
 const fixture = (phase: Phase) => {
   const history = files.slice(0, release.baselineCount + (phase === 'post-migration' ? release.approvedMigrations.length : 0))
@@ -27,7 +26,7 @@ const fixture = (phase: Phase) => {
     functions: section('functions'), triggers: section('triggers'), policies: section('policies'),
     tables: section('tables'), indexes: section('indexes') }
   return { phase, target: 'linked', projectRef: release.projectRef, repositoryFiles: structuredClone(files),
-    history: { history, functions: structuredClone(release.convergence), oldHelperCount: 0, oldHelperReferenceCount: 0 }, catalog }
+    history: { history, functions: convergenceAfter(history.map(({ version }) => version)), oldHelperCount: 0, oldHelperReferenceCount: 0 }, catalog }
 }
 
 it.each(['pre-migration', 'post-migration'] as const)('accepts the exact %s schema, including its cron contract', (phase) => {
@@ -60,6 +59,8 @@ it.skipIf(release.approvedMigrations.length < 2)('rejects a partial approved upg
     const input = fixture('post-migration')
     input.phase = phase
     input.history.history.splice(release.baselineCount + 1)
+    // The live helpers match the partial history, so only the phase contract can reject it.
+    input.history.functions = convergenceAfter(input.history.history.map(({ version }) => version))
     expect(() => validateSecurityCatalog(input)).toThrow(`exact ${phase} contract`)
   }
 })
@@ -139,7 +140,7 @@ it.each(['valid-pre', 'wrong-phase', 'wrong-link', 'changed-helper', 'local-post
   const dir = mkdtempSync(path.join(os.tmpdir(), 'pancake-catalog-'))
   try {
     const local = mode === 'local-post' || mode === 'nonlocal-url'
-    cpSync('supabase/migrations', path.join(dir, 'supabase/migrations'), { recursive: true })
+    copyAttestedMigrations(dir)
     cpSync('supabase/config.toml', path.join(dir, 'supabase/config.toml'))
     mkdirSync(path.join(dir, 'supabase/.temp'))
     if (!local) writeFileSync(path.join(dir, 'supabase/.temp/project-ref'), mode === 'wrong-link' ? 'other' : release.projectRef)

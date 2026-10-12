@@ -40,8 +40,14 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
           settled = true;
           channel.port1.close();
           if (!version) return;
-          var previous = sessionStorage.getItem(workerVersionKey);
-          sessionStorage.setItem(workerVersionKey, version);
+          var previous;
+          try {
+            previous = sessionStorage.getItem(workerVersionKey);
+            sessionStorage.setItem(workerVersionKey, version);
+          } catch {
+            // Without a saved version, a reload could repeat on every reply.
+            return;
+          }
           if (!previous || previous === version || reloaded) return;
           reloaded = true;
           window.location.reload();

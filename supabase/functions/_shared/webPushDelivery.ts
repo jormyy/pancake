@@ -22,31 +22,23 @@ type WebPushFanoutSummary = { sent: number; pruned: number; failed: number }
  */
 export type WebPushFanout = (messages: WebPushFanoutMessage[]) => Promise<WebPushFanoutSummary>
 
-type StoredSubscription = WebPushSubscription & { user_id: string }
+export type WebPushSnapshot = { endpoint: string; user_id: string; updated_at: string }
+type StoredSubscription = WebPushSubscription & WebPushSnapshot
 type LookupError = { message: string }
 
 export type WebPushFanoutDependencies = {
   vapid: () => VapidKeys | null
   subscriptions: (userIds: string[]) => Promise<{ data: StoredSubscription[] | null; error: LookupError | null }>
-  prune: (endpoints: string[]) => Promise<{ error: LookupError | null }>
+  prune: (subscriptions: WebPushSnapshot[]) => Promise<{ error: LookupError | null; count?: number }>
   send?: (subscription: WebPushSubscription, payload: unknown, keys: VapidKeys, options: Parameters<typeof sendWebPush>[3]) => Promise<WebPushResult>
 }
 
-// Tap targets inside the app shell; the service worker only opens same-origin paths.
-const CATEGORY_URLS: Record<WebPushCategory, string> = {
-  trade: '/trades',
-  waiver: '/roster',
-  draft: '/draft-room',
-  activity: '/',
-}
-
-export function webPushPayload(message: WebPushFanoutMessage) {
+// An endpoint can outlive account cleanup. Do not send account details to it.
+export function webPushPayload() {
   return {
-    title: message.title,
-    body: message.body,
-    url: CATEGORY_URLS[message.category],
-    category: message.category,
-    data: message.data ?? {},
+    title: 'Pancake',
+    body: 'Open Pancake to check for updates.',
+    url: '/',
   }
 }
 
@@ -79,12 +71,12 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
       byUser.set(subscription.user_id, list)
     }
 
-    const gone = new Set<string>()
+    const gone = new Map<string, WebPushSnapshot>()
     const jobs = messages.flatMap((message) => (byUser.get(message.userId) ?? []).map((subscription) => async () => {
       if (gone.has(subscription.endpoint)) return
       let result: WebPushResult
       try {
-        result = await send(subscription, webPushPayload(message), keys, {
+        result = await send(subscription, webPushPayload(), keys, {
           urgency: message.category === 'draft' ? 'high' : 'normal',
         })
       } catch (error) {
@@ -96,7 +88,7 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
       if (result.outcome === 'sent') {
         summary.sent += 1
       } else if (result.outcome === 'gone') {
-        gone.add(subscription.endpoint)
+        gone.set(subscription.endpoint, subscription)
       } else {
         summary.failed += 1
         console.error('Web push delivery failed', { userId: message.userId, status: result.status, message: result.message })
@@ -107,9 +99,9 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
 
     if (gone.size > 0) {
       try {
-        const { error } = await dependencies.prune([...gone])
+        const { error, count } = await dependencies.prune([...gone.values()])
         if (error) throw new Error(error.message)
-        summary.pruned = gone.size
+        summary.pruned = count ?? gone.size
       } catch (error) {
         console.error('Web push subscription pruning failed', error)
       }

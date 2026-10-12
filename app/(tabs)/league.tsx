@@ -1,5 +1,5 @@
-import { View, StyleSheet } from 'react-native'
-import { colors } from '@/constants/tokens'
+import { View, Text, StyleSheet } from 'react-native'
+import { colors, fontSize, spacing } from '@/constants/tokens'
 import { ErrorBanner, Page, PageHeader, SegmentedControl } from '@/components/ui'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
@@ -31,15 +31,6 @@ export default function LeagueScreen() {
     }
 
     function renderTabContent() {
-        if (screen.tabErr && !screen.isTabLoading) {
-            return (
-                <ErrorBanner
-                    message={`${activeTabLabel} could not load. Select to retry.`}
-                    onRetry={screen.retryCurrentTab}
-                />
-            )
-        }
-
         // Tab panels render only once their data is known, so content appears
         // fully formed instead of loading in pieces that shift the layout.
         if (!screen.isTabLoaded) return null
@@ -192,6 +183,20 @@ export default function LeagueScreen() {
                 aria-labelledby={activeTabId}
                 accessibilityLabel={`${activeTabLabel} league section`}
             >
+                    {screen.tab !== 'auctions' && screen.isTabLoaded && (!screen.isOnline || screen.isTabRefreshing) ? (
+                        <Text style={styles.freshness} accessibilityLiveRegion="polite">
+                            {!screen.isOnline
+                                ? `Offline. Showing saved ${activeTabLabel} data.`
+                                : `Refreshing ${activeTabLabel}. Showing saved data.`}
+                        </Text>
+                    ) : screen.tabErr && !screen.isTabLoading ? (
+                        <ErrorBanner
+                            message={screen.isTabLoaded
+                                ? `${activeTabLabel} refresh failed. Showing saved data. Select to retry.`
+                                : `${activeTabLabel} could not load. Select to retry.`}
+                            onRetry={screen.retryCurrentTab}
+                        />
+                    ) : null}
                 {renderTabContent()}
             </View>
         </Page>
@@ -200,6 +205,7 @@ export default function LeagueScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
+    freshness: { color: colors.textSecondary, fontSize: fontSize.sm, padding: spacing.md },
     panel: { flex: 1, minHeight: 0 },
 })
 

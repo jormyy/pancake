@@ -1,7 +1,10 @@
 import {
   deliverTradeNotificationOutbox,
+  drainTradeNotificationOutbox,
   OUTBOX_CLAIM_LIMIT,
+  OUTBOX_DRAIN_BUDGET_MS,
   OUTBOX_LEASE_SECONDS,
+  OUTBOX_MAX_CLAIMS_PER_RUN,
   type TradeNotificationOutboxRow,
 } from './outbox.ts'
 import { NotificationDeliveryError } from '../_shared/notificationDelivery.ts'
@@ -118,5 +121,84 @@ Deno.test('trade notification outbox separates invalid-device discard, payload d
       JSON.stringify(failed) !== JSON.stringify(['credentials']) ||
       JSON.stringify(deadLettered) !== JSON.stringify(['payload'])) {
     throw new Error(`outbox failure partition was incorrect: ${JSON.stringify({ result, completed, failed, deadLettered })}`)
+  }
+})
+
+function queue(total: number) {
+  const pending = Array.from({ length: total }, (_, index) => row(String(index)))
+  let claims = 0
+  return {
+    claim: async () => {
+      claims += 1
+      return pending.splice(0, OUTBOX_CLAIM_LIMIT)
+    },
+    claims: () => claims,
+    remaining: () => pending.length,
+  }
+}
+
+const settled = async (rows: TradeNotificationOutboxRow[]) => ({ ticketed: 0, failed: 0, discarded: rows.length, deadLettered: 0 })
+
+Deno.test('trade notification drain keeps claiming full batches until the queue runs short', async () => {
+  const outbox = queue(45)
+  const result = await drainTradeNotificationOutbox(outbox.claim, settled)
+  if (outbox.claims() !== 5 || outbox.remaining() !== 0 || result.discarded !== 45) {
+    throw new Error(`burst was not drained in one run: ${JSON.stringify({ claims: outbox.claims(), result })}`)
+  }
+})
+
+Deno.test('trade notification drain claims once when the first batch is short or empty', async () => {
+  for (const total of [0, 9]) {
+    const outbox = queue(total)
+    await drainTradeNotificationOutbox(outbox.claim, settled)
+    if (outbox.claims() !== 1) throw new Error(`short queue of ${total} claimed ${outbox.claims()} times`)
+  }
+  const exact = queue(OUTBOX_CLAIM_LIMIT)
+  await drainTradeNotificationOutbox(exact.claim, settled)
+  if (exact.claims() !== 2) throw new Error(`a full final batch must confirm the queue is empty: ${exact.claims()}`)
+})
+
+Deno.test('trade notification drain stops after a retryable failure so backoff decides the retry', async () => {
+  const outbox = queue(45)
+  let batch = 0
+  const result = await drainTradeNotificationOutbox(outbox.claim, async (rows) => {
+    batch += 1
+    return batch === 2
+      ? { ticketed: 0, failed: 1, discarded: rows.length - 1, deadLettered: 0 }
+      : settled(rows)
+  })
+  if (outbox.claims() !== 2 || outbox.remaining() !== 25 || result.failed !== 1 || result.discarded !== 19) {
+    throw new Error(`failure did not end the run: ${JSON.stringify({ claims: outbox.claims(), result })}`)
+  }
+})
+
+Deno.test('trade notification drain is bounded by claims and elapsed time per run', async () => {
+  const backlog = queue(OUTBOX_CLAIM_LIMIT * (OUTBOX_MAX_CLAIMS_PER_RUN + 3))
+  await drainTradeNotificationOutbox(backlog.claim, settled)
+  if (backlog.claims() !== OUTBOX_MAX_CLAIMS_PER_RUN || backlog.remaining() !== OUTBOX_CLAIM_LIMIT * 3) {
+    throw new Error(`claim cap was not enforced: ${backlog.claims()}`)
+  }
+
+  const slow = queue(45)
+  let clock = 0
+  await drainTradeNotificationOutbox(slow.claim, async (rows) => {
+    clock += OUTBOX_DRAIN_BUDGET_MS / 2
+    return settled(rows)
+  }, () => clock)
+  if (slow.claims() !== 2) throw new Error(`time budget was not enforced: ${slow.claims()}`)
+})
+
+Deno.test('trade notification drain propagates claim and delivery errors', async () => {
+  for (const [claim, deliver] of [
+    [async () => { throw new Error('claim failed') }, settled],
+    [queue(45).claim, async () => { throw new Error('lease lost') }],
+  ] as const) {
+    let message = ''
+    try {
+      await drainTradeNotificationOutbox(claim, deliver)
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    if (!['claim failed', 'lease lost'].includes(message)) throw new Error(`error was swallowed: ${message}`)
   }
 })

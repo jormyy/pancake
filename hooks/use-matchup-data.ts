@@ -320,7 +320,7 @@ export function useMatchupData(
                         if (!isMatchupRealtimeRow(payload.new)) return
                         const row = payload.new
                         const { home_points, away_points, is_finalized, winner_member_id } = row
-                        if (row.week_number !== matchup.weekNumber) return
+                        if (row.week_number !== (matchup.roundStartWeek ?? matchup.weekNumber)) return
                         if (row.id === matchup.id) {
                             setMatchup((prev) => {
                                 if (!prev) return prev
@@ -371,7 +371,7 @@ export function useMatchupData(
                 disposeTableChangeSubscription(channel, [refreshVisibleLineups]),
             )
         }
-    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, ownsResource, refreshSilently, resourceKey, leagueId])
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, matchup?.roundStartWeek, ownsResource, refreshSilently, resourceKey, leagueId])
 
     const setVisibleSelectedDate = useCallback((date: string) => {
         if (ownsResource && activeResourceKeyRef.current === resourceKey) setSelectedDate(date)

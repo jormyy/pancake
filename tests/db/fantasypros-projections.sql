@@ -917,6 +917,42 @@ BEGIN
   END IF;
 END $$;
 
+-- Health predicates must preserve the same season score and projection at singleton scale.
+DO $$
+DECLARE
+  v_health text;
+  v_status text;
+  v_row record;
+  v_count integer;
+BEGIN
+  FOR v_health, v_status IN
+    SELECT * FROM (VALUES ('out', 'OUT'), ('ir', 'IR-LTI'), ('gtd', 'DTD'), ('healthy', NULL::text)) cases(health, status)
+  LOOP
+    UPDATE public.players SET injury_status = v_status
+    WHERE id = '00000000-0000-0000-0000-000000020301';
+    SELECT * INTO STRICT v_row FROM public.search_players(
+      p_league_id => '00000000-0000-0000-0000-000000020101',
+      p_include_player_ids => ARRAY['00000000-0000-0000-0000-000000020301']::uuid[],
+      p_health => v_health, p_season_year => 2099
+    );
+    IF v_row.avg_fantasy_points <> 10 OR v_row.projection_fantasy_points <> 124.5 THEN
+      RAISE EXCEPTION 'Health % changed singleton scoring or projection: %', v_health, row_to_json(v_row);
+    END IF;
+  END LOOP;
+
+  FOREACH v_health IN ARRAY ARRAY[NULL::text, 'all', 'unknown'] LOOP
+    SELECT count(*) INTO v_count FROM public.search_players(
+      p_league_id => '00000000-0000-0000-0000-000000020101',
+      p_include_player_ids => ARRAY[
+        '00000000-0000-0000-0000-000000020301',
+        '00000000-0000-0000-0000-000000020302'
+      ]::uuid[], p_health => v_health, p_season_year => 2099
+    );
+    IF v_count <> 2 THEN RAISE EXCEPTION 'Health % changed the unfiltered result', v_health; END IF;
+  END LOOP;
+END $$;
+
+
 DO $$
 DECLARE
   v_row record;

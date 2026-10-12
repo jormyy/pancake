@@ -37,6 +37,7 @@ type RosterTransactionForScore = PlayerEligibilitySource & {
     player_id: string
     transaction_type: string
     occurred_at: string
+    acquired_to_taxi: boolean | null
 }
 
 type StatRow = Record<string, unknown> & {
@@ -206,6 +207,9 @@ function buildRosterEligibilityAtCutoff(
                 cutoff,
             )
             if (latestAvailabilityTransaction && ROSTER_INACTIVE_TRANSACTION_TYPE_SET.has(latestAvailabilityTransaction.transaction_type)) return []
+            // NULL is legacy history without destination evidence. Acquiring straight into taxi did not exist
+            // then, so those players joined the active roster and a later taxi move has its own transaction.
+            if (!latestAvailabilityTransaction && latestOwnershipTransaction.acquired_to_taxi === true) return []
             return rosterPlayerEligibility(latestOwnershipTransaction)
         }
 
@@ -259,6 +263,21 @@ async function loadStarterSlots(leagueId: string): Promise<string[]> {
 function bestLineupPointsForDate(candidates: LineupCandidate[], starterSlots: string[]): number {
     if (candidates.length === 0 || starterSlots.length === 0) return 0
 
+    if (candidates.length > starterSlots.length
+        && starterSlots.every((slot) => slot === 'UTIL')
+        && candidates.every((candidate) => Number.isFinite(candidate.points))) {
+        // Identical slots need only the strongest eligible positive entries.
+        // Keep their input order and the DFS's addition order, including ties.
+        candidates = candidates
+            .map((candidate, index) => ({ candidate, index }))
+            .filter(({ candidate }) => candidate.points > 0
+                && canPlayStarterSlot(candidate.eligible_positions, 'UTIL'))
+            .sort((a, b) => b.candidate.points - a.candidate.points)
+            .slice(0, starterSlots.length)
+            .sort((a, b) => a.index - b.index)
+            .map(({ candidate }) => candidate)
+    }
+
     const memo = new Map<string, number>()
 
     function dfs(slotIndex: number, usedMask: bigint): number {
@@ -308,18 +327,18 @@ async function loadLineupRows(
         .range(from, to))
 }
 
-async function loadPlayerPointsForWeek(
+// PostgREST refuses request lines over about 16 KB with an empty 431, which a single
+// in-list reaches near 430 players. A league's roster plus a season of adds and drops
+// can pass that, so stats are read in player batches; each player stays in one batch.
+const STATS_PLAYER_BATCH = 150
+
+function loadPlayerStatsForWeek(
     playerIds: string[],
     seasonYear: number,
-    settings: Record<string, number>,
     weekStart: string,
     weekEnd: string,
-): Promise<PlayerPointsForWeek> {
-    if (playerIds.length === 0) {
-        return { pointsByPlayerDate: new Map(), rosterCutoffByPlayerDate: new Map() }
-    }
-
-    const stats = await fetchAllPages<StatRow>((from, to) => supabase
+): Promise<StatRow[]> {
+    return fetchAllPages<StatRow>((from, to) => supabase
         .from('player_game_stats')
         .select(
             'player_id,game_date,points,rebounds,assists,steals,blocks,turnovers,' +
@@ -337,6 +356,24 @@ async function loadPlayerPointsForWeek(
         .range(from, to)
         // The concatenated select string defeats PostgREST's response typing.
         .returns<StatRow[]>())
+}
+
+async function loadPlayerPointsForWeek(
+    playerIds: string[],
+    seasonYear: number,
+    settings: Record<string, number>,
+    weekStart: string,
+    weekEnd: string,
+): Promise<PlayerPointsForWeek> {
+    if (playerIds.length === 0) {
+        return { pointsByPlayerDate: new Map(), rosterCutoffByPlayerDate: new Map() }
+    }
+
+    const stats: StatRow[] = []
+    for (let start = 0; start < playerIds.length; start += STATS_PLAYER_BATCH) {
+        const batch = playerIds.slice(start, start + STATS_PLAYER_BATCH)
+        stats.push(...await loadPlayerStatsForWeek(batch, seasonYear, weekStart, weekEnd))
+    }
 
     const pointsByPlayerDate = new Map<string, number>()
     const rosterCutoffByPlayerDate = new Map<string, string>()
@@ -404,7 +441,7 @@ async function loadMaxPossiblePointsInput(
 
     const rosterTransactionRows = await fetchAllPages<RosterTransactionForScore>((from, to) => supabase
         .from('roster_transactions')
-        .select('id, member_id, player_id, transaction_type, occurred_at, players(position, eligible_positions)')
+        .select('id, member_id, player_id, transaction_type, occurred_at, acquired_to_taxi, players(position, eligible_positions)')
         .in('member_id', memberIds)
         .eq('league_season_id', leagueSeasonId)
         .in('transaction_type', ROSTER_HISTORY_TRANSACTION_TYPES)

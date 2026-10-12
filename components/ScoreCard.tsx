@@ -43,6 +43,10 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
         }
     }
 
+    const firstWeek = matchup.roundStartWeek ?? matchup.weekNumber
+    const lastWeek = matchup.roundEndWeek ?? matchup.weekNumber
+    const weekLabel = firstWeek === lastWeek ? `Week ${firstWeek}` : `Weeks ${firstWeek}–${lastWeek}`
+
     return (
         <View style={[styles.card, compact && styles.cardCompact]}>
             <View style={[styles.header, compact && styles.headerCompact]}>
@@ -51,9 +55,9 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     role="heading"
                     aria-level={2}
                     accessibilityRole="header"
-                    accessibilityLabel={`Week ${matchup.weekNumber} matchup`}
+                    accessibilityLabel={`${weekLabel} matchup`}
                 >
-                    WEEK {matchup.weekNumber}
+                    {weekLabel.toUpperCase()}
                 </Text>
                 <View style={styles.headerRule} />
                 <View style={[styles.statusBadge, compact && styles.statusBadgeCompact, { backgroundColor: alpha(statusTint, 0.1), borderColor: alpha(statusTint, 0.31) }]}>

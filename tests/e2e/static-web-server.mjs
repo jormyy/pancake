@@ -130,10 +130,14 @@ const server = createServer((request, response) => {
   }
 
   const extension = path.extname(filePath);
-  const immutableAsset = filePath.includes(`${path.sep}_expo${path.sep}static${path.sep}`);
+  // Mirror production: vercel.json marks /_expo/static and /assets immutable; Vercel serves every
+  // other static file as public, max-age=0, must-revalidate. The service worker refuses to precache
+  // no-store responses, so a no-store shell here would hide the release path production uses.
+  const immutableAsset = filePath.includes(`${path.sep}_expo${path.sep}static${path.sep}`) ||
+    filePath.startsWith(path.join(root, 'assets') + path.sep);
   const encoding = acceptedEncoding(request, extension);
   response.writeHead(200, {
-    'cache-control': immutableAsset ? 'public, max-age=31536000, immutable' : 'no-store',
+    'cache-control': immutableAsset ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate',
     'content-type': contentTypes.get(extension) ?? 'application/octet-stream',
     ...(encoding ? { 'content-encoding': encoding, vary: 'Accept-Encoding' } : {}),
   });

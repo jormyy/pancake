@@ -34,14 +34,14 @@ export default function CommissionerSettingsScreen() {
     const {
         adjustSlot, busyAction, draft, handleAddCountOverride, handleDeleteLeague,
         handleFaabOverride, isCommissioner, lifecycle, loadError, loadState, lowerPriorityActions,
-        members, navigateBack, overrideAdds, overrideFaab, overrideMemberId,
+        members, playoffCalendar, playoffRoundsNeedReview, navigateBack, overrideAdds, overrideFaab, overrideMemberId,
         overrideSaving, retryLoad, save, saving, setOverrideAdds, setOverrideFaab,
         setOverrideMemberId, tradeVetoModeDescription, updateField, updateScoring,
     } = useCommissionerSettingsController()
     const {
         scoring, slots, rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek,
         weeklyAddLimit, waiverMode, faabBudget, tradeVetoMode, tradeVetoWindowHours,
-        tradeVetoThresholdPercent, tradeDeadline,
+        tradeVetoThresholdPercent, tradeDeadline, playoffTotalWeeks, playoffRoundWeeks,
     } = draft
 
     // Save stays in reach at the top while the long form scrolls under it.
@@ -71,7 +71,7 @@ export default function CommissionerSettingsScreen() {
         return <>
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
             {frame(<>
-                {loadState === 'error' ? <ErrorBanner message={loadError ?? 'Could not load league settings.'} onRetry={retryLoad} /> : null}
+                {loadState === 'error' ? <ErrorBanner message={`${loadError ?? 'Could not load league settings.'} Tap to retry.`} onRetry={retryLoad} /> : null}
                 {loadState === 'unauthorized' || loadState === 'error' ? (
                     <EmptyState fullScreen={false}
                         message={loadState === 'unauthorized' ? 'Commissioner access required' : 'Settings unavailable'}
@@ -200,11 +200,6 @@ export default function CommissionerSettingsScreen() {
                                 set: (value: string) => updateField('auctionBudget', value),
                             },
                             {
-                                label: 'Playoff Start Week (18–24)',
-                                value: playoffWeek,
-                                set: (value: string) => updateField('playoffWeek', value),
-                            },
-                            {
                                 label: 'Weekly Add Limit (0 = unlimited)',
                                 value: weeklyAddLimit,
                                 set: (value: string) => updateField('weeklyAddLimit', value),
@@ -248,6 +243,37 @@ export default function CommissionerSettingsScreen() {
                                 })}
                             </View>
                         </View>
+                    </View>
+
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Playoffs</Text>
+                    <View style={styles.card}>
+                        <Text style={styles.settingHint}>
+                            {playoffCalendar?.weeks.length
+                                ? `Season ${playoffCalendar.seasonYear} has calendar weeks ${playoffCalendar.weeks[0]}–${playoffCalendar.weeks[playoffCalendar.weeks.length - 1]}. Every week through the final must exist.`
+                                : 'The season calendar is unavailable. New playoff settings cannot be saved until it loads.'}
+                            {' Choose positive whole weeks. Round weeks must add up to total playoff weeks. Changes rebuild an unstarted schedule. Settings cannot change after its first week starts.'}
+                        </Text>
+                        {playoffRoundsNeedReview && (
+                            <Text style={styles.settingHint}>
+                                The team count changed. Review the round lengths and total before starting a draft or generating the schedule.
+                            </Text>
+                        )}
+                        {[
+                            { label: 'Playoff Start Week', value: playoffWeek, set: (value: string) => updateField('playoffWeek', value) },
+                            { label: 'Total Playoff Weeks', value: playoffTotalWeeks, set: (value: string) => updateField('playoffTotalWeeks', value) },
+                            ...(members.length >= 10 ? ['Quarterfinal Weeks', 'Semifinal Weeks', 'Final Weeks'] : ['Semifinal Weeks', 'Final Weeks']).map((label, index) => ({
+                                label,
+                                value: playoffRoundWeeks[index] ?? '',
+                                set: (value: string) => updateField('playoffRoundWeeks',
+                                    Array.from({ length: members.length >= 10 ? 3 : 2 }, (_, round) => round === index ? value : playoffRoundWeeks[round] ?? '')),
+                            })),
+                        ].map(({ label, value, set }) => (
+                            <View key={label} style={[styles.row, styles.rowBorder]}>
+                                <Text style={styles.rowLabel}>{label}</Text>
+                                <TextInput style={styles.scoreInput} accessibilityLabel={label} value={value}
+                                    onChangeText={set} keyboardType="numeric" selectTextOnFocus />
+                            </View>
+                        ))}
                     </View>
 
                     <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Trade deadline</Text>

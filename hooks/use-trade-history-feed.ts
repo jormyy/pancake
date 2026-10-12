@@ -30,19 +30,21 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
             setResource({ key: null, trades: [] })
             setError(null)
             setLoading(false)
-            return
+            return false
         }
         setLoading(true)
         setError(null)
         try {
             const result = await getTradeHistoryForScreen(memberId, leagueId, PAGE_SIZE)
-            if (sequence.current !== requestId || activeKey.current !== requestKey) return
+            if (sequence.current !== requestId || activeKey.current !== requestKey) return false
             setResource({ key: requestKey, trades: result.trades })
             nextCursor.current = result.nextCursor
             setHasMore(result.hasMore)
+            return true
         } catch (cause) {
-            if (sequence.current !== requestId || activeKey.current !== requestKey) return
+            if (sequence.current !== requestId || activeKey.current !== requestKey) return false
             setError(getErrorMessage(cause) ?? 'Could not load trade history.')
+            return false
         } finally {
             if (sequence.current === requestId && activeKey.current === requestKey) setLoading(false)
         }

@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
-import { ComponentProps, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { createPortal } from 'react-dom'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
@@ -147,12 +147,20 @@ function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?:
 }
 
 function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
-    const { memberships, current, setCurrent } = useLeagueContext()
+    const { memberships, current, setCurrent, membershipStatus } = useLeagueContext()
+    const { height: viewportHeight } = useWindowDimensions()
     const [open, setOpen] = useState(false)
     const [anchor, setAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
     const wrapRef = useRef<View>(null)
+    const triggerRef = useRef<View>(null)
+    const activeOptionRef = useRef<View>(null)
+    const menuRef = useRef<ScrollView>(null)
     const pathname = usePathname()
     const light = tone === 'light'
+    const closeMenu = useCallback(() => {
+        setOpen(false)
+        triggerRef.current?.focus()
+    }, [])
 
     // The menu renders in a layer on document.body (this shell is web-only), so
     // nothing in the page can clip it. It sits under the switch; a tap anywhere
@@ -160,8 +168,26 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     useEffect(() => { setOpen(false) }, [pathname])
     useEffect(() => {
         if (!open || typeof document === 'undefined') return
+        activeOptionRef.current?.focus()
         const close = () => setOpen(false)
-        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault()
+                closeMenu()
+            } else if (event.key === 'Tab') {
+                const menu = menuRef.current?.getInnerViewNode() as HTMLElement | null
+                const options = menu?.querySelectorAll<HTMLElement>('[role="button"]')
+                if (!options?.length) return
+                const first = options[0]
+                const last = options[options.length - 1]
+                if (!menu?.contains(document.activeElement) ||
+                    (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+                    event.preventDefault()
+                    const target = event.shiftKey ? last : first
+                    target.focus()
+                }
+            }
+        }
         document.addEventListener('keydown', onKey)
         // Browser Back between two tabs of one page keeps the path, so watch history too.
         window.addEventListener('popstate', close)
@@ -169,11 +195,11 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
             document.removeEventListener('keydown', onKey)
             window.removeEventListener('popstate', close)
         }
-    }, [open])
+    }, [closeMenu, open])
     // Read the switch's box straight from the page. The async measure call
     // never answered on a reopen after Escape, which left the menu shut.
     const toggleMenu = () => {
-        if (open) { setOpen(false); return }
+        if (open) { closeMenu(); return }
         const node = wrapRef.current as unknown as HTMLElement | null
         if (!node?.getBoundingClientRect) return
         const { left, top, width, height } = node.getBoundingClientRect()
@@ -189,9 +215,9 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
             <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
                 <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
                 <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">No league</Text>
+                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
                     {light ? null : (
-                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">Create or join from League</Text>
+                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
                     )}
                 </View>
             </View>
@@ -204,6 +230,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     return (
         <View ref={wrapRef} style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
             <Pressable
+                ref={triggerRef}
                 onPress={toggleMenu}
                 style={({ hovered, pressed }: PressableState) => [
                     styles.leagueSwitch,
@@ -213,6 +240,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Switch league"
+                aria-expanded={open}
             >
                 <View style={styles.leagueCrest}>
                     <Text style={styles.leagueCrestText}>{(current.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
@@ -228,12 +256,19 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
 
             {open && anchor && typeof document !== 'undefined' ? createPortal(
                 <View style={styles.leagueMenuLayer}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} accessibilityLabel="Close league menu" />
-                <View
+                <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} accessibilityLabel="Close league menu" />
+                <ScrollView
+                    ref={menuRef}
+                    contentContainerStyle={{ padding: spacing.sm }}
                     style={[
                         styles.leagueMenu,
                         // Match the switch's width so the menu stays inside the sidebar.
-                        { top: anchor.y + anchor.height + spacing.xs, left: anchor.x, width: anchor.width },
+                        {
+                            top: anchor.y + anchor.height + spacing.xs,
+                            left: anchor.x,
+                            width: anchor.width,
+                            maxHeight: Math.max(0, viewportHeight - anchor.y - anchor.height - spacing.xs - spacing.sm),
+                        },
                     ]}
                 >
                     {memberships.map((membership) => {
@@ -241,9 +276,10 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                         return (
                             <Pressable
                                 key={membership.id}
+                                ref={active ? activeOptionRef : undefined}
                                 onPress={() => {
                                     setCurrent(membership)
-                                    setOpen(false)
+                                    closeMenu()
                                 }}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Switch to ${membership.leagues?.name ?? 'League'}`}
@@ -265,7 +301,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                             </Pressable>
                         )
                     })}
-                </View>
+                </ScrollView>
                 </View>,
                 document.body,
             ) : null}

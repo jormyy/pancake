@@ -45,6 +45,17 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  PERFORM private.lock_roster_activation(
+    p_activate_roster_player_id, p_activate_source, p_free_roster_player_id
+  );
+
+  IF NOT EXISTS (
+    SELECT 1 FROM roster_players WHERE id = p_activate_roster_player_id
+      AND member_id = p_member_id AND league_id = p_league_id AND league_season_id = p_league_season_id
+  ) THEN
+    RAISE EXCEPTION 'Activated player is not on this roster.' USING ERRCODE = 'P0002';
+  END IF;
+
   IF p_free_roster_player_id IS NOT NULL THEN
     CASE p_free_action
       WHEN 'drop' THEN

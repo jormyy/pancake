@@ -6,7 +6,8 @@ CREATE OR REPLACE FUNCTION public.commissioner_snake_pick_atomic(
   p_draft_id uuid,
   p_member_id uuid,
   p_player_id uuid,
-  p_actor_user_id uuid DEFAULT NULL
+  p_actor_user_id uuid DEFAULT NULL,
+  p_to_taxi boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -49,7 +50,7 @@ BEGIN
          pause_reason = NULL
    WHERE id = p_draft_id;
 
-  v_result := public.make_snake_pick_atomic(p_draft_id, p_member_id, p_player_id);
+  v_result := public.make_snake_pick_atomic(p_draft_id, p_member_id, p_player_id, p_to_taxi);
 
   INSERT INTO draft_audit_logs (draft_id, league_id, actor_user_id, action, metadata)
   VALUES (

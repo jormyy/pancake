@@ -1,3 +1,4 @@
+import { attestedMigrationFiles, convergenceAfter, copyAttestedMigrations } from './helpers/attested-migrations'
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -7,9 +8,7 @@ import { expect, it } from 'vitest'
 import { planAttestedProductionMigrations } from './e2e/release-soak-migration-plan.mjs'
 
 const attestation = JSON.parse(readFileSync('tests/e2e/release-history-attestations.json', 'utf8'))
-const files = readdirSync('supabase/migrations').filter((name) => name.endsWith('.sql')).sort().map((filename) => ({
-  filename, sha256: createHash('sha256').update(readFileSync(`supabase/migrations/${filename}`)).digest('hex'),
-}))
+const files = attestedMigrationFiles
 const snapshot = (applied = 0) => ({
   history: files.slice(0, attestation.baselineCount + applied).map(({ filename }) => {
     const version = filename.split('_')[0]
@@ -21,7 +20,7 @@ const snapshot = (applied = 0) => ({
       statementsSha256: fingerprint?.statementsSha256 ?? '',
     }
   }),
-  functions: structuredClone(attestation.convergence),
+  functions: convergenceAfter(files.slice(0, attestation.baselineCount + applied).map(({ filename }) => filename.split('_')[0])),
   oldHelperCount: 0, oldHelperReferenceCount: 0,
 })
 
@@ -66,7 +65,7 @@ it.each([
   const dir = mkdtempSync(path.join(os.tmpdir(), 'pancake-apply-guard-'))
   try {
     mkdirSync(path.join(dir, 'tests/e2e'), { recursive: true })
-    cpSync('supabase/migrations', path.join(dir, 'supabase/migrations'), { recursive: true })
+    copyAttestedMigrations(dir)
     for (const name of ['release-soak-migration-plan.mjs', 'release-history-attestations.json']) {
       cpSync(`tests/e2e/${name}`, path.join(dir, 'tests/e2e', name))
     }

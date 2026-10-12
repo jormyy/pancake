@@ -162,7 +162,9 @@ describe('instant-loading performance budget contract', () => {
         expect(dynastyScreen).not.toContain('newsLoadingRow')
         expect(dynastyScreen).not.toContain('Loading dynasty rankings')
         expect(dynastyScreen).not.toContain('Loading dynasty news')
-        expect(playerSearchHook).toContain('lastLeagueIdRef')
+        // The result guard now owns the entire identity/query, including league.
+        expect(playerSearchHook).toContain('renderedKeyRef.current === searchParamsKey')
+        expect(playerSearchHook).toContain('dataKey === searchParamsKey')
         expect(playerSearchHook).not.toContain('isFirstLeagueRunRef')
     })
 })

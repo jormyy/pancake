@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, Platform } from 'react-native'
 import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { todayET } from '@/lib/shared/dates'
 
@@ -10,6 +9,7 @@ type Snapshot = {
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     // When every read of the last load succeeded; 0 until then.
     fetchedAt: number
+    status: 'fresh' | 'refreshing' | 'failed' | 'offline'
 }
 
 type Listener = (snapshot: Snapshot) => void
@@ -20,16 +20,21 @@ const EMPTY_SNAPSHOT: Snapshot = {
     startedTeams: new Set(),
     teamMatchups: new Map(),
     fetchedAt: 0,
+    status: 'refreshing',
 }
 
 const snapshots = new Map<string, Snapshot>()
 const listenersByDate = new Map<string, Set<Listener>>()
 const inFlightByDate = new Map<string, Promise<void>>()
+const inFlightEpochByDate = new Map<string, number>()
 const silentRefreshListenersByDate = new Map<string, Set<() => void>>()
 let todayPoll: ReturnType<typeof setInterval> | null = null
 const MAX_SNAPSHOT_DATES = 14
 const LIVE_POLL_MS = 15_000
 const IDLE_POLL_MS = 60_000
+let networkEpoch = 0
+let resumeNeeded = false
+const refreshesByDate = new Map<string, Promise<void>>()
 
 function evictSnapshots() {
     if (snapshots.size <= MAX_SNAPSHOT_DATES) return
@@ -47,10 +52,15 @@ function notify(date: string, snapshot: Snapshot) {
 async function loadSnapshot(date: string): Promise<void> {
     const existing = inFlightByDate.get(date)
     if (existing) return existing
+    if (pageHidden() || !browserOnline()) return
 
+    const epoch = networkEpoch
     const task = (async () => {
         const isToday = date === todayET()
         const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
+        const updating = { ...previous, status: 'refreshing' as const }
+        snapshots.set(date, updating)
+        notify(date, updating)
         let failed = false
         const [liveStats, gameDay] = await Promise.all([
             getLivePlayerStats(date).catch(() => {
@@ -62,6 +72,7 @@ async function loadSnapshot(date: string): Promise<void> {
                 return null
             }),
         ])
+        if (epoch !== networkEpoch) return
         if (isToday && gameDay) todaysGamesFetchedAt = Date.now()
 
         const snapshot: Snapshot = {
@@ -71,6 +82,7 @@ async function loadSnapshot(date: string): Promise<void> {
             teamMatchups: gameDay?.teamMatchups ?? previous.teamMatchups,
             // A failed read leaves the snapshot due, so the next mount retries.
             fetchedAt: failed ? previous.fetchedAt : Date.now(),
+            status: failed ? 'failed' : 'fresh',
         }
         snapshots.delete(date)
         snapshots.set(date, snapshot)
@@ -78,9 +90,11 @@ async function loadSnapshot(date: string): Promise<void> {
         notify(date, snapshot)
     })().finally(() => {
         inFlightByDate.delete(date)
+        inFlightEpochByDate.delete(date)
     })
 
     inFlightByDate.set(date, task)
+    inFlightEpochByDate.set(date, epoch)
     return task
 }
 
@@ -98,42 +112,77 @@ function anyGameInProgress(date: string): boolean {
 // A snapshot younger than the poll cadence is what a mounted screen would show
 // anyway, so a remount or a return to the page reuses it.
 function snapshotFresh(date: string): boolean {
-    const fetchedAt = snapshots.get(date)?.fetchedAt ?? 0
+    const snapshot = snapshots.get(date)
+    const fetchedAt = snapshot?.fetchedAt ?? 0
     const maxAge = date === todayET() && anyGameInProgress(date) ? LIVE_POLL_MS : IDLE_POLL_MS
-    return fetchedAt > 0 && Date.now() - fetchedAt < maxAge
+    return snapshot?.status === 'fresh' && fetchedAt > 0 && Date.now() - fetchedAt < maxAge
+}
+
+function browserOnline(): boolean {
+    return typeof navigator === 'undefined' || navigator.onLine !== false
 }
 
 function pageHidden(): boolean {
-    if (Platform.OS === 'web') return typeof document !== 'undefined' && document.visibilityState === 'hidden'
-    return AppState.currentState === 'background'
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden'
 }
 
 // Nothing is on screen while the page is hidden, so the poll skips its ticks.
 // On return a snapshot older than the cadence refreshes at once, and live
 // lineups with it.
-function catchUpAfterHidden() {
-    const today = todayET()
-    if ((listenersByDate.get(today)?.size ?? 0) === 0 || snapshotFresh(today)) return
-    const wasLive = anyGameInProgress(today)
-    void loadSnapshot(today).then(() => {
-        if (!wasLive && !anyGameInProgress(today)) return
-        for (const listener of silentRefreshListenersByDate.get(today) ?? []) listener()
-    })
+function refreshLiveDate(date: string): Promise<void> {
+    const existing = refreshesByDate.get(date)
+    if (existing) return existing
+    const task = (async () => {
+        const wasLive = anyGameInProgress(date)
+        let epoch: number
+        do {
+            epoch = inFlightEpochByDate.get(date) ?? networkEpoch
+            resumeNeeded = false
+            await loadSnapshot(date)
+        } while (epoch !== networkEpoch && browserOnline() && !pageHidden() && listenersByDate.has(date))
+        if (!browserOnline() || pageHidden() || snapshots.get(date)?.status !== 'fresh') return
+        if (!wasLive && !anyGameInProgress(date)) return
+        for (const listener of silentRefreshListenersByDate.get(date) ?? []) listener()
+    })().finally(() => { refreshesByDate.delete(date) })
+    refreshesByDate.set(date, task)
+    return task
 }
 
-let visibilityWatched = false
+function catchUpAfterHidden() {
+    const today = todayET()
+    if (!browserOnline() || pageHidden() || (listenersByDate.get(today)?.size ?? 0) === 0) return
+    if (!resumeNeeded && snapshotFresh(today)) return
+    void refreshLiveDate(today)
+}
+
+let stopWatching: (() => void) | null = null
 function watchVisibility() {
-    if (visibilityWatched) return
-    visibilityWatched = true
-    if (Platform.OS === 'web') {
-        if (typeof document === 'undefined') return
-        document.addEventListener('visibilitychange', () => {
-            if (!pageHidden()) catchUpAfterHidden()
-        })
-    } else {
-        AppState.addEventListener('change', (state) => {
-            if (state === 'active') catchUpAfterHidden()
-        })
+    if (stopWatching) return
+    if (typeof document === 'undefined') return
+    const online = () => { resumeNeeded = true; catchUpAfterHidden() }
+    const offline = () => {
+        networkEpoch += 1
+        resumeNeeded = true
+        for (const [date, snapshot] of snapshots) {
+            const stale = { ...snapshot, status: 'offline' as const }
+            snapshots.set(date, stale)
+            notify(date, stale)
+        }
+    }
+    document.addEventListener('visibilitychange', catchUpAfterHidden)
+    if (typeof window !== 'undefined') {
+        window.addEventListener('online', online)
+        window.addEventListener('offline', offline)
+        window.addEventListener('focus', catchUpAfterHidden)
+    }
+    stopWatching = () => {
+        document.removeEventListener?.('visibilitychange', catchUpAfterHidden)
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('online', online)
+            window.removeEventListener('offline', offline)
+            window.removeEventListener('focus', catchUpAfterHidden)
+        }
+        stopWatching = null
     }
 }
 
@@ -147,7 +196,7 @@ function ensureTodayPoll() {
             todayPoll = null
             return
         }
-        if (pageHidden()) return
+        if (pageHidden() || !browserOnline()) return
 
         // With no game in progress nothing is changing — back the poll off to
         // one snapshot per minute and skip the silent-refresh fan-out (which
@@ -156,11 +205,7 @@ function ensureTodayPoll() {
         const wasLive = anyGameInProgress(today)
         if (!wasLive && pollTick % (IDLE_POLL_MS / LIVE_POLL_MS) !== 0) return
 
-        await loadSnapshot(today)
-        // Fan out while games are live AND on the tick where the last game
-        // flips to Final, so closing box scores still reach the lineups.
-        if (!wasLive && !anyGameInProgress(today)) return
-        for (const listener of silentRefreshListenersByDate.get(today) ?? []) listener()
+        await refreshLiveDate(today)
     }, LIVE_POLL_MS)
 }
 
@@ -215,18 +260,23 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
         return () => {
             listeners?.delete(listener)
             if (listeners?.size === 0) listenersByDate.delete(selectedDate)
+            if (listenersByDate.size === 0) {
+                stopWatching?.()
+                if (todayPoll) clearInterval(todayPoll)
+                todayPoll = null
+            }
             evictSnapshots()
         }
     }, [selectedDate])
 
     const liveTeams = useMemo(() => {
-        if (selectedDate !== todayET()) return new Set<string>()
+        if (selectedDate !== todayET() || !browserOnline() || snapshot.status !== 'fresh') return new Set<string>()
         return new Set(
             snapshot.todaysGames
                 .filter((g) => g.status === 'InProgress')
                 .flatMap((g) => [g.home_team, g.away_team]),
         )
-    }, [selectedDate, snapshot.todaysGames])
+    }, [selectedDate, snapshot.status, snapshot.todaysGames])
 
     return {
         todaysGames: snapshot.todaysGames,
@@ -234,5 +284,6 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
         startedTeams: snapshot.startedTeams,
         liveTeams,
         teamMatchups: teamMatchupsRef.current,
+        freshness: browserOnline() ? snapshot.status : 'offline' as const,
     }
 }

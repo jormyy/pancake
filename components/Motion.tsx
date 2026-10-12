@@ -42,6 +42,7 @@ export function MotionView({
 type MotionPressableProps = Omit<PressableProps, 'style'> & {
     children: ReactNode
     disabled?: boolean
+    disabledOpacity?: number
     lift?: number
     pressedScale?: number
     style?: StyleProp<ViewStyle>
@@ -50,6 +51,7 @@ type MotionPressableProps = Omit<PressableProps, 'style'> & {
 export function MotionPressable({
     children,
     disabled,
+    disabledOpacity = 0.58,
     lift = 1.5,
     onHoverIn,
     onHoverOut,
@@ -64,12 +66,12 @@ export function MotionPressable({
     const hovered = useSharedValue(0)
 
     const animatedStyle = useAnimatedStyle(() => ({
-        opacity: disabled ? 0.58 : 1,
+        opacity: disabled ? disabledOpacity : 1,
         transform: [
             { translateY: -hovered.value * lift },
             { scale: 1 - pressed.value * (1 - pressedScale) },
         ],
-    }), [disabled, lift, pressedScale])
+    }), [disabled, disabledOpacity, lift, pressedScale])
 
     return (
         <AnimatedPressable

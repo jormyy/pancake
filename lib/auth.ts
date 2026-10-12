@@ -1,8 +1,10 @@
-import { supabase } from '@/lib/supabase'
+import {
+    supabase, captureLocalAuthSession, localAuthSessionMatches, invalidateLocalAuthSession, readStoredSessionTokens, revokeDetachedSession,
+} from '@/lib/supabase'
 import type { Profile } from '@/types/database'
-import { unregisterCurrentDevicePushToken } from '@/lib/push-token'
-import { detachWebPushFromAccount } from '@/lib/web-push'
-import { clearPersistentCaches } from '@/lib/persistent-cache'
+import { completeWebPushLogin, detachWebPushFromAccount, prepareWebPushLogin } from '@/lib/web-push'
+import { waitForAuthInitialization } from '@/lib/auth-lock'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 export async function signUp(
     email: string,
@@ -10,45 +12,73 @@ export async function signUp(
     username: string,
     displayName: string,
 ) {
+    const pushIntent = await prepareWebPushLogin()
     const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { username, display_name: displayName } },
     })
     if (error) throw error
+    if (data.session) await completeWebPushLogin(pushIntent, data.session.user.id)
     return data
 }
 
 export async function signIn(email: string, password: string) {
+    const pushIntent = await prepareWebPushLogin()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    if (data.session) await completeWebPushLogin(pushIntent, data.session.user.id)
     return data
 }
 
 export async function signOut() {
+    const owner = sessionOwner()
+    const generation = sessionGeneration()
+    const expected = captureLocalAuthSession()
+    // The raw stored tokens survive an expired access token, so the server session can still be revoked.
+    const tokens = readStoredSessionTokens()
+    const stillCurrent = () => sessionOwner() === owner && sessionGeneration() === generation
+        && (!expected.session || expected.session.user.id === owner) && localAuthSessionMatches(expected)
+    if (!stillCurrent()) throw new Error('Your account changed. Please retry.')
+
+    // This device drops the account before any network call: a slow or offline server must
+    // not keep private screens visible. Only the captured account is cleared, never a newer one.
+    if (!await invalidateLocalAuthSession(expected, stillCurrent)) throw new Error('Your account changed. Please retry.')
+    const cleanupGeneration = sessionGeneration()
+    const cleanupCurrent = () => sessionOwner() === null && sessionGeneration() === cleanupGeneration
     try {
-        await unregisterCurrentDevicePushToken()
+        const { error: startupError } = await waitForAuthInitialization(supabase.auth.initialize())
+        if (startupError) console.warn('Session startup failed during sign-out.', startupError)
+        // No stored session remains, so this only clears the SDK and notifies auth and realtime listeners.
+        await supabase.auth.signOut({ scope: 'local' })
     } catch (error) {
-        console.warn('Push-token revocation was queued for retry.', error)
-    }
-    try {
-        await detachWebPushFromAccount()
-    } catch (error) {
-        // Not fatal: the next signed-in sync re-assigns this endpoint to its new owner.
-        console.warn('Web push detach failed.', error)
+        console.warn('Local sign-out cleanup failed.', error)
     }
 
-    try {
-        const { error } = await supabase.auth.signOut()
-        if (!error) return
-    } catch (error) {
-        console.warn('Server sign-out failed; clearing the local session.', error)
-    } finally {
-        clearPersistentCaches()
+    // Notification cleanup acts for the captured account: with a usable session it removes the server
+    // registration, otherwise it still stops delivery to this browser.
+    let pushHandled = false
+    const detachPush = async (accessToken: string | null) => {
+        if (!owner || pushHandled) return
+        pushHandled = true
+        try {
+            await detachWebPushFromAccount({ ownerId: owner, accessToken }, cleanupCurrent)
+        } catch (error) {
+            console.warn('Web push detach failed.', error)
+        }
     }
 
-    const { error: localError } = await supabase.auth.signOut({ scope: 'local' })
-    if (localError) throw localError
+    let serverSignOutConfirmed = !tokens
+    if (tokens) {
+        try {
+            serverSignOutConfirmed = await revokeDetachedSession(tokens, detachPush)
+            if (!serverSignOutConfirmed) console.warn('Server sign-out could not be confirmed.')
+        } catch (error) {
+            console.warn('Server sign-out could not be confirmed.', error)
+        }
+    }
+    await detachPush(null)
+    return { serverSignOutConfirmed }
 }
 
 export async function changePassword(currentPassword: string, newPassword: string) {
@@ -88,6 +118,8 @@ export async function updateProfile(userId: string, updates: { display_name?: st
 
 type AvatarAsset = {
     uri: string
+    width: number
+    height: number
     mimeType?: string | null
     fileSize?: number | null
 }
@@ -100,6 +132,11 @@ const AVATAR_TYPES = new Map([
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024
 
 export async function uploadAvatar(userId: string, asset: AvatarAsset): Promise<string> {
+    // The web picker returns zero dimensions when the browser cannot decode the file.
+    if (!Number.isFinite(asset.width) || asset.width <= 0
+        || !Number.isFinite(asset.height) || asset.height <= 0) {
+        throw new Error('Could not read the selected image. Choose another photo.')
+    }
     const response = await fetch(asset.uri)
     if (!response.ok) throw new Error('Could not read the selected image.')
     const blob = await response.blob()

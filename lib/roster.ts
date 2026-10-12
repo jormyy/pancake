@@ -35,19 +35,20 @@ export type PlayerRosterStatus =
     | { status: 'on_waivers'; logId: string; clearsAt: string }
     | { status: 'free_agent' }
 
-export async function getRoster(memberId: string, leagueId: string): Promise<RosterPlayer[]> {
-    const rosters = await getRostersForMembers([memberId], leagueId)
+export async function getRoster(memberId: string, leagueId: string, leagueSeasonId?: string): Promise<RosterPlayer[]> {
+    const rosters = await getRostersForMembers([memberId], leagueId, leagueSeasonId)
     return rosters[memberId] ?? []
 }
 
 export async function getRostersForMembers(
     memberIds: string[],
     leagueId: string,
+    leagueSeasonId?: string,
 ): Promise<Record<string, RosterPlayer[]>> {
     const uniqueMemberIds = [...new Set(memberIds)]
     const rosters = Object.fromEntries(uniqueMemberIds.map((memberId) => [memberId, [] as RosterPlayer[]]))
     if (uniqueMemberIds.length === 0) return rosters
-    const seasonId = await getActiveSeasonId(leagueId)
+    const seasonId = leagueSeasonId ?? await getActiveSeasonId(leagueId)
     if (!seasonId) return rosters
 
     const { data, error } = await supabase
@@ -190,7 +191,10 @@ export async function dropAndAddFreeAgent(
     }
 }
 
-export async function dropPlayer(rosterPlayerId: string): Promise<void> {
+export async function dropPlayer(rosterPlayerId: string, expectedLeagueSeasonId?: string, rookieDraftId?: string): Promise<void> {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        throw new Error('Connect to the internet to drop a player.')
+    }
     // Atomic: delete roster row, insert 48h waiver_wire_log, insert
     // roster_transactions audit row — all in a single Postgres transaction.
     // Prior implementation issued 3 serial writes with no rollback, so a
@@ -198,6 +202,8 @@ export async function dropPlayer(rosterPlayerId: string): Promise<void> {
     // ever placing them on waivers.
     const { error } = await supabase.rpc('drop_player_atomic', {
         p_roster_player_id: rosterPlayerId,
+        ...(expectedLeagueSeasonId ? { p_expected_league_season_id: expectedLeagueSeasonId } : {}),
+        ...(rookieDraftId ? { p_rookie_draft_id: rookieDraftId } : {}),
     })
     if (error) {
         if (error.code === 'P0002') {

@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 
 type TradeFlowParticipant = {
@@ -23,9 +23,10 @@ type MultiTeamTradeOverviewProps = {
     items: TradeFlowItem[]
     compact?: boolean
     columns?: boolean
+    onRemoveItem?: (key: string) => void
 }
 
-export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false }: MultiTeamTradeOverviewProps) {
+export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem }: MultiTeamTradeOverviewProps) {
     const { incomingByMember, outgoingCountByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
@@ -94,6 +95,13 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                                 {item.detail ? ` · ${item.detail}` : ''}
                                             </Text>
                                         </View>
+                                        {onRemoveItem ? (
+                                            <Pressable style={styles.removeAsset}
+                                                onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
+                                                accessibilityLabel={`Remove ${item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
+                                                <MaterialIcons name="close" size={20} color={colors.textSecondary} />
+                                            </Pressable>
+                                        ) : null}
                                     </View>
                                 ))}
                             </View>
@@ -110,6 +118,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
 }
 
 const styles = StyleSheet.create({
+    removeAsset: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
     container: {
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.xl,

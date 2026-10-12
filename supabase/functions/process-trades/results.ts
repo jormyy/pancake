@@ -9,6 +9,8 @@ export type PartitionedTradeResults<Row extends TradeProcessingResult> = {
   completed: Row[]
   terminalFailures: Row[]
   retryableFailures: Row[]
+  /** Still accepted: a receiving player's game is in progress, so the trade settles on a later run. */
+  deferred: Row[]
 }
 
 export function partitionTradeResults<Row extends TradeProcessingResult>(
@@ -18,12 +20,14 @@ export function partitionTradeResults<Row extends TradeProcessingResult>(
     completed: [],
     terminalFailures: [],
     retryableFailures: [],
+    deferred: [],
   }
 
   for (const row of rows) {
     if (row.status === 'completed') result.completed.push(row)
     else if (row.status === 'expired_terminal_failure') result.terminalFailures.push(row)
     else if (row.status === 'failed_retryable') result.retryableFailures.push(row)
+    else if (row.status === 'deferred') result.deferred.push(row)
     else throw new Error(`Unexpected trade processor status for ${row.trade_id}: ${row.status}`)
   }
 

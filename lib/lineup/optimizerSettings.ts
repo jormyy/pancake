@@ -23,6 +23,9 @@ export async function setLineupOptimizerEnabled(
     seasonId: string,
     enabled: boolean,
 ): Promise<void> {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        throw new Error('Connect to the internet to change the season optimizer.')
+    }
     const { error } = await supabase
         .from('lineup_optimizer_settings')
         .upsert({

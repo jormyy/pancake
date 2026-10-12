@@ -17,6 +17,8 @@ commissioner disappears.
 - [Deployment](#deployment)
 - [Documentation](#documentation)
 
+Pancake supports iPhone Safari and the installed iPhone PWA. Native app builds are not supported.
+
 ## Highlights
 
 - **Startup auction draft** with real-time bidding, commissioner-chosen nomination-order
@@ -38,7 +40,7 @@ commissioner disappears.
   offers, expiration, counteroffers, outgoing edits, trade block, and a 24h veto window
 - **H2H matchups** with cumulative weekly scoring, playoff brackets, and a fully
   automated season lifecycle ([Season autonomy](#season-autonomy))
-- **Push notifications** via Expo (server-emitted only)
+- **Push notifications** via Web Push for the installed iPhone PWA (server-emitted only)
 - **PWA**: installable web app with an offline app shell (manifest + service worker)
 
 ## Architecture
@@ -60,7 +62,7 @@ parity tests fail the build if any copy drifts.
 
 ```bash
 npm install
-npx expo start                                # frontend
+npm start                                     # Safari/PWA frontend
 supabase start                                # local database stack
 supabase functions serve --env-file .env      # Edge API
 ```
@@ -149,9 +151,12 @@ The Dynasty Hub loads 5-year Points, 3-year Points, and Rookie ranks in one auth
 batch. It preserves the published Hashtag order and filters each tab in memory. The
 service-role-only `replace_dynasty_rankings` RPC replaces each source atomically.
 Retention (`prune_unbounded_history`, weekly cron)
-prunes only rows the product never reads: ops telemetry past its window, lineups older
-than two seasons, old-season non-final standings snapshots, and transactions older than
-three seasons.
+removes ops telemetry past its window, lineups older than two seasons, old-season
+non-final standings snapshots, and transactions older than three seasons. Retirement
+marks those older seasons before removing replay inputs. Scoring preserves their saved
+results instead of recomputing from missing lineups. The migration also protects legacy
+seasons outside that same window. Correcting retired results requires verified restoration
+of their original inputs; present rosters or saved totals cannot reconstruct them.
 
 Roster-linked state (trade-block listings, future lineup slots, pending waiver drops,
 pending offers) is kept consistent by database triggers whenever a player leaves a

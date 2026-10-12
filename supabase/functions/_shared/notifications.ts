@@ -1,7 +1,7 @@
 import { supabase } from './supabase.ts'
 import { createNotifyMember, createNotifyMembers } from './notificationDelivery.ts'
 import type { VapidKeys } from './webPush.ts'
-import { createWebPushFanout } from './webPushDelivery.ts'
+import { createWebPushFanout, type WebPushSnapshot } from './webPushDelivery.ts'
 
 export type { NotificationMessage, NotifyMembers } from './notificationDelivery.ts'
 
@@ -16,9 +16,15 @@ export function webPushVapidKeys(): VapidKeys | null {
   return { publicKey, privateKey, subject }
 }
 
-export async function pruneWebPushSubscriptions(endpoints: string[]) {
-  const { error } = await supabase.from('web_push_subscriptions').delete().in('endpoint', endpoints)
-  return { error }
+export async function pruneWebPushSubscriptions(subscriptions: WebPushSnapshot[]) {
+  let count = 0
+  for (const subscription of subscriptions) {
+    const result = await supabase.from('web_push_subscriptions').delete({ count: 'exact' })
+      .eq('endpoint', subscription.endpoint).eq('user_id', subscription.user_id).eq('updated_at', subscription.updated_at)
+    if (result.error) return { error: result.error, count }
+    count += result.count ?? 0
+  }
+  return { error: null, count }
 }
 
 export const webPushFanout = createWebPushFanout({
@@ -26,7 +32,7 @@ export const webPushFanout = createWebPushFanout({
   subscriptions: async (userIds) => {
     const { data, error } = await supabase
       .from('web_push_subscriptions')
-      .select('user_id, endpoint, p256dh, auth')
+      .select('user_id, endpoint, p256dh, auth, updated_at')
       .in('user_id', userIds)
     return { data, error }
   },

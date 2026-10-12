@@ -22,6 +22,14 @@ Deno.test('trade processor partitions only declared result states', () => {
   }
 })
 
+Deno.test('a game-locked taxi destination is deferred, not counted as a failure', () => {
+  const partitioned = partitionTradeResults([row('completed'), row('deferred')])
+  if (partitioned.deferred.length !== 1) throw new Error('deferred trade was not kept for a later run')
+  if (partitioned.terminalFailures.length !== 0 || partitioned.retryableFailures.length !== 0) {
+    throw new Error('a deferred trade was reported as a failure')
+  }
+})
+
 Deno.test('trade processor rejects an undeclared result state', () => {
   let error: unknown
   try {

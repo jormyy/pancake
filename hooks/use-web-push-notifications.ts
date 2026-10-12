@@ -6,7 +6,7 @@ import { syncWebPushSubscription } from '@/lib/web-push'
 
 const NOTIFICATION_CLICK = 'PANCAKE_NOTIFICATION_CLICK'
 
-/** PWA counterpart of usePushNotifications: keeps this device's Web Push subscription attached to the signed-in user. */
+/** Keeps this device's Web Push subscription attached to the signed-in user. */
 export function useWebPushNotifications() {
     const { user } = useAuth()
     const userId = user?.id

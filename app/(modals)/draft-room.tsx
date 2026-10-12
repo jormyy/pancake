@@ -24,8 +24,9 @@ import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomContro
 
 const HISTORY_ROW_HEIGHT = 54
 
-export default function DraftRoomScreen() {
-    const { draftId } = useLocalSearchParams<{ draftId: string }>()
+export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?: string } = {}) {
+    const { draftId: routeDraftId } = useLocalSearchParams<{ draftId: string }>()
+    const draftId = resolvedDraftId ?? routeDraftId
     const { current, isCommissioner } = useLeagueContext()
     const router = useRouter()
     const { width, height } = useWindowDimensions()
@@ -44,7 +45,9 @@ export default function DraftRoomScreen() {
             refresh,
             onStopped: () => navigateBackToDraftList(state?.draft.isMock),
             confirmCopy: {
-                stop: 'This ends the draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
+                stop: state?.draft.isMock
+                    ? 'This ends the mock draft. Its results remain saved. This cannot be undone.'
+                    : 'This ends the draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
                 reset: 'This wipes every pick, bid, and budget and restarts the draft from scratch. This cannot be undone.',
                 pause: 'This freezes nominations and bidding until the commissioner resumes the draft.',
                 resume: 'This reopens the draft clock and lets managers nominate and bid again.',
@@ -104,8 +107,10 @@ export default function DraftRoomScreen() {
                         <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
                         <Text style={styles.draftEndedSub}>
                             {stopped
-                                ? 'The commissioner ended the draft. Players already drafted are on their rosters; everyone else is a free agent.'
-                                : 'All teams are out of budget. Remaining players are free agents.'}
+                                ? draft.isMock
+                                    ? 'The commissioner ended the mock draft. Its results remain saved.'
+                                    : 'The commissioner ended the draft. Players already drafted are on their rosters; everyone else is a free agent.'
+                                : 'Draft results are saved.'}
                         </Text>
                         <MotionPressable
                             style={styles.nominateButton}

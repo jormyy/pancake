@@ -1,7 +1,7 @@
 import { memo, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
-import { isIREligible, isTaxiEligible, RosterPlayer } from '@/lib/roster'
+import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { WaiverClaim } from '@/lib/waivers'
@@ -211,13 +211,11 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     togglingId,
     taxiingId,
     droppingId,
-    taxiSlotsAvailable,
     avgFpts,
     avgMinutes,
     onPress,
     onLongPress,
     onToggleIR,
-    onToggleTaxi,
 }: {
     item: RosterPlayer
     togglingId: string | null
@@ -278,18 +276,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                         </Text>
                     </MotionPressable>
                 ) : null}
-                {!item.is_on_ir && taxiSlotsAvailable && isTaxiEligible(player) ? (
-                    <MotionPressable
-                        style={[styles.actionButton, styles.taxiButtonOutline]}
-                        onPress={() => onToggleTaxi(item)}
-                        disabled={isBusy}
-                        pressedScale={0.92}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Move ${player.display_name} to taxi`}
-                    >
-                        <Text style={styles.taxiButtonOutlineText}>Taxi</Text>
-                    </MotionPressable>
-                ) : null}
+
             </View>
         </View>
     )

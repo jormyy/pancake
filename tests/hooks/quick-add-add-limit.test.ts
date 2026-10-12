@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     loadGate: vi.fn(),
     addOrRequestDrop: vi.fn(),
     dropAndAdd: vi.fn(),
+    resolveIR: vi.fn(),
 }))
 
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: mocks.success, confirmAction: mocks.confirm }))
@@ -20,7 +21,7 @@ vi.mock('@/lib/roster', () => ({ dropAndAddFreeAgent: mocks.dropAndAdd }))
 vi.mock('@/lib/roster-add-flow', () => ({
     addFreeAgentOrRequestDrop: mocks.addOrRequestDrop,
     loadRosterAddGate: mocks.loadGate,
-    resolveRosterAddIRConflict: vi.fn(),
+    resolveRosterAddIRConflict: mocks.resolveIR,
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -149,5 +150,60 @@ describe('useQuickAdd weekly add limit', () => {
         await act(async () => { await probe.latest.handleAdd(player) })
 
         expect(mocks.addOrRequestDrop).toHaveBeenCalled()
+    })
+})
+
+
+describe('useQuickAdd IR recovery errors', () => {
+    it.each(['activate', 'drop-and-activate'] as const)('shows %s rejection and preserves the pending pickup for retry', async (action) => {
+        const irPlayer = rosterPlayer({ id: 'roster-ir', is_on_ir: true })
+        mocks.loadGate.mockResolvedValue({ roster: [irPlayer, ownRosterPlayer], ineligible: [irPlayer] })
+        mocks.resolveIR.mockRejectedValueOnce(new RequestError('Roster moves are only allowed during a draft or active/playoff season.', { code: 'P0001' }))
+        const probe = await mount(null)
+        await act(async () => { await probe.latest.handleAdd(player) })
+        const pending = probe.latest.irModal
+        const activate = () => action === 'activate'
+            ? probe.latest.handleIRActivate(irPlayer)
+            : probe.latest.handleDropAndIRActivate(ownRosterPlayer, irPlayer)
+        await act(async () => { await activate() })
+        expect(mocks.alert).toHaveBeenLastCalledWith('Error', 'Roster moves are only allowed during a draft or active/playoff season.')
+        expect(probe.latest.irModal).toEqual(pending)
+        expect(mocks.addOrRequestDrop).not.toHaveBeenCalled()
+        expect(probe.onChanged).not.toHaveBeenCalled()
+
+        mocks.resolveIR.mockResolvedValueOnce({ status: 'resolved', roster: [ownRosterPlayer], remaining: [] })
+        mocks.addOrRequestDrop.mockResolvedValueOnce({ status: 'added' })
+        await act(async () => { await activate() })
+        expect(probe.latest.irModal).toBeNull()
+        expect(mocks.addOrRequestDrop).toHaveBeenCalledOnce()
+        expect(probe.onChanged).toHaveBeenCalledOnce()
+    })
+})
+
+
+describe('useQuickAdd roster gate errors', () => {
+    it.each(['add', 'claim', 'drop-and-add'] as const)('explains a failed %s roster read and permits retry', async (action) => {
+        const onClaimInstead = vi.fn()
+        const probe = await mount(null, { onClaimInstead })
+        if (action === 'drop-and-add') {
+            mocks.loadGate.mockResolvedValueOnce({ roster: [ownRosterPlayer], ineligible: [] })
+            mocks.addOrRequestDrop.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [ownRosterPlayer] })
+            await act(async () => { await probe.latest.handleAdd(player) })
+        }
+        mocks.loadGate.mockRejectedValueOnce(new Error('Roster fetch failed'))
+        const run = () => action === 'add' ? probe.latest.handleAdd(player)
+            : action === 'claim' ? probe.latest.handleClaim(player)
+            : probe.latest.handleDropAndAdd(ownRosterPlayer)
+        await act(async () => { await run() })
+        expect(mocks.alert).toHaveBeenLastCalledWith('Error', 'Roster fetch failed')
+        expect(mocks.dropAndAdd).not.toHaveBeenCalled()
+        expect(onClaimInstead).not.toHaveBeenCalled()
+        expect(probe.latest.irModal).toBeNull()
+        mocks.loadGate.mockResolvedValueOnce({ roster: [ownRosterPlayer], ineligible: [] })
+        mocks.addOrRequestDrop.mockResolvedValueOnce({ status: 'added' })
+        await act(async () => { await run() })
+        if (action === 'claim') expect(onClaimInstead).toHaveBeenCalledWith(player)
+        else if (action === 'drop-and-add') expect(mocks.dropAndAdd).toHaveBeenCalledOnce()
+        else expect(mocks.success).toHaveBeenCalledOnce()
     })
 })

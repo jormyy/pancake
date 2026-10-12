@@ -5,6 +5,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
 import {
   deliverTradeNotificationOutbox,
+  drainTradeNotificationOutbox,
   OUTBOX_CLAIM_LIMIT,
   OUTBOX_LEASE_SECONDS,
 } from './outbox.ts'
@@ -34,6 +35,7 @@ serveInternal('process-trades', async () => {
 
 async function processAcceptedTrades(): Promise<{
   processed: number
+  deferred: number
   failed: number
   failures: string[]
   notificationsDelivered: number
@@ -60,6 +62,7 @@ async function processAcceptedTrades(): Promise<{
 
   return {
     processed: partitioned.completed.length,
+    deferred: partitioned.deferred.length,
     failed: partitioned.terminalFailures.length,
     failures: partitioned.terminalFailures.map(tradeFailureMessage),
     notificationsDelivered: receiptResult.delivered,
@@ -71,13 +74,19 @@ async function processAcceptedTrades(): Promise<{
 }
 
 async function drainNotificationOutbox(): Promise<{ ticketed: number; failed: number; discarded: number; deadLettered: number }> {
+  return drainTradeNotificationOutbox(claimNotificationOutbox, deliverNotificationOutbox)
+}
+
+async function claimNotificationOutbox(): Promise<OutboxRow[]> {
   const { data, error } = await supabase.rpc('claim_notification_outbox_atomic', {
     p_limit: OUTBOX_CLAIM_LIMIT,
     p_lease_seconds: OUTBOX_LEASE_SECONDS,
   })
   if (error) throw error
-  const rows: OutboxRow[] = data ?? []
+  return data ?? []
+}
 
+function deliverNotificationOutbox(rows: OutboxRow[]) {
   return deliverTradeNotificationOutbox(
     rows,
     notifyMembers,
