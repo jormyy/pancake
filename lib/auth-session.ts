@@ -3,6 +3,8 @@ import type { Session } from '@supabase/supabase-js'
 export type StoredAuthState = {
     session: Session | null
     status: 'valid' | 'expired' | 'invalid' | 'missing' | 'unavailable'
+    // Identifies a checked expired session for restoration, never for data access.
+    refreshIdentity?: { userId: string }
 }
 
 export function authStorageKey(projectUrl: string): string {
@@ -41,7 +43,13 @@ export function readStoredAuth(storage: Pick<Storage, 'getItem'>, projectUrl: st
     try {
         const raw = storage.getItem(authStorageKey(projectUrl))
         if (raw === null) return { session: null, status: 'missing' }
-        try { return inspectSession(JSON.parse(raw), projectUrl) }
+        try {
+            const value = JSON.parse(raw) as Session
+            const checked = inspectSession(value, projectUrl)
+            return checked.status === 'expired'
+                ? { ...checked, refreshIdentity: { userId: value.user.id } }
+                : checked
+        }
         catch { return { session: null, status: 'invalid' } }
     } catch {
         return { session: null, status: 'unavailable' }

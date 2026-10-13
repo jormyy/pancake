@@ -10,6 +10,7 @@ import {
     webOverlays,
     themeVariablesCss,
 } from './tokens'
+import { inspectSession } from '@/lib/auth-session'
 
 // The instant boot shell.
 //
@@ -243,33 +244,49 @@ export const BOOT_SHELL_SCRIPT = `
   var path = location.pathname;
   if (path.indexOf('/sign-in') === 0 || path.indexOf('/sign-up') === 0) return;
 
-  // Only a stored Supabase session means "this launch will land in the app".
-  var session = read(function (k) { return k.indexOf('sb-') === 0 && k.lastIndexOf('-auth-token') === k.length - 11 });
-  var userId = null;
-  try { userId = JSON.parse(session.raw).user.id } catch (e) { return }
-  if (!userId) return;
+  // Resolve the same project as the auth client; other projects cannot paint identity.
+  var projectUrl = ${JSON.stringify(process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'https://ceeytbfmwsnzalxlkalc.supabase.co')};
+  ${process.env.NODE_ENV === 'production' ? '' : `
+  projectUrl = new URLSearchParams(location.search).get('pancake_supabase_url') || store.getItem('PANCAKE_SUPABASE_URL') || projectUrl;
+  `}
+  var authKey = 'sb-' + new URL(projectUrl).hostname.split('.')[0] + '-auth-token';
+  // The shared marker wins ties, as it does in the auth storage layer.
+  var logout = null;
+  var stores = [store, window.sessionStorage];
+  for (var s = 0; s < stores.length; s++) {
+    var rawMarker = stores[s] && stores[s].getItem(authKey + '-local-logout');
+    if (!rawMarker) continue;
+    var marker = JSON.parse(rawMarker);
+    if (!marker || typeof marker.id !== 'string' || typeof marker.signedOut !== 'boolean'
+        || !Number.isSafeInteger(marker.generation) || marker.generation < 0) return;
+    if (!logout || marker.generation > logout.generation) logout = marker;
+  }
+  if (logout && logout.signedOut) return;
+  var session = JSON.parse(store.getItem(authKey) || 'null');
+  var checked = (${inspectSession.toString()})(session, projectUrl);
+  if (checked.status !== 'valid' && checked.status !== 'expired') return;
+  var userId = session.user.id;
 
-  // The chrome is cosmetic and React corrects it within a frame or two, so a
-  // day-old league name is fine to paint. A long-abandoned install is not:
-  // past this bound the shell renders without claiming a specific league.
+  // Memberships match the app's thirty-day cache. The per-user choice is durable.
   var MAX_IDENTITY_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-  var envelope = function (hit) {
+  var envelope = function (hit, maxAge) {
     if (!hit) return null;
     try {
       var parsed = JSON.parse(hit.raw);
       if (!parsed || parsed.version !== 1) return null;
-      if (!(typeof parsed.savedAt === 'number') || Date.now() - parsed.savedAt > MAX_IDENTITY_AGE_MS) return null;
+      if (!(typeof parsed.savedAt === 'number') || !isFinite(parsed.savedAt) || Date.now() - parsed.savedAt > maxAge) return null;
       return parsed.value;
     } catch (e) { return null }
   };
-  var memberships = envelope(read(function (k) { return k === 'pancake:league-memberships:v1:' + userId })) || [];
-  var selectedId = envelope(read(function (k) { return k === 'pancake:selected-league:v1:' + userId }));
-  // Mirrors league-context: the selected membership, else the first one.
+  var memberships = envelope(read(function (k) { return k === 'pancake:league-memberships:v1:' + userId }), MAX_IDENTITY_AGE_MS) || [];
+  var selectedId = envelope(read(function (k) { return k === 'pancake:selected-league:v1:' + userId }), Infinity);
+  if (typeof selectedId !== 'string') selectedId = null;
+  // A stale list cannot replace a saved choice. React validates server results.
   var current = null;
   for (var i = 0; i < memberships.length; i++) {
     var membership = memberships[i];
     if (!membership || typeof membership !== 'object') continue;
-    if (!current) current = membership;
+    if (!selectedId && !current) current = membership;
     if (membership.id === selectedId) { current = membership; break }
   }
 

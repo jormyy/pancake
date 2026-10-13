@@ -223,6 +223,10 @@ the build if the worker declares no manifest. When a release moves the bundle ha
 run `npm run e2e:pwa-update -- --previous=<dist-of-live-release> --next=dist` before
 promoting. See [docs/pwa-live-data.md](./docs/pwa-live-data.md).
 
+An online PWA reopen restores expired auth before routing. It then opens the saved league without a sign-in detour.
+The per-user league choice has no expiry. Cached memberships cover thirty days while the server refreshes them.
+Sign-out and account changes clear private caches. Server membership results safely replace choices for removed leagues.
+
 ## Documentation
 
 The `docs/` directory is indexed in [docs/README.md](./docs/README.md): operating plans,

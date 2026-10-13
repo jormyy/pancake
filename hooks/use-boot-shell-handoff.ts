@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react'
 import { Platform } from 'react-native'
 import { APP_MOUNTED_MARK, BOOT_SHELL_ID } from '@/constants/boot-shell'
+import { useAuth } from '@/hooks/use-auth'
 
 // The static boot shell in app/+html.tsx paints the app chrome before the JS
 // bundle mounts React. This removes it in the same frame the real chrome first
@@ -12,12 +13,13 @@ import { APP_MOUNTED_MARK, BOOT_SHELL_ID } from '@/constants/boot-shell'
 const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 export function useBootShellHandoff(): void {
+    const { loading } = useAuth()
     useBrowserLayoutEffect(() => {
-        if (Platform.OS !== 'web') return
+        if (Platform.OS !== 'web' || loading) return
         document.getElementById(BOOT_SHELL_ID)?.remove()
         document.documentElement.removeAttribute('data-pancake-boot')
         // Paired with the boot shell's mark, this is the launch gate's measure
         // of how long the static chrome held the screen on its own.
         try { performance.mark(APP_MOUNTED_MARK) } catch {}
-    }, [])
+    }, [loading])
 }

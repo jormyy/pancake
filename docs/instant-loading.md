@@ -62,6 +62,10 @@ once the app is running; the launch budget covers getting there.
 
 ## Latest Measurements
 
+Measurements use headless Chromium, the local stack, a 390×844 viewport, 150 ms RTT / 1600 kbps, and six interleaved runs per case.
+Expired-token relaunches improve from 0/6 reaching the saved league, with sign-in and wrong-league flashes, to 6/6 at ~250 ms without flashes.
+The result holds with 25-hour-old caches. Valid-token relaunches stay unchanged at ~35 ms.
+
 ### Launch — 2026-08-27
 
 Blank-screen duration (time to first contentful paint) in headless WebKit,
@@ -110,6 +114,10 @@ Player search now uses a request-specific database plan. It keeps paging and pro
   from disk instead of re-downloading.
 - League membership, player search, roster, and Dynasty news keep cached data
   visible while refreshing.
+- An online reopen waits for an expired session's refresh before routing. It does not show sign-in during that wait.
+- The saved league choice has no age limit. Memberships stay available for thirty days while the server refreshes them.
+- Cache pruning keeps both startup entries. Sign-out and account changes still clear private caches.
+- Only a server membership result can replace a saved choice. A stale list cannot select a different league.
 - Home matchup/lineup and player detail screens hydrate same-day cached content
   immediately, then refresh in the background.
 - Player search uses materialized read models and pages before projection

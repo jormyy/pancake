@@ -20,6 +20,7 @@ vi.mock('@/hooks/use-leagues', () => ({
         memberships: mocks.memberships,
         loading: mocks.loading,
         error: mocks.error,
+        membershipValidated: !mocks.loading && !mocks.error,
         refresh: vi.fn(),
     }),
 }))

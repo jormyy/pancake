@@ -34,7 +34,7 @@ function readSelectedMembershipId(userId: string | null): string | null {
 
 export function LeagueProvider({ children }: PropsWithChildren) {
     const { user } = useAuth()
-    const { memberships, loading, error: membershipError, membershipStatus, online, refresh } = useLeagues()
+    const { memberships, loading, error: membershipError, membershipStatus, membershipValidated, online, refresh } = useLeagues()
     const userId = user?.id ?? null
     const persistedMembershipId = useMemo(() => readSelectedMembershipId(userId), [userId])
     const [selection, setSelection] = useState<LeagueSelection>(() => ({
@@ -48,8 +48,9 @@ export function LeagueProvider({ children }: PropsWithChildren) {
     // unrelated parent re-renders — otherwise every consumer effect that depends
     // on `current` refires on each render.
     const current = useMemo(
-        () => userId ? memberships.find((m) => m.id === currentId) ?? memberships[0] ?? null : null,
-        [memberships, currentId, userId],
+        () => userId ? memberships.find((m) => m.id === currentId)
+            ?? (currentId && !membershipValidated ? null : memberships[0] ?? null) : null,
+        [memberships, currentId, userId, membershipValidated],
     )
 
     const currentLeague = useMemo(() => current?.leagues ?? null, [current])
@@ -72,7 +73,7 @@ export function LeagueProvider({ children }: PropsWithChildren) {
     }, [persistedMembershipId, userId])
 
     useEffect(() => {
-        if (!userId || loading || membershipError) return
+        if (!userId || loading || membershipError || !membershipValidated) return
         const validatedId = memberships.some((membership) => membership.id === currentId)
             ? currentId
             : memberships[0]?.id ?? null
@@ -83,7 +84,7 @@ export function LeagueProvider({ children }: PropsWithChildren) {
         ))
         if (validatedId) writePersistentCache(selectedLeagueCacheKey(userId), validatedId)
         else removePersistentCache(selectedLeagueCacheKey(userId))
-    }, [currentId, loading, membershipError, memberships, userId])
+    }, [currentId, loading, membershipError, memberships, userId, membershipValidated])
 
     // Memoize context value so consumers don't tear / re-render on every parent tick.
     const value = useMemo<LeagueContextType>(

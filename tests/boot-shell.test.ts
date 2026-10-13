@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { authSession, fixtureProject } from './helpers/auth-session'
+
+vi.stubEnv('EXPO_PUBLIC_SUPABASE_URL', fixtureProject)
 
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' },
@@ -82,10 +85,10 @@ function runBootScript(pathname: string, storage: Storage) {
     return { attributes, texts, marks, activeHrefs, breadcrumb: scope.__PANCAKE_BOOT__, commissionerHidden: hidden.has('commissioner') }
 }
 
-const session = (userId = 'u1') => JSON.stringify({ access_token: 'fake-access-token', user: { id: userId } })
+const session = (userId = 'u1') => JSON.stringify(authSession(userId))
 
 const membershipStorage = ({ role = 'member', teamName = 'E2E Team 1', leagueName = 'Sunday Dynasty' } = {}) => ({
-    'sb-abc-auth-token': session(),
+    'sb-auth-fixture-auth-token': session(),
     'pancake:league-memberships:v1:u1': JSON.stringify({
         version: 1,
         savedAt: Date.now(),
@@ -103,17 +106,17 @@ describe('boot shell', () => {
     })
 
     it('reveals the shell only for a stored session on a non-auth route', () => {
-        expect(runBootScript('/', { 'sb-abc-auth-token': session() }).attributes).toMatchObject({
+        expect(runBootScript('/', { 'sb-auth-fixture-auth-token': session() }).attributes).toMatchObject({
             'data-visible': '1',
             [BOOT_SHELL_READY_ATTR]: '1',
         })
         // Signed out: the app boots to a marketing/auth screen, not the chrome.
         expect(runBootScript('/', {}).attributes).toEqual({})
         // Signed in but heading to auth: that screen owns the whole viewport.
-        expect(runBootScript('/sign-in', { 'sb-abc-auth-token': session() }).attributes).toEqual({})
-        expect(runBootScript('/sign-up', { 'sb-abc-auth-token': session() }).attributes).toEqual({})
+        expect(runBootScript('/sign-in', { 'sb-auth-fixture-auth-token': session() }).attributes).toEqual({})
+        expect(runBootScript('/sign-up', { 'sb-auth-fixture-auth-token': session() }).attributes).toEqual({})
         // Corrupt storage entry must not break the launch.
-        expect(runBootScript('/', { 'sb-abc-auth-token': '{not json' }).attributes).toEqual({})
+        expect(runBootScript('/', { 'sb-auth-fixture-auth-token': '{not json' }).attributes).toEqual({})
     })
 
     it('renders the cached league, team, and initials the app will render', () => {
@@ -138,7 +141,7 @@ describe('boot shell', () => {
         ]
         for (const memberships of shapes) {
             const { attributes, texts } = runBootScript('/', {
-                'sb-abc-auth-token': session(),
+                'sb-auth-fixture-auth-token': session(),
                 'pancake:league-memberships:v1:u1': memberships,
             })
             expect(attributes['data-visible']).toBe('1')
@@ -159,7 +162,7 @@ describe('boot shell', () => {
         expect(BOOT_SHELL_HTML).toContain('data-pbs="profile">Profile<')
 
         // With a session but no membership, the script must not overwrite them.
-        const { attributes, texts, breadcrumb } = runBootScript('/', { 'sb-abc-auth-token': session() })
+        const { attributes, texts, breadcrumb } = runBootScript('/', { 'sb-auth-fixture-auth-token': session() })
         expect(attributes['data-visible']).toBe('1')
         expect(texts).toEqual({})
         expect(breadcrumb).toMatchObject({ league: null, team: null, initials: null })
@@ -194,7 +197,7 @@ describe('boot shell', () => {
 
     it('picks the same membership league-context would', () => {
         const two = (selected: string) => ({
-            'sb-abc-auth-token': session(),
+            'sb-auth-fixture-auth-token': session(),
             'pancake:league-memberships:v1:u1': JSON.stringify({
                 version: 1,
                 savedAt: Date.now(),
@@ -206,8 +209,54 @@ describe('boot shell', () => {
             'pancake:selected-league:v1:u1': JSON.stringify({ version: 1, savedAt: Date.now(), value: selected }),
         })
         expect(runBootScript('/', two('m2')).texts.league).toBe('Second League')
-        // Unknown selection falls back to the first membership, as useMemo does.
-        expect(runBootScript('/', two('gone')).texts.league).toBe('First League')
+        // Cached rows cannot confirm that the saved membership was removed.
+        expect(runBootScript('/', two('gone')).texts.league).toBeUndefined()
+    })
+
+    it('uses a durable old selection with fresh memberships instead of painting the default league', () => {
+        const storage = membershipStorage()
+        storage['pancake:selected-league:v1:u1'] = JSON.stringify({ version: 1, savedAt: Date.now() - 365 * 86400_000, value: 'm2' })
+        storage['pancake:league-memberships:v1:u1'] = JSON.stringify({ version: 1, savedAt: Date.now() - 7 * 86400_000, value: [
+            { id: 'm1', team_name: 'First', leagues: { name: 'First League' } },
+            { id: 'm2', team_name: 'Selected', leagues: { name: 'Selected League' } },
+        ] })
+        expect(runBootScript('/', storage).texts.league).toBe('Selected League')
+    })
+
+    it('claims no default league when a cached list omits the saved selection', () => {
+        const storage = membershipStorage()
+        storage['pancake:selected-league:v1:u1'] = JSON.stringify({ version: 1, savedAt: Date.now(), value: 'missing-from-cache' })
+        expect(runBootScript('/', storage).texts).toEqual({})
+    })
+
+    it('never paints another stored owner\'s identity', () => {
+        const storage = { ...membershipStorage(), 'sb-auth-fixture-auth-token': session('other-owner') }
+        expect(runBootScript('/', storage).texts).toEqual({})
+    })
+
+    it('uses only the configured project owner when another project has a stored session', () => {
+        const storage = { 'sb-other-project-auth-token': session('other-owner'), ...membershipStorage() }
+        expect(runBootScript('/', storage).texts.league).toBe('Sunday Dynasty')
+    })
+
+    it('honors the project logout marker even if stored auth removal failed', () => {
+        const storage = { ...membershipStorage(), 'sb-auth-fixture-auth-token-local-logout': JSON.stringify({
+            id: 'logout', generation: 1, signedOut: true,
+        }) }
+        expect(runBootScript('/', storage).attributes).toEqual({})
+    })
+
+    it('hides cached identity for malformed or foreign-project auth but permits a checked expired session', () => {
+        const storage = membershipStorage()
+        for (const value of [
+            { ...authSession('u1'), refresh_token: '' },
+            { ...authSession('foreign'), user: { id: 'u1', aud: 'authenticated' } },
+        ]) {
+            storage['sb-auth-fixture-auth-token'] = JSON.stringify(value)
+            expect(runBootScript('/', storage).attributes).toEqual({})
+        }
+        storage['sb-auth-fixture-auth-token'] = JSON.stringify(authSession('u1', Math.floor(Date.now() / 1000) - 60))
+        expect(runBootScript('/', storage).texts.league).toBe('Sunday Dynasty')
     })
 
     it('derives initials exactly like lib/format getInitials', async () => {
@@ -228,7 +277,7 @@ describe('boot shell', () => {
     it('paints the chrome but claims no league when the cache is long abandoned', () => {
         const ancient = Date.now() - 31 * 24 * 60 * 60 * 1000
         const { attributes, texts } = runBootScript('/', {
-            'sb-abc-auth-token': session(),
+            'sb-auth-fixture-auth-token': session(),
             'pancake:league-memberships:v1:u1': JSON.stringify({
                 version: 1,
                 savedAt: ancient,
@@ -241,7 +290,7 @@ describe('boot shell', () => {
     })
 
     it('marks the moment it paints so the launch gate can measure the gap', () => {
-        expect(runBootScript('/', { 'sb-abc-auth-token': session() }).marks).toEqual([BOOT_SHELL_MARK])
+        expect(runBootScript('/', { 'sb-auth-fixture-auth-token': session() }).marks).toEqual([BOOT_SHELL_MARK])
     })
 
     it('keeps the launch gate reading the marks this module actually emits', async () => {

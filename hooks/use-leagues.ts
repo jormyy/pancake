@@ -14,6 +14,7 @@ type LeagueResource = {
     memberships: LeagueMembership[]
     loading: boolean
     error: Error | null
+    validated: boolean
 }
 
 export function useLeagues() {
@@ -30,6 +31,7 @@ export function useLeagues() {
         memberships: cachedMemberships,
         loading: Boolean(userId && cachedMemberships.length === 0),
         error: null,
+        validated: false,
     })
     const requestIdRef = useRef(0)
     const activeUserIdRef = useRef(userId)
@@ -38,6 +40,7 @@ export function useLeagues() {
     const memberships = ownsUser ? resource.memberships : cachedMemberships
     const loading = ownsUser ? resource.loading : Boolean(userId && cachedMemberships.length === 0)
     const error = ownsUser ? resource.error : null
+    const membershipValidated = ownsUser && resource.validated
     const membershipsRef = useRef({ userId, memberships })
     membershipsRef.current = { userId, memberships }
 
@@ -46,7 +49,7 @@ export function useLeagues() {
         const requestId = ++requestIdRef.current
 
         if (!requestedUserId) {
-            setResource({ userId: null, memberships: [], loading: false, error: null })
+            setResource({ userId: null, memberships: [], loading: false, error: null, validated: false })
             return
         }
 
@@ -57,18 +60,18 @@ export function useLeagues() {
         ) || cached.length > 0
 
         if (!options.force) {
-            setResource({ userId: requestedUserId, memberships: cached, loading: !hasVisibleRows, error: null })
+            setResource({ userId: requestedUserId, memberships: cached, loading: !hasVisibleRows, error: null, validated: false })
             membershipsRef.current = { userId: requestedUserId, memberships: cached }
         } else {
             setResource((current) => current.userId === requestedUserId
                 ? { ...current, loading: !hasVisibleRows, error: null }
-                : { userId: requestedUserId, memberships: cached, loading: !hasVisibleRows, error: null })
+                : { userId: requestedUserId, memberships: cached, loading: !hasVisibleRows, error: null, validated: false })
         }
 
         try {
             const rows = await fetchUserLeagues(requestedUserId) as LeagueMembership[]
             if (requestIdRef.current !== requestId || activeUserIdRef.current !== requestedUserId) return
-            setResource({ userId: requestedUserId, memberships: rows, loading: false, error: null })
+            setResource({ userId: requestedUserId, memberships: rows, loading: false, error: null, validated: true })
             membershipsRef.current = { userId: requestedUserId, memberships: rows }
             if (rows.length > 0) writePersistentCache(cacheKey, rows)
             else removePersistentCache(cacheKey)
@@ -123,5 +126,5 @@ export function useLeagues() {
             : loading ? 'loading'
                 : error ? 'unavailable' : 'empty'
 
-    return { memberships, loading, error, refresh, membershipStatus, online }
+    return { memberships, loading, error, refresh, membershipStatus, membershipValidated, online }
 }
