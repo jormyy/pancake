@@ -66,6 +66,9 @@ once the app is running; the launch budget covers getting there.
 - `tests/hooks/pending-trade-count-coalescing.test.ts` runs the real count RPC wrapper with fixed response delays.
   It covers trade and participant bursts, held reads, route and focus catch-up, retry limits, owner changes, and cleanup.
   It also checks counts above forty offers and the 250 ms maximum batching window under continuous events.
+- `tests/hooks/rookie-draft-coalescing.test.ts` counts board reads, prospect reads, revision probes, and picked-player removal time.
+  It covers both watched tables, repeated notifications, resets, slow reads, hidden return, failures, search, taxi, and expiry.
+  Rookie reloads use a bounded 250 ms window; the 15 s revision poll permits one pending probe and reload.
 
 ## Latest Measurements
 

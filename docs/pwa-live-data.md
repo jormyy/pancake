@@ -100,6 +100,13 @@ The first signal sets the deadline. One count read runs per owner; changes durin
 Initial owner reads start immediately. Failed reads keep the last count and retry twice, after two and four seconds.
 Owner changes and cleanup cancel timers and reject old callbacks and results. Sign-out clears the badge.
 
+Rookie draft notifications share a bounded 250 ms window for one board and prospect reload.
+Changes during a reload queue one follow-up. Startup, pick replies, and explicit refreshes load both immediately.
+The initial empty-query prospect read runs once. Later search changes keep their 300 ms debounce.
+The 15 s revision poll allows one pending probe and reload. It confirms a revision only after both reads succeed.
+Automatic reloads wait while hidden. Resume checks the revision; a pending pre-sleep probe gets one fresh follow-up.
+Old owners, disposed subscriptions, and obsolete probe results cannot update the room.
+
 The release cache version contains the commit and a build fingerprint. A same-commit rebuild still creates a new version.
 
 ### Session restoration on reopen
