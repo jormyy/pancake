@@ -87,6 +87,12 @@ Every failure path renders plain chrome rather than breaking the launch:
 | Live box scores and today's slate | Shared in memory per date | Polled every 15 s while a game is live, otherwise every 60 s. A remount reuses a snapshot younger than that. No polling while the page is hidden; a return refreshes at once when a tick was missed. |
 | Other screen data | User, league, and resource scoped | TTL, focus, mutation, or sign-out clears it. |
 
+Silent Home refreshes retain equal lineup references after the owner, date, and request checks pass.
+The comparison includes every player field, slot, reserve list, and row order. Changed lineups still replace the visible data.
+Live polls keep refreshing both lineups when scores stay equal, so independent lineup edits still appear.
+Score reads, poll intervals, freshness signals, and reconnect recovery keep their existing behavior.
+Every empty starter, bench, IR, and taxi slot stays visible.
+
 Membership events and return signals share a 250 ms window, starting with the first signal.
 Later signals cannot extend that window. Hidden or offline pages defer these automatic reads until return.
 Startup and explicit refreshes start immediately. One read runs at a time; changes during it queue one follow-up.

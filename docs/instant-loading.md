@@ -69,6 +69,9 @@ once the app is running; the launch budget covers getting there.
 - `tests/hooks/rookie-draft-coalescing.test.ts` counts board reads, prospect reads, revision probes, and picked-player removal time.
   It covers both watched tables, repeated notifications, resets, slow reads, hidden return, failures, search, taxi, and expiry.
   Rookie reloads use a bounded 250 ms window; the 15 s revision poll permits one pending probe and reload.
+- `tests/hooks/live-data-unchanged-references.test.ts` counts memoized consumer renders and view-row allocations with 240 synthetic players and fixed response delays.
+  It covers unchanged polls, game transitions, DNP, corrections, lineup edits, date changes, partial failures, disconnect, and resume.
+  Silent Home refreshes reuse equal lineups after the existing owner and date checks. Reads and lineup fanouts keep their cadence.
 
 ## Latest Measurements
 

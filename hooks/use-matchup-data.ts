@@ -38,6 +38,10 @@ type MatchupScreenCache = {
 
 const MATCHUP_CACHE_PREFIX = 'pancake:home-matchup:v1:'
 
+function reuseLineup(previous: LineupData | null, next: LineupData): LineupData {
+    return previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+}
+
 function isMatchupRealtimeRow(row: object): row is MatchupRealtimeRow {
     return 'id' in row && typeof row.id === 'string'
         && 'week_number' in row && typeof row.week_number === 'number'
@@ -210,8 +214,8 @@ export function useMatchupData(
             ])
             if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
                 date !== selectedDateRef.current) return
-            setMyLineup(mine)
-            setOppLineup(opp)
+            setMyLineup((previous) => reuseLineup(previous, mine))
+            setOppLineup((previous) => reuseLineup(previous, opp))
             setLineupError(false)
         },
         [leagueId, ownsResource, resourceKey],
