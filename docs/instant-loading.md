@@ -63,6 +63,9 @@ once the app is running; the launch budget covers getting there.
   It covers bursts, continuous events, pending reads, return signals, unchanged rows, removals, and owner changes.
   Membership refreshes use a bounded 250 ms window and one queued follow-up.
   Startup reads remain immediate; unchanged rows avoid downstream Home reloads.
+- `tests/hooks/pending-trade-count-coalescing.test.ts` runs the real count RPC wrapper with fixed response delays.
+  It covers trade and participant bursts, held reads, route and focus catch-up, retry limits, owner changes, and cleanup.
+  It also checks counts above forty offers and the 250 ms maximum batching window under continuous events.
 
 ## Latest Measurements
 

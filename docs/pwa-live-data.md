@@ -94,6 +94,12 @@ Explicit refresh promises include that follow-up while the page can refresh.
 Owner changes and cleanup reject pending results and callbacks before they can update state or storage.
 Unchanged membership rows keep their references. Roles, league settings, row order, removal, and confirmed empty results still update the context.
 
+The pending-trade badge uses the authoritative count RPC, including offers beyond the first page.
+Trade events, participant events, route changes, and focus share a bounded 250 ms window.
+The first signal sets the deadline. One count read runs per owner; changes during it queue one follow-up.
+Initial owner reads start immediately. Failed reads keep the last count and retry twice, after two and four seconds.
+Owner changes and cleanup cancel timers and reject old callbacks and results. Sign-out clears the badge.
+
 The release cache version contains the commit and a build fingerprint. A same-commit rebuild still creates a new version.
 
 ### Session restoration on reopen
