@@ -167,12 +167,19 @@ export function createFakeUpstreamServer() {
 
       if (req.method === 'GET' && url.pathname.endsWith('/staticData/scheduleLeagueV2_1.json')) {
         const currentSeasonStartYear = state.seasonYear - 1
-        const gameDates = [...state.games.values()]
+        const seasonGames = [...state.games.values()]
           .filter((game) => game.gameDate.startsWith(`${currentSeasonStartYear}-`))
+        // Like the real feed, number weeks Monday-Sunday from the season's first game week.
+        const firstDate = seasonGames.map((game) => game.gameDate).sort()[0]
+        const dayMs = 24 * 60 * 60 * 1000
+        const firstMonday = firstDate ? Date.parse(`${firstDate}T00:00:00Z`) - ((new Date(`${firstDate}T00:00:00Z`).getUTCDay() + 6) % 7) * dayMs : 0
+        const weekNumber = (gameDate) => Math.floor((Date.parse(`${gameDate}T00:00:00Z`) - firstMonday) / (7 * dayMs)) + 1
+        const gameDates = seasonGames
           .map((game) => ({
             gameDate: game.gameDate,
             games: [{
               gameId: game.gameId,
+              weekNumber: weekNumber(game.gameDate),
               gameDateEst: `${game.gameDate}T00:00:00`,
               gameEt: game.gameEt,
               gameStatus: game.gameStatus,
