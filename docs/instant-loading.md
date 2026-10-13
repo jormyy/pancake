@@ -135,6 +135,7 @@ Player search now uses a request-specific database plan. It keeps paging and pro
   immediately, then refresh in the background.
 - Player search uses materialized read models and pages before projection
   enrichment so the request is bounded.
+  The server sorts the full filtered pool before pagination, including rookies. The client preserves that order.
 - Roster, matchup, trade, draft, waiver, and player detail hot reads have
   targeted indexes in the 2026-07-02 instant-loading migrations.
 - Browser perf smoke measures live auction/matchup update pressure and fails on

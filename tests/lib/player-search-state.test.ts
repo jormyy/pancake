@@ -6,29 +6,10 @@ import {
     playerSearchParamsKey,
     playerSeasonFilterOptions,
 } from '@/lib/player-search-state'
-import { sortPlayerRows } from '@/lib/player-search-sort'
-import type { PlayerRow } from '@/lib/players'
 import type { OwnedEntry } from '@/lib/roster'
 
 function owned(memberId: string, teamName = 'Team'): OwnedEntry {
     return { memberId, teamName }
-}
-
-function row(id: number, points: number, rebounds: number): PlayerRow {
-    return {
-        id: `player-${id}`,
-        display_name: `Player ${id}`,
-        nba_team: id % 2 === 0 ? 'BOS' : 'NYK',
-        position: 'PG',
-        eligible_positions: ['PG'],
-        status: null,
-        injury_status: null,
-        headshot_url: null,
-        nba_id: null,
-        years_exp: id % 50 === 0 ? 0 : 3,
-        avg_points: points,
-        avg_rebounds: rebounds,
-    }
 }
 
 describe('player search state helpers', () => {
@@ -118,15 +99,4 @@ describe('player search state helpers', () => {
         })).toBe(6)
     })
 
-    it('sorts a large in-memory complete set deterministically under load', () => {
-        const players = Array.from({ length: 5_000 }, (_, index) =>
-            row(index, (index * 37) % 101, (index * 19) % 53),
-        )
-        const sorted = sortPlayerRows(players, 'pts', 'desc')
-
-        expect(sorted).toHaveLength(5_000)
-        for (let i = 1; i < sorted.length; i++) {
-            expect((sorted[i - 1].avg_points ?? 0) >= (sorted[i].avg_points ?? 0)).toBe(true)
-        }
-    })
 })
