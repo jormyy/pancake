@@ -28,6 +28,8 @@ import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
+import { playerSeasonFilterOptions, seasonLabel } from '@/lib/player-search-state'
+import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { addLimitSummary } from '@/lib/pickup'
@@ -75,6 +77,8 @@ const CLASS_FILTERS = [
     { key: 'all', label: 'All' },
     { key: 'rookies', label: 'Rookies only' },
 ] as const
+const SEASON_YEAR = currentSeasonYear()
+const SEASON_FILTERS = playerSeasonFilterOptions(SEASON_YEAR)
 const TABLE_COLUMNS = ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP']
 const STAT_LABELS: Record<string, string> = {
     FP: 'Fantasy points', PTS: 'Points', REB: 'Rebounds', AST: 'Assists', STL: 'Steals',
@@ -293,6 +297,7 @@ function PlayerSearchSection() {
         search.playing.value,
         search.health.value,
         search.teamPicker.selectedTeams.join(','),
+        search.season.value ?? '',
         gamesLeftVersion,
     ].join('|')
     const showInitialShell = authLoading || (leagueLoading && memberships.length === 0)
@@ -305,7 +310,8 @@ function PlayerSearchSection() {
             ? `FAAB $${transactionState.faabBalance}`
             : 'Rolling waivers'
         : 'Waivers —'
-    const summaryLine = `${resultCountLabel} · ${addLimitSummary(transactionState)} · ${waiverLine}`
+    const seasonNote = search.season.value === null ? '' : ` · ${seasonLabel(search.season.value)} stats`
+    const summaryLine = `${resultCountLabel}${seasonNote} · ${addLimitSummary(transactionState)} · ${waiverLine}`
     const filterControls = (variant: 'chip' | 'field') => (
         <>
             <FilterSelect
@@ -351,6 +357,13 @@ function PlayerSearchSection() {
                 value={search.toggles.rookiesOnly ? 'rookies' : 'all'}
                 options={CLASS_FILTERS}
                 onChange={(value) => search.toggles.setRookiesOnly(value === 'rookies')}
+            />
+            <FilterSelect
+                variant={variant}
+                label="Season"
+                value={String(search.season.value ?? SEASON_YEAR)}
+                options={SEASON_FILTERS}
+                onChange={(value) => search.season.setValue(Number(value) === SEASON_YEAR ? null : Number(value))}
             />
         </>
     )

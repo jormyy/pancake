@@ -198,6 +198,16 @@ describe('searchPlayers', () => {
         expect(result.map((player) => player.id)).toEqual(['player-high'])
     })
 
+    it('asks for the chosen stats season and defaults to the current one', async () => {
+        ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [], error: null })
+
+        await searchPlayers('', 'ALL', [], 'league-1', null, false, 0, 'all', {}, { seasonYear: 2023 })
+        expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: 2023 }))
+
+        await searchPlayers('', 'ALL', [], 'league-1', null, false, 0, 'all', {}, { seasonYear: null })
+        expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: 2025 }))
+    })
+
     it('passes an explicit empty include scope so empty waiver/mine filters stay empty', async () => {
         ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [], error: null })
 

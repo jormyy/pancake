@@ -4,6 +4,7 @@ import {
     availabilityPlayerScope,
     DEFAULT_PLAYER_SEARCH_PARAMS,
     playerSearchParamsKey,
+    playerSeasonFilterOptions,
 } from '@/lib/player-search-state'
 import { sortPlayerRows } from '@/lib/player-search-sort'
 import type { PlayerRow } from '@/lib/players'
@@ -31,6 +32,23 @@ function row(id: number, points: number, rebounds: number): PlayerRow {
 }
 
 describe('player search state helpers', () => {
+    it('treats the stats season as its own filter and cache identity', () => {
+        expect(playerSeasonFilterOptions(2027)).toEqual([
+            { key: '2027', label: '2026–27' },
+            { key: '2026', label: '2025–26' },
+            { key: '2025', label: '2024–25' },
+        ])
+        const current = playerSearchParamsKey(DEFAULT_PLAYER_SEARCH_PARAMS)
+        const lastSeason = playerSearchParamsKey({ ...DEFAULT_PLAYER_SEARCH_PARAMS, seasonYear: 2026 })
+        expect(lastSeason).not.toBe(current)
+        const filters: Parameters<typeof activePlayerFilterCount>[0] = {
+            query: '', position: 'ALL', selectedTeams: [], playingFilter: 'all', availabilityFilter: 'free_agents',
+            rookiesOnly: false, health: 'all', sortMode: 'fpts', seasonYear: null,
+        }
+        expect(activePlayerFilterCount({ ...filters, seasonYear: null })).toBe(0)
+        expect(activePlayerFilterCount({ ...filters, position: 'C', seasonYear: 2026 })).toBe(2)
+    })
+
     it('builds deterministic cache keys for array order and duplicate churn', () => {
         const a = playerSearchParamsKey({
             ...DEFAULT_PLAYER_SEARCH_PARAMS,
@@ -84,6 +102,7 @@ describe('player search state helpers', () => {
             rookiesOnly: false,
             health: 'all',
             sortMode: 'fpts',
+            seasonYear: null,
         })).toBe(0)
 
         expect(activePlayerFilterCount({
@@ -95,6 +114,7 @@ describe('player search state helpers', () => {
             rookiesOnly: true,
             health: 'out',
             sortMode: 'reb',
+            seasonYear: null,
         })).toBe(6)
     })
 

@@ -30,7 +30,7 @@ Pancake supports iPhone Safari and the installed iPhone PWA. Native app builds a
   automatic best-available backstop if it never runs by week 1
 - **Daily lineups** with manual and auto-set options and ET tip-off locks
 - **Player discovery** with indexed search, sort, availability, health, team, playing-day,
-  and rookie filters
+  rookie, and stats-season filters (the current season or either of the two before it)
 - **Dynasty Hub** with Hashtag Basketball dynasty rankings, source stat strips, player
   headshots, curated news, and roster-filtered My News
 - **Waiver wire** with weekly add limits (in the offseason the limit keeps counting in
