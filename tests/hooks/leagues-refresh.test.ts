@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagues } from '@/hooks/use-leagues'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active' } }))
@@ -26,6 +26,11 @@ vi.mock('@/lib/realtime', () => ({
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+afterEach(() => { vi.useRealTimers() })
+const finishReconnectWindow = async () => {
+    await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+}
 
 describe('league refresh contract', () => {
     beforeEach(() => {
@@ -77,6 +82,7 @@ describe('league refresh contract', () => {
 
 
 it('recovers empty memberships on reconnect and clears an authoritative revocation', async () => {
+    vi.useFakeTimers()
     const rows = [{ id: 'member', leagues: { id: 'league' } }]
     mocks.userId = 'user'
     mocks.online = false
@@ -92,6 +98,7 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
         expect(latest.membershipStatus).toBe('unavailable')
         mocks.online = true
         await act(async () => { renderer.update(React.createElement(Probe)) })
+        await finishReconnectWindow()
         expect(latest.memberships).toEqual(rows)
         expect(latest.membershipStatus).toBe('available')
         expect(latest.error).toBeNull()
@@ -102,6 +109,7 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
         expect(latest.memberships).toEqual(rows)
         mocks.online = true
         await act(async () => { renderer.update(React.createElement(Probe)) })
+        await finishReconnectWindow()
         expect(latest.memberships).toEqual([])
         expect(latest.membershipStatus).toBe('empty')
         expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(3)
@@ -112,6 +120,7 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
 })
 
 it('rejects late reconnect results after account switch and logout', async () => {
+    vi.useFakeTimers()
     mocks.userId = 'user-a'
     mocks.online = false
     mocks.cache.clear()
@@ -127,6 +136,7 @@ it('rejects late reconnect results after account switch and logout', async () =>
     await act(async () => { renderer = create(React.createElement(Probe)) })
     mocks.online = true
     await act(async () => { renderer.update(React.createElement(Probe)) })
+    await finishReconnectWindow()
     expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(2)
     mocks.userId = 'user-b'
     await act(async () => { renderer.update(React.createElement(Probe)) })
@@ -136,6 +146,7 @@ it('rejects late reconnect results after account switch and logout', async () =>
     await act(async () => { renderer.update(React.createElement(Probe)) })
     mocks.online = true
     await act(async () => { renderer.update(React.createElement(Probe)) })
+    await finishReconnectWindow()
     mocks.userId = null
     await act(async () => { renderer.update(React.createElement(Probe)) })
     await act(async () => { finishNew([{ id: 'new-member', leagues: { id: 'new-league' } }]) })

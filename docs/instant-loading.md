@@ -59,6 +59,10 @@ once the app is running; the launch budget covers getting there.
   live-stats poll: 2 reads per snapshot, none while the page is hidden.
   `tests/list-render-counts.test.ts` asserts that starting or finishing one add in a
   20-row player list re-renders exactly one row.
+- `tests/hooks/leagues-coalescing.test.ts` counts membership reads, Home matchup reads, and context renders with fixed response delays.
+  It covers bursts, continuous events, pending reads, return signals, unchanged rows, removals, and owner changes.
+  Membership refreshes use a bounded 250 ms window and one queued follow-up.
+  Startup reads remain immediate; unchanged rows avoid downstream Home reloads.
 
 ## Latest Measurements
 

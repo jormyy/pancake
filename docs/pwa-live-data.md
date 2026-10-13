@@ -87,6 +87,13 @@ Every failure path renders plain chrome rather than breaking the launch:
 | Live box scores and today's slate | Shared in memory per date | Polled every 15 s while a game is live, otherwise every 60 s. A remount reuses a snapshot younger than that. No polling while the page is hidden; a return refreshes at once when a tick was missed. |
 | Other screen data | User, league, and resource scoped | TTL, focus, mutation, or sign-out clears it. |
 
+Membership events and return signals share a 250 ms window, starting with the first signal.
+Later signals cannot extend that window. Hidden or offline pages defer these automatic reads until return.
+Startup and explicit refreshes start immediately. One read runs at a time; changes during it queue one follow-up.
+Explicit refresh promises include that follow-up while the page can refresh.
+Owner changes and cleanup reject pending results and callbacks before they can update state or storage.
+Unchanged membership rows keep their references. Roles, league settings, row order, removal, and confirmed empty results still update the context.
+
 The release cache version contains the commit and a build fingerprint. A same-commit rebuild still creates a new version.
 
 ### Session restoration on reopen
