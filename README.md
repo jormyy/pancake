@@ -18,6 +18,7 @@ commissioner disappears.
 - [Documentation](#documentation)
 
 Pancake supports iPhone Safari and the installed iPhone PWA. Native app builds are not supported.
+The web build uses browser touch input and the cached PWA shell; it needs no native splash or gesture-handler package.
 
 ## Highlights
 
