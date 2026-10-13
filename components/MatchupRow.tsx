@@ -345,16 +345,13 @@ function MatchupRowImpl({
     teamMatchups,
     isExtraOppRow = false,
     compact = false,
-    dense: denseLayout = false,
+    dense = false,
     motionDelay = 0,
     targetState = null,
     statColumns = null,
     onOpenDetails,
 }: MatchupRowProps) {
     const isSel = isSelected
-    // A slot empty on both sides has no names or stats to show, so it takes one
-    // line. Its slot chip keeps the move target.
-    const dense = denseLayout || (!myPlayer && !oppPlayer)
     const slotColor = slotType === 'IR'
         ? uiColors.accentDanger
         : slotType === 'TX'
