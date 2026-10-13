@@ -12,6 +12,9 @@ Pancake keeps the installed shell fast. It keeps live data outside the service w
 6. Application caches give safe data an immediate first paint.
 7. Edge jobs update schedules, players, scores, projections, rankings, and draft order.
 
+Matchup callbacks check the active owner, league, matchup, and subscription before applying scores or lineup changes.
+Server commit times reject reversed score events. Later corrections can reduce points.
+
 See [source monitoring](./source-monitoring.md) for upstream health and recovery.
 
 ## Boot shell
