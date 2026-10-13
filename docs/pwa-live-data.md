@@ -293,6 +293,8 @@ Offline writes remain disabled. This avoids invalid moves after a game lock or r
 
 Pancake supports iPhone Safari and the installed iPhone PWA. Android and native iOS app builds are excluded. Expo, React Native Web, routing, touch input, deep links, browser permissions, icons and service-worker infrastructure remain shared web dependencies. Desktop browsers and WebKit simulations provide development evidence; they do not prove real-iPhone or installed-iPhone-PWA behavior.
 
+The default tab layout uses `WebTabShell` on web. Modal layouts retain their platform-specific headers and presentation.
+
 ### Dynasty foreground freshness
 
 Dynasty keeps its five-minute saved source snapshot for fast route loads. The
