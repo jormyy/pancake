@@ -137,7 +137,8 @@ export async function apiPost(env, token, route, body) {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    // Trade mutations are idempotent per request and require a client request id.
+    body: JSON.stringify(route.startsWith('/trades/') && body?.requestId == null ? { requestId: crypto.randomUUID(), ...body } : body),
   })
   const json = await res.json().catch(() => null)
   if (!res.ok || json?.ok === false) {
