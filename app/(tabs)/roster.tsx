@@ -41,7 +41,7 @@ import { Badge } from '@/components/Badge'
 
 type RosterListItem = (
     | { _isHeader: true; _section: string }
-    | { _isHeader: false; _isEmpty: true; _section: 'active' | 'ir' | 'taxi'; _emptyIndex: number }
+    | { _isHeader: false; _isEmpty: true; _section: 'active' | 'ir' | 'taxi'; _emptyCount: number }
     | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: 'active' | 'ir' | 'taxi' })
     | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
@@ -49,6 +49,11 @@ type RosterListItem = (
 
 // Each roster section renders as one card: the header opens it, the last row
 // closes it. Marks the closing item so the flat list can draw the card edges.
+function openSlotsLabel(section: 'active' | 'ir' | 'taxi', count: number): string {
+    const kind = section === 'ir' ? 'IR' : section === 'taxi' ? 'taxi' : 'roster'
+    return `${count} open ${kind} slot${count === 1 ? '' : 's'}`
+}
+
 function closeSection(items: RosterListItem[]): RosterListItem[] {
     if (items.length === 0) return items
     const last = items[items.length - 1]
@@ -378,17 +383,19 @@ export default function RosterScreen() {
     const listData = useMemo<RosterListItem[]>(() => {
         const activeItems: RosterListItem[] = [{ _isHeader: true, _section: 'active' }]
         for (const p of active) activeItems.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
-        for (let i = active.length; i < rosterSize; i++) {
-            activeItems.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })
+        // Open slots collapse into one row per section: the room left stays
+        // visible without a screen of identical placeholder rows.
+        if (active.length < rosterSize) {
+            activeItems.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyCount: rosterSize - active.length })
         }
         const result = closeSection(activeItems)
-        // IR and taxi always list every slot, filled or empty, so the manager
-        // can see how much room is left before an injury or a stash decision.
+        // IR and taxi always show their room, so the manager can see how much
+        // is left before an injury or a stash decision.
         const reserveSection = (section: 'ir' | 'taxi', players: RosterPlayer[], slots: number) => {
             if (slots === 0 && players.length === 0) return
             const items: RosterListItem[] = [{ _isHeader: true, _section: section }]
             for (const p of players) items.push({ ...p, _isHeader: false, _isEmpty: false, _section: section })
-            for (let i = players.length; i < slots; i++) items.push({ _isHeader: false, _isEmpty: true, _section: section, _emptyIndex: i })
+            if (players.length < slots) items.push({ _isHeader: false, _isEmpty: true, _section: section, _emptyCount: slots - players.length })
             result.push(...closeSection(items))
         }
         reserveSection('ir', ir, irSlots)
@@ -689,7 +696,7 @@ export default function RosterScreen() {
             if (item._section === 'active') {
                 return (
                     <>
-                        <RosterSectionBand label="Active roster" />
+                        <RosterSectionBand label="Active roster" detail={<Text style={styles.bandHint}>{active.length}/{rosterSize}</Text>} />
                         {showRosterTable ? <RosterTableHeader /> : null}
                     </>
                 )
@@ -707,7 +714,7 @@ export default function RosterScreen() {
             return (
                 <View style={styles.emptySlot}>
                     <Text style={styles.emptySlotText}>
-                        {item._section === 'ir' ? 'Empty IR slot' : item._section === 'taxi' ? 'Empty taxi slot' : 'Empty roster slot'}
+                        {openSlotsLabel(item._section, item._emptyCount)}
                     </Text>
                 </View>
             )
@@ -794,7 +801,7 @@ export default function RosterScreen() {
             />
         )
     }, [
-        showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots, ir.length, irSlots,
+        showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots, ir.length, irSlots, active.length, rosterSize,
         togglingId, taxiingId, droppingId, cancellingId, waiverPriority,
         currentLeague?.waiver_mode, current?.team_name, handleOpenRosterPlayer,
         handleCancelClaim, handleEditClaimBid, handleReorderClaim,
@@ -935,7 +942,7 @@ export default function RosterScreen() {
                             data={listData}
                             keyExtractor={(item) =>
                                 item._isHeader ? `header-${item._section}`
-                                : item._isEmpty ? `empty-${item._section}-${'_emptyIndex' in item ? item._emptyIndex : 0}`
+                                : item._isEmpty ? `empty-${item._section}`
                                 : ('pickId' in item ? item.pickId : item.id)
                             }
                             contentContainerStyle={{ ...styles.listContent, paddingHorizontal: twoPane ? 0 : padX }}
