@@ -60,7 +60,7 @@ not production measurements.
 | Main screens (8 routes) | cold load 342-426 ms | unchanged within noise, same request counts | Smoke sweep, 5 interleaved rounds with reseed |
 | Player sync with one identity conflict | whole chunk rolled back; valid players not updated | valid players updated; the conflict still fails the run | Real endpoint, fake Sleeper feed |
 | Natural scheduler, 130 min with a 12-minute Edge outage | — | 44/44 trades reached the right final state; recovery on the first tick after restart; FAAB conserved | `pg_cron` -> `pg_net` -> Edge on the wall clock |
-| Simulated seasons, all backend slices | soak stopped in season 1 (stale harness) | 10 seasons pass; runtime drift 16.2% (limit 20%) | `tests/e2e/soak.mjs --seasons=10` |
+| Simulated seasons, all backend slices | soak stopped in season 1 (stale harness) | 20 seasons pass; runtime drift 1.0% at seasons 8-10, 9.4% at 18-20 (limit 20%) | `tests/e2e/soak.mjs --seasons=20` with `E2E_KEEP_GOING=1` |
 
 Synthetic hook harnesses (`tests/hooks/*-coalescing.test.ts`, `tests/hooks/live-data-unchanged-references.test.ts`)
 cover the burst, held-read, hidden-page, account-switch and failure cases behind these numbers.
@@ -70,6 +70,8 @@ Known limits:
 - No physical iPhone, Safari, or installed-PWA measurement. A headless WebKit engine check showed the same slots and
   saved-league restore; it is not device evidence.
 - Realtime coalescing adds up to ~250 ms before another user's change appears.
-- Scoring runs check stat corrections for every past season, so their cost grows with league history; the simulated
-  soak's drift comes from that work. Bounding it to a recent window is a possible follow-up.
+- The soak's runtime-drift gate measures wall-clock time on one machine. One 20-season run failed it at 25% when every
+  phase slowed together for two seasons and then recovered; rerun before treating a drift failure as a regression.
+- Deleting historical `player_game_stats` clears completion stamps, so the next scoring run refetches and re-scores those
+  past weeks. That is the intended recovery; test fixtures must not delete stats outside their own games.
 - Natural daily and weekly schedules (waivers at 03:00 ET, season boundary) were not observed beyond the 130-minute window.
