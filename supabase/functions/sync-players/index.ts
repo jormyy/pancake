@@ -7,6 +7,7 @@ import { fetchEspnNews, fetchEspnPlayerRecords } from '../_shared/playerSource.t
 import { fetchAllPlayers } from './players.ts'
 import { resolvePlayerImports } from '../_shared/playerImports.ts'
 import { errorMessage } from '../_shared/responses.ts'
+import { importPlayerChunk } from './imports.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
@@ -55,17 +56,18 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
   const failures: string[] = []
   for (let offset = 0; offset < records.length; offset += CHUNK) {
     try {
-      const { results } = await resolvePlayerImports('espn', records.slice(offset, offset + CHUNK).map((record) => ({
+      const result = await importPlayerChunk('espn', records.slice(offset, offset + CHUNK).map((record) => ({
         provider_id: record.espn_id, first_name: record.first_name, last_name: record.last_name,
         metadata: { nba_team: record.nba_team, position: record.position, eligible_positions: record.eligible_positions,
           status: record.status, injury_status: record.injury_status, years_exp: record.years_exp },
-      })))
-      updated += results.filter((row) => row.action === 'updated').length
-      inserted += results.filter((row) => row.action === 'inserted').length
-      ambiguousSkipped += results.filter((row) => row.action === 'ambiguous').length
+      })), offset)
+      updated += result.updated
+      inserted += result.inserted
+      ambiguousSkipped += result.ambiguousSkipped
+      failures.push(...result.failures)
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
-  console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} failed chunk(s).`)
+  console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
   return { updated, inserted, ambiguousSkipped, failures }
 }
 
@@ -91,18 +93,19 @@ async function syncPlayers(): Promise<{ updated: number; inserted: number; ambig
   const failures: string[] = []
   for (let offset = 0; offset < sleeperPlayers.length; offset += CHUNK) {
     try {
-      const { results } = await resolvePlayerImports('sleeper', sleeperPlayers.slice(offset, offset + CHUNK).map((p) => ({
+      const result = await importPlayerChunk('sleeper', sleeperPlayers.slice(offset, offset + CHUNK).map((p) => ({
         provider_id: p.player_id, first_name: p.first_name ?? '', last_name: p.last_name ?? '',
         metadata: { nba_team: p.team ?? null, position: normalizePosition(p.position),
           eligible_positions: normalizeEligiblePositions(p.fantasy_positions), status: p.status ?? null,
           injury_status: normalizeInjuryStatus(p.injury_status), years_exp: typeof p.years_exp === 'number' ? p.years_exp : null },
-      })))
-      updated += results.filter((row) => row.action === 'updated').length
-      inserted += results.filter((row) => row.action === 'inserted').length
-      ambiguousSkipped += results.filter((row) => row.action === 'ambiguous').length
+      })), offset)
+      updated += result.updated
+      inserted += result.inserted
+      ambiguousSkipped += result.ambiguousSkipped
+      failures.push(...result.failures)
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
-  console.log(`[sync-players] Sleeper: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} failed chunk(s).`)
+  console.log(`[sync-players] Sleeper: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
   return { updated, inserted, ambiguousSkipped, failures }
 }
 
