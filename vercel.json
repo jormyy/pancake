@@ -5,7 +5,8 @@
   "framework": null,
   "git": {
     "deploymentEnabled": {
-      "main": true
+      "main": true,
+      "work/pancake-t_43badb9b-waivers": false
     }
   },
   "headers": [
