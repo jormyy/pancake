@@ -10,7 +10,7 @@ const read = (path: string) => readFile(path, 'utf8')
 describe('home matchup surface wiring', () => {
     it('drives the play surface from resolveHomeSurface so the tested precedence is what renders', async () => {
         const source = await read('app/(tabs)/index.tsx')
-        expect(source).toContain("resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error })")
+        expect(source).toContain("resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })")
         for (const surface of ['draft', 'loading', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
         expect(source.indexOf("homeSurface === 'error'")).toBeLessThan(source.indexOf('message="No matchup this week yet"'))
     })

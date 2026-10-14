@@ -80,7 +80,10 @@ export function useMatchupData(
     current: { id: string } | null,
     user: { id: string } | null,
     league: { id: string } | null,
+    membershipValidated = true,
 ) {
+    const membershipValidatedRef = useRef(membershipValidated)
+    membershipValidatedRef.current = membershipValidated
     const online = useOnlineStatus()
     const wasOnlineRef = useRef(online)
     const leagueId = league?.id
@@ -112,6 +115,7 @@ export function useMatchupData(
     const [lineupLoading, setLineupLoading] = useState(false)
     // A picked day whose lineup failed to load shows a retry, never the day before.
     const [lineupError, setLineupError] = useState(false)
+    const [emptyConfirmed, setEmptyConfirmed] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [dataOwnerKey, setDataOwnerKey] = useState(resourceKey)
     const matchupRef = useRef<Matchup | null>(initialCache?.matchup ?? null)
@@ -138,6 +142,7 @@ export function useMatchupData(
         setLineupLoading(false)
         setLineupError(false)
         setError(null)
+        setEmptyConfirmed(false)
         matchupRef.current = cached?.matchup ?? null
         setDataOwnerKey(resourceKey)
     }, [current?.id, leagueId, resourceKey, setSelectedDate])
@@ -223,7 +228,7 @@ export function useMatchupData(
 
     const load = useCallback(async () => {
         const capturedResourceKey = resourceKey
-        if (!capturedResourceKey || !current || !user || !leagueId) return
+        if (!capturedResourceKey || !current || !user || !leagueId || !membershipValidated) return
         // Sequence concurrent loads (league switch / focus) so a slower fetch for
         // a previous league can never overwrite the current league's matchup.
         const seq = ++loadSeqRef.current
@@ -252,6 +257,7 @@ export function useMatchupData(
                 const selected = clampDateToWeek(today, days)
                 const lineups = selected === today ? todayLineups : await fetchLineups(m, selected, leagueId)
                 if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
+                setEmptyConfirmed(false)
                 setMatchup(m)
                 matchupRef.current = m
                 setWeekDays(days)
@@ -269,6 +275,8 @@ export function useMatchupData(
                     oppLineup: lineups.opp,
                 })
             } else {
+                if (!membershipValidatedRef.current) return
+                setEmptyConfirmed(true)
                 setMatchup(null)
                 matchupRef.current = null
                 setWeekDays([])
@@ -294,7 +302,7 @@ export function useMatchupData(
                 setMatchupLoading(false)
             }
         }
-    }, [current, user, leagueId, fetchLineups, resourceKey, setSelectedDate])
+    }, [current, user, leagueId, fetchLineups, resourceKey, setSelectedDate, membershipValidated])
 
     useFocusEffect(useCallback(() => { load() }, [load]))
 
@@ -394,6 +402,7 @@ export function useMatchupData(
     }, [ownsResource, resourceKey, setSelectedDate])
 
     return {
+        emptyConfirmed: ownsResource && membershipValidated && emptyConfirmed,
         matchup: ownsResource ? matchup : undefined,
         leagueMatchups: ownsResource ? leagueMatchups : [],
         weekDays: ownsResource ? weekDays : [],

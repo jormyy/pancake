@@ -12,6 +12,7 @@ type LeagueContextType = {
     setCurrent: (m: LeagueMembership) => void
     loading: boolean
     membershipStatus: ReturnType<typeof useLeagues>['membershipStatus']
+    membershipValidated: boolean
     membershipError: Error | null
     online: boolean
     refresh: () => Promise<void>
@@ -88,8 +89,8 @@ export function LeagueProvider({ children }: PropsWithChildren) {
 
     // Memoize context value so consumers don't tear / re-render on every parent tick.
     const value = useMemo<LeagueContextType>(
-        () => ({ memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipError, online }),
-        [memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipError, online],
+        () => ({ memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipValidated, membershipError, online }),
+        [memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipValidated, membershipError, online],
     )
 
     return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>
