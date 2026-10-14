@@ -55,7 +55,7 @@ not production measurements.
 | --- | --- | --- | --- |
 | Reopen with an expired access token | 0/6 reached the saved league; sign-in, "No league" and wrong-league flashes | 6/6 at ~250 ms, no flashes | Relaunch probe, 150 ms RTT / 1600 kbps, interleaved n=6 |
 | Reopen with a valid token | ~33 ms | ~35 ms | Same probe (control) |
-| 20 membership changes on Home | 41 membership reads, 55 API requests | 2 reads, 16 requests; visible time within noise | Real browser and local Realtime, interleaved n=5 |
+| 20 membership changes on Home | 41 membership reads, 55 API requests; change visible after ~0.6-0.8 s | 2 reads, 16 requests; visible ~0.1 s later (the 250 ms batching window) | Real browser and local Realtime, interleaved n=5, two runs |
 | 20 trade changes on Home | 20 badge RPCs | 1 | Same, n=5 |
 | Main screens (8 routes) | cold load 342-426 ms | unchanged within noise, same request counts | Smoke sweep, 5 interleaved rounds with reseed |
 | Player sync with one identity conflict | whole chunk rolled back; valid players not updated | valid players updated; the conflict still fails the run | Real endpoint, fake Sleeper feed |
