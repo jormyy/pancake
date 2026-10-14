@@ -70,4 +70,5 @@ that look dead were left alone because removing them needs a migration and relea
 
 User-facing surfaces that changed: Players gained a Season filter (current season and the two before it); the Roster
 Active band shows its `n/size` count like IR and taxi. Every empty roster, IR, taxi and lineup slot still renders as its
-own row on Roster and Matchup.
+own row on Roster and Matchup. A completely empty Roster keeps its "Browse Players" prompt above those rows instead of
+replacing them (`tests/app/roster-empty-slots.test.ts`).

@@ -911,24 +911,7 @@ export default function RosterScreen() {
                 onMoveToIR={(player) => { void handleToggleIR(player) }}
             />
 
-            {roster.length === 0 ? (
-                loading ? null : (
-                    <EmptyState
-                        fullScreen={false}
-                        framed
-                        icon="groups"
-                        message="Your roster is empty"
-                        description={currentLeague?.status === 'drafting'
-                            ? 'Your roster fills up as you draft. The auction is live now.'
-                            : 'Players you draft, add, or trade for show up here.'}
-                        actionLabel={currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players'}
-                        onAction={() => {
-                            if (currentLeague?.status === 'drafting') void openDraftRoom()
-                            else push('/players')
-                        }}
-                    />
-                )
-            ) : (
+            {roster.length === 0 && loading ? null : (
                 <View style={[styles.body, twoPane && styles.bodyTwoPane, { paddingHorizontal: twoPane ? padX : 0 }]}>
                     <View style={styles.main}>
                         <FlashList
@@ -942,6 +925,22 @@ export default function RosterScreen() {
                             contentContainerStyle={{ ...styles.listContent, paddingHorizontal: twoPane ? 0 : padX }}
                             getItemType={(item) => item._isHeader ? 'header' : item._section}
                             renderItem={renderRosterItem}
+                            ListHeaderComponent={roster.length === 0 ? (
+                                <EmptyState
+                                    fullScreen={false}
+                                    framed
+                                    icon="groups"
+                                    message="Your roster is empty"
+                                    description={currentLeague?.status === 'drafting'
+                                        ? 'Your roster fills up as you draft. The auction is live now.'
+                                        : 'Players you draft, add, or trade for show up here.'}
+                                    actionLabel={currentLeague?.status === 'drafting' ? 'Go to Draft Room' : 'Browse Players'}
+                                    onAction={() => {
+                                        if (currentLeague?.status === 'drafting') void openDraftRoom()
+                                        else push('/players')
+                                    }}
+                                />
+                            ) : null}
                         />
                     </View>
                     {twoPane ? (
