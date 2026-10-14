@@ -44,10 +44,34 @@ export const disposeDisposableLeague = async (supabase, leagueId, label) => {
   if (failures.length > 0) throw new AggregateError(failures, `${label}: league disposal failed`)
 }
 
-export const ensureSyntheticSeasonWeeks = async (supabase, seasonYear, throughWeek, label) => {
+export const ensureSyntheticSeasonWeeks = async (supabase, seasonYear, throughWeek, label, resourceOwner = undefined) => {
   const rows = seasonWeekRows(seasonYear, throughWeek)
+  let existing = []
+  if (resourceOwner) {
+    const { data, error } = await supabase.from('season_weeks')
+      .select('season_year, week_number, week_start, week_end')
+      .eq('season_year', seasonYear).in('week_number', rows.map((row) => row.week_number))
+    if (error) throw new Error(`${label}: synthetic season_weeks lookup failed: ${error.message}`)
+    existing = data ?? []
+  }
   const { error } = await supabase.from('season_weeks').upsert(rows, { onConflict: 'season_year,week_number' })
   if (error) throw new Error(`${label}: synthetic season_weeks upsert failed: ${error.message}`)
+  if (resourceOwner) {
+    const existingNumbers = new Set(existing.map((row) => row.week_number))
+    const createdNumbers = rows.filter((row) => !existingNumbers.has(row.week_number)).map((row) => row.week_number)
+    resourceOwner.register(`synthetic season weeks ${seasonYear}`, async () => {
+      if (createdNumbers.length > 0) {
+        const { error: deleteError } = await retryTransient(() => supabase.from('season_weeks')
+          .delete().eq('season_year', seasonYear).in('week_number', createdNumbers))
+        if (deleteError) throw new Error(`${label}: synthetic season_weeks cleanup failed: ${deleteError.message}`)
+      }
+      if (existing.length > 0) {
+        const { error: restoreError } = await retryTransient(() => supabase.from('season_weeks')
+          .upsert(existing, { onConflict: 'season_year,week_number' }))
+        if (restoreError) throw new Error(`${label}: synthetic season_weeks restore failed: ${restoreError.message}`)
+      }
+    })
+  }
 }
 
 export const saveFixtureGameStats = async (supabase, gameId, providerId, rows, isFinal, label) => {
@@ -98,7 +122,7 @@ export const createDisposableLeagueFromSeedUsers = async ({
     throw new Error(`${label}: scenario requires ${userCount} seeded users from npm run e2e:seed`)
   }
   const fixtureYear = seasonYear ?? 3000 + season
-  await ensureSyntheticSeasonWeeks(supabase, fixtureYear, Math.max(26, playoffStartWeek + 2), label)
+  await ensureSyntheticSeasonWeeks(supabase, fixtureYear, Math.max(26, playoffStartWeek + 2), label, resourceOwner)
   const unique = `${state.runId ?? 'manual'}-${season}-${Date.now().toString(36)}`
   const { data: league, error: leagueError } = await supabase.from('leagues').insert({
     name: `Pancake E2E ${label.replace(/[^A-Z0-9]+/gi, ' ')} ${unique}`,

@@ -75,8 +75,8 @@ export const assertOffseasonActivityScenario = async ({ supabase, env, state, se
     seasonYear: fixtureSeasonYear,
   })
   const [m1, m2, m3, m4] = fixture.members
-  await ensureSyntheticSeasonWeeks(supabase, fixtureSeasonYear + 1, 26, label)
-  await ensureSyntheticSeasonWeeks(supabase, fixtureSeasonYear + 2, 26, label)
+  await ensureSyntheticSeasonWeeks(supabase, fixtureSeasonYear + 1, 26, label, resourceOwner)
+  await ensureSyntheticSeasonWeeks(supabase, fixtureSeasonYear + 2, 26, label, resourceOwner)
 
   // Roster players + a free agent, unique to this run.
   const runTag = `${season}-${fixtureSeasonYear}`

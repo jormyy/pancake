@@ -72,20 +72,25 @@ export const buildDraftVisibleObservationScript = (expected) => {
 }
 
 const ensurePerfSeasonWeek = async (supabase, seasonYear, resourceOwner) => {
+  const { data: existing, error: lookupError } = await supabase.from('season_weeks')
+    .select('week_start, week_end').eq('season_year', seasonYear).eq('week_number', 1).maybeSingle()
+  if (lookupError) throw new Error(`D.X.4 perf season week lookup failed: ${lookupError.message}`)
   const start = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const end = new Date(start)
   end.setUTCDate(end.getUTCDate() + 6)
-  const { error } = await supabase.from('season_weeks').insert({
+  const { error } = await supabase.from('season_weeks').upsert({
     season_year: seasonYear,
     week_number: 1,
     week_start: start.toISOString().slice(0, 10),
     week_end: end.toISOString().slice(0, 10),
-  })
-  if (error) throw new Error(`D.X.4 perf season week insert failed: ${error.message}`)
+  }, { onConflict: 'season_year,week_number' })
+  if (error) throw new Error(`D.X.4 perf season week upsert failed: ${error.message}`)
   resourceOwner.register(`perf season week ${seasonYear}`, async () => {
-    const { error: deleteError } = await supabase.from('season_weeks').delete()
-      .eq('season_year', seasonYear).eq('week_number', 1)
-    if (deleteError) throw new Error(`D.X.4 perf season week cleanup failed: ${deleteError.message}`)
+    const query = existing
+      ? supabase.from('season_weeks').update({ week_start: existing.week_start, week_end: existing.week_end })
+      : supabase.from('season_weeks').delete()
+    const { error: cleanupError } = await query.eq('season_year', seasonYear).eq('week_number', 1)
+    if (cleanupError) throw new Error(`D.X.4 perf season week cleanup failed: ${cleanupError.message}`)
   })
 }
 
