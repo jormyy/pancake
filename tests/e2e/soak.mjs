@@ -80,6 +80,8 @@ import { assertOffseasonActivityScenario } from './soak-offseason-activity.mjs'
 import { BROWSER_SCENARIO_MANIFEST, browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { assertDynastyDecisionTools } from './soak-dynasty-decision-tools.mjs'
+import { completeSoakSeason, prepareSoakSeason, readSoakSeason, rolloverSoakSeason } from './harness/season-loop.mjs'
+import { seasonYearForDate } from './harness/season-calendar.mjs'
 import { assertSourceFailureRecovery } from './source-failure-recovery.mjs'
 import { assertSurfaceMatrix, surfaceSoakCoverageFailures } from './surface-matrix.mjs'
 import {
@@ -356,7 +358,10 @@ const main = async () => {
       )
     }
 
-    const fake = createFakeUpstreamServer()
+    const initialSeason = env.backendTicksEnabled ? await readSoakSeason(supabase, targetLeagueId) : null
+    const fake = createFakeUpstreamServer(initialSeason ? {
+      seasonYear: initialSeason.season_year, calendarWeeks: initialSeason.calendarWeeks,
+    } : {})
     if (checkpoint) fake.restoreState(checkpoint.fakeUpstream)
     await fake.listen(args.fakePort)
 
@@ -383,19 +388,26 @@ const main = async () => {
 
         const seasonStartedMs = nowMs()
         await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
-        await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
-          now: `${2026 + season}-10-20T12:00:00.000Z`,
-        })
+        const activeSeason = env.backendTicksEnabled ? await readSoakSeason(supabase, targetLeagueId) : null
+        if (activeSeason && fake.state.seasonYear !== activeSeason.season_year) {
+          throw new Error(`Fake season ${fake.state.seasonYear} does not match league season ${activeSeason.season_year}`)
+        }
+        const opening = [...fake.state.games.values()]
+          .filter((game) => seasonYearForDate(game.gameDate) === fake.state.seasonYear)
+          .map((game) => game.gameDate).sort()[0]
+        if (!opening) throw new Error('The current fake season has no opening game')
+        const openingReference = `${opening}T12:00:00.000Z`
+        await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, { now: openingReference })
 
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/sync-schedule')
           await backendJson(env, '/e2e/sync-players')
+          await prepareSoakSeason({ supabase, env, leagueId: targetLeagueId, season: activeSeason })
           await backendJson(env, '/e2e/live-poll', {
-            date: `${2026 + season}-10-20T12:00:00.000Z`,
+            date: openingReference,
             leagueId: targetLeagueId,
           })
           await backendJson(env, '/e2e/process-waivers')
-          await backendJson(env, '/e2e/generate-matchups', { force: false, leagueId: targetLeagueId })
         }
 
         const browserScenarioResults = await runBrowserScenarios({ args, season, shouldRun: shouldRunScenario })
@@ -496,6 +508,7 @@ const main = async () => {
         let rookieDraftPickChainCheck = null
         let historyCheck = null
         if (env.backendTicksEnabled) {
+          await completeSoakSeason({ supabase, env, fake, fakePort: args.fakePort, leagueId: targetLeagueId, season: activeSeason })
           if (args.history) {
             const currentSeasonForHistory = await fetchSingle(
               supabase,
@@ -508,12 +521,10 @@ const main = async () => {
               scenarios.historyFixtures.push(fixture)
             }
           }
-          const { error: targetStatusError } = await supabase
-            .from('leagues')
-            .update({ status: 'playoffs' })
-            .eq('id', targetLeagueId)
-          if (targetStatusError) throw new Error(`D.SEA.6 target playoff status staging failed: ${targetStatusError.message}`)
-          await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
+          const reset = await rolloverSoakSeason({ supabase, env, leagueId: targetLeagueId, season: activeSeason })
+          if (!reset.newSeasonId || reset.newYear !== fake.state.seasonYear + 1) {
+            throw new Error(`Season rollover returned ${reset.newYear}; expected ${fake.state.seasonYear + 1}`)
+          }
           failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId, scenarios))
           if (args.history) {
             const historyFailures = await assertHistoryRetained(supabase, scenarios.historyFixtures, season)

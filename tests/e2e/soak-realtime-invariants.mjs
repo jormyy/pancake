@@ -506,7 +506,7 @@ export const runInvariants = async (supabase, leagueId, scenarios = {}) => {
     drafts,
   ] = await Promise.all([
     leagueId ? fetchAll(supabase, 'leagues', 'id', { id: leagueId }) : fetchAll(supabase, 'leagues', 'id'),
-    fetchAll(supabase, 'league_seasons', 'id, league_id, is_current', leagueFilter),
+    fetchAll(supabase, 'league_seasons', 'id, league_id, season_year, is_current', leagueFilter),
     fetchAll(supabase, 'league_members', 'id, league_id', leagueFilter),
     fetchAll(supabase, 'roster_players', 'id, league_id, league_season_id, member_id, player_id', leagueFilter),
     fetchAll(supabase, 'weekly_lineups', 'id, league_id, league_season_id, member_id, player_id', leagueFilter),

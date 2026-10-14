@@ -8,6 +8,7 @@
 import {
   ARTIFACT_ROOT,
   createDisposableLeagueFromSeedUsers,
+  ensureSyntheticSeasonWeeks,
   fetchSingle,
   mkdir,
   path,
@@ -16,7 +17,7 @@ import {
 } from './soak-support.mjs'
 import { backendJson } from './soak-backend-support.mjs'
 
-const offseasonFixtureSeasonYear = () => 7_500_000 + Number(Date.now().toString().slice(-6))
+const offseasonFixtureSeasonYear = (season) => 7500 + season
 
 const ROOKIE_POOL = Array.from({ length: 12 }, (_, index) => ({
   sportsdata_id: `e2e-offseason-rookie-${index + 1}`,
@@ -63,7 +64,7 @@ const ownerOf = async (supabase, label, leagueSeasonId, playerId) => {
 export const assertOffseasonActivityScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'AC-23'
-  const fixtureSeasonYear = offseasonFixtureSeasonYear()
+  const fixtureSeasonYear = offseasonFixtureSeasonYear(season)
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
     state,
@@ -74,6 +75,8 @@ export const assertOffseasonActivityScenario = async ({ supabase, env, state, se
     seasonYear: fixtureSeasonYear,
   })
   const [m1, m2, m3, m4] = fixture.members
+  await ensureSyntheticSeasonWeeks(supabase, fixtureSeasonYear + 1, 26, label)
+  await ensureSyntheticSeasonWeeks(supabase, fixtureSeasonYear + 2, 26, label)
 
   // Roster players + a free agent, unique to this run.
   const runTag = `${season}-${fixtureSeasonYear}`
@@ -172,7 +175,9 @@ export const assertOffseasonActivityScenario = async ({ supabase, env, state, se
   const addedRoster = await fetchSingle(supabase, 'roster_players', 'id', {
     league_season_id: offseasonSeasonId, member_id: m3.id, player_id: freeAgent.id,
   })
-  await rpc(m3Client, 'drop_player_atomic', { p_roster_player_id: addedRoster.id }, `${label} offseason drop`)
+  await rpc(m3Client, 'drop_player_atomic', {
+    p_roster_player_id: addedRoster.id, p_expected_league_season_id: offseasonSeasonId,
+  }, `${label} offseason drop`)
   await m3Client.auth.signOut()
 
   // 3. Waiver claim by another manager, processed same-offseason.

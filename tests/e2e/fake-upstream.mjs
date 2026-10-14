@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { seasonWeekRows, seasonYearForDate } from './harness/season-calendar.mjs'
 
 const json = (res, status, body) => {
   const payload = JSON.stringify(body)
@@ -24,18 +25,20 @@ const isoDuration = (minutes) => {
 
 /**
  * @typedef {{
- *   now: string, seasonYear: number, nextRookieId: number,
+ *   now: string, seasonYear: number, nextRookieId: number, calendarWeeks?: number,
  *   players: [string, any][], games: [string, any][], pushes: any[],
  *   hits: { nbaCdn: number, sleeper: number, push: number }
  * }} FakeUpstreamState
  */
 
-export function createFakeUpstreamServer() {
+/** @param {{ seasonYear?: number, calendarWeeks?: number }} [options] */
+export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26 } = {}) {
   /** @type {{ receivedAt: string, body: any }[]} */
   const pushes = []
   const state = {
-    now: '2026-10-20T12:00:00.000Z',
-    seasonYear: 2027,
+    now: `${seasonYear - 1}-10-20T12:00:00.000Z`,
+    seasonYear,
+    calendarWeeks,
     nextRookieId: 900001,
     players: new Map([
       ['1001', { player_id: '1001', first_name: 'Ari', last_name: 'Glass', full_name: 'Ari Glass', team: 'BOS', position: 'PG', age: 25, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 4 }],
@@ -51,16 +54,13 @@ export function createFakeUpstreamServer() {
     state.games.set(id, {
       gameId: id,
       gameDate,
-      gameEt: `${gameDate}T19:30:00-05:00`,
+      gameEt: `${gameDate}T23:30:00Z`,
       gameStatus: 1,
       gameStatusText: 'Scheduled',
       awayTeam: { teamTricode: awayTeam, score: 0, players: [] },
       homeTeam: { teamTricode: homeTeam, score: 0, players: [] },
     })
   }
-
-  seedGame('FAKE0001', '2026-10-20', 'BOS', 'NYK')
-  seedGame('FAKE0002', '2026-10-21', 'LAL', 'BOS')
 
   const setLine = (gameId, teamSide, personId, name, stats) => {
     const game = state.games.get(gameId)
@@ -94,18 +94,18 @@ export function createFakeUpstreamServer() {
     else team.players[index] = player
   }
 
-  const fallbackGame = (gameId) => ({
-    gameId,
-    gameDate: state.now.slice(0, 10),
-    gameEt: `${state.now.slice(0, 10)}T19:30:00-05:00`,
-    gameStatus: 3,
-    gameStatusText: 'Final',
-    awayTeam: { teamTricode: 'BOS', score: 0, players: [] },
-    homeTeam: { teamTricode: 'NYK', score: 0, players: [] },
-  })
-
-  setLine('FAKE0001', 'awayTeam', 1001, 'Ari Glass', { minutes: 32, points: 24, reboundsTotal: 5, assists: 8, steals: 2, fieldGoalsMade: 9, fieldGoalsAttempted: 18, freeThrowsMade: 3, freeThrowsAttempted: 4, threePointersMade: 3, threePointersAttempted: 7 })
-  setLine('FAKE0001', 'homeTeam', 1002, 'Ben Pine', { minutes: 30, points: 18, reboundsTotal: 4, assists: 6, turnovers: 3, fieldGoalsMade: 7, fieldGoalsAttempted: 15, freeThrowsMade: 2, freeThrowsAttempted: 2, threePointersMade: 2, threePointersAttempted: 6 })
+  const seedSeason = () => {
+    const weeks = seasonWeekRows(state.seasonYear, state.calendarWeeks)
+    for (const week of weeks) {
+      for (const [index, date] of [week.week_start, week.week_end].entries()) {
+        const id = `002${String((state.seasonYear - 1) % 100).padStart(2, '0')}${String((week.week_number - 1) * 2 + index + 1).padStart(5, '0')}`
+        seedGame(id, date, 'BOS', index === 0 ? 'NYK' : 'LAL')
+        setLine(id, 'awayTeam', 1001, 'Ari Glass', { minutes: 32, points: 24, reboundsTotal: 5, assists: 8, steals: 2, fieldGoalsMade: 9, fieldGoalsAttempted: 18, freeThrowsMade: 3, freeThrowsAttempted: 4, threePointersMade: 3, threePointersAttempted: 7 })
+        setLine(id, 'homeTeam', index === 0 ? 1002 : 1003, index === 0 ? 'Ben Pine' : 'Cy Oak', { minutes: 30, points: 18, reboundsTotal: 4, assists: 6, turnovers: 3, fieldGoalsMade: 7, fieldGoalsAttempted: 15, freeThrowsMade: 2, freeThrowsAttempted: 2, threePointersMade: 2, threePointersAttempted: 6 })
+      }
+    }
+  }
+  seedSeason()
 
   const advanceSeason = () => {
     state.seasonYear += 1
@@ -129,8 +129,7 @@ export function createFakeUpstreamServer() {
       sport: 'nba',
       years_exp: 0,
     })
-    const year = state.seasonYear - 1
-    seedGame(`FAKE${state.seasonYear}01`, `${year}-10-20`, 'UTA', 'BOS')
+    seedSeason()
   }
 
   const server = http.createServer(async (req, res) => {
@@ -148,7 +147,8 @@ export function createFakeUpstreamServer() {
 
       const boxscoreMatch = url.pathname.match(/\/liveData\/boxscore\/boxscore_([^/]+)\.json$/)
       if (req.method === 'GET' && boxscoreMatch) {
-        const game = state.games.get(boxscoreMatch[1]) ?? fallbackGame(boxscoreMatch[1])
+        const game = state.games.get(boxscoreMatch[1])
+        if (!game) return json(res, 404, { error: 'game_not_found' })
         return json(res, 200, { game })
       }
 
@@ -166,9 +166,9 @@ export function createFakeUpstreamServer() {
       }
 
       if (req.method === 'GET' && url.pathname.endsWith('/staticData/scheduleLeagueV2_1.json')) {
-        const currentSeasonStartYear = state.seasonYear - 1
         const seasonGames = [...state.games.values()]
-          .filter((game) => game.gameDate.startsWith(`${currentSeasonStartYear}-`))
+          .filter((game) => seasonYearForDate(game.gameDate) === state.seasonYear)
+          .sort((a, b) => a.gameDate.localeCompare(b.gameDate) || a.gameId.localeCompare(b.gameId))
         // Like the real feed, number weeks Monday-Sunday from the season's first game week.
         const firstDate = seasonGames.map((game) => game.gameDate).sort()[0]
         const dayMs = 24 * 60 * 60 * 1000
@@ -187,7 +187,7 @@ export function createFakeUpstreamServer() {
               awayTeam: { teamTricode: game.awayTeam.teamTricode },
             }],
           }))
-        return json(res, 200, { leagueSchedule: { seasonYear: state.seasonYear, gameDates } })
+        return json(res, 200, { leagueSchedule: { seasonYear: `${state.seasonYear - 1}-${String(state.seasonYear % 100).padStart(2, '0')}`, gameDates } })
       }
 
       if (req.method === 'GET' && url.pathname.endsWith('/staticData/playerIndex.json')) {
@@ -263,6 +263,18 @@ export function createFakeUpstreamServer() {
         return json(res, 200, { ok: true, seasonYear: state.seasonYear })
       }
 
+      if (req.method === 'POST' && url.pathname === '/admin/complete-season') {
+        for (const game of state.games.values()) {
+          if (seasonYearForDate(game.gameDate) !== state.seasonYear) continue
+          game.gameStatus = 3
+          game.gameStatusText = 'Final'
+          for (const side of ['homeTeam', 'awayTeam']) {
+            game[side].score = game[side].players.reduce((sum, player) => sum + player.statistics.points, 0)
+          }
+        }
+        return json(res, 200, { ok: true })
+      }
+
       if (req.method === 'POST' && url.pathname === '/admin/clear-pushes') {
         state.pushes = []
         return json(res, 200, { ok: true })
@@ -295,6 +307,7 @@ export function createFakeUpstreamServer() {
       return structuredClone({
         now: state.now,
         seasonYear: state.seasonYear,
+        calendarWeeks: state.calendarWeeks,
         nextRookieId: state.nextRookieId,
         players: [...state.players.entries()],
         games: [...state.games.entries()],
@@ -306,12 +319,14 @@ export function createFakeUpstreamServer() {
     restoreState(saved) {
       if (!saved || !Array.isArray(saved.players) || !Array.isArray(saved.games) || !Array.isArray(saved.pushes) ||
           typeof saved.now !== 'string' || !Number.isInteger(saved.seasonYear) || !Number.isInteger(saved.nextRookieId) ||
+          (saved.calendarWeeks !== undefined && (!Number.isInteger(saved.calendarWeeks) || saved.calendarWeeks < 1)) ||
           ['nbaCdn', 'sleeper', 'push'].some((key) => !Number.isInteger(saved.hits?.[key]))) {
         throw new Error('Fake upstream state is incomplete')
       }
       const copy = structuredClone(saved)
       state.now = copy.now
       state.seasonYear = copy.seasonYear
+      state.calendarWeeks = copy.calendarWeeks ?? 26
       state.nextRookieId = copy.nextRookieId
       state.players = new Map(copy.players)
       state.games = new Map(copy.games)

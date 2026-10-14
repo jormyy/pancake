@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { seasonWeekRows } from './harness/season-calendar.mjs'
 
 export const EXPECTED_DEFAULT_LINEUP_SLOTS = {
   PG: 1, SG: 1, SF: 1, PF: 1, C: 1, G: 1, F: 1, UTIL: 3, BE: 10, IR: 2,
@@ -44,14 +45,46 @@ export const disposeDisposableLeague = async (supabase, leagueId, label) => {
 }
 
 export const ensureSyntheticSeasonWeeks = async (supabase, seasonYear, throughWeek, label) => {
-  const rows = Array.from({ length: throughWeek }, (_, index) => ({
-    season_year: seasonYear,
-    week_number: index + 1,
-    week_start: new Date(Date.UTC(2090, 0, 1 + index * 7)).toISOString().slice(0, 10),
-    week_end: new Date(Date.UTC(2090, 0, 7 + index * 7)).toISOString().slice(0, 10),
-  }))
+  const rows = seasonWeekRows(seasonYear, throughWeek)
   const { error } = await supabase.from('season_weeks').upsert(rows, { onConflict: 'season_year,week_number' })
   if (error) throw new Error(`${label}: synthetic season_weeks upsert failed: ${error.message}`)
+}
+
+export const saveFixtureGameStats = async (supabase, gameId, providerId, rows, isFinal, label) => {
+  const { error } = await supabase.rpc('save_game_stats_atomic', {
+    p_game_id: gameId, p_provider_game_id: providerId, p_is_final: isFinal,
+    p_stats: rows.map((row) => ({
+      minutes_played: 30, offensive_rebounds: 0, defensive_rebounds: row.rebounds,
+      personal_fouls: 0, three_pointers_attempted: row.three_pointers_made,
+      plus_minus: 0, did_not_play: false, ...row,
+    })),
+  })
+  if (error) throw new Error(`${label}: complete box score save failed: ${error.message}`)
+}
+
+export const acquireFixtureTaxiPlayer = async (supabase, fixture, fromMember, toMember, incomingId, outgoingId, label) => {
+  const call = async (name, args) => {
+    const { data, error } = await supabase.rpc(name, args)
+    if (error) throw new Error(`${label}: ${name} failed: ${error.message}`)
+    return data
+  }
+  const tradeId = await call('propose_trade_atomic', {
+    p_league_id: fixture.league.id, p_league_season_id: fixture.leagueSeason.id,
+    p_proposer_member_id: fromMember.id, p_recipient_member_id: toMember.id,
+    p_offer_player_ids: [incomingId], p_request_player_ids: [outgoingId],
+    p_offer_pick_ids: [], p_request_pick_ids: [],
+  })
+  await call('set_trade_taxi_destinations_atomic', {
+    p_trade_id: tradeId, p_member_id: toMember.id, p_user_id: toMember.user_id, p_player_ids: [incomingId],
+  })
+  await call('accept_trade_atomic', { p_trade_id: tradeId, p_accepting_member_id: toMember.id })
+  const { error } = await supabase.from('trades')
+    .update({ veto_window_expires_at: new Date(Date.now() - 1000).toISOString() }).eq('id', tradeId)
+  if (error) throw new Error(`${label}: veto window fixture update failed: ${error.message}`)
+  await call('complete_accepted_trade_atomic', { p_trade_id: tradeId })
+  const { data: roster, error: rosterError } = await supabase.from('roster_players').select('is_on_taxi')
+    .eq('league_season_id', fixture.leagueSeason.id).eq('member_id', toMember.id).eq('player_id', incomingId).single()
+  if (rosterError || !roster?.is_on_taxi) throw new Error(`${label}: trade did not acquire the rookie into taxi`)
 }
 
 const e2eCode = () => Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(2, 18).toUpperCase().padEnd(16, '0')
@@ -64,6 +97,8 @@ export const createDisposableLeagueFromSeedUsers = async ({
   if (!state?.password || !Array.isArray(state.users) || state.users.length < userCount) {
     throw new Error(`${label}: scenario requires ${userCount} seeded users from npm run e2e:seed`)
   }
+  const fixtureYear = seasonYear ?? 3000 + season
+  await ensureSyntheticSeasonWeeks(supabase, fixtureYear, Math.max(26, playoffStartWeek + 2), label)
   const unique = `${state.runId ?? 'manual'}-${season}-${Date.now().toString(36)}`
   const { data: league, error: leagueError } = await supabase.from('leagues').insert({
     name: `Pancake E2E ${label.replace(/[^A-Z0-9]+/gi, ' ')} ${unique}`,
@@ -75,7 +110,7 @@ export const createDisposableLeagueFromSeedUsers = async ({
   resourceOwner.register(`league ${league.id}`, () => disposeDisposableLeague(supabase, league.id, label))
 
   const { data: leagueSeason, error: seasonError } = await supabase.from('league_seasons').insert({
-    league_id: league.id, season_year: seasonYear ?? 3000 + season, is_current: true,
+    league_id: league.id, season_year: fixtureYear, is_current: true,
   }).select('id, season_year').single()
   if (seasonError) throw new Error(`${label} season insert: ${seasonError.message}`)
   const orderByUserId = new Map(state.users.map((user, index) => [user.id, index]))

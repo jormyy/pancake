@@ -144,12 +144,12 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
   return { failures, artifact }
 }
 
-const tradeAcceptFixtureSeasonYear = () => 8100 + Number(Date.now().toString().slice(-6))
+const tradeAcceptFixtureSeasonYear = (season) => 8100 + season
 
 export const assertTradeAcceptanceAtomicityScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.2 trade'
-  const fixtureSeasonYear = tradeAcceptFixtureSeasonYear()
+  const fixtureSeasonYear = tradeAcceptFixtureSeasonYear(season)
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
     state,
