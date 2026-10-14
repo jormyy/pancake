@@ -44,6 +44,8 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
       ['1001', { player_id: '1001', first_name: 'Ari', last_name: 'Glass', full_name: 'Ari Glass', team: 'BOS', position: 'PG', age: 25, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 4 }],
       ['1002', { player_id: '1002', first_name: 'Ben', last_name: 'Pine', full_name: 'Ben Pine', team: 'NYK', position: 'SG', age: 23, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 2 }],
       ['1003', { player_id: '1003', first_name: 'Cy', last_name: 'Oak', full_name: 'Cy Oak', team: 'LAL', position: 'F', age: 21, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 0 }],
+      ['1004', { player_id: '1004', first_name: 'Dee', last_name: 'Birch', full_name: 'Dee Birch', team: 'BOS', position: 'PG', age: 25, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 4 }],
+      ['1005', { player_id: '1005', first_name: 'Eli', last_name: 'Cedar', full_name: 'Eli Cedar', team: 'NYK', position: 'SG', age: 23, status: 'Active', injury_status: null, injury_notes: null, active: true, sport: 'nba', years_exp: 2 }],
     ]),
     games: new Map(),
     pushes,

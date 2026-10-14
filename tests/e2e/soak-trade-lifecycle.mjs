@@ -30,18 +30,18 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
   const label = 'D.SEA.2 injury'
   const fakeStateBefore = await (await fetch(`http://127.0.0.1:${fakePort}/admin/state`)).json()
   resourceOwner.register('fake upstream injuries', async () => {
-    await Promise.all(['1001', '1002'].map((playerId) => postJson(
+    await Promise.all(['1004', '1005'].map((playerId) => postJson(
       `http://127.0.0.1:${fakePort}/admin/injury`,
       { playerId, injuryStatus: fakeStateBefore.players?.[playerId]?.injury_status ?? null },
     )))
   })
   const beforePlayers = await Promise.all([
-    readPlayerBySleeperId(supabase, '1001', label),
-    readPlayerBySleeperId(supabase, '1002', label),
+    readPlayerBySleeperId(supabase, '1004', label),
+    readPlayerBySleeperId(supabase, '1005', label),
   ])
   resourceOwner.register('injury fixture players', async () => {
     const failures = []
-    for (const [sleeperId, before] of [['1001', beforePlayers[0]], ['1002', beforePlayers[1]]]) {
+    for (const [sleeperId, before] of [['1004', beforePlayers[0]], ['1005', beforePlayers[1]]]) {
       const restoreFields = before ? {
         sportsdata_id: before.sportsdata_id,
         first_name: before.first_name,
@@ -72,38 +72,33 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
   }
 
   const scrambledFixture = await ensureSleeperFixturePlayer(supabase, {
-    sleeperId: '1001',
-    firstName: 'Ari',
-    lastName: 'Glass',
+    sleeperId: '1004',
+    firstName: 'Dee',
+    lastName: 'Birch',
     position: 'PG',
   }, label)
   const validFixture = await ensureSleeperFixturePlayer(supabase, {
-    sleeperId: '1002',
-    firstName: 'Ben',
-    lastName: 'Pine',
+    sleeperId: '1005',
+    firstName: 'Eli',
+    lastName: 'Cedar',
     position: 'SG',
   }, label)
-  const { error: statsCleanupError } = await supabase
-    .from('player_game_stats')
-    .delete()
-    .in('player_id', [scrambledFixture.id, validFixture.id])
-  if (statsCleanupError) throw new Error(`${label}: fixture stat cleanup failed: ${statsCleanupError.message}`)
 
   await postJson(`http://127.0.0.1:${fakePort}/admin/injury`, {
-    playerId: '1001',
+    playerId: '1004',
     injuryStatus: 'Scrambled',
   })
   await postJson(`http://127.0.0.1:${fakePort}/admin/injury`, {
-    playerId: '1002',
+    playerId: '1005',
     injuryStatus: 'Out',
   })
 
   const syncResult = await backendJson(env, '/e2e/sync-players')
   const fakeState = await (await fetch(`http://127.0.0.1:${fakePort}/admin/state`)).json()
-  const expectedScrambled = fakeState.players?.['1001'] ?? {}
-  const expectedValid = fakeState.players?.['1002'] ?? {}
-  const scrambledPlayer = await readPlayerBySleeperId(supabase, '1001', label)
-  const validPlayer = await readPlayerBySleeperId(supabase, '1002', label)
+  const expectedScrambled = fakeState.players?.['1004'] ?? {}
+  const expectedValid = fakeState.players?.['1005'] ?? {}
+  const scrambledPlayer = await readPlayerBySleeperId(supabase, '1004', label)
+  const validPlayer = await readPlayerBySleeperId(supabase, '1005', label)
 
   if (scrambledPlayer?.injury_status != null) {
     failures.push(`${label}: fake Sleeper injury_status Scrambled persisted as ${scrambledPlayer.injury_status}; expected null`)
@@ -131,8 +126,8 @@ export const assertInjuryStatusFilterScenario = async ({ supabase, env, season, 
       validPlayer,
     },
     expected: {
-      sleeperId1001: { ...expectedScrambled, upstreamInjuryStatus: 'Scrambled', persistedInjuryStatus: null },
-      sleeperId1002: { ...expectedValid, upstreamInjuryStatus: 'Out', persistedInjuryStatus: 'Out' },
+      sleeperId1004: { ...expectedScrambled, upstreamInjuryStatus: 'Scrambled', persistedInjuryStatus: null },
+      sleeperId1005: { ...expectedValid, upstreamInjuryStatus: 'Out', persistedInjuryStatus: 'Out' },
     },
     failures,
   }

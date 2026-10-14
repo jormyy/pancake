@@ -8,6 +8,8 @@ import { ensureHistoryFixtureForSeason } from './e2e/soak-support.mjs'
 import { completeSoakSeason, prepareSoakSeason, readSoakSeason, rolloverSoakSeason } from './e2e/harness/season-loop.mjs'
 import { seasonWeekRows } from './e2e/harness/season-calendar.mjs'
 import { runInvariants } from './e2e/soak-realtime-invariants.mjs'
+import { assertInjuryStatusFilterScenario } from './e2e/soak-trade-lifecycle.mjs'
+import { createScenarioResourceOwner } from './e2e/scenario-resource-owner.mjs'
 
 afterEach(() => { vi.unstubAllGlobals(); boundaryQueries.read.mockReset() })
 
@@ -133,6 +135,32 @@ describe('fake NBA season calendar', () => {
         expect(new Set((await schedule()).leagueSchedule.gameDates.flatMap((day) => day.games.map((game) => game.weekNumber))).size).toBe(30)
         expect(() => next.restoreState({ ...saved, calendarWeeks: 0 })).toThrow('incomplete')
     })
+
+    it('keeps all past box scores stable through ten seasons, current mutations and a checkpoint restore', async () => {
+        let fake = createFakeUpstreamServer()
+        const completed = new Map<string, string>()
+        for (let season = 0; season < 10; season++) {
+            const current = [...fake.state.games.values()].filter((game) => Number(game.gameDate.slice(0, 4)) +
+                (Number(game.gameDate.slice(5, 7)) >= 10 ? 1 : 0) === fake.state.seasonYear)
+            expect(current).toHaveLength(52)
+            expect(current.every((game) => !completed.has(game.gameId))).toBe(true)
+            await fakeRequest('POST', '/admin/player-stat', { gameId: current[0].gameId, teamSide: 'awayTeam',
+                personId: 1001, name: 'Ari Glass', stats: { points: 24 + season, minutes: 32 } })
+            await fakeRequest('POST', '/admin/complete-season')
+            for (const [id, before] of completed) {
+                expect(JSON.stringify(fake.state.games.get(id)), id).toBe(before)
+                expect(JSON.stringify((await fakeRequest('GET', `/liveData/boxscore/boxscore_${id}.json`)).body.game), id).toBe(before)
+            }
+            for (const game of current) completed.set(game.gameId, JSON.stringify(game))
+            if (season === 4) {
+                const saved = fake.exportState()
+                fake = createFakeUpstreamServer()
+                fake.restoreState(saved)
+            }
+            await fakeRequest('POST', '/admin/advance-season')
+        }
+        expect(completed.size).toBe(520)
+    })
 })
 
 describe('disposable calendar fixtures', () => {
@@ -200,6 +228,85 @@ function fakeClient(results: Record<string, unknown> = {}) {
     }
     return { from, calls, rpc }
 }
+
+describe('injury scenario scoring isolation', () => {
+    it.each([false, true])('preserves past stats, completion stamps and scoring-player metadata when sync fails=%s', async (failSync) => {
+        const fake = createFakeUpstreamServer()
+        await fakeRequest('POST', '/admin/complete-season')
+        await fakeRequest('POST', '/admin/advance-season')
+        await fakeRequest('POST', '/admin/complete-season')
+        await fakeRequest('POST', '/admin/advance-season')
+        const pastGames = [...fake.state.games.values()].filter((game) => game.gameStatus === 3)
+        const boxScoresBefore = pastGames.map((game) => JSON.stringify(game))
+        const players = new Map<string, Record<string, unknown>>([...fake.state.players.values()].map((player) => [player.player_id, {
+            id: `player-${player.player_id}`, sleeper_id: player.player_id, first_name: player.first_name, last_name: player.last_name,
+            sportsdata_id: `fixture-${player.player_id}`, position: player.position, eligible_positions: [],
+            nba_team: player.team, years_exp: player.years_exp, injury_status: null, status: 'Active',
+        }]))
+        let stats = pastGames.flatMap((game) => [...game.homeTeam.players, ...game.awayTeam.players].map((player) => ({
+            player_id: `player-${player.personId}`, game_id: game.gameId, points: player.statistics.points,
+        })))
+        const scoringPlayerIds = new Set(stats.map((row) => row.player_id))
+        const stamps = new Map(pastGames.map((game) => [game.gameId, 'completed']))
+        const statsBefore = structuredClone(stats)
+        const stampsBefore = new Map(stamps)
+        const scoringPlayerWrites: string[] = []
+        let client: ReturnType<typeof fakeClient>
+        client = fakeClient({
+            'players.select': () => {
+                const filter = client.calls.findLast((call) => call.table === 'players' && call.op === 'eq')!
+                expect(filter.args[0]).toBe('sleeper_id')
+                const player = players.get(String(filter.args[1]))
+                return { data: player ? [{ ...player }] : [], error: null }
+            },
+            'players.update': () => {
+                const fields = client.calls.findLast((call) => call.table === 'players' && call.op === 'update')!.args[0] as Record<string, unknown>
+                const id = String(client.calls.findLast((call) => call.table === 'players' && call.op === 'eq')!.args[1])
+                if (scoringPlayerIds.has(id)) scoringPlayerWrites.push(id)
+                const entry = [...players.entries()].find(([, player]) => player.id === id)!
+                players.set(entry[0], { ...entry[1], ...fields })
+                return { data: { ...players.get(entry[0]) }, error: null }
+            },
+            'player_game_stats.delete': () => {
+                const filter = client.calls.findLast((call) => call.table === 'player_game_stats' && call.op === 'in')!
+                expect(filter.args[0]).toBe('player_id')
+                const ids = filter.args[1] as string[]
+                for (const row of stats) if (ids.includes(row.player_id)) stamps.set(row.game_id, '')
+                stats = stats.filter((row) => !ids.includes(row.player_id))
+                return { data: null, error: null }
+            },
+        })
+        vi.stubGlobal('fetch', async (input: string, init: RequestInit = {}) => {
+            const url = new URL(input)
+            if (url.hostname === 'fixture.invalid') {
+                if (url.pathname === '/e2e/status') return Response.json({ sleeperBaseUrl: 'http://127.0.0.1:4555/v1' })
+                expect(url.pathname).toBe('/e2e/sync-players')
+                if (failSync) return Response.json({ error: 'Injected sync failure' }, { status: 503 })
+                for (const player of fake.state.players.values()) {
+                    const stored = players.get(player.player_id)
+                    if (stored) players.set(player.player_id, { ...stored, nba_team: player.team, years_exp: player.years_exp,
+                        eligible_positions: [], injury_status: player.injury_status === 'Scrambled' ? null : player.injury_status })
+                }
+                return Response.json({ ok: true })
+            }
+            expect(url.hostname).toBe('127.0.0.1')
+            const response = await fakeRequest(init.method ?? 'GET', url.pathname, init.body ? JSON.parse(String(init.body)) : {})
+            return Response.json(response.body, { status: response.status })
+        })
+        const owner = createScenarioResourceOwner('injury isolation')
+        try {
+            const run = assertInjuryStatusFilterScenario({ supabase: client, env: { apiBaseUrl: 'http://fixture.invalid' },
+                season: 3, fakePort: 4555, resourceOwner: owner })
+            if (failSync) await expect(run).rejects.toThrow('/e2e/sync-players returned 503')
+            else await expect(run).resolves.toMatchObject({ failures: [], artifact: { failures: [] } })
+        } finally { await owner.dispose() }
+        expect(stats).toHaveLength(statsBefore.length)
+        expect(stats).toEqual(statsBefore)
+        expect(stamps).toEqual(stampsBefore)
+        expect(scoringPlayerWrites).toEqual([])
+        expect(pastGames.map((game) => JSON.stringify(game))).toEqual(boxScoresBefore)
+    })
+})
 
 const fixtureMembers = Array.from({ length: 4 }, (_, index) => ({
     id: `member-${index}`, user_id: `user-${index}`, team_name: `Team ${index}`,
