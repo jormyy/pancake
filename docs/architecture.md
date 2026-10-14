@@ -1,0 +1,73 @@
+# Pancake architecture and data flow
+
+A short map of where each concern lives. Detailed contracts stay in the linked documents.
+
+## Layers
+
+| Layer | Where | Notes |
+| --- | --- | --- |
+| Web app (iPhone Safari and installed PWA) | `app/`, `components/`, `hooks/`, `lib/` | Expo Router, React Native Web, static export. |
+| Boot shell and service worker | `constants/boot-shell.ts`, `app/+html.tsx`, `public/sw.js` | Paints cached chrome before the bundle; caches public build files only. See [pwa-live-data.md](./pwa-live-data.md). |
+| API boundary | `supabase/functions/api/` | The single HTTP boundary for mutations that need server logic. Route inventory: [supabase-backend-route-inventory.md](./supabase-backend-route-inventory.md). |
+| Database | Postgres via Supabase; `supabase/sql/functions/by-name/` and `supabase/migrations/` | Gameplay mutations run in `SECURITY DEFINER` RPCs that hold the invariants (locks, deadlines, roster limits, taxi rules). |
+| Scheduled jobs | `pg_cron` -> `invoke_edge_function` -> Edge functions in `supabase/functions/*` | Wall-clock gates with catch-up; every call is recorded in `edge_invocations` and reconciled every 5 minutes. |
+| Shared logic | `core/`, `supabase/shared-src/` | Generated into the app, Edge, and SQL copies; parity tests fail on drift. |
+
+## Startup and auth
+
+1. The boot shell checks the stored session for the configured project and the logout markers, then paints the
+   cached league identity for that user only (`constants/boot-shell.ts`).
+2. `AuthProvider` (`hooks/use-auth.ts`) reads the stored session (`lib/auth-session.ts`). An expired access token never
+   authorizes data reads. While online and visible, a session with a refresh token stays in the loading state until
+   the refresh succeeds or the server rejects it, so a reopen does not detour through sign-in.
+3. `LeagueProvider` (`contexts/league-context.tsx`) restores the per-user league choice. The choice has no age limit;
+   memberships are cached for thirty days and replaced by the server result (`hooks/use-leagues.ts`).
+4. Owner changes (sign-out, account switch) clear persistent and registered in-memory caches
+   (`lib/persistent-cache.ts`, `lib/session-cache-registry.ts`), and `lib/session-fetch.ts` fences responses
+   from a previous owner.
+
+## Caches
+
+| Cache | Where | Invalidation |
+| --- | --- | --- |
+| Public build files | `public/sw.js` (release-versioned) | New release activation. API, auth and realtime are never intercepted. |
+| League choice, memberships | `lib/persistent-cache.ts` (per user) | Sign-out, account change, server membership result. |
+| Screen snapshots (home matchup, lineup, player screen, search) | `lib/persistent-cache.ts` (per user, LRU, 24 h) | Focus, realtime, mutation, owner change. |
+| Short-lived lookups (current season) | `lib/shared/season.ts` (15 s promise cache) | TTL; commissioner season actions. |
+
+## Live updates
+
+Realtime subscriptions go through `lib/realtime.ts`: one private channel per consumer; `per-watch` gives each table its
+own handler and `fallback` sends every watched table to one refresh callback. Polling, focus and reconnect catch-up live
+in the consuming hooks. Bursts are coalesced per consumer with a bounded window that starts at the first event, one read
+in flight and one queued follow-up; hidden pages defer reads until they return:
+
+| Consumer | File | Coalescing |
+| --- | --- | --- |
+| League memberships | `hooks/use-leagues.ts` | 250 ms window, unchanged rows reused. |
+| Pending-trade badge | `hooks/use-pending-trade-count.ts` | 250 ms window; authoritative count RPC. |
+| Rookie draft room | `hooks/useRookieDraftRoomController.ts` | 250 ms window; 15 s revision poll gated while a reload runs. |
+| Home matchup | `hooks/use-matchup-data.ts` | Owner/league/matchup guard on every event; equal lineups keep their reference. |
+| Trades screen | `hooks/use-trade-screen-realtime.ts` | Existing debounced feeds. |
+| Live box scores | `hooks/use-live-stats.ts` | 15 s while games are live, 60 s otherwise, none while hidden. |
+
+## Scheduled jobs
+
+`pg_cron` schedules (see migrations) call `public.invoke_edge_function*`, which reads the Edge base URL and internal
+token from database settings or Vault and posts through `pg_net`. Edge functions record `sync_runs`; failed or missing
+responses are reconciled from `net._http_response` into `edge_invocations`. Job families: trade processing and
+notifications (every 5 min), waivers (03:00 ET), live scoring (per minute while games run), schedule, players,
+projections, rankings, season boundary, lineup optimizer, retention. Source health and recovery:
+[source-monitoring.md](./source-monitoring.md).
+
+## Recent simplification (2026-10)
+
+The app ships web/PWA only, so native-only pieces were removed when nothing referenced them:
+`expo-splash-screen` (configured, never imported) and its splash image, `react-native-gesture-handler` (no caller),
+an unused 516 KB icon, a byte-identical web tab layout, and a client-side player sorter used only by tests (the server
+sorts the full pool before paging). Modal layouts stayed separate because their headers differ, and database helpers
+that look dead were left alone because removing them needs a migration and release attestation for little gain.
+
+User-facing surfaces that changed: Players gained a Season filter (current season and the two before it); the Roster
+Active band shows its `n/size` count like IR and taxi. Every empty roster, IR, taxi and lineup slot still renders as its
+own row on Roster and Matchup.

@@ -75,6 +75,9 @@ once the app is running; the launch budget covers getting there.
 
 ## Latest Measurements
 
+The 2026-10-13 results (startup relaunch, realtime bursts, screens, soaks) and their limits are in
+[verification.md](./verification.md#latest-local-results--2026-10-13).
+
 Measurements use headless Chromium, the local stack, a 390×844 viewport, 150 ms RTT / 1600 kbps, and six interleaved runs per case.
 Expired-token relaunches improve from 0/6 reaching the saved league, with sign-in and wrong-league flashes, to 6/6 at ~250 ms without flashes.
 The result holds with 25-hour-old caches. Valid-token relaunches stay unchanged at ~35 ms.
