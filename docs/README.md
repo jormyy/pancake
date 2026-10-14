@@ -10,6 +10,8 @@ records live under [`audits/`](./audits/).
 | [season-autonomy-ledger.md](./season-autonomy-ledger.md) | Acceptance-criteria ledger for the perpetual-season autonomy work: one PASS/FAIL line per criterion with its evidence pointer, plus the checkpoint log. |
 | [sleeper-migration.md](./sleeper-migration.md) | Sleeper→ESPN player-source migration: cutover design, degraded-source contract, `years_exp` semantics, and the side-by-side parity run table (raw runs in [`sleeper-migration-parity/`](./sleeper-migration-parity/)). |
 | [soak-harness-audit.md](./soak-harness-audit.md) | Forced-red audit of the release-soak harness: each major assertion family broken on purpose to prove its green is trustworthy. |
+| [architecture.md](./architecture.md) | Where auth, caches, live updates, scheduled jobs and the API boundary live, plus recent simplifications. |
+| [verification.md](./verification.md) | Local stack, correctness and benchmark recipes, latest measured results and their limits. |
 | [instant-loading.md](./instant-loading.md) | Performance operating plan: top-10 workflows, latency budgets, and the regression gates that enforce them. |
 | [pwa-live-data.md](./pwa-live-data.md) | PWA architecture, cache rules, reconnect recovery, verification, and known limits. |
 | [roster-lifecycle.md](./roster-lifecycle.md) | Roster-linked state map: what happens to trade-block listings, lineups, pending claims, and pending offers when a player leaves a roster, and the triggers that enforce it. |

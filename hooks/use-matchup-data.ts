@@ -38,6 +38,10 @@ type MatchupScreenCache = {
 
 const MATCHUP_CACHE_PREFIX = 'pancake:home-matchup:v1:'
 
+function reuseLineup(previous: LineupData | null, next: LineupData): LineupData {
+    return previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+}
+
 function isMatchupRealtimeRow(row: object): row is MatchupRealtimeRow {
     return 'id' in row && typeof row.id === 'string'
         && 'week_number' in row && typeof row.week_number === 'number'
@@ -210,8 +214,8 @@ export function useMatchupData(
             ])
             if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
                 date !== selectedDateRef.current) return
-            setMyLineup(mine)
-            setOppLineup(opp)
+            setMyLineup((previous) => reuseLineup(previous, mine))
+            setOppLineup((previous) => reuseLineup(previous, opp))
             setLineupError(false)
         },
         [leagueId, ownsResource, resourceKey],
@@ -306,6 +310,10 @@ export function useMatchupData(
 
     useEffect(() => {
         if (!ownsResource || !matchup?.id) return
+        let disposed = false
+        const eventTimes = new Map<string, number>()
+        const isActive = () => !disposed && activeResourceKeyRef.current === resourceKey
+            && matchupRef.current?.id === matchup.id
         const refreshVisibleLineups = debounceRealtimeRefresh(() => { void refreshSilently() }, 200)
         const visibleMemberIds = new Set([matchup.myMemberId, matchup.opponentMemberId])
         const channel = subscribeToTableChanges(
@@ -317,13 +325,19 @@ export function useMatchupData(
                     table: 'matchups',
                     filter: `league_season_id=eq.${matchup.seasonId}`,
                     onChange: (payload) => {
-                        if (!isMatchupRealtimeRow(payload.new)) return
+                        if (!isActive() || !isMatchupRealtimeRow(payload.new)) return
                         const row = payload.new
                         const { home_points, away_points, is_finalized, winner_member_id } = row
                         if (row.week_number !== (matchup.roundStartWeek ?? matchup.weekNumber)) return
+                        // Order by the server commit time, not the score: corrections can reduce points.
+                        const eventTime = Date.parse(payload.commit_timestamp)
+                        if (Number.isFinite(eventTime)) {
+                            if (eventTime < (eventTimes.get(row.id) ?? -Infinity)) return
+                            eventTimes.set(row.id, eventTime)
+                        }
                         if (row.id === matchup.id) {
                             setMatchup((prev) => {
-                                if (!prev) return prev
+                                if (!isActive() || !prev || prev.id !== row.id) return prev
                                 const isHome = prev.myMemberId === row.home_member_id
                                 return {
                                     ...prev,
@@ -335,7 +349,7 @@ export function useMatchupData(
                             })
                         }
                         setLeagueMatchups((prev) =>
-                            prev.map((item) =>
+                            !isActive() ? prev : prev.map((item) =>
                                 item.id === row.id
                                     ? {
                                           ...item,
@@ -351,6 +365,7 @@ export function useMatchupData(
                     table: 'weekly_lineups',
                     filter: `league_season_id=eq.${matchup.seasonId}`,
                     onChange: (payload) => {
+                        if (!isActive()) return
                         const row = payload.eventType === 'DELETE' ? payload.old : payload.new
                         if (!isWeeklyLineupRealtimeRow(row)) return
                         if (row.week_number !== matchup.weekNumber) return
@@ -366,6 +381,7 @@ export function useMatchupData(
         )
 
         return () => {
+            disposed = true
             reportRealtimeCleanup(
                 'matchup',
                 disposeTableChangeSubscription(channel, [refreshVisibleLineups]),

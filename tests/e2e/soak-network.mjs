@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'node:crypto'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -48,7 +49,7 @@ export const backendAuthedJson = async (env, pathname, token, body = {}) => {
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(pathname.startsWith('/trades/') ? { requestId: randomUUID(), ...body } : body),
   })
   if (!response.ok) {
     const text = await response.text().catch(() => '')

@@ -18,6 +18,7 @@ commissioner disappears.
 - [Documentation](#documentation)
 
 Pancake supports iPhone Safari and the installed iPhone PWA. Native app builds are not supported.
+The web build uses browser touch input and the cached PWA shell; it needs no native splash or gesture-handler package.
 
 ## Highlights
 
@@ -30,7 +31,7 @@ Pancake supports iPhone Safari and the installed iPhone PWA. Native app builds a
   automatic best-available backstop if it never runs by week 1
 - **Daily lineups** with manual and auto-set options and ET tip-off locks
 - **Player discovery** with indexed search, sort, availability, health, team, playing-day,
-  and rookie filters
+  rookie, and stats-season filters (the current season or either of the two before it)
 - **Dynasty Hub** with Hashtag Basketball dynasty rankings, source stat strips, player
   headshots, curated news, and roster-filtered My News
 - **Waiver wire** with weekly add limits (in the offseason the limit keeps counting in
@@ -222,6 +223,10 @@ so a deploy relaunches from disk instead of re-downloading the bundle. The stamp
 the build if the worker declares no manifest. When a release moves the bundle hashes,
 run `npm run e2e:pwa-update -- --previous=<dist-of-live-release> --next=dist` before
 promoting. See [docs/pwa-live-data.md](./docs/pwa-live-data.md).
+
+An online PWA reopen restores expired auth before routing. It then opens the saved league without a sign-in detour.
+The per-user league choice has no expiry. Cached memberships cover thirty days while the server refreshes them.
+Sign-out and account changes clear private caches. Server membership results safely replace choices for removed leagues.
 
 ## Documentation
 

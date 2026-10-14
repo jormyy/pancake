@@ -12,6 +12,9 @@ Pancake keeps the installed shell fast. It keeps live data outside the service w
 6. Application caches give safe data an immediate first paint.
 7. Edge jobs update schedules, players, scores, projections, rankings, and draft order.
 
+Matchup callbacks check the active owner, league, matchup, and subscription before applying scores or lineup changes.
+Server commit times reject reversed score events. Later corrections can reduce points.
+
 See [source monitoring](./source-monitoring.md) for upstream health and recovery.
 
 ## Boot shell
@@ -24,14 +27,16 @@ On an installed PWA over a mobile link that was seconds of blank screen.
 The document carries it, so it paints from the HTML alone.
 
 - It is built from the same design tokens as `WebTabShell`. The two cannot drift.
-- An inline script reveals it only when local storage holds a Supabase session.
+- An inline script reveals it only for checked auth from Pancake's configured Supabase project.
+  It honors the shared and tab logout markers before reading cached identity.
   A signed-out or auth-route launch never shows app chrome.
 - The same script fills the league, team, initials, and active route from the
-  persistent cache. It skips that text past thirty days and paints plain chrome.
+  stored owner's cache. Memberships expire after thirty days; the saved choice has no age limit.
+  If cached rows omit that choice, it paints plain chrome until the server checks membership.
 - Every navigation item is a real link, so the shell navigates without the bundle.
 - Icons are inline SVG. The chrome never waits on an icon font.
 - `useBootShellHandoff` removes the shell in a layout effect, before the real
-  chrome paints. The handoff shows no flicker and no duplicate navigation.
+  chrome paints. It waits while auth restores. The handoff shows no duplicate navigation.
 
 The shell records `pancake-boot-shell` and the handoff records
 `pancake-app-mounted`. The gap between them is how long the static chrome held
@@ -77,10 +82,51 @@ Every failure path renders plain chrome rather than breaking the launch:
 | Supabase API | Never intercepted | Each request reaches Supabase. |
 | Realtime | Never intercepted | The socket reconnects to Supabase. |
 | Matchup data | Same-day, user-scoped local cache | Focus, realtime, or reconnect refreshes it. |
+| Selected league | Per-user choice with no age limit or cache eviction | Sign-out, account change, or unusable auth clears it. Confirmed membership removal replaces it. |
+| League memberships | Per-user cache available for thirty days; protected from cache pruning | Startup, reconnect, and realtime replace it with server results. |
 | Live box scores and today's slate | Shared in memory per date | Polled every 15 s while a game is live, otherwise every 60 s. A remount reuses a snapshot younger than that. No polling while the page is hidden; a return refreshes at once when a tick was missed. |
 | Other screen data | User, league, and resource scoped | TTL, focus, mutation, or sign-out clears it. |
 
+Silent Home refreshes retain equal lineup references after the owner, date, and request checks pass.
+The comparison includes every player field, slot, reserve list, and row order. Changed lineups still replace the visible data.
+Live polls keep refreshing both lineups when scores stay equal, so independent lineup edits still appear.
+Score reads, poll intervals, freshness signals, and reconnect recovery keep their existing behavior.
+Every empty starter, bench, IR, and taxi slot stays visible.
+
+Membership events and return signals share a 250 ms window, starting with the first signal.
+Later signals cannot extend that window. Hidden or offline pages defer these automatic reads until return.
+Startup and explicit refreshes start immediately. One read runs at a time; changes during it queue one follow-up.
+Explicit refresh promises include that follow-up while the page can refresh.
+Owner changes and cleanup reject pending results and callbacks before they can update state or storage.
+Unchanged membership rows keep their references. Roles, league settings, row order, removal, and confirmed empty results still update the context.
+
+The pending-trade badge uses the authoritative count RPC, including offers beyond the first page.
+Trade events, participant events, route changes, and focus share a bounded 250 ms window.
+The first signal sets the deadline. One count read runs per owner; changes during it queue one follow-up.
+Initial owner reads start immediately. Failed reads keep the last count and retry twice, after two and four seconds.
+Owner changes and cleanup cancel timers and reject old callbacks and results. Sign-out clears the badge.
+
+Rookie draft notifications share a bounded 250 ms window for one board and prospect reload.
+Changes during a reload queue one follow-up. Startup, pick replies, and explicit refreshes load both immediately.
+The initial empty-query prospect read runs once. Later search changes keep their 300 ms debounce.
+The 15 s revision poll allows one pending probe and reload. It confirms a revision only after both reads succeed.
+Automatic reloads wait while hidden. Resume checks the revision; a pending pre-sleep probe gets one fresh follow-up.
+Old owners, disposed subscriptions, and obsolete probe results cannot update the room.
+
 The release cache version contains the commit and a build fingerprint. A same-commit rebuild still creates a new version.
+
+### Session restoration on reopen
+
+A stored expired access token never authorizes data reads. A checked session with a refresh token can still restore auth.
+Online startup keeps auth loading until refresh succeeds or the server rejects it. Hidden pages defer the attempt until visible.
+A transient refresh error keeps restoration pending. Foreground and online events retry it.
+Missing or invalid sessions, rejected refreshes, and offline expired sessions show sign-in. Rejected and offline expired sessions show the expired-session notice.
+
+The client keeps the same owner's startup cache during online restoration. It blocks data access and fences responses from the previous admitted session.
+After refresh, it reads that owner's saved league and memberships together. Cached rows do not prove current league access or permit offline actions.
+The server replaces cached memberships. Only a successful result can replace a saved choice or confirm an empty list.
+If stale rows omit the saved choice, startup waits without displaying a default league. A confirmed removal selects the first remaining membership safely.
+Sign-out and account changes clear both persistent and registered memory caches. Late auth events and data responses cannot restore the previous owner.
 
 `scripts/stamp-release-provenance.mjs` writes the version and the precache
 manifest into `dist/sw.js` at build time. The manifest lists exactly what the
@@ -141,8 +187,8 @@ so no API response, token, or row of another user's data reaches a cache the
 worker controls. The cached `/` document is the static export: identical for
 every user, with no data baked in.
 
-The boot shell reads three keys, all scoped to the user id in the stored
-session, and writes none. It renders a league name, a team name, and initials —
+The boot shell checks the configured project's stored session and logout markers. It reads identity caches under that session's user id and writes nothing.
+It renders a league name, a team name, and initials —
 nothing whose staleness could mislead a roster decision, and no authorization
 decision. The app still validates the session before anything acts on it.
 
@@ -246,6 +292,8 @@ Offline writes remain disabled. This avoids invalid moves after a game lock or r
 ## Supported client target
 
 Pancake supports iPhone Safari and the installed iPhone PWA. Android and native iOS app builds are excluded. Expo, React Native Web, routing, touch input, deep links, browser permissions, icons and service-worker infrastructure remain shared web dependencies. Desktop browsers and WebKit simulations provide development evidence; they do not prove real-iPhone or installed-iPhone-PWA behavior.
+
+The default tab layout uses `WebTabShell` on web. Modal layouts retain their platform-specific headers and presentation.
 
 ### Dynasty foreground freshness
 

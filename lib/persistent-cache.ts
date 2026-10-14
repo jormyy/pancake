@@ -10,6 +10,12 @@ type CacheEnvelope<T> = {
 const CACHE_PREFIX = 'pancake:'
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 const MAX_CACHE_ENTRIES = 64
+const SELECTED_LEAGUE_PREFIX = 'pancake:selected-league:v1:'
+const MEMBERSHIP_PREFIX = 'pancake:league-memberships:v1:'
+const MEMBERSHIP_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+const isStartupKey = (key: string) => key.startsWith(SELECTED_LEAGUE_PREFIX) || key.startsWith(MEMBERSHIP_PREFIX)
+const maxAgeForKey = (key: string) => key.startsWith(SELECTED_LEAGUE_PREFIX) ? Infinity
+    : key.startsWith(MEMBERSHIP_PREFIX) ? MEMBERSHIP_MAX_AGE_MS : DEFAULT_MAX_AGE_MS
 const PREFIX_LIMITS = [
     ['pancake:player-search:', 12],
     ['pancake:dynasty-rankings:', 8],
@@ -84,7 +90,7 @@ function pruneStorage(storage: Storage): void {
         const matching = keys.filter((key) => key.startsWith(prefix)).sort(byOldest)
         for (const key of matching.slice(0, Math.max(0, matching.length - limit))) removeStorageKey(storage, key)
     }
-    const remaining = cacheKeys(storage).sort(byOldest)
+    const remaining = cacheKeys(storage).filter((key) => !isStartupKey(key)).sort(byOldest)
     for (const key of remaining.slice(0, Math.max(0, remaining.length - MAX_CACHE_ENTRIES))) {
         removeStorageKey(storage, key)
     }
@@ -96,7 +102,7 @@ function pruneMemoryCache(): void {
         const matching = sorted.filter(([key]) => key.startsWith(prefix))
         for (const [key] of matching.slice(0, Math.max(0, matching.length - limit))) memoryCache.delete(key)
     }
-    const remaining = [...memoryCache.entries()].sort((a, b) => a[1].savedAt - b[1].savedAt)
+    const remaining = [...memoryCache.entries()].filter(([key]) => !isStartupKey(key)).sort((a, b) => a[1].savedAt - b[1].savedAt)
     for (const [key] of remaining.slice(0, Math.max(0, remaining.length - MAX_CACHE_ENTRIES))) {
         memoryCache.delete(key)
     }
@@ -107,7 +113,7 @@ export function readPersistentCache<T>(key: string): T | null {
     if (!storage) {
         const cached = memoryCache.get(key) as CacheEnvelope<T> | undefined
         if (!cached) return null
-        if (cached.version === 1 && isFresh(cached.savedAt, DEFAULT_MAX_AGE_MS)) return cached.value
+        if (cached.version === 1 && isFresh(cached.savedAt, maxAgeForKey(key))) return cached.value
         memoryCache.delete(key)
         return null
     }
@@ -116,7 +122,7 @@ export function readPersistentCache<T>(key: string): T | null {
         const raw = storage.getItem(key)
         if (!raw) return null
         const parsed = JSON.parse(raw) as CacheEnvelope<T>
-        if (parsed.version === 1 && isFresh(parsed.savedAt, DEFAULT_MAX_AGE_MS)) return parsed.value
+        if (parsed.version === 1 && isFresh(parsed.savedAt, maxAgeForKey(key))) return parsed.value
         removeStorageKey(storage, key)
         return null
     } catch {
@@ -142,7 +148,7 @@ export function writePersistentCache<T>(key: string, value: T): void {
     } catch {
         // A quota failure can be recoverable after evicting the oldest entry.
         try {
-            const oldest = cacheKeys(storage).sort(
+            const oldest = cacheKeys(storage).filter((candidate) => !isStartupKey(candidate)).sort(
                 (a, b) => envelopeSavedAt(storage, a) - envelopeSavedAt(storage, b),
             )[0]
             if (oldest) removeStorageKey(storage, oldest)

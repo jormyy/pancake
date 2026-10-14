@@ -13,7 +13,7 @@ import {
   signInForAccessToken,
 } from './soak-backend-support.mjs'
 
-const rookieFixtureSeasonYear = () => 7000 + Number(Date.now().toString().slice(-6))
+const rookieFixtureSeasonYear = (season) => 7000 + season
 
 export const expectAuthedBackendError = async ({ env, path, token, body, label, pattern }) => {
   try {
@@ -55,7 +55,7 @@ const findRookieDraftCandidates = async ({ supabase, leagueId, leagueSeasonId, d
 }
 
 export const createRookieDraftFixture = async ({ supabase, env, state, season, label, resourceOwner }) => {
-  const fixtureSeasonYear = rookieFixtureSeasonYear()
+  const fixtureSeasonYear = rookieFixtureSeasonYear(season)
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
     state,

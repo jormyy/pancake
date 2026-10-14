@@ -389,7 +389,7 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
       id: 'long.history', requiredForRelease: true,
       requirement: 'D.LONG.3/D.LONG.4 standings/champion history',
       status: historyStatus,
-      evidence: args.history ? 'History mode seeds deterministic completed-season standings/champion fixtures and verifies them after season resets.' : 'Enable E2E_ENABLE_HISTORY=1 with Edge E2E tick mode.',
+      evidence: args.history ? 'History mode captures the actually scored standings and completed playoff champion, then verifies all captured seasons after certified rollover.' : 'Enable E2E_ENABLE_HISTORY=1 with Edge E2E tick mode.',
     },
     {
       id: 'long.migration', requiredForRelease: true,

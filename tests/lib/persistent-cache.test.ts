@@ -45,4 +45,22 @@ describe('persistent cache bounds', () => {
 
         expect(readPersistentCache('pancake:roster:user-a')).toBeNull()
     })
+
+    it('protects the in-memory startup choice and membership cache from age and pruning', () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-10-13T00:00:00Z'))
+        const selection = 'pancake:selected-league:v1:user-a'
+        const memberships = 'pancake:league-memberships:v1:user-a'
+        writePersistentCache(selection, 'member-a')
+        writePersistentCache(memberships, ['member-a'])
+        vi.setSystemTime(Date.now() + 7 * 86400_000)
+        for (let index = 0; index < 80; index++) writePersistentCache(`pancake:test:${index}`, index)
+        expect(readPersistentCache(selection)).toBe('member-a')
+        expect(readPersistentCache(memberships)).toEqual(['member-a'])
+        vi.setSystemTime(Date.now() + 365 * 86400_000)
+        expect(readPersistentCache(selection)).toBe('member-a')
+        expect(readPersistentCache(memberships)).toBeNull()
+        clearPersistentCaches()
+        expect(readPersistentCache(selection)).toBeNull()
+    })
 })

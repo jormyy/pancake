@@ -232,6 +232,7 @@ type PlayerSearchOptions = {
     sortMode?: PlayerSearchSortMode
     sortDir?: PlayerSearchSortDir
     pageSize?: number
+    seasonYear?: number | null
 }
 
 const DEFAULT_PLAYER_SEARCH_PAGE_SIZE = 20
@@ -289,8 +290,8 @@ export async function searchPlayers(
     sortByOrOptions: PlayerSearchSortMode | PlayerSearchOptions = 'fpts',
     sortDirArg: PlayerSearchSortDir = 'desc',
 ): Promise<PlayerRow[]> {
-    const season = currentSeasonYear()
     const hasSearchOptions = typeof sortByOrOptions === 'object' && sortByOrOptions !== null
+    const season = (hasSearchOptions ? sortByOrOptions.seasonYear : null) ?? currentSeasonYear()
     const sortBy = hasSearchOptions ? (sortByOrOptions.sortMode ?? 'fpts') : sortByOrOptions
     const sortDir = hasSearchOptions ? (sortByOrOptions.sortDir ?? 'desc') : sortDirArg
     const pageSize = hasSearchOptions ? (sortByOrOptions.pageSize ?? DEFAULT_PLAYER_SEARCH_PAGE_SIZE) : DEFAULT_PLAYER_SEARCH_PAGE_SIZE

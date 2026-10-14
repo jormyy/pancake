@@ -21,6 +21,8 @@ export type PlayerSearchParams = {
     health: PlayerSearchHealthFilter
     sortBy: PlayerSearchSortMode
     sortDir: PlayerSearchSortDir
+    // Stats season (averages, fantasy points, projections). Null means the current season.
+    seasonYear: number | null
 }
 
 export type PlayerSearchFilterState = {
@@ -32,6 +34,7 @@ export type PlayerSearchFilterState = {
     rookiesOnly: boolean
     health: PlayerSearchHealthFilter
     sortMode: PlayerSearchSortMode
+    seasonYear: number | null
 }
 
 export const PLAYER_SEARCH_PAGE_SIZE = 20
@@ -47,6 +50,17 @@ export const DEFAULT_PLAYER_SEARCH_PARAMS: PlayerSearchParams = {
     health: 'all',
     sortBy: 'fpts',
     sortDir: 'desc',
+    seasonYear: null,
+}
+
+/** "2025–26" for the season that ends in 2026, the label the player page uses. */
+export function seasonLabel(seasonYear: number): string {
+    return `${seasonYear - 1}–${String(seasonYear).slice(2)}`
+}
+
+/** The current stats season first (the filter's default), then the two before it. */
+export function playerSeasonFilterOptions(currentSeason: number): { key: string; label: string }[] {
+    return [0, 1, 2].map((back) => ({ key: String(currentSeason - back), label: seasonLabel(currentSeason - back) }))
 }
 
 function uniqueSorted(values?: string[]): string[] {
@@ -90,6 +104,7 @@ export function activePlayerFilterCount(state: PlayerSearchFilterState): number 
     if (state.availabilityFilter !== 'free_agents') count++
     if (state.rookiesOnly) count++
     if (state.health !== 'all') count++
+    if (state.seasonYear != null) count++
     return count
 }
 
@@ -107,5 +122,6 @@ export function playerSearchParamsKey(params: PlayerSearchParams): string {
         health: params.health,
         sortBy: params.sortBy,
         sortDir: params.sortDir,
+        seasonYear: params.seasonYear,
     })
 }

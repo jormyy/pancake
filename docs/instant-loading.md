@@ -59,8 +59,28 @@ once the app is running; the launch budget covers getting there.
   live-stats poll: 2 reads per snapshot, none while the page is hidden.
   `tests/list-render-counts.test.ts` asserts that starting or finishing one add in a
   20-row player list re-renders exactly one row.
+- `tests/hooks/leagues-coalescing.test.ts` counts membership reads, Home matchup reads, and context renders with fixed response delays.
+  It covers bursts, continuous events, pending reads, return signals, unchanged rows, removals, and owner changes.
+  Membership refreshes use a bounded 250 ms window and one queued follow-up.
+  Startup reads remain immediate; unchanged rows avoid downstream Home reloads.
+- `tests/hooks/pending-trade-count-coalescing.test.ts` runs the real count RPC wrapper with fixed response delays.
+  It covers trade and participant bursts, held reads, route and focus catch-up, retry limits, owner changes, and cleanup.
+  It also checks counts above forty offers and the 250 ms maximum batching window under continuous events.
+- `tests/hooks/rookie-draft-coalescing.test.ts` counts board reads, prospect reads, revision probes, and picked-player removal time.
+  It covers both watched tables, repeated notifications, resets, slow reads, hidden return, failures, search, taxi, and expiry.
+  Rookie reloads use a bounded 250 ms window; the 15 s revision poll permits one pending probe and reload.
+- `tests/hooks/live-data-unchanged-references.test.ts` counts memoized consumer renders and view-row allocations with 240 synthetic players and fixed response delays.
+  It covers unchanged polls, game transitions, DNP, corrections, lineup edits, date changes, partial failures, disconnect, and resume.
+  Silent Home refreshes reuse equal lineups after the existing owner and date checks. Reads and lineup fanouts keep their cadence.
 
 ## Latest Measurements
+
+The 2026-10-13 results (startup relaunch, realtime bursts, screens, soaks) and their limits are in
+[verification.md](./verification.md#latest-local-results--2026-10-13).
+
+Measurements use headless Chromium, the local stack, a 390×844 viewport, 150 ms RTT / 1600 kbps, and six interleaved runs per case.
+Expired-token relaunches improve from 0/6 reaching the saved league, with sign-in and wrong-league flashes, to 6/6 at ~250 ms without flashes.
+The result holds with 25-hour-old caches. Valid-token relaunches stay unchanged at ~35 ms.
 
 ### Launch — 2026-08-27
 
@@ -110,10 +130,15 @@ Player search now uses a request-specific database plan. It keeps paging and pro
   from disk instead of re-downloading.
 - League membership, player search, roster, and Dynasty news keep cached data
   visible while refreshing.
+- An online reopen waits for an expired session's refresh before routing. It does not show sign-in during that wait.
+- The saved league choice has no age limit. Memberships stay available for thirty days while the server refreshes them.
+- Cache pruning keeps both startup entries. Sign-out and account changes still clear private caches.
+- Only a server membership result can replace a saved choice. A stale list cannot select a different league.
 - Home matchup/lineup and player detail screens hydrate same-day cached content
   immediately, then refresh in the background.
 - Player search uses materialized read models and pages before projection
   enrichment so the request is bounded.
+  The server sorts the full filtered pool before pagination, including rookies. The client preserves that order.
 - Roster, matchup, trade, draft, waiver, and player detail hot reads have
   targeted indexes in the 2026-07-02 instant-loading migrations.
 - Browser perf smoke measures live auction/matchup update pressure and fails on

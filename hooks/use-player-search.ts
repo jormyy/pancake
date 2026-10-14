@@ -142,6 +142,7 @@ export function usePlayerSearch(
     const [health, setHealth] = useState<HealthFilter>('all')
     const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('free_agents')
     const [rookiesOnly, setRookiesOnly] = useState(false)
+    const [seasonYear, setSeasonYear] = useState<number | null>(null)
     const [players, setPlayers] = useState<PlayerRow[]>([])
     const [dataKey, setDataKey] = useState<string | null>(null)
     const [validatedKey, setValidatedKey] = useState<string | null>(null)
@@ -205,6 +206,7 @@ export function usePlayerSearch(
         health,
         sortBy: sortMode,
         sortDir,
+        seasonYear,
     }), [
         debouncedQuery,
         position,
@@ -217,6 +219,7 @@ export function usePlayerSearch(
         health,
         sortMode,
         sortDir,
+        seasonYear,
     ])
     const searchParamsKey = JSON.stringify([options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate)])
     // Support refreshes can replace Maps without changing the actual search.
@@ -246,8 +249,7 @@ export function usePlayerSearch(
                 excludePlayerIds: params.excludePlayerIds,
                 excludedTeams: params.excludedTeams,
             },
-            params.sortBy,
-            params.sortDir,
+            { sortMode: params.sortBy, sortDir: params.sortDir, seasonYear: params.seasonYear },
         ), [])
 
     const fetchCompleteResults = useCallback(async (params: PlayerSearchParams) => {
@@ -415,6 +417,7 @@ export function usePlayerSearch(
         setHealth('all')
         setSortMode('fpts')
         setSortDir('desc')
+        setSeasonYear(null)
     }, [setSelectedTeams])
 
     const activeFilterCount = useMemo(
@@ -427,8 +430,9 @@ export function usePlayerSearch(
             rookiesOnly,
             health,
             sortMode,
+            seasonYear,
         }),
-        [query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode],
+        [query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear],
     )
 
     return {
@@ -444,6 +448,7 @@ export function usePlayerSearch(
         health: { value: health, setValue: setHealth },
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
+        season: { value: seasonYear, setValue: setSeasonYear },
         results: { players: enabled && dataKey === searchParamsKey ? players : [], loading, refreshing, loadingMore, error, listRef, loadMore, retry, isSnapshot: !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
         activeFilterCount,
         clearAllFilters,

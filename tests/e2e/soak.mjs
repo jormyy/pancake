@@ -80,6 +80,9 @@ import { assertOffseasonActivityScenario } from './soak-offseason-activity.mjs'
 import { BROWSER_SCENARIO_MANIFEST, browserEvidenceIds, browserPassNotes } from './browser-scenario-manifest.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { assertDynastyDecisionTools } from './soak-dynasty-decision-tools.mjs'
+import { completeSoakSeason, prepareSoakSeason, readSoakSeason, rolloverSoakSeason } from './harness/season-loop.mjs'
+import { seasonYearForDate } from './harness/season-calendar.mjs'
+import { createSeasonPhaseTimings, formatPhaseTimings } from './harness/phase-timings.mjs'
 import { assertSourceFailureRecovery } from './source-failure-recovery.mjs'
 import { assertSurfaceMatrix, surfaceSoakCoverageFailures } from './surface-matrix.mjs'
 import {
@@ -356,7 +359,10 @@ const main = async () => {
       )
     }
 
-    const fake = createFakeUpstreamServer()
+    const initialSeason = env.backendTicksEnabled ? await readSoakSeason(supabase, targetLeagueId) : null
+    const fake = createFakeUpstreamServer(initialSeason ? {
+      seasonYear: initialSeason.season_year, calendarWeeks: initialSeason.calendarWeeks,
+    } : {})
     if (checkpoint) fake.restoreState(checkpoint.fakeUpstream)
     await fake.listen(args.fakePort)
 
@@ -382,23 +388,34 @@ const main = async () => {
         }
 
         const seasonStartedMs = nowMs()
+        const phaseTimings = createSeasonPhaseTimings(nowMs, seasonStartedMs)
         await mkdir(path.join(ARTIFACT_ROOT, `season-${season}`), { recursive: true })
-        await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, {
-          now: `${2026 + season}-10-20T12:00:00.000Z`,
-        })
+        const activeSeason = env.backendTicksEnabled ? await readSoakSeason(supabase, targetLeagueId) : null
+        if (activeSeason && fake.state.seasonYear !== activeSeason.season_year) {
+          throw new Error(`Fake season ${fake.state.seasonYear} does not match league season ${activeSeason.season_year}`)
+        }
+        const opening = [...fake.state.games.values()]
+          .filter((game) => seasonYearForDate(game.gameDate) === fake.state.seasonYear)
+          .map((game) => game.gameDate).sort()[0]
+        if (!opening) throw new Error('The current fake season has no opening game')
+        const openingReference = `${opening}T12:00:00.000Z`
+        await postJson(`http://127.0.0.1:${args.fakePort}/admin/now`, { now: openingReference })
+        phaseTimings.mark('season_setup')
 
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/sync-schedule')
           await backendJson(env, '/e2e/sync-players')
+          await prepareSoakSeason({ supabase, env, leagueId: targetLeagueId, season: activeSeason })
           await backendJson(env, '/e2e/live-poll', {
-            date: `${2026 + season}-10-20T12:00:00.000Z`,
+            date: openingReference,
             leagueId: targetLeagueId,
           })
           await backendJson(env, '/e2e/process-waivers')
-          await backendJson(env, '/e2e/generate-matchups', { force: false, leagueId: targetLeagueId })
         }
+        phaseTimings.mark('startup_ticks')
 
         const browserScenarioResults = await runBrowserScenarios({ args, season, shouldRun: shouldRunScenario })
+        phaseTimings.mark('browser_scenarios')
         const backendScenarioResults = await runBackendScenarios({
           args,
           shouldRun: shouldRunScenario,
@@ -443,6 +460,7 @@ const main = async () => {
           tradeVetoCheck,
           waiverProcessingCheck,
         } = backendScenarioResults
+        phaseTimings.mark('backend_scenarios')
         let realtimeCheck = false
         if (args.realtime) {
           await runWithScenarioResourceOwner(`realtime season ${season}`, (resourceOwner) => assertRealtimeDelivery({
@@ -455,6 +473,7 @@ const main = async () => {
           }))
           realtimeCheck = true
         }
+        phaseTimings.mark('realtime')
         let pushCheck = false
         if (args.push) {
           await assertPushNotifications({
@@ -467,17 +486,22 @@ const main = async () => {
           })
           pushCheck = true
         }
+        phaseTimings.mark('push')
 
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/close-expired-nominations')
           await backendJson(env, '/e2e/process-trades')
           await backendJson(env, '/e2e/process-waivers')
         }
+        phaseTimings.mark('post_scenario_ticks')
         const failuresAtStart = await runInvariants(supabase, targetLeagueId, scenarios)
+        phaseTimings.mark('invariants_before')
         if (env.backendTicksEnabled) {
           await backendJson(env, '/e2e/close-expired-nominations')
         }
+        phaseTimings.mark('nomination_catchup')
         const failuresAtEnd = await runInvariants(supabase, targetLeagueId, scenarios)
+        phaseTimings.mark('invariants_after')
         const dynastyDecisionCheck = await assertDynastyDecisionTools({
           supabase,
           env,
@@ -489,13 +513,17 @@ const main = async () => {
           path.join(ARTIFACT_ROOT, `season-${season}`, 'dynasty-decision-tools.json'),
           `${JSON.stringify(dynastyDecisionCheck.evidence, null, 2)}\n`,
         )
+        phaseTimings.mark('dynasty_checks')
         const matchupFailures = env.backendTicksEnabled
           ? await assertMatchupGenerationIdempotent(supabase, env, targetLeagueId)
           : []
+        phaseTimings.mark('matchup_idempotency')
         const failuresAfterReset = []
         let rookieDraftPickChainCheck = null
         let historyCheck = null
         if (env.backendTicksEnabled) {
+          await completeSoakSeason({ supabase, env, fake, fakePort: args.fakePort, leagueId: targetLeagueId, season: activeSeason })
+          phaseTimings.mark('season_completion')
           if (args.history) {
             const currentSeasonForHistory = await fetchSingle(
               supabase,
@@ -508,18 +536,20 @@ const main = async () => {
               scenarios.historyFixtures.push(fixture)
             }
           }
-          const { error: targetStatusError } = await supabase
-            .from('leagues')
-            .update({ status: 'playoffs' })
-            .eq('id', targetLeagueId)
-          if (targetStatusError) throw new Error(`D.SEA.6 target playoff status staging failed: ${targetStatusError.message}`)
-          await backendJson(env, '/e2e/advance-season', { leagueId: targetLeagueId })
+          phaseTimings.mark('history_capture')
+          const reset = await rolloverSoakSeason({ supabase, env, leagueId: targetLeagueId, season: activeSeason })
+          if (!reset.newSeasonId || reset.newYear !== fake.state.seasonYear + 1) {
+            throw new Error(`Season rollover returned ${reset.newYear}; expected ${fake.state.seasonYear + 1}`)
+          }
+          phaseTimings.mark('rollover')
           failuresAfterReset.push(...await runInvariants(supabase, targetLeagueId, scenarios))
+          phaseTimings.mark('invariants_after_reset')
           if (args.history) {
             const historyFailures = await assertHistoryRetained(supabase, scenarios.historyFixtures, season)
             failuresAfterReset.push(...historyFailures)
             if (historyFailures.length === 0) historyCheck = true
           }
+          phaseTimings.mark('history_retention')
           if (scenarios.futurePickChain) {
             rookieDraftPickChainCheck = await assertFuturePickMaterializedInRookieDraft(
               supabase,
@@ -529,15 +559,21 @@ const main = async () => {
               season,
             )
           }
+          phaseTimings.mark('pick_chain')
         }
         const snapshot = await writeSnapshots(supabase, season, targetLeagueId)
+        phaseTimings.mark('snapshots')
         const hadPreviousSnapshot = previousSnapshot != null
         const snapshotFailures = validateSnapshotProgress(previousSnapshot, snapshot, {
           expectResetGrowth: env.backendTicksEnabled,
         })
         previousSnapshot = snapshot
+        phaseTimings.mark('snapshot_validation')
         const durationMs = nowMs() - seasonStartedMs
-        perfMetrics.push({ season, durationMs: roundedMs(durationMs), memory: currentMemory() })
+        const phaseDurationsMs = phaseTimings.finish(seasonStartedMs + durationMs)
+        const phaseSummary = formatPhaseTimings(phaseDurationsMs)
+        const metric = { season, durationMs: roundedMs(durationMs), phaseDurationsMs, memory: currentMemory() }
+        perfMetrics.push(metric)
         await mkdir(ARTIFACT_ROOT, { recursive: true })
         await writeFile(PERF_METRICS_PATH, `${JSON.stringify({
           runtimeDriftLimit: PERF_DRIFT_LIMIT,
@@ -574,7 +610,8 @@ const main = async () => {
         ]
 
         if (failures.length > 0) {
-          rows.push({ season, status: 'FAIL', notes: failures.join('; ') })
+          rows.push({ season, status: 'FAIL', durationMs: metric.durationMs, phaseDurationsMs,
+            notes: [...failures, phaseSummary].join('; ') })
           if (!args.keepGoing) break
         } else {
           const seasonNotes = env.backendTicksEnabled
@@ -583,6 +620,8 @@ const main = async () => {
           rows.push({
             season,
             status: 'PASS',
+            durationMs: metric.durationMs,
+            phaseDurationsMs,
             evidenceIds: [
               'surface.matrix',
               'source.failure_recovery',
@@ -607,6 +646,7 @@ const main = async () => {
               args.seasons >= 10 && season >= 10 ? 'memory.drift' : null,
             ].filter((value) => typeof value === 'string'),
             notes: [
+              phaseSummary,
               seasonNotes,
               'dynasty engine, scoring, pick, trade, and identity checks passed',
               ...browserPassNotes(browserScenarioResults),

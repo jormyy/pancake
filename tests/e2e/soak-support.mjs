@@ -632,8 +632,6 @@ export const assertFuturePickMaterializedInRookieDraft = async (supabase, env, l
   return artifact
 }
 
-const HISTORY_WEEK_NUMBER = 99
-
 export const sortedLeagueMembers = async (supabase, leagueId) => {
   const members = await fetchAll(supabase, 'league_members', 'id, user_id, team_name, joined_at', { league_id: leagueId })
   members.sort((a, b) => {
@@ -642,35 +640,6 @@ export const sortedLeagueMembers = async (supabase, leagueId) => {
   })
   if (members.length < 2) throw new Error('D.LONG.3/D.LONG.4: history scenario requires at least two league members')
   return members
-}
-
-const buildHistoryFixture = (leagueId, leagueSeason, members) => {
-  const offset = Number(leagueSeason.season_year) % members.length
-  const ranked = [...members.slice(offset), ...members.slice(0, offset)]
-  const standings = ranked.map((member, index) => ({
-    league_id: leagueId,
-    league_season_id: leagueSeason.id,
-    member_id: member.id,
-    week_number: HISTORY_WEEK_NUMBER,
-    wins: members.length - index,
-    losses: index,
-    ties: 0,
-    points_for: 1200 - index * 25,
-    points_against: 900 + index * 20,
-    max_possible_points: 1300 - index * 20,
-    waiver_priority: index + 1,
-  }))
-
-  return {
-    leagueId,
-    leagueSeasonId: leagueSeason.id,
-    seasonYear: leagueSeason.season_year,
-    weekNumber: HISTORY_WEEK_NUMBER,
-    standings,
-    championMemberId: ranked[0].id,
-    runnerUpMemberId: ranked[1].id,
-    championTeamName: ranked[0].team_name,
-  }
 }
 
 const assertStandingMatchesFixture = (actual, expected, failures) => {
@@ -688,61 +657,30 @@ const assertStandingMatchesFixture = (actual, expected, failures) => {
 
 export const ensureHistoryFixtureForSeason = async (supabase, leagueId, leagueSeason) => {
   const members = await sortedLeagueMembers(supabase, leagueId)
-  const fixture = buildHistoryFixture(leagueId, leagueSeason, members)
-
-  const { data: existingStandings, error: standingsReadError } = await supabase
-    .from('standings')
-    .select('id, member_id, wins, losses, ties, points_for, points_against, max_possible_points, waiver_priority')
-    .eq('league_id', leagueId)
-    .eq('league_season_id', leagueSeason.id)
-    .eq('week_number', HISTORY_WEEK_NUMBER)
-  if (standingsReadError) throw new Error(`D.LONG.3 standings read: ${standingsReadError.message}`)
-
-  if ((existingStandings ?? []).length === 0) {
-    const { error } = await supabase.from('standings').insert(fixture.standings)
-    if (error) throw new Error(`D.LONG.3 standings fixture insert: ${error.message}`)
+  const rows = await fetchAll(supabase, 'standings',
+    'id, member_id, week_number, wins, losses, ties, points_for, points_against, max_possible_points, waiver_priority',
+    { league_id: leagueId, league_season_id: leagueSeason.id })
+  const weekNumber = Math.max(...rows.map((row) => row.week_number))
+  const standings = rows.filter((row) => row.week_number === weekNumber)
+  const byMember = new Set(standings.map((row) => row.member_id))
+  if (standings.length !== members.length || byMember.size !== members.length || members.some((member) => !byMember.has(member.id))) {
+    throw new Error('D.LONG.3: completed standings must cover every league member')
   }
-
-  const { data: existingFinals, error: finalsReadError } = await supabase
-    .from('matchups')
+  const { data: finals, error } = await supabase.from('matchups')
     .select('id, home_member_id, away_member_id, winner_member_id, is_finalized')
-    .eq('league_id', leagueId)
-    .eq('league_season_id', leagueSeason.id)
-    .eq('week_number', HISTORY_WEEK_NUMBER + 1)
-    .eq('matchup_type', 'playoff_final')
-  if (finalsReadError) throw new Error(`D.LONG.4 champion read: ${finalsReadError.message}`)
-
-  const matchingFinal = (existingFinals ?? []).find((row) => (
-    row.home_member_id === fixture.championMemberId &&
-    row.away_member_id === fixture.runnerUpMemberId
-  ))
-  if (!matchingFinal) {
-    const { data: finalRow, error } = await supabase
-      .from('matchups')
-      .insert({
-        league_id: leagueId,
-        league_season_id: leagueSeason.id,
-        week_number: HISTORY_WEEK_NUMBER + 1,
-        matchup_type: 'playoff_final',
-        home_member_id: fixture.championMemberId,
-        away_member_id: fixture.runnerUpMemberId,
-        home_points: 110,
-        away_points: 100,
-        home_max_possible_points: 120,
-        away_max_possible_points: 112,
-        winner_member_id: fixture.championMemberId,
-        is_finalized: true,
-        finalized_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single()
-    if (error) throw new Error(`D.LONG.4 champion fixture insert: ${error.message}`)
-    fixture.championMatchupId = finalRow.id
-  } else {
-    fixture.championMatchupId = matchingFinal.id
+    .eq('league_id', leagueId).eq('league_season_id', leagueSeason.id).eq('matchup_type', 'playoff_final')
+  if (error) throw new Error(`D.LONG.4 champion read: ${error.message}`)
+  const final = finals?.length === 1 ? finals[0] : null
+  if (!final?.is_finalized || !members.some((member) => member.id === final.winner_member_id) ||
+      ![final.home_member_id, final.away_member_id].includes(final.winner_member_id)) {
+    throw new Error('D.LONG.4: expected one completed playoff final with a league champion')
   }
-
-  return fixture
+  return {
+    leagueId, leagueSeasonId: leagueSeason.id, seasonYear: leagueSeason.season_year, weekNumber, standings,
+    championMatchupId: final.id, championMemberId: final.winner_member_id,
+    runnerUpMemberId: final.winner_member_id === final.home_member_id ? final.away_member_id : final.home_member_id,
+    championTeamName: members.find((member) => member.id === final.winner_member_id).team_name,
+  }
 }
 
 export const assertHistoryRetained = async (supabase, fixtures, runSeason) => {

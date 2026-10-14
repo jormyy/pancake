@@ -11,11 +11,13 @@ import {
 import {
   backendJson,
 } from './soak-backend-support.mjs'
+import { acquireFixtureTaxiPlayer, saveFixtureGameStats } from './soak-fixtures.mjs'
+import { seasonWeekRows } from './harness/season-calendar.mjs'
 
-const scoringFixtureSeasonYear = () => 6000 + Number(Date.now().toString().slice(-6))
-const scoringFixtureWeekNumber = (season) => 700 + season
+const scoringFixtureSeasonYear = (season) => 6000 + season
 const scoringFixtureDate = (season, offsetDays = 0) => {
-  const date = new Date(Date.UTC(2040, 0, 1 + season * 7 + offsetDays))
+  const start = seasonWeekRows(scoringFixtureSeasonYear(season))[0].week_start
+  const date = new Date(Date.parse(`${start}T00:00:00Z`) + offsetDays * 86_400_000)
   return date.toISOString().split('T')[0]
 }
 
@@ -58,8 +60,8 @@ const readScoringMatchup = async (supabase, matchupId, label) => {
 export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.2'
-  const fixtureSeasonYear = scoringFixtureSeasonYear()
-  const weekNumber = scoringFixtureWeekNumber(season)
+  const fixtureSeasonYear = scoringFixtureSeasonYear(season)
+  const weekNumber = 1
   const gameDate = scoringFixtureDate(season)
   const secondDate = scoringFixtureDate(season, 1)
   const scoringReferenceDate = `${gameDate}T12:00:00Z`
@@ -98,16 +100,6 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     .eq('id', fixture.league.id)
   if (leagueUpdateError) throw new Error(`${label}: scoring settings update failed: ${leagueUpdateError.message}`)
 
-  const { error: weekError } = await supabase
-    .from('season_weeks')
-    .upsert({
-      season_year: fixtureSeasonYear,
-      week_number: weekNumber,
-      week_start: gameDate,
-      week_end: secondDate,
-    }, { onConflict: 'season_year,week_number' })
-  if (weekError) throw new Error(`${label}: season week fixture insert failed: ${weekError.message}`)
-
   const { data: players, error: playersError } = await seededPlayerQuery(supabase)
     .limit(4)
   if (playersError) throw new Error(`${label}: player fixture lookup failed: ${playersError.message}`)
@@ -129,6 +121,13 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     .select('id')
     .single()
   if (gameError) throw new Error(`${label}: game fixture insert failed: ${gameError.message}`)
+  const ownedGameIds = [game.id]
+  resourceOwner.register(`scoring games for ${fixture.league.id}`, async () => {
+    const { error: statsError } = await supabase.from('player_game_stats').delete().in('game_id', ownedGameIds)
+    if (statsError) throw new Error(`${label}: fixture stats cleanup failed: ${statsError.message}`)
+    const { error: gamesError } = await supabase.from('nba_games').delete().in('id', ownedGameIds)
+    if (gamesError) throw new Error(`${label}: fixture games cleanup failed: ${gamesError.message}`)
+  })
 
   const { data: secondGame, error: secondGameError } = await supabase
     .from('nba_games')
@@ -145,6 +144,7 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     .select('id')
     .single()
   if (secondGameError) throw new Error(`${label}: second game fixture insert failed: ${secondGameError.message}`)
+  ownedGameIds.push(secondGame.id)
 
   const homeStarterStats = {
     player_id: homeStarter.id,
@@ -153,13 +153,13 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     week_number: weekNumber,
     game_date: gameDate,
     points: 10,
-    rebounds: 5,
+    rebounds: 10,
     assists: 4,
     steals: 1,
     blocks: 2,
     turnovers: 3,
     three_pointers_made: 2,
-    field_goals_made: 4,
+    field_goals_made: 3,
     field_goals_attempted: 9,
     free_throws_made: 2,
     free_throws_attempted: 3,
@@ -173,8 +173,8 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     week_number: weekNumber,
     game_date: gameDate,
     points: 12,
-    rebounds: 3,
-    assists: 2,
+    rebounds: 10,
+    assists: 10,
     steals: 0,
     blocks: 1,
     turnovers: 1,
@@ -183,7 +183,7 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     field_goals_attempted: 11,
     free_throws_made: 1,
     free_throws_attempted: 2,
-    double_double: false,
+    double_double: true,
     triple_double: true,
   }
   const homeStarterSecondStats = {
@@ -220,7 +220,7 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
       blocks: 10,
       turnovers: 0,
       three_pointers_made: 10,
-      field_goals_made: 30,
+      field_goals_made: 35,
       field_goals_attempted: 40,
       free_throws_made: 20,
       free_throws_attempted: 20,
@@ -233,7 +233,7 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
       season_year: fixtureSeasonYear,
       week_number: weekNumber,
       game_date: gameDate,
-      points: 90,
+      points: 83,
       rebounds: 18,
       assists: 18,
       steals: 8,
@@ -249,10 +249,12 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     },
   ]
 
-  const { error: statsError } = await supabase
-    .from('player_game_stats')
-    .insert([homeStarterStats, homeStarterSecondStats, awayStarterStats, ...benchStats])
-  if (statsError) throw new Error(`${label}: player stats fixture insert failed: ${statsError.message}`)
+  const firstGameStats = [homeStarterStats, awayStarterStats, ...benchStats]
+  const saveStats = async (isFinal) => {
+    await saveFixtureGameStats(supabase, game.id, `E2ESCORING${fixtureSeasonYear}`, firstGameStats, isFinal, label)
+    await saveFixtureGameStats(supabase, secondGame.id, `E2ESCORINGSECOND${fixtureSeasonYear}`, [homeStarterSecondStats], isFinal, label)
+  }
+  await saveStats(false)
 
   const { error: lineupError } = await supabase.from('weekly_lineups').insert([
     {
@@ -339,8 +341,11 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
     .update({ status: 'Final', home_score: 120, away_score: 111, ended_at: new Date().toISOString() })
     .in('id', [game.id, secondGame.id])
   if (finalGameError) throw new Error(`${label}: final game update failed: ${finalGameError.message}`)
+  await saveStats(true)
 
-  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id, date: scoringReferenceDate })
+  // Complete an elapsed week outside the four-day upstream correction window.
+  const finalReferenceDate = `${scoringFixtureDate(season, 7)}T12:00:00Z`
+  await backendJson(env, '/e2e/sync-scores', { leagueId: fixture.league.id, date: finalReferenceDate })
   const finalizedMatchup = await readScoringMatchup(supabase, matchup.id, label)
   const standingsAfter = await countRows(supabase, 'standings', {
     league_id: fixture.league.id,
@@ -405,12 +410,12 @@ export const assertWeeklyScoringFinalizationScenario = async ({ supabase, env, s
   return { failures, artifact }
 }
 
-const resetFixtureSeasonYear = () => 9000 + Number(Date.now().toString().slice(-6))
+const resetFixtureSeasonYear = (season) => 9000 + season
 
 export const assertSeasonResetScenario = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.SEA.6'
-  const fixtureSeasonYear = resetFixtureSeasonYear()
+  const fixtureSeasonYear = resetFixtureSeasonYear(season)
   const fixture = await createDisposableLeagueFromSeedUsers({
     supabase,
     state,
@@ -423,9 +428,9 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season, 
   const [member1, member2, member3, member4] = fixture.members
 
   const { data: players, error: playersError } = await seededPlayerQuery(supabase)
-    .limit(4)
+    .limit(5)
   if (playersError) throw new Error(`${label}: player lookup failed: ${playersError.message}`)
-  if ((players ?? []).length < 4) throw new Error(`${label}: requires at least four players`)
+  if ((players ?? []).length < 5) throw new Error(`${label}: requires at least five players`)
 
   const pickRows = []
   for (const member of fixture.members) {
@@ -466,6 +471,7 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season, 
     { member: member2, player: players[1], is_on_ir: true, is_on_taxi: false },
     { member: member3, player: players[2], is_on_ir: false, is_on_taxi: true },
     { member: member4, player: players[3], is_on_ir: false, is_on_taxi: false },
+    { member: member1, player: players[4], is_on_ir: false, is_on_taxi: false },
   ].map((row) => ({
     league_id: fixture.league.id,
     league_season_id: fixture.leagueSeason.id,
@@ -482,7 +488,7 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season, 
     member_id: row.member_id,
     player_id: row.player_id,
     week_number: 19,
-    game_date: `${fixtureSeasonYear}-04-10`,
+    game_date: seasonWeekRows(fixtureSeasonYear)[18].week_start,
     slot_type: 'UTIL',
   }))
 
@@ -493,20 +499,16 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season, 
     priority: fixture.members.length - index,
   }))
 
-  const { error: weekError } = await supabase
-    .from('season_weeks')
-    .upsert({
-      season_year: fixtureSeasonYear,
-      week_number: 19,
-      week_start: `${fixtureSeasonYear}-04-08`,
-      week_end: `${fixtureSeasonYear}-04-14`,
-    }, { onConflict: 'season_year,week_number' })
-  if (weekError) throw new Error(`${label}: season week insert failed: ${weekError.message}`)
+  const { error: taxiSlotsError } = await supabase.from('leagues').update({ taxi_slots: 2 }).eq('id', fixture.league.id)
+  if (taxiSlotsError) throw new Error(`${label}: taxi slots setup failed: ${taxiSlotsError.message}`)
+  const initialRosterRows = rosterRows.map((row) => row.player_id === players[2].id
+    ? { ...row, member_id: member1.id, is_on_taxi: false }
+    : row.player_id === players[4].id ? { ...row, member_id: member3.id } : row)
 
   const [{ error: picksError }, { error: standingsError }, { error: rosterError }, { error: lineupError }, { error: waiverError }] = await Promise.all([
     supabase.from('draft_picks').insert(pickRows),
     supabase.from('standings').insert(standingsRows),
-    supabase.from('roster_players').insert(rosterRows),
+    supabase.from('roster_players').insert(initialRosterRows),
     supabase.from('weekly_lineups').insert(lineupRows),
     supabase.from('waiver_priorities').insert(waiverRows),
   ])
@@ -515,6 +517,7 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season, 
   if (rosterError) throw new Error(`${label}: roster insert failed: ${rosterError.message}`)
   if (lineupError) throw new Error(`${label}: lineup insert failed: ${lineupError.message}`)
   if (waiverError) throw new Error(`${label}: waiver priority insert failed: ${waiverError.message}`)
+  await acquireFixtureTaxiPlayer(supabase, fixture, member1, member3, players[2].id, players[4].id, label)
 
   const { data: matchup, error: matchupError } = await supabase
     .from('matchups')
