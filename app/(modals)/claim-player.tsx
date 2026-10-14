@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
-import { claimProcessDateLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim } from '@/lib/waivers'
+import { claimProcessDateLabel, claimProcessTimeLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
 import { loadAddLimitState } from '@/lib/roster-add-flow'
 import { addLimitSummary, reportPickupError } from '@/lib/pickup'
@@ -149,7 +149,7 @@ export default function ClaimPlayerScreen() {
             )
             showSuccess(
                 'Claim Submitted',
-                'Your waiver claim has been submitted. Claims are processed nightly.',
+                `Your claim processes ${claimProcessTimeLabel(clearsAt)}.`,
             )
             goBack()
         } catch (e) {
@@ -170,7 +170,7 @@ export default function ClaimPlayerScreen() {
     const claimFacts = [
         `Processes ${processDateStr}`,
         transactionState ? `Adds ${transactionState.weeklyAddCount}/${transactionState.weeklyAddLimit ?? '∞'}` : null,
-        faab ? null : `Priority #${priority ?? '—'}`,
+        `${faab ? 'Tiebreak' : 'Priority'} #${priority ?? '—'}`,
     ].filter(Boolean).join(' · ')
 
     function setBid(value: string) {

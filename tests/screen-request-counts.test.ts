@@ -73,8 +73,8 @@ describe('screen request budgets', () => {
     it('players tab support load (availability + transaction state)', async () => {
         const result = await measure(() => loadPlayerSupport('member', 'league'))
         expect(result).toEqual({
-            requests: 4,
-            byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1 },
+            requests: 5,
+            byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1, waiver_claims: 1 },
         })
     })
 

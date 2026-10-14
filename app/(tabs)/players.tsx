@@ -93,14 +93,18 @@ type PlayerSupport = {
     leagueId: string | null
     ownedMap: Map<string, OwnedEntry>
     waiverIds: Set<string>
+    waiverClearsAt: Map<string, string>
+    pendingClaimIds: Set<string>
     transactionState: TransactionState
 }
 type PlayerSupportCache = {
     ownedEntries: [string, OwnedEntry][]
     waiverIds: string[]
+    waiverClearsAtEntries: [string, string][]
+    pendingClaimIds: string[]
     transactionState: TransactionState
 }
-const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v1:'
+const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v2:'
 const supportCacheKey = (memberId: string, leagueId: string) => `${SUPPORT_CACHE_PREFIX}${leagueId}:${memberId}`
 
 function PlayerTableHeader({
@@ -170,6 +174,8 @@ function PlayerSearchSection() {
             leagueId,
             ownedMap: new Map(cached.ownedEntries),
             waiverIds: new Set(cached.waiverIds),
+            waiverClearsAt: new Map(cached.waiverClearsAtEntries),
+            pendingClaimIds: new Set(cached.pendingClaimIds),
             transactionState: cached.transactionState,
         }
     }, [current?.id, leagueId])
@@ -185,6 +191,8 @@ function PlayerSearchSection() {
                 leagueId: null,
                 ownedMap: new Map<string, OwnedEntry>(),
                 waiverIds: new Set<string>(),
+                waiverClearsAt: new Map<string, string>(),
+                pendingClaimIds: new Set<string>(),
                 transactionState: null,
             }
         }
@@ -196,6 +204,8 @@ function PlayerSearchSection() {
                 writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
                     ownedEntries: Array.from(support.ownedMap.entries()),
                     waiverIds: Array.from(support.waiverIds),
+                    waiverClearsAtEntries: Array.from(support.waiverClearsAt.entries()),
+                    pendingClaimIds: Array.from(support.pendingClaimIds),
                     transactionState: support.transactionState,
                 })
             }
@@ -263,9 +273,10 @@ function PlayerSearchSection() {
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
         if (!online) return
-        if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
+        if (playerSupportForLeague?.pendingClaimIds.has(player.id)) push('/roster?claims=1')
+        else if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
         else void quickAddHandleAdd(player)
-    }, [online, waiverIds, quickAddHandleClaim, quickAddHandleAdd])
+    }, [online, waiverIds, playerSupportForLeague?.pendingClaimIds, push, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])
@@ -275,6 +286,8 @@ function PlayerSearchSection() {
             currentMemberId={current?.id}
             ownedMap={ownedMap}
             waiverIds={waiverIds}
+            waiverClearsAt={playerSupportForLeague?.waiverClearsAt.get(item.id) ?? null}
+            claimPending={playerSupportForLeague?.pendingClaimIds.has(item.id) ?? false}
             isAdding={quickAdd.adding === item.id}
             addDisabled={!online}
             showStats={showStatTable}
@@ -284,7 +297,7 @@ function PlayerSearchSection() {
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, online, ownedMap, waiverIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, online, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,

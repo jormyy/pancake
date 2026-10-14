@@ -36,7 +36,7 @@ vi.mock('@shopify/flash-list', async () => {
         }),
     }
 })
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push, setParams: vi.fn() }), useLocalSearchParams: () => ({}) }))
 vi.mock('expo-haptics', () => ({}))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), confirmAction: vi.fn() }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user-a' } }) }))

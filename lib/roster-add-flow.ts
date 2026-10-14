@@ -10,6 +10,8 @@ import {
 } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { RULE_CODES, errorCode } from '@/lib/shared/errors'
+import { getCurrentSeasonId } from '@/lib/shared/season'
+import { getPendingWaiverPlayerIdsForSeason } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 
 export async function loadRosterAddGate(
@@ -39,10 +41,14 @@ export async function loadPickupState(
     playerId: string,
     memberId: string,
     leagueId: string,
-): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null }> {
+): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean }> {
     const status = await getPlayerRosterStatus(playerId, memberId, leagueId)
     const pickupPossible = status.status === 'free_agent' || status.status === 'on_waivers'
-    return { status, transactionState: pickupPossible ? await loadAddLimitState(memberId, leagueId) : null }
+    const [transactionState, pendingIds] = await Promise.all([
+        pickupPossible ? loadAddLimitState(memberId, leagueId) : Promise.resolve(null),
+        status.status === 'on_waivers' ? getCurrentSeasonId(leagueId).then((seasonId) => seasonId ? getPendingWaiverPlayerIdsForSeason(memberId, seasonId) : new Set<string>()) : Promise.resolve(new Set<string>()),
+    ])
+    return { status, transactionState, claimPending: pendingIds.has(playerId) }
 }
 
 export async function addFreeAgentOrRequestDrop(

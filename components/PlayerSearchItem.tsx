@@ -1,5 +1,7 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
 import { memo, useState } from 'react'
+import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
@@ -19,6 +21,8 @@ function PlayerSearchItemImpl({
     currentMemberId,
     ownedMap,
     waiverIds,
+    waiverClearsAt = null,
+    claimPending = false,
     isAdding,
     addDisabled = false,
     showStats = false,
@@ -33,6 +37,8 @@ function PlayerSearchItemImpl({
     currentMemberId: string | undefined
     ownedMap: Map<string, OwnedEntry>
     waiverIds: Set<string>
+    waiverClearsAt?: string | null
+    claimPending?: boolean
     isAdding: boolean
     addDisabled?: boolean
     showStats?: boolean
@@ -90,7 +96,7 @@ function PlayerSearchItemImpl({
             >
                 {isMe ? 'Mine'
                     : isOther ? owned!.teamName
-                    : isWaiver ? 'W'
+                    : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt)}`
                     : 'FA'}
             </Text>
         </View>
@@ -105,13 +111,13 @@ function PlayerSearchItemImpl({
                         onPress={() => onAdd(item)}
                         disabled={isAdding || addDisabled}
                         accessibilityRole="button"
-                        accessibilityLabel={`Add ${item.display_name}`}
+                        accessibilityLabel={claimPending ? `Claim pending for ${item.display_name}, view claims` : `${isWaiver ? 'Claim' : 'Add'} ${item.display_name}`}
                         {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                         hitSlop={8}
                         pressedScale={0.88}
                     >
-                        <View style={[styles.addBtn, blockedReason ? styles.addBtnBlocked : null]}>
-                            <Text style={[styles.addBtnText, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
+                        <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
+                            {claimPending ? <MaterialIcons name="schedule" size={20} color={uiColors.waiverText} /> : <Text style={[styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>}
                         </View>
                     </MotionPressable>
                 ) : null}
@@ -306,6 +312,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    addBtnWaiver: { backgroundColor: colors.infoLight, borderColor: colors.info, borderWidth: 1 },
+    addBtnTextWaiver: { color: uiColors.waiverText },
     addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.medium, lineHeight: 22 },
     addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
     addBtnTextBlocked: { color: colors.textPlaceholder },

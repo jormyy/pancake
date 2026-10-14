@@ -5,6 +5,8 @@ import { RULE_CODES } from '@/lib/shared/errors'
 import { addFreeAgentOrRequestDrop } from '@/lib/roster-add-flow'
 
 const mocks = vi.hoisted(() => ({ addFreeAgent: vi.fn() }))
+vi.mock('@/lib/waivers', () => ({ getPendingWaiverPlayerIdsForSeason: vi.fn() }))
+vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: vi.fn() }))
 vi.mock('@/lib/roster', () => ({ addFreeAgent: mocks.addFreeAgent }))
 vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://localhost' }))
 vi.mock('@/lib/league', () => ({ getMemberTransactionState: vi.fn() }))

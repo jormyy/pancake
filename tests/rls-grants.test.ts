@@ -214,7 +214,7 @@ describe('waiver intent oracle closure', () => {
         expect(logPolicy).toContain('OR clears_at > now()')
         const waiverSource = readFileSync(path.resolve(__dirname, '../lib/waivers.ts'), 'utf8')
         const playerIdsBody = waiverSource.slice(
-            waiverSource.indexOf('export async function getWaiverPlayerIdsForSeason'),
+            waiverSource.indexOf('export async function getWaiverClearsAtForSeason'),
             waiverSource.indexOf('export async function submitWaiverClaim'),
         )
         const rosterSource = readFileSync(path.resolve(__dirname, '../lib/roster.ts'), 'utf8')

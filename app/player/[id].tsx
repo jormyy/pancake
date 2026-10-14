@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
@@ -69,6 +70,7 @@ export default function PlayerDetailScreen() {
     // Roster status
     const [rosterStatusResource, setRosterStatusResource] = useState<{
         ownerIdentity: string | null
+        claimPending?: boolean
         status: PlayerRosterStatus | null
         error: string | null
     }>({ ownerIdentity, status: null, error: null })
@@ -95,9 +97,9 @@ export default function PlayerDetailScreen() {
         setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: null })
         if (!current || !leagueId || !requestedOwner) return
         try {
-            const { status, transactionState } = await loadPickupState(id, current.id, leagueId)
+            const { status, transactionState, claimPending } = await loadPickupState(id, current.id, leagueId)
             if (isCurrent(generation, requestedOwner)) {
-                setRosterStatusResource({ ownerIdentity: requestedOwner, status, error: null })
+                setRosterStatusResource({ ownerIdentity: requestedOwner, status, claimPending, error: null })
                 setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
             }
         } catch (e) {
@@ -107,9 +109,7 @@ export default function PlayerDetailScreen() {
         }
     }, [current, id, leagueId, ownerIdentity])
 
-    useEffect(() => {
-        loadRosterStatus()
-    }, [loadRosterStatus])
+    useFocusEffect(useCallback(() => { void loadRosterStatus() }, [loadRosterStatus]))
 
     const openClaim = useCallback(() => push(`/(modals)/claim-player?playerId=${id}`), [push, id])
     const quickAdd = useQuickAdd({
@@ -225,6 +225,7 @@ export default function PlayerDetailScreen() {
                     <PlayerHeader
                         player={player}
                         rosterStatus={rosterStatus}
+                        claimPending={ownsRosterStatus && !!rosterStatusResource.claimPending}
                         leagueActive={!!current}
                         actionLoading={dropping || quickAdd.adding === id}
                         dropDisabled={!online}
@@ -233,7 +234,7 @@ export default function PlayerDetailScreen() {
                         addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}
                         onAdd={() => quickAdd.handleAdd({ id, display_name: player.display_name })}
                         onDrop={handleDrop}
-                        onClaim={() => quickAdd.handleClaim({ id, display_name: player.display_name })}
+                        onClaim={() => rosterStatusResource.claimPending ? push('/roster?claims=1') : quickAdd.handleClaim({ id, display_name: player.display_name })}
                         onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
                         compact={usableWidth < 600}
                     />
