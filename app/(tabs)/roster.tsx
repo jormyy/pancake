@@ -344,7 +344,6 @@ export default function RosterScreen() {
                 { table: 'draft_picks', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_claims', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_priorities', filter: `member_id=eq.${current.id}` },
-                { table: 'league_members', filter: `id=eq.${current.id}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
             ], onChange: refreshRoster.trigger },
         )
@@ -867,7 +866,7 @@ export default function RosterScreen() {
                             <RosterClaimItem
                                 claim={claim}
                                 cancellingId={cancellingId}
-                                        waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
+                                waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
                                 onCancel={handleCancelClaim}
                                 onEditBid={handleEditClaimBid}
                                 onReorder={handleReorderClaim}
