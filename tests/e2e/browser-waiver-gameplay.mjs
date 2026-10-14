@@ -410,7 +410,7 @@ export async function runBrowserWaiverScenario({
     await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, `/claim-player?playerId=${fixture.player.id}`)])
     await browser(session, ['wait', '2500'])
-    await assertPageText(session, ['Waiver Claim', 'CLAIMING', fixture.player.display_name, 'No drop required.', 'Submit Claim'], 'waiver claim before submit')
+    await assertPageText(session, ['Waiver Claim', 'CLAIMING', fixture.player.display_name, 'No drop required.', 'Processes ', '3 AM ET', 'Submit Claim'], 'waiver claim before submit')
     await browser(session, ['screenshot', path.join(artifactDir, 'waiver-before-submit.png')], { timeout: 60_000 })
     const clickResult = await clickButton(session, 'Submit waiver claim', 'waiver submit button')
     const waiverClaim = await waitForWaiverClaim(fixture)
@@ -466,7 +466,7 @@ export async function runBrowserWaiverDropScenario({
     await browser(session, ['wait', '2500'])
     await assertPageText(
       session,
-      ['Waiver Claim', 'DROP A PLAYER (required)', fixture.player.display_name, fixture.dropPlayer.display_name, 'Submit Claim'],
+      ['Waiver Claim', 'DROP A PLAYER (required)', fixture.player.display_name, fixture.dropPlayer.display_name, 'Processes ', '3 AM ET', 'Submit Claim'],
       'waiver drop claim before submit',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'waiver-drop-before-submit.png')], { timeout: 60_000 })

@@ -4,6 +4,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
+import { claimProcessWeekdayLabel } from '@/lib/waivers'
+import { colors, uiColors } from '@/constants/tokens'
 import { headerPlayer, playerRow, rosterStatus } from './helpers/fixtures'
 
 vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
@@ -23,7 +25,7 @@ async function renderSearchItem(props: Partial<React.ComponentProps<typeof Playe
     await act(async () => {
         renderer = create(React.createElement(PlayerSearchItem, {
             item: playerRow(), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false,
-            gamesLeft: new Map(), animate: false, onAdd: vi.fn(), onPress: vi.fn(), ...props,
+            animate: false, onAdd: vi.fn(), onPress: vi.fn(), ...props,
         }))
     })
     return renderer!
@@ -38,6 +40,25 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         expect(add.props.accessibilityHint).toBe(REASON)
         expect(add.props.disabled).toBe(false)
         await act(async () => { add.props.onPress() })
+        expect(onAdd).toHaveBeenCalledWith(playerRow())
+    })
+
+    it('shows the scheduled waiver day and keeps the claim action distinct from an add', async () => {
+        const clearsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+        const tree = await renderSearchItem({ waiverIds: new Set(['player-a']), waiverClearsAt: clearsAt })
+        const claim = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
+        expect(claim.props.disabled).toBe(false)
+        expect(tree.root.findAll((node) => String(node.type) === 'Text').map((node) => node.props.children)).toContain(`W · ${claimProcessWeekdayLabel(clearsAt)}`)
+        const button = claim.find((node) => String(node.type) === 'View')
+        expect(button.props.style).toContainEqual({ backgroundColor: colors.infoLight, borderColor: colors.info, borderWidth: 1 })
+    })
+
+    it('opens the claim list for an already pending claim', async () => {
+        const onAdd = vi.fn()
+        const tree = await renderSearchItem({ waiverIds: new Set(['player-a']), claimPending: true, onAdd })
+        const pending = tree.root.findByProps({ accessibilityLabel: 'Claim pending for Player A, view claims' })
+        expect(pending.findByProps({ name: 'schedule' }).props).toMatchObject({ name: 'schedule', color: uiColors.waiverText })
+        await act(async () => { pending.props.onPress() })
         expect(onAdd).toHaveBeenCalledWith(playerRow())
     })
 
@@ -87,4 +108,18 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         await act(async () => { action.props.onPress() })
         expect(onClaim).toHaveBeenCalled()
     })
+    it('shows a pending claim in the player header and opens the claims list', async () => {
+        const onClaim = vi.fn()
+        await act(async () => {
+            renderer = create(React.createElement(PlayerHeader, {
+                player: headerPlayer(), rosterStatus: rosterStatus.onWaivers(), leagueActive: true, actionLoading: false,
+                claimPending: true, onAdd: vi.fn(), onDrop: vi.fn(), onClaim, onSetLineup: vi.fn(),
+            }))
+        })
+        const pending = renderer!.root.findByProps({ accessibilityLabel: 'Claim pending for Player A, view claims' })
+        expect(pending.findByProps({ children: 'Claim pending' }).props.children).toBe('Claim pending')
+        await act(async () => { pending.props.onPress() })
+        expect(onClaim).toHaveBeenCalledOnce()
+    })
+
 })

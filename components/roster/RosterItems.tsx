@@ -1,12 +1,12 @@
 import { memo, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
-import { WaiverClaim } from '@/lib/waivers'
+import { claimProcessTimeLabel, WaiverClaim } from '@/lib/waivers'
 import { playerYearsExperienceLabel } from '@/lib/player-context'
-import { formatPoints, safeShortDate, playerHeadshotUrl } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { Badge, InjuryBadge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -56,7 +56,6 @@ function PlayerMetaLine({
 export const RosterClaimItem = memo(function RosterClaimItem({
     claim,
     cancellingId,
-    waiverPriority,
     waiverMode = 'rolling',
     onCancel,
     onEditBid,
@@ -64,7 +63,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
 }: {
     claim: WaiverClaim
     cancellingId: string | null
-    waiverPriority: number | null
     waiverMode?: 'rolling' | 'faab'
     onCancel: (id: string) => void
     onEditBid: (claim: WaiverClaim, bidAmount: number) => void
@@ -81,7 +79,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         : claim.status === 'pending' ? colors.info
         : colors.dangerDark
     const statusText = claim.status === 'pending'
-        ? `Processes ${safeShortDate(claim.processDate ? `${claim.processDate}T12:00:00Z` : null) || 'soon'}`
+        ? `Processes ${claimProcessTimeLabel(claim.clearsAt ?? null)}`
         : claim.status === 'succeeded'
           ? 'Succeeded'
           : claim.status === 'failed_roster'
@@ -92,11 +90,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         // line below, so nothing wraps on a narrow phone.
         <MotionView style={styles.claimRow} preset="rise">
             <View style={styles.claimTop}>
-                {isPending && waiverPriority != null ? (
-                    <View style={styles.priorityBadge} accessibilityLabel={`Waiver priority ${waiverPriority}`}>
-                        <Text style={styles.priorityBadgeText}>#{waiverPriority}</Text>
-                    </View>
-                ) : null}
                 <Avatar
                     name={claim.playerName}
                     color={colors.bgMuted}
@@ -109,7 +102,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     <Text style={styles.meta} numberOfLines={2}>
                         {[
                             claim.dropPlayerName ? `Drop ${claim.dropPlayerName}` : null,
-                            `Order ${claim.claimOrder}`,
                             usesFaab ? `Bid $${claim.bidAmount}` : null,
                         ].filter(Boolean).join(' · ')}
                     </Text>
@@ -456,16 +448,6 @@ const styles = StyleSheet.create({
     },
     pickCircleText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
 
-    priorityBadge: {
-        width: 32,
-        height: 32,
-        borderRadius: radii.full,
-        borderCurve: 'continuous' as const,
-        backgroundColor: uiColors.taxi,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    priorityBadgeText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize.xs },
     claimRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
     claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: spacing.md },
     claimEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

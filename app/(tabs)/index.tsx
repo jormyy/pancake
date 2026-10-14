@@ -76,7 +76,7 @@ function LineupHeading() {
 }
 
 export default function HomeScreen() {
-    const { memberships, current, currentLeague: league, setCurrent, loading: leagueLoading } = useLeagueContext()
+    const { memberships, current, currentLeague: league, setCurrent, membershipValidated, membershipError, refresh: refreshMemberships, loading: leagueLoading } = useLeagueContext()
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
     const { width, height } = useWindowDimensions()
@@ -91,9 +91,9 @@ export default function HomeScreen() {
         matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate,
         myLineup, oppLineup, matchupLoading, lineupLoading, lineupError,
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
-        error, refresh,
-    } = useMatchupData(current, user, league)
-    const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error })
+        error, refresh, emptyConfirmed,
+    } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
+    const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })
 
     const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, refreshSilently)
     const actionContext = useMemo(() => matchup && league ? {

@@ -17,7 +17,7 @@ const ROWS = 20
 const players = Array.from({ length: ROWS }, (_, index) => playerRow({ id: `player-${index}`, display_name: `Player ${index}` }))
 // The screen memoizes these across renders; the rows are what is under test.
 const stableProps = {
-    currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), gamesLeft: new Map(),
+    currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(),
     animate: false, onAdd: () => {}, onPress: () => {},
 }
 

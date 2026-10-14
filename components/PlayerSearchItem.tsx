@@ -1,7 +1,9 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
 import { memo, useState } from 'react'
+import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
-import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
@@ -19,9 +21,10 @@ function PlayerSearchItemImpl({
     currentMemberId,
     ownedMap,
     waiverIds,
+    waiverClearsAt = null,
+    claimPending = false,
     isAdding,
     addDisabled = false,
-    gamesLeft,
     showStats = false,
     showCompactStats = true,
     statMode = 'season',
@@ -34,9 +37,10 @@ function PlayerSearchItemImpl({
     currentMemberId: string | undefined
     ownedMap: Map<string, OwnedEntry>
     waiverIds: Set<string>
+    waiverClearsAt?: string | null
+    claimPending?: boolean
     isAdding: boolean
     addDisabled?: boolean
-    gamesLeft: Map<string, number>
     showStats?: boolean
     showCompactStats?: boolean
     statMode?: 'season' | 'projection'
@@ -92,7 +96,7 @@ function PlayerSearchItemImpl({
             >
                 {isMe ? 'Mine'
                     : isOther ? owned!.teamName
-                    : isWaiver ? 'W'
+                    : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt)}`
                     : 'FA'}
             </Text>
         </View>
@@ -107,13 +111,13 @@ function PlayerSearchItemImpl({
                         onPress={() => onAdd(item)}
                         disabled={isAdding || addDisabled}
                         accessibilityRole="button"
-                        accessibilityLabel={`Add ${item.display_name}`}
+                        accessibilityLabel={claimPending ? `Claim pending for ${item.display_name}, view claims` : `${isWaiver ? 'Claim' : 'Add'} ${item.display_name}`}
                         {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                         hitSlop={8}
                         pressedScale={0.88}
                     >
-                        <View style={[styles.addBtn, blockedReason ? styles.addBtnBlocked : null]}>
-                            <Text style={[styles.addBtnText, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>
+                        <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
+                            {claimPending ? <MaterialIcons name="schedule" size={20} color={uiColors.waiverText} /> : <Text style={[styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>}
                         </View>
                     </MotionPressable>
                 ) : null}
@@ -158,13 +162,8 @@ function PlayerSearchItemImpl({
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
                         {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
                         {item.years_exp != null && (
-                            <Text style={[styles.gamesLeftText, item.years_exp === 0 && { color: colors.success }]}>
+                            <Text style={[styles.experienceText, item.years_exp === 0 && { color: colors.success }]}>
                                 {item.years_exp === 0 ? 'Rookie' : `Yr ${item.years_exp + 1}`}
-                            </Text>
-                        )}
-                        {item.nba_team != null && (gamesLeft.get(item.nba_team) ?? 0) > 0 && (
-                            <Text style={styles.gamesLeftText}>
-                                · {countLabel(gamesLeft.get(item.nba_team) ?? 0, 'game')} left
                             </Text>
                         )}
                         {item.injury_status ? (
@@ -313,6 +312,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    addBtnWaiver: { backgroundColor: colors.infoLight, borderColor: colors.info, borderWidth: 1 },
+    addBtnTextWaiver: { color: uiColors.waiverText },
     addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.medium, lineHeight: 22 },
     addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
     addBtnTextBlocked: { color: colors.textPlaceholder },
@@ -370,7 +371,7 @@ const styles = StyleSheet.create({
         fontVariant: ['tabular-nums'],
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
-    gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    experienceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
     fpCol: { alignItems: 'flex-end', minWidth: 52, gap: spacing.xxs },
     fpValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
     fpLabel: { ...textStyles.tableHeader, marginTop: -spacing.xxs },

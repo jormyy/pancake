@@ -16,19 +16,6 @@ export function getInitials(name: string | null | undefined): string {
     return (safe.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '?').toUpperCase()
 }
 
-const shortDateFmt = new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-})
-
-// Intl.DateTimeFormat.format() throws RangeError on an Invalid Date (unlike
-// toLocaleDateString), so a null/malformed date string would crash the render.
-export function safeShortDate(value: string | null | undefined): string {
-    if (!value) return ''
-    const d = new Date(value)
-    return Number.isNaN(d.getTime()) ? '' : shortDateFmt.format(d)
-}
-
 /**
  * Player headshot URL, routed through the app's Edge proxy
  * (`/players/headshot/:nbaId`). The direct cdn.nba.com URL is blocked

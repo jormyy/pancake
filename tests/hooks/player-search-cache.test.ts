@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
     addEventListener: vi.fn(),
     appStateListener: undefined as ((state: string) => void) | undefined,
     getCurrentWeekNumber: vi.fn(async () => 1),
-    getStartedTeams: vi.fn(async () => new Set<string>()),
     getWeekDays: vi.fn<() => Promise<WeekDay[]>>(async () => []),
     searchPlayers: vi.fn(),
 }))
@@ -23,7 +22,6 @@ vi.mock('react-native', () => ({
 vi.mock('@/hooks/use-debounced-value', () => ({ useDebouncedValue: (value: unknown) => value }))
 vi.mock('@/lib/players', () => ({ searchPlayers: mocks.searchPlayers }))
 vi.mock('@/lib/lineup', () => ({
-    getStartedTeams: mocks.getStartedTeams,
     getWeekDays: mocks.getWeekDays,
 }))
 vi.mock('@/lib/shared/week', () => ({ getCurrentWeekNumber: mocks.getCurrentWeekNumber }))
@@ -50,7 +48,6 @@ beforeEach(() => {
         mocks.appStateListener = listener
         return { remove: vi.fn() }
     })
-    mocks.getStartedTeams.mockResolvedValue(new Set())
     mocks.getWeekDays.mockResolvedValue([])
     mocks.getCurrentWeekNumber.mockResolvedValue(1)
     vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
@@ -102,19 +99,10 @@ describe('player search memory cache', () => {
 
 describe('weekly availability refresh ordering', () => {
     it('does not let an older overlapping refresh overwrite the latest snapshot', async () => {
-        const first = deferred<Set<string>>()
-        const second = deferred<Set<string>>()
-        mocks.getStartedTeams
-            .mockReturnValueOnce(first.promise)
-            .mockReturnValueOnce(second.promise)
-        mocks.getWeekDays.mockResolvedValue([{
-            date: '2026-10-20',
-            dayLabel: 'Tue',
-            dateNum: 20,
-            hasGames: true,
-            isToday: true,
-            playingTeams: ['LAL'],
-        }])
+        const first = deferred<WeekDay[]>()
+        const second = deferred<WeekDay[]>()
+        mocks.getWeekDays.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+        const currentDays: WeekDay[] = [{ date: '2026-10-20', dayLabel: 'Tue', dateNum: 20, hasGames: true, isToday: true, playingTeams: ['LAL'] }]
         let latest!: ReturnType<typeof useWeeklyAvailability>
         const Probe = () => {
             latest = useWeeklyAvailability(true)
@@ -127,12 +115,12 @@ describe('weekly availability refresh ordering', () => {
             mocks.appStateListener?.('active')
             await Promise.resolve()
         })
-        expect(mocks.getStartedTeams).toHaveBeenCalledTimes(2)
+        expect(mocks.getWeekDays).toHaveBeenCalledTimes(2)
 
-        await act(async () => { second.resolve(new Set(['LAL'])); await second.promise })
-        expect(latest.gamesLeft.get('LAL')).toBeUndefined()
-        await act(async () => { first.resolve(new Set()); await first.promise })
-        expect(latest.gamesLeft.get('LAL')).toBeUndefined()
+        await act(async () => { second.resolve(currentDays); await second.promise })
+        expect(latest.weekDays).toEqual(currentDays)
+        await act(async () => { first.resolve([]); await first.promise })
+        expect(latest.weekDays).toEqual(currentDays)
         await act(async () => { renderer.unmount() })
     })
 })

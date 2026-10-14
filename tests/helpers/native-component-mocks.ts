@@ -4,6 +4,10 @@
 import React from 'react'
 import { vi } from 'vitest'
 
+vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
+vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
+vi.mock('@/lib/shared/api', () => ({ apiPost: vi.fn() }))
+
 vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
     NativeModules: { BlobModule: null },

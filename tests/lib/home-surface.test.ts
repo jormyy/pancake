@@ -4,7 +4,7 @@ import { resolveHomeSurface } from '@/lib/home-surface'
 // Review S4: the live-draft card must win over a failed refresh, and a failed
 // refresh must never be shown as "no matchup".
 describe('resolveHomeSurface', () => {
-    const base = { leagueStatus: 'active', hasMatchup: false, loading: false, error: null }
+    const base = { leagueStatus: 'active', hasMatchup: false, loading: false, error: null, emptyConfirmed: true }
 
     it('shows the matchup whenever one is loaded, even with a stale error', () => {
         expect(resolveHomeSurface({ ...base, hasMatchup: true, error: 'Failed to load matchup' })).toBe('matchup')
@@ -24,4 +24,10 @@ describe('resolveHomeSurface', () => {
         expect(resolveHomeSurface(base)).toBe('empty')
         expect(resolveHomeSurface({ ...base, leagueStatus: undefined })).toBe('empty')
     })
+    it('keeps an unconfirmed cached or stale-membership empty result blank', () => {
+        expect(resolveHomeSurface({ ...base, emptyConfirmed: false })).toBe('loading')
+        expect(resolveHomeSurface({ ...base, emptyConfirmed: false, error: 'Failed to load matchup' })).toBe('error')
+        expect(resolveHomeSurface({ ...base, emptyConfirmed: false, hasMatchup: true })).toBe('matchup')
+    })
+
 })

@@ -7,6 +7,7 @@ export type HomeSurface = 'draft' | 'matchup' | 'loading' | 'error' | 'empty'
 export function resolveHomeSurface(input: {
     leagueStatus: string | null | undefined
     hasMatchup: boolean
+    emptyConfirmed: boolean
     loading: boolean
     error: string | null | undefined
 }): HomeSurface {
@@ -14,5 +15,5 @@ export function resolveHomeSurface(input: {
     if (input.leagueStatus === 'drafting') return 'draft'
     if (input.loading) return 'loading'
     if (input.error) return 'error'
-    return 'empty'
+    return input.emptyConfirmed ? 'empty' : 'loading'
 }

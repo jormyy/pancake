@@ -34,6 +34,7 @@ type PlayerHeaderPlayer = {
 type Props = {
     player: PlayerHeaderPlayer
     rosterStatus: PlayerRosterStatus | null
+    claimPending?: boolean
     leagueActive: boolean
     actionLoading: boolean
     dropDisabled?: boolean
@@ -53,6 +54,7 @@ type Props = {
 export function PlayerHeader({
     player,
     rosterStatus,
+    claimPending = false,
     leagueActive,
     actionLoading,
     dropDisabled = false,
@@ -154,7 +156,7 @@ export function PlayerHeader({
                     {rosterStatus.status === 'free_agent' ? (
                         renderPickupAction({ label: 'Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: [styles.action, styles.actionPrimary], textStyle: styles.actionPrimaryText, onPress: onAdd, blockedReason: addBlockedReason })
                     ) : rosterStatus.status === 'on_waivers' ? (
-                        renderPickupAction({ label: 'Claim', accessibilityLabel: `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: [styles.actionPrimaryText, styles.actionClaimText], onPress: onClaim, blockedReason: null })
+                        renderPickupAction({ label: claimPending ? 'Claim pending' : 'Claim', accessibilityLabel: claimPending ? `Claim pending for ${player.display_name}, view claims` : `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: [styles.actionPrimaryText, styles.actionClaimText], onPress: onClaim, blockedReason: null })
                     ) : rosterStatus.status === 'mine' ? (
                         <View style={styles.myActions}>
                             <Pressable

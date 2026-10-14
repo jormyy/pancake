@@ -16,6 +16,7 @@ export type WaiverClaim = {
     priorityAtSubmission: number
     bidAmount: number
     claimOrder: number
+    clearsAt?: string | null
     failureReason: string | null
 }
 
@@ -26,7 +27,7 @@ type PlayerSummaryRow = {
     nba_team?: string | null
     injury_status?: string | null
 } | null
-type WaiverPlayerIdRow = { player_id: string }
+type WaiverPlayerIdRow = { player_id: string; clears_at: string }
 type WaiverClaimQueryRow = {
     id: string
     player_id: string
@@ -51,21 +52,33 @@ type WaiverPriorityQueryRow = {
     league_members: PriorityMemberRow
 }
 
-export async function getWaiverPlayerIdsForSeason(leagueId: string, seasonId: string): Promise<Set<string>> {
+export async function getWaiverClearsAtForSeason(leagueId: string, seasonId: string, playerIds?: string[]): Promise<Map<string, string>> {
     const now = new Date().toISOString()
-    const { data: activeLogs, error } = await supabase
+    let query = supabase
         .from('waiver_wire_log')
-        .select('player_id')
+        .select('player_id, clears_at')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .is('cleared_at', null)
         .gt('clears_at', now)
 
+    if (playerIds) query = query.in('player_id', playerIds)
+    const { data: activeLogs, error } = await query
     if (error) throw error
+    const clearsAt = new Map<string, string>()
+    for (const row of (activeLogs ?? []) as WaiverPlayerIdRow[]) {
+        const previous = clearsAt.get(row.player_id)
+        if (!previous || row.clears_at > previous) clearsAt.set(row.player_id, row.clears_at)
+    }
+    return clearsAt
 
-    const playerIds = new Set(((activeLogs ?? []) as WaiverPlayerIdRow[]).map((row) => row.player_id))
+}
 
-    return playerIds
+export async function getPendingWaiverPlayerIdsForSeason(memberId: string, seasonId: string): Promise<Set<string>> {
+    const { data, error } = await supabase.from('waiver_claims').select('player_id')
+        .eq('member_id', memberId).eq('league_season_id', seasonId).eq('status', 'pending')
+    if (error) throw error
+    return new Set((data ?? []).map((row) => row.player_id))
 }
 
 export async function submitWaiverClaim(
@@ -152,9 +165,12 @@ export async function getMyWaiverClaims(
 
     if (error) throw error
 
+    const pendingPlayerIds = ((data ?? []) as WaiverClaimQueryRow[]).filter((row) => row.status === 'pending').map((row) => row.player_id)
+    const clearsAt = pendingPlayerIds.length ? await getWaiverClearsAtForSeason(leagueId, seasonId, pendingPlayerIds) : new Map<string, string>()
     return ((data ?? []) as WaiverClaimQueryRow[]).map((row) => ({
         id: row.id,
         playerId: row.player_id,
+        clearsAt: clearsAt.get(row.player_id) ?? null,
         playerName: row.claim_player?.display_name ?? 'Unknown',
         playerNbaId: row.claim_player?.nba_id ?? null,
         dropPlayerId: row.drop_player_id ?? null,
@@ -241,11 +257,30 @@ export async function getWaiverClearsAt(leagueId: string, playerId: string): Pro
     return (data?.[0] as { clears_at: string } | undefined)?.clears_at ?? null
 }
 
-/**
- * The day a claim will process, in league (ET) time: when the player's waiver
- * period ends, or the next nightly run if the end isn't known.
- */
+const waiverTimeZone = 'America/New_York'
+const waiverHour = new Intl.DateTimeFormat('en-US', { timeZone: waiverTimeZone, hour: '2-digit', hourCycle: 'h23' })
+
+export function claimRunAt(clearsAt: string | null, now: Date = new Date()): Date {
+    const threshold = new Date(Math.max(now.getTime(), clearsAt ? Date.parse(clearsAt) || now.getTime() : now.getTime()))
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: waiverTimeZone, year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(threshold)
+    const part = (type: string) => Number(parts.find((value) => value.type === type)?.value)
+    const day = Date.UTC(part('year'), part('month') - 1, part('day'))
+    const runOnDay = (date: number) => {
+        const early = new Date(date + 7 * 60 * 60 * 1000)
+        return waiverHour.format(early) === '03' ? early : new Date(date + 8 * 60 * 60 * 1000)
+    }
+    const run = runOnDay(day)
+    return run.getTime() >= threshold.getTime() ? run : runOnDay(day + 24 * 60 * 60 * 1000)
+}
+
 export function claimProcessDateLabel(clearsAt: string | null, now: Date = new Date()): string {
-    const when = clearsAt ? new Date(clearsAt) : new Date(now.getTime() + 24 * 60 * 60 * 1000)
-    return when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' })
+    return `${claimRunAt(clearsAt, now).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: waiverTimeZone })} · 3 AM ET`
+}
+
+export function claimProcessWeekdayLabel(clearsAt: string | null, now: Date = new Date()): string {
+    return claimRunAt(clearsAt, now).toLocaleDateString('en-US', { weekday: 'short', timeZone: waiverTimeZone })
+}
+
+export function claimProcessTimeLabel(clearsAt: string | null, now: Date = new Date()): string {
+    return `${claimProcessWeekdayLabel(clearsAt, now)} 3 AM ET`
 }

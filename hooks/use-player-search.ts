@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FlashListRef } from '@shopify/flash-list'
 import { searchPlayers, PlayerRow } from '@/lib/players'
 import { OwnedEntry } from '@/lib/roster'
-import { getWeekDays, WeekDay, getStartedTeams } from '@/lib/lineup'
+import { getWeekDays, WeekDay } from '@/lib/lineup'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
@@ -49,12 +49,10 @@ const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${ke
 
 export function useWeeklyAvailability(enabled: boolean) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
-    const [startedTeams, setStartedTeams] = useState<Set<string>>(new Set())
 
     useEffect(() => {
         if (!enabled) {
             setWeekDays([])
-            setStartedTeams(new Set())
             return
         }
         let cancelled = false
@@ -66,23 +64,17 @@ export function useWeeklyAvailability(enabled: boolean) {
             const seasonYear = currentSeasonYear()
             const today = todayET()
             try {
-                const [teams, days] = await Promise.all([
-                    getStartedTeams(today),
-                    includeSchedule || loadedDate !== today
-                        ? getCurrentWeekNumber(seasonYear).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear))
-                        : Promise.resolve(null),
-                ])
+                const days = includeSchedule || loadedDate !== today
+                    ? await getCurrentWeekNumber(seasonYear).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear))
+                    : null
                 if (cancelled || requestSequence !== requestId) return
                 loadedDate = today
-                setStartedTeams(teams)
                 if (days) setWeekDays(days)
             } catch (error) {
                 if (!cancelled && requestSequence === requestId) console.error(error)
             }
         }
         void load(true)
-        // Started-teams only flips at game tipoffs — a minute of staleness on
-        // the add-lock indicator is fine and quarters the background queries.
         const poll = setInterval(() => {
             if (appState === 'active') void load(false)
         }, 60_000)
@@ -99,20 +91,7 @@ export function useWeeklyAvailability(enabled: boolean) {
         }
     }, [enabled])
 
-    const gamesLeft = useMemo(() => {
-        const today = todayET()
-        const map = new Map<string, number>()
-        for (const day of weekDays) {
-            if (day.date < today) continue
-            for (const team of day.playingTeams) {
-                if (day.date === today && startedTeams.has(team)) continue
-                map.set(team, (map.get(team) ?? 0) + 1)
-            }
-        }
-        return map
-    }, [weekDays, startedTeams])
-
-    return { weekDays, gamesLeft }
+    return { weekDays }
 }
 
 export function usePlayerSearch(
@@ -441,7 +420,6 @@ export function usePlayerSearch(
         teamPicker: { selectedTeams, setSelectedTeams },
         availability: {
             weekDays: weeklyAvailability.weekDays,
-            gamesLeft: weeklyAvailability.gamesLeft,
         },
         playing: { value: playingFilter, setValue: setPlayingFilter },
         sort: { mode: sortMode, setMode: setSortMode, dir: sortDir, setDir: setSortDir },
