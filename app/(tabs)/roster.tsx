@@ -378,7 +378,6 @@ export default function RosterScreen() {
     const listData = useMemo<RosterListItem[]>(() => {
         const activeItems: RosterListItem[] = [{ _isHeader: true, _section: 'active' }]
         for (const p of active) activeItems.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
-        // Every open slot keeps its own row, so a manager sees each spot they can fill.
         for (let i = active.length; i < rosterSize; i++) {
             activeItems.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })
         }

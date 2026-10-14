@@ -172,7 +172,7 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
           .filter((game) => seasonYearForDate(game.gameDate) === state.seasonYear)
           .sort((a, b) => a.gameDate.localeCompare(b.gameDate) || a.gameId.localeCompare(b.gameId))
         // Like the real feed, number weeks Monday-Sunday from the season's first game week.
-        const firstDate = seasonGames.map((game) => game.gameDate).sort()[0]
+        const firstDate = seasonGames[0]?.gameDate
         const dayMs = 24 * 60 * 60 * 1000
         const firstMonday = firstDate ? Date.parse(`${firstDate}T00:00:00Z`) - ((new Date(`${firstDate}T00:00:00Z`).getUTCDay() + 6) % 7) * dayMs : 0
         const weekNumber = (gameDate) => Math.floor((Date.parse(`${gameDate}T00:00:00Z`) - firstMonday) / (7 * dayMs)) + 1
