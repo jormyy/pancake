@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
 import { memo, useState } from 'react'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
-import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
 import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
@@ -21,7 +21,6 @@ function PlayerSearchItemImpl({
     waiverIds,
     isAdding,
     addDisabled = false,
-    gamesLeft,
     showStats = false,
     showCompactStats = true,
     statMode = 'season',
@@ -36,7 +35,6 @@ function PlayerSearchItemImpl({
     waiverIds: Set<string>
     isAdding: boolean
     addDisabled?: boolean
-    gamesLeft: Map<string, number>
     showStats?: boolean
     showCompactStats?: boolean
     statMode?: 'season' | 'projection'
@@ -158,13 +156,8 @@ function PlayerSearchItemImpl({
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
                         {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
                         {item.years_exp != null && (
-                            <Text style={[styles.gamesLeftText, item.years_exp === 0 && { color: colors.success }]}>
+                            <Text style={[styles.experienceText, item.years_exp === 0 && { color: colors.success }]}>
                                 {item.years_exp === 0 ? 'Rookie' : `Yr ${item.years_exp + 1}`}
-                            </Text>
-                        )}
-                        {item.nba_team != null && (gamesLeft.get(item.nba_team) ?? 0) > 0 && (
-                            <Text style={styles.gamesLeftText}>
-                                · {countLabel(gamesLeft.get(item.nba_team) ?? 0, 'game')} left
                             </Text>
                         )}
                         {item.injury_status ? (
@@ -370,7 +363,7 @@ const styles = StyleSheet.create({
         fontVariant: ['tabular-nums'],
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
-    gamesLeftText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    experienceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
     fpCol: { alignItems: 'flex-end', minWidth: 52, gap: spacing.xxs },
     fpValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
     fpLabel: { ...textStyles.tableHeader, marginTop: -spacing.xxs },

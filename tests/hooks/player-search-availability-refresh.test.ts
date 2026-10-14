@@ -5,7 +5,7 @@ import { useWeeklyAvailability } from '@/hooks/use-player-search'
 
 const mocks = vi.hoisted(() => ({
     appStateListener: null as ((state: string) => void) | null,
-    getStartedTeams: vi.fn(),
+    getWeekDays: vi.fn(),
 }))
 
 vi.mock('react-native', () => ({
@@ -19,8 +19,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('@/lib/players', () => ({ searchPlayers: vi.fn() }))
 vi.mock('@/lib/lineup', () => ({
-    getStartedTeams: mocks.getStartedTeams,
-    getWeekDays: vi.fn(async () => [{ date: 'today', playingTeams: ['LAL'] }]),
+    getWeekDays: mocks.getWeekDays,
 }))
 vi.mock('@/lib/shared/week', () => ({ getCurrentWeekNumber: vi.fn(async () => 1) }))
 vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: () => 2027 }))
@@ -36,25 +35,26 @@ afterEach(() => {
 })
 
 describe('player-search weekly availability refresh', () => {
-    it('removes a team from games-left when its game starts without remounting', async () => {
+    it('refreshes the playing-day filter schedule when the app becomes active', async () => {
         vi.useFakeTimers()
-        mocks.getStartedTeams.mockResolvedValueOnce(new Set()).mockResolvedValue(new Set(['LAL']))
-        let gamesLeft = new Map<string, number>()
+        mocks.getWeekDays.mockResolvedValueOnce([{ date: 'today', playingTeams: ['LAL'] }]).mockResolvedValue([{ date: 'today', playingTeams: ['BOS'] }])
+        let weekDays: { playingTeams: string[] }[] = []
         const Probe = () => {
-            gamesLeft = useWeeklyAvailability(true).gamesLeft
+            weekDays = useWeeklyAvailability(true).weekDays
             return null
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve(); await Promise.resolve() })
-        expect(gamesLeft.get('LAL')).toBe(1)
+        expect(weekDays[0]?.playingTeams).toEqual(['LAL'])
 
         await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-        expect(gamesLeft.has('LAL')).toBe(false)
+        expect(mocks.getWeekDays).toHaveBeenCalledTimes(1)
 
         mocks.appStateListener?.('background')
         mocks.appStateListener?.('active')
         await act(async () => { await Promise.resolve(); await Promise.resolve() })
-        expect(mocks.getStartedTeams).toHaveBeenCalledTimes(3)
+        expect(weekDays[0]?.playingTeams).toEqual(['BOS'])
+        expect(mocks.getWeekDays).toHaveBeenCalledTimes(2)
         await act(async () => { renderer.unmount() })
     })
 })

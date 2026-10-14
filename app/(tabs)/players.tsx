@@ -260,10 +260,6 @@ function PlayerSearchSection() {
         onClaimInstead: openClaim,
     })
     const addBlockedReason = quickAdd.addBlockedReason
-    const gamesLeftVersion = useMemo(() => Array.from(search.availability.gamesLeft.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([team, count]) => `${team}:${count}`)
-        .join(','), [search.availability.gamesLeft])
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
         if (!online) return
@@ -281,7 +277,6 @@ function PlayerSearchSection() {
             waiverIds={waiverIds}
             isAdding={quickAdd.adding === item.id}
             addDisabled={!online}
-            gamesLeft={search.availability.gamesLeft}
             showStats={showStatTable}
             showCompactStats={false}
             animate={false}
@@ -289,7 +284,7 @@ function PlayerSearchSection() {
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, online, ownedMap, waiverIds, quickAdd.adding, search.availability.gamesLeft, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, online, ownedMap, waiverIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -298,7 +293,6 @@ function PlayerSearchSection() {
         search.health.value,
         search.teamPicker.selectedTeams.join(','),
         search.season.value ?? '',
-        gamesLeftVersion,
     ].join('|')
     const showInitialShell = authLoading || (leagueLoading && memberships.length === 0)
     const resultCount = search.results.players.length
