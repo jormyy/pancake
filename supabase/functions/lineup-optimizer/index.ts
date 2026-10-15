@@ -1,3 +1,4 @@
+import { processPreTipoff } from './preTipoff.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { supabase } from '../_shared/supabase.ts'
@@ -91,6 +92,13 @@ type ManualRequest = {
 
 serveInternal('lineup-optimizer', async (req) => {
   const body: Record<string, unknown> = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+  if (body.mode === 'pre_tipoff') {
+    const result = await recordSyncRun('lineup-optimizer', async () => {
+      const outcome = await processPreTipoff(body)
+      return { result: outcome, rowsAffected: outcome.optimized, failure: outcome.failed ? `${outcome.failed} tipoff team(s) failed` : null }
+    })
+    return Response.json({ ok: true, ...result })
+  }
   const manual = manualRequest(body)
   if (manual) {
     return Response.json({ ok: true, ...await processManualRestOfSeason(manual) })

@@ -29,7 +29,7 @@ The web build uses browser touch input and the cached PWA shell; it needs no nat
   creator/commissioner deletion, and daily auto-expiry of finished or stale rooms
 - **Snake rookie draft** for annual offseason drafts (pick-ownership ordered), with an
   automatic best-available backstop if it never runs by week 1
-- **Daily lineups** with manual and auto-set options and ET tip-off locks
+- **Daily lineups** with manual options, per-team Auto-set daily, and ET tip-off locks ([automation](./docs/pre-tipoff-lineups.md))
 - **Player discovery** with indexed search, sort, availability, health, team, playing-day,
   rookie, and stats-season filters (the current season or either of the two before it)
 - **Dynasty Hub** with Hashtag Basketball dynasty rankings, source stat strips, player

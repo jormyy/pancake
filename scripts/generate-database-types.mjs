@@ -83,7 +83,9 @@ const applyRpcArgumentOverrides = (generated) => {
       text.slice(0, replacement.start) + replacement.text + text.slice(replacement.end), generated)
 }
 
-const generated = execFileSync('supabase', ['gen', 'types', 'typescript', '--local'], { encoding: 'utf8' })
+const generated = execFileSync('supabase', ['gen', 'types', 'typescript',
+  ...(process.env.SUPABASE_DB_URL ? ['--db-url', process.env.SUPABASE_DB_URL] : ['--local']),
+], { encoding: 'utf8' })
 const contents = applyRpcArgumentOverrides(generated).trimEnd() + `\n\n${aliases.trim()}\n`
 
 if (process.argv.includes('--check')) {
