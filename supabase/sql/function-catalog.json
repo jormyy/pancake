@@ -97,6 +97,8 @@
     "private.score_input_token(uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.seed_faab_balances_for_member()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.seed_faab_balances_for_season()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.seed_member_lineup_optimizer()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.seed_season_lineup_optimizer()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.set_trade_child_league_id()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.setup_season_year_et(timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.sync_game_calendar_correction()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

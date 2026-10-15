@@ -66,11 +66,11 @@ try {
       id: seasons[offset + index], league_id, is_current: true,
       season_year: offset + index === 1002 ? year + 1 : year,
     }))))
-    await q(supabase.from('lineup_optimizer_settings').insert(ids.map((league_id, index) => ({
+    await q(supabase.from('lineup_optimizer_settings').upsert(ids.map((league_id, index) => ({
       league_id, league_season_id: seasons[offset + index], member_id: members[offset + index], enabled: true,
       last_optimized_at: offset + index === 1000 ? null
         : new Date(Date.UTC(2025, 0, 1) - (offset + index) * 60_000).toISOString(),
-    }))))
+    })), { onConflict: 'league_id,league_season_id,member_id' }))
   }
   observe = true
   const all = await loadEnabledOptimizerSettings(supabase, [year])
