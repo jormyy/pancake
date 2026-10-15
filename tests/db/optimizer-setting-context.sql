@@ -18,7 +18,8 @@ VALUES ('00000000-0000-0000-0000-000000094301', '00000000-0000-0000-0000-0000000
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000094001', true);
 SET LOCAL ROLE authenticated;
 INSERT INTO public.lineup_optimizer_settings (league_id, league_season_id, member_id, enabled, enabled_at)
-VALUES ('00000000-0000-0000-0000-000000094101', '00000000-0000-0000-0000-000000094301', '00000000-0000-0000-0000-000000094201', true, now());
+VALUES ('00000000-0000-0000-0000-000000094101', '00000000-0000-0000-0000-000000094301', '00000000-0000-0000-0000-000000094201', true, now())
+ON CONFLICT (league_id, league_season_id, member_id) DO UPDATE SET enabled = EXCLUDED.enabled, enabled_at = EXCLUDED.enabled_at;
 UPDATE public.lineup_optimizer_settings SET enabled = false, enabled_at = null
 WHERE member_id = '00000000-0000-0000-0000-000000094201';
 DO $$
@@ -27,19 +28,23 @@ BEGIN
     RAISE EXCEPTION 'Owner write/readback failed';
   END IF;
   BEGIN
-    UPDATE public.lineup_optimizer_settings SET member_id = '00000000-0000-0000-0000-000000094202';
+    UPDATE public.lineup_optimizer_settings SET member_id = '00000000-0000-0000-0000-000000094202'
+    WHERE member_id = '00000000-0000-0000-0000-000000094201';
     RAISE EXCEPTION 'Mismatched member allowed';
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
   BEGIN
-    UPDATE public.lineup_optimizer_settings SET league_id = '00000000-0000-0000-0000-000000094102';
+    UPDATE public.lineup_optimizer_settings SET league_id = '00000000-0000-0000-0000-000000094102'
+    WHERE member_id = '00000000-0000-0000-0000-000000094201';
     RAISE EXCEPTION 'Mismatched league allowed';
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
   BEGIN
-    UPDATE public.lineup_optimizer_settings SET league_season_id = '00000000-0000-0000-0000-000000094302';
+    UPDATE public.lineup_optimizer_settings SET league_season_id = '00000000-0000-0000-0000-000000094302'
+    WHERE member_id = '00000000-0000-0000-0000-000000094201';
     RAISE EXCEPTION 'Mismatched season allowed';
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
   BEGIN
-    UPDATE public.lineup_optimizer_settings SET member_id = '00000000-0000-0000-0000-000000094203';
+    UPDATE public.lineup_optimizer_settings SET member_id = '00000000-0000-0000-0000-000000094203'
+    WHERE member_id = '00000000-0000-0000-0000-000000094201';
     RAISE EXCEPTION 'Foreign owner allowed';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN
@@ -68,7 +73,7 @@ $$;
 RESET ROLE;
 DELETE FROM public.league_members WHERE id = '00000000-0000-0000-0000-000000094201';
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM public.lineup_optimizer_settings WHERE league_id IN ('00000000-0000-0000-0000-000000094101', '00000000-0000-0000-0000-000000094102')) THEN
+  IF EXISTS (SELECT 1 FROM public.lineup_optimizer_settings WHERE member_id = '00000000-0000-0000-0000-000000094201') THEN
     RAISE EXCEPTION 'Membership cascade failed';
   END IF;
 END; $$;

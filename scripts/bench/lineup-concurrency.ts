@@ -30,7 +30,8 @@ try {
     await sql`INSERT INTO public.lineup_slot_templates(league_id,slot_type,slot_count) VALUES(${league},'PG',1)`
     await sql`INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
       VALUES(${game},'0029899999',2198,1,${window.date},'TC1','TC2','Scheduled',${window.tipoff})`
-    await sql`INSERT INTO public.lineup_optimizer_settings(league_id,league_season_id,member_id,enabled) VALUES(${league},${season},${member},true)`
+    await sql`INSERT INTO public.lineup_optimizer_settings(league_id,league_season_id,member_id,enabled) VALUES(${league},${season},${member},true)
+      ON CONFLICT (league_id,league_season_id,member_id) DO NOTHING`
     await sql`INSERT INTO public.lineup_tipoff_dispatches(tipoff_at,game_date,status,token,lease_until)
       VALUES(${window.tipoff},${window.date},'running',${token},now()+interval '45 seconds')`
   })

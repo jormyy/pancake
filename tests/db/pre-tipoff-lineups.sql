@@ -45,6 +45,9 @@ BEGIN
   INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
   VALUES(v_game,'0029912301',2199,1,v_date,'TP1','TP2','Scheduled',v_tipoff),
         (v_other,'0029912302',2199,1,v_date,'TP3','TP4','Scheduled',v_tipoff);
+  IF NOT EXISTS(SELECT 1 FROM public.lineup_optimizer_settings WHERE member_id=v_member AND enabled)
+     THEN RAISE EXCEPTION 'New team is not enabled by default'; END IF;
+  DELETE FROM public.lineup_optimizer_settings WHERE member_id=v_member;
   PERFORM public.invoke_pre_tipoff_optimizer_if_due();
   IF EXISTS(SELECT 1 FROM public.lineup_optimizer_settings WHERE league_id=v_league)
      OR EXISTS(SELECT 1 FROM tipoff_requests) THEN RAISE EXCEPTION 'Missing preference silently enrolls'; END IF;

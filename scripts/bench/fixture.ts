@@ -39,7 +39,8 @@ export async function seedFixture(sql: ReturnType<typeof connect>, games: Game[]
     await sql`INSERT INTO public.league_members(id,league_id,user_id,role,team_name)
       VALUES(${id(100 + team)},${leagueId},${id(10 + team)},${team === 0 ? 'commissioner' : 'manager'},${`Team ${team + 1}`})`
     await sql`INSERT INTO public.lineup_optimizer_settings(league_id,league_season_id,member_id,enabled,enabled_at)
-      VALUES(${leagueId},${seasonId},${id(100 + team)},true,now())`
+      VALUES(${leagueId},${seasonId},${id(100 + team)},true,now())
+      ON CONFLICT (league_id,league_season_id,member_id) DO NOTHING`
   }
   await sql`INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end)
     SELECT 2026, row_number() OVER (ORDER BY d), d::date,(d + interval '6 days')::date

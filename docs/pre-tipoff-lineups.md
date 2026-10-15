@@ -1,7 +1,9 @@
 # Auto-set daily
 
 The lineup screen has one switch for the current team and season.
-Existing enabled settings stay on. Disabled or missing settings stay off.
+The default rollout enables every existing team in its current season once.
+New teams start with Auto-set daily on.
+Managers can turn the switch off. Later seasons keep that choice.
 The switch keeps the existing owner checks and season boundaries.
 Today, Whole week, and Rest of season remain manual actions.
 Turning on daily automation does not rewrite future dates.
@@ -10,7 +12,7 @@ It takes effect at the next eligible dispatch.
 ## Schedule and locks
 
 The scheduler checks each minute. It dispatches when a future tipoff is within two minutes.
-Games with the same tipoff share one dispatch across all opted-in teams.
+Games with the same tipoff share one dispatch across all enabled teams.
 The open window also checks a fingerprint of rosters, injuries, games, scoring, slots, and projection inputs.
 Changed inputs open a new revision. Unchanged inputs do not repeat a completed run.
 The window stays open through the first minute after tipoff to handle news at the start.
@@ -50,7 +52,7 @@ A new token fences the previous worker.
 Each team has one receipt per dispatch revision. The lineup write and receipt share one transaction.
 A retry keeps its revision. A real input change starts a new revision with a new token.
 A retry skips completed teams, including after a worker loses its response.
-The database checks opt-in again before writing and rejects fresh unlocked Out starters.
+The database checks the setting again before writing and rejects fresh unlocked Out starters.
 Existing lineup RPCs enforce roster ownership, slot counts, eligibility, and locks.
 Manual and automatic writes share the existing roster and date locks.
 Unchanged assignments preserve row identities and timestamps.
@@ -68,3 +70,11 @@ Run `supabase/rollbacks/20261014000001_pre_tipoff_lineups_rollback.sql` to resto
 The rollback fences existing claims and keeps all data and additive schema. The old predicate and Edge path remain callable.
 Restore the scheduler and let the current tipoff window end before rolling back the Edge deployment.
 The old scheduler resumes its old behavior, including future-date optimization and its first-tipoff day gate.
+
+## Default rollout
+
+Apply `20261014000002_default_daily_lineup_optimizer.sql` once after the scheduler migration.
+It enables all current teams and sets the database default to true.
+Member and season triggers create settings for league creation, invite joins, and season changes.
+Later seasons copy each manager's previous choice. Existing settings keep explicit false values.
+The migration changes no lineups. The switch uses the existing owner mutation.
