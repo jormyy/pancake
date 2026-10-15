@@ -9,9 +9,6 @@ export function AutoSetModal({
     onToday,
     onWholeWeek,
     onRestOfSeason,
-    seasonOptimizerEnabled = false,
-    onEnableSeasonOptimizer,
-    onDisableSeasonOptimizer,
     onEditManually,
 }: {
     visible: boolean
@@ -19,9 +16,6 @@ export function AutoSetModal({
     onToday: () => void
     onWholeWeek: () => void
     onRestOfSeason: () => void
-    seasonOptimizerEnabled?: boolean
-    onEnableSeasonOptimizer?: () => void
-    onDisableSeasonOptimizer?: () => void
     onEditManually?: () => void
 }) {
     return (
@@ -38,15 +32,6 @@ export function AutoSetModal({
                     accessibilityLabel="Auto-set rest of season"
                     fullWidth
                 />
-                {onEnableSeasonOptimizer && onDisableSeasonOptimizer ? (
-                    <Button
-                        title={seasonOptimizerEnabled ? 'Turn off season optimizer' : 'Turn on season optimizer'}
-                        variant="outline"
-                        onPress={seasonOptimizerEnabled ? onDisableSeasonOptimizer : onEnableSeasonOptimizer}
-                        accessibilityLabel={seasonOptimizerEnabled ? 'Disable season optimizer' : 'Enable season optimizer'}
-                        fullWidth
-                    />
-                ) : null}
                 {onEditManually ? (
                     <Button
                         title="Edit manually instead"

@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS public.lineup_tipoff_members;
+DROP TABLE IF EXISTS public.lineup_tipoff_dispatches;
+DROP INDEX IF EXISTS public.nba_games_pre_tipoff_idx;
+DROP FUNCTION IF EXISTS public.invoke_pre_tipoff_optimizer_if_due();
+DROP FUNCTION IF EXISTS public.claim_lineup_tipoff_dispatch(timestamptz,uuid);
+DROP FUNCTION IF EXISTS public.finish_lineup_tipoff_dispatch(timestamptz,uuid,text);
+DROP FUNCTION IF EXISTS public.get_pre_tipoff_lineup_context(uuid,uuid,uuid);
+DROP FUNCTION IF EXISTS public.apply_pre_tipoff_lineup(timestamptz,uuid,uuid,uuid,uuid,jsonb);
+DROP FUNCTION IF EXISTS private.lineup_game_available(text,text);
+DROP FUNCTION IF EXISTS private.pre_tipoff_input_fingerprint(date);

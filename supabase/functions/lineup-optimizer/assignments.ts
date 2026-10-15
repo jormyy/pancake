@@ -41,7 +41,9 @@ export function chooseBestAssignments<Player extends AssignablePlayer>(
   slots: string[],
   players: Player[],
   hasGame: (player: Player) => boolean,
+  objective: 'filled' | 'projection' = 'filled',
 ): { playerId: string; slotType: string }[] {
+  if (objective === 'projection') return chooseProjectedAssignments(slots, players.filter((player) => !player.avoidInLineup && hasGame(player)))
   const memo = new Map<string, AssignmentResult>()
   const bits = players.map((_, index) => 1n << BigInt(index))
 
@@ -72,4 +74,58 @@ export function chooseBestAssignments<Player extends AssignablePlayer>(
   }
 
   return search(0, 0n).assignments
+}
+
+
+function chooseProjectedAssignments(slots: string[], players: AssignablePlayer[]) {
+  const rowCount = slots.length
+  const columnCount = players.length + rowCount
+  const rowPotential = Array<number>(rowCount + 1).fill(0)
+  const columnPotential = Array<number>(columnCount + 1).fill(0)
+  const matchedRow = Array<number>(columnCount + 1).fill(0)
+  const previousColumn = Array<number>(columnCount + 1).fill(0)
+  const costs = slots.map((slot) => players.map((player) =>
+    player.eligiblePositions.some((position) => (SLOT_ELIGIBLE[slot] ?? []).includes(position))
+      ? -player.projected : Infinity))
+
+  for (let row = 1; row <= rowCount; row++) {
+    matchedRow[0] = row
+    const distance = Array<number>(columnCount + 1).fill(Infinity)
+    const visited = Array<boolean>(columnCount + 1).fill(false)
+    let column = 0
+    do {
+      visited[column] = true
+      const currentRow = matchedRow[column]
+      let delta = Infinity
+      let nextColumn = 0
+      for (let candidate = 1; candidate <= columnCount; candidate++) {
+        if (visited[candidate]) continue
+        const cost = candidate <= players.length ? costs[currentRow - 1][candidate - 1] : 0
+        const reducedCost = cost - rowPotential[currentRow] - columnPotential[candidate]
+        if (reducedCost < distance[candidate]) {
+          distance[candidate] = reducedCost
+          previousColumn[candidate] = column
+        }
+        if (distance[candidate] < delta) {
+          delta = distance[candidate]
+          nextColumn = candidate
+        }
+      }
+      for (let candidate = 0; candidate <= columnCount; candidate++) {
+        if (visited[candidate]) {
+          rowPotential[matchedRow[candidate]] += delta
+          columnPotential[candidate] -= delta
+        } else distance[candidate] -= delta
+      }
+      column = nextColumn
+    } while (matchedRow[column] !== 0)
+    do {
+      const previous = previousColumn[column]
+      matchedRow[column] = matchedRow[previous]
+      column = previous
+    } while (column !== 0)
+  }
+
+  return matchedRow.flatMap((row, column) => row > 0 && column > 0 && column <= players.length
+    ? [{ playerId: players[column - 1].playerId, slotType: slots[row - 1] }] : [])
 }

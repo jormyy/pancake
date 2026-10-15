@@ -36,7 +36,8 @@
     "supabase/tests/db/cdn-http-retry.ts",
     "supabase/tests/db/optimizer-settings-pagination.ts",
     "supabase/tests/db/scoring-partial-failure.ts",
-    "tests/e2e/draft-reset-activation-db.mjs"
+    "tests/e2e/draft-reset-activation-db.mjs",
+    "scripts/bench/**/*.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

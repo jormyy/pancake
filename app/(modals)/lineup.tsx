@@ -40,6 +40,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     ScrollView,
+    Switch,
     StyleSheet,
     Text,
     View,
@@ -230,6 +231,7 @@ export default function LineupScreen() {
     const [dataDate, setDataDate] = useState(selectedDate)
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
+    const [optimizerSaving, setOptimizerSaving] = useState(false)
     const [lineupLoading, setLineupLoading] = useState(true)
     const [lineupRefreshing, setLineupRefreshing] = useState(false)
     const [lineupError, setLineupError] = useState<string | null>(null)
@@ -423,6 +425,7 @@ export default function LineupScreen() {
         optimizerOwnerRef.current = optimizerOwner
         optimizerRequestRef.current += 1
     }
+    useEffect(() => { setOptimizerSaving(false) }, [optimizerOwner])
     useEffect(() => () => { optimizerRequestRef.current += 1 }, [])
     const optimizerRequestIsCurrent = (requestId: number, generation: number) =>
         optimizerRequestRef.current === requestId && optimizerOwnerRef.current === optimizerOwner
@@ -527,6 +530,7 @@ export default function LineupScreen() {
         const requestId = ++optimizerRequestRef.current
         const generation = sessionGeneration()
         setAutoSetModalVisible(false)
+        setOptimizerSaving(true)
         try {
             await setLineupOptimizerEnabled(
                 actionContext.memberId,
@@ -535,9 +539,10 @@ export default function LineupScreen() {
                 true,
             )
             if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(true)
-            await doAutoSet(null, true)
         } catch (e) {
-            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Optimizer failed', getErrorMessage(e))
+            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
+        } finally {
+            if (optimizerRequestIsCurrent(requestId, generation)) setOptimizerSaving(false)
         }
     }
 
@@ -546,6 +551,7 @@ export default function LineupScreen() {
         const requestId = ++optimizerRequestRef.current
         const generation = sessionGeneration()
         setAutoSetModalVisible(false)
+        setOptimizerSaving(true)
         try {
             await setLineupOptimizerEnabled(
                 actionContext.memberId,
@@ -555,7 +561,9 @@ export default function LineupScreen() {
             )
             if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(false)
         } catch (e) {
-            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Optimizer failed', getErrorMessage(e))
+            if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
+        } finally {
+            if (optimizerRequestIsCurrent(requestId, generation)) setOptimizerSaving(false)
         }
     }
 
@@ -612,6 +620,16 @@ export default function LineupScreen() {
                     />
                 )}
             />
+
+            <View style={styles.autoSetDaily}>
+                <Text style={textStyles.body}>Auto-set daily</Text>
+                <Switch
+                    value={seasonOptimizerEnabled}
+                    onValueChange={(enabled) => enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()}
+                    disabled={readOnly || optimizerSaving}
+                    accessibilityLabel="Auto-set daily"
+                />
+            </View>
 
             {/* Day selector */}
             {weekDays.length > 0 && (
@@ -732,9 +750,6 @@ export default function LineupScreen() {
                 onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
                 onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
                 onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
-                seasonOptimizerEnabled={seasonOptimizerEnabled}
-                onEnableSeasonOptimizer={handleEnableSeasonOptimizer}
-                onDisableSeasonOptimizer={handleDisableSeasonOptimizer}
             />
         </Page>
     )
@@ -743,6 +758,7 @@ export default function LineupScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
+    autoSetDaily: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
     preDraftHint: {
         padding: spacing.lg,
         borderRadius: radii.lg,

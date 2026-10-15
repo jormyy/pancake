@@ -75,3 +75,11 @@ Known limits:
 - Deleting historical `player_game_stats` clears completion stamps, so the next scoring run refetches and re-scores those
   past weeks. That is the intended recovery; test fixtures must not delete stats outside their own games.
 - Natural daily and weekly schedules (waivers at 03:00 ET, season boundary) were not observed beyond the 130-minute window.
+
+## Pre-tipoff lineup benchmark
+
+`scripts/bench/README.md` describes the deterministic season driver and isolated database setup.
+The driver runs the base Edge code and the candidate against the same pinned NBA schedule and fixed seed.
+It measures real PostgreSQL statement and tuple counters, including each production cron predicate tick.
+It checks every opted-in team at every distinct tipoff with an independent assignment oracle.
+Keep measured results and logs outside the checkout. Report local measurements separately from hosted costs.

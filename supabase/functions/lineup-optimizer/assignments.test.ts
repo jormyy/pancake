@@ -87,3 +87,67 @@ Deno.test('auto-set keeps exact assignments and ties for legal rosters below the
     if (actual !== expected) throw new Error(`trial ${trial} differs: ${actual} vs ${expected}`)
   }
 })
+
+
+Deno.test('projection objective skips negative scores while the default keeps manual fill behavior', () => {
+  const players = [player(0, ['PG'], -10), player(1, ['C'], -5)]
+  if (chooseBestAssignments(['PG', 'UTIL'], players, () => true).length !== 2) throw new Error('Manual fill behavior changes.')
+  if (chooseBestAssignments(['PG', 'UTIL'], players, () => true, 'projection').length !== 0) throw new Error('Negative projection lowers the optimum.')
+})
+
+Deno.test('projection objective solves broad 80-player eligibility without repeated players', () => {
+  const slots = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
+  const players = Array.from({ length: 80 }, (_, i) => player(i, ['PG', 'SG', 'SF', 'PF', 'C'], i))
+  const result = chooseBestAssignments(slots, players, () => true, 'projection')
+  const actual = result.reduce((sum, a) => sum + players.find((p) => p.playerId === a.playerId)!.projected, 0)
+  const expected = players.map((p) => p.projected).sort((a, b) => b - a).slice(0, slots.length).reduce((a, b) => a + b, 0)
+  if (result.length !== slots.length || new Set(result.map((a) => a.playerId)).size !== result.length || actual !== expected) throw new Error('Broad eligibility loses the optimum.')
+})
+
+Deno.test('projection objective matches exhaustive weighted assignment across injuries and flexible slots', () => {
+  let seed = 42
+  const random = () => (seed = Math.imul(seed, 1664525) + 1013904223 >>> 0) / 4294967296
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C']
+  for (let trial = 0; trial < 300; trial++) {
+    const slots = ['PG', 'G', 'F', 'UTIL'].filter(() => random() < 0.8)
+    const players = Array.from({ length: 6 }, (_, i) => ({
+      ...player(i, positions.filter(() => random() < 0.4), Math.round((random() * 30 - 10) * 100) / 100),
+      avoidInLineup: random() < 0.2,
+    }))
+    const playing = new Set(players.filter(() => random() < 0.8).map((p) => p.playerId))
+    const available = players.filter((p) => !p.avoidInLineup && playing.has(p.playerId))
+    const search = (slot: number, used: Set<string>): number => {
+      if (slot === slots.length) return 0
+      let best = search(slot + 1, used)
+      for (const p of available) {
+        if (used.has(p.playerId) || !p.eligiblePositions.some((position) => (SLOT_ELIGIBLE[slots[slot]] ?? []).includes(position))) continue
+        best = Math.max(best, p.projected + search(slot + 1, new Set([...used, p.playerId])))
+      }
+      return best
+    }
+    const result = chooseBestAssignments(slots, players, (p) => playing.has(p.playerId), 'projection')
+    const actual = result.reduce((sum, a) => sum + players.find((p) => p.playerId === a.playerId)!.projected, 0)
+    if (Math.abs(actual - search(0, new Set())) > 1e-8 || new Set(result.map((a) => a.playerId)).size !== result.length) throw new Error(`Weighted optimum differs in trial ${trial}.`)
+    if (JSON.stringify(result) !== JSON.stringify(chooseBestAssignments(slots, players, (p) => playing.has(p.playerId), 'projection'))) throw new Error('Identical inputs change assignments.')
+  }
+})
+
+Deno.test('zero projection players never remain benched beside eligible empty slots', () => {
+  let seed = 617
+  const random = () => (seed = Math.imul(seed, 1664525) + 1013904223 >>> 0) / 4294967296
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C']
+  const slots = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
+  for (let trial = 0; trial < 1000; trial++) {
+    const players = Array.from({ length: 10 }, (_, i) => player(i, positions.filter(() => random() < 0.3), random() < 0.8 ? 0 : 10))
+    const result = chooseBestAssignments(slots, players, () => true, 'projection')
+    if (result.length !== numberMaskReference(slots, players, () => true).length) {
+      throw new Error(`Zero-score ties leave a fillable slot empty in trial ${trial}.`)
+    }
+    const used = new Set(result.map((row) => row.playerId))
+    for (const slot of slots.filter((slot) => !result.some((row) => row.slotType === slot))) {
+      if (players.some((p) => !used.has(p.playerId) && p.eligiblePositions.some((position) => SLOT_ELIGIBLE[slot].includes(position)))) {
+        throw new Error(`Healthy zero projection player is benched beside an eligible empty ${slot} slot in trial ${trial}.`)
+      }
+    }
+  }
+})

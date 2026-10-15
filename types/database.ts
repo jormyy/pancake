@@ -1442,6 +1442,80 @@ export type Database = {
           },
         ]
       }
+      lineup_tipoff_dispatches: {
+        Row: {
+          attempts: number
+          error: string | null
+          finished_at: string | null
+          game_date: string
+          input_fingerprint: string | null
+          input_revision: number
+          lease_until: string | null
+          status: string
+          tipoff_at: string
+          token: string
+        }
+        Insert: {
+          attempts?: number
+          error?: string | null
+          finished_at?: string | null
+          game_date: string
+          input_fingerprint?: string | null
+          input_revision?: number
+          lease_until?: string | null
+          status?: string
+          tipoff_at: string
+          token?: string
+        }
+        Update: {
+          attempts?: number
+          error?: string | null
+          finished_at?: string | null
+          game_date?: string
+          input_fingerprint?: string | null
+          input_revision?: number
+          lease_until?: string | null
+          status?: string
+          tipoff_at?: string
+          token?: string
+        }
+        Relationships: []
+      }
+      lineup_tipoff_members: {
+        Row: {
+          completed_at: string
+          input_revision: number
+          league_id: string
+          league_season_id: string
+          member_id: string
+          tipoff_at: string
+        }
+        Insert: {
+          completed_at?: string
+          input_revision?: number
+          league_id: string
+          league_season_id: string
+          member_id: string
+          tipoff_at: string
+        }
+        Update: {
+          completed_at?: string
+          input_revision?: number
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          tipoff_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineup_tipoff_members_tipoff_at_fkey"
+            columns: ["tipoff_at"]
+            isOneToOne: false
+            referencedRelation: "lineup_tipoff_dispatches"
+            referencedColumns: ["tipoff_at"]
+          },
+        ]
+      }
       live_poll_leases: {
         Row: {
           acquired_at: string
@@ -3737,6 +3811,17 @@ export type Database = {
           new_year: number
         }[]
       }
+      apply_pre_tipoff_lineup: {
+        Args: {
+          p_assignments: Json
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+          p_tipoff_at: string
+          p_token: string
+        }
+        Returns: boolean
+      }
       apply_season_boundary_after_grace: {
         Args: {
           p_action: string
@@ -3814,6 +3899,10 @@ export type Database = {
           p_metadata: Json
         }
         Returns: boolean
+      }
+      claim_lineup_tipoff_dispatch: {
+        Args: { p_tipoff_at: string; p_token: string }
+        Returns: string
       }
       claim_notification_outbox_atomic: {
         Args: { p_lease_seconds?: number; p_limit?: number }
@@ -4179,6 +4268,10 @@ export type Database = {
         }
         Returns: Json
       }
+      finish_lineup_tipoff_dispatch: {
+        Args: { p_error?: string; p_tipoff_at: string; p_token: string }
+        Returns: undefined
+      }
       generate_invite_code: { Args: never; Returns: string }
       generate_playoff_bracket_atomic: {
         Args: { p_league_id: string }
@@ -4313,6 +4406,14 @@ export type Database = {
         Args: { p_league_id: string; p_member_id: string }
         Returns: number
       }
+      get_pre_tipoff_lineup_context: {
+        Args: {
+          p_league_id: string
+          p_league_season_id: string
+          p_member_id: string
+        }
+        Returns: Json
+      }
       get_stale_score_weeks: {
         Args: { p_league_season_id: string; p_through_week: number }
         Returns: {
@@ -4354,6 +4455,7 @@ export type Database = {
       }
       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
+      invoke_pre_tipoff_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
       invoke_season_boundary_if_due: {
         Args: { p_now?: string }

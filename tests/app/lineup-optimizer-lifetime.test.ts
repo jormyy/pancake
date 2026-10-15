@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', StyleSheet: { create: (v: unknown) => v } }))
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v } }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
@@ -44,7 +44,7 @@ vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'Scree
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let screen: ReactTestRenderer
-const modal = () => screen.root.find((node) => typeof node.props.onEnableSeasonOptimizer === 'function')
+const toggle = () => screen.root.findByType('Switch' as React.ElementType)
 beforeEach(() => {
     vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
     vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
@@ -60,13 +60,13 @@ it.each([true, false])('keeps a delayed setting reply from changing another leag
     mocks.enabled = !enabling
     await mount()
     let pending!: Promise<void>
-    await act(async () => { pending = enabling ? modal().props.onEnableSeasonOptimizer() : modal().props.onDisableSeasonOptimizer() })
+    await act(async () => { pending = toggle().props.onValueChange(enabling) })
     mocks.context.current = { id: 'member-b' }; mocks.context.currentLeague = { id: 'league-b' }
     await act(async () => { screen.update(React.createElement(LineupScreen)) })
-    expect(modal().props.seasonOptimizerEnabled).toBe(!enabling)
+    expect(toggle().props.value).toBe(!enabling)
     await act(async () => { finish(); await pending })
-    expect(modal().props.seasonOptimizerEnabled).toBe(!enabling)
-    expect(mocks.autoSet).toHaveBeenCalledTimes(enabling ? 1 : 0)
+    expect(toggle().props.value).toBe(!enabling)
+    expect(mocks.autoSet).toHaveBeenCalledTimes(0)
 })
 
 it.each(['switch', 'unmount'] as const)('does not show a late settings failure after %s', async (action) => {
@@ -74,7 +74,7 @@ it.each(['switch', 'unmount'] as const)('does not show a late settings failure a
     mocks.setEnabled.mockImplementationOnce(() => new Promise<void>((_, reject) => { fail = reject }))
     await mount()
     let pending!: Promise<void>
-    await act(async () => { pending = modal().props.onEnableSeasonOptimizer() })
+    await act(async () => { pending = toggle().props.onValueChange(true) })
     if (action === 'switch') {
         mocks.context.current = { id: 'member-b' }; mocks.context.currentLeague = { id: 'league-b' }
         await act(async () => { screen.update(React.createElement(LineupScreen)) })
@@ -84,11 +84,36 @@ it.each(['switch', 'unmount'] as const)('does not show a late settings failure a
     expect(mocks.autoSet).not.toHaveBeenCalled()
 })
 
-it('updates the current setting and starts its authorized optimization', async () => {
+it('updates the current setting without changing manual lineups', async () => {
     mocks.setEnabled.mockResolvedValueOnce(undefined)
     await mount()
-    await act(async () => { await modal().props.onEnableSeasonOptimizer() })
-    expect(modal().props.seasonOptimizerEnabled).toBe(true)
+    await act(async () => { await toggle().props.onValueChange(true) })
+    expect(toggle().props.value).toBe(true)
     expect(mocks.setEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a', true)
-    expect(mocks.autoSet).toHaveBeenCalledWith(null, true)
+    expect(mocks.autoSet).not.toHaveBeenCalled()
+})
+
+
+it('turns the current team on and off without running a manual action', async () => {
+    mocks.setEnabled.mockResolvedValue(undefined)
+    await mount()
+    expect(toggle().props.value).toBe(false)
+    await act(async () => { await toggle().props.onValueChange(true) })
+    expect(toggle().props.value).toBe(true)
+    await act(async () => { await toggle().props.onValueChange(false) })
+    expect(toggle().props.value).toBe(false)
+    expect(mocks.setEnabled.mock.calls).toEqual([
+        ['member-a', 'league-a', 'season-league-a', true],
+        ['member-a', 'league-a', 'season-league-a', false],
+    ])
+    expect(mocks.autoSet).not.toHaveBeenCalled()
+})
+
+it('keeps the saved preference when the current write fails', async () => {
+    mocks.setEnabled.mockRejectedValueOnce(new Error('connection failed'))
+    await mount()
+    await act(async () => { await toggle().props.onValueChange(true) })
+    expect(toggle().props.value).toBe(false)
+    expect(toggle().props.disabled).toBe(false)
+    expect(mocks.showAlert).toHaveBeenCalledWith('Auto-set daily failed', 'connection failed')
 })
