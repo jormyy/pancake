@@ -1,3 +1,4 @@
+import { runWebTargets } from './web-targets.mjs'
 import { runBrowserAuthScenario } from './browser-auth.mjs'
 import { runBrowserGameplayScenario } from './browser-gameplay.mjs'
 import { runBrowserLeagueLifecycleScenario } from './browser-league-lifecycle.mjs'
@@ -60,6 +61,7 @@ export const writeRegisteredScenarioReport = async (scenario, context, { outcome
 }
 
 const standardRunners = {
+  'web-targets': ({ season }) => runWebTargets({ season }),
   smoke: ({ args, season }) => runBrowserSmoke({ season, fullSweep: args.browserFullSweep }),
   auth: ({ season }) => runBrowserAuthScenario({ season }),
   performance: ({ season, resourceOwner = undefined }) => runBrowserPerfSmoke({ season, resourceOwner }),

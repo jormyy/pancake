@@ -445,7 +445,7 @@ const ensureSnakeDraftPickAssets = async (supabase, { leagueId, seasonYear, draf
   }
 }
 
-const ensureSweepDrafts = async (supabase, state, members) => {
+export const ensureSweepDrafts = async (supabase, state, members) => {
   const { data: season, error: seasonError } = await supabase
     .from('league_seasons')
     .select('id, season_year')

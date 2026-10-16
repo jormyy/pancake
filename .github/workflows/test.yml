@@ -183,6 +183,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install supported web engines
+        if: matrix.scenario == 'web-targets'
+        run: npx playwright install --with-deps chromium webkit
+
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: 2.109.1

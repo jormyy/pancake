@@ -102,6 +102,9 @@ jobs:
         with:
           deno-version: 2.7.14
       - run: npm ci
+
+      - name: Install supported web engines
+        run: npx playwright install --with-deps chromium webkit
       - name: Verify the shard runs the attested release and plan
         id: shard
         shell: bash
