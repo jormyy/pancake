@@ -9,7 +9,7 @@ import {
     useWindowDimensions,
     type ViewStyle,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -383,7 +383,7 @@ export default function ClaimPlayerScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'Waiver Claim', presentation: 'modal', headerShown: false }} />
-            <SafeAreaView style={styles.container} edges={['bottom']}>
+            <ScreenFrame style={styles.container} edges={['bottom']}>
                 {renderScreenHeader()}
                 {/* Until the claim loads, its facts (date, drop rule) would be guesses. */}
                 {loading ? <LoadingState /> : !player ? (
@@ -422,7 +422,7 @@ export default function ClaimPlayerScreen() {
                         {bidFooter}
                     </>
                 )}
-            </SafeAreaView>
+            </ScreenFrame>
         </>
     )
 }

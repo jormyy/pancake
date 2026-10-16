@@ -272,6 +272,7 @@ export async function runWebTargets({ season = 0 } = {}) {
           if (target.mobile) {
             assert.equal(layout.mainPadding.top, 56 + target.insets.top)
             assert.equal(layout.mainPadding.bottom, 64 + target.insets.bottom)
+            assert.deepEqual(layout.duplicates, [], `${name}: content applies the shell safe area twice`)
           }
           layout.inputs = await checkInputs(page)
           await page.screenshot({ path: path.join(captures, `${name}.png`), fullPage: true })
