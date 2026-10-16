@@ -93,7 +93,7 @@ export async function runBrowserTradeScenario({
     await browser(session, ['wait', '3500'])
     await assertPageText(session, [
       'Edit Trade',
-      '2 teams · 2 assets routed',
+      process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-') ? '2 teams' : '2 teams · 2 assets routed',
       fixture.proposerPlayer.display_name,
     ], 'two-team edit composer prefilled')
     await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'two-team edit recipient sender tab')

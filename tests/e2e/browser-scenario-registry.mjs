@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import { runWebTargets } from './web-targets.mjs'
 import { runBrowserAuthScenario } from './browser-auth.mjs'
 import { runBrowserGameplayScenario } from './browser-gameplay.mjs'
@@ -27,7 +28,7 @@ import { resolveReleaseProvenance } from './release-provenance.mjs'
 
 /** @param {unknown} error */
 const errorText = (error) => error instanceof Error ? error.message : error == null ? null : String(error)
-const REGISTRY_ARTIFACT_ROOT = path.join(process.cwd(), 'tests/artifacts/registry')
+const REGISTRY_ARTIFACT_ROOT = browserArtifactPath('artifacts', 'registry')
 
 export const writeRegisteredScenarioReport = async (scenario, context, { outcome, primaryError, cleanupError }) => {
   const provenance = context.provenance ?? await resolveReleaseProvenance()

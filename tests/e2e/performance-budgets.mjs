@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -7,9 +8,9 @@ import { DATA_LATENCY_STEP_KEYS } from './data-latency-contract.mjs'
 
 const ROOT = process.cwd()
 const MANIFEST_PATH = path.join(ROOT, 'tests/e2e/performance-budgets.json')
-const PERF_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-perf-report.md')
-const DATA_LATENCY_REPORT_PATH = path.join(ROOT, 'tests/e2e-data-latency-report.md')
-const REPORT_PATH = path.join(ROOT, 'tests/performance-budget-report.md')
+const PERF_REPORT_PATH = browserArtifactPath('e2e-browser-perf-report.md')
+const DATA_LATENCY_REPORT_PATH = browserArtifactPath('e2e-data-latency-report.md')
+const REPORT_PATH = browserArtifactPath('performance-budget-report.md')
 
 const cliArgs = process.argv.slice(2)
 const args = new Set(cliArgs)
@@ -485,7 +486,7 @@ const main = async () => {
       .map((workflow) => workflow.measurement?.report)
       .filter((reportPath) => reportPath && reportPath !== 'tests/e2e-browser-perf-report.md'),
   ))
-  const hasWorkflowReport = optionalReports.some((reportPath) => existsSync(path.join(ROOT, reportPath)))
+  const hasWorkflowReport = optionalReports.some((reportPath) => existsSync(browserArtifactPath(reportPath.replace(/^tests\//, ''))))
   const expectedProvenance = reportPresent || dataReportPresent || hasWorkflowReport || requiredSeasonReports > 0
     ? await resolveReleaseProvenance()
     : undefined
@@ -505,7 +506,7 @@ const main = async () => {
     reportFailures.push(...validateDataLatencyReport(manifest, readJsonFile(DATA_LATENCY_REPORT_PATH), requireDataReport, expectedProvenance))
   }
   for (const reportPath of optionalReports) {
-    const absoluteReportPath = path.join(ROOT, reportPath)
+    const absoluteReportPath = browserArtifactPath(reportPath.replace(/^tests\//, ''))
     if (!existsSync(absoluteReportPath)) {
       if (requireWorkflowReports) reportFailures.push(`required workflow report is missing: ${reportPath}`)
       continue
@@ -514,7 +515,7 @@ const main = async () => {
   }
   if (requiredSeasonReports > 0) {
     const retainedReports = []
-    const registryRoot = path.join(ROOT, 'tests/artifacts/registry')
+    const registryRoot = browserArtifactPath('artifacts', 'registry')
     for (let season = 1; season <= requiredSeasonReports; season += 1) {
       for (const scenario of ['smoke', 'performance']) {
         const reportPath = path.join(registryRoot, `${scenario}-season-${season}.json`)

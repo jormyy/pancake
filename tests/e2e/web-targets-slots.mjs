@@ -75,6 +75,27 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     assert.ok(maximum - minimum <= 2, `First Home content moves ${maximum - minimum}px during data load`)
     checked.push({ route: '/', label: 'first-content-after-data', samples: first.length, minY: minimum, maxY: maximum })
     await page.screenshot({ path: path.join(captures, 'slots-home.png'), fullPage: true })
+    const homeCacheKey = `pancake:home-matchup:v1:${fixture.league.id}:${fixture.proposer.id}`
+    await page.waitForFunction((key) => Boolean(localStorage.getItem(key)), homeCacheKey)
+    await page.evaluate((key) => {
+      const saved = JSON.parse(localStorage.getItem(key))
+      if (saved.value.myLineup.benchSlots !== 3) throw new Error('Legacy cache fixture must begin with three known bench places')
+      delete saved.value.myLineup.benchSlots
+      delete saved.value.oppLineup.benchSlots
+      localStorage.setItem(key, JSON.stringify(saved))
+    }, homeCacheKey)
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
+    try {
+      await context.setOffline(true)
+      await page.reload({ waitUntil: 'load' })
+      await page.getByText("Couldn't load your matchup", { exact: true }).waitFor()
+      assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 0)
+      await page.screenshot({ path: path.join(captures, 'slots-home-legacy-offline.png'), fullPage: true })
+    } finally { await context.setOffline(false) }
+    await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 3)
+    await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key)).value.myLineup.benchSlots === 3, homeCacheKey)
+    checked.push({ route: '/', label: 'legacy-cache-capacity-recovery', offline: 'unknown capacity is not displayed as zero', restored: 3 })
     for (const [name, route] of [['roster', '/roster'], ['team', `/team-roster?memberId=${fixture.recipient.id}`]]) {
       await visit(route)
       await page.getByText('Empty roster slot', { exact: true }).first().waitFor()
@@ -97,6 +118,23 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     assert.equal(await page.getByRole('button', { name: 'Empty bench slot', exact: true }).count(), 3)
     assert.notEqual(await dates.getAttribute('aria-label'), day)
     checked.push({ route: '/lineup', label: 'day-change', previous: day, next: await dates.getAttribute('aria-label') })
+    const offseason = await fixture.admin.from('leagues').update({ status: 'offseason' }).eq('id', fixture.league.id)
+    if (offseason.error) throw offseason.error
+    for (const route of ['/roster', `/team-roster?memberId=${fixture.recipient.id}`]) {
+      await visit(route)
+      await count('Empty roster slot', 4)
+      await count('Empty IR slot', 2)
+      await count('Empty taxi slot', 2)
+    }
+    await visit('/lineup')
+    await page.getByRole('button', { name: 'Empty PG slot', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: 'Empty bench slot', exact: true }).count(), 3)
+    await visit('/')
+    await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 3)
+    assert.equal(await page.getByRole('button', { name: /^Select empty IR slot/ }).count(), 2)
+    assert.equal(await page.getByRole('button', { name: /^Select empty TX slot/ }).count(), 2)
+    checked.push({ route: 'all four surfaces', label: 'offseason capacities', expected: [4, 3, 2, 2], actual: [4, 3, 2, 2] })
     await apply(0, 0, 0, 0)
     for (const route of ['/roster', `/team-roster?memberId=${fixture.recipient.id}`, '/lineup']) {
       await visit(route)

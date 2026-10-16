@@ -67,6 +67,7 @@ export const normalizeBrowserErrors = (output) => output
 const consoleErrorPattern = /(?:^\[error\]|console\.error|uncaught|unhandled|hydration failed|hydrated but|server rendered html.*did not match)/i
 const allowedConsoleErrorPatterns = [
   /favicon\.ico.*(?:404|not found)/i,
+  /\/api\/players\/headshot\/E2ENBA\d+.*Failed to load resource:.*404/i,
 ]
 
 /** @param {{ consoleOutput: string; errorOutput: string; networkOutput?: string }} output */

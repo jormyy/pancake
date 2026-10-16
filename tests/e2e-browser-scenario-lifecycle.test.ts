@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { browserDiagnosticFailures } from './e2e/browser-runtime-overrides.mjs'
 import { runBrowserScenarioLifecycle } from './e2e/browser-scenario-lifecycle.mjs'
 import {
     captureBrowserScreenshot,
@@ -118,4 +119,11 @@ describe('browser scenario lifecycle', () => {
             { targetId: 'app', type: 'page', title: 'Pancake', url: 'http://127.0.0.1:8081/', attached: true },
         ])).toMatchObject({ targetId: 'app' })
     })
+})
+
+it('allows a missing synthetic headshot while retaining real resource failures', () => {
+    const resource = (url: string, status: number) => ({ consoleOutput: `[error] ${url} Failed to load resource: the server responded with a status of ${status} (Not Found)`, errorOutput: '' })
+    expect(browserDiagnosticFailures(resource('http://127.0.0.1:54321/functions/v1/api/players/headshot/E2ENBA001', 404))).toEqual([])
+    expect(browserDiagnosticFailures(resource('http://127.0.0.1:54321/functions/v1/api/players/headshot/E2ENBA001', 500))).toHaveLength(1)
+    expect(browserDiagnosticFailures(resource('http://127.0.0.1:48762/_expo/static/js/web/missing.js', 404))).toHaveLength(1)
 })

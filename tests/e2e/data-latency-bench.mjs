@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -10,7 +11,7 @@ import { assertDataLatencyStepDefinitions } from './data-latency-contract.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
-const REPORT_PATH = path.join(ROOT, 'tests/e2e-data-latency-report.md')
+const REPORT_PATH = browserArtifactPath('e2e-data-latency-report.md')
 const PERFORMANCE_BUDGETS = JSON.parse(readFileSync(path.join(ROOT, 'tests/e2e/performance-budgets.json'), 'utf8')).globalBudgets
 
 const DATA_REQUEST_BUDGET_MS = PERFORMANCE_BUDGETS.maxDbQueryMs

@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -8,8 +9,8 @@ import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSes
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
 
 const ROOT = process.cwd()
-const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
-const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-playoff-report.md')
+const ARTIFACT_ROOT = browserArtifactPath('artifacts')
+const REPORT_PATH = browserArtifactPath('e2e-browser-playoff-report.md')
 
 const browser = createBrowser({ cwd: ROOT })
 
@@ -175,7 +176,7 @@ const ensurePlayoffSeasonWeeks = async (admin, resources, seasonYear, playoffSta
   })
 }
 
-const setupBrowserPlayoffFixture = async (env, season) => {
+export const setupBrowserPlayoffLeague = async (env, season) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-playoff-${runId}!`
   const users = Array.from({ length: 10 }, (_, index) => {
@@ -280,14 +281,21 @@ const setupBrowserPlayoffFixture = async (env, season) => {
     .eq('id', league.id)
   if (statusError) throw new Error(`league playoff status update: ${statusError.message}`)
 
-  await backendAuthedJson(env, '/playoffs/generate', commissionerAuth.accessToken, { leagueId: league.id })
+  return { admin, runId, password, league, currentSeason, users: createdUsers, members,
+    regularSeasonRows: regularSeasonRows.length, commissionerAccessToken: commissionerAuth.accessToken, dispose: resources.dispose }
+}
+
+const setupBrowserPlayoffFixture = async (env, season) => {
+  const fixture = await setupBrowserPlayoffLeague(env, season)
+  const { admin, league, currentSeason, members, users: createdUsers, commissionerAccessToken } = fixture
+  await backendAuthedJson(env, '/playoffs/generate', commissionerAccessToken, { leagueId: league.id })
   const quarterfinals = await fetchPlayoffRows(admin, league.id, currentSeason.id, 'playoff_quarterfinal')
   if (quarterfinals.length !== 2) throw new Error(`expected 2 quarterfinals, got ${quarterfinals.length}`)
 
   let advanceBeforeFinalized = null
   let advanceBlocked = false
   try {
-    await backendAuthedJson(env, '/playoffs/advance', commissionerAuth.accessToken, { leagueId: league.id })
+    await backendAuthedJson(env, '/playoffs/advance', commissionerAccessToken, { leagueId: league.id })
   } catch (error) {
     advanceBlocked = true
     advanceBeforeFinalized = error instanceof Error ? error.message : String(error)
@@ -298,14 +306,14 @@ const setupBrowserPlayoffFixture = async (env, season) => {
   }
 
   await finalizeMatchupsWithHomeWins(admin, quarterfinals, 'quarterfinal')
-  await backendAuthedJson(env, '/playoffs/advance', commissionerAuth.accessToken, { leagueId: league.id })
+  await backendAuthedJson(env, '/playoffs/advance', commissionerAccessToken, { leagueId: league.id })
   const semifinals = await fetchPlayoffRows(admin, league.id, currentSeason.id, 'playoff_semifinal')
   if (semifinals.length !== 2) throw new Error(`expected 2 semifinals, got ${semifinals.length}`)
 
   let semifinalAdvanceBeforeFinalized = null
   let semifinalAdvanceBlocked = false
   try {
-    await backendAuthedJson(env, '/playoffs/advance', commissionerAuth.accessToken, { leagueId: league.id })
+    await backendAuthedJson(env, '/playoffs/advance', commissionerAccessToken, { leagueId: league.id })
   } catch (error) {
     semifinalAdvanceBlocked = true
     semifinalAdvanceBeforeFinalized = error instanceof Error ? error.message : String(error)
@@ -317,7 +325,7 @@ const setupBrowserPlayoffFixture = async (env, season) => {
   }
 
   await finalizeMatchupsWithHomeWins(admin, semifinals, 'semifinal')
-  await backendAuthedJson(env, '/playoffs/advance', commissionerAuth.accessToken, { leagueId: league.id })
+  await backendAuthedJson(env, '/playoffs/advance', commissionerAccessToken, { leagueId: league.id })
   const finals = await fetchPlayoffRows(admin, league.id, currentSeason.id, 'playoff_final')
   if (finals.length !== 1) throw new Error(`expected 1 championship matchup, got ${finals.length}`)
 
@@ -331,14 +339,7 @@ const setupBrowserPlayoffFixture = async (env, season) => {
   if (!championUser) throw new Error(`champion user ${championMember.user_id} not found`)
 
   return {
-    admin,
-    runId,
-    password,
-    league,
-    currentSeason,
-    users: createdUsers,
-    members,
-    regularSeasonRows: regularSeasonRows.length,
+    ...fixture,
     quarterfinals,
     semifinals,
     final,
@@ -346,7 +347,6 @@ const setupBrowserPlayoffFixture = async (env, season) => {
     championUser,
     advanceBeforeFinalized,
     semifinalAdvanceBeforeFinalized,
-    dispose: resources.dispose,
   }
 }
 

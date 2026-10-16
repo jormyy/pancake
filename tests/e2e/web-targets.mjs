@@ -8,6 +8,8 @@ import { createClient } from '@supabase/supabase-js'
 import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl } from './web-targets-browser.mjs'
 import { runWebTargetUpdates } from './web-targets-update.mjs'
 import { checkWebEmptySlots } from './web-targets-slots.mjs'
+import { runWebGameplayTargets } from './web-targets-gameplay.mjs'
+import { runWebActionTargets } from './web-targets-actions.mjs'
 import { ensureSweepDrafts } from './browser-smoke.mjs'
 
 const root = process.cwd()
@@ -151,6 +153,18 @@ export async function runWebTargets({ season = 0 } = {}) {
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(frontend).hostname), 'Web matrix requires a local stack')
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(process.env.E2E_SUPABASE_URL).hostname), 'Web fixtures require local Supabase')
   await mkdir(artifactDir, { recursive: true })
+  if (process.argv.includes('--actions') || process.env.E2E_WEB_TARGET_ACTIONS === '1') {
+    const result = await runWebActionTargets({ season, artifactDir })
+    await writeFile(reportPath, `${JSON.stringify(result, null, 2)}\n`)
+    assert.equal(result.status, 'PASS', 'All web action targets must pass')
+    return result
+  }
+  if (process.argv.includes('--gameplay') || process.env.E2E_WEB_TARGET_GAMEPLAY === '1') {
+    const result = await runWebGameplayTargets({ season, artifactDir })
+    await writeFile(reportPath, `${JSON.stringify(result, null, 2)}\n`)
+    assert.equal(result.status, 'PASS', 'All web gameplay targets must pass')
+    return result
+  }
   const state = JSON.parse(await readFile(path.join(root, 'tests/e2e-state.json'), 'utf8'))
   const admin = createClient(process.env.E2E_SUPABASE_URL, process.env.E2E_PANCAKE_SUPABASE_SECRET_KEY,
     { auth: { persistSession: false, autoRefreshToken: false } })

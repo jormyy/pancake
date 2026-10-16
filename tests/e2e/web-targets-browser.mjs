@@ -16,13 +16,14 @@ export const WEB_TARGETS = [
     }))),
 ]
 
-export async function openWebTarget(target, artifactDir) {
+export async function openWebTarget(target, artifactDir, contextOptions = {}) {
   const browser = await (target.engine === 'webkit' ? webkit : chromium).launch()
   const context = await browser.newContext({
     ...(target.mobile ? devices['iPhone 13'] : {}),
     viewport: target.viewport,
     recordVideo: { dir: artifactDir, size: target.viewport },
     reducedMotion: 'reduce',
+    ...contextOptions,
   })
   await context.addInitScript(({ standalone, insets, mobile }) => {
     const media = window.matchMedia.bind(window)
@@ -36,7 +37,10 @@ export async function openWebTarget(target, artifactDir) {
       } })
     }
     Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => standalone })
-    window.addEventListener('pointerdown', (event) => Reflect.set(window, '__webTargetPointer', event.pointerType))
+    window.addEventListener('pointerdown', (event) => {
+      Reflect.set(window, '__webTargetPointer', event.pointerType)
+      Reflect.set(window, '__webTargetPointerTrusted', event.isTrusted)
+    })
     const replaceInsets = (css) => css.replace(/env\(safe-area-inset-(top|bottom|left|right)(?:\s*,[^)]*)?\)/g,
       (_, edge) => `${insets[edge] ?? 0}px`)
     const insertRule = CSSStyleSheet.prototype.insertRule

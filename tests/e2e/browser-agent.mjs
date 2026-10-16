@@ -65,6 +65,8 @@ const runAgentBrowser = async ({ cwd, timeout, maxBuffer, session, args }) => {
   return [stdout, stderr].filter(Boolean).join('\n').trim()
 }
 
+let commandDriver = runAgentBrowser
+
 /** @param {string} endpoint */
 export const openCdpClient = async (endpoint) => {
   const socket = new WebSocket(endpoint)
@@ -239,9 +241,10 @@ export const createBrowser = ({
   defaultTimeout = DEFAULT_COMMAND_TIMEOUT_MS,
   maxBuffer = DEFAULT_MAX_BUFFER,
 } = {}) => async (session, args, options = {}) => {
+  const runCommand = commandDriver
   const resourceKey = `browser:${session}`
   ownScenarioResource(resourceKey, `browser session ${session}`, async () => {
-    await runAgentBrowser({
+    await runCommand({
       cwd,
       timeout: 10_000,
       maxBuffer,
@@ -251,10 +254,10 @@ export const createBrowser = ({
   })
   const isScreenshot = args[0] === 'screenshot' && typeof args[1] === 'string'
   const effectiveMaxBuffer = options.maxBuffer ?? maxBuffer
-  if (isScreenshot) {
+  if (isScreenshot && runCommand === runAgentBrowser) {
     return runScreenshot({ cwd, maxBuffer: effectiveMaxBuffer, session, args, timeout: options.timeout })
   }
-  const output = await runAgentBrowser({
+  const output = await runCommand({
     cwd,
     timeout: options.timeout ?? (args[0] === 'open' ? DEFAULT_OPEN_TIMEOUT_MS : defaultTimeout),
     maxBuffer: effectiveMaxBuffer,
@@ -265,7 +268,7 @@ export const createBrowser = ({
   // Headed Chrome applies viewport emulation without firing a resize event,
   // so React Native's dimension hooks never re-render. Dispatch one manually.
   if (args[0] === 'set' && args[1] === 'viewport') {
-    await runAgentBrowser({
+    await runCommand({
       cwd,
       timeout: defaultTimeout,
       maxBuffer: effectiveMaxBuffer,
@@ -277,7 +280,7 @@ export const createBrowser = ({
 }
 
 /** @param {{ cwd?: string, timeout?: number, maxBuffer?: number }} [config] */
-export const listBrowserSessions = async ({
+const listAgentBrowserSessions = async ({
   cwd = process.cwd(),
   timeout = DEFAULT_LIST_TIMEOUT_MS,
   maxBuffer = DEFAULT_LIST_MAX_BUFFER,
@@ -288,6 +291,13 @@ export const listBrowserSessions = async ({
     maxBuffer,
   })
   return [stdout, stderr].filter(Boolean).join('\n').trim()
+}
+
+export let listBrowserSessions = listAgentBrowserSessions
+
+export const configureBrowserDriver = (driver = { run: runAgentBrowser, list: listAgentBrowserSessions }) => {
+  commandDriver = driver.run
+  listBrowserSessions = driver.list
 }
 
 /** @param {string} value */
@@ -307,6 +317,7 @@ const refForRoleByName = async (browser, session, role, name) => {
 
 /** @param {Browser} browser @param {string} session @param {string} name @param {string} value */
 const fillTextboxByName = async (browser, session, name, value) => {
+  if (process.env.E2E_WEB_TARGET_ID) { await browser(session, ['fill-label', name, value]); return }
   await browser(session, ['fill', await refForRoleByName(browser, session, 'textbox', name), value])
 }
 

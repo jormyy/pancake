@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
@@ -8,8 +9,8 @@ import { createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
-const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
-const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-lineup-report.md')
+const ARTIFACT_ROOT = browserArtifactPath('artifacts')
+const REPORT_PATH = browserArtifactPath('e2e-browser-lineup-report.md')
 
 const browser = createBrowser({ cwd: ROOT })
 
@@ -965,6 +966,11 @@ export async function runBrowserLineupAutoSetScenario({
     await assertPageText(session, ['Auto-set lineup', 'Today', 'Whole week', 'Rest of season'], 'auto-set modal')
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
+    await waitForEnabledButton(session, 'Open auto-set lineup options', 'auto-set button for whole week')
+    const openWeekClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for whole week')
+    const weekClick = await clickButton(session, 'Auto-set whole week', 'auto-set whole week button')
+    const weekDates = [todayDateString(), ...fixture.remainingSeasonDates.filter((date) => date <= fixture.week.week_end)]
+    const weekCheck = await waitForRemainingSeasonLineups({ ...fixture, remainingSeasonDates: weekDates })
     await waitForEnabledButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
     const openSeasonClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
     await assertPageText(session, ['Auto-set lineup', 'Rest of season'], 'remaining-season auto-set modal')
@@ -975,12 +981,12 @@ export async function runBrowserLineupAutoSetScenario({
       'remaining-season success notice',
     )
     const seasonCheck = await waitForRemainingSeasonLineups(fixture)
-    record({ openClick, todayClick, lineupCheck, openSeasonClick, seasonClick, seasonCheck, seasonAlert })
+    record({ openClick, todayClick, lineupCheck, openWeekClick, weekClick, weekCheck, openSeasonClick, seasonClick, seasonCheck, seasonAlert })
     await browser(session, ['wait', '1000'])
     record({ afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-after.png') })
     return {
-      fields: { mode: 'auto-set', lineupCheck, seasonCheck, seasonAlert },
-      failures: [...lineupCheck.failures, ...seasonCheck.failures],
+      fields: { mode: 'auto-set', lineupCheck, weekCheck, seasonCheck, seasonAlert },
+      failures: [...lineupCheck.failures, ...weekCheck.failures, ...seasonCheck.failures],
     }
     },
     verifyFailure: async () => ({
