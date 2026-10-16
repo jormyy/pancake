@@ -1,5 +1,5 @@
 import { Link } from 'expo-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { AuthScaffold } from '@/components/auth/AuthScaffold'
 import type { AuthHeroContent } from '@/components/auth/AuthHero'
@@ -26,8 +26,10 @@ export default function SignUpScreen() {
     const [displayName, setDisplayName] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const submittingRef = useRef(false)
 
     async function handleSignUp() {
+        if (submittingRef.current) return
         if (!email || !password || !username || !displayName) {
             setError('Please fill in all fields.')
             return
@@ -40,6 +42,7 @@ export default function SignUpScreen() {
             setError('Username can only contain lowercase letters, numbers, and underscores.')
             return
         }
+        submittingRef.current = true
         setLoading(true)
         setError(null)
         try {
@@ -47,6 +50,7 @@ export default function SignUpScreen() {
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
+            submittingRef.current = false
             setLoading(false)
         }
     }

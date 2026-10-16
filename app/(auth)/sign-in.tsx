@@ -1,5 +1,5 @@
 import { Link } from 'expo-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { AuthScaffold } from '@/components/auth/AuthScaffold'
 import type { AuthHeroContent } from '@/components/auth/AuthHero'
@@ -25,6 +25,7 @@ export default function SignInScreen() {
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const submittingRef = useRef(false)
     const { restorationStatus, loading: authLoading } = useAuth()
     const restorationNotice = authLoading ? null : restorationStatus === 'expired'
         ? 'Your session expired. Reconnect or sign in to continue.'
@@ -33,10 +34,12 @@ export default function SignInScreen() {
             : restorationStatus === 'invalid' ? 'Sign in again to restore your session.' : null
 
     async function handleSignIn() {
+        if (submittingRef.current) return
         if (!email || !password) {
             setError('Please fill in all fields.')
             return
         }
+        submittingRef.current = true
         setLoading(true)
         setError(null)
         try {
@@ -44,6 +47,7 @@ export default function SignInScreen() {
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
+            submittingRef.current = false
             setLoading(false)
         }
     }
