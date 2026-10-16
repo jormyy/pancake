@@ -48,7 +48,10 @@ export default function ProfileScreen() {
     const { padX } = usePageMetrics()
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
-    const [teamName, setTeamName] = useState('')
+    const teamOwner = user && current ? `${user.id}:${current.id}` : null
+    const [teamDraft, setTeamDraft] = useState<{ owner: string | null; value: string }>({ owner: null, value: '' })
+    const teamName = teamDraft.owner === teamOwner ? teamDraft.value : current?.team_name ?? ''
+    const setTeamName = (value: string) => setTeamDraft({ owner: teamOwner, value })
     const [savingOwners, setSavingOwners] = useState<Set<string>>(() => new Set())
     const submittingOwnersRef = useRef(new Set<string>())
     const saving = savingOwners.has(user?.id ?? '')
@@ -98,8 +101,8 @@ export default function ProfileScreen() {
 
     // Sync team name from context whenever it changes
     useEffect(() => {
-        setTeamName(current?.team_name ?? '')
-    }, [current?.team_name])
+        setTeamDraft({ owner: teamOwner, value: current?.team_name ?? '' })
+    }, [current?.team_name, teamOwner])
 
     async function handleSave() {
         if (!user || submittingOwnersRef.current.has(user.id)) return

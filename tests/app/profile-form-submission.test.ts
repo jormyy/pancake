@@ -4,21 +4,26 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ProfileScreen from '@/app/(tabs)/profile'
 
 const mocks = vi.hoisted(() => ({
-    userId: 'user',
+    userId: 'user', memberId: 'member',
+    teamRenders: [] as { memberId: string; value: unknown }[],
     permission: vi.fn(), pickImage: vi.fn(), uploadAvatar: vi.fn(),
     updateProfile: vi.fn(), updateTeamName: vi.fn(), success: vi.fn(), alert: vi.fn(),
     profile: { display_name: 'Manager', username: 'manager', avatar_url: null },
     preferences: { tradeEnabled: true, waiverEnabled: true, draftEnabled: true, activityEnabled: true },
 }))
 vi.mock('react-native', () => ({
-    Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator',
+    Platform: { OS: 'web' }, View: 'View', Text: 'Text',
+    TextInput: (props: Record<string, unknown>) => {
+        if (props.accessibilityLabel === 'Team name') mocks.teamRenders.push({ memberId: mocks.memberId, value: props.value })
+        return React.createElement('TextInput', props)
+    }, Pressable: 'Pressable', ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator',
     StyleSheet: { create: (value: unknown) => value },
 }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('expo-image-picker', () => ({ requestMediaLibraryPermissionsAsync: mocks.permission, launchImageLibraryAsync: mocks.pickImage }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
-vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member', team_name: 'Team' }, currentLeague: { id: 'league' }, refresh: vi.fn() }) }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: mocks.memberId, team_name: 'Team' }, currentLeague: { id: `league-${mocks.memberId}` }, refresh: vi.fn() }) }))
 vi.mock('@/hooks/use-profile-resource', () => ({ useProfileResource: () => ({
     profile: mocks.profile, profileLoaded: true, preferences: mocks.preferences, setProfile: vi.fn(), setPreferences: vi.fn(),
 }) }))
@@ -47,6 +52,8 @@ const input = (label: string) => screen.root.findAllByType('TextInput' as React.
 beforeEach(async () => {
     vi.clearAllMocks()
     mocks.userId = 'user'
+    mocks.memberId = 'member'
+    mocks.teamRenders = []
     mocks.permission.mockResolvedValue({ status: 'granted' })
     mocks.pickImage.mockResolvedValue({ canceled: false, assets: [{ uri: 'fixture.png', width: 1, height: 1 }] })
     mocks.uploadAvatar.mockResolvedValue('http://127.0.0.1/avatar.png')
@@ -191,4 +198,23 @@ it('admits one photo picker while permission is pending', async () => {
     expect(prompts).toBe(1)
     expect(photo().props.disabled).toBe(false)
     expect(mocks.uploadAvatar).not.toHaveBeenCalled()
+})
+
+
+it('uses the selected league form value when two teams share a saved name', async () => {
+    await act(async () => input('Team name').props.onChangeText('Unsaved first league name'))
+    mocks.memberId = 'next-member'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    await act(async () => input('Team name').props.onSubmitEditing())
+    expect(mocks.updateTeamName).toHaveBeenLastCalledWith('next-member', 'Team')
+})
+
+
+it('hides old league form text before the membership effect runs', async () => {
+    await act(async () => input('Team name').props.onChangeText('Unsaved first league name'))
+    mocks.memberId = 'next-member'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    const renders = mocks.teamRenders.filter((value) => value.memberId === 'next-member')
+    expect(renders.length).toBeGreaterThan(0)
+    expect(renders.every((value) => value.value === 'Team')).toBe(true)
 })
