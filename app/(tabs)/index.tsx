@@ -109,7 +109,7 @@ export default function HomeScreen() {
     }, [matchup, loadMyLineup])
 
     const {
-        selected, setSelected, saving, autoSetting,
+        selected, setSelected, saving, autoSetting, autoSetDisabled,
         autoSetModalVisible, setAutoSetModalVisible,
         activationOverflowPending, setActivationOverflowPending, activationOverflowSaving,
         handleTap, handleOverflowDrop, handleOverflowMoveToIR,
@@ -394,10 +394,11 @@ export default function HomeScreen() {
 
             <AutoSetModal
                 visible={autoSetModalVisible}
+                disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
-                onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
-                onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
+                onToday={() => { void doAutoSet(selectedDate) }}
+                onWholeWeek={() => { void doAutoSet(null) }}
+                onRestOfSeason={() => { void doAutoSet(null, true) }}
             />
         </Page>
     )

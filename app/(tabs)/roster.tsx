@@ -976,6 +976,7 @@ export default function RosterScreen() {
 
             <AutoSetModal
                 visible={autoSetVisible}
+                disabled={lineupLocked}
                 onClose={() => setAutoSetVisible(false)}
                 onToday={() => { void runAutoSet('today') }}
                 onWholeWeek={() => { void runAutoSet('week') }}

@@ -517,6 +517,50 @@ const clickButton = async (session, name, label, { preferDom = false } = {}) => 
   }
 }
 
+const checkAutoSetRefreshReadiness = async (session, record) => {
+  await browser(session, ['eval', `(() => {
+    const original = window.fetch;
+    const pending = [];
+    let held = true;
+    window.fetch = async (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
+      if (held && url.pathname.endsWith('/league_members')) await new Promise((resolve) => pending.push(resolve));
+      return original.call(window, input, init);
+    };
+    window.__pancakeReleaseAutoSetRefresh = () => {
+      held = false;
+      window.fetch = original;
+      pending.splice(0).forEach((resolve) => resolve());
+      delete window.__pancakeReleaseAutoSetRefresh;
+    };
+    window.dispatchEvent(new Event('focus'));
+  })()`])
+  let state
+  try {
+    await browser(session, ['wait', '--fn', `document.querySelector('[aria-label="Open auto-set lineup options"]')?.getAttribute('aria-disabled') === 'true'`])
+    state = parseEvalJson(await browser(session, ['eval', `(() => {
+      const labels = ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season'];
+      const choices = labels.map((label) => {
+        const node = document.querySelector('[aria-label="' + label + '"]');
+        return { label, visible: Boolean(node?.getClientRects().length), disabled: node?.getAttribute('aria-disabled') === 'true' };
+      });
+      const cancel = document.querySelector('[aria-label="Cancel auto-set"]');
+      return JSON.stringify({ choices, cancelAvailable: Boolean(cancel?.getClientRects().length) && cancel.getAttribute('aria-disabled') !== 'true' });
+    })()`]))
+    record({ refreshReadiness: state })
+    if (!state.choices.every((choice) => choice.visible && choice.disabled) || !state.cancelAvailable) {
+      throw new Error(`Auto-set choices must wait for refresh without closing the sheet: ${JSON.stringify(state)}`)
+    }
+  } finally {
+    await browser(session, ['eval', 'window.__pancakeReleaseAutoSetRefresh?.()'])
+  }
+  await browser(session, ['wait', '--fn', `(() => {
+    const choice = document.querySelector('[aria-label="Auto-set whole week"]');
+    return Boolean(choice?.getClientRects().length) && choice.getAttribute('aria-disabled') !== 'true';
+  })()`])
+  return state
+}
+
 const verifyLineup = async (fixture, { expectedAutoSet = false } = {}) => {
   const { data: rows, error } = await fixture.admin
     .from('weekly_lineups')
@@ -968,6 +1012,7 @@ export async function runBrowserLineupAutoSetScenario({
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
     await waitForEnabledButton(session, 'Open auto-set lineup options', 'auto-set button for whole week')
     const openWeekClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for whole week')
+    const refreshReadiness = await checkAutoSetRefreshReadiness(session, record)
     const weekClick = await clickButton(session, 'Auto-set whole week', 'auto-set whole week button')
     const weekDates = [todayDateString(), ...fixture.remainingSeasonDates.filter((date) => date <= fixture.week.week_end)]
     const weekCheck = await waitForRemainingSeasonLineups({ ...fixture, remainingSeasonDates: weekDates })
@@ -985,7 +1030,7 @@ export async function runBrowserLineupAutoSetScenario({
     await browser(session, ['wait', '1000'])
     record({ afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-after.png') })
     return {
-      fields: { mode: 'auto-set', lineupCheck, weekCheck, seasonCheck, seasonAlert },
+      fields: { mode: 'auto-set', lineupCheck, refreshReadiness, weekCheck, seasonCheck, seasonAlert },
       failures: [...lineupCheck.failures, ...weekCheck.failures, ...seasonCheck.failures],
     }
     },

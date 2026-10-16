@@ -475,6 +475,7 @@ export default function LineupScreen() {
         setSelected,
         saving,
         autoSetting,
+        autoSetDisabled,
         autoSetModalVisible,
         setAutoSetModalVisible,
         handleTap,
@@ -767,10 +768,11 @@ export default function LineupScreen() {
 
             <AutoSetModal
                 visible={autoSetModalVisible}
+                disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
-                onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
-                onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
+                onToday={() => { void doAutoSet(selectedDate) }}
+                onWholeWeek={() => { void doAutoSet(null) }}
+                onRestOfSeason={() => { void doAutoSet(null, true) }}
             />
         </Page>
     )
