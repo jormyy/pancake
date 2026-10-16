@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ProfileScreen from '@/app/(tabs)/profile'
 
 const mocks = vi.hoisted(() => ({
+    userId: 'user',
     updateProfile: vi.fn(), updateTeamName: vi.fn(), success: vi.fn(), alert: vi.fn(),
     profile: { display_name: 'Manager', username: 'manager', avatar_url: null },
     preferences: { tradeEnabled: true, waiverEnabled: true, draftEnabled: true, activityEnabled: true },
@@ -15,7 +16,7 @@ vi.mock('react-native', () => ({
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('expo-image-picker', () => ({}))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
-vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
+vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member', team_name: 'Team' }, currentLeague: { id: 'league' }, refresh: vi.fn() }) }))
 vi.mock('@/hooks/use-profile-resource', () => ({ useProfileResource: () => ({
     profile: mocks.profile, profileLoaded: true, preferences: mocks.preferences, setProfile: vi.fn(), setPreferences: vi.fn(),
@@ -44,6 +45,7 @@ const button = (title: string) => screen.root.findAllByType('Button' as React.El
 const input = (label: string) => screen.root.findAllByType('TextInput' as React.ElementType).find((node) => node.props.accessibilityLabel === label)!
 beforeEach(async () => {
     vi.clearAllMocks()
+    mocks.userId = 'user'
     mocks.updateProfile.mockResolvedValue(undefined)
     mocks.updateTeamName.mockResolvedValue(undefined)
     await act(async () => { screen = create(React.createElement(ProfileScreen)) })
@@ -77,4 +79,67 @@ it('allows correction after validation and another save after a server failure',
     await act(async () => input('Team name').props.onSubmitEditing())
     expect(mocks.updateProfile).toHaveBeenCalledTimes(2)
     expect(mocks.success).toHaveBeenCalledOnce()
+})
+
+it('does not leave the next account saving while an old account request is pending', async () => {
+    let finish!: () => void
+    mocks.updateProfile.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+    let pending!: Promise<void>
+    await act(async () => { pending = input('Team name').props.onSubmitEditing() })
+    mocks.userId = 'next-user'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    await act(async () => button('Edit').props.onPress())
+    const busy = button('Save').props.loading
+    await act(async () => { finish(); await pending })
+    expect(busy).toBe(false)
+    expect(button('Save').props.loading).toBe(false)
+    expect(mocks.success).not.toHaveBeenCalled()
+    await act(async () => input('Team name').props.onSubmitEditing())
+    expect(mocks.updateProfile).toHaveBeenLastCalledWith('next-user', { display_name: 'Manager' })
+    expect(mocks.success).toHaveBeenCalledOnce()
+})
+
+it('keeps the next account save guarded after the old account request finishes', async () => {
+    let finishOld!: () => void
+    let finishNew!: () => void
+    mocks.updateProfile.mockReturnValueOnce(new Promise<void>((resolve) => { finishOld = resolve }))
+    mocks.updateProfile.mockReturnValueOnce(new Promise<void>((resolve) => { finishNew = resolve }))
+    let oldRequest!: Promise<void>
+    let newRequest!: Promise<void>
+    await act(async () => { oldRequest = input('Team name').props.onSubmitEditing() })
+    mocks.userId = 'next-user'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    await act(async () => button('Edit').props.onPress())
+    await act(async () => { newRequest = input('Team name').props.onSubmitEditing() })
+    await act(async () => { finishOld(); await oldRequest })
+    const busy = button('Save').props.loading
+    await act(async () => { void input('Team name').props.onSubmitEditing() })
+    const writes = mocks.updateProfile.mock.calls.length
+    await act(async () => { finishNew(); await newRequest })
+    expect(busy).toBe(true)
+    expect(writes).toBe(2)
+    expect(mocks.success).toHaveBeenCalledOnce()
+})
+
+it('keeps a returning account guarded until its original save completes', async () => {
+    let finishOld!: () => void
+    let finishNew!: () => void
+    mocks.updateProfile.mockReturnValueOnce(new Promise<void>((resolve) => { finishOld = resolve }))
+    mocks.updateProfile.mockReturnValueOnce(new Promise<void>((resolve) => { finishNew = resolve }))
+    let oldRequest!: Promise<void>
+    let newRequest!: Promise<void>
+    await act(async () => { oldRequest = input('Team name').props.onSubmitEditing() })
+    mocks.userId = 'next-user'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    await act(async () => button('Edit').props.onPress())
+    await act(async () => { newRequest = input('Team name').props.onSubmitEditing() })
+    mocks.userId = 'user'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    await act(async () => button('Edit').props.onPress())
+    const busy = button('Save').props.loading
+    await act(async () => { void input('Team name').props.onSubmitEditing() })
+    const writes = mocks.updateProfile.mock.calls.length
+    await act(async () => { finishOld(); finishNew(); await Promise.all([oldRequest, newRequest]) })
+    expect(busy).toBe(true)
+    expect(writes).toBe(2)
 })

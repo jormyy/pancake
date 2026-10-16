@@ -49,8 +49,9 @@ export default function ProfileScreen() {
     const [editing, setEditing] = useState(false)
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
-    const [saving, setSaving] = useState(false)
-    const submittingRef = useRef(false)
+    const [savingOwners, setSavingOwners] = useState<Set<string>>(() => new Set())
+    const submittingOwnersRef = useRef(new Set<string>())
+    const saving = savingOwners.has(user?.id ?? '')
     const [avatarUploading, setAvatarUploading] = useState(false)
     const pushOwner = `${user?.id ?? ''}:${sessionGeneration()}`
     const [webPushState, setWebPushState] = useState<{ owner: string; status: WebPushStatus } | null>(null)
@@ -99,7 +100,7 @@ export default function ProfileScreen() {
     }, [current?.team_name])
 
     async function handleSave() {
-        if (!user || submittingRef.current) return
+        if (!user || submittingOwnersRef.current.has(user.id)) return
         const ownerId = user.id
         const trimmedDisplay = displayName.trim()
         const trimmedTeam = teamName.trim()
@@ -107,8 +108,8 @@ export default function ProfileScreen() {
             showAlert('Invalid', 'Display name cannot be empty.')
             return
         }
-        submittingRef.current = true
-        setSaving(true)
+        submittingOwnersRef.current.add(ownerId)
+        setSavingOwners((current) => new Set(current).add(ownerId))
         try {
             const saves: Promise<void>[] = [
                 updateProfile(user.id, { display_name: trimmedDisplay }),
@@ -127,8 +128,12 @@ export default function ProfileScreen() {
         } catch (e) {
             if (activeUserIdRef.current === ownerId) showAlert('Error', getErrorMessage(e))
         } finally {
-            submittingRef.current = false
-            if (activeUserIdRef.current === ownerId) setSaving(false)
+            submittingOwnersRef.current.delete(ownerId)
+            setSavingOwners((current) => {
+                const next = new Set(current)
+                next.delete(ownerId)
+                return next
+            })
         }
     }
 
