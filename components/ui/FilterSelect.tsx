@@ -102,6 +102,7 @@ export function FilterSelect<T extends string>({
                                     setOpen(false)
                                 }}
                                 accessibilityRole="button"
+                                aria-pressed={selected}
                                 accessibilityState={{ selected }}
                             >
                                 <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
@@ -163,6 +164,7 @@ export function MultiSelect<T extends string>({
                                 style={[styles.multiChip, active && styles.chipActive]}
                                 onPress={() => toggle(option.key)}
                                 accessibilityRole="checkbox"
+                                aria-checked={active}
                                 accessibilityState={{ checked: active }}
                                 accessibilityLabel={option.label}
                             >
