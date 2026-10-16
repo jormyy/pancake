@@ -1,4 +1,5 @@
 import { chromium, webkit, devices } from 'playwright'
+import { installWebTargetGeometry, webTargetGeometryReady } from './web-targets-geometry.mjs'
 
 const webRequests = new WeakMap()
 
@@ -14,6 +15,18 @@ export async function waitForWebTargetReads(page) {
     }
     await page.waitForTimeout(50)
   }
+}
+
+export async function waitForWebTargetGeometry(page, { mobile, populatedSelector = '[role="main"]', requireFirstContent = false }) {
+  await page.locator(populatedSelector).waitFor({ state: 'visible' })
+  await waitForWebTargetReads(page)
+  const checkpoint = await page.evaluate((selector) => {
+    const id = performance.now()
+    Reflect.set(window, '__webTargetGeometryCheckpoint', { id, selector })
+    return id
+  }, populatedSelector)
+  await page.waitForFunction(webTargetGeometryReady, { checkpoint, mobile, requireFirstContent }, { polling: 50, timeout: 30_000 })
+  return page.evaluate(() => Reflect.get(window, '__webTargetFrames'))
 }
 
 export async function pinWebTargetLeague(target, page, { userId, memberId, leagueName }) {
@@ -54,7 +67,7 @@ export async function openWebTarget(target, artifactDir, contextOptions = {}) {
     reducedMotion: 'reduce',
     ...contextOptions,
   })
-  await context.addInitScript(({ standalone, insets, mobile }) => {
+  await context.addInitScript(({ standalone, insets }) => {
     const media = window.matchMedia.bind(window)
     window.matchMedia = (query) => {
       const result = media(query)
@@ -94,33 +107,8 @@ export async function openWebTarget(target, artifactDir, contextOptions = {}) {
         }
       }
     }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] })
-    const frames = []
-    Reflect.set(window, '__webTargetFrames', frames)
-    const box = (node) => {
-      if (!node || !node.getClientRects().length) return null
-      const rect = node.getBoundingClientRect()
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-    }
-    const sample = () => {
-      const boot = document.querySelector('#pancake-boot-shell[data-visible="1"]')
-      const menu = document.querySelector('[aria-label="Open menu"]')
-      const main = document.querySelector('[role="main"]')
-      const shell = boot && !main
-      const first = [...(main?.querySelectorAll('[role="heading"]') ?? [])].find((node) => {
-        const rect = node.getBoundingClientRect()
-        return rect.width > 2 && rect.height > 2 && rect.x >= 0
-      })
-      frames.push({
-        t: performance.now(), phase: shell ? 'shell' : main ? 'app' : 'loading',
-        top: box(shell ? boot.querySelector('.pbs-topbar') : menu?.parentElement),
-        nav: box(shell ? boot.querySelector(mobile ? '.pbs-bottomnav' : '.pbs-side') : document.querySelector('[role="navigation"][aria-label="Primary"]')),
-        content: box(shell ? boot.querySelector('.pbs-content') : main?.firstElementChild), first: box(first),
-        duplicate: !!boot && !!main && getComputedStyle(boot).display !== 'none',
-      })
-      if (frames.length < 1800) requestAnimationFrame(sample)
-    }
-    requestAnimationFrame(sample)
-  }, { standalone: target.standalone, insets: target.insets, mobile: target.mobile })
+  }, { standalone: target.standalone, insets: target.insets })
+  await context.addInitScript(installWebTargetGeometry, { mobile: target.mobile })
   const page = await context.newPage()
   const state = { pending: new Set(), changedAt: Date.now() }
   webRequests.set(page, state)

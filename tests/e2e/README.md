@@ -34,6 +34,11 @@ Keep the browser version fixed when comparing paint timings. A browser change is
 
 The matrix checks metadata, icons, shell handoff, page exits, inputs, safe areas, overflow, empty places, and offline lineup recovery.
 A disposable matchup measures the first visible Home heading through data load. Its position must stay within 2px.
+Geometry recording uses animation callbacks, DOM changes, size changes, and a 50ms timer that reads layout.
+Each sample names its source. Reports retain animation counts so paused rendering remains visible.
+Both handoff and populated Home checks wait for settled reads and two valid layout samples at least 50ms apart.
+Populated Home samples must include its heading and visible empty bench row.
+These readings prove layout geometry. Timer and observer samples do not prove a rendered frame or smooth animation.
 The fixture also checks Home, roster, team roster and lineup with empty and zero-capacity sections.
 The matrix creates and cleans up its own season calendar. It needs no earlier smoke run.
 Each check selects its fixture league. A competing league proves that stored selection cannot redirect the check.

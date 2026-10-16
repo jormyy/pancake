@@ -3,8 +3,9 @@ import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
-import { openWebTarget, pressWebControl, pinWebTargetLeague } from './web-targets-browser.mjs'
+import { openWebTarget, pressWebControl, pinWebTargetLeague, waitForWebTargetGeometry } from './web-targets-browser.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
+import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 
 export const checkWebEmptySlots = (target, captures, env) => runWithScenarioResourceOwner('web empty slots', async (resourceOwner) => {
   const fixture = await setupTradeGameplayFixture(env, 0, { includeFuturePicks: false, isolatedPlayers: true })
@@ -80,15 +81,17 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     await page.reload({ waitUntil: 'load' })
     await pinLeague()
     await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
-    await page.waitForTimeout(500)
-    const frames = await page.evaluate(() => Reflect.get(window, '__webTargetFrames'))
-    await writeFile(path.join(captures, 'slots-home-frames.json'), `${JSON.stringify(frames)}\n`)
+    const frames = await waitForWebTargetGeometry(page, {
+      mobile: target.mobile, populatedSelector: '[aria-label="Select empty BE slot 1"]', requireFirstContent: true,
+    }).finally(async () => {
+      await writeFile(path.join(captures, 'slots-home-frames.json'), `${JSON.stringify(await page.evaluate(() => Reflect.get(window, '__webTargetFrames')))}\n`)
+    })
     const first = frames.filter((frame) => frame.phase === 'app' && frame.first).map((frame) => frame.first)
     assert.ok(first.length > 1, 'Populated Home must expose its first content geometry')
     const minimum = Math.min(...first.map((box) => box.y))
     const maximum = Math.max(...first.map((box) => box.y))
     assert.ok(maximum - minimum <= 2, `First Home content moves ${maximum - minimum}px during data load`)
-    checked.push({ route: '/', label: 'first-content-after-data', samples: first.length, minY: minimum, maxY: maximum })
+    checked.push({ route: '/', label: 'first-content-after-data', samples: first.length, minY: minimum, maxY: maximum, recorder: summarizeWebTargetGeometry(frames) })
     await page.screenshot({ path: path.join(captures, 'slots-home.png'), fullPage: true })
     const homeCacheKey = `pancake:home-matchup:v1:${fixture.league.id}:${fixture.proposer.id}`
     await page.waitForFunction((key) => Boolean(localStorage.getItem(key)), homeCacheKey)

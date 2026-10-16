@@ -5,7 +5,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, waitForWebTargetReads } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
+import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 import { runWebTargetUpdates } from './web-targets-update.mjs'
 import { checkWebEmptySlots } from './web-targets-slots.mjs'
 import { runWebGameplayTargets } from './web-targets-gameplay.mjs'
@@ -92,18 +93,23 @@ async function checkInputs(page) {
 async function launch(page, mobile, captures) {
   await waitForWebTargetReads(page)
   await page.reload({ waitUntil: 'load' })
-  await ready(page)
+  await page.locator('[role="navigation"][aria-label="Primary"]').waitFor({ timeout: 45_000 })
+  await page.locator('[role="main"]').waitFor({ timeout: 45_000 })
   await page.waitForFunction(() => {
     const main = document.querySelector('[role="main"]')
     return main?.querySelector('[role="heading"][aria-label$=" matchup"]') ||
       /No matchup this week yet|Your draft is live/.test(main?.textContent ?? '')
+  }, null, { polling: 50 })
+  const populatedSelector = '[role="heading"][aria-label$=" matchup"]'
+  const populated = await page.locator(populatedSelector).count() > 0
+  const frames = await waitForWebTargetGeometry(page, { mobile,
+    populatedSelector: populated ? populatedSelector : '[role="main"]', requireFirstContent: populated,
+  }).finally(async () => {
+    await writeFile(path.join(captures, 'launch-frames.json'), `${JSON.stringify(await page.evaluate(() => Reflect.get(window, '__webTargetFrames')))}\n`)
   })
-  await page.waitForTimeout(500)
-  const frames = await page.evaluate(() => Reflect.get(window, '__webTargetFrames'))
-  await writeFile(path.join(captures, 'launch-frames.json'), `${JSON.stringify(frames)}\n`)
   const shell = frames.filter((frame) => frame.phase === 'shell')
   const app = frames.filter((frame) => frame.phase === 'app')
-  assert.ok(shell.length, 'Signed-in relaunch must paint the static shell')
+  assert.ok(shell.length, 'Signed-in relaunch must expose static shell geometry')
   assert.ok(app.length, 'Static shell must hand off to the app')
   assert.equal(frames.some((frame) => frame.duplicate), false, 'Two sets of chrome appear together')
   const before = shell.at(-1)
@@ -122,7 +128,7 @@ async function launch(page, mobile, captures) {
     const y = headings.map((box) => box.y)
     assert.ok(Math.max(...y) - Math.min(...y) <= 2, 'First content jumps during data load')
   }
-  return { before, after, shellFrames: shell.length, appFrames: app.length, changes,
+  return { before, after, recorder: summarizeWebTargetGeometry(frames), shellFrames: shell.length, appFrames: app.length, changes,
     firstContent: { samples: headings.length, minY: Math.min(...headings.map((box) => box.y)), maxY: Math.max(...headings.map((box) => box.y)) } }
 }
 
@@ -204,7 +210,7 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
   ]
   const release = await fetch(url('/release-provenance.json')).then((response) => response.json())
   const harnessHash = createHash('sha256')
-  for (const file of ['web-targets.mjs', 'web-targets-browser.mjs', 'web-targets-slots.mjs', 'web-targets-update.mjs', 'browser-smoke.mjs', 'soak-fixtures.mjs', 'scenario-resource-owner.mjs']) {
+  for (const file of ['web-targets.mjs', 'web-targets-browser.mjs', 'web-targets-geometry.mjs', 'web-targets-slots.mjs', 'web-targets-update.mjs', 'browser-smoke.mjs', 'soak-fixtures.mjs', 'scenario-resource-owner.mjs']) {
     harnessHash.update(await readFile(new URL(file, import.meta.url)))
   }
   const harness = { commitSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), digest: harnessHash.digest('hex'),
