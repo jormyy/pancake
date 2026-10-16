@@ -51,7 +51,7 @@ vi.mock('./e2e/web-targets-browser.mjs', () => ({
         boundary.observed = boundary.weeks.map((row) => ({ ...row }))
         throw new Error('Stop at first browser')
     },
-    readWebLayout: vi.fn(), pressWebControl: vi.fn(), pinWebTargetLeague: vi.fn(),
+    readWebLayout: vi.fn(), pressWebControl: vi.fn(), pinWebTargetLeague: vi.fn(), waitForWebTargetReads: vi.fn(),
 }))
 vi.mock('./e2e/web-targets-update.mjs', () => ({ runWebTargetUpdates: vi.fn() }))
 vi.mock('./e2e/web-targets-slots.mjs', () => ({ checkWebEmptySlots: vi.fn() }))

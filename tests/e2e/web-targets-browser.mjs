@@ -1,6 +1,20 @@
 import { chromium, webkit, devices } from 'playwright'
 
+const webRequests = new WeakMap()
+
 export const pressWebControl = (target, locator) => target.mobile ? locator.tap() : locator.click()
+
+export async function waitForWebTargetReads(page) {
+  const state = webRequests.get(page)
+  if (!state) throw new Error('Web read settling requires an open target page')
+  const started = Date.now()
+  while (state.pending.size || Date.now() - Math.max(started, state.changedAt) < 500) {
+    if (Date.now() - started >= 30_000) {
+      throw new Error(`Web reads did not finish: ${[...state.pending].map((request) => new URL(request.url()).pathname).join(', ')}`)
+    }
+    await page.waitForTimeout(50)
+  }
+}
 
 export async function pinWebTargetLeague(target, page, { userId, memberId, leagueName }) {
   const key = `pancake:selected-league:v1:${userId}`
@@ -107,7 +121,14 @@ export async function openWebTarget(target, artifactDir, contextOptions = {}) {
     }
     requestAnimationFrame(sample)
   }, { standalone: target.standalone, insets: target.insets, mobile: target.mobile })
-  return { browser, context, page: await context.newPage() }
+  const page = await context.newPage()
+  const state = { pending: new Set(), changedAt: Date.now() }
+  webRequests.set(page, state)
+  page.on('request', (request) => { state.pending.add(request); state.changedAt = Date.now() })
+  const finish = (request) => { state.pending.delete(request); state.changedAt = Date.now() }
+  page.on('requestfinished', finish)
+  page.on('requestfailed', finish)
+  return { browser, context, page }
 }
 
 export const readWebLayout = (page, insets) => page.evaluate((insets) => {

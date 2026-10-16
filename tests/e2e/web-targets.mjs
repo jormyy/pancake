@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, waitForWebTargetReads } from './web-targets-browser.mjs'
 import { runWebTargetUpdates } from './web-targets-update.mjs'
 import { checkWebEmptySlots } from './web-targets-slots.mjs'
 import { runWebGameplayTargets } from './web-targets-gameplay.mjs'
@@ -90,6 +90,7 @@ async function checkInputs(page) {
 }
 
 async function launch(page, mobile, captures) {
+  await waitForWebTargetReads(page)
   await page.reload({ waitUntil: 'load' })
   await ready(page)
   await page.waitForFunction(() => {
@@ -282,7 +283,6 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
           JSON.parse(localStorage.getItem(`pancake:selected-league:v1:${userId}`) ?? 'null')?.value === memberId,
         { userId: state.users[0].id, memberId: competing.members[0].id })
         await pinWebTargetLeague(target, page, { userId: state.users[0].id, memberId: me.id, leagueName: league.data.name })
-        await page.waitForLoadState('networkidle')
         return { selectedLeagueId: state.leagueId, memberId: me.id, competingLeagueId: competing.league.id }
       })
       await check('launch-handoff', () => launch(page, target.mobile, captures))

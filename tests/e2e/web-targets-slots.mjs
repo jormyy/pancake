@@ -76,6 +76,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     assert.equal(await page.getByRole('button', { name: /^Select empty IR slot/ }).count(), 2)
     assert.equal(await page.getByRole('button', { name: /^Select empty TX slot/ }).count(), 2)
     checked.push({ route: '/', label: 'BE / IR / taxi', expected: [3, 2, 2], actual: [3, 2, 2] })
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
     await page.reload({ waitUntil: 'load' })
     await pinLeague()
     await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
