@@ -7,10 +7,23 @@ export function installWebTargetGeometry({ mobile }) {
     return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
   }
   let observedRoot = null
-  const resize = new ResizeObserver(() => sample('resize'))
+  let scheduled = null
+  const sources = new Set()
+  const schedule = (source) => {
+    sources.add(source)
+    if (scheduled !== null) return
+    scheduled = setTimeout(() => {
+      scheduled = null
+      const source = [...sources].join('+')
+      sources.clear()
+      sample(source)
+    }, 16)
+  }
+  const resize = new ResizeObserver(() => schedule('resize'))
   const sample = (source) => {
     if (frames.length >= 1800) {
       clearInterval(timer)
+      clearTimeout(scheduled)
       mutations.disconnect()
       resize.disconnect()
       return
@@ -38,7 +51,7 @@ export function installWebTargetGeometry({ mobile }) {
       duplicate: !!boot && !!main && getComputedStyle(boot).display !== 'none',
     })
   }
-  const mutations = new MutationObserver(() => queueMicrotask(() => sample('mutation')))
+  const mutations = new MutationObserver(() => schedule('mutation'))
   mutations.observe(document, { childList: true, subtree: true, attributes: true, characterData: true })
   const timer = setInterval(() => sample('timer'), 50)
   const animation = () => {

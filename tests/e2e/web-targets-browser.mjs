@@ -17,6 +17,16 @@ export async function waitForWebTargetReads(page) {
   }
 }
 
+export async function navigateWebTarget(page, url) {
+  await waitForWebTargetReads(page)
+  return page.goto(url)
+}
+
+export async function reloadWebTarget(page) {
+  await waitForWebTargetReads(page)
+  return page.reload({ waitUntil: 'load' })
+}
+
 export async function waitForWebTargetGeometry(page, { mobile, populatedSelector = '[role="main"]', requireFirstContent = false }) {
   await page.locator(populatedSelector).waitFor({ state: 'visible' })
   await waitForWebTargetReads(page)

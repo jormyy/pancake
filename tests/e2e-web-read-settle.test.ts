@@ -1,17 +1,17 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { openWebTarget, waitForWebTargetReads, WEB_TARGETS } from './e2e/web-targets-browser.mjs'
+import { openWebTarget, waitForWebTargetReads, navigateWebTarget, reloadWebTarget, WEB_TARGETS } from './e2e/web-targets-browser.mjs'
 
 const driver = vi.hoisted(() => ({ launch: vi.fn(), newContext: vi.fn(), newPage: vi.fn() }))
 vi.mock('playwright', () => ({ chromium: { launch: driver.launch }, webkit: { launch: driver.launch }, devices: {} }))
 
-let page: EventEmitter & { waitForTimeout: (ms: number) => Promise<void> }
+let page: EventEmitter & { waitForTimeout: (ms: number) => Promise<void>; goto: ReturnType<typeof vi.fn>; reload: ReturnType<typeof vi.fn> }
 
 beforeEach(async () => {
     vi.useFakeTimers()
     page = Object.assign(new EventEmitter(), {
         waitForTimeout: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-        waitForLoadState: vi.fn(async () => undefined),
+        waitForLoadState: vi.fn(async () => undefined), goto: vi.fn(), reload: vi.fn(),
     })
     driver.launch.mockResolvedValue({ newContext: driver.newContext })
     driver.newContext.mockResolvedValue({ addInitScript: vi.fn(), newPage: driver.newPage })
@@ -48,5 +48,42 @@ describe('web reads before a measured reload', () => {
         const result = waitForWebTargetReads(page).catch((error: Error) => error)
         await vi.advanceTimersByTimeAsync(30_000)
         expect(await result).toEqual(new Error('Web reads did not finish: /rest/v1/matchups'))
+    })
+})
+
+describe('document transitions in the web matrix', () => {
+    it.each(['navigate', 'reload'])('does not %s until the active read and its follow-up finish', async (transition) => {
+        const first = { url: () => 'http://127.0.0.1/rest/v1/matchups' }
+        const lineup = { url: () => 'http://127.0.0.1/rest/v1/weekly_lineups' }
+        page.emit('request', first)
+        const result = transition === 'navigate' ? navigateWebTarget(page, '/create-league') : reloadWebTarget(page)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(page.goto).not.toHaveBeenCalled()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.emit('requestfinished', first)
+        await vi.advanceTimersByTimeAsync(400)
+        page.emit('request', lineup)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(page.goto).not.toHaveBeenCalled()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.emit('requestfailed', lineup)
+        await vi.advanceTimersByTimeAsync(500)
+        await result
+        if (transition === 'navigate') expect(page.goto).toHaveBeenCalledExactlyOnceWith('/create-league')
+        else expect(page.reload).toHaveBeenCalledExactlyOnceWith({ waitUntil: 'load' })
+    })
+
+    it('retains live-page errors while a document transition waits', async () => {
+        const errors: Error[] = []
+        page.on('pageerror', (error: Error) => errors.push(error))
+        const read = { url: () => 'http://127.0.0.1/rest/v1/weekly_lineups' }
+        page.emit('request', read)
+        const transition = navigateWebTarget(page, '/join-league')
+        const failure = new Error('Live page unhandled rejection')
+        page.emit('pageerror', failure)
+        page.emit('requestfailed', read)
+        await vi.advanceTimersByTimeAsync(500)
+        await transition
+        expect(errors).toEqual([failure])
     })
 })

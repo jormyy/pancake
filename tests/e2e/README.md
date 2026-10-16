@@ -35,6 +35,9 @@ Keep the browser version fixed when comparing paint timings. A browser change is
 The matrix checks metadata, icons, shell handoff, page exits, inputs, safe areas, overflow, empty places, and offline lineup recovery.
 A disposable matchup measures the first visible Home heading through data load. Its position must stay within 2px.
 Geometry recording uses animation callbacks, DOM changes, size changes, and a 50ms timer that reads layout.
+DOM and size changes share one deferred layout read per 16ms window.
+The core matrix waits for current reads and follow-up reads before full navigation or reload.
+It keeps every page error, including errors raised while a transition waits.
 Each sample names its source. Reports retain animation counts so paused rendering remains visible.
 Both handoff and populated Home checks wait for settled reads and two valid layout samples at least 50ms apart.
 Populated Home samples must include its heading and visible empty bench row.

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
-import { openWebTarget, pressWebControl, pinWebTargetLeague, waitForWebTargetGeometry } from './web-targets-browser.mjs'
+import { openWebTarget, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 
@@ -36,7 +36,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     }
   }
   const visit = async (route) => {
-    await page.goto(new URL(route, env.frontendUrl).href)
+    await navigateWebTarget(page, new URL(route, env.frontendUrl).href)
     await page.locator('[role="navigation"][aria-label="Primary"]').waitFor()
     await pinLeague()
     if (new URL(page.url()).pathname === '/roster') await page.getByText('Your roster is empty', { exact: true }).waitFor()
@@ -65,7 +65,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     })
     if (matchup.error) throw matchup.error
     await apply(4, 3, 2, 2)
-    await page.goto(new URL('/sign-in', env.frontendUrl).href)
+    await navigateWebTarget(page, new URL('/sign-in', env.frontendUrl).href)
     await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
     await page.getByPlaceholder('you@example.com').fill(fixture.users[0].email)
     await page.locator('input[type="password"]').fill(fixture.password)
@@ -78,7 +78,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     assert.equal(await page.getByRole('button', { name: /^Select empty TX slot/ }).count(), 2)
     checked.push({ route: '/', label: 'BE / IR / taxi', expected: [3, 2, 2], actual: [3, 2, 2] })
     await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     await pinLeague()
     await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
     const frames = await waitForWebTargetGeometry(page, {
@@ -104,8 +104,9 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     }, homeCacheKey)
     await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
     try {
+      await waitForWebTargetReads(page)
       await context.setOffline(true)
-      await page.reload({ waitUntil: 'load' })
+      await reloadWebTarget(page)
       await page.getByText("Couldn't load your matchup", { exact: true }).waitFor()
       assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 0)
       await page.screenshot({ path: path.join(captures, 'slots-home-legacy-offline.png'), fullPage: true })

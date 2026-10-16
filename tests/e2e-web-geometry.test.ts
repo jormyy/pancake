@@ -11,6 +11,8 @@ type Frame = { phase: string; source?: string; first: { y: number } | null }
 
 async function stalledPaintPage() {
     let populated = false
+    const mutations: (() => void)[] = []
+    const resizes: (() => void)[] = []
     let visibleHeading = true
     let headingY = 120
     const rectangle = () => ({ x: 0, y: headingY, width: 200, height: 40 })
@@ -27,12 +29,12 @@ async function stalledPaintPage() {
             return null
         } },
         CSSStyleSheet: class { insertRule() {} }, Element: class {},
-        MutationObserver: class { observe() {} disconnect() {} },
-        ResizeObserver: class { observe() {} disconnect() {} },
+        MutationObserver: class { constructor(callback: () => void) { mutations.push(callback) } observe() {} disconnect() {} },
+        ResizeObserver: class { constructor(callback: () => void) { resizes.push(callback) } observe() {} disconnect() {} },
         getComputedStyle: () => ({ display: 'block' }),
         performance: { now: () => Date.now() },
         requestAnimationFrame: vi.fn(() => 1),
-        setInterval, clearInterval, setTimeout, clearTimeout,
+        setInterval, clearInterval, setTimeout, clearTimeout, queueMicrotask: (callback: () => void) => callback(),
     }
     driver.launch.mockResolvedValue({ newContext: driver.newContext })
     driver.newContext.mockResolvedValue({ addInitScript: driver.addInitScript, newPage: driver.newPage })
@@ -42,6 +44,8 @@ async function stalledPaintPage() {
         runInNewContext(`(${script.toString()})(${JSON.stringify(argument)})`, scope)
     }
     return {
+        mutate: () => mutations.at(-1)?.(),
+        resize: () => resizes.at(-1)?.(),
         frames: () => Reflect.get(window, '__webTargetFrames') as Frame[],
         populate: () => { populated = true },
         hideHeading: () => { visibleHeading = false },
@@ -56,6 +60,20 @@ beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks() })
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
 
 describe('web layout when the engine stops rendering updates', () => {
+    it('coalesces mutation and resize signals into one deferred layout read', async () => {
+        const page = await stalledPaintPage()
+        page.populate()
+        page.mutate()
+        page.resize()
+        page.mutate()
+        page.resize()
+        expect(page.frames()).toHaveLength(1)
+        await vi.advanceTimersByTimeAsync(16)
+        expect(page.frames()).toHaveLength(2)
+        expect(page.frames().at(-1)?.source).toBe('mutation+resize')
+        expect(page.frames().at(-1)?.first?.y).toBe(120)
+    })
+
     it('records populated geometry without an animation callback and identifies the sample source', async () => {
         const page = await stalledPaintPage()
         await vi.advanceTimersByTimeAsync(100)

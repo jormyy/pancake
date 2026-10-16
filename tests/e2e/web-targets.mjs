@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
 import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 import { runWebTargetUpdates } from './web-targets-update.mjs'
 import { checkWebEmptySlots } from './web-targets-slots.mjs'
@@ -91,8 +91,7 @@ async function checkInputs(page) {
 }
 
 async function launch(page, mobile, captures) {
-  await waitForWebTargetReads(page)
-  await page.reload({ waitUntil: 'load' })
+  await reloadWebTarget(page)
   await page.locator('[role="navigation"][aria-label="Primary"]').waitFor({ timeout: 45_000 })
   await page.locator('[role="main"]').waitFor({ timeout: 45_000 })
   await page.waitForFunction(() => {
@@ -133,16 +132,17 @@ async function launch(page, mobile, captures) {
 }
 
 async function offline(page, context) {
-  await page.goto(url('/lineup'))
+  await navigateWebTarget(page, url('/lineup'))
   await ready(page)
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, { timeout: 30_000 })
   const slots = page.getByRole('button', { name: /^(?:Empty .+ slot|Bench .+|(?:PG|SG|SF|PF|C|G|F|UTIL) .+)$/ })
   const before = await slots.count()
   assert.ok(before > 0, 'Seed must expose configured lineup places')
   const selected = await page.locator('[aria-current="date"]').getAttribute('aria-label')
+  await waitForWebTargetReads(page)
   await context.setOffline(true)
   try {
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     await ready(page)
     await page.getByText('Saved lineup · Offline · Read only', { exact: true }).waitFor()
     assert.equal(await slots.count(), before, 'Offline reload loses saved lineup places')
@@ -243,11 +243,11 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
       await writeFile(path.join(captures, 'result.json'), `${JSON.stringify(result, null, 2)}\n`)
     }
     try {
-      await page.goto(url('/sign-up'))
+      await navigateWebTarget(page, url('/sign-up'))
       await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
       await page.getByPlaceholder('Maple Manager').waitFor()
       await check('sign-up-inputs', () => checkInputs(page))
-      await page.goto(url('/sign-in'))
+      await navigateWebTarget(page, url('/sign-in'))
       await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
       await page.getByPlaceholder('you@example.com').waitFor()
       await check('install-metadata', () => metadata(page))
@@ -309,7 +309,7 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
       })
       for (const [name, route] of routes) {
         await check(`route-${name}`, async () => {
-          await page.goto(url(route))
+          await navigateWebTarget(page, url(route))
           await ready(page)
           const layout = await readWebLayout(page, target.insets)
           assert.equal(layout.client.width, target.viewport.width)
@@ -343,7 +343,7 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
         return { bottomPadding: padding }
       })
       await check('profile-inputs-appearance-and-toast', async () => {
-        await page.goto(url('/profile'))
+        await navigateWebTarget(page, url('/profile'))
         await ready(page)
         await pressWebControl(target, page.getByRole('button', { name: 'Edit', exact: true }))
         const inspected = await checkInputs(page)
@@ -382,14 +382,14 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
         for (const [label, theme] of [['Dark', 'dark'], ['Match device', 'system'], ['Light', 'light']]) {
           await pressWebControl(target, page.getByRole('tab', { name: label, exact: true }))
           assert.equal(await page.locator('html').getAttribute('data-theme'), theme)
-          await page.reload({ waitUntil: 'load' })
+          await reloadWebTarget(page)
           await ready(page)
           assert.equal(await page.locator('html').getAttribute('data-theme'), theme)
         }
         return { inputs: inspected, toastY: box.y, themesPersist: true }
       })
       await check('empty-lineup-places', async () => {
-        await page.goto(url('/lineup'))
+        await navigateWebTarget(page, url('/lineup'))
         await ready(page)
         const templates = await admin.from('lineup_slot_templates').select('slot_type,slot_count').eq('league_id', state.leagueId)
         if (templates.error) throw templates.error
