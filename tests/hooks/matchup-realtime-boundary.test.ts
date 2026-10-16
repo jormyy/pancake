@@ -14,7 +14,7 @@ vi.mock('@/lib/lineup', () => ({
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-07-09' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
-vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
+vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: vi.fn(), writePersistentCache: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/lib/realtime', () => ({

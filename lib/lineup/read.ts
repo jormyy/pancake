@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason, invalidateSeasonCache } from '@/lib/shared/season'
-import { getCurrentWeekNumber, getSeasonWeekStart, invalidateWeekNumberCache } from '@/lib/shared/week'
+import { getCurrentWeekNumber, getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
 import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
@@ -101,7 +101,7 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
     // Fetch week boundaries first, then query games by date range.
     // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect
     // week_number values if the schedule was synced out of order or re-seeded.
-    const weekStart = await getSeasonWeekStart(seasonYear, weekNumber)
+    const dates = await getSeasonWeekDates(seasonYear, weekNumber)
 
     const today = todayET()
     const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
@@ -109,14 +109,9 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
 
     const dateTeams = new Map<string, string[]>()
 
-    if (weekStart) {
-        const start = new Date(weekStart + 'T12:00:00Z')
-        const dow = start.getUTCDay()
-        start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
-        const end = new Date(start)
-        end.setUTCDate(end.getUTCDate() + 6)
-        const startStr = start.toISOString().split('T')[0]
-        const endStr = end.toISOString().split('T')[0]
+    if (dates.length > 0) {
+        const startStr = dates[0]
+        const endStr = dates[dates.length - 1]
 
         const { data: games, error: gamesError } = await supabase
             .from('nba_games')
@@ -134,10 +129,8 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
             if (g.away_team) arr.push(g.away_team)
         }
 
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(start)
-            d.setUTCDate(d.getUTCDate() + i)
-            const dateStr = d.toISOString().split('T')[0]
+        for (const dateStr of dates) {
+            const d = new Date(`${dateStr}T12:00:00Z`)
             result.push({
                 date: dateStr,
                 dayLabel: DAY_CHARS[d.getUTCDay()],

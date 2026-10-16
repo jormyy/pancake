@@ -18,7 +18,7 @@ vi.mock('@/lib/lineup', () => ({
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-13' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
-vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
+vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: boundary.cache, writePersistentCache: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
 vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))

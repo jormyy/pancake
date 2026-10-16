@@ -8,6 +8,7 @@ import { getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { getWeekDays, getWeeklyLineup } from '@/lib/lineup'
 import { getCurrentWeekNumber, invalidateWeekNumberCache } from '@/lib/shared/week'
+import { useMatchupData } from '@/hooks/use-matchup-data'
 
 // Request budget per screen load: every Supabase table read or RPC the data
 // layer issues for a workflow, counted through a filter-aware fake client.
@@ -21,6 +22,14 @@ vi.mock('@/lib/supabase', async () => ({
     supabase: (await import('./helpers/fake-supabase')).createFakeSupabase(counts, fixtures),
 }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: () => {} }))
+vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
+vi.mock('@/lib/realtime', () => ({
+    debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
+    disposeTableChangeSubscription: vi.fn(),
+    reportRealtimeCleanup: vi.fn(),
+    subscribeToTableChanges: vi.fn(() => ({})),
+}))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -105,6 +114,44 @@ describe('screen request budgets', () => {
         expect(result).toEqual({
             requests: 5,
             byTarget: { lineup_slot_templates: 1, roster_players: 2, weekly_lineups: 2 },
+        })
+    })
+
+    it('home outside the week fetches only the two visible lineups', async () => {
+        invalidateWeekNumberCache()
+        fixtures.season_weeks = [{ season_year: 2098, week_number: 3, week_start: '2099-01-05', week_end: '2099-01-11' }]
+        fixtures.lineup_slot_templates = [{ league_id: 'league', slot_type: 'PG', slot_count: 1 }]
+        fixtures.weekly_lineups = []
+        fixtures.nba_games = []
+        fixtures.league_members = [
+            { id: 'member', team_name: 'Mine', profiles: { display_name: 'Me' } },
+            { id: 'other', team_name: 'Theirs', profiles: { display_name: 'Them' } },
+        ]
+        fixtures.matchups = [{
+            id: 'matchup', league_id: 'league', league_season_id: 'season', week_number: 3,
+            home_member_id: 'member', away_member_id: 'other', home_points: 0, away_points: 0,
+            winner_member_id: null, is_finalized: false,
+        }]
+        const current = { id: 'member' }
+        const user = { id: 'user' }
+        const league = { id: 'league' }
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = () => { latest = useMatchupData(current, user, league); return null }
+        const result = await measure(async () => {
+            let renderer!: ReactTestRenderer
+            await act(async () => { renderer = create(React.createElement(Probe)) })
+            await act(async () => { await latest.refresh() })
+            expect(latest.selectedDate).toBe('2099-01-05')
+            expect(latest.myLineup?.bench[0].playerId).toBe('p-1')
+            expect(latest.oppLineup?.bench[0].playerId).toBe('p-2')
+            await act(async () => { renderer.unmount() })
+        })
+        expect(result).toEqual({
+            requests: 12,
+            byTarget: {
+                league_members: 1, league_seasons: 1, lineup_slot_templates: 1, matchups: 3,
+                nba_games: 1, roster_players: 2, season_weeks: 1, weekly_lineups: 2,
+            },
         })
     })
 
