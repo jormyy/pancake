@@ -52,7 +52,9 @@ export default function ProfileScreen() {
     const [savingOwners, setSavingOwners] = useState<Set<string>>(() => new Set())
     const submittingOwnersRef = useRef(new Set<string>())
     const saving = savingOwners.has(user?.id ?? '')
-    const [avatarUploading, setAvatarUploading] = useState(false)
+    const [avatarOwners, setAvatarOwners] = useState<Set<string>>(() => new Set())
+    const pickingAvatarOwnersRef = useRef(new Set<string>())
+    const avatarUploading = avatarOwners.has(user?.id ?? '')
     const pushOwner = `${user?.id ?? ''}:${sessionGeneration()}`
     const [webPushState, setWebPushState] = useState<{ owner: string; status: WebPushStatus } | null>(null)
     const setWebPushStatus = useCallback((status: WebPushStatus) => {
@@ -144,30 +146,36 @@ export default function ProfileScreen() {
     }
 
     async function handlePickAvatar() {
-        if (!user) return
+        if (!user || activeUserIdRef.current !== user.id || pickingAvatarOwnersRef.current.has(user.id)) return
         const ownerId = user.id
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-        if (status !== 'granted') {
-            showAlert('Permission Required', 'Allow photo library access to change your profile picture.')
-            return
-        }
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: 'images',
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-        })
-        if (result.canceled) return
-        const asset = result.assets[0]
-        setAvatarUploading(true)
+        pickingAvatarOwnersRef.current.add(ownerId)
+        setAvatarOwners((current) => new Set(current).add(ownerId))
         try {
-            const url = await uploadAvatar(ownerId, asset)
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+            if (activeUserIdRef.current !== ownerId) return
+            if (status !== 'granted') {
+                showAlert('Permission Required', 'Allow photo library access to change your profile picture.')
+                return
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: 'images',
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            })
+            if (result.canceled || activeUserIdRef.current !== ownerId) return
+            const url = await uploadAvatar(ownerId, result.assets[0])
             if (activeUserIdRef.current !== ownerId) return
             setProfile((prev) => prev ? { ...prev, avatar_url: url } : prev)
         } catch (e) {
             if (activeUserIdRef.current === ownerId) showAlert('Error', getErrorMessage(e))
         } finally {
-            if (activeUserIdRef.current === ownerId) setAvatarUploading(false)
+            pickingAvatarOwnersRef.current.delete(ownerId)
+            setAvatarOwners((current) => {
+                const next = new Set(current)
+                next.delete(ownerId)
+                return next
+            })
         }
     }
 

@@ -5,6 +5,7 @@ import ProfileScreen from '@/app/(tabs)/profile'
 
 const mocks = vi.hoisted(() => ({
     userId: 'user',
+    permission: vi.fn(), pickImage: vi.fn(), uploadAvatar: vi.fn(),
     updateProfile: vi.fn(), updateTeamName: vi.fn(), success: vi.fn(), alert: vi.fn(),
     profile: { display_name: 'Manager', username: 'manager', avatar_url: null },
     preferences: { tradeEnabled: true, waiverEnabled: true, draftEnabled: true, activityEnabled: true },
@@ -14,14 +15,14 @@ vi.mock('react-native', () => ({
     StyleSheet: { create: (value: unknown) => value },
 }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock('expo-image-picker', () => ({}))
+vi.mock('expo-image-picker', () => ({ requestMediaLibraryPermissionsAsync: mocks.permission, launchImageLibraryAsync: mocks.pickImage }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member', team_name: 'Team' }, currentLeague: { id: 'league' }, refresh: vi.fn() }) }))
 vi.mock('@/hooks/use-profile-resource', () => ({ useProfileResource: () => ({
     profile: mocks.profile, profileLoaded: true, preferences: mocks.preferences, setProfile: vi.fn(), setPreferences: vi.fn(),
 }) }))
-vi.mock('@/lib/auth', () => ({ updateProfile: mocks.updateProfile, signOut: vi.fn(), uploadAvatar: vi.fn() }))
+vi.mock('@/lib/auth', () => ({ updateProfile: mocks.updateProfile, signOut: vi.fn(), uploadAvatar: mocks.uploadAvatar }))
 vi.mock('@/lib/league', () => ({ updateTeamName: mocks.updateTeamName }))
 vi.mock('@/lib/notification-preferences', () => ({ createNotificationPreferenceWriter: () => ({ enqueue: vi.fn() }), updateNotificationPreferences: vi.fn() }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1, sessionOwner: () => 'user' }))
@@ -46,6 +47,9 @@ const input = (label: string) => screen.root.findAllByType('TextInput' as React.
 beforeEach(async () => {
     vi.clearAllMocks()
     mocks.userId = 'user'
+    mocks.permission.mockResolvedValue({ status: 'granted' })
+    mocks.pickImage.mockResolvedValue({ canceled: false, assets: [{ uri: 'fixture.png', width: 1, height: 1 }] })
+    mocks.uploadAvatar.mockResolvedValue('http://127.0.0.1/avatar.png')
     mocks.updateProfile.mockResolvedValue(undefined)
     mocks.updateTeamName.mockResolvedValue(undefined)
     await act(async () => { screen = create(React.createElement(ProfileScreen)) })
@@ -142,4 +146,49 @@ it('keeps a returning account guarded until its original save completes', async 
     await act(async () => { finishOld(); finishNew(); await Promise.all([oldRequest, newRequest]) })
     expect(busy).toBe(true)
     expect(writes).toBe(2)
+})
+
+
+const photo = () => screen.root.findAllByType('Pressable' as React.ElementType)
+    .find((node) => node.props.accessibilityLabel === 'Change profile photo')!
+
+it('does not leave the next account photo control busy after an old upload', async () => {
+    let finish!: (url: string) => void
+    mocks.uploadAvatar.mockReturnValueOnce(new Promise<string>((resolve) => { finish = resolve }))
+    let pending!: Promise<void>
+    await act(async () => { pending = photo().props.onPress() })
+    mocks.userId = 'next-user'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    const busy = photo().props.disabled
+    await act(async () => { finish('http://127.0.0.1/old-avatar.png'); await pending })
+    expect(busy).toBe(false)
+    expect(photo().props.disabled).toBe(false)
+    await act(async () => photo().props.onPress())
+    expect(mocks.uploadAvatar).toHaveBeenLastCalledWith('next-user', expect.any(Object))
+})
+
+it('does not upload a photo selected after its account is replaced', async () => {
+    let choose!: (value: { canceled: boolean; assets: { uri: string; width: number; height: number }[] }) => void
+    mocks.pickImage.mockReturnValueOnce(new Promise((resolve) => { choose = resolve }))
+    let pending!: Promise<void>
+    await act(async () => { pending = photo().props.onPress() })
+    mocks.userId = 'next-user'
+    await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    await act(async () => { choose({ canceled: false, assets: [{ uri: 'old.png', width: 1, height: 1 }] }); await pending })
+    expect(mocks.uploadAvatar).not.toHaveBeenCalled()
+    expect(photo().props.disabled).toBe(false)
+})
+
+it('admits one photo picker while permission is pending', async () => {
+    let allow!: (value: { status: string }) => void
+    mocks.permission.mockReturnValue(new Promise((resolve) => { allow = resolve }))
+    mocks.pickImage.mockResolvedValue({ canceled: true })
+    let first!: Promise<void>
+    let second!: Promise<void>
+    await act(async () => { first = photo().props.onPress(); second = photo().props.onPress() })
+    const prompts = mocks.permission.mock.calls.length
+    await act(async () => { allow({ status: 'granted' }); await Promise.all([first, second]) })
+    expect(prompts).toBe(1)
+    expect(photo().props.disabled).toBe(false)
+    expect(mocks.uploadAvatar).not.toHaveBeenCalled()
 })
