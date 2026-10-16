@@ -131,19 +131,21 @@ export default function RookieDraftRoomScreen() {
         <>
             <Stack.Screen options={{ title: draftTitle, presentation: 'modal', headerShown: false }} />
 
-            {/* ── Roster overflow resolution modal (non-dismissable) ── */}
-            <Modal visible={!!rosterOverflow} transparent animationType="slide">
+            <Modal visible={!!rosterOverflow} transparent animationType="slide"
+                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList(draft.isMock) }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Roster Full</Text>
                         <Text style={styles.overflowBody}>
                             You drafted{' '}
                             <Text style={{ fontWeight: fontWeight.bold }}>{rosterOverflow?.newPlayerName}</Text>
-                            {' '}but your active roster is over capacity. Resolve before continuing.
+                            {' '}but your active roster is over capacity. Drop a player before setting lineups or adding players.
                         </Text>
-
-
-
+                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
+                            accessibilityLabel="Back to League" disabled={resolvingOverflow}
+                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            <Text style={styles.overflowExitText}>Back to League</Text>
+                        </MotionPressable>
                         {rosterForDrop.length > 0 && (
                             <>
                                 <Text style={styles.overflowDropLabel}>Drop a player:</Text>
@@ -180,16 +182,21 @@ export default function RookieDraftRoomScreen() {
                 </View>
             </Modal>
 
-            {/* ── End-of-draft roster trim modal (non-dismissable) ── */}
-            <Modal visible={!!trimOverflow} transparent animationType="slide">
+            <Modal visible={!!trimOverflow} transparent animationType="slide"
+                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList(draft.isMock) }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Trim Your Roster</Text>
                         <Text style={styles.overflowBody}>
                             Your active roster is{' '}
                             <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow?.excess ?? 0} over</Text>
-                            {' '}the limit. Drop {countLabel(trimOverflow?.excess ?? 0, 'player')} to continue.
+                            {' '}the limit. Drop {countLabel(trimOverflow?.excess ?? 0, 'player')} before setting lineups or adding players.
                         </Text>
+                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
+                            accessibilityLabel="Back to League" disabled={!!trimmingId}
+                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            <Text style={styles.overflowExitText}>Back to League</Text>
+                        </MotionPressable>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
                         <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
                             {trimOverflow?.dropList.map((rp) => (
@@ -717,11 +724,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: spacing.sm,
     },
-    overflowBtnPrimary: {
-        backgroundColor: colors.primary,
-    },
-    overflowBtnPrimaryText: {
-        color: colors.textWhite,
+    overflowExitText: {
+        color: colors.primaryDark,
         fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
     },
