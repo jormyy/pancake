@@ -17,7 +17,8 @@ commissioner disappears.
 - [Deployment](#deployment)
 - [Documentation](#documentation)
 
-Pancake supports iPhone Safari and the installed iPhone PWA. Native app builds are not supported.
+Pancake supports iPhone Safari, the installed iPhone PWA, and desktop browsers.
+It is a web app. It needs no native app or Xcode.
 The web build uses browser touch input and the cached PWA shell; it needs no native splash or gesture-handler package.
 
 ## Highlights
@@ -169,9 +170,15 @@ See [docs/roster-lifecycle.md](./docs/roster-lifecycle.md).
 
 ## Testing
 
+`npm run e2e:web-targets` checks phone layouts in WebKit and desktop layouts in Chromium and WebKit.
+Use `-- --actions` for form and admin actions. Use `-- --gameplay` for league, lineup, waiver, draft, and trade settlements.
+Run it against a seeded local release build. See [the web checks](tests/e2e/README.md#supported-web-clients) for setup.
+Phone sizes are 390x844 and 393x852. Desktop sizes are 1280x720 and 1440x900.
+Standalone mode and safe areas are simulated. These checks do not install a Home Screen app or open an iPhone keyboard.
+
 ```bash
 npm run check:comprehensive   # lint, typechecks, dead-code, parity, edge + db checks
-npm test                      # vitest: app, lib, cross-cutting guards (692 tests)
+npm test                      # vitest: app, lib, cross-cutting guards
 npm run check:edge-functions  # deno check + deno test for Edge functions
 npm run test:db               # DB behavior suites against the local stack
 npm run perf:budget           # top-workflow performance budget contract

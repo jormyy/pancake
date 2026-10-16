@@ -1,5 +1,70 @@
 # Multi-Season E2E Harness
 
+## Supported web clients
+
+Pancake supports iPhone Safari, its Home Screen PWA, and desktop browsers.
+There is no native app target. These checks need no Xcode or simulator.
+
+| Engine | Viewports | Mode |
+| --- | --- | --- |
+| WebKit, iPhone descriptor, touch, mobile user agent, DPR 3 | 390x844, 393x852 | Browser tab and simulated standalone |
+| Chromium, desktop | 1280x720, 1440x900 | Browser tab |
+| WebKit, desktop | 1280x720, 1440x900 | Browser tab |
+
+Phone controls use taps. The gate checks the resulting touch pointer events.
+WebKit can report zero `maxTouchPoints` despite enabled touch emulation; the report keeps that raw value.
+
+Use the local stack and release server described in [verification](../../docs/verification.md#isolated-local-stack).
+Export that stack's E2E variables. Then run:
+
+```sh
+npm ci
+npx playwright install chromium webkit
+export AGENT_BROWSER_EXECUTABLE_PATH="$(node -p "require('playwright').chromium.executablePath()")"
+npm run e2e:seed
+E2E_FRONTEND_URL=http://127.0.0.1:8082 npm run e2e:web-targets
+```
+
+The same matrix is registered as `web-targets` in the browser scenario manifest.
+CI installs both engines with `npx playwright install --with-deps chromium webkit` for that scenario.
+The release soak installs them too, because it enables registered browser scenarios.
+The existing browser scenarios remain available for detailed gameplay actions.
+`AGENT_BROWSER_EXECUTABLE_PATH` lets those checks use the same pinned Chromium as the matrix.
+Keep the browser version fixed when comparing paint timings. A browser change is not an application speed improvement.
+
+The matrix checks metadata, icons, shell handoff, page exits, inputs, safe areas, overflow, empty places, and offline lineup recovery.
+A disposable matchup measures the first visible Home heading through data load. Its position must stay within 2px.
+The fixture also checks Home, roster, team roster and lineup with empty and zero-capacity sections.
+Each text input must use at least 16px text and scroll into view when focused.
+The phone profile check also reduces viewport height by 300px to test focus with less screen space.
+This simulates a smaller viewport. It does not open or model the real iOS keyboard.
+Repeated Return must send one sign-in request.
+Screenshots, videos, and per-target results go to `tests/artifacts/web-targets`.
+The JSON and Markdown reports use `tests/e2e-browser-web-targets-report.*`.
+Override these with `E2E_WEB_TARGET_ARTIFACT_DIR` and `E2E_WEB_TARGET_REPORT_PATH` to keep evidence outside the checkout.
+`E2E_WEB_TARGET_FILTER` selects one target by a substring of its identifier.
+
+To check worker rollover, retain two complete stamped release exports and run:
+
+```sh
+E2E_PWA_PREVIOUS_ROOT=/absolute/previous/dist \
+E2E_PWA_NEXT_ROOT=/absolute/next/dist \
+npm run e2e:web-targets
+```
+
+The update check uses one local origin and verifies one automatic reload, correct cached bytes, and offline relaunch in each engine.
+It reuses the complete-release verifier from `e2e:pwa-update`.
+`E2E_WEB_TARGET_UPDATE_PORT` selects its server port; the default is 8805.
+The check stops its server and closes its own browser contexts.
+CI has one build per scenario, so its report marks this two-build check `NOT_RUN`.
+Run the two-build command before release; one-build CI does not prove rollover.
+
+Standalone checks inject `navigator.standalone` and the result of `matchMedia('(display-mode: standalone)')`.
+They do not change the browser's actual display mode or install an app.
+Safe-area checks replace CSS `env()` values with 59px top/34px bottom in tab mode and 0px top/34px bottom in standalone mode.
+These are test inputs, not device measurements.
+Only a physical installed iPhone proves Add to Home Screen, the real keyboard, status bars, home indicators, and background suspension.
+
 Database catalog acceptance requires an explicit migration phase. See the
 [catalog contract and commands](../../docs/database-readiness-catalog.md).
 
@@ -354,3 +419,37 @@ simulated seasons (`--shard=K/N`, planned by `tests/e2e/soak-shards.mjs`: 1–5,
 
 Every cross-season check sees one continuous league. The harness process restarts with each shard,
 so `D.LONG.7` (harness memory drift) compares seasons 1–3 with 18–20 across processes.
+
+Run existing gameplay actions in the supported browser setups:
+
+```sh
+npm run e2e:web-targets -- --gameplay
+```
+
+This reuses the registered auction, lineup, waiver, playoff, league and trade scenarios.
+The browser backend fixes each scenario to its selected target viewport, even if a legacy step requests another size.
+`E2E_WEB_TARGET_FILTER` selects a target. `E2E_WEB_ACTION_SCENARIO` selects comma-separated scenario IDs.
+Reports include the actual viewport, input fonts, overflow, screenshots, videos and saved database state.
+`E2E_BROWSER_ARTIFACT_DIR` moves legacy scenario reports outside the checkout.
+The default command keeps the launch, layout, input, offline and update matrix.
+
+Run `npm run e2e:web-targets -- --actions` for draft controls, mock room lifecycles, commissioner settings, player paging, filters, profile uploads, and waiver edits.
+It also checks recovered IR, full-roster adds, activation overflow, score details, daily Auto-set, trade-block items, activity and trade-history paging, and news links.
+Ranking-source failures and clipboard access use explicit browser simulations. Retry and saved league data use the local database.
+Invite sharing checks both create and settings pages, clipboard fallback, permission errors, cancellation, and retry.
+The share dialog and clipboard permission are simulated. Each copied message must contain the actual saved invite code.
+Rankings load one bounded list. The current UI has no ranking paging action or trade-block note editor.
+It uses the same eight client setups and writes `actions.json`, `actions.md`, screenshots, and videos.
+`E2E_WEB_ACTION_CASE` selects comma-separated action names. `E2E_WEB_TARGET_FILTER` selects a client setup.
+Action contexts block service workers so held-request checks can observe pending controls. The default matrix proves worker launch, offline behavior, and rollover separately.
+Notification cases identify simulated permission, subscription, and delivery responses. Category preferences use the actual local database.
+Global admin utility cases prove actual local access denial and recovery. Separate success cases simulate their responses and check pending controls and feedback.
+They do not run external provider jobs or global sync writes. League-scoped commissioner actions use the actual local API and database.
+These cases do not prove physical installation, a real iOS permission prompt, background delivery, or notification taps.
+
+Both modes use the registered `web-targets` scenario. Set `E2E_WEB_TARGET_ACTIONS=1` or `E2E_WEB_TARGET_GAMEPLAY=1` for the existing scenario runner.
+The default CI entry runs the launch/layout/offline/update matrix. The longer action and settlement matrices can run as separate invocations against the same seeded local stack.
+
+The full action and gameplay matrices exceed the PR browser job’s 20-minute limit when run serially.
+Keep the default matrix in that job. Split extended runs with the target and case filters above.
+The same job already installs pinned Playwright browsers and system dependencies for the registered web matrix.
