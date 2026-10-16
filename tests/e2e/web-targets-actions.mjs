@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, pinWebTargetLeague } from './web-targets-browser.mjs'
 import { setupTradeGameplayFixture, findAvailablePlayers, createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { auditWebDraftActions } from './web-targets-draft-actions.mjs'
@@ -12,6 +12,7 @@ import { auditWebNotificationActions } from './web-targets-notification-actions.
 import { auditWebMockActions } from './web-targets-mock-actions.mjs'
 import { auditWebPanelActions } from './web-targets-panel-actions.mjs'
 import { auditWebInviteActions } from './web-targets-invite-actions.mjs'
+import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 
 const root = process.cwd()
 const db = async (operation) => { const result = await operation; if (result.error) throw new Error(result.error.message ?? String(result.error)); return result.data }
@@ -25,8 +26,9 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
     serviceRoleKey: process.env.E2E_PANCAKE_SUPABASE_SECRET_KEY, frontendUrl: frontend, apiBaseUrl: process.env.E2E_API_BASE_URL }
   const results = []
   for (const target of WEB_TARGETS.filter((target) => !process.env.E2E_WEB_TARGET_FILTER || target.id.includes(process.env.E2E_WEB_TARGET_FILTER))) {
-    await runWithScenarioResourceOwner('extra web actions', async () => {
+    await runWithScenarioResourceOwner('extra web actions', async (resourceOwner) => {
       const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true })
+      const calendarYears = new Set()
       const extra = createFixtureResourceOwner(fixture.admin)
       const dir = path.join(artifactDir, target.id)
       await mkdir(dir, { recursive: true })
@@ -63,6 +65,10 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
       const button = (name) => page.getByRole('button', { name, exact: true })
       const open = async (route) => { await page.goto(new URL(route, frontend).href); await page.getByRole('navigation', { name: 'Primary', exact: true }).waitFor() }
       const signIn = async (next, index = 0) => {
+        if (!calendarYears.has(next.currentSeason.season_year)) {
+          await ensureSyntheticSeasonWeeks(next.admin, next.currentSeason.season_year, 26, 'web actions', resourceOwner)
+          calendarYears.add(next.currentSeason.season_year)
+        }
         if (new URL(page.url()).origin === new URL(frontend).origin) await page.evaluate(() => localStorage.clear())
         await page.goto(new URL('/sign-in', frontend).href)
         await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
@@ -70,13 +76,15 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         await page.locator('input[type="password"]').fill(next.password)
         await press(button('Sign In'))
         await page.waitForURL((url) => url.pathname === '/')
+        const member = await db(next.admin.from('league_members').select('id').eq('league_id', next.league.id).eq('user_id', next.users[index].id).single())
+        await pinWebTargetLeague(target, page, { userId: next.users[index].id, memberId: member.id, leagueName: next.league.name })
       }
       const check = async (name, run) => {
         if (process.env.E2E_WEB_ACTION_CASE && !process.env.E2E_WEB_ACTION_CASE.split(',').includes(name)) return
         const release = await fetch(new URL('/release-provenance.json', frontend)).then((response) => response.json())
         const start = api.length
         const result = { target: target.id, viewport: page.viewportSize(), engine: target.engine, simulatedStandalone: target.standalone, simulatedInsets: target.insets, release: release.commitSha, name, status: 'FAIL', error: null, detail: null, api: [] }
-        try { result.detail = await run(); await inspect(); result.status = 'PASS'; await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true }) }
+        try { await signIn(fixture); result.detail = await run(); await inspect(); result.status = 'PASS'; await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true }) }
         catch (error) { result.error = error instanceof Error ? error.message : String(error); await page.screenshot({ path: path.join(dir, `${name}-failure.png`) }).catch(() => {}); await writeFile(path.join(dir, `${name}-failure.txt`), await page.locator('body').innerText().catch(() => 'Unavailable')); await writeFile(path.join(dir, `${name}-failure-roles.txt`), await page.locator('body').ariaSnapshot().catch(() => 'Unavailable')) }
         results.push(result)
         result.api = api.slice(start)
@@ -85,12 +93,6 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         console.log(JSON.stringify(result))
       }
       try {
-        await page.goto(new URL('/sign-in', frontend).href)
-        await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
-        await page.getByPlaceholder('you@example.com').fill(fixture.users[0].email)
-        await page.locator('input[type="password"]').fill(fixture.password)
-        await press(button('Sign In'))
-        await page.waitForURL((url) => url.pathname === '/')
         await check('avatar-upload', async () => {
           await open('/profile')
           await wait(async () => await button('Edit').isEnabled())

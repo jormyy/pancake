@@ -5,12 +5,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague } from './web-targets-browser.mjs'
 import { runWebTargetUpdates } from './web-targets-update.mjs'
 import { checkWebEmptySlots } from './web-targets-slots.mjs'
 import { runWebGameplayTargets } from './web-targets-gameplay.mjs'
 import { runWebActionTargets } from './web-targets-actions.mjs'
 import { ensureSweepDrafts } from './browser-smoke.mjs'
+import { createDisposableLeagueFromSeedUsers, ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
+import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const root = process.cwd()
 const frontend = process.env.E2E_FRONTEND_URL ?? 'http://127.0.0.1:8082'
@@ -149,7 +151,7 @@ async function offline(page, context) {
   }
 }
 
-export async function runWebTargets({ season = 0 } = {}) {
+export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwner('web targets', async (resourceOwner) => {
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(frontend).hostname), 'Web matrix requires a local stack')
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(process.env.E2E_SUPABASE_URL).hostname), 'Web fixtures require local Supabase')
   await mkdir(artifactDir, { recursive: true })
@@ -172,6 +174,16 @@ export async function runWebTargets({ season = 0 } = {}) {
   if (members.error) throw members.error
   const me = members.data.find((member) => member.user_id === state.users[0].id)
   const other = members.data.find((member) => member.user_id !== state.users[0].id)
+  assert.ok(me && other, 'Web matrix needs both seeded memberships')
+  const league = await admin.from('leagues').select('name').eq('id', state.leagueId).single()
+  if (league.error) throw league.error
+  const currentSeason = await admin.from('league_seasons').select('id,season_year').eq('league_id', state.leagueId).eq('is_current', true).single()
+  if (currentSeason.error) throw currentSeason.error
+  await ensureSyntheticSeasonWeeks(admin, currentSeason.data.season_year, 26, 'web matrix', resourceOwner)
+  const competing = await createDisposableLeagueFromSeedUsers({
+    supabase: admin, state, season, label: 'web client isolation', userCount: 2,
+    resourceOwner, seasonYear: currentSeason.data.season_year,
+  })
   const players = await admin.from('players').select('id').like('sportsdata_id', 'e2e-player-%').limit(1)
   if (players.error || !players.data.length) throw new Error('Run e2e:seed before the web matrix')
   const { auctionDraft, rookieDraft } = await ensureSweepDrafts(admin, state, members.data)
@@ -191,12 +203,13 @@ export async function runWebTargets({ season = 0 } = {}) {
   ]
   const release = await fetch(url('/release-provenance.json')).then((response) => response.json())
   const harnessHash = createHash('sha256')
-  for (const file of ['web-targets.mjs', 'web-targets-browser.mjs', 'web-targets-slots.mjs', 'web-targets-update.mjs', 'browser-smoke.mjs']) {
+  for (const file of ['web-targets.mjs', 'web-targets-browser.mjs', 'web-targets-slots.mjs', 'web-targets-update.mjs', 'browser-smoke.mjs', 'soak-fixtures.mjs', 'scenario-resource-owner.mjs']) {
     harnessHash.update(await readFile(new URL(file, import.meta.url)))
   }
   const harness = { commitSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), digest: harnessHash.digest('hex'),
     dirty: execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim().length > 0 }
   const report = { status: 'FAIL', season, artifactDir, harness, release: { commitSha: release.commitSha, bundleDigest: release.bundleDigest }, generatedAt: new Date().toISOString(),
+    fixture: { leagueId: state.leagueId, memberId: me.id, seasonYear: currentSeason.data.season_year, calendarWeeks: 26 },
     simulation: 'Playwright WebKit iPhone descriptors; navigator.standalone and display-mode matchMedia are injected. CSS env() values are replaced with test insets. No Home Screen installation, real keyboard, status bar, home indicator, or background suspension is tested.',
     targets: [], updates: null }
   const selectedTargets = WEB_TARGETS.filter((target) => !process.env.E2E_WEB_TARGET_FILTER || target.id.includes(process.env.E2E_WEB_TARGET_FILTER))
@@ -207,11 +220,13 @@ export async function runWebTargets({ season = 0 } = {}) {
     const { browser, context, page } = await openWebTarget(target, captures)
     const result = { id: target.id, target, checks: [], errors: [] }
     let phase = 'session'
+    let authenticated = false
     report.targets.push(result)
     page.on('pageerror', (error) => result.errors.push({ phase, message: errorText(error), stack: error.stack }))
     const check = async (name, action) => {
       phase = name
       try {
+        if (authenticated) await pinWebTargetLeague(target, page, { userId: state.users[0].id, memberId: me.id, leagueName: league.data.name })
         result.checks.push({ name, status: 'PASS', detail: await action() })
       } catch (error) {
         result.checks.push({ name, status: 'FAIL', error: errorText(error) })
@@ -233,6 +248,7 @@ export async function runWebTargets({ season = 0 } = {}) {
       await page.evaluate(() => {
         Reflect.set(window, '__webAuthSubmits', 0)
         const original = window.fetch.bind(window)
+        Reflect.set(window, '__webAuthRestoreFetch', () => { window.fetch = original })
         window.fetch = async (input, init) => {
           if (String(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url).includes('/auth/v1/token')) {
             Reflect.set(window, '__webAuthSubmits', Reflect.get(window, '__webAuthSubmits') + 1)
@@ -249,10 +265,25 @@ export async function runWebTargets({ season = 0 } = {}) {
       await password.press('Enter')
       await page.waitForURL((value) => value.pathname === '/', { timeout: 45_000 })
       await ready(page)
+      authenticated = true
       await check('return-submits-once', async () => {
         const submits = await page.evaluate(() => Reflect.get(window, '__webAuthSubmits'))
         assert.equal(submits, 1, `Return starts ${submits} auth requests`)
         return { submits }
+      })
+      await page.evaluate(() => {
+        Reflect.get(window, '__webAuthRestoreFetch')()
+        Reflect.deleteProperty(window, '__webAuthRestoreFetch')
+      })
+      await check('league-selection-isolation', async () => {
+        await pressWebControl(target, page.getByRole('button', { name: 'Switch league', exact: true }))
+        await pressWebControl(target, page.getByRole('button', { name: `Switch to ${competing.league.name}`, exact: true }))
+        await page.waitForFunction(({ userId, memberId }) =>
+          JSON.parse(localStorage.getItem(`pancake:selected-league:v1:${userId}`) ?? 'null')?.value === memberId,
+        { userId: state.users[0].id, memberId: competing.members[0].id })
+        await pinWebTargetLeague(target, page, { userId: state.users[0].id, memberId: me.id, leagueName: league.data.name })
+        await page.waitForLoadState('networkidle')
+        return { selectedLeagueId: state.leagueId, memberId: me.id, competingLeagueId: competing.league.id }
       })
       await check('launch-handoff', () => launch(page, target.mobile, captures))
       await check('tab-navigation', async () => {
@@ -394,6 +425,6 @@ export async function runWebTargets({ season = 0 } = {}) {
   await writeFile(reportPath.replace(/\.json$/, '.md'), lines.join('\n'))
   if (report.status !== 'PASS') throw new Error(`Web client matrix failed: ${reportPath}`)
   return report
-}
+})
 
 if (import.meta.url === `file://${process.argv[1]}`) await runWebTargets()

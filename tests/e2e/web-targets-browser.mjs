@@ -2,6 +2,21 @@ import { chromium, webkit, devices } from 'playwright'
 
 export const pressWebControl = (target, locator) => target.mobile ? locator.tap() : locator.click()
 
+export async function pinWebTargetLeague(target, page, { userId, memberId, leagueName }) {
+  const key = `pancake:selected-league:v1:${userId}`
+  const switcher = page.getByRole('button', { name: 'Switch league', exact: true })
+  await switcher.waitFor()
+  const selected = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null')?.value, key)
+  if (selected !== memberId || !(await switcher.textContent()).includes(leagueName)) {
+    await pressWebControl(target, switcher)
+    await pressWebControl(target, page.getByRole('button', { name: `Switch to ${leagueName}`, exact: true }))
+  }
+  await page.waitForFunction(({ key, memberId, leagueName }) =>
+    JSON.parse(localStorage.getItem(key) ?? 'null')?.value === memberId &&
+      document.querySelector('[aria-label="Switch league"]')?.textContent.includes(leagueName),
+  { key, memberId, leagueName })
+}
+
 export const WEB_TARGETS = [
   ...[{ width: 390, height: 844 }, { width: 393, height: 852 }].flatMap((viewport) =>
     [false, true].map((standalone) => ({

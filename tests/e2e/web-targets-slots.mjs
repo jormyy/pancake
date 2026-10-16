@@ -3,11 +3,22 @@ import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
-import { openWebTarget, pressWebControl } from './web-targets-browser.mjs'
+import { openWebTarget, pressWebControl, pinWebTargetLeague } from './web-targets-browser.mjs'
+import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 
-export const checkWebEmptySlots = (target, captures, env) => runWithScenarioResourceOwner('web empty slots', async () => {
+export const checkWebEmptySlots = (target, captures, env) => runWithScenarioResourceOwner('web empty slots', async (resourceOwner) => {
   const fixture = await setupTradeGameplayFixture(env, 0, { includeFuturePicks: false, isolatedPlayers: true })
+  await ensureSyntheticSeasonWeeks(fixture.admin, fixture.currentSeason.season_year, 26, 'web empty slots', resourceOwner)
+  const weeks = await fixture.admin.from('season_weeks').select('week_number,week_start,week_end')
+    .eq('season_year', fixture.currentSeason.season_year).order('week_number')
+  if (weeks.error) throw weeks.error
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+  const week = weeks.data.find((row) => row.week_end >= today) ?? weeks.data.at(-1)
+  assert.ok(week, 'Empty-slot fixture needs a current or next calendar week')
   const { browser, context, page } = await openWebTarget(target, captures)
+  const pinLeague = () => pinWebTargetLeague(target, page, {
+    userId: fixture.users[0].id, memberId: fixture.proposer.id, leagueName: fixture.league.name,
+  })
   const checked = []
   const apply = async (active, bench, ir, taxi) => {
     for (const operation of [
@@ -26,6 +37,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
   const visit = async (route) => {
     await page.goto(new URL(route, env.frontendUrl).href)
     await page.locator('[role="navigation"][aria-label="Primary"]').waitFor()
+    await pinLeague()
     if (new URL(page.url()).pathname === '/roster') await page.getByText('Your roster is empty', { exact: true }).waitFor()
     if (new URL(page.url()).pathname === '/team-roster') await page.getByText('No players yet', { exact: true }).waitFor()
     if (new URL(page.url()).pathname === '/lineup') {
@@ -47,7 +59,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
   }
   try {
     const matchup = await fixture.admin.from('matchups').insert({
-      league_id: fixture.league.id, league_season_id: fixture.currentSeason.id, week_number: 1,
+      league_id: fixture.league.id, league_season_id: fixture.currentSeason.id, week_number: week.week_number,
       home_member_id: fixture.proposer.id, away_member_id: fixture.recipient.id,
     })
     if (matchup.error) throw matchup.error
@@ -58,12 +70,14 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     await page.locator('input[type="password"]').fill(fixture.password)
     await pressWebControl(target, page.getByRole('button', { name: 'Sign In', exact: true }))
     await page.waitForURL((url) => url.pathname === '/')
+    await pinLeague()
     await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
     assert.equal(await page.getByRole('button', { name: /^Select empty BE slot/ }).count(), 3)
     assert.equal(await page.getByRole('button', { name: /^Select empty IR slot/ }).count(), 2)
     assert.equal(await page.getByRole('button', { name: /^Select empty TX slot/ }).count(), 2)
     checked.push({ route: '/', label: 'BE / IR / taxi', expected: [3, 2, 2], actual: [3, 2, 2] })
     await page.reload({ waitUntil: 'load' })
+    await pinLeague()
     await page.getByRole('button', { name: 'Select empty BE slot 1', exact: true }).waitFor()
     await page.waitForTimeout(500)
     const frames = await page.evaluate(() => Reflect.get(window, '__webTargetFrames'))
@@ -150,6 +164,13 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
   } catch (error) {
     await page.screenshot({ path: path.join(captures, 'slots-failure.png') }).catch(() => {})
     await writeFile(path.join(captures, 'slots-failure.txt'), await page.locator('body').innerText())
+    await writeFile(path.join(captures, 'slots-error.json'), JSON.stringify({
+      error: error instanceof Error ? error.stack : String(error),
+      state: await page.evaluate((key) => ({
+        cache: JSON.parse(localStorage.getItem(key) ?? 'null')?.value?.myLineup?.benchSlots,
+        worker: Boolean(navigator.serviceWorker.controller), visibility: document.visibilityState,
+      }), `pancake:home-matchup:v1:${fixture.league.id}:${fixture.proposer.id}`).catch(() => null),
+    }, null, 2))
     throw error
   } finally {
     await context.close()

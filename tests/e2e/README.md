@@ -35,6 +35,8 @@ Keep the browser version fixed when comparing paint timings. A browser change is
 The matrix checks metadata, icons, shell handoff, page exits, inputs, safe areas, overflow, empty places, and offline lineup recovery.
 A disposable matchup measures the first visible Home heading through data load. Its position must stay within 2px.
 The fixture also checks Home, roster, team roster and lineup with empty and zero-capacity sections.
+The matrix creates and cleans up its own season calendar. It needs no earlier smoke run.
+Each check selects its fixture league. A competing league proves that stored selection cannot redirect the check.
 Each text input must use at least 16px text and scroll into view when focused.
 The phone profile check also reduces viewport height by 300px to test focus with less screen space.
 This simulates a smaller viewport. It does not open or model the real iOS keyboard.
