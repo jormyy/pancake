@@ -253,15 +253,22 @@ export function useMatchupData(
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             const date = selectedDateRef.current
-            const [mine, opp] = await Promise.all([
-                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
-                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
-            ])
-            if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
-                date !== selectedDateRef.current) return
-            setMyLineup((previous) => reuseLineup(previous, mine))
-            setOppLineup((previous) => reuseLineup(previous, opp))
-            setLineupError(false)
+            try {
+                const [mine, opp] = await Promise.all([
+                    getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
+                    getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
+                ])
+                if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
+                    date !== selectedDateRef.current) return
+                setMyLineup((previous) => reuseLineup(previous, mine))
+                setOppLineup((previous) => reuseLineup(previous, opp))
+                setLineupError(false)
+            } catch (error) {
+                if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
+                    date !== selectedDateRef.current) return
+                console.error(error)
+                setLineupError(true)
+            }
         },
         [leagueId, ownsResource, resourceKey],
     )
