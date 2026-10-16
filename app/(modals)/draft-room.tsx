@@ -39,7 +39,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
     const controller = useAuctionDraftRoomController({ draftId, memberId: myMemberId })
     const { state, loadError, refresh, budgetByMember } = controller
 
-    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft } =
+    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =
         useDraftAdminControls({
             draftId,
             refresh,
@@ -132,6 +132,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
             <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
                 {isCommissioner && isDesktop ? (
                     <DraftAdminBar
+                        disabled={adminBusy}
                         inline
                         showLabel={false}
                         isPaused={isPaused}
@@ -152,6 +153,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
 
             {isCommissioner && !isDesktop ? (
                 <DraftAdminBar
+                    disabled={adminBusy}
                     isPaused={isPaused}
                     onPause={handlePauseDraft}
                     onResume={handleResumeDraft}

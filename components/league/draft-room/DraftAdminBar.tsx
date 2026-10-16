@@ -7,6 +7,7 @@ export function DraftAdminBar({
     showPause = true,
     showLabel = true,
     inline = false,
+    disabled = false,
     onPause,
     onResume,
     onReset,
@@ -18,6 +19,7 @@ export function DraftAdminBar({
     showLabel?: boolean
     /** Sit inside a header row instead of drawing its own bar. */
     inline?: boolean
+    disabled?: boolean
     onPause: () => void
     onResume: () => void
     onReset: () => void
@@ -31,6 +33,8 @@ export function DraftAdminBar({
                 {showPause ? (
                     <MotionPressable
                         style={[styles.adminBtn, styles.adminBtnPause]}
+                        disabled={disabled}
+                        accessibilityState={{ disabled }}
                         onPress={isPaused ? onResume : onPause}
                         pressedScale={0.94}
                         accessibilityRole="button"
@@ -41,6 +45,8 @@ export function DraftAdminBar({
                 ) : null}
                 <MotionPressable
                     style={[styles.adminBtn, styles.adminBtnReset]}
+                    disabled={disabled}
+                    accessibilityState={{ disabled }}
                     onPress={onReset}
                     pressedScale={0.94}
                     accessibilityRole="button"
@@ -50,6 +56,8 @@ export function DraftAdminBar({
                 </MotionPressable>
                 <MotionPressable
                     style={[styles.adminBtn, styles.adminBtnStop]}
+                    disabled={disabled}
+                    accessibilityState={{ disabled }}
                     onPress={onStop}
                     pressedScale={0.94}
                     accessibilityRole="button"

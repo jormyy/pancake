@@ -36,6 +36,95 @@ beforeEach(() => {
 })
 
 describe('draft admin action ownership', () => {
+    it('keeps pending commands separate across draft switches and returns', async () => {
+        const first = deferred()
+        const second = deferred()
+        mocks.pauseDraft.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+        mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { onConfirm() })
+        let latest!: ReturnType<typeof useDraftAdminControls>
+        const Probe = ({ draftId }: { draftId: string }) => {
+            latest = useDraftAdminControls({
+                draftId,
+                confirmCopy: { stop: 'stop', reset: 'reset', pause: 'pause', resume: 'resume' },
+                refresh: vi.fn(),
+                onStopped: vi.fn(),
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { draftId: 'draft-a' })) })
+        await act(async () => { latest.handlePauseDraft() })
+        expect(latest.adminBusy).toBe(true)
+        await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'draft-b' })) })
+        expect(latest.adminBusy).toBe(false)
+        await act(async () => { latest.handlePauseDraft() })
+        await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'draft-a' })) })
+        expect(latest.adminBusy).toBe(true)
+        await act(async () => { latest.handlePauseDraft() })
+        expect(mocks.pauseDraft.mock.calls.map(([id]) => id)).toEqual(['draft-a', 'draft-b'])
+        await act(async () => { first.resolve(); await first.promise })
+        expect(latest.adminBusy).toBe(false)
+        await act(async () => { renderer.update(React.createElement(Probe, { draftId: 'draft-b' })) })
+        expect(latest.adminBusy).toBe(true)
+        await act(async () => { second.resolve(); await second.promise })
+        expect(latest.adminBusy).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it.each([
+        ['handlePauseDraft', 'pauseDraft'],
+        ['handleResumeDraft', 'resumeDraft'],
+        ['handleResetDraft', 'resetDraft'],
+        ['handleStopDraft', 'stopDraft'],
+    ] as const)('holds repeated %s confirmations until the request finishes', async (handler, mutation) => {
+        const pending = deferred()
+        mocks[mutation].mockReturnValueOnce(pending.promise)
+        mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { onConfirm() })
+        let latest!: ReturnType<typeof useDraftAdminControls>
+        const Probe = () => {
+            latest = useDraftAdminControls({
+                draftId: 'draft-a',
+                confirmCopy: { stop: 'stop', reset: 'reset', pause: 'pause', resume: 'resume' },
+                refresh: vi.fn(),
+                onStopped: vi.fn(),
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { latest[handler](); latest[handler](); await Promise.resolve() })
+        expect(mocks[mutation]).toHaveBeenCalledTimes(1)
+        await act(async () => { pending.resolve(); await pending.promise })
+        await act(async () => { latest[handler](); await Promise.resolve() })
+        expect(mocks[mutation]).toHaveBeenCalledTimes(2)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('blocks conflicting commands while the same draft has a pending command', async () => {
+        const pending = deferred()
+        mocks.pauseDraft.mockReturnValueOnce(pending.promise)
+        mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { onConfirm() })
+        let latest!: ReturnType<typeof useDraftAdminControls>
+        const Probe = () => {
+            latest = useDraftAdminControls({
+                draftId: 'draft-a',
+                confirmCopy: { stop: 'stop', reset: 'reset', pause: 'pause', resume: 'resume' },
+                refresh: vi.fn(),
+                onStopped: vi.fn(),
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { latest.handlePauseDraft(); latest.handleResetDraft(); await Promise.resolve() })
+        expect(mocks.pauseDraft).toHaveBeenCalledTimes(1)
+        expect(mocks.resetDraft).not.toHaveBeenCalled()
+        await act(async () => { pending.resolve(); await pending.promise })
+        await act(async () => { latest.handleResetDraft(); await Promise.resolve() })
+        expect(mocks.resetDraft).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('cancels a root confirmation when the active draft changes', async () => {
         let confirm!: () => void
         mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })

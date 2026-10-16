@@ -72,7 +72,7 @@ export default function RookieDraftRoomScreen() {
         rosterSize: currentLeague?.roster_size ?? 20,
     })
 
-    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft } =
+    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =
         useDraftAdminControls({
             draftId,
             refresh,
@@ -239,6 +239,7 @@ export default function RookieDraftRoomScreen() {
                 <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
                     {isCommissioner && !isDone && isDesktop ? (
                         <DraftAdminBar
+                            disabled={adminBusy}
                             inline
                             showLabel={false}
                             isPaused={isPaused}
@@ -324,6 +325,7 @@ export default function RookieDraftRoomScreen() {
 
                         {isCommissioner && !isDone && !isDesktop ? (
                             <DraftAdminBar
+                                disabled={adminBusy}
                                 isPaused={isPaused}
                                 showPause={canUsePauseControl}
                                 showLabel={!compactLandscape}
