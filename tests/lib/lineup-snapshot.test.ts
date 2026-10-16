@@ -12,7 +12,7 @@ const scope = { ownerId: 'owner', memberId: 'member', leagueId: 'league', day: '
 const player = { rosterPlayerId: 'roster', playerId: 'player', displayName: 'Saved player', position: 'PG', eligiblePositions: ['PG'], nbaTeam: 'ATL', injuryStatus: null, nbaId: null }
 const value = { context: { seasonId: 'season', seasonYear: 2027, weekNumber: 1, today: scope.day }, date: scope.day,
     days: [{ date: scope.day, dayLabel: 'T', dateNum: 8, hasGames: true, isToday: true, playingTeams: ['ATL', 'BOS'] }],
-    starters: [{ slotType: 'PG', player }], bench: [], optimizerEnabled: true }
+    starters: [{ slotType: 'PG', player }], bench: [], benchSlots: 3, optimizerEnabled: true }
 const prefix = `pancake:lineup-screen:v1:${encodeURIComponent('https://own.example/auth/v1')}:owner:league:member:2026-10-08`
 const key = `${prefix}:season:2026-10-08`
 
@@ -61,6 +61,7 @@ describe('private matching-day Lineup snapshots', () => {
         expect(readLineupSnapshot(scope, scope.day)).toBeUndefined()
     })
     it.each([
+        { benchSlots: -1 }, { benchSlots: undefined }, { benchSlots: 1.5 }, { benchSlots: 129 },
         { project: 'https://foreign.example/auth/v1' }, { schema: 2 }, { savedAt: Date.parse('2026-10-08T23:00:00Z') },
         { context: { ...value.context, seasonId: 'wrong-season' } }, { starters: [{ slotType: 'PG', player: { ...player, eligiblePositions: null } }] },
     ])('rejects malformed or mismatched envelope %j', (change) => {

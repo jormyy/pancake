@@ -385,7 +385,7 @@ export default function RosterScreen() {
     const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
 
     const listData = useMemo<RosterListItem[]>(() => {
-        const activeItems: RosterListItem[] = [{ _isHeader: true, _section: 'active' }]
+        const activeItems: RosterListItem[] = rosterSize > 0 || active.length > 0 ? [{ _isHeader: true, _section: 'active' }] : []
         for (const p of active) activeItems.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
         for (let i = active.length; i < rosterSize; i++) {
             activeItems.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })

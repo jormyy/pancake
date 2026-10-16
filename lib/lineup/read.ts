@@ -258,7 +258,7 @@ export async function getWeeklyLineup(
     weekNumber: number,
     gameDate: string,
     options: { allowCachedStatics?: boolean } = {},
-): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
+): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
     // gameDate is a YYYY-MM-DD string aligned to nba_games.game_date (ET).
     // Compare against todayET so non-ET clients don't misclassify the current
     // slate as "past" (or vice versa) during the 0–3h skew.
@@ -399,7 +399,7 @@ export async function getWeeklyLineup(
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
-    return { starters, bench, ir, taxi }
+    return { starters, bench, benchSlots: templates.find((template) => template.slot_type === 'BE')?.slot_count ?? 0, ir, taxi }
 }
 
 export type LineupSlotMove = {

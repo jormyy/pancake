@@ -7,7 +7,7 @@ import type { RosterPlayer } from '@/lib/roster'
 const mocks = vi.hoisted(() => ({
     context: {
         current: { id: 'own-member' } as { id: string } | null,
-        currentLeague: { id: 'league-a' } as { id: string } | null,
+        currentLeague: { id: 'league-a' } as { id: string; roster_size?: number; ir_slots?: number; taxi_slots?: number } | null,
         membershipStatus: 'available', refresh: vi.fn(),
     },
     params: { memberId: 'other-member', teamName: 'Other team' },
@@ -133,5 +133,36 @@ describe('team roster read recovery', () => {
         expect(screen.root.findAll((node) => node.props.item?.id === 'roster-one')).toHaveLength(0)
         expect(empty()).toHaveLength(0)
         expect(retry()).toHaveLength(1)
+    })
+})
+
+describe('team roster slot capacity', () => {
+    let screen: ReactTestRenderer
+    beforeEach(() => {
+        vi.clearAllMocks()
+        mocks.context.current = { id: 'own-member' }
+        mocks.context.currentLeague = { id: 'league-a', roster_size: 3, ir_slots: 2, taxi_slots: 2 }
+        mocks.getRoster.mockResolvedValue([])
+        mocks.getStats.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+    })
+    afterEach(async () => { await act(async () => screen?.unmount()) })
+    const mount = async () => { await act(async () => { screen = create(React.createElement(TeamRosterScreen)) }) }
+    const counts = () => Object.fromEntries(['roster', 'IR', 'taxi'].map((kind) => [kind,
+        screen.root.findAllByType('Text' as React.ElementType).filter((node) => node.props.children === `Empty ${kind} slot`).length,
+    ]))
+    it('shows all active, IR and taxi places after a successful empty read', async () => {
+        await mount()
+        expect(counts()).toEqual({ roster: 3, IR: 2, taxi: 2 })
+    })
+    it('keeps one row for each unfilled place with occupied reserves', async () => {
+        mocks.getRoster.mockResolvedValue([roster[0], { ...roster[0], id: 'ir', is_on_ir: true }, { ...roster[0], id: 'taxi', is_on_taxi: true }])
+        await mount()
+        expect(counts()).toEqual({ roster: 2, IR: 1, taxi: 1 })
+    })
+    it('omits zero-capacity sections', async () => {
+        mocks.context.currentLeague = { id: 'league-a', roster_size: 0, ir_slots: 0, taxi_slots: 0 }
+        await mount()
+        expect(counts()).toEqual({ roster: 0, IR: 0, taxi: 0 })
+        expect(screen.root.findAllByType('RosterSectionBand' as React.ElementType)).toHaveLength(0)
     })
 })

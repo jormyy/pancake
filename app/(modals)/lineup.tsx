@@ -230,6 +230,7 @@ export default function LineupScreen() {
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [dataDate, setDataDate] = useState(selectedDate)
     const [bench, setBench] = useState<LineupPlayer[]>([])
+    const [benchSlots, setBenchSlots] = useState(0)
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
     const [optimizerSaving, setOptimizerSaving] = useState(false)
     const [lineupLoading, setLineupLoading] = useState(true)
@@ -260,7 +261,7 @@ export default function LineupScreen() {
         && currentDay === todayET() && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId,
     [ownerKey, userId, currentDay])
 
-    const applySnapshot = useCallback((value: Pick<LineupSnapshot, 'context' | 'date' | 'days' | 'starters' | 'bench' | 'optimizerEnabled'>, saved: boolean) => {
+    const applySnapshot = useCallback((value: Pick<LineupSnapshot, 'context' | 'date' | 'days' | 'starters' | 'bench' | 'benchSlots' | 'optimizerEnabled'>, saved: boolean) => {
         setDataOwnerKey(ownerKey)
         setCtx(value.context)
         setWeekDays(value.days)
@@ -270,6 +271,7 @@ export default function LineupScreen() {
         setSeasonOptimizerEnabled(value.optimizerEnabled)
         setStarters(value.starters)
         setBench(value.bench)
+        setBenchSlots(value.benchSlots ?? 0)
         setSavedSnapshot(saved)
         if (saved) setContextAuthority(false)
     }, [ownerKey])
@@ -343,7 +345,7 @@ export default function LineupScreen() {
                 if (!requestIsCurrent(requestId, generation)) return
                 const lineup = await getWeeklyLineup(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId, lineupCtx.weekNumber, date)
                 if (!requestIsCurrent(requestId, generation)) return
-                const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, optimizerEnabled }
+                const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, optimizerEnabled }
                 saveLineupSnapshot(snapshotScope, generation, value)
                 applySnapshot(value, false)
                 setContextAuthority(true)
@@ -680,6 +682,7 @@ export default function LineupScreen() {
                     </View>
                 ) : null}
                 <View style={[styles.columns, twoColumn && styles.columnsWide]}>
+                {visibleStarters.length > 0 ? (
                 <View style={[styles.column, twoColumn && styles.columnWide]}>
                 {/* Starters */}
                 <Text
@@ -709,8 +712,9 @@ export default function LineupScreen() {
                 </MotionView>
                 </View>
 
+                ) : null}
+                {matchingDay && Math.max(benchSlots, visibleBench.length) > 0 ? (
                 <View style={[styles.column, twoColumn && styles.columnWide]}>
-                {/* Bench */}
                 <Text
                     style={styles.sectionLabel}
                     role="heading"
@@ -721,26 +725,43 @@ export default function LineupScreen() {
                     Bench
                 </Text>
                 <MotionView style={styles.card} preset="rise" delay={90}>
-                    {visibleBench.length === 0 ? (
-                        <Text style={styles.benchEmpty}>{!matchingDay ? 'Connect to load this day.' : rosterEmpty ? 'Your bench fills after the draft' : 'All players are in the starting lineup'}</Text>
-                    ) : (
-                        visibleBench.map((player, i) => (
-                            <BenchRow
-                                key={player.playerId}
-                                player={player}
-                                index={i}
-                                isSelected={selected?.kind === 'bench' && selected.index === i}
-                                liveTeamsRef={liveTeamsRef}
-                                teamMatchups={displayedMatchups}
-                                onPress={() => handleTap({ kind: 'bench', index: i })}
-                                disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
+                    {visibleBench.map((player, i) => (
+                        <BenchRow
+                            key={player.playerId}
+                            player={player}
+                            index={i}
+                            isSelected={selected?.kind === 'bench' && selected.index === i}
+                            liveTeamsRef={liveTeamsRef}
+                            teamMatchups={displayedMatchups}
+                            onPress={() => handleTap({ kind: 'bench', index: i })}
+                            disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
                             readOnly={readOnly}
-                                targetState={targetState({ kind: 'bench', index: i })}
-                            />
-                        ))
-                    )}
+                            targetState={targetState({ kind: 'bench', index: i })}
+                        />
+                    ))}
+                    {Array.from({ length: Math.max(0, benchSlots - visibleBench.length) }, (_, i) => {
+                        const index = visibleBench.length + i
+                        const state = targetState({ kind: 'bench', index })
+                        const disabled = readOnly || autoSetting || saving || lineupRefreshing || lineupLoading || state === 'invalid'
+                        return (
+                            <MotionPressable
+                                key={`empty-${i}`}
+                                style={[styles.benchRow, index > 0 && styles.divider, state === 'valid' && styles.validTargetRow]}
+                                onPress={() => handleTap({ kind: 'bench', index })}
+                                disabled={disabled}
+                                disabledOpacity={readOnly ? 1 : undefined}
+                                accessibilityRole="button"
+                                accessibilityLabel="Empty bench slot"
+                                accessibilityHint={state === 'valid' ? 'Move the selected player to the bench' : undefined}
+                                accessibilityState={{ disabled }}
+                            >
+                                <Text style={styles.benchEmpty}>Empty bench slot</Text>
+                            </MotionPressable>
+                        )
+                    })}
                 </MotionView>
                 </View>
+                ) : null}
                 </View>
             </ScrollView>
 
@@ -878,7 +899,7 @@ const styles = StyleSheet.create({
         color: colors.successDark,
         letterSpacing: 0.5,
     },
-    benchEmpty: { padding: spacing.xl, fontSize: fontSize.sm, color: colors.textPlaceholder, textAlign: 'center' },
+    benchEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontStyle: 'italic' },
 
     empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
     emptyText: { fontSize: fontSize.md, color: colors.textPlaceholder },

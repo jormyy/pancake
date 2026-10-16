@@ -15,6 +15,7 @@ export type LineupSnapshot = {
     days: WeekDay[]
     starters: LineupSlot[]
     bench: LineupPlayer[]
+    benchSlots: number
     optimizerEnabled: boolean
 }
 const MAX_BYTES = 256 * 1024
@@ -63,6 +64,7 @@ export function readLineupSnapshot(scope: LineupSnapshotScope, date: string, con
         || !Array.isArray(saved.starters) || saved.starters.length > 64
         || saved.starters.some((s) => !s || typeof s.slotType !== 'string' || !validPlayer(s.player))
         || !Array.isArray(saved.bench) || saved.bench.length > 128 || saved.bench.some((p) => !p || !validPlayer(p))
+        || !Number.isInteger(saved.benchSlots) || saved.benchSlots < 0 || saved.benchSlots > 128
         || typeof saved.optimizerEnabled !== 'boolean') return undefined
     return saved
 }

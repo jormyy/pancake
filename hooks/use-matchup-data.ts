@@ -14,7 +14,7 @@ import {
     subscribeToTableChanges,
 } from '@/lib/realtime'
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots?: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type LineupPair = { mine: LineupData; opp: LineupData }
 type MatchupRealtimeRow = {
     id: string
