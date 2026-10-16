@@ -5,7 +5,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Share,
     useWindowDimensions,
 } from 'react-native'
 import { Stack } from 'expo-router'
@@ -18,6 +17,7 @@ import { Button, Input, usePageMetrics } from '@/components/ui'
 import { ModalScreen } from '@/components/ui/ModalScreen'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { useGoBack } from '@/components/ui/useGoBack'
+import { shareInviteMessage } from '@/lib/invite-share'
 
 export default function CreateLeagueScreen() {
     const { user } = useAuth()
@@ -71,9 +71,7 @@ export default function CreateLeagueScreen() {
         if (sharingRef.current) return
         sharingRef.current = true
         try {
-            await Share.share({
-                message: `Join my dynasty basketball league on Pancake! Invite code: ${inviteCode}`,
-            })
+            await shareInviteMessage(`Join my dynasty basketball league on Pancake! Invite code: ${inviteCode}`)
         } finally {
             sharingRef.current = false
         }

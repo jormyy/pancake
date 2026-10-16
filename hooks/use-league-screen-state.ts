@@ -1,4 +1,3 @@
-import { Share } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -14,6 +13,7 @@ import { leagueScreenWatches } from '@/lib/league/realtime'
 import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
 import { useLeagueDraftController } from '@/hooks/use-league-draft-controller'
 import { useMockRoomsController } from '@/hooks/use-mock-rooms-controller'
+import { shareInviteMessage } from '@/lib/invite-share'
 
 export function useLeagueScreenState() {
     const router = useRouter()
@@ -129,9 +129,7 @@ export function useLeagueScreenState() {
         if (sharing) return
         setSharing(true)
         try {
-            await Share.share({
-                message: `Join my Pancake league! Use invite code: ${currentLeague?.invite_code}`,
-            })
+            await shareInviteMessage(`Join my Pancake league! Use invite code: ${currentLeague?.invite_code}`)
         } finally {
             setSharing(false)
         }
