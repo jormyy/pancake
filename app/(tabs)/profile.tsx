@@ -50,6 +50,7 @@ export default function ProfileScreen() {
     const [displayName, setDisplayName] = useState('')
     const [teamName, setTeamName] = useState('')
     const [saving, setSaving] = useState(false)
+    const submittingRef = useRef(false)
     const [avatarUploading, setAvatarUploading] = useState(false)
     const pushOwner = `${user?.id ?? ''}:${sessionGeneration()}`
     const [webPushState, setWebPushState] = useState<{ owner: string; status: WebPushStatus } | null>(null)
@@ -98,7 +99,7 @@ export default function ProfileScreen() {
     }, [current?.team_name])
 
     async function handleSave() {
-        if (!user) return
+        if (!user || submittingRef.current) return
         const ownerId = user.id
         const trimmedDisplay = displayName.trim()
         const trimmedTeam = teamName.trim()
@@ -106,6 +107,7 @@ export default function ProfileScreen() {
             showAlert('Invalid', 'Display name cannot be empty.')
             return
         }
+        submittingRef.current = true
         setSaving(true)
         try {
             const saves: Promise<void>[] = [
@@ -125,6 +127,7 @@ export default function ProfileScreen() {
         } catch (e) {
             if (activeUserIdRef.current === ownerId) showAlert('Error', getErrorMessage(e))
         } finally {
+            submittingRef.current = false
             if (activeUserIdRef.current === ownerId) setSaving(false)
         }
     }
