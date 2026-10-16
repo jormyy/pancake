@@ -26,6 +26,7 @@ import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomControll
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { PosTag } from '@/components/PosTag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
+import { LoadingState } from '@/components/ui/LoadingState'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -39,6 +40,9 @@ export default function RookieDraftRoomScreen() {
 
     const {
         state,
+        loading,
+        loadError,
+        prospectsLoadError,
         query,
         setQuery,
         prospects,
@@ -93,7 +97,9 @@ export default function RookieDraftRoomScreen() {
                 <ScreenFrame style={styles.container}>
                     <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList()} />
                     <View style={styles.center}>
-                        <Text style={styles.emptyText}>Draft not found.</Text>
+                        {loading ? <LoadingState /> : loadError ? (
+                            <ErrorBanner message="Could not load this draft. Tap to retry." onRetry={() => { void refresh() }} />
+                        ) : <Text style={styles.emptyText}>Draft not found.</Text>}
                     </View>
                 </ScreenFrame>
             </>
@@ -244,6 +250,7 @@ export default function RookieDraftRoomScreen() {
                         />
                     ) : null}
                 </DraftScreenHeader>
+                {loadError ? <ErrorBanner message="Draft updates are unavailable. Tap to retry." onRetry={() => { void refresh() }} /> : null}
                 {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? <TaxiAcquisitionChoice
                     value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking}
                     label="Draft this pick directly into taxi" /> : null}
@@ -382,12 +389,13 @@ export default function RookieDraftRoomScreen() {
                             )}
 
                             {/* ── Prospects list ───────────────────── */}
+                            {prospectsLoadError ? <ErrorBanner message="Could not load prospects. Tap to retry." onRetry={() => { void refresh() }} /> : null}
                             <FlashList
                                 data={prospects}
                                 keyExtractor={(p) => p.id}
                                 ItemSeparatorComponent={ItemSeparator}
                                 ListEmptyComponent={
-                                    !prospectsLoading ? (
+                                    !prospectsLoading && !prospectsLoadError ? (
                                         <View style={styles.emptyProspects}>
                                             <Text style={styles.emptyText}>
                                                 {query.trim() ? 'No matching prospects' : 'No prospects available'}
