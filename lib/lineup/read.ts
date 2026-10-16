@@ -46,13 +46,7 @@ export type WeekDay = {
  * not contain today (offseason, pre-season, catching up on a past week)
  * selects a date with no lineup rows and every slot renders as an em-dash.
  */
-export function clampDateToWeek(date: string, days: WeekDay[]): string {
-    if (days.length === 0) return date
-    if (date < days[0].date) return days[0].date
-    const last = days[days.length - 1].date
-    if (date > last) return last
-    return date
-}
+export { clampDateToWeek } from './date'
 
 // Returns the set of NBA team abbreviations whose game has already started on the given date.
 /** The one client reading of "this game has started" (the server's is private.lineup_game_started). */
