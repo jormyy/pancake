@@ -66,6 +66,9 @@ function readMatchupCache(memberId: string | undefined, leagueId: string | undef
     if (!memberId || !leagueId) return undefined
     const cached = readPersistentCache<MatchupScreenCache>(matchupCacheKey(memberId, leagueId))
     if (!cached || cached.today !== todayET()) return undefined
+    for (const lineup of [cached.myLineup, cached.oppLineup]) {
+        if (lineup && (typeof lineup.benchSlots !== 'number' || !Number.isSafeInteger(lineup.benchSlots) || lineup.benchSlots < 0)) return undefined
+    }
     return cached
 }
 
