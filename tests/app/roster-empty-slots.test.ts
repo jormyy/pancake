@@ -67,7 +67,9 @@ vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
     reportRealtimeCleanup: vi.fn(), subscribeToTableChanges: vi.fn(), unsubscribeFromTableChanges: vi.fn(),
 }))
-vi.mock('@/lib/lineup', () => ({ autoSetLineup: vi.fn(), getLineupContext: vi.fn() }))
+vi.mock('@/lib/lineup', () => ({ autoSetLineup: vi.fn(), getLineupContext: vi.fn(), getRosterSlotPlan: vi.fn() }))
+vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: vi.fn() }))
+vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-17' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false }))
 vi.mock('@/lib/format', () => ({
     countLabel: (count: number, noun: string) => `${count} ${noun}`,
@@ -81,8 +83,9 @@ vi.mock('@/components/ui', () => ({
     usePageMetrics: () => ({ padX: 16, usableWidth: 358 }),
 }))
 vi.mock('@/components/roster/RosterItems', () => ({
-    RosterClaimItem: 'RosterClaimItem', RosterPickItem: 'RosterPickItem', RosterPlayerItem: 'RosterPlayerItem',
-    RosterSectionBand: 'RosterSectionBand', TaxiPlayerItem: 'TaxiPlayerItem',
+    ROSTER_SLOT_TAG_WIDTH: 52, RosterClaimItem: 'RosterClaimItem', RosterPickItem: 'RosterPickItem',
+    RosterPlayerItem: 'RosterPlayerItem', RosterSectionBand: 'RosterSectionBand', RosterSlotTag: 'RosterSlotTag',
+    TaxiPlayerItem: 'TaxiPlayerItem',
 }))
 vi.mock('@/components/roster/RosterPlayerSheet', () => ({ RosterPlayerSheet: 'RosterPlayerSheet' }))
 vi.mock('@/components/roster/RosterTrimBanner', () => ({ RosterTrimBanner: 'RosterTrimBanner' }))
@@ -92,15 +95,21 @@ vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-function rosterData(roster: RosterPlayer[]) {
-    return { roster, picks: [], claims: [], avgMap: new Map(), avgStatsMap: new Map(), waiverPriority: null }
+const SLOT_PLAN = { slots: [{ slotType: 'UTIL', slotCount: 2 }, { slotType: 'PG', slotCount: 1 }, { slotType: 'BE', slotCount: 17 }], assignments: {} as Record<string, string> }
+
+function rosterData(roster: RosterPlayer[], assignments: Record<string, string> = {}) {
+    return { roster, picks: [], claims: [], avgMap: new Map(), avgStatsMap: new Map(), waiverPriority: null, slotPlan: { ...SLOT_PLAN, assignments } }
+}
+
+function slotTags(screen: ReactTestRenderer) {
+    return screen.root.findAllByType('RosterSlotTag' as never).map((node) => node.props.slotType)
 }
 
 function emptySlotCounts(screen: ReactTestRenderer) {
     const counts: Record<string, number> = {}
     for (const node of screen.root.findAllByType('Text' as never)) {
         const text = node.props.children
-        if (typeof text === 'string' && /^Empty (roster|IR|taxi) slot$/.test(text)) counts[text] = (counts[text] ?? 0) + 1
+        if (typeof text === 'string' && /^Empty \w+ slot$/.test(text)) counts[text] = (counts[text] ?? 0) + 1
     }
     return counts
 }
@@ -123,22 +132,32 @@ describe('roster empty slots', () => {
     it('keeps every active, IR and taxi slot visible when the roster is completely empty', () => {
         act(() => { screen = create(React.createElement(RosterScreen)) })
 
-        expect(emptySlotCounts(screen)).toEqual({ 'Empty roster slot': 20, 'Empty IR slot': 2, 'Empty taxi slot': 2 })
+        expect(emptySlotCounts(screen)).toEqual({
+            'Empty PG slot': 1, 'Empty UTIL slot': 2, 'Empty bench slot': 17, 'Empty IR slot': 2, 'Empty taxi slot': 2,
+        })
+        expect(slotTags(screen)).toEqual(['PG', 'UTIL', 'UTIL', ...Array(17).fill('BE'), 'IR', 'IR', 'TX', 'TX'])
         const prompt = screen.root.findByType('EmptyState' as never)
         expect(prompt.props).toMatchObject({ message: 'Your roster is empty', actionLabel: 'Browse Players' })
         act(() => prompt.props.onAction())
         expect(mocks.push).toHaveBeenCalledWith('/players')
     })
 
-    it('shows the remaining open slots without the empty prompt once a player is rostered', () => {
-        mocks.focusData.data = rosterData([{
-            id: 'roster-one', is_on_ir: false, is_on_taxi: false, acquired_via: 'draft',
-            players: { id: 'player-one', display_name: 'Player One', position: 'PG', eligible_positions: ['PG'],
+    it('labels starters by their lineup slot and keeps unassigned players on the bench', () => {
+        const player = (id: string) => ({
+            id: `roster-${id}`, is_on_ir: false, is_on_taxi: false, acquired_via: 'draft',
+            players: { id, display_name: `Player ${id}`, position: 'PG', eligible_positions: ['PG'],
                 nba_team: 'BOS', injury_status: null, nba_id: null, nba_draft_number: null, years_exp: 1 },
-        } as RosterPlayer])
+        }) as RosterPlayer
+        mocks.focusData.data = rosterData([player('one'), player('two')], { one: 'UTIL' })
         act(() => { screen = create(React.createElement(RosterScreen)) })
 
-        expect(emptySlotCounts(screen)).toEqual({ 'Empty roster slot': 19, 'Empty IR slot': 2, 'Empty taxi slot': 2 })
+        const rows = screen.root.findAllByType('RosterPlayerItem' as never).map((node) => [node.props.item.players.id, node.props.slotType])
+        expect(rows).toEqual([['one', 'UTIL'], ['two', 'BE']])
+        expect(emptySlotCounts(screen)).toEqual({
+            'Empty PG slot': 1, 'Empty UTIL slot': 1, 'Empty bench slot': 16, 'Empty IR slot': 2, 'Empty taxi slot': 2,
+        })
+        const bands = screen.root.findAllByType('RosterSectionBand' as React.ElementType).map((node) => node.props.label)
+        expect(bands.slice(0, 2)).toEqual(['Starters', 'Bench'])
         expect(screen.root.findAllByType('EmptyState' as never)).toHaveLength(0)
     })
 
@@ -153,8 +172,9 @@ describe('roster empty slots', () => {
         mocks.league.roster_size = 0
         mocks.league.ir_slots = 0
         mocks.league.taxi_slots = 0
+        mocks.focusData.data = { ...rosterData([]), slotPlan: { slots: [], assignments: {} } }
         act(() => { screen = create(React.createElement(RosterScreen)) })
         expect(emptySlotCounts(screen)).toEqual({})
-        expect(screen.root.findAllByType('RosterSectionBand' as React.ElementType).filter((node) => ['Active roster', 'Injured reserve', 'Taxi squad'].includes(node.props.label))).toHaveLength(0)
+        expect(screen.root.findAllByType('RosterSectionBand' as React.ElementType).filter((node) => ['Starters', 'Bench', 'Injured reserve', 'Taxi squad'].includes(node.props.label))).toHaveLength(0)
     })
 })

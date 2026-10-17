@@ -27,7 +27,7 @@ describe('RosterPlayerItem actions', () => {
         let renderer!: ReactTestRenderer
         await act(async () => {
             renderer = create(React.createElement(RosterPlayerItem, {
-                item, togglingId: null, taxiingId: null, droppingId: null,
+                item, slotType: 'BE', togglingId: null, taxiingId: null, droppingId: null,
                 taxiSlotsAvailable: true, onPress, onLongPress: vi.fn(), onToggleIR, onToggleTaxi,
             }))
         })

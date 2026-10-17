@@ -48,6 +48,13 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
       })
     }
   }
+  // The roster splits active capacity into lineup slots; the team view lists it as one block.
+  const countActive = async (route) => {
+    if (route === '/roster') {
+      await count('Empty PG slot', 1)
+      await count('Empty bench slot', 3)
+    } else await count('Empty roster slot', 4)
+  }
   const count = async (text, expected) => {
     const rows = page.getByText(text, { exact: true })
     let actual = await rows.count()
@@ -117,8 +124,8 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     checked.push({ route: '/', label: 'legacy-cache-capacity-recovery', offline: 'unknown capacity is not displayed as zero', restored: 3 })
     for (const [name, route] of [['roster', '/roster'], ['team', `/team-roster?memberId=${fixture.recipient.id}`]]) {
       await visit(route)
-      await page.getByText('Empty roster slot', { exact: true }).first().waitFor()
-      await count('Empty roster slot', 4)
+      await page.getByText('Empty IR slot', { exact: true }).first().waitFor()
+      await countActive(route)
       await count('Empty IR slot', 2)
       await count('Empty taxi slot', 2)
       await page.screenshot({ path: path.join(captures, `slots-${name}.png`), fullPage: true })
@@ -141,7 +148,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     if (offseason.error) throw offseason.error
     for (const route of ['/roster', `/team-roster?memberId=${fixture.recipient.id}`]) {
       await visit(route)
-      await count('Empty roster slot', 4)
+      await countActive(route)
       await count('Empty IR slot', 2)
       await count('Empty taxi slot', 2)
     }
@@ -157,7 +164,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     await apply(0, 0, 0, 0)
     for (const route of ['/roster', `/team-roster?memberId=${fixture.recipient.id}`, '/lineup']) {
       await visit(route)
-      for (const label of ['Empty roster slot', 'Empty IR slot', 'Empty taxi slot', 'Empty bench slot']) await count(label, 0)
+      for (const label of ['Empty roster slot', 'Empty PG slot', 'Empty IR slot', 'Empty taxi slot', 'Empty bench slot']) await count(label, 0)
     }
     await visit('/')
     await page.getByRole('heading', { name: /^Weeks? .* matchup$/ }).waitFor()
