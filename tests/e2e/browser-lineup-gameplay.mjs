@@ -495,17 +495,12 @@ const dispatchDomClick = async (session, name, label) => {
   return parsed
 }
 
-// A save keeps its button disabled until the lineup reload behind it finishes. Wait for that, as a user would;
-// a button that never re-enables still fails here, with its own message.
-const waitForEnabledButton = async (session, name, label, timeoutMs = 15_000) => {
-  const disabled = `button "${name}" [disabled`
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (!(await browser(session, ['snapshot'])).includes(disabled)) return
-    await browser(session, ['wait', '250'])
-  }
-  throw new Error(`${label}: button stayed disabled for ${timeoutMs} ms: ${name}`)
-}
+const waitForAutoSetOptions = (session) => browser(session, ['wait', '--fn', `(() => {
+  return ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season', 'Cancel auto-set'].every((label) => {
+    const node = document.querySelector('[aria-label="' + label + '"]');
+    return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
+  });
+})()`])
 
 const clickButton = async (session, name, label, { preferDom = false } = {}) => {
   if (preferDom) return dispatchDomClick(session, name, label)
@@ -517,7 +512,18 @@ const clickButton = async (session, name, label, { preferDom = false } = {}) => 
   }
 }
 
-const checkAutoSetRefreshReadiness = async (session, record) => {
+const openAutoSetOptions = async (session, label) => {
+  await browser(session, ['wait', '--fn', `(() => {
+    const node = document.querySelector('[aria-label="Open auto-set lineup options"]');
+    return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
+  })()`])
+  const click = await clickButton(session, 'Open auto-set lineup options', label)
+  await waitForAutoSetOptions(session)
+  return click
+}
+
+export const checkAutoSetRefreshReadiness = async (session, record) => {
+  await waitForAutoSetOptions(session)
   await browser(session, ['eval', `(() => {
     const original = window.fetch;
     const pending = [];
@@ -554,10 +560,7 @@ const checkAutoSetRefreshReadiness = async (session, record) => {
   } finally {
     await browser(session, ['eval', 'window.__pancakeReleaseAutoSetRefresh?.()'])
   }
-  await browser(session, ['wait', '--fn', `(() => {
-    const choice = document.querySelector('[aria-label="Auto-set whole week"]');
-    return Boolean(choice?.getClientRects().length) && choice.getAttribute('aria-disabled') !== 'true';
-  })()`])
+  await waitForAutoSetOptions(session)
   return state
 }
 
@@ -1006,18 +1009,16 @@ export async function runBrowserLineupAutoSetScenario({
     await resetBrowserAlertCapture(session)
     await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-set'], 'lineup before auto-set')
     record({ beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-before.png') })
-    const openClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button')
+    const openClick = await openAutoSetOptions(session, 'auto-set button')
     await assertPageText(session, ['Auto-set lineup', 'Today', 'Whole week', 'Rest of season'], 'auto-set modal')
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
-    await waitForEnabledButton(session, 'Open auto-set lineup options', 'auto-set button for whole week')
-    const openWeekClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for whole week')
+    const openWeekClick = await openAutoSetOptions(session, 'auto-set button for whole week')
     const refreshReadiness = await checkAutoSetRefreshReadiness(session, record)
     const weekClick = await clickButton(session, 'Auto-set whole week', 'auto-set whole week button')
     const weekDates = [todayDateString(), ...fixture.remainingSeasonDates.filter((date) => date <= fixture.week.week_end)]
     const weekCheck = await waitForRemainingSeasonLineups({ ...fixture, remainingSeasonDates: weekDates })
-    await waitForEnabledButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
-    const openSeasonClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
+    const openSeasonClick = await openAutoSetOptions(session, 'auto-set button for remaining season')
     await assertPageText(session, ['Auto-set lineup', 'Rest of season'], 'remaining-season auto-set modal')
     const seasonClick = await clickButton(session, 'Auto-set rest of season', 'auto-set remaining season button')
     const seasonAlert = await waitForAlertText(
