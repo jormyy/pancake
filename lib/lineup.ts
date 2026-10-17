@@ -1,9 +1,10 @@
-export type { LineupPlayer, LineupSlot, LineupContext, WeekDay } from './lineup/read'
+export type { LineupPlayer, LineupSlot, LineupContext, RosterSlotPlan, WeekDay } from './lineup/read'
 export {
     clampDateToWeek,
     getStartedTeams,
     getLineupContext,
     getWeekDays,
+    getRosterSlotPlan,
     getWeeklyLineup,
     invalidateCachedRoster,
     setPlayerSlotMoves,

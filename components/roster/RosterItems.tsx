@@ -1,23 +1,46 @@
 import { memo, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { claimProcessTimeLabel, WaiverClaim } from '@/lib/waivers'
 import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { rosterSlotLabel } from '@/lib/roster-slots'
 import { Avatar } from '@/components/Avatar'
 import { Badge, InjuryBadge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 const ROW_AVATAR = 36
+export const ROSTER_SLOT_TAG_WIDTH = 52
+
+/**
+ * Fixed-width lineup role for a roster row: a filled tag for a starting slot,
+ * a dashed outline for BENCH, and the reserve tones for IR and TAXI.
+ * Solid theme tokens only: alpha() tints of themed colors do not render on web.
+ */
+export function RosterSlotTag({ slotType }: { slotType: string }) {
+    const tone = slotType === 'BE' ? styles.slotTagBench
+        : slotType === 'IR' ? styles.slotTagIR
+        : slotType === 'TX' ? styles.slotTagTaxi
+        : styles.slotTagStarter
+    const textTone = slotType === 'BE' ? styles.slotTagTextBench
+        : slotType === 'IR' ? styles.slotTagTextIR
+        : slotType === 'TX' ? styles.slotTagTextTaxi
+        : styles.slotTagTextStarter
+    return (
+        <View style={[styles.slotTag, tone]}>
+            <Text style={[styles.slotTagText, textTone]}>{rosterSlotLabel(slotType)}</Text>
+        </View>
+    )
+}
 
 /** Band at the top of a roster section card: label left, optional detail right. */
-export function RosterSectionBand({ label, detail, tone = 'default' }: { label: string; detail?: ReactNode; tone?: 'default' | 'taxi' }) {
+export function RosterSectionBand({ label, detail, tone = 'default' }: { label: string; detail?: ReactNode; tone?: 'default' | 'taxi' | 'starters' }) {
     return (
-        <View style={[styles.band, tone === 'taxi' && styles.bandTaxi]} role="heading" aria-level={2} accessibilityRole="header" accessibilityLabel={label}>
+        <View style={[styles.band, tone === 'taxi' && styles.bandTaxi, tone === 'starters' && styles.bandStarters]} role="heading" aria-level={2} accessibilityRole="header" accessibilityLabel={label}>
             <Text style={[styles.bandLabel, tone === 'taxi' && styles.bandLabelTaxi]}>{label}</Text>
             {detail ? <View style={styles.bandDetail}>{detail}</View> : null}
         </View>
@@ -200,6 +223,7 @@ export const RosterPickItem = memo(function RosterPickItem({
 
 export const RosterPlayerItem = memo(function RosterPlayerItem({
     item,
+    slotType,
     togglingId,
     taxiingId,
     droppingId,
@@ -210,6 +234,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     onToggleIR,
 }: {
     item: RosterPlayer
+    slotType: string
     togglingId: string | null
     taxiingId: string | null
     droppingId: string | null
@@ -236,6 +261,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${player.display_name}`}
             >
+                <RosterSlotTag slotType={slotType} />
                 <Avatar
                     name={player.display_name}
                     color={colors.bgMuted}
@@ -354,6 +380,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${player.display_name}`}
             >
+                <RosterSlotTag slotType="TX" />
                 <Avatar
                     name={player.display_name}
                     color={colors.bgMuted}
@@ -396,9 +423,29 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     bandTaxi: { backgroundColor: colors.infoLight },
+    bandStarters: { backgroundColor: colors.primaryLight },
     bandLabel: { ...textStyles.sectionLabel, flex: 1 },
     bandLabelTaxi: { color: colors.info },
     bandDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+
+    slotTag: {
+        width: ROSTER_SLOT_TAG_WIDTH,
+        minHeight: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.xs,
+        borderCurve: 'continuous' as const,
+        borderWidth: 1,
+    },
+    slotTagStarter: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
+    slotTagBench: { borderColor: colors.border, borderStyle: 'dashed' as const },
+    slotTagIR: { backgroundColor: colors.dangerLight, borderColor: uiColors.dangerBorder },
+    slotTagTaxi: { backgroundColor: colors.infoLight, borderColor: colors.info },
+    slotTagText: { fontSize: 10, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
+    slotTagTextStarter: { color: colors.primaryDark },
+    slotTagTextBench: { color: colors.textSecondary },
+    slotTagTextIR: { color: colors.dangerDark },
+    slotTagTextTaxi: { color: colors.info },
 
     row: {
         flexDirection: 'row',

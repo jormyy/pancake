@@ -25,7 +25,7 @@ import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
-import { RosterClaimItem, RosterPickItem, RosterPlayerItem, RosterSectionBand, TaxiPlayerItem } from '@/components/roster/RosterItems'
+import { ROSTER_SLOT_TAG_WIDTH, RosterClaimItem, RosterPickItem, RosterPlayerItem, RosterSectionBand, RosterSlotTag, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -34,15 +34,19 @@ import { debounceRealtimeRefresh, reportRealtimeCleanup, subscribeToTableChanges
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 import { AutoSetModal } from '@/components/AutoSetModal'
-import { autoSetLineup, getLineupContext } from '@/lib/lineup'
+import { autoSetLineup, getLineupContext, getRosterSlotPlan, type RosterSlotPlan } from '@/lib/lineup'
+import { getActiveSeasonId } from '@/lib/shared/season'
+import { todayET } from '@/lib/shared/dates'
+import { arrangeActiveRoster } from '@/lib/roster-slots'
 import { getMemberTransactionState, isTradingClosed } from '@/lib/league'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Badge } from '@/components/Badge'
 
+type RosterSlotSection = 'starters' | 'bench' | 'ir' | 'taxi'
 type RosterListItem = (
     | { _isHeader: true; _section: string }
-    | { _isHeader: false; _isEmpty: true; _section: 'active' | 'ir' | 'taxi'; _emptyIndex: number }
-    | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: 'active' | 'ir' | 'taxi' })
+    | { _isHeader: false; _isEmpty: true; _section: RosterSlotSection; _slotType: string; _emptyIndex: number }
+    | (RosterPlayer & { _isHeader: false; _isEmpty: false; _section: RosterSlotSection; _slotType: string })
     | (TradePickItem & { _isHeader: false; _isEmpty: false; _section: 'picks' })
     | (WaiverClaim & { _isHeader: false; _isEmpty: false; _section: 'claims' })
 ) & { _sectionEnd?: boolean }
@@ -56,8 +60,10 @@ function closeSection(items: RosterListItem[]): RosterListItem[] {
 }
 
 const TABLE_STATS = ['FP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TO', 'GP'] as const
-const TABLE_SLOT_W = 44
-const TABLE_PLAYER_MIN_W = 220
+const TABLE_SLOT_W = ROSTER_SLOT_TAG_WIDTH + spacing.md
+// The slot tag is 20px wider than the old slot text; the player column gives
+// it up so the table and two-pane breakpoints stay where they were.
+const TABLE_PLAYER_MIN_W = 220 - (TABLE_SLOT_W - 44)
 const TABLE_ACTIONS_W = 128
 // Narrowest width that fits every stat column; below it rows stay two-line.
 const TABLE_MIN_WIDTH = TABLE_SLOT_W + TABLE_PLAYER_MIN_W + TABLE_STATS.length * table.statColWidth + TABLE_ACTIONS_W + 2 * spacing.lg
@@ -73,6 +79,7 @@ type RosterScreenData = {
     avgStatsMap: Map<string, RosterAverage>
     waiverPriority: number | null
     faabBalance?: number | null
+    slotPlan: RosterSlotPlan
 }
 type RosterScreenCache = {
     roster: RosterPlayer[]
@@ -82,8 +89,9 @@ type RosterScreenCache = {
     avgStatsEntries: [string, RosterAverage][]
     waiverPriority: number | null
     faabBalance?: number | null
+    slotPlan: RosterSlotPlan
 }
-const ROSTER_CACHE_PREFIX = 'pancake:roster-screen:v1:'
+const ROSTER_CACHE_PREFIX = 'pancake:roster-screen:v2:'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 
@@ -119,6 +127,7 @@ function readRosterCache(memberId: string | undefined, leagueId: string | undefi
         avgStatsMap: new Map(cached.avgStatsEntries),
         waiverPriority: cached.waiverPriority,
         faabBalance: cached.faabBalance,
+        slotPlan: cached.slotPlan,
     }
 }
 
@@ -131,6 +140,7 @@ function writeRosterCache(memberId: string, leagueId: string, data: RosterScreen
         avgStatsEntries: Array.from(data.avgStatsMap.entries()),
         waiverPriority: data.waiverPriority,
         faabBalance: data.faabBalance,
+        slotPlan: data.slotPlan,
     })
 }
 
@@ -155,6 +165,7 @@ function RosterTableHeader() {
 function RosterTablePlayerItem({
     item,
     section,
+    slotType,
     avgFpts,
     stats,
     isBusy,
@@ -164,7 +175,8 @@ function RosterTablePlayerItem({
     onToggleTaxi,
 }: {
     item: RosterPlayer
-    section: 'active' | 'ir' | 'taxi'
+    section: RosterSlotSection
+    slotType: string
     avgFpts?: number
     stats?: RosterAverage
     isBusy: boolean
@@ -179,7 +191,6 @@ function RosterTablePlayerItem({
         : item.players.position
           ? [item.players.position]
           : []
-    const slot = section === 'ir' ? 'IR' : section === 'taxi' ? 'TX' : positions[0] ?? 'BE'
     const canIR = item.is_on_ir || isIREligible(item.players.injury_status)
 
     return (
@@ -193,7 +204,7 @@ function RosterTablePlayerItem({
                 accessibilityLabel={`Open ${item.players.display_name}`}
                 accessibilityState={{ disabled: isBusy }}
             >
-                <Text style={styles.rosterTableSlot}>{slot}</Text>
+                <View style={styles.rosterTableSlot}><RosterSlotTag slotType={slotType} /></View>
                 <View style={styles.rosterTablePlayerCell}>
                     <Avatar
                         name={item.players.display_name}
@@ -314,15 +325,17 @@ export default function RosterScreen() {
     const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
         if (!leagueId) return null
-        const [roster, picks, claims, waiverPriority, transactionState] = await Promise.all([
-            getRoster(current.id, leagueId),
+        const seasonId = await getActiveSeasonId(leagueId)
+        const [roster, picks, claims, waiverPriority, transactionState, slotPlan] = await Promise.all([
+            getRoster(current.id, leagueId, seasonId ?? undefined),
             getPicksForMember(current.id, leagueId),
             getMyWaiverClaims(current.id, leagueId),
             getMyWaiverPriority(current.id, leagueId),
             currentLeague?.waiver_mode === 'faab' ? getMemberTransactionState(current.id, leagueId) : Promise.resolve(null),
+            getRosterSlotPlan(current.id, leagueId, seasonId, todayET()),
         ])
         const { avgMap, avgStatsMap } = await getRosterStatsMaps(roster.map((r) => r.players.id), leagueId)
-        const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority, faabBalance: transactionState?.faabBalance ?? null }
+        const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority, faabBalance: transactionState?.faabBalance ?? null, slotPlan }
         return result
     }, [current?.id, user?.id, leagueId, currentLeague?.waiver_mode], {
         initialData: cachedRosterData ?? undefined, staleMs: 300_000,
@@ -345,6 +358,7 @@ export default function RosterScreen() {
                 { table: 'waiver_claims', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_priorities', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
+                { table: 'weekly_lineups', filter: `member_id=eq.${current.id}` },
             ], onChange: refreshRoster.trigger },
         )
 
@@ -383,25 +397,29 @@ export default function RosterScreen() {
     const irSlots = currentLeague?.ir_slots ?? 2
     const taxiSlots = currentLeague?.taxi_slots ?? 3
     const rosterOverflow = activeRosterOverflow(active.length, rosterSize)
+    const lineup = useMemo(() => arrangeActiveRoster(active, data?.slotPlan, rosterSize), [active, data?.slotPlan, rosterSize])
+    const startersFilled = lineup.starters.filter((row) => row.player).length
+    const benchFilled = lineup.bench.filter((row) => row.player).length
+    const benchCapacity = Math.max(rosterSize - lineup.starters.length, 0)
 
     const listData = useMemo<RosterListItem[]>(() => {
-        const activeItems: RosterListItem[] = rosterSize > 0 || active.length > 0 ? [{ _isHeader: true, _section: 'active' }] : []
-        for (const p of active) activeItems.push({ ...p, _isHeader: false, _isEmpty: false, _section: 'active' as const })
-        for (let i = active.length; i < rosterSize; i++) {
-            activeItems.push({ _isHeader: false, _isEmpty: true, _section: 'active', _emptyIndex: i })
-        }
-        const result = closeSection(activeItems)
-        // IR and taxi always list every slot, filled or empty, so the manager
-        // can see how much room is left before an injury or a stash decision.
-        const reserveSection = (section: 'ir' | 'taxi', players: RosterPlayer[], slots: number) => {
-            if (slots === 0 && players.length === 0) return
+        // Every slot is listed, filled or empty, so the manager sees each
+        // lineup role and how much room is left before a move or stash.
+        const result: RosterListItem[] = []
+        const slotSection = (section: RosterSlotSection, rows: { slotType: string; player: RosterPlayer | null }[]) => {
+            if (rows.length === 0) return
             const items: RosterListItem[] = [{ _isHeader: true, _section: section }]
-            for (const p of players) items.push({ ...p, _isHeader: false, _isEmpty: false, _section: section })
-            for (let i = players.length; i < slots; i++) items.push({ _isHeader: false, _isEmpty: true, _section: section, _emptyIndex: i })
+            rows.forEach(({ slotType, player }, index) => items.push(player
+                ? { ...player, _isHeader: false, _isEmpty: false, _section: section, _slotType: slotType }
+                : { _isHeader: false, _isEmpty: true, _section: section, _slotType: slotType, _emptyIndex: index }))
             result.push(...closeSection(items))
         }
-        reserveSection('ir', ir, irSlots)
-        reserveSection('taxi', taxi, taxiSlots)
+        const reserveRows = (slotType: string, players: RosterPlayer[], slots: number) =>
+            Array.from({ length: Math.max(players.length, slots) }, (_, index) => ({ slotType, player: players[index] ?? null }))
+        slotSection('starters', lineup.starters)
+        slotSection('bench', lineup.bench)
+        slotSection('ir', reserveRows('IR', ir, irSlots))
+        slotSection('taxi', reserveRows('TX', taxi, taxiSlots))
         // Wide screens show picks and claims in the side column instead.
         if (!twoPane) {
             result.push(...closeSection([
@@ -416,7 +434,7 @@ export default function RosterScreen() {
             }
         }
         return result
-    }, [active, ir, taxi, picks, claims, rosterSize, irSlots, taxiSlots, twoPane])
+    }, [lineup, ir, taxi, picks, claims, irSlots, taxiSlots, twoPane])
 
     const claimsHeaderIndex = useMemo(
         () => listData.findIndex((item) => item._isHeader && item._section === 'claims'),
@@ -550,6 +568,7 @@ export default function RosterScreen() {
                 mode === 'today' ? ctx.today : null, mode === 'season',
             )
             if (!isCurrentAction(generation, identity)) return
+            void load()
             if (mode === 'season' && result?.failed) {
                 showAlert('Lineup partly optimized', `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`)
             } else {
@@ -704,11 +723,18 @@ export default function RosterScreen() {
 
     const renderRosterContent = useCallback((item: RosterListItem) => {
         if (item._isHeader) {
-            if (item._section === 'active') {
+            if (item._section === 'starters' || item._section === 'bench') {
+                const starters = item._section === 'starters'
                 return (
                     <>
-                        <RosterSectionBand label="Active roster" detail={<Text style={styles.bandHint}>{active.length}/{rosterSize}</Text>} />
-                        {showRosterTable ? <RosterTableHeader /> : null}
+                        <RosterSectionBand
+                            label={starters ? 'Starters' : 'Bench'}
+                            tone={starters ? 'starters' : 'default'}
+                            detail={<Text style={styles.bandHint}>
+                                {starters ? `${startersFilled}/${lineup.starters.length} · today` : `${benchFilled}/${benchCapacity}`}
+                            </Text>}
+                        />
+                        {showRosterTable && (starters || lineup.starters.length === 0) ? <RosterTableHeader /> : null}
                     </>
                 )
             }
@@ -724,8 +750,12 @@ export default function RosterScreen() {
         if (item._isEmpty) {
             return (
                 <View style={styles.emptySlot}>
+                    <RosterSlotTag slotType={item._slotType} />
                     <Text style={styles.emptySlotText}>
-                        {item._section === 'ir' ? 'Empty IR slot' : item._section === 'taxi' ? 'Empty taxi slot' : 'Empty roster slot'}
+                        {item._section === 'ir' ? 'Empty IR slot'
+                            : item._section === 'taxi' ? 'Empty taxi slot'
+                                : item._section === 'bench' ? 'Empty bench slot'
+                                    : `Empty ${item._slotType} slot`}
                     </Text>
                 </View>
             )
@@ -757,6 +787,7 @@ export default function RosterScreen() {
                     <RosterTablePlayerItem
                         item={taxiItem}
                         section="taxi"
+                        slotType="TX"
                         avgFpts={avgMap.get(taxiItem.players.id)}
                         stats={avgStatsMap.get(taxiItem.players.id)}
                         isBusy={taxiingId === taxiItem.id}
@@ -783,7 +814,8 @@ export default function RosterScreen() {
             return (
                 <RosterTablePlayerItem
                     item={rosterItem}
-                    section={rosterItem.is_on_ir ? 'ir' : 'active'}
+                    section={item._section}
+                    slotType={item._slotType}
                     avgFpts={avgMap.get(rosterItem.players.id)}
                     stats={avgStatsMap.get(rosterItem.players.id)}
                     isBusy={togglingId === rosterItem.id || taxiingId === rosterItem.id || droppingId === rosterItem.id}
@@ -798,6 +830,7 @@ export default function RosterScreen() {
         return (
             <RosterPlayerItem
                 item={rosterItem}
+                slotType={item._slotType}
                 togglingId={togglingId}
                 taxiingId={taxiingId}
                 droppingId={droppingId}
@@ -811,7 +844,8 @@ export default function RosterScreen() {
             />
         )
     }, [
-        showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots, ir.length, irSlots, active.length, rosterSize,
+        showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots, ir.length, irSlots, lineup.starters.length,
+        startersFilled, benchFilled, benchCapacity,
         togglingId, taxiingId, droppingId, cancellingId, claimsDetail,
         currentLeague?.waiver_mode, current?.team_name, handleOpenRosterPlayer,
         handleCancelClaim, handleEditClaimBid, handleReorderClaim,
@@ -1062,13 +1096,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-    rosterTableSlot: {
-        width: TABLE_SLOT_W,
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.extrabold,
-        color: colors.primaryDark,
-        textTransform: 'uppercase' as const,
-    },
+    rosterTableSlot: { width: TABLE_SLOT_W },
     rosterTablePlayer: { flex: 1, minWidth: TABLE_PLAYER_MIN_W },
     rosterTablePlayerCell: {
         flex: 1,
@@ -1116,7 +1144,9 @@ const styles = StyleSheet.create({
 
     emptySlot: {
         minHeight: 44,
-        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
         paddingHorizontal: spacing.lg,
     },
     emptySlotText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
