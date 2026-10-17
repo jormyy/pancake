@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Platform, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { colors, radii, shadows, spacing, type WebOnlyViewStyle } from '@/constants/tokens'
 
 type PromptFrameProps = {
@@ -32,7 +32,7 @@ export function PromptFrame({
     }
 
     return (
-        <SafeAreaView style={[styles.container, containerStyle]}>
+        <ScreenFrame style={[styles.container, containerStyle]}>
             <ScrollView
                 style={styles.scroller}
                 contentContainerStyle={styles.fullScreenContent}
@@ -40,7 +40,7 @@ export function PromptFrame({
             >
                 {card}
             </ScrollView>
-        </SafeAreaView>
+        </ScreenFrame>
     )
 }
 

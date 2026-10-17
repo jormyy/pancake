@@ -45,6 +45,8 @@ export function useRookieDraftRoomController({
 
     const [state, setState] = useState<RookieDraftState | null>(null)
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState<{ ownerKey: string; message: string } | null>(null)
+    const [prospectsError, setProspectsError] = useState<{ ownerKey: string; query: string; message: string } | null>(null)
     const [query, setQuery] = useState('')
     const [prospects, setProspects] = useState<RookieProspect[]>([])
     const [prospectsLoading, setProspectsLoading] = useState(false)
@@ -123,6 +125,8 @@ export function useRookieDraftRoomController({
         lastSearchQueryRef.current = ''
         setState(null)
         setLoading(Boolean(draftId))
+        setLoadError(null)
+        setProspectsError(null)
         setQuery('')
         setProspects([])
         setProspectsLoading(Boolean(draftId))
@@ -163,11 +167,12 @@ export function useRookieDraftRoomController({
             const data = await getRookieDraftState(requestedDraftId)
             if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             setState(data)
+            setLoadError(null)
             return true
         } catch (e) {
             if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             console.error(e)
-            setPickError(getErrorMessage(e) ?? 'Failed to refresh draft')
+            setLoadError({ ownerKey: readOwnerKey, message: getErrorMessage(e) ?? 'Failed to refresh draft' })
             return false
         } finally {
             if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setLoading(false)
@@ -189,10 +194,13 @@ export function useRookieDraftRoomController({
             const data = await getRookiePlayers(requestedDraftId, requestedQuery)
             if (prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             setProspects(data)
+            setProspectsError(null)
             return true
         } catch (e) {
             if (prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             console.error(e)
+            setProspectsError({ ownerKey: readOwnerKey, query: requestedQuery?.trim() ?? '',
+                message: getErrorMessage(e) ?? 'Failed to load prospects' })
             return false
         } finally {
             if (prospectsSeqRef.current === requestId && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setProspectsLoading(false)
@@ -592,6 +600,9 @@ export function useRookieDraftRoomController({
     return {
         state: visibleState,
         loading: ownsDraft ? loading : true,
+        loadError: loadError?.ownerKey === readOwnerKey ? loadError.message : null,
+        prospectsLoadError: prospectsError?.ownerKey === readOwnerKey && prospectsError.query === query.trim()
+            ? prospectsError.message : null,
         query,
         setQuery,
         draftToTaxi,

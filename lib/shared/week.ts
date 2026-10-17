@@ -52,7 +52,20 @@ export async function getCurrentWeekNumber(seasonYear: number): Promise<number |
 }
 
 /** The ET start date of a seeded week, from the same memoized season weeks. */
-export async function getSeasonWeekStart(seasonYear: number, weekNumber: number): Promise<string | null> {
+async function getSeasonWeekStart(seasonYear: number, weekNumber: number): Promise<string | null> {
     const weeks = await getSeasonWeeks(seasonYear, todayET())
     return weeks.find((week) => week.week_number === weekNumber)?.week_start ?? null
+}
+
+export async function getSeasonWeekDates(seasonYear: number, weekNumber: number): Promise<string[]> {
+    const weekStart = await getSeasonWeekStart(seasonYear, weekNumber)
+    if (!weekStart) return []
+    const start = new Date(`${weekStart}T12:00:00Z`)
+    const day = start.getUTCDay()
+    start.setUTCDate(start.getUTCDate() + (day === 0 ? -6 : 1 - day))
+    return Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(start)
+        date.setUTCDate(date.getUTCDate() + index)
+        return date.toISOString().split('T')[0]
+    })
 }

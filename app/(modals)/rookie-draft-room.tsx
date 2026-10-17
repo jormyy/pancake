@@ -10,7 +10,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
@@ -26,6 +26,7 @@ import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomControll
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { PosTag } from '@/components/PosTag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
+import { LoadingState } from '@/components/ui/LoadingState'
 
 export default function RookieDraftRoomScreen() {
     const { draftId } = useLocalSearchParams<{ draftId: string }>()
@@ -39,6 +40,9 @@ export default function RookieDraftRoomScreen() {
 
     const {
         state,
+        loading,
+        loadError,
+        prospectsLoadError,
         query,
         setQuery,
         prospects,
@@ -68,7 +72,7 @@ export default function RookieDraftRoomScreen() {
         rosterSize: currentLeague?.roster_size ?? 20,
     })
 
-    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft } =
+    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =
         useDraftAdminControls({
             draftId,
             refresh,
@@ -90,23 +94,25 @@ export default function RookieDraftRoomScreen() {
         return (
             <>
                 <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal', headerShown: false }} />
-                <SafeAreaView style={styles.container}>
+                <ScreenFrame style={styles.container}>
                     <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList()} />
                     <View style={styles.center}>
-                        <Text style={styles.emptyText}>Draft not found.</Text>
+                        {loading ? <LoadingState /> : loadError ? (
+                            <ErrorBanner message="Could not load this draft. Tap to retry." onRetry={() => { void refresh() }} />
+                        ) : <Text style={styles.emptyText}>Draft not found.</Text>}
                     </View>
-                </SafeAreaView>
+                </ScreenFrame>
             </>
         )
     }
 
     if (state.draft.leagueId !== currentLeague?.id) {
-        return <SafeAreaView style={styles.container}>
+        return <ScreenFrame style={styles.container}>
             <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList(state.draft.isMock)} />
             <View style={styles.center}>
                 <Text style={styles.emptyText}>This draft belongs to another league. Select its league to continue.</Text>
             </View>
-        </SafeAreaView>
+        </ScreenFrame>
     }
 
     const { draft, picks, nextPick } = state
@@ -131,19 +137,21 @@ export default function RookieDraftRoomScreen() {
         <>
             <Stack.Screen options={{ title: draftTitle, presentation: 'modal', headerShown: false }} />
 
-            {/* ── Roster overflow resolution modal (non-dismissable) ── */}
-            <Modal visible={!!rosterOverflow} transparent animationType="slide">
+            <Modal visible={!!rosterOverflow} transparent animationType="slide"
+                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList(draft.isMock) }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Roster Full</Text>
                         <Text style={styles.overflowBody}>
                             You drafted{' '}
                             <Text style={{ fontWeight: fontWeight.bold }}>{rosterOverflow?.newPlayerName}</Text>
-                            {' '}but your active roster is over capacity. Resolve before continuing.
+                            {' '}but your active roster is over capacity. Drop a player before setting lineups or adding players.
                         </Text>
-
-
-
+                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
+                            accessibilityLabel="Back to League" disabled={resolvingOverflow}
+                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            <Text style={styles.overflowExitText}>Back to League</Text>
+                        </MotionPressable>
                         {rosterForDrop.length > 0 && (
                             <>
                                 <Text style={styles.overflowDropLabel}>Drop a player:</Text>
@@ -180,16 +188,21 @@ export default function RookieDraftRoomScreen() {
                 </View>
             </Modal>
 
-            {/* ── End-of-draft roster trim modal (non-dismissable) ── */}
-            <Modal visible={!!trimOverflow} transparent animationType="slide">
+            <Modal visible={!!trimOverflow} transparent animationType="slide"
+                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList(draft.isMock) }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Trim Your Roster</Text>
                         <Text style={styles.overflowBody}>
                             Your active roster is{' '}
                             <Text style={{ fontWeight: fontWeight.bold }}>{trimOverflow?.excess ?? 0} over</Text>
-                            {' '}the limit. Drop {countLabel(trimOverflow?.excess ?? 0, 'player')} to continue.
+                            {' '}the limit. Drop {countLabel(trimOverflow?.excess ?? 0, 'player')} before setting lineups or adding players.
                         </Text>
+                        <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
+                            accessibilityLabel="Back to League" disabled={!!trimmingId}
+                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            <Text style={styles.overflowExitText}>Back to League</Text>
+                        </MotionPressable>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
                         <ScrollView style={styles.overflowDropList} showsVerticalScrollIndicator>
                             {trimOverflow?.dropList.map((rp) => (
@@ -222,10 +235,11 @@ export default function RookieDraftRoomScreen() {
                 </View>
             </Modal>
 
-            <SafeAreaView style={styles.container} edges={['bottom']}>
+            <ScreenFrame style={styles.container} edges={['bottom']}>
                 <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
                     {isCommissioner && !isDone && isDesktop ? (
                         <DraftAdminBar
+                            disabled={adminBusy}
                             inline
                             showLabel={false}
                             isPaused={isPaused}
@@ -237,6 +251,7 @@ export default function RookieDraftRoomScreen() {
                         />
                     ) : null}
                 </DraftScreenHeader>
+                {loadError ? <ErrorBanner message="Draft updates are unavailable. Tap to retry." onRetry={() => { void refresh() }} /> : null}
                 {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? <TaxiAcquisitionChoice
                     value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking}
                     label="Draft this pick directly into taxi" /> : null}
@@ -310,6 +325,7 @@ export default function RookieDraftRoomScreen() {
 
                         {isCommissioner && !isDone && !isDesktop ? (
                             <DraftAdminBar
+                                disabled={adminBusy}
                                 isPaused={isPaused}
                                 showPause={canUsePauseControl}
                                 showLabel={!compactLandscape}
@@ -375,12 +391,13 @@ export default function RookieDraftRoomScreen() {
                             )}
 
                             {/* ── Prospects list ───────────────────── */}
+                            {prospectsLoadError ? <ErrorBanner message="Could not load prospects. Tap to retry." onRetry={() => { void refresh() }} /> : null}
                             <FlashList
                                 data={prospects}
                                 keyExtractor={(p) => p.id}
                                 ItemSeparatorComponent={ItemSeparator}
                                 ListEmptyComponent={
-                                    !prospectsLoading ? (
+                                    !prospectsLoading && !prospectsLoadError ? (
                                         <View style={styles.emptyProspects}>
                                             <Text style={styles.emptyText}>
                                                 {query.trim() ? 'No matching prospects' : 'No prospects available'}
@@ -412,7 +429,7 @@ export default function RookieDraftRoomScreen() {
                         />
                     )}
                 </KeyboardAvoidingView>
-            </SafeAreaView>
+            </ScreenFrame>
         </>
     )
 }
@@ -717,11 +734,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: spacing.sm,
     },
-    overflowBtnPrimary: {
-        backgroundColor: colors.primary,
-    },
-    overflowBtnPrimaryText: {
-        color: colors.textWhite,
+    overflowExitText: {
+        color: colors.primaryDark,
         fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
     },

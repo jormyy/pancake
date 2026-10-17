@@ -12,7 +12,7 @@ const scope = { ownerId: 'owner', memberId: 'member', leagueId: 'league', day: '
 const player = { rosterPlayerId: 'roster', playerId: 'player', displayName: 'Saved player', position: 'PG', eligiblePositions: ['PG'], nbaTeam: 'ATL', injuryStatus: null, nbaId: null }
 const value = { context: { seasonId: 'season', seasonYear: 2027, weekNumber: 1, today: scope.day }, date: scope.day,
     days: [{ date: scope.day, dayLabel: 'T', dateNum: 8, hasGames: true, isToday: true, playingTeams: ['ATL', 'BOS'] }],
-    starters: [{ slotType: 'PG', player }], bench: [], optimizerEnabled: true }
+    starters: [{ slotType: 'PG', player }], bench: [], benchSlots: 3, optimizerEnabled: true }
 const prefix = `pancake:lineup-screen:v1:${encodeURIComponent('https://own.example/auth/v1')}:owner:league:member:2026-10-08`
 const key = `${prefix}:season:2026-10-08`
 
@@ -61,6 +61,7 @@ describe('private matching-day Lineup snapshots', () => {
         expect(readLineupSnapshot(scope, scope.day)).toBeUndefined()
     })
     it.each([
+        { benchSlots: -1 }, { benchSlots: undefined }, { benchSlots: 1.5 }, { benchSlots: 129 },
         { project: 'https://foreign.example/auth/v1' }, { schema: 2 }, { savedAt: Date.parse('2026-10-08T23:00:00Z') },
         { context: { ...value.context, seasonId: 'wrong-season' } }, { starters: [{ slotType: 'PG', player: { ...player, eligiblePositions: null } }] },
     ])('rejects malformed or mismatched envelope %j', (change) => {
@@ -72,7 +73,7 @@ describe('private matching-day Lineup snapshots', () => {
         for (let i = 0; i < 5; i++) {
             vi.advanceTimersByTime(1)
             const day = `2026-10-${String(8 + i).padStart(2, '0')}`
-            saveLineupSnapshot(scope, 1, { ...value, date: day, days: [{ ...value.days[0], date: day }] })
+            saveLineupSnapshot(scope, 1, { ...value, date: day, days: Array.from({ length: 7 }, (_, offset) => ({ ...value.days[0], date: `2026-10-${String(8 + offset).padStart(2, '0')}` })) })
         }
         expect(readLineupSnapshot(scope, '2026-10-08')).toBeUndefined()
         expect(readLineupSnapshot(scope, '2026-10-12')).toBeDefined()
@@ -80,4 +81,17 @@ describe('private matching-day Lineup snapshots', () => {
         saveLineupSnapshot(scope, 1, { ...value, starters: [{ slotType: 'PG', player: { ...player, displayName: 'x'.repeat(256 * 1024) } }] })
         expect(readLineupSnapshot(scope, scope.day)).toBeUndefined()
     })
+})
+
+it.each([
+    { days: ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'], date: '2026-10-12' },
+    { days: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07'], date: '2026-10-07' },
+])('restores the saved default when today falls outside the loaded week: $date', ({ days, date }) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-08T22:00:00Z'))
+    state.owner = 'owner'; state.generation = 1; state.admitted = true; clearPersistentCaches()
+    const clamped = { ...value, date, days: days.map((day) => ({ ...value.days[0], date: day })) }
+    saveLineupSnapshot(scope, 1, clamped)
+    expect(readLineupSnapshot(scope, scope.day)).toMatchObject({ date, benchSlots: 3 })
+    expect(readLineupSnapshot(scope, days[1])).toBeUndefined()
 })

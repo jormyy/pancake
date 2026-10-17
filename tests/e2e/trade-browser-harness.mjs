@@ -1,4 +1,4 @@
-import path from 'node:path'
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import process from 'node:process'
 import { createBrowser, fillSignInCredentials, listBrowserSessions } from './browser-agent.mjs'
 import { installRuntimeOverrides } from './browser-runtime-overrides.mjs'
@@ -7,8 +7,8 @@ import { installRuntimeOverrides } from './browser-runtime-overrides.mjs'
 /** @typedef {{ email: string }} BrowserUser */
 
 export const ROOT = process.cwd()
-export const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
-export const MULTI_TEAM_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-trade-multi-team-report.md')
+export const ARTIFACT_ROOT = browserArtifactPath('artifacts')
+export const MULTI_TEAM_REPORT_PATH = browserArtifactPath('e2e-browser-trade-multi-team-report.md')
 export const browser = createBrowser({ cwd: ROOT })
 export const listSessions = () => listBrowserSessions({ cwd: ROOT })
 /** @param {string} base @param {string} pathname */
@@ -94,6 +94,7 @@ export const signInBrowser = async (session, env, user, password) => {
 
 /** @param {string} session @param {string[]} required @param {string} label */
 export const assertPageText = async (session, required, label) => {
+  if (process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-')) required = required.map((text) => text === 'DEAL SUMMARY' ? 'DEAL OVERVIEW' : text)
   // Poll instead of asserting a single snapshot: responsive re-layout after a
   // viewport switch can take longer than the scenario's fixed waits.
   let parsed
@@ -122,6 +123,20 @@ export const assertPageText = async (session, required, label) => {
 
 /** @param {string} session @param {string} testID @param {string} label */
 export const clickTestId = async (session, testID, label) => {
+  if (process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-') && (testID.startsWith('trade-sender-') || testID === 'trade-deal-summary')) {
+    const memberId = testID.slice('trade-sender-'.length)
+    const output = await browser(session, ['eval', `(() => {
+      const visible = ${JSON.stringify(testID)} === 'trade-deal-summary'
+        ? document.body.innerText.includes('DEAL OVERVIEW')
+        : [...document.querySelectorAll('[data-testid]')].some((node) =>
+          ['trade-' + ${JSON.stringify(memberId)} + '-player-', 'trade-' + ${JSON.stringify(memberId)} + '-pick-', 'trade-faab-' + ${JSON.stringify(memberId)}]
+            .some((prefix) => node.getAttribute('data-testid').startsWith(prefix)) && node.getBoundingClientRect().width > 0);
+      return JSON.stringify({ ok: visible, layout: 'desktop', panelsVisible: visible });
+    })()`])
+    const result = parseEvalJson(output)
+    if (!result || typeof result !== 'object' || Reflect.get(result, 'ok') !== true) throw new Error(`${label}: desktop sender or overview panel is missing`)
+    return result
+  }
   const result = parseEvalJson(await browser(session, ['eval', `(() => {
     const target = document.querySelector(${JSON.stringify(`[data-testid="${testID}"]`)})
       || document.querySelector(${JSON.stringify(`[testid="${testID}"]`)})

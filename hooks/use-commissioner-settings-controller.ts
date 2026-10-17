@@ -9,20 +9,27 @@ import { useAuth } from '@/hooks/use-auth'
 export function useCommissionerSettingsController() {
     const { currentLeague: league, isCommissioner, refresh } = useLeagueContext()
     const { user } = useAuth()
-    const { back, replace } = useRouter()
+    const { back, replace, canGoBack } = useRouter()
+    const finishSettings = () => {
+        if (canGoBack()) back()
+        else replace('/league?tab=settings')
+    }
     const settings = useCommissionerSettingsResource({
         league,
         ownerId: user?.id ?? null,
         isCommissioner,
         refresh,
-        onSaved: back,
+        onSaved: finishSettings,
     })
     const overrides = useCommissionerOverrides(user?.id ?? null, league?.id, settings.members)
     const admin = useCommissionerAdminActions({
         ownerId: user?.id ?? null,
         league,
         refresh,
-        onDeleted: back,
+        onDeleted: () => {
+            if (canGoBack()) back()
+            else replace('/league')
+        },
     })
 
     return {

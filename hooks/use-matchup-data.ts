@@ -4,7 +4,7 @@ import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from 
 import { clampDateToWeek, getWeekDays, getWeeklyLineup, invalidateCachedRoster, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
 import { invalidateSeasonCache } from '@/lib/shared/season'
-import { invalidateWeekNumberCache } from '@/lib/shared/week'
+import { getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import {
@@ -14,7 +14,7 @@ import {
     subscribeToTableChanges,
 } from '@/lib/realtime'
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots?: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type LineupPair = { mine: LineupData; opp: LineupData }
 type MatchupRealtimeRow = {
     id: string
@@ -66,6 +66,9 @@ function readMatchupCache(memberId: string | undefined, leagueId: string | undef
     if (!memberId || !leagueId) return undefined
     const cached = readPersistentCache<MatchupScreenCache>(matchupCacheKey(memberId, leagueId))
     if (!cached || cached.today !== todayET()) return undefined
+    for (const lineup of [cached.myLineup, cached.oppLineup]) {
+        if (lineup && (typeof lineup.benchSlots !== 'number' || !Number.isSafeInteger(lineup.benchSlots) || lineup.benchSlots < 0)) return undefined
+    }
     return cached
 }
 
@@ -250,15 +253,22 @@ export function useMatchupData(
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             const date = selectedDateRef.current
-            const [mine, opp] = await Promise.all([
-                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
-                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
-            ])
-            if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
-                date !== selectedDateRef.current) return
-            setMyLineup((previous) => reuseLineup(previous, mine))
-            setOppLineup((previous) => reuseLineup(previous, opp))
-            setLineupError(false)
+            try {
+                const [mine, opp] = await Promise.all([
+                    getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
+                    getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
+                ])
+                if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
+                    date !== selectedDateRef.current) return
+                setMyLineup((previous) => reuseLineup(previous, mine))
+                setOppLineup((previous) => reuseLineup(previous, opp))
+                setLineupError(false)
+            } catch (error) {
+                if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
+                    date !== selectedDateRef.current) return
+                console.error(error)
+                setLineupError(true)
+            }
         },
         [leagueId, ownsResource, resourceKey],
     )
@@ -287,17 +297,17 @@ export function useMatchupData(
                 setMatchup(m)
                 matchupRef.current = m
                 const today = todayET()
-                // Optimistically fetch today's lineups alongside week metadata —
-                // during the season the clamped date IS today, so the lineup wave
-                // overlaps the metadata wave instead of queuing behind it.
-                const [days, weekMatchups, todayLineups] = await Promise.all([
-                    getWeekDays(m.weekNumber, m.seasonYear),
+                const daysPromise = getWeekDays(m.weekNumber, m.seasonYear)
+                const lineupsPromise = getSeasonWeekDates(m.seasonYear, m.weekNumber).then(async (dates) => {
+                    const boundaries = dates.length > 0 ? dates.map((date) => ({ date })) : await daysPromise
+                    const selected = clampDateToWeek(today, boundaries)
+                    return { selected, lineups: await fetchLineups(m, selected, leagueId) }
+                })
+                const [days, weekMatchups, { selected, lineups }] = await Promise.all([
+                    daysPromise,
                     getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
-                    fetchLineups(m, today, leagueId),
+                    lineupsPromise,
                 ])
-                if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
-                const selected = clampDateToWeek(today, days)
-                const lineups = selected === today ? todayLineups : await fetchLineups(m, selected, leagueId)
                 if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
                 setWeekDays(days)
                 setLeagueMatchups(weekMatchups)

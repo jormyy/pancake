@@ -5,7 +5,7 @@ import {
     ScrollView,
 } from 'react-native'
 import { Stack } from 'expo-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { changePassword } from '@/lib/auth'
 import { Input, Button, usePageMetrics } from '@/components/ui'
 import { ModalScreen } from '@/components/ui/ModalScreen'
@@ -24,9 +24,11 @@ export default function ChangePasswordScreen() {
     // Each message shows under the field it is about.
     const [error, setError] = useState<{ field: 'current' | 'new' | 'confirm'; message: string } | null>(null)
     const [saving, setSaving] = useState(false)
+    const submittingRef = useRef(false)
     const { padX } = usePageMetrics()
 
     async function handleSave() {
+        if (submittingRef.current) return
         const current = currentPassword
         const next = newPassword
         if (!current) {
@@ -45,6 +47,7 @@ export default function ChangePasswordScreen() {
             setError({ field: 'new', message: 'New password must be different from your current password.' })
             return
         }
+        submittingRef.current = true
         setSaving(true)
         setError(null)
         try {
@@ -54,6 +57,7 @@ export default function ChangePasswordScreen() {
         } catch (e) {
             setError({ field: 'current', message: getErrorMessage(e) ?? 'Could not change your password.' })
         } finally {
+            submittingRef.current = false
             setSaving(false)
         }
     }

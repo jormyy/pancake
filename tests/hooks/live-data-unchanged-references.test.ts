@@ -5,7 +5,7 @@ import type { GameDay, LiveStatLine } from '@/lib/games'
 import type { LineupPlayer, LineupSlot } from '@/lib/lineup'
 import type { Matchup } from '@/lib/scoring'
 
-type Lineup = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type Lineup = { starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 const boundary = vi.hoisted(() => ({
     games: vi.fn(), stats: vi.fn(), lineup: vi.fn(), matchup: vi.fn(),
     cache: vi.fn(), week: vi.fn(), online: true, hidden: false,
@@ -18,7 +18,7 @@ vi.mock('@/lib/lineup', () => ({
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-13' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
-vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
+vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: boundary.cache, writePersistentCache: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
 vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
@@ -49,7 +49,7 @@ const makeLineup = (offset: number): Lineup => {
     return {
         starters: [...players.slice(0, 18).map((player) => ({ slotType: 'UTIL', player })),
             { slotType: 'UTIL', player: null }, { slotType: 'UTIL', player: null }],
-        bench: players.slice(18, 108), ir: players.slice(108, 114), taxi: players.slice(114),
+        bench: players.slice(18, 108), benchSlots: 90, ir: players.slice(108, 114), taxi: players.slice(114),
     }
 }
 const makeStats = (): Map<string, LiveStatLine> => new Map(Array.from({ length: 240 }, (_, index) => [
@@ -94,7 +94,7 @@ class SnapshotMap<Value> extends Map<string, Value> {
         return super[Symbol.iterator]()
     }
 }
-const rowList = (value: Lineup) => [...value.starters.map((slot) => slot.player), ...value.bench, ...value.ir, ...value.taxi]
+const rowList = (value: Omit<Lineup, 'benchSlots'>) => [...value.starters.map((slot) => slot.player), ...value.bench, ...value.ir, ...value.taxi]
 
 // The memo boundary uses the same changing data props as Home's MatchupRow.
 // Its section memo depends on both lineups, as Home's LineupComparison does.

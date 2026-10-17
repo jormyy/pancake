@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
         refresh: vi.fn(),
     },
     push: vi.fn(),
+    league: { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 2, status: 'active', waiver_mode: 'rolling' },
 }))
 
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
@@ -43,7 +44,7 @@ vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user-a' } })
 vi.mock('@/contexts/league-context', () => ({
     useLeagueContext: () => ({
         current: { id: 'member-a', team_name: 'Team A' },
-        currentLeague: { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 2, status: 'active', waiver_mode: 'rolling' },
+        currentLeague: mocks.league,
         loading: false,
         membershipStatus: 'available',
     }),
@@ -108,6 +109,9 @@ describe('roster empty slots', () => {
     let screen: ReactTestRenderer
 
     beforeEach(() => {
+        mocks.league.roster_size = 20
+        mocks.league.ir_slots = 2
+        mocks.league.taxi_slots = 2
         mocks.focusData.loading = false
         mocks.focusData.data = rosterData([])
     })
@@ -144,5 +148,13 @@ describe('roster empty slots', () => {
         act(() => { screen = create(React.createElement(RosterScreen)) })
 
         expect(emptySlotCounts(screen)).toEqual({})
+    })
+    it('omits empty zero-capacity roster sections', () => {
+        mocks.league.roster_size = 0
+        mocks.league.ir_slots = 0
+        mocks.league.taxi_slots = 0
+        act(() => { screen = create(React.createElement(RosterScreen)) })
+        expect(emptySlotCounts(screen)).toEqual({})
+        expect(screen.root.findAllByType('RosterSectionBand' as React.ElementType).filter((node) => ['Active roster', 'Injured reserve', 'Taxi squad'].includes(node.props.label))).toHaveLength(0)
     })
 })

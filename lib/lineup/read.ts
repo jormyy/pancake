@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason, invalidateSeasonCache } from '@/lib/shared/season'
-import { getCurrentWeekNumber, getSeasonWeekStart, invalidateWeekNumberCache } from '@/lib/shared/week'
+import { getCurrentWeekNumber, getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
 import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
 import { getEligiblePositions } from '@/lib/players'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
@@ -46,13 +46,7 @@ export type WeekDay = {
  * not contain today (offseason, pre-season, catching up on a past week)
  * selects a date with no lineup rows and every slot renders as an em-dash.
  */
-export function clampDateToWeek(date: string, days: WeekDay[]): string {
-    if (days.length === 0) return date
-    if (date < days[0].date) return days[0].date
-    const last = days[days.length - 1].date
-    if (date > last) return last
-    return date
-}
+export { clampDateToWeek } from './date'
 
 // Returns the set of NBA team abbreviations whose game has already started on the given date.
 /** The one client reading of "this game has started" (the server's is private.lineup_game_started). */
@@ -107,7 +101,7 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
     // Fetch week boundaries first, then query games by date range.
     // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect
     // week_number values if the schedule was synced out of order or re-seeded.
-    const weekStart = await getSeasonWeekStart(seasonYear, weekNumber)
+    const dates = await getSeasonWeekDates(seasonYear, weekNumber)
 
     const today = todayET()
     const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
@@ -115,14 +109,9 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
 
     const dateTeams = new Map<string, string[]>()
 
-    if (weekStart) {
-        const start = new Date(weekStart + 'T12:00:00Z')
-        const dow = start.getUTCDay()
-        start.setUTCDate(start.getUTCDate() + (dow === 0 ? -6 : 1 - dow))
-        const end = new Date(start)
-        end.setUTCDate(end.getUTCDate() + 6)
-        const startStr = start.toISOString().split('T')[0]
-        const endStr = end.toISOString().split('T')[0]
+    if (dates.length > 0) {
+        const startStr = dates[0]
+        const endStr = dates[dates.length - 1]
 
         const { data: games, error: gamesError } = await supabase
             .from('nba_games')
@@ -140,10 +129,8 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
             if (g.away_team) arr.push(g.away_team)
         }
 
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(start)
-            d.setUTCDate(d.getUTCDate() + i)
-            const dateStr = d.toISOString().split('T')[0]
+        for (const dateStr of dates) {
+            const d = new Date(`${dateStr}T12:00:00Z`)
             result.push({
                 date: dateStr,
                 dayLabel: DAY_CHARS[d.getUTCDay()],
@@ -258,7 +245,7 @@ export async function getWeeklyLineup(
     weekNumber: number,
     gameDate: string,
     options: { allowCachedStatics?: boolean } = {},
-): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
+): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
     // gameDate is a YYYY-MM-DD string aligned to nba_games.game_date (ET).
     // Compare against todayET so non-ET clients don't misclassify the current
     // slate as "past" (or vice versa) during the 0–3h skew.
@@ -399,7 +386,7 @@ export async function getWeeklyLineup(
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
-    return { starters, bench, ir, taxi }
+    return { starters, bench, benchSlots: templates.find((template) => template.slot_type === 'BE')?.slot_count ?? 0, ir, taxi }
 }
 
 export type LineupSlotMove = {

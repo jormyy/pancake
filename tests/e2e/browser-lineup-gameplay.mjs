@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
@@ -8,8 +9,8 @@ import { createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
-const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
-const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-lineup-report.md')
+const ARTIFACT_ROOT = browserArtifactPath('artifacts')
+const REPORT_PATH = browserArtifactPath('e2e-browser-lineup-report.md')
 
 const browser = createBrowser({ cwd: ROOT })
 
@@ -494,17 +495,12 @@ const dispatchDomClick = async (session, name, label) => {
   return parsed
 }
 
-// A save keeps its button disabled until the lineup reload behind it finishes. Wait for that, as a user would;
-// a button that never re-enables still fails here, with its own message.
-const waitForEnabledButton = async (session, name, label, timeoutMs = 15_000) => {
-  const disabled = `button "${name}" [disabled`
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (!(await browser(session, ['snapshot'])).includes(disabled)) return
-    await browser(session, ['wait', '250'])
-  }
-  throw new Error(`${label}: button stayed disabled for ${timeoutMs} ms: ${name}`)
-}
+const waitForAutoSetOptions = (session) => browser(session, ['wait', '--fn', `(() => {
+  return ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season', 'Cancel auto-set'].every((label) => {
+    const node = document.querySelector('[aria-label="' + label + '"]');
+    return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
+  });
+})()`])
 
 const clickButton = async (session, name, label, { preferDom = false } = {}) => {
   if (preferDom) return dispatchDomClick(session, name, label)
@@ -514,6 +510,59 @@ const clickButton = async (session, name, label, { preferDom = false } = {}) => 
   } catch {
     return dispatchDomClick(session, name, label)
   }
+}
+
+export const openAutoSetOptions = async (session, label) => {
+  await browser(session, ['wait', '--load', 'networkidle'])
+  await browser(session, ['wait', '--fn', `(() => {
+    const node = document.querySelector('[aria-label="Open auto-set lineup options"]');
+    return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
+  })()`])
+  const click = await clickButton(session, 'Open auto-set lineup options', label)
+  await waitForAutoSetOptions(session)
+  return click
+}
+
+export const checkAutoSetRefreshReadiness = async (session, record) => {
+  await waitForAutoSetOptions(session)
+  await browser(session, ['eval', `(() => {
+    const original = window.fetch;
+    const pending = [];
+    let held = true;
+    window.fetch = async (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
+      if (held && url.pathname.endsWith('/league_members')) await new Promise((resolve) => pending.push(resolve));
+      return original.call(window, input, init);
+    };
+    window.__pancakeReleaseAutoSetRefresh = () => {
+      held = false;
+      window.fetch = original;
+      pending.splice(0).forEach((resolve) => resolve());
+      delete window.__pancakeReleaseAutoSetRefresh;
+    };
+    window.dispatchEvent(new Event('focus'));
+  })()`])
+  let state
+  try {
+    await browser(session, ['wait', '--fn', `document.querySelector('[aria-label="Open auto-set lineup options"]')?.getAttribute('aria-disabled') === 'true'`])
+    state = parseEvalJson(await browser(session, ['eval', `(() => {
+      const labels = ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season'];
+      const choices = labels.map((label) => {
+        const node = document.querySelector('[aria-label="' + label + '"]');
+        return { label, visible: Boolean(node?.getClientRects().length), disabled: node?.getAttribute('aria-disabled') === 'true' };
+      });
+      const cancel = document.querySelector('[aria-label="Cancel auto-set"]');
+      return JSON.stringify({ choices, cancelAvailable: Boolean(cancel?.getClientRects().length) && cancel.getAttribute('aria-disabled') !== 'true' });
+    })()`]))
+    record({ refreshReadiness: state })
+    if (!state.choices.every((choice) => choice.visible && choice.disabled) || !state.cancelAvailable) {
+      throw new Error(`Auto-set choices must wait for refresh without closing the sheet: ${JSON.stringify(state)}`)
+    }
+  } finally {
+    await browser(session, ['eval', 'window.__pancakeReleaseAutoSetRefresh?.()'])
+  }
+  await waitForAutoSetOptions(session)
+  return state
 }
 
 const verifyLineup = async (fixture, { expectedAutoSet = false } = {}) => {
@@ -961,12 +1010,16 @@ export async function runBrowserLineupAutoSetScenario({
     await resetBrowserAlertCapture(session)
     await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-set'], 'lineup before auto-set')
     record({ beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-before.png') })
-    const openClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button')
+    const openClick = await openAutoSetOptions(session, 'auto-set button')
     await assertPageText(session, ['Auto-set lineup', 'Today', 'Whole week', 'Rest of season'], 'auto-set modal')
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
-    await waitForEnabledButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
-    const openSeasonClick = await clickButton(session, 'Open auto-set lineup options', 'auto-set button for remaining season')
+    const openWeekClick = await openAutoSetOptions(session, 'auto-set button for whole week')
+    const refreshReadiness = await checkAutoSetRefreshReadiness(session, record)
+    const weekClick = await clickButton(session, 'Auto-set whole week', 'auto-set whole week button')
+    const weekDates = [todayDateString(), ...fixture.remainingSeasonDates.filter((date) => date <= fixture.week.week_end)]
+    const weekCheck = await waitForRemainingSeasonLineups({ ...fixture, remainingSeasonDates: weekDates })
+    const openSeasonClick = await openAutoSetOptions(session, 'auto-set button for remaining season')
     await assertPageText(session, ['Auto-set lineup', 'Rest of season'], 'remaining-season auto-set modal')
     const seasonClick = await clickButton(session, 'Auto-set rest of season', 'auto-set remaining season button')
     const seasonAlert = await waitForAlertText(
@@ -975,12 +1028,12 @@ export async function runBrowserLineupAutoSetScenario({
       'remaining-season success notice',
     )
     const seasonCheck = await waitForRemainingSeasonLineups(fixture)
-    record({ openClick, todayClick, lineupCheck, openSeasonClick, seasonClick, seasonCheck, seasonAlert })
+    record({ openClick, todayClick, lineupCheck, openWeekClick, weekClick, weekCheck, openSeasonClick, seasonClick, seasonCheck, seasonAlert })
     await browser(session, ['wait', '1000'])
     record({ afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-after.png') })
     return {
-      fields: { mode: 'auto-set', lineupCheck, seasonCheck, seasonAlert },
-      failures: [...lineupCheck.failures, ...seasonCheck.failures],
+      fields: { mode: 'auto-set', lineupCheck, refreshReadiness, weekCheck, seasonCheck, seasonAlert },
+      failures: [...lineupCheck.failures, ...weekCheck.failures, ...seasonCheck.failures],
     }
     },
     verifyFailure: async () => ({

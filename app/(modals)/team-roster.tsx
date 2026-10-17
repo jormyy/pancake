@@ -102,25 +102,30 @@ export default function TeamRosterScreen() {
         [roster],
     )
 
-    const renderSection = (label: string, items: RosterPlayer[], empty?: string, tone?: 'taxi') => (
-        <View style={styles.card}>
-            <RosterSectionBand label={label} tone={tone} />
-            {items.length === 0 && empty ? (
-                <View style={styles.taxiEmpty}>
-                    <Text style={styles.taxiEmptyText}>{empty}</Text>
-                </View>
-            ) : items.map((item, index) => (
-                <View key={item.id} style={index < items.length - 1 ? styles.rowDivider : undefined}>
-                    <ReadOnlyRosterPlayerItem
-                        item={item}
-                        avgFpts={avgMap.get(item.players.id)}
-                        avgMinutes={avgStatsMap.get(item.players.id)?.avg_minutes_played}
-                        onPress={() => push({ pathname: '/player/[id]', params: { id: item.players.id } })}
-                    />
-                </View>
-            ))}
-        </View>
-    )
+    const renderSection = (label: string, items: RosterPlayer[], capacity: number, empty: string, tone?: 'taxi') => {
+        const size = Math.max(items.length, capacity)
+        if (size === 0) return null
+        return (
+            <View style={styles.card}>
+                <RosterSectionBand label={label} tone={tone} />
+                {items.map((item, index) => (
+                    <View key={item.id} style={index < size - 1 ? styles.rowDivider : undefined}>
+                        <ReadOnlyRosterPlayerItem
+                            item={item}
+                            avgFpts={avgMap.get(item.players.id)}
+                            avgMinutes={avgStatsMap.get(item.players.id)?.avg_minutes_played}
+                            onPress={() => push({ pathname: '/player/[id]', params: { id: item.players.id } })}
+                        />
+                    </View>
+                ))}
+                {Array.from({ length: Math.max(0, capacity - items.length) }, (_, index) => (
+                    <View key={`empty-${index}`} style={[styles.emptySlot, items.length + index < size - 1 && styles.rowDivider]}>
+                        <Text style={styles.emptySlotText}>{empty}</Text>
+                    </View>
+                ))}
+            </View>
+        )
+    }
 
     return (
         <Page title={teamName ?? 'Team roster'}>
@@ -155,22 +160,22 @@ export default function TeamRosterScreen() {
                             : <Text>Join a league to view team rosters.</Text>
                 ) : (!ownsRoster && !loadError) || (loading && roster.length === 0) ? (
                     <LoadingState />
-                ) : roster.length === 0 ? (
-                    loadError ? null :
-                    <EmptyState
-                        icon="sports-basketball"
-                        message="No players yet"
-                        description="This roster fills as the draft and season go on."
-                        fullScreen={false}
-                        framed
-                    />
-                ) : (
+                ) : ownsRoster ? (
                     <>
-                        {renderSection('Active roster', active)}
-                        {ir.length > 0 ? renderSection('Injured reserve', ir) : null}
-                        {renderSection('Taxi squad', taxi, 'No players on taxi squad', 'taxi')}
+                        {roster.length === 0 && !loadError ? (
+                            <EmptyState
+                                icon="sports-basketball"
+                                message="No players yet"
+                                description="This roster fills as the draft and season go on."
+                                fullScreen={false}
+                                framed
+                            />
+                        ) : null}
+                        {renderSection('Active roster', active, currentLeague?.roster_size ?? 0, 'Empty roster slot')}
+                        {renderSection('Injured reserve', ir, currentLeague?.ir_slots ?? 0, 'Empty IR slot')}
+                        {renderSection('Taxi squad', taxi, currentLeague?.taxi_slots ?? 0, 'Empty taxi slot', 'taxi')}
                     </>
-                )}
+                ) : null}
             </ScrollView>
         </Page>
     )
@@ -191,10 +196,10 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
-    taxiEmpty: {
+    emptySlot: {
         minHeight: 44,
         justifyContent: 'center',
         paddingHorizontal: spacing.lg,
     },
-    taxiEmptyText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
+    emptySlotText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
 })

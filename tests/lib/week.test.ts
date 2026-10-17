@@ -5,7 +5,7 @@ vi.mock('@/lib/shared/dates', () => ({ todayET: vi.fn().mockReturnValue('2026-04
 
 import { supabase } from '@/lib/supabase'
 import { todayET } from '@/lib/shared/dates'
-import { calculateWeekNumberFromDate, getCurrentWeekNumber, invalidateWeekNumberCache } from '@/lib/shared/week'
+import { calculateWeekNumberFromDate, getCurrentWeekNumber, getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
 
 const WEEK1_START = '2025-10-21'
 const WEEK1_END = '2025-10-26'
@@ -85,6 +85,16 @@ describe('getCurrentWeekNumber', () => {
         await expect(getCurrentWeekNumber(2026)).resolves.toBe(22)
         await expect(getCurrentWeekNumber(2026)).resolves.toBe(22)
         expect(mockFrom).toHaveBeenCalledTimes(1)
+    })
+
+    it('shares cached Monday-to-Sunday dates for a partial opening week', async () => {
+        mockFrom.mockReturnValue(seasonWeekQuery([{ week_number: 1, week_start: '2025-10-21', week_end: '2025-10-26' }]))
+        await expect(getCurrentWeekNumber(2026)).resolves.toBe(1)
+        await expect(getSeasonWeekDates(2026, 1)).resolves.toEqual([
+            '2025-10-20', '2025-10-21', '2025-10-22', '2025-10-23', '2025-10-24', '2025-10-25', '2025-10-26',
+        ])
+        expect(mockFrom).toHaveBeenCalledTimes(1)
+        await expect(getSeasonWeekDates(2026, 99)).resolves.toEqual([])
     })
 
     it('uses the ET date key when querying season weeks', async () => {

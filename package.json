@@ -195,7 +195,8 @@
     "test:db:cdn-enum-body-timeout": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/cdn-http-retry.ts --mode=enumBody",
     "test:db:scoring-partial-failure": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-partial-failure.ts",
     "test:db:draft-reset-activation": "node tests/e2e/draft-reset-activation-db.mjs",
-    "test:db:pre-tipoff": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/pre-tipoff-lineups.sql"
+    "test:db:pre-tipoff": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/pre-tipoff-lineups.sql",
+    "e2e:web-targets": "node tests/e2e/web-targets.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",
@@ -232,6 +233,7 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "knip": "^6.24.0",
+    "playwright": "1.64.1",
     "prettier": "^3.8.1",
     "react-test-renderer": "^19.1.0",
     "typescript": "~5.9.2",

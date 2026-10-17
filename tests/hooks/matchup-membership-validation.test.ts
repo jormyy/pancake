@@ -11,7 +11,7 @@ vi.mock('@/lib/scoring', () => ({ getMyMatchup: mocks.getMyMatchup, getLeagueWee
 vi.mock('@/lib/lineup', () => ({ clampDateToWeek: (date: string) => date, getWeekDays: mocks.getWeekDays, getWeeklyLineup: vi.fn(async () => ({ starters: [], bench: [], ir: [], taxi: [] })) }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-14' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
-vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
+vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => mocks)
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/lib/realtime', () => ({ debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }), disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(), subscribeToTableChanges: vi.fn(() => ({})) }))

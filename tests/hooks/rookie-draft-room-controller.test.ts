@@ -71,6 +71,65 @@ beforeEach(() => {
 })
 
 describe('useRookieDraftRoomController', () => {
+    it('hides old read errors before rendering another draft', async () => {
+        const nextRoom = deferred<RookieDraftState>()
+        const nextPool = deferred<never[]>()
+        mocks.getState.mockImplementation((id: string) => id === 'a' ? Promise.reject(new Error('Old room failure')) : nextRoom.promise)
+        mocks.getPlayers.mockImplementation((id: string) => id === 'a' ? Promise.reject(new Error('Old pool failure')) : nextPool.promise)
+        const snapshots: { draftId: string; room: string | null; pool: string | null }[] = []
+        const Harness = ({ draftId }: { draftId: string }) => {
+            const value = useRookieDraftRoomController({ draftId, memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            snapshots.push({ draftId, room: value.loadError, pool: value.prospectsLoadError })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Harness, { draftId: 'a' })) })
+        expect(snapshots.at(-1)).toMatchObject({ room: 'Old room failure', pool: 'Old pool failure' })
+        await act(async () => renderer.update(React.createElement(Harness, { draftId: 'b' })))
+        expect(snapshots.filter((value) => value.draftId === 'b').every((value) => value.room === null && value.pool === null)).toBe(true)
+        await act(async () => { nextRoom.resolve(draftState('b')); nextPool.resolve([]) })
+        await act(async () => renderer.unmount())
+    })
+
+    it('keeps prospect read failures separate and retryable', async () => {
+        mocks.getState.mockResolvedValue(draftState('draft'))
+        mocks.getPlayers.mockRejectedValueOnce(new Error('Prospects read unavailable'))
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        expect(latest.state?.draft.id).toBe('draft')
+        expect(Reflect.get(latest, 'prospectsLoadError')).toBe('Prospects read unavailable')
+        expect(latest.pickError).toBeNull()
+        await act(async () => { await latest.refresh() })
+        expect(Reflect.get(latest, 'prospectsLoadError')).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('keeps a failed initial room read retryable and clears only its read error on recovery', async () => {
+        mocks.getState.mockRejectedValueOnce(new Error('Draft read unavailable'))
+        mocks.getState.mockResolvedValue(draftState('draft'))
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(() => {
+            latest = useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        })) })
+        expect(latest.state).toBeNull()
+        expect(Reflect.get(latest, 'loadError')).toBe('Draft read unavailable')
+        expect(latest.pickError).toBeNull()
+        await act(async () => { await latest.refresh() })
+        expect(latest.state?.draft.id).toBe('draft')
+        expect(Reflect.get(latest, 'loadError')).toBeNull()
+        mocks.makePick.mockRejectedValueOnce(new Error('Pick rejected'))
+        await act(async () => { await latest.handlePick({ id: 'rookie', display_name: 'Rookie', nba_team: 'FA', position: 'PG', nba_id: null, nba_draft_number: 1 }) })
+        expect(latest.pickError).toBe('Pick rejected')
+        expect(Reflect.get(latest, 'loadError')).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
     it('keeps a completed historical room read-only while the current room can trim', async () => {
         let current = false
         mocks.getState.mockImplementation(() => Promise.resolve({ ...draftState('draft', 'completed'), draft: {

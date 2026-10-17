@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -17,8 +18,8 @@ import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
-const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
-const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-pwa-launch-report.json')
+const ARTIFACT_ROOT = browserArtifactPath('artifacts')
+const REPORT_PATH = browserArtifactPath('e2e-browser-pwa-launch-report.json')
 const BUDGETS = JSON.parse(readFileSync(path.join(ROOT, 'tests/e2e/performance-budgets.json'), 'utf8')).globalBudgets
 
 const BOOT_SHELL_MARK = 'pancake-boot-shell'

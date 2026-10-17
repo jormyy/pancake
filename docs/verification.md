@@ -21,9 +21,22 @@ stack:
 6. `npm run e2e:seed` (10 users, one league, 80 players). The seed deletes the previous seed's league and users; a
    fixture that makes a seed user own another league blocks that cleanup.
 
+On Colima, the functions runtime needs temporary files on a shared mount.
+If startup reports `failed to determine entrypoint`, set `TMPDIR` to a task directory under the shared home before serving functions.
+
 The release-provenance check in the browser harness requires the copy to have a git `HEAD` equal to the expected SHA.
 
 ## Correctness
+
+Supported clients are iPhone Safari PWA and desktop browsers. No native app or simulator is required.
+Run `npm run e2e:web-targets` after the local release server and seed are ready.
+Use `-- --actions` for form and admin actions. Use `-- --gameplay` for league, lineup, waiver, draft, and trade settlements.
+The matrix covers WebKit phone layouts, simulated standalone mode, and desktop Chromium and WebKit.
+See [the exact matrix and commands](../tests/e2e/README.md#supported-web-clients).
+Use its pinned Chromium path for legacy browser checks too. This keeps their engine consistent with the matrix.
+Set `E2E_PWA_PREVIOUS_ROOT` and `E2E_PWA_NEXT_ROOT` to check updates between two complete stamped builds.
+Without these inputs, the report explicitly marks the two-build check `NOT_RUN`.
+Physical installation, the iOS keyboard, and background suspension still require a real iPhone.
 
 | Check | Command | Notes |
 | --- | --- | --- |

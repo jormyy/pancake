@@ -8,7 +8,7 @@ import {
     Pressable,
     useWindowDimensions,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
@@ -39,7 +39,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
     const controller = useAuctionDraftRoomController({ draftId, memberId: myMemberId })
     const { state, loadError, refresh, budgetByMember } = controller
 
-    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft } =
+    const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =
         useDraftAdminControls({
             draftId,
             refresh,
@@ -65,7 +65,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
         return (
             <>
                 <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
-                <SafeAreaView style={styles.container} edges={['bottom']}>
+                <ScreenFrame style={styles.container} edges={['bottom']}>
                     <DraftScreenHeader title="Auction Draft" onBack={() => navigateBackToDraftList()} />
                     <View style={styles.draftEndedContainer}>
                         <Text style={styles.draftEndedTitle}>{hasLoadError ? 'Could not load draft' : 'Draft not found'}</Text>
@@ -80,7 +80,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                             <Text style={styles.nominateButtonText}>{hasLoadError ? 'Try Again' : 'Back to League'}</Text>
                         </MotionPressable>
                     </View>
-                </SafeAreaView>
+                </ScreenFrame>
             </>
         )
     }
@@ -101,7 +101,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
         return (
             <>
                 <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
-                <SafeAreaView style={styles.container} edges={['bottom']}>
+                <ScreenFrame style={styles.container} edges={['bottom']}>
                     <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)} />
                     <View style={styles.draftEndedContainer}>
                         <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
@@ -120,7 +120,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                             <Text style={styles.nominateButtonText}>Back to League</Text>
                         </MotionPressable>
                     </View>
-                </SafeAreaView>
+                </ScreenFrame>
             </>
         )
     }
@@ -128,10 +128,11 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
     return (
         <>
             <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
-            <SafeAreaView style={styles.container} edges={['bottom']}>
+            <ScreenFrame style={styles.container} edges={['bottom']}>
             <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
                 {isCommissioner && isDesktop ? (
                     <DraftAdminBar
+                        disabled={adminBusy}
                         inline
                         showLabel={false}
                         isPaused={isPaused}
@@ -152,6 +153,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
 
             {isCommissioner && !isDesktop ? (
                 <DraftAdminBar
+                    disabled={adminBusy}
                     isPaused={isPaused}
                     onPause={handlePauseDraft}
                     onResume={handleResumeDraft}
@@ -217,7 +219,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                 </View>
             </ScrollView>
             </KeyboardAvoidingView>
-            </SafeAreaView>
+            </ScreenFrame>
         </>
     )
 }

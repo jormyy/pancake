@@ -5,6 +5,7 @@ import { spacing } from '@/constants/tokens'
 
 export function AutoSetModal({
     visible,
+    disabled,
     onClose,
     onToday,
     onWholeWeek,
@@ -12,6 +13,7 @@ export function AutoSetModal({
     onEditManually,
 }: {
     visible: boolean
+    disabled: boolean
     onClose: () => void
     onToday: () => void
     onWholeWeek: () => void
@@ -22,13 +24,14 @@ export function AutoSetModal({
         <Sheet visible={visible} onClose={onClose} title="Auto-set lineup">
             <View style={styles.body}>
                 <View style={styles.row}>
-                    <Button title="Today" onPress={onToday} accessibilityLabel="Auto-set today" style={styles.flex} />
-                    <Button title="Whole week" onPress={onWholeWeek} accessibilityLabel="Auto-set whole week" style={styles.flex} />
+                    <Button title="Today" onPress={onToday} disabled={disabled} accessibilityLabel="Auto-set today" style={styles.flex} />
+                    <Button title="Whole week" onPress={onWholeWeek} disabled={disabled} accessibilityLabel="Auto-set whole week" style={styles.flex} />
                 </View>
                 <Button
                     title="Rest of season"
                     variant="secondary"
                     onPress={onRestOfSeason}
+                    disabled={disabled}
                     accessibilityLabel="Auto-set rest of season"
                     fullWidth
                 />

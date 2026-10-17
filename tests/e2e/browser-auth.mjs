@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -7,8 +8,8 @@ import { clickButtonByName, createBrowser, fillSignInCredentials, listBrowserSes
 
 const ROOT = process.cwd()
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
-const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
-const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-auth-report.md')
+const ARTIFACT_ROOT = browserArtifactPath('artifacts')
+const REPORT_PATH = browserArtifactPath('e2e-browser-auth-report.md')
 
 const readState = async () => JSON.parse(await readFile(STATE_PATH, 'utf8'))
 

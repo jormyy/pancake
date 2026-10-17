@@ -3,6 +3,7 @@ import { readStoredAuthState } from '@/lib/supabase'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { todayET } from '@/lib/shared/dates'
 import type { LineupContext, LineupPlayer, LineupSlot, WeekDay } from './read'
+import { clampDateToWeek } from './date'
 
 export type LineupSnapshotScope = { ownerId: string; memberId: string; leagueId: string; day: string }
 export type LineupSnapshot = {
@@ -15,6 +16,7 @@ export type LineupSnapshot = {
     days: WeekDay[]
     starters: LineupSlot[]
     bench: LineupPlayer[]
+    benchSlots: number
     optimizerEnabled: boolean
 }
 const MAX_BYTES = 256 * 1024
@@ -48,22 +50,25 @@ export function readLineupSnapshot(scope: LineupSnapshotScope, date: string, con
     const project = projectForOwner(scope.ownerId)
     if (!project || scope.day !== todayET()) return undefined
     const key = scopeKey(scope, project)
-    const savedContext = readPersistentCache<LineupContext>(`${key}:context`)
+    const savedContext = readPersistentCache<LineupContext & { defaultDate?: string }>(`${key}:context`)
     if (!validContext(savedContext ?? undefined, scope.day)) return undefined
     if (context && (context.seasonId !== savedContext!.seasonId || context.weekNumber !== savedContext!.weekNumber
         || context.seasonYear !== savedContext!.seasonYear)) return undefined
-    const saved = readPersistentCache<LineupSnapshot>(`${key}:${savedContext!.seasonId}:${date}`)
+    const savedDate = date === scope.day ? savedContext!.defaultDate ?? date : date
+    const saved = readPersistentCache<LineupSnapshot>(`${key}:${savedContext!.seasonId}:${savedDate}`)
     if (!saved || saved.schema !== 1 || saved.project !== project || !sameScope(saved.scope, scope)
         || !Number.isFinite(saved.savedAt) || saved.savedAt > Date.now() || Date.now() - saved.savedAt > MAX_AGE
         || !validContext(saved.context, scope.day) || saved.context.seasonId !== savedContext!.seasonId
         || saved.context.weekNumber !== savedContext!.weekNumber || saved.context.seasonYear !== savedContext!.seasonYear
-        || saved.date !== date || !Array.isArray(saved.days) || saved.days.length > 7
-        || !saved.days.some((d) => d.date === date) || saved.days.some((d) => !d || typeof d.date !== 'string'
+        || saved.date !== savedDate || !Array.isArray(saved.days) || saved.days.length > 7
+        || !saved.days.some((d) => d.date === savedDate) || saved.days.some((d) => !d || typeof d.date !== 'string'
             || !Array.isArray(d.playingTeams) || d.playingTeams.some((t) => typeof t !== 'string'))
         || !Array.isArray(saved.starters) || saved.starters.length > 64
         || saved.starters.some((s) => !s || typeof s.slotType !== 'string' || !validPlayer(s.player))
         || !Array.isArray(saved.bench) || saved.bench.length > 128 || saved.bench.some((p) => !p || !validPlayer(p))
+        || !Number.isInteger(saved.benchSlots) || saved.benchSlots < 0 || saved.benchSlots > 128
         || typeof saved.optimizerEnabled !== 'boolean') return undefined
+    if (savedDate !== date && clampDateToWeek(date, saved.days) !== savedDate) return undefined
     return saved
 }
 
@@ -79,7 +84,7 @@ export function saveLineupSnapshot(
     if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > MAX_BYTES) return
     const key = scopeKey(scope, project)
     writePersistentCache(`${key}:${value.context.seasonId}:${value.date}`, snapshot)
-    writePersistentCache(`${key}:context`, value.context)
+    writePersistentCache(`${key}:context`, { ...value.context, defaultDate: clampDateToWeek(scope.day, value.days) })
 }
 
 export function discardLineupSnapshot(scope: LineupSnapshotScope): void {

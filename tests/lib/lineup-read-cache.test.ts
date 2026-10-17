@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
     counts: new Map<string, number>(),
     failTemplates: 0,
+    benchSlots: 3,
     assignments: [] as Record<string, unknown>[],
     players: [] as Record<string, unknown>[],
 }))
@@ -29,6 +30,7 @@ vi.mock('@/lib/supabase', async () => {
                     const failed = { eq: () => failed, then: (resolve: (value: unknown) => void) => resolve({ data: null, error: new Error('templates offline') }) }
                     return { select: () => failed }
                 }
+                if (table === 'lineup_slot_templates') fixtures.lineup_slot_templates.splice(1, fixtures.lineup_slot_templates.length, { league_id: 'league', slot_type: 'BE', slot_count: state.benchSlots })
                 return fake.from(table)
             },
         },
@@ -49,6 +51,7 @@ beforeEach(() => {
     clearSessionCaches()
     state.counts.clear()
     state.failTemplates = 0
+    state.benchSlots = 3
     state.assignments.length = 0
     state.players.length = 0
 })
@@ -108,4 +111,9 @@ describe('lineup read caches', () => {
 
         expect(reads('lineup_slot_templates')).toBe(2)
     })
+})
+
+it.each([0, 3])('returns the configured BE capacity of %s even with empty starters', async (slots) => {
+    state.benchSlots = slots
+    expect(await read()).toMatchObject({ benchSlots: slots })
 })

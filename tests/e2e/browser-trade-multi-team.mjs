@@ -18,6 +18,8 @@ import {
 } from './trade-browser-harness.mjs'
 import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
 
+const phoneMatrix = process.env.E2E_WEB_TARGET_ID?.startsWith('iphone-')
+const desktopMatrix = process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-')
 const reviewAndConfirmMultiTeamTrade = async (session, label) => {
   const reviewClick = await clickTestId(session, 'trade-submit', `${label} review`)
   await assertPageText(session, ['Review trade', 'FINAL REVIEW', 'DEAL OVERVIEW'], `${label} final review`)
@@ -289,7 +291,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['wait', '4500'])
     await assertPageText(
       session,
-      [
+      phoneMatrix ? ['DEAL SUMMARY', 'EDIT ASSETS SENT BY', recipientTeamName, observerTeamName] : [
       'DEAL OVERVIEW',
       'YOU SEND',
         `${recipientTeamName.toUpperCase()} SENDS`,
@@ -306,7 +308,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await browser(session, ['wait', '500'])
     await assertPageText(
       session,
-      ['DEAL SUMMARY', 'EDIT ASSETS SENT BY', 'You', recipientTeamName, observerTeamName],
+      desktopMatrix ? ['DEAL OVERVIEW', 'YOU SEND', recipientTeamName.toUpperCase(), observerTeamName.toUpperCase()] : ['DEAL SUMMARY', 'EDIT ASSETS SENT BY', 'You', recipientTeamName, observerTeamName],
       'mobile multi-team sender tabs',
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'multi-team-builder-mobile.png')], { timeout: 60_000 })
@@ -409,6 +411,7 @@ export async function runBrowserMultiTeamTradeScenario({
     await openOffersTab(counterSession, env)
     const counterClick = await clickTestId(counterSession, `trade-counter-${editReplacement.replacement.id}`, 'multi-team counter action')
     await browser(counterSession, ['wait', '4500'])
+    if (phoneMatrix) await clickTestId(counterSession, 'trade-deal-summary', 'phone counter deal summary')
     await assertPageText(
       counterSession,
       [

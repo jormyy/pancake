@@ -42,7 +42,7 @@ function shouldShowScoreboard(selectedDate: string, today: string): boolean {
     return selectedDate === today
 }
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] }
+type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots?: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
 
@@ -109,7 +109,7 @@ export default function HomeScreen() {
     }, [matchup, loadMyLineup])
 
     const {
-        selected, setSelected, saving, autoSetting,
+        selected, setSelected, saving, autoSetting, autoSetDisabled,
         autoSetModalVisible, setAutoSetModalVisible,
         activationOverflowPending, setActivationOverflowPending, activationOverflowSaving,
         handleTap, handleOverflowDrop, handleOverflowMoveToIR,
@@ -261,7 +261,7 @@ export default function HomeScreen() {
                             statColumns={showStatColumns ? statColumns : null}
                             onOpenDetails={setDetailsRow}
                             capacity={{
-                                bench: Math.max(0, (league?.roster_size ?? 20) - myLineup.starters.length),
+                                bench: myLineup.benchSlots ?? 0,
                                 ir: league?.ir_slots ?? 2,
                                 taxi: league?.taxi_slots ?? 3,
                             }}
@@ -394,10 +394,11 @@ export default function HomeScreen() {
 
             <AutoSetModal
                 visible={autoSetModalVisible}
+                disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { setAutoSetModalVisible(false); doAutoSet(selectedDate) }}
-                onWholeWeek={() => { setAutoSetModalVisible(false); doAutoSet(null) }}
-                onRestOfSeason={() => { setAutoSetModalVisible(false); doAutoSet(null, true) }}
+                onToday={() => { void doAutoSet(selectedDate) }}
+                onWholeWeek={() => { void doAutoSet(null) }}
+                onRestOfSeason={() => { void doAutoSet(null, true) }}
             />
         </Page>
     )
@@ -594,7 +595,7 @@ function MatchupLineupView({
                     isExtraOppRow: false,
                 })),
             },
-        ].filter((section) => section.key === 'starters' || section.count > 0),
+        ].filter((section) => section.count > 0),
         [capacity.bench, capacity.ir, capacity.taxi, maxBench, maxIR, maxTaxi, myLineup, oppLineup],
     )
 

@@ -61,6 +61,7 @@ export function useLineupActions({
         mutationGenerationRef.current += 1
     }
     const ownsActionState = stateOwnerIdentity === ownerIdentity
+    const autoSetDisabled = !actionContext || !league || autoSetting || saving || activationOverflowSaving
     const mutationIsCurrent = (generation: number, identity: string | null) =>
         mutationGenerationRef.current === generation && activeOwnerRef.current === identity
 
@@ -218,10 +219,11 @@ export function useLineupActions({
     const handleOverflowMoveToIR = (id: string) => resolveOverflow('ir', id)
 
     async function doAutoSet(date: string | null, restOfSeason?: boolean, retryDates?: string[]) {
-        if (!actionContext || !league || autoSetting || saving || activationOverflowSaving) return
+        if (autoSetDisabled || !actionContext) return
         const mutationGeneration = mutationGenerationRef.current
         const mutationOwner = ownerIdentity
         if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+            setAutoSetModalVisible(false)
             setSelected(null)
             setAutoSetting(true)
         }
@@ -265,6 +267,7 @@ export function useLineupActions({
         setSelected,
         saving: ownsActionState ? saving : false,
         autoSetting: ownsActionState ? autoSetting : false,
+        autoSetDisabled,
         autoSetModalVisible: ownsActionState ? autoSetModalVisible : false,
         setAutoSetModalVisible,
         activationOverflowPending: ownsActionState ? activationOverflowPending : null,

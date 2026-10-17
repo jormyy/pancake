@@ -1,3 +1,4 @@
+import { browserArtifactPath } from './browser-artifacts.mjs'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
@@ -8,10 +9,10 @@ import { createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
 const ROOT = process.cwd()
-const ARTIFACT_ROOT = path.join(ROOT, 'tests/artifacts')
-const REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-report.md')
-const DROP_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-drop-report.md')
-const IR_BLOCK_REPORT_PATH = path.join(ROOT, 'tests/e2e-browser-waiver-ir-block-report.md')
+const ARTIFACT_ROOT = browserArtifactPath('artifacts')
+const REPORT_PATH = browserArtifactPath('e2e-browser-waiver-report.md')
+const DROP_REPORT_PATH = browserArtifactPath('e2e-browser-waiver-drop-report.md')
+const IR_BLOCK_REPORT_PATH = browserArtifactPath('e2e-browser-waiver-ir-block-report.md')
 const E2E_PLAYER_PREFIX = 'e2e-player-'
 
 const browser = createBrowser({ cwd: ROOT })

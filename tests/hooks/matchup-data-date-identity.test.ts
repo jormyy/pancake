@@ -27,7 +27,7 @@ vi.mock('@/lib/lineup', () => ({
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-07-09' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache }))
-vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache }))
+vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache, writePersistentCache: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => online.value }))
 vi.mock('@/lib/realtime', () => ({
@@ -55,7 +55,7 @@ const lineup = (id: string) => ({
     starters: [], bench: [{
         rosterPlayerId: `roster-${id}`, playerId: id, displayName: id, position: 'PG',
         eligiblePositions: ['PG'], nbaTeam: 'LAL', injuryStatus: null, nbaId: null,
-    }], ir: [], taxi: [],
+    }], benchSlots: 1, ir: [], taxi: [],
 })
 
 beforeEach(() => {
@@ -67,6 +67,37 @@ beforeEach(() => {
 })
 
 describe('useMatchupData date ownership', () => {
+    it.each([undefined, -1, 0.5])('refreshes an old saved lineup with unknown bench capacity %s', async (benchSlots) => {
+        readPersistentCache.mockReturnValue({
+            today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],
+            myLineup: { ...lineup('old-mine'), benchSlots }, oppLineup: lineup('old-opponent'),
+        })
+        getMyMatchup.mockResolvedValue(matchup)
+        getWeeklyLineup.mockResolvedValue({ ...lineup('fresh'), benchSlots: 3 })
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.myLineup).toBeNull()
+        expect(latest.matchupLoading).toBe(true)
+        await act(async () => { await latest.refresh() })
+        expect(latest.myLineup?.benchSlots).toBe(3)
+        expect(latest.error).toBeNull()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('retains a saved lineup with a known zero bench capacity', async () => {
+        const empty = { starters: [], bench: [], benchSlots: 0, ir: [], taxi: [] }
+        readPersistentCache.mockReturnValue({ today: '2026-07-09', matchup, myLineup: empty, oppLineup: empty })
+        let latest!: ReturnType<typeof useMatchupData>
+        const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.myLineup?.benchSlots).toBe(0)
+        expect(latest.matchupLoading).toBe(false)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('retains a cached matchup when a refresh fails', async () => {
         readPersistentCache.mockReturnValue({
             today: '2026-07-09', selectedDate: '2026-07-09', matchup, weekDays: [], leagueMatchups: [],

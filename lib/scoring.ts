@@ -131,7 +131,7 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
 
     // Fetch both members' team names + usernames
     const opponentId = data.home_member_id === memberId ? data.away_member_id : data.home_member_id
-    const [{ data: members }, { data: allMatchups }] = await Promise.all([
+    const [{ data: members, error: membersError }, { data: allMatchups, error: recordsError }] = await Promise.all([
         supabase
             .from('league_members')
             .select('id, team_name, profiles(display_name)')
@@ -148,6 +148,9 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
             .eq('matchup_type', 'regular_season')
             .or(`home_member_id.in.(${memberId},${opponentId}),away_member_id.in.(${memberId},${opponentId})`),
     ])
+
+    if (membersError) throw membersError
+    if (recordsError) throw recordsError
 
     const memberMap = Object.fromEntries(
         (members ?? []).map((m) => {

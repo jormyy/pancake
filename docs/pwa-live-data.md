@@ -291,7 +291,18 @@ Offline writes remain disabled. This avoids invalid moves after a game lock or r
 
 ## Supported client target
 
-Pancake supports iPhone Safari and the installed iPhone PWA. Android and native iOS app builds are excluded. Expo, React Native Web, routing, touch input, deep links, browser permissions, icons and service-worker infrastructure remain shared web dependencies. Desktop browsers and WebKit simulations provide development evidence; they do not prove real-iPhone or installed-iPhone-PWA behavior.
+Pancake supports iPhone Safari, the installed iPhone PWA, and desktop browsers.
+It is a web app. There is no native iOS app, Xcode project, App Store build, or Android target.
+Expo and React Native Web provide shared web components and routing.
+
+`npm run e2e:web-targets` checks WebKit at two iPhone sizes, in tab mode and simulated standalone mode.
+Use `-- --actions` for form and admin actions. Use `-- --gameplay` for league, lineup, waiver, draft, and trade settlements.
+It also checks desktop Chromium and WebKit at 1280x720 and 1440x900.
+The test injects `navigator.standalone` and standalone `matchMedia` results.
+It replaces CSS safe-area `env()` values with test insets.
+It does not install a Home Screen app or use a real iOS keyboard.
+Only a physical iPhone can prove installation, real keyboard placement, status bars, home indicators, and background suspension.
+See [setup and limits](../tests/e2e/README.md#supported-web-clients).
 
 The default tab layout uses `WebTabShell` on web. Modal layouts retain their platform-specific headers and presentation.
 
