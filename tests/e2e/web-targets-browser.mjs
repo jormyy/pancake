@@ -11,7 +11,7 @@ export async function waitForWebTargetReads(page) {
   const started = Date.now()
   while (state.pending.size || Date.now() - Math.max(started, state.changedAt) < 500) {
     if (Date.now() - started >= 30_000) {
-      throw new Error(`Web reads did not finish: ${[...state.pending].map((request) => new URL(request.url()).pathname).join(', ')}`)
+      throw new Error(`Web reads did not finish: ${[...state.pending.keys()].map((request) => new URL(request.url()).pathname).join(', ')}`)
     }
     await page.waitForTimeout(50)
   }
@@ -120,9 +120,32 @@ export async function openWebTarget(target, artifactDir, contextOptions = {}) {
   }, { standalone: target.standalone, insets: target.insets })
   await context.addInitScript(installWebTargetGeometry, { mobile: target.mobile })
   const page = await context.newPage()
-  const state = { pending: new Set(), changedAt: Date.now() }
+  const state = { pending: new Map(), sequence: 0, changedAt: Date.now() }
+  let navigation = null
+  let documentCommit = null
   webRequests.set(page, state)
-  page.on('request', (request) => { state.pending.add(request); state.changedAt = Date.now() })
+  page.on('request', (request) => {
+    state.pending.set(request, ++state.sequence)
+    state.changedAt = Date.now()
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigation = request
+  })
+  page.on('framenavigated', (frame) => {
+    if (frame !== page.mainFrame() || !navigation) return
+    const expected = new URL(navigation.url())
+    const actual = new URL(frame.url())
+    expected.hash = actual.hash = ''
+    if (expected.href !== actual.href) return
+    documentCommit = { boundary: state.sequence, navigation }
+    navigation = null
+  })
+  page.on('domcontentloaded', () => {
+    if (!documentCommit) return
+    for (const [request, sequence] of state.pending) {
+      if (sequence <= documentCommit.boundary && request !== documentCommit.navigation) state.pending.delete(request)
+    }
+    documentCommit = null
+    state.changedAt = Date.now()
+  })
   const finish = (request) => { state.pending.delete(request); state.changedAt = Date.now() }
   page.on('requestfinished', finish)
   page.on('requestfailed', finish)

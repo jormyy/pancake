@@ -457,7 +457,9 @@ Global admin utility cases prove actual local access denial and recovery. Separa
 They do not run external provider jobs or global sync writes. League-scoped commissioner actions use the actual local API and database.
 These cases do not prove physical installation, a real iOS permission prompt, background delivery, or notification taps.
 
-Action and gameplay document changes wait for pending reads and follow-up requests to settle.
+Action and gameplay document changes wait for reads from the current document and their follow-up requests.
+The tracker retires old reads only after a new document commits and reaches DOM ready.
+It keeps new reads, same-document reads, and every runtime error.
 Signup fills wait for the app-mounted mark so hydration cannot clear an exported input.
 Runtime error assertions keep every page error; navigation does not filter browser fetch errors.
 

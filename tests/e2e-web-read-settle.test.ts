@@ -8,14 +8,20 @@ vi.mock('playwright', () => ({ chromium: { launch: driver.launch }, webkit: { la
 
 vi.mock('node:fs/promises', () => ({ mkdir: vi.fn(), writeFile: vi.fn() }))
 
-let page: EventEmitter & { url: () => string; viewportSize: () => { width: number; height: number }; waitForTimeout: (ms: number) => Promise<void>; goto: ReturnType<typeof vi.fn>; reload: ReturnType<typeof vi.fn> }
+const mainFrame = { url: vi.fn(() => 'http://127.0.0.1:8082/') }
+const readRequest = (url: string, navigation = false) => ({
+    url: () => url, method: () => 'GET', isNavigationRequest: () => navigation, frame: () => mainFrame,
+})
+
+let page: EventEmitter & { mainFrame: () => object; url: () => string; viewportSize: () => { width: number; height: number }; waitForTimeout: (ms: number) => Promise<void>; goto: ReturnType<typeof vi.fn>; reload: ReturnType<typeof vi.fn> }
 
 beforeEach(async () => {
     vi.useFakeTimers()
+    mainFrame.url.mockReturnValue('http://127.0.0.1:8082/')
     page = Object.assign(new EventEmitter(), {
         waitForTimeout: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
         waitForLoadState: vi.fn(async () => undefined), goto: vi.fn(), reload: vi.fn(),
-        url: () => 'http://127.0.0.1:8082/', viewportSize: () => ({ width: 1280, height: 720 }),
+        mainFrame: () => mainFrame, url: () => 'http://127.0.0.1:8082/', viewportSize: () => ({ width: 1280, height: 720 }),
     })
     driver.launch.mockResolvedValue({ newContext: driver.newContext })
     driver.newContext.mockResolvedValue({ addInitScript: vi.fn(), newPage: driver.newPage })
@@ -27,8 +33,8 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 
 describe('web reads before a measured reload', () => {
     it('waits for current reads and their follow-up reads after the earlier document was idle', async () => {
-        const first = { url: () => 'http://127.0.0.1/rest/v1/matchups' }
-        const next = { url: () => 'http://127.0.0.1/rest/v1/lineup_slot_templates' }
+        const first = readRequest('http://127.0.0.1/rest/v1/matchups')
+        const next = readRequest('http://127.0.0.1/rest/v1/lineup_slot_templates')
         page.emit('request', first)
         let finished = false
         const settling = waitForWebTargetReads(page).then(() => { finished = true })
@@ -48,7 +54,7 @@ describe('web reads before a measured reload', () => {
     })
 
     it('fails with the outstanding read instead of waiting without a limit', async () => {
-        page.emit('request', { url: () => 'http://127.0.0.1/rest/v1/matchups' })
+        page.emit('request', readRequest('http://127.0.0.1/rest/v1/matchups'))
         const result = waitForWebTargetReads(page).catch((error: Error) => error)
         await vi.advanceTimersByTimeAsync(30_000)
         expect(await result).toEqual(new Error('Web reads did not finish: /rest/v1/matchups'))
@@ -57,8 +63,8 @@ describe('web reads before a measured reload', () => {
 
 describe('document transitions in the web matrix', () => {
     it.each(['navigate', 'reload'])('does not %s until the active read and its follow-up finish', async (transition) => {
-        const first = { url: () => 'http://127.0.0.1/rest/v1/matchups' }
-        const lineup = { url: () => 'http://127.0.0.1/rest/v1/weekly_lineups' }
+        const first = readRequest('http://127.0.0.1/rest/v1/matchups')
+        const lineup = readRequest('http://127.0.0.1/rest/v1/weekly_lineups')
         page.emit('request', first)
         const result = transition === 'navigate' ? navigateWebTarget(page, '/create-league') : reloadWebTarget(page)
         await vi.advanceTimersByTimeAsync(1000)
@@ -80,7 +86,7 @@ describe('document transitions in the web matrix', () => {
     it('retains live-page errors while a document transition waits', async () => {
         const errors: Error[] = []
         page.on('pageerror', (error: Error) => errors.push(error))
-        const read = { url: () => 'http://127.0.0.1/rest/v1/weekly_lineups' }
+        const read = readRequest('http://127.0.0.1/rest/v1/weekly_lineups')
         page.emit('request', read)
         const transition = navigateWebTarget(page, '/join-league')
         const failure = new Error('Live page unhandled rejection')
@@ -98,7 +104,7 @@ describe('gameplay document transitions', () => {
         vi.stubEnv('E2E_BROWSER_ARTIFACT_DIR', 'unused-artifact-directory')
         const session = `live-read-${command}`
         await runWebTargetBrowserCommand({ session, args: ['get', 'url'] })
-        const read = { url: () => 'http://127.0.0.1:54321/rest/v1/nba_games', method: () => 'GET' }
+        const read = readRequest('http://127.0.0.1:54321/rest/v1/nba_games')
         page.emit('request', read)
         const transition = runWebTargetBrowserCommand({ session, args: command === 'open' ? ['open', 'http://127.0.0.1:8082/create-league'] : ['reload'] })
         await vi.advanceTimersByTimeAsync(1000)
@@ -108,5 +114,54 @@ describe('gameplay document transitions', () => {
         await vi.advanceTimersByTimeAsync(500)
         await transition
         expect(command === 'open' ? page.goto : page.reload).toHaveBeenCalledOnce()
+    })
+})
+
+describe('document ownership of pending reads', () => {
+    it('keeps an active read during same-document navigation', async () => {
+        page.emit('request', readRequest('http://127.0.0.1:54321/rest/v1/drafts'))
+        mainFrame.url.mockReturnValue('http://127.0.0.1:8082/profile')
+        page.emit('framenavigated', mainFrame)
+        page.emit('domcontentloaded')
+        const result = waitForWebTargetReads(page).catch((error: Error) => error)
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(await result).toEqual(new Error('Web reads did not finish: /rest/v1/drafts'))
+    })
+
+    it('retires the previous document while retaining an active read started before DOM ready', async () => {
+        const oldRead = readRequest('http://127.0.0.1:54321/rest/v1/drafts')
+        const navigation = readRequest('http://127.0.0.1:8082/sign-in', true)
+        const currentRead = readRequest('http://127.0.0.1:54321/rest/v1/drafts')
+        page.emit('request', oldRead)
+        page.emit('request', navigation)
+        page.emit('request', readRequest('http://127.0.0.1:54321/rest/v1/weekly_lineups'))
+        mainFrame.url.mockReturnValue(navigation.url())
+        page.emit('framenavigated', mainFrame)
+        page.emit('request', currentRead)
+        page.emit('domcontentloaded')
+        const errors: Error[] = []
+        page.on('pageerror', (error: Error) => errors.push(error))
+        const lateError = new Error('Late old-document failure')
+        page.emit('pageerror', lateError)
+        page.emit('requestfinished', navigation)
+        let settled = false
+        const result = waitForWebTargetReads(page).then(() => { settled = true }, (error: Error) => error)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(settled).toBe(false)
+        page.emit('requestfinished', currentRead)
+        await vi.advanceTimersByTimeAsync(29_000)
+        expect(await result).toBeUndefined()
+        expect(settled).toBe(true)
+        expect(errors).toEqual([lateError])
+    })
+
+    it('keeps current reads when a navigation fails before committing a document', async () => {
+        page.emit('request', readRequest('http://127.0.0.1:54321/rest/v1/drafts'))
+        const navigation = readRequest('http://127.0.0.1:8082/sign-in', true)
+        page.emit('request', navigation)
+        page.emit('requestfailed', navigation)
+        const result = waitForWebTargetReads(page).catch((error: Error) => error)
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(await result).toEqual(new Error('Web reads did not finish: /rest/v1/drafts'))
     })
 })
