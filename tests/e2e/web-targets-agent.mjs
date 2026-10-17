@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, navigateWebTarget, reloadWebTarget } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, navigateWebTarget, reloadWebTarget, waitForWebTargetReads } from './web-targets-browser.mjs'
 
 const sessions = new Map()
 const currentTarget = () => {
@@ -108,6 +108,7 @@ export async function runWebTargetBrowserCommand({ session, args }) {
     case 'reload': await reloadWebTarget(page); break
     case 'wait':
       if (args[1] === '--fn') await page.waitForFunction(args[2])
+      else if (args[1] === '--load' && args[2] === 'networkidle') await waitForWebTargetReads(page)
       else await page.waitForTimeout(Number(args[1]))
       break
     case 'eval': output = JSON.stringify(await evaluate(state, args[1])) ?? 'null'; break

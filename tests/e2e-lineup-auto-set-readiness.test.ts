@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { checkAutoSetRefreshReadiness } from './e2e/browser-lineup-gameplay.mjs'
+import { checkAutoSetRefreshReadiness, openAutoSetOptions } from './e2e/browser-lineup-gameplay.mjs'
 
 const mocks = vi.hoisted(() => ({ browser: vi.fn() }))
 vi.mock('./e2e/browser-agent.mjs', () => ({ createBrowser: () => mocks.browser }))
@@ -67,4 +67,18 @@ it('fails a missing sheet before it can freeze a refresh', async () => {
     })
     await expect(checkAutoSetRefreshReadiness('lineup', vi.fn())).rejects.toBe(missing)
     expect(mocks.browser).toHaveBeenCalledTimes(1)
+})
+
+it('settles the preceding save reads before checking and tapping its opener', async () => {
+    const commands: string[][] = []
+    mocks.browser.mockImplementation(async (_session: string, args: string[]) => {
+        commands.push(args)
+        return ''
+    })
+    await openAutoSetOptions('lineup', 'open after save')
+    expect(commands[0]).toEqual(['wait', '--load', 'networkidle'])
+    expect(commands[1][0]).toBe('wait')
+    expect(commands[1][2]).toContain('Open auto-set lineup options')
+    expect(commands[2]).toEqual(['find', 'role', 'button', 'click', '--name', 'Open auto-set lineup options'])
+    expect(commands[3][2]).toContain('Auto-set whole week')
 })

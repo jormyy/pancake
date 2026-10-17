@@ -99,6 +99,29 @@ describe('document transitions in the web matrix', () => {
 })
 
 describe('gameplay document transitions', () => {
+    it('settles the save and its follow-up reads for an agent network-idle wait', async () => {
+        vi.stubEnv('E2E_WEB_TARGET_ID', 'desktop-chromium-1280')
+        vi.stubEnv('E2E_BROWSER_ARTIFACT_DIR', 'unused-artifact-directory')
+        const session = 'save-read-network-idle'
+        await runWebTargetBrowserCommand({ session, args: ['get', 'url'] })
+        const read = readRequest('http://127.0.0.1:54321/rest/v1/weekly_lineups')
+        const followup = readRequest('http://127.0.0.1:54321/rest/v1/league_members')
+        page.emit('request', read)
+        let settled = false
+        const wait = runWebTargetBrowserCommand({ session, args: ['wait', '--load', 'networkidle'] }).then(() => { settled = true })
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(settled).toBe(false)
+        page.emit('requestfinished', read)
+        await vi.advanceTimersByTimeAsync(400)
+        page.emit('request', followup)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(settled).toBe(false)
+        page.emit('requestfinished', followup)
+        await vi.advanceTimersByTimeAsync(500)
+        await wait
+        expect(settled).toBe(true)
+    })
+
     it.each(['open', 'reload'])('settles the active live scoreboard read before %s', async (command) => {
         vi.stubEnv('E2E_WEB_TARGET_ID', 'desktop-chromium-1280')
         vi.stubEnv('E2E_BROWSER_ARTIFACT_DIR', 'unused-artifact-directory')

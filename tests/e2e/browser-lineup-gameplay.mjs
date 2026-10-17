@@ -512,7 +512,8 @@ const clickButton = async (session, name, label, { preferDom = false } = {}) => 
   }
 }
 
-const openAutoSetOptions = async (session, label) => {
+export const openAutoSetOptions = async (session, label) => {
+  await browser(session, ['wait', '--load', 'networkidle'])
   await browser(session, ['wait', '--fn', `(() => {
     const node = document.querySelector('[aria-label="Open auto-set lineup options"]');
     return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
