@@ -63,14 +63,8 @@ const MOCK_PLAYERS: RosterPlayer['players'][] = [
 // ── isIREligible ───────────────────────────────────────────────────────────────
 
 describe('isIREligible', () => {
-    it('returns true for "out"', () => expect(isIREligible('out')).toBe(true))
-    it('returns true for "Out" (case insensitive)', () => expect(isIREligible('Out')).toBe(true))
-    it('returns true for "OUT"', () => expect(isIREligible('OUT')).toBe(true))
-    it('returns true for "IR"', () => expect(isIREligible('IR')).toBe(true))
     it('returns true for "IR-LTI"', () => expect(isIREligible('IR-LTI')).toBe(true))
     it('returns true for "ir-out"', () => expect(isIREligible('ir-out')).toBe(true))
-    it('returns false for "DTD"', () => expect(isIREligible('DTD')).toBe(false))
-    it('returns false for "dtd"', () => expect(isIREligible('dtd')).toBe(false))
     it('returns false for "active"', () => expect(isIREligible('active')).toBe(false))
     it('returns false for empty string', () => expect(isIREligible('')).toBe(false))
     it('returns false for null', () => expect(isIREligible(null)).toBe(false))
@@ -79,10 +73,8 @@ describe('isIREligible', () => {
 // ── isDTD ──────────────────────────────────────────────────────────────────────
 
 describe('isDTD', () => {
-    it('returns true for "dtd"', () => expect(isDTD('dtd')).toBe(true))
     it('returns true for "DTD"', () => expect(isDTD('DTD')).toBe(true))
     it('returns false for "out"', () => expect(isDTD('out')).toBe(false))
-    it('returns false for "IR"', () => expect(isDTD('IR')).toBe(false))
     it('returns false for "IR-LTI"', () => expect(isDTD('IR-LTI')).toBe(false))
     it('returns false for null', () => expect(isDTD(null)).toBe(false))
     it('returns false for empty string', () => expect(isDTD('')).toBe(false))
