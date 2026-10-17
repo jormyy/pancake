@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, pinWebTargetLeague } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, pinWebTargetLeague, navigateWebTarget, reloadWebTarget } from './web-targets-browser.mjs'
 import { setupTradeGameplayFixture, findAvailablePlayers, createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { auditWebDraftActions } from './web-targets-draft-actions.mjs'
@@ -63,14 +63,14 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         await inspect()
       }
       const button = (name) => page.getByRole('button', { name, exact: true })
-      const open = async (route) => { await page.goto(new URL(route, frontend).href); await page.getByRole('navigation', { name: 'Primary', exact: true }).waitFor() }
+      const open = async (route) => { await navigateWebTarget(page, new URL(route, frontend).href); await page.getByRole('navigation', { name: 'Primary', exact: true }).waitFor() }
       const signIn = async (next, index = 0) => {
         if (!calendarYears.has(next.currentSeason.season_year)) {
           await ensureSyntheticSeasonWeeks(next.admin, next.currentSeason.season_year, 26, 'web actions', resourceOwner)
           calendarYears.add(next.currentSeason.season_year)
         }
         if (new URL(page.url()).origin === new URL(frontend).origin) await page.evaluate(() => localStorage.clear())
-        await page.goto(new URL('/sign-in', frontend).href)
+        await navigateWebTarget(page, new URL('/sign-in', frontend).href)
         await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
         await page.getByPlaceholder('you@example.com').fill(next.users[index].email)
         await page.locator('input[type="password"]').fill(next.password)
@@ -106,7 +106,7 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
           await wait(async () => { avatar = (await db(fixture.admin.from('profiles').select('avatar_url').eq('id', fixture.users[0].id).single())).avatar_url; return Boolean(avatar) })
           assert.equal(new URL(avatar).hostname, '127.0.0.1')
           assert.equal((await fetch(avatar)).status, 200)
-          await page.reload({ waitUntil: 'load' })
+          await reloadWebTarget(page)
           await button('Change profile photo').waitFor()
           assert.equal(pickerBusy, true, 'Photo control must stay busy while its picker is open')
         })

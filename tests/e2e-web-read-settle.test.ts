@@ -1,17 +1,21 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runWebTargetBrowserCommand } from './e2e/web-targets-agent.mjs'
 import { openWebTarget, waitForWebTargetReads, navigateWebTarget, reloadWebTarget, WEB_TARGETS } from './e2e/web-targets-browser.mjs'
 
 const driver = vi.hoisted(() => ({ launch: vi.fn(), newContext: vi.fn(), newPage: vi.fn() }))
 vi.mock('playwright', () => ({ chromium: { launch: driver.launch }, webkit: { launch: driver.launch }, devices: {} }))
 
-let page: EventEmitter & { waitForTimeout: (ms: number) => Promise<void>; goto: ReturnType<typeof vi.fn>; reload: ReturnType<typeof vi.fn> }
+vi.mock('node:fs/promises', () => ({ mkdir: vi.fn(), writeFile: vi.fn() }))
+
+let page: EventEmitter & { url: () => string; viewportSize: () => { width: number; height: number }; waitForTimeout: (ms: number) => Promise<void>; goto: ReturnType<typeof vi.fn>; reload: ReturnType<typeof vi.fn> }
 
 beforeEach(async () => {
     vi.useFakeTimers()
     page = Object.assign(new EventEmitter(), {
         waitForTimeout: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
         waitForLoadState: vi.fn(async () => undefined), goto: vi.fn(), reload: vi.fn(),
+        url: () => 'http://127.0.0.1:8082/', viewportSize: () => ({ width: 1280, height: 720 }),
     })
     driver.launch.mockResolvedValue({ newContext: driver.newContext })
     driver.newContext.mockResolvedValue({ addInitScript: vi.fn(), newPage: driver.newPage })
@@ -19,7 +23,7 @@ beforeEach(async () => {
     await openWebTarget(WEB_TARGETS[4], 'unused-capture-directory')
 })
 
-afterEach(() => { vi.useRealTimers() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 
 describe('web reads before a measured reload', () => {
     it('waits for current reads and their follow-up reads after the earlier document was idle', async () => {
@@ -85,5 +89,24 @@ describe('document transitions in the web matrix', () => {
         await vi.advanceTimersByTimeAsync(500)
         await transition
         expect(errors).toEqual([failure])
+    })
+})
+
+describe('gameplay document transitions', () => {
+    it.each(['open', 'reload'])('settles the active live scoreboard read before %s', async (command) => {
+        vi.stubEnv('E2E_WEB_TARGET_ID', 'desktop-chromium-1280')
+        vi.stubEnv('E2E_BROWSER_ARTIFACT_DIR', 'unused-artifact-directory')
+        const session = `live-read-${command}`
+        await runWebTargetBrowserCommand({ session, args: ['get', 'url'] })
+        const read = { url: () => 'http://127.0.0.1:54321/rest/v1/nba_games', method: () => 'GET' }
+        page.emit('request', read)
+        const transition = runWebTargetBrowserCommand({ session, args: command === 'open' ? ['open', 'http://127.0.0.1:8082/create-league'] : ['reload'] })
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(page.goto).not.toHaveBeenCalled()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.emit('requestfinished', read)
+        await vi.advanceTimersByTimeAsync(500)
+        await transition
+        expect(command === 'open' ? page.goto : page.reload).toHaveBeenCalledOnce()
     })
 })

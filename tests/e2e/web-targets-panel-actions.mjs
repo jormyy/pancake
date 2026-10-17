@@ -1,3 +1,4 @@
+import { reloadWebTarget } from './web-targets-browser.mjs'
 import assert from 'node:assert/strict'
 import { setupTradeGameplayFixture, createFixtureResourceOwner, findAvailablePlayers } from './trade-fixture.mjs'
 
@@ -33,7 +34,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     await page.getByText('Audit scheduled', { exact: true }).waitFor()
     await page.getByText('Audit scheduled', { exact: true }).scrollIntoViewIfNeeded()
     await db(fixture.admin.from('nba_games').update({ status: 'InProgress', game_status_text: 'Audit live Q3', home_score: 65, away_score: 61 }).eq('id', game.id))
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     const live = page.getByText('Audit live Q3', { exact: true })
     await live.waitFor()
     await live.scrollIntoViewIfNeeded()
@@ -41,7 +42,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     await card.getByText('65', { exact: true }).waitFor()
     await card.getByText('61', { exact: true }).waitFor()
     await db(fixture.admin.from('nba_games').update({ status: 'Final', game_status_text: 'Audit final', home_score: 99, away_score: 96 }).eq('id', game.id))
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     const final = page.getByText('Audit final', { exact: true })
     await final.waitFor()
     await final.scrollIntoViewIfNeeded()
@@ -144,7 +145,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     await wait(async () => (await rows()).some((row) => row.pick_id === pick.id))
     const note = `Saved scouting note ${fixture.runId}`
     await db(fixture.admin.from('trade_block_items').update({ note }).eq('league_id', fixture.league.id).eq('player_id', fixture.proposerPlayer.id))
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     await press(page.getByRole('tab', { name: 'League trade block', exact: true }))
     await page.getByText(`“${note}”`, { exact: true }).waitFor()
     await signIn(fixture, 1)
@@ -165,7 +166,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     const removePick = page.getByRole('button', { name: /^Remove .* pick from trade block$/ })
     await press(removePick)
     await wait(async () => (await rows()).length === 0)
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     await press(page.getByRole('tab', { name: 'Your trade block', exact: true }))
     await button(`List ${fixture.proposerPlayer.display_name} on trade block`).waitFor()
     return { leagueId: fixture.league.id, playerAndPickAddedAndRemoved: true, savedNoteDisplayed: true, noteEditor: 'No note editor exists in the current UI' }
@@ -279,11 +280,11 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     await wait(async () => (await saved())?.enabled === false)
     await press(toggle)
     await wait(async () => (await saved())?.enabled === true)
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     await wait(async () => await toggle.isEnabled() && await toggle.isChecked())
     await press(toggle)
     await wait(async () => (await saved())?.enabled === false)
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     await wait(async () => await toggle.isEnabled())
     assert.equal(await toggle.isChecked(), false)
     return { leagueId: fixture.league.id, breakdown: true, cancelled: true, manualNavigation: true, dailyEnabledAndDisabled: true }

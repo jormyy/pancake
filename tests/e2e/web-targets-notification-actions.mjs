@@ -1,3 +1,4 @@
+import { reloadWebTarget } from './web-targets-browser.mjs'
 import assert from 'node:assert/strict'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
 
@@ -60,7 +61,7 @@ export async function auditWebNotificationActions({ check, env, season, target, 
       await page.evaluate(() => { Reflect.get(window, '__webPushSimulation').response = 'denied' })
       await press(button('Turn on'))
       await page.getByText(/Notifications are blocked/).waitFor()
-      await page.reload()
+      await reloadWebTarget(page)
       await button('Turn on').waitFor()
       await page.evaluate(() => { Reflect.get(window, '__webPushSimulation').response = 'granted' })
       await press(button('Turn on'))

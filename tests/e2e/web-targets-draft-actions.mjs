@@ -1,3 +1,4 @@
+import { reloadWebTarget } from './web-targets-browser.mjs'
 import { ensureWebActionCalendar } from './web-targets-action-calendar.mjs'
 import assert from 'node:assert/strict'
 import { setupTradeGameplayFixture, findAvailablePlayers } from './trade-fixture.mjs'
@@ -174,7 +175,7 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     await db(fixture.admin.from('drafts').update({ timer_expiry_behavior: 'commissioner_pick' }).eq('id', draftId))
     await db(fixture.admin.from('snake_draft_picks').update({ timer_expires_at: new Date(Date.now() - 1000).toISOString() }).eq('draft_id', draftId).eq('overall_pick', 1))
     await db(fixture.admin.rpc('process_expired_snake_pick_atomic', { p_draft_id: draftId }))
-    await page.reload({ waitUntil: 'load' })
+    await reloadWebTarget(page)
     await page.getByText('Commissioner Pick Needed', { exact: true }).waitFor()
     const choice = page.getByRole('switch', { name: 'Draft this pick directly into taxi', exact: true })
     if (await choice.isChecked()) await press(choice)

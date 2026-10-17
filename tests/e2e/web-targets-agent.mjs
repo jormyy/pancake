@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, navigateWebTarget, reloadWebTarget } from './web-targets-browser.mjs'
 
 const sessions = new Map()
 const currentTarget = () => {
@@ -102,10 +102,10 @@ export async function runWebTargetBrowserCommand({ session, args }) {
   switch (args[0]) {
     case 'open': {
       assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(args[1]).hostname), 'Web actions require a local frontend')
-      await page.goto(args[1], { waitUntil: 'load' })
+      await navigateWebTarget(page, args[1])
       break
     }
-    case 'reload': await page.reload({ waitUntil: 'load' }); break
+    case 'reload': await reloadWebTarget(page); break
     case 'wait':
       if (args[1] === '--fn') await page.waitForFunction(args[2])
       else await page.waitForTimeout(Number(args[1]))

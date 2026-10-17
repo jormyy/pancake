@@ -457,6 +457,10 @@ Global admin utility cases prove actual local access denial and recovery. Separa
 They do not run external provider jobs or global sync writes. League-scoped commissioner actions use the actual local API and database.
 These cases do not prove physical installation, a real iOS permission prompt, background delivery, or notification taps.
 
+Action and gameplay document changes wait for pending reads and follow-up requests to settle.
+Signup fills wait for the app-mounted mark so hydration cannot clear an exported input.
+Runtime error assertions keep every page error; navigation does not filter browser fetch errors.
+
 Both modes use the registered `web-targets` scenario. Set `E2E_WEB_TARGET_ACTIONS=1` or `E2E_WEB_TARGET_GAMEPLAY=1` for the existing scenario runner.
 The default CI entry runs the launch/layout/offline/update matrix. The longer action and settlement matrices can run as separate invocations against the same seeded local stack.
 
