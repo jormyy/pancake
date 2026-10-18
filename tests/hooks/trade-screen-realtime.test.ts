@@ -327,3 +327,42 @@ it('defers initial and changed trade reads while hidden, then catches up on visi
         expect(trades).toHaveBeenCalledTimes(2)
     } finally { await act(async () => { renderer?.unmount() }); vi.useRealTimers(); vi.unstubAllGlobals() }
 })
+
+it.each(['visibility', 'focus'] as const)('releases a stalled read across %s suspension and ignores its late failure', async boundary => {
+    vi.useFakeTimers()
+    let hidden = false
+    const page = Object.defineProperty(new EventTarget(), 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', page)
+    let finish!: (result: boolean) => void
+    const trades = vi.fn().mockReturnValueOnce(new Promise<boolean>(resolve => { finish = resolve })).mockResolvedValue(true)
+    const other = vi.fn().mockResolvedValue(true)
+    const Probe = ({ focused }: { focused: boolean }) => {
+        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: 'offers', focused,
+            refreshDraftPicks: other, refreshTrades: trades, refreshHistory: other, refreshTradeBlock: other })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { focused: true })) })
+        await act(async () => { mocks.subscribe.mock.calls[0][1].onStatus?.('SUBSCRIBED') })
+        expect(trades).toHaveBeenCalledOnce()
+        if (boundary === 'visibility') {
+            hidden = true
+            await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+            await act(async () => { mocks.callbacks?.trades() })
+            expect(trades).toHaveBeenCalledOnce()
+            hidden = false
+            await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+        } else {
+            await act(async () => { renderer.update(React.createElement(Probe, { focused: false })) })
+            await act(async () => { mocks.callbacks?.trades() })
+            expect(trades).toHaveBeenCalledOnce()
+            await act(async () => { renderer.update(React.createElement(Probe, { focused: true })) })
+        }
+        const freshBeforeOldResponse = trades.mock.calls.length
+        await act(async () => { finish(false); await vi.advanceTimersByTimeAsync(16_000) })
+        expect(freshBeforeOldResponse).toBe(2)
+        expect(trades).toHaveBeenCalledTimes(2)
+        expect(other).not.toHaveBeenCalled()
+    } finally { await act(async () => { renderer?.unmount() }); vi.useRealTimers(); vi.unstubAllGlobals() }
+})

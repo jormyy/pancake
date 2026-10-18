@@ -126,7 +126,11 @@ export function useTradeScreenRealtime({
         const tradeBlock = debounceRealtimeRefresh(() => requestFeeds('block'))
         const draftPicks = debounceRealtimeRefresh(() => requestFeeds('picks'))
         if (initialTradesRead) initial = setTimeout(() => requestFeeds('trades'), 300)
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', ownerRecovery.flush)
+        const onVisibility = () => {
+            if (document.visibilityState === 'hidden') ownerRecovery.pause()
+            else ownerRecovery.flush()
+        }
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility)
         const channel = subscribeToTableChanges(`trades-screen:${leagueId}:${memberId}`, {
             mode: 'per-watch',
             onStatus: (status) => {
@@ -157,7 +161,7 @@ export function useTradeScreenRealtime({
         return () => {
             disposed = true
             if (initial) clearTimeout(initial)
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', ownerRecovery.flush)
+            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility)
             if (retry) clearTimeout(retry)
             if (reconnect) clearTimeout(reconnect)
             if (recovery.current === ownerRecovery) recovery.current = null
@@ -166,7 +170,7 @@ export function useTradeScreenRealtime({
     }, [initialTradesRead, leagueId, memberId, refreshDraftPicks, refreshHistory, refreshTradeBlock, refreshTrades, subscriptionEpoch])
 
     useEffect(() => {
-        if (!online) recovery.current?.pause()
-        else if (focused) recovery.current?.enter()
+        if (!online || !focused) recovery.current?.pause()
+        else recovery.current?.enter()
     }, [activeTab, focused, leagueId, memberId, online])
 }
