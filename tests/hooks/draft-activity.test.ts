@@ -20,7 +20,7 @@ vi.mock('expo-router', () => ({ useRouter: () => ({push:mocks.push}) }))
 vi.mock('react-native', () => ({ AppState: { get currentState(){return mocks.appState},
     addEventListener: (_name:string, listener:(next:string)=>void) => {mocks.listeners.add(listener);return {remove:()=>mocks.listeners.delete(listener)}} } }))
 vi.mock('@/lib/draft', () => ({getDraftState:mocks.auction,getDraftPollRevision:mocks.revision,searchPlayers:mocks.search,
-    getJoinableDraft:mocks.launch,placeBid:mocks.bid,nominatePlayer:mocks.nominate,withdrawNomination:vi.fn(),closeExpiredNominations:mocks.expire,
+    acquireJoinableDraft: () => ({promise:mocks.launch(),release:vi.fn()}),placeBid:mocks.bid,nominatePlayer:mocks.nominate,withdrawNomination:vi.fn(),closeExpiredNominations:mocks.expire,
     subscribeToDraft: (_id:unknown,_league:unknown,change:()=>void,status:(status:string)=>void,resume:()=>Promise<boolean>) => {
         mocks.auctionChange=change;mocks.auctionStatus=status;mocks.auctionResume=resume;return {}
     },unsubscribeFromDraft:vi.fn(),
@@ -31,6 +31,7 @@ vi.mock('@/lib/rookieDraft', () => ({getRookieDraftState:mocks.rookie,getRookieP
 }))
 vi.mock('@/lib/roster', () => ({getRoster:vi.fn(async()=>[]),dropPlayer:vi.fn()}))
 vi.mock('@/lib/alert', () => ({showAlert:vi.fn()}))
+vi.mock('@/contexts/league-context', () => ({useLeagueContext:()=>({current:null})}))
 vi.mock('@/lib/realtime', () => ({reportRealtimeCleanup:vi.fn()}))
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true
 let auction!:ReturnType<typeof useAuctionDraftRoomController>
