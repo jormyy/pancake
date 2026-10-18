@@ -9,8 +9,8 @@ const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'inventory'
 const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
 const revisions = new Map<string, Map<string, number>>()
-export type SnapshotDomain = 'roster' | 'support' | 'picks' | 'game' | 'lineup' | 'live'
-const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'resources', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'catchup'], picks: ['inventory', 'catchup'], game: ['game', 'catchup'], lineup: ['lineup', 'roster', 'catchup'], live: ['game', 'stat', 'catchup'] }
+export type SnapshotDomain = 'roster' | 'support' | 'picks' | 'game' | 'lineup' | 'live' | 'daily'
+const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'resources', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'catchup'], picks: ['inventory', 'catchup'], game: ['game', 'catchup'], lineup: ['lineup', 'roster', 'catchup'], live: ['game', 'stat', 'catchup'], daily: ['resources', 'catchup'] }
 const runtimeKey = `${Date.now()}:${Math.random()}`
 let sessionEpoch = 0
 

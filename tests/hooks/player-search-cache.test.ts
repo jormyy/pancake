@@ -200,3 +200,25 @@ describe('search lifecycle ownership', () => {
         await act(async () => { unmounted.resolve([player('unmounted')]); await unmounted.promise })
     })
 })
+
+it('revalidates the same search when the ET day changes and keeps the selected filters', async () => {
+    const { todayET } = await import('@/lib/shared/dates')
+    const owned = new Map()
+    const waivers = new Set<string>()
+    mocks.searchPlayers.mockResolvedValue([player('current')])
+    let latest!: ReturnType<typeof usePlayerSearch>
+    const Probe = ({ tick }: { tick: number }) => {
+        latest = usePlayerSearch('league', owned, waivers, 'member')
+        return React.createElement('div', { 'data-tick': tick })
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { tick: 0 })) })
+        await act(async () => { latest.position.setValue('G') })
+        const before = mocks.searchPlayers.mock.calls.length
+        vi.mocked(todayET).mockReturnValue('2026-10-21')
+        await act(async () => { renderer.update(React.createElement(Probe, { tick: 1 })) })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before + 1)
+        expect(latest.position.value).toBe('G')
+    } finally { await act(async () => { renderer.unmount() }); vi.mocked(todayET).mockReturnValue('2026-10-20') }
+})

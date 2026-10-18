@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import {
     getPlayer,
@@ -92,6 +93,7 @@ function readPlayerScreenCache(playerId: string, leagueId: string | null, owner:
 
 export function usePlayerScreenData(playerId: string, leagueId: string | null, options: { ownerKey?: string; authorized?: boolean } = {}) {
     const activity = useBrowserReadActivity()
+    const [sourceEpoch, setSourceEpoch] = useState(0)
     const [focused, setFocused] = useState(false)
     useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false) }, []))
     const owner = options.ownerKey ?? sessionOwner() ?? 'anonymous'
@@ -100,7 +102,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const activeKey = useRef(resourceKey)
     activeKey.current = resourceKey
     const authorized = options.authorized !== false
-    const readEpoch = JSON.stringify([resourceKey, focused, activity.revision, authorized])
+    const readEpoch = JSON.stringify([resourceKey, focused, activity.revision, authorized, sourceEpoch])
     const permits = () => focused && authorized && activeKey.current === resourceKey
         && sessionGeneration() === generation && activity.isCurrent(activity.revision)
     const admission = useRef(permits)
@@ -109,6 +111,17 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     epochRef.current = readEpoch
     const canRead = useCallback(() => admission.current(), [])
     const isCurrentRead = useCallback((epoch: string) => epochRef.current === epoch && admission.current(), [])
+    useEffect(() => {
+        if (!leagueId || !authorized) return
+        const refresh = deferLeagueRefresh(() => { setSourceEpoch(epoch => epoch + 1) })
+        let registering = true
+        const stop = listenForLeagueChanges(leagueId, change => {
+            if (registering && change.topic === 'catchup') return
+            if (leagueResourceAffects(change, ['averages', 'projections', 'scoring', 'season'])) refresh.trigger()
+        })
+        registering = false
+        return () => { stop(); refresh.cancel() }
+    }, [leagueId, resourceKey, authorized])
     const initialCacheRef = useRef<{ loaded: boolean; value?: PlayerScreenCache }>({ loaded: false })
     if (!initialCacheRef.current.loaded) {
         initialCacheRef.current = { loaded: true, value: readPlayerScreenCache(playerId, leagueId, owner) }

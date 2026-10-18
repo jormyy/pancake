@@ -1,3 +1,4 @@
+import { readLeagueDaily } from '@/lib/league-daily-cache'
 import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
 
@@ -28,36 +29,38 @@ export async function getRosterStatsMaps(
     leagueId: string,
     seasonYear = currentSeasonYear(),
 ): Promise<RosterStatsMaps> {
-    const ids = uniqueIds(playerIds)
+    const ids = uniqueIds(playerIds).sort()
     const avgMap = new Map<string, number>()
     const avgStatsMap = new Map<string, RosterAverage>()
     if (ids.length === 0) return { avgMap, avgStatsMap }
 
-    const [avgResult, statsResult] = await Promise.all([
-        supabase
-            .from('v_player_avg_fantasy_points')
-            .select('player_id, avg_fantasy_points')
-            .eq('league_id', leagueId)
-            .eq('season_year', seasonYear)
-            .in('player_id', ids),
-        supabase
-            .from('mv_player_season_averages')
-            .select('player_id, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_three_pointers_made, avg_turnovers, avg_minutes_played, games_played')
-            .eq('season_year', seasonYear)
-            .in('player_id', ids),
-    ])
+    return readLeagueDaily(leagueId, JSON.stringify(['averages', seasonYear, ids]), async () => {
+        const [avgResult, statsResult] = await Promise.all([
+            supabase
+                .from('v_player_avg_fantasy_points')
+                .select('player_id, avg_fantasy_points')
+                .eq('league_id', leagueId)
+                .eq('season_year', seasonYear)
+                .in('player_id', ids),
+            supabase
+                .from('mv_player_season_averages')
+                .select('player_id, avg_points, avg_rebounds, avg_assists, avg_steals, avg_blocks, avg_three_pointers_made, avg_turnovers, avg_minutes_played, games_played')
+                .eq('season_year', seasonYear)
+                .in('player_id', ids),
+        ])
 
-    if (avgResult.error) throw avgResult.error
-    if (statsResult.error) throw statsResult.error
+        if (avgResult.error) throw avgResult.error
+        if (statsResult.error) throw statsResult.error
 
-    for (const row of (avgResult.data ?? []) as { player_id: string | null; avg_fantasy_points: number | null }[]) {
-        if (row.player_id && row.avg_fantasy_points != null) {
-            avgMap.set(row.player_id, Number(row.avg_fantasy_points))
+        for (const row of (avgResult.data ?? []) as { player_id: string | null; avg_fantasy_points: number | null }[]) {
+            if (row.player_id && row.avg_fantasy_points != null) {
+                avgMap.set(row.player_id, Number(row.avg_fantasy_points))
+            }
         }
-    }
-    for (const row of (statsResult.data ?? []) as (RosterAverage & { player_id: string | null })[]) {
-        if (row.player_id) avgStatsMap.set(row.player_id, row)
-    }
+        for (const row of (statsResult.data ?? []) as (RosterAverage & { player_id: string | null })[]) {
+            if (row.player_id) avgStatsMap.set(row.player_id, row)
+        }
 
-    return { avgMap, avgStatsMap }
+        return { avgMap, avgStatsMap }
+    })
 }

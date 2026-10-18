@@ -2,6 +2,8 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RetainedPanel } from '@/components/ui/RetainedPanel'
+import { notifyLeagueChange, setLeagueChangesConnected, leagueSnapshotRevision } from '@/lib/league-changes'
+import { todayET } from '@/lib/shared/dates'
 import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
 
 const mocks = vi.hoisted(() => ({
@@ -85,7 +87,9 @@ beforeEach(() => {
     vi.stubGlobal('window', events); vi.stubGlobal('document', doc)
     vi.stubGlobal('navigator', { get onLine() { return online } })
     mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2026 })
-    mocks.readPersistentCache.mockReturnValue({ inputs: [decisionRow('saved')], unmatchedRookies: [], savedAt: Date.now(), seasonYear: 2026 })
+    setLeagueChangesConnected('league', true)
+    notifyLeagueChange('league', { topic: 'catchup', scopes: null })
+    mocks.readPersistentCache.mockReturnValue({ inputs: [decisionRow('saved')], unmatchedRookies: [], savedAt: Date.now(), seasonYear: 2026, revision: leagueSnapshotRevision('league', 'daily'), day: todayET() })
     mocks.getDynastyDecisionInputs.mockResolvedValue([decisionRow('new')])
 })
 afterEach(async () => { await act(async () => { renderer?.unmount() }); renderer = undefined; vi.unstubAllGlobals() })
@@ -225,4 +229,40 @@ it.each(['network', 'visibility'])('catches up before the stalled pre-%s source 
     expect(readsBeforeOldSettles).toBe(2)
     expect(latest.players[0].displayName).toBe('Player new')
     expect(mocks.writePersistentCache.mock.calls.every(([, value]) => value.inputs[0].display_name !== 'Player old')).toBe(true)
+})
+
+
+it('keeps daily invalidation pending while hidden and does not reload rankings for live stats', async () => {
+    await mount()
+    await act(async () => { notifyLeagueChange('league', { topic: 'stat', scopes: null }); await flush() })
+    expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
+    await visibility(true)
+    await act(async () => { notifyLeagueChange('league', { topic: 'resources', scopes: null }); await flush() })
+    expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
+    await visibility(false)
+    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledOnce()
+    expect(latest.players[0].displayName).toBe('Player new')
+})
+
+it('revalidates a persisted source snapshot when its authoritative baseline is unavailable', async () => {
+    setLeagueChangesConnected('league', false)
+    await mount()
+    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledOnce()
+    expect(latest.players[0].displayName).toBe('Player new')
+})
+
+it('joins source changes during a held forced read into one current follow-up', async () => {
+    const old = deferred<ReturnType<typeof decisionRow>[]>()
+    mocks.getDynastyDecisionInputs.mockReturnValueOnce(old.promise).mockResolvedValue([decisionRow('corrected')])
+    await mount()
+    await send('online')
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'resources', scopes: null })
+        notifyLeagueChange('league', { topic: 'resources', scopes: null })
+        await flush()
+    })
+    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledTimes(1)
+    await act(async () => { old.resolve([decisionRow('old')]); await old.promise; await flush(); await flush() })
+    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledTimes(2)
+    expect(latest.players[0].displayName).toBe('Player corrected')
 })

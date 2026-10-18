@@ -205,7 +205,7 @@ export function usePlayerSearch(
         sortDir,
         seasonYear,
     ])
-    const searchParamsKey = JSON.stringify([options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate)])
+    const searchParamsKey = JSON.stringify([todayET(), options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate)])
     // Support refreshes can replace Maps without changing the actual search.
     // Only semantic query or identity changes start a different request.
     const stableParamsRef = useRef({ key: searchParamsKey, params: paramsCandidate })

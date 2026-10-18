@@ -1,3 +1,4 @@
+import { readLeagueDaily } from '@/lib/league-daily-cache'
 import { supabase } from '@/lib/supabase'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
@@ -55,17 +56,19 @@ async function getLeagueProjections({
     limit?: number
     offset?: number
 }): Promise<LeagueProjectionRow[]> {
-    const { data, error } = await supabase.rpc('get_league_projection_rows', {
-        p_league_id: leagueId,
-        p_season_year: seasonYear,
-        p_game_date: gameDate,
-        p_view: view,
-        p_player_ids: playerIds ?? undefined,
-        p_limit: limit,
-        p_offset: offset,
+    return readLeagueDaily(leagueId, JSON.stringify(['projections', seasonYear, gameDate, view, playerIds?.slice().sort() ?? null, limit, offset]), async () => {
+        const { data, error } = await supabase.rpc('get_league_projection_rows', {
+            p_league_id: leagueId,
+            p_season_year: seasonYear,
+            p_game_date: gameDate,
+            p_view: view,
+            p_player_ids: playerIds ?? undefined,
+            p_limit: limit,
+            p_offset: offset,
+        })
+        if (error) throw error
+        return (data ?? []) as LeagueProjectionRow[]
     })
-    if (error) throw error
-    return (data ?? []) as LeagueProjectionRow[]
 }
 
 export async function getPlayerProjection(

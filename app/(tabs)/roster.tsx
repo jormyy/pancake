@@ -29,7 +29,7 @@ import { ROSTER_SLOT_TAG_WIDTH, RosterClaimItem, RosterPickItem, RosterPlayerIte
 import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
-import { deferLeagueRefresh, invalidateLeagueSnapshot, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, invalidateLeagueSnapshot, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { Avatar } from '@/components/Avatar'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
@@ -356,7 +356,9 @@ export default function RosterScreen() {
         let registering = true
         const stopHints = listenForLeagueChanges(leagueId, change => {
             if (registering && change.topic === 'catchup') return
-            if (!['roster', 'lineup', 'inventory', 'catchup'].includes(change.topic)) return
+            if (!['roster', 'lineup', 'inventory', 'resources', 'catchup'].includes(change.topic)) return
+            if (change.topic === 'inventory' && !leagueResourceAffects(change, ['picks', 'claims', 'priority', 'faab', 'season'], { memberId: current.id })) return
+            if (change.topic === 'resources' && !leagueResourceAffects(change, ['averages', 'scoring'])) return
             if (change.scopes && !change.scopes.some(scope => !scope.member_id || scope.member_id === current.id)) return
             if (change.topic === 'catchup') invalidateSeasonCache(leagueId)
             refreshRoster.trigger()

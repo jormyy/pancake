@@ -1,3 +1,4 @@
+import { notifyLeagueChange } from '@/lib/league-changes'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import type { Json, League, LeagueStatus } from '@/types/database'
@@ -245,6 +246,7 @@ export async function updateLeagueConfiguration(
             p_slots: slots ? lineupSlotsPayload(slots) : undefined,
         })
         if (error) throw error
+        if (updates.scoring_settings !== undefined) notifyLeagueChange(leagueId, { topic: 'resources', scopes: null })
     })
 }
 

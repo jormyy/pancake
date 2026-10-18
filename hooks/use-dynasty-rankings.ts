@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
+import { leagueResourceAffects, leagueSnapshotRevision, listenForLeagueChanges } from '@/lib/league-changes'
+import { sessionGeneration } from '@/lib/session-cache-registry'
+import { todayET } from '@/lib/shared/dates'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import {
     dynastyDecisionCacheKey,
@@ -34,6 +37,8 @@ type DynastyRankingsCache = {
     unmatchedRookies: UnmatchedRookieRanking[]
     savedAt: number
     seasonYear: number
+    revision?: string | null
+    day?: string
 }
 
 type UseDynastyRankingsArgs = {
@@ -43,6 +48,11 @@ type UseDynastyRankingsArgs = {
     leagueId: string
     scoringSettings: Json | null | undefined
     teamCount: number
+}
+
+function freshSource(cache: DynastyRankingsCache, leagueId: string) {
+    const revision = leagueSnapshotRevision(leagueId, 'daily')
+    return revision !== null && cache.revision === revision && cache.day === todayET()
 }
 
 function playerRow(row: DynastyDecisionInput, result: DynastyAssetResult): DynastyRankPlayer {
@@ -295,7 +305,8 @@ export function useDynastyRankings({
     const active = enabled && panelActive
     const [query, setQuery] = useState('')
     const [view, setView] = useState<DynastyRankingView>('five-year')
-    const scopeIdentity = `${userId}:${memberId}:${leagueId}`
+    const generation = sessionGeneration()
+    const scopeIdentity = `${userId}:${memberId}:${leagueId}:${generation}`
     const scoringSignature = dynastyScoringSignature(scoringSettings)
     const [initialCache] = useState(() => {
         if (!userId || !memberId || !leagueId) return null
@@ -314,7 +325,9 @@ export function useDynastyRankings({
     const [error, setError] = useState<Error | null>(null)
     const [ownerScope, setOwnerScope] = useState(scopeIdentity)
     const requestSeqRef = useRef(0)
-    const lastLoadedAtRef = useRef(initialCache?.savedAt ?? 0)
+    const lastLoadedAtRef = useRef(initialCache && freshSource(initialCache, leagueId) ? initialCache.savedAt : 0)
+    const lastDayRef = useRef(todayET())
+    const currentSeasonRef = useRef<string | null>(null)
     const activeKeyRef = useRef(initialCache && userId && memberId && leagueId
         ? dynastyDecisionCacheKey({
             userId,
@@ -332,7 +345,7 @@ export function useDynastyRankings({
     const lastOnlineRef = useRef<{ epoch: number; at: number } | null>(null)
     const failedRef = useRef(false)
     const inFlightRef = useRef<{
-        identity: string; requestId: number; epoch: number; force: boolean; promise: Promise<void>
+        identity: string; requestId: number; epoch: number; force: boolean; sourceRevision: string | null; promise: Promise<void>
     } | null>(null)
     const scopeReady = Boolean(userId && memberId && leagueId)
     const load = useCallback(async (force = false): Promise<void> => {
@@ -368,9 +381,11 @@ export function useDynastyRankings({
         }
         force ||= resumeNeededRef.current
         resumeNeededRef.current = false
+        const sourceRevision = leagueSnapshotRevision(leagueId, 'daily')
+        const day = todayET()
         const pending = inFlightRef.current
         if (pending?.identity === identity && pending.requestId === requestSeqRef.current) {
-            if (!force || (pending.force && pending.epoch === networkEpochRef.current)) return pending.promise
+            if (!force || (pending.force && pending.epoch === networkEpochRef.current && pending.sourceRevision === sourceRevision)) return pending.promise
             return pending.promise.then(() => {
                 if (requestSeqRef.current !== pending.requestId || !focusedRef.current) return
                 return load(true)
@@ -384,7 +399,8 @@ export function useDynastyRankings({
             try {
                 const fallbackSeasonYear = currentSeasonYear()
                 const season = await getCurrentSeason(leagueId)
-                if (requestSeqRef.current !== requestId || epoch !== networkEpochRef.current) return
+                if (requestSeqRef.current !== requestId || epoch !== networkEpochRef.current || sessionGeneration() !== generation) return
+                currentSeasonRef.current = season?.id ?? null
                 const seasonYear = season?.seasonYear ?? fallbackSeasonYear
                 const cacheScope = {
                     userId, memberId, leagueId, seasonYear, scoringSignature,
@@ -398,7 +414,7 @@ export function useDynastyRankings({
                     setUnmatchedRookies(cached.unmatchedRookies)
                     setSeasonYear(cached.seasonYear)
                     hasDataRef.current = true
-                    lastLoadedAtRef.current = cached.savedAt
+                    lastLoadedAtRef.current = freshSource(cached, leagueId) ? cached.savedAt : 0
                     setLoading(false)
                 } else if (previousKey !== cacheKey) {
                     setInputs([])
@@ -407,7 +423,7 @@ export function useDynastyRankings({
                     lastLoadedAtRef.current = 0
                 }
                 const hasData = hasDataRef.current
-                if (!force && cached && Date.now() - cached.savedAt < STALE_MS) return
+                if (!force && cached && freshSource(cached, leagueId) && Date.now() - cached.savedAt < STALE_MS) return
                 if ((typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
                     (typeof navigator !== 'undefined' && navigator.onLine === false)) {
                     resumeNeededRef.current = true
@@ -424,20 +440,21 @@ export function useDynastyRankings({
                     }),
                     getUnmatchedRookieRankings(),
                 ])
-                if (requestSeqRef.current !== requestId || activeKeyRef.current !== cacheKey || epoch !== networkEpochRef.current) return
+                if (requestSeqRef.current !== requestId || activeKeyRef.current !== cacheKey || epoch !== networkEpochRef.current || sessionGeneration() !== generation) return
                 const savedAt = Date.now()
                 setInputs(inputs)
                 setUnmatchedRookies(unmatchedRookies)
                 setSeasonYear(seasonYear)
                 hasDataRef.current = true
-                lastLoadedAtRef.current = savedAt
-                const cacheValue = { inputs, unmatchedRookies, savedAt, seasonYear }
+                lastLoadedAtRef.current = day === todayET() && sourceRevision !== null && sourceRevision === leagueSnapshotRevision(leagueId, 'daily') ? savedAt : 0
+                lastDayRef.current = day
+                const cacheValue = { inputs, unmatchedRookies, savedAt, seasonYear, day, revision: sourceRevision }
                 writePersistentCache<DynastyRankingsCache>(cacheKey, cacheValue)
                 writePersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
                     userId, memberId, leagueId, scoringSignature,
                 }), cacheValue)
             } catch (cause) {
-                if (requestSeqRef.current !== requestId || epoch !== networkEpochRef.current) return
+                if (requestSeqRef.current !== requestId || epoch !== networkEpochRef.current || sessionGeneration() !== generation) return
                 failedRef.current = true
                 const nextError = cause instanceof Error ? cause : new Error(getErrorMessage(cause))
                 setError(nextError)
@@ -450,9 +467,9 @@ export function useDynastyRankings({
                 if (inFlightRef.current?.requestId === requestId) inFlightRef.current = null
             }
         })()
-        inFlightRef.current = { identity, requestId, epoch, force, promise: task }
+        inFlightRef.current = { identity, requestId, epoch, force, sourceRevision, promise: task }
         return task
-    }, [active, leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSignature, userId])
+    }, [active, leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSignature, userId, generation])
 
     useEffect(() => {
         void load()
@@ -466,7 +483,7 @@ export function useDynastyRankings({
         if (resumeNeededRef.current) {
             resumeNeededRef.current = false
             void load(true)
-        } else if (Date.now() - lastLoadedAtRef.current >= STALE_MS) void load()
+        } else if ((lastDayRef.current !== todayET() || Date.now() - lastLoadedAtRef.current >= STALE_MS)) void load()
         return () => {
             focusedRef.current = false
             if (inFlightRef.current) {
@@ -483,7 +500,7 @@ export function useDynastyRankings({
             if (!focusedRef.current || document.visibilityState === 'hidden' || navigator.onLine === false) return
             const force = resumeNeededRef.current || failedRef.current
             resumeNeededRef.current = false
-            if (force || Date.now() - lastLoadedAtRef.current >= STALE_MS) void load(force)
+            if (force || (lastDayRef.current !== todayET() || Date.now() - lastLoadedAtRef.current >= STALE_MS)) void load(force)
         }
         const online = () => {
             const previous = lastOnlineRef.current
@@ -517,6 +534,20 @@ export function useDynastyRankings({
             document.removeEventListener('visibilitychange', visibility)
         }
     }, [load])
+
+    useEffect(() => {
+        if (!scopeReady) return
+        let registering = true
+        const stop = listenForLeagueChanges(leagueId, change => {
+            if (registering && change.topic === 'catchup') return
+            if (!leagueResourceAffects(change, ['averages', 'projections', 'scoring', 'season'], { seasonId: currentSeasonRef.current })) return
+            lastLoadedAtRef.current = 0
+            resumeNeededRef.current = true
+            if (focusedRef.current && active) void load(true)
+        })
+        registering = false
+        return stop
+    }, [active, leagueId, load, scopeReady])
 
     const ownsScope = ownerScope === scopeIdentity
     const players = useMemo(() => rankedRows(
