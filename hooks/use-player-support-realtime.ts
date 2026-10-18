@@ -1,13 +1,15 @@
 import { useEffect } from 'react'
+import { usePanelActivity } from '@/contexts/panel-activity'
 import { deferLeagueRefresh } from '@/lib/league-changes'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
 type Read = () => void | boolean | Promise<void | boolean>
 
-export function usePlayerSupportRealtime(memberId: string | undefined, leagueId: string | null, refreshSupport: Read, recover: Read) {
+export function usePlayerSupportRealtime(memberId: string | undefined, leagueId: string | null, refreshSupport: Read, recover: Read, enabled = true) {
+    const active = usePanelActivity() && enabled
     useEffect(() => {
-        if (!leagueId || !memberId) return
+        if (!active || !leagueId || !memberId) return
         const refresh = deferLeagueRefresh(refreshSupport)
         const channel = subscribeToTableChanges(`players-screen:${leagueId}`, {
             mode: 'fallback',
@@ -27,5 +29,5 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
             refresh.cancel()
             reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }
-    }, [leagueId, memberId, recover, refreshSupport])
+    }, [active, leagueId, memberId, recover, refreshSupport])
 }

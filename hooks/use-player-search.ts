@@ -25,6 +25,7 @@ import {
 } from '@/lib/player-search-state'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { AppState, type AppStateStatus } from 'react-native'
+import { usePanelActivity } from '@/contexts/panel-activity'
 
 export type SortMode = PlayerSearchSortMode
 type SortDir = PlayerSearchSortDir
@@ -47,7 +48,7 @@ const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
 
-export function useWeeklyAvailability(enabled: boolean) {
+export function useWeeklyAvailability(enabled: boolean, active = true) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
 
     useEffect(() => {
@@ -55,11 +56,14 @@ export function useWeeklyAvailability(enabled: boolean) {
             setWeekDays([])
             return
         }
+        if (!active) return
         let cancelled = false
         let appState: AppStateStatus = AppState.currentState
         let loadedDate: string | null = null
         let requestSequence = 0
         const load = async (includeSchedule: boolean) => {
+            if ((typeof navigator !== 'undefined' && navigator.onLine === false)
+                || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
             const requestId = ++requestSequence
             const seasonYear = currentSeasonYear()
             const today = todayET()
@@ -89,7 +93,7 @@ export function useWeeklyAvailability(enabled: boolean) {
             clearInterval(poll)
             subscription.remove()
         }
-    }, [enabled])
+    }, [enabled, active])
 
     return { weekDays }
 }
@@ -103,8 +107,9 @@ export function usePlayerSearch(
 ) {
     const enabled = options.enabled ?? true
     const online = options.online ?? true
-    const focused = options.focused ?? true
-    const [visible, setVisible] = useState(true)
+    const panelActive = usePanelActivity()
+    const focused = (options.focused ?? true) && panelActive
+    const [visible, setVisible] = useState(() => typeof document === 'undefined' || document.visibilityState !== 'hidden')
     useEffect(() => {
         if (typeof document === 'undefined') return
         const update = () => setVisible(document.visibilityState !== 'hidden')
@@ -152,7 +157,7 @@ export function usePlayerSearch(
         }
     }, [])
 
-    const weeklyAvailability = useWeeklyAvailability(enabled)
+    const weeklyAvailability = useWeeklyAvailability(enabled, focused && online && visible)
     const todayTeams = useMemo(() => {
         const today = todayET()
         const todayRow = weeklyAvailability.weekDays.find((day) => day.date === today)

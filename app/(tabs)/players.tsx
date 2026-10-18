@@ -227,7 +227,7 @@ function PlayerSearchSection() {
         return refreshPlayerSupport()
     }, [retrySearch, refreshPlayerSupport])
 
-    usePlayerSupportRealtime(current?.id, leagueId, refreshPlayerSupport, refreshPlayers)
+    usePlayerSupportRealtime(current?.id, leagueId, refreshPlayerSupport, refreshPlayers, focused)
 
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
@@ -534,6 +534,7 @@ function initialSection(value: string | string[] | undefined): PlayersSection {
  * mounted, so switching back keeps its search, filters, and scroll.
  */
 export default function PlayersScreen() {
+    const focused = useIsFocused()
     const params = useLocalSearchParams<{ section?: string }>()
     const { user, loading: authLoading } = useAuth()
     const { memberships, loading: leagueLoading } = useLeagueContext()
@@ -579,13 +580,13 @@ export default function PlayersScreen() {
             />
             <View style={localStyles.panel} nativeID="players-section-panel" role="tabpanel">
                 {opened.has('players') ? (
-                    <RetainedPanel active={section === 'players'}>
+                    <RetainedPanel active={focused && section === 'players'}>
                         <PlayerSearchSection />
                     </RetainedPanel>
                 ) : null}
                 {/* Rankings and News share one instance, so each loads its data once. */}
                 {opened.has('rankings') || opened.has('news') ? (
-                    <RetainedPanel active={section !== 'players'}>
+                    <RetainedPanel active={focused && section !== 'players'}>
                         <DynastyHub section={section === 'news' || (section === 'players' && lastDynasty === 'news') ? 'news' : 'rankings'} />
                     </RetainedPanel>
                 ) : null}

@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { useDynastyRankings } from '@/hooks/use-dynasty-rankings'
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     writePersistentCache: vi.fn(),
 }))
 
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', StyleSheet: { create: (styles: unknown) => styles } }))
 vi.mock('@react-navigation/native', async () => {
     const { useEffect } = await import('react')
     return { useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]) }
@@ -195,4 +197,32 @@ it('keeps a saved offline view but clears it when the offline account and league
     await send('online')
     expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledExactlyOnceWith({leagueId: 'league-second', memberId: 'member-second', seasonYear: 2026, limit: 600})
     expect(latest.error).toBeNull()
+})
+
+
+it('defers the retained rankings source while its outer panel is hidden', async () => {
+    const panel = (active: boolean) => React.createElement(RetainedPanel, { active }, React.createElement(Probe))
+    mocks.readPersistentCache.mockReturnValue(null)
+    await act(async () => { renderer = create(panel(false)); await flush() })
+    const readsWhileHidden = mocks.getCurrentSeason.mock.calls.length
+    await act(async () => { renderer!.update(panel(true)); await flush() })
+    expect(readsWhileHidden).toBe(0)
+    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledOnce()
+    expect(latest.players[0].displayName).toBe('Player new')
+})
+
+it.each(['network', 'visibility'])('catches up before the stalled pre-%s source settles', async kind => {
+    const old = deferred<ReturnType<typeof decisionRow>[]>()
+    mocks.getDynastyDecisionInputs.mockReturnValueOnce(old.promise).mockResolvedValueOnce([decisionRow('new')])
+    await mount()
+    await send('online')
+    if (kind === 'network') { online = false; await send('offline'); online = true; await send('online') }
+    else { await visibility(true); await visibility(false) }
+    const beforeOldSettles = latest.players[0].displayName
+    const readsBeforeOldSettles = mocks.getDynastyDecisionInputs.mock.calls.length
+    await act(async () => { old.resolve([decisionRow('old')]); await old.promise; await flush() })
+    expect(beforeOldSettles).toBe('Player new')
+    expect(readsBeforeOldSettles).toBe(2)
+    expect(latest.players[0].displayName).toBe('Player new')
+    expect(mocks.writePersistentCache.mock.calls.every(([, value]) => value.inputs[0].display_name !== 'Player old')).toBe(true)
 })

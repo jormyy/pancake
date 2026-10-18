@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
+import { usePanelActivity } from '@/contexts/panel-activity'
 import {
     dynastyDecisionCacheKey,
     dynastyDecisionLatestCacheKey,
@@ -36,6 +37,7 @@ type DynastyRankingsCache = {
 }
 
 type UseDynastyRankingsArgs = {
+    enabled?: boolean
     userId: string
     memberId: string
     leagueId: string
@@ -287,7 +289,10 @@ export function useDynastyRankings({
     leagueId,
     scoringSettings,
     teamCount,
+    enabled = true,
 }: UseDynastyRankingsArgs) {
+    const panelActive = usePanelActivity()
+    const active = enabled && panelActive
     const [query, setQuery] = useState('')
     const [view, setView] = useState<DynastyRankingView>('five-year')
     const scopeIdentity = `${userId}:${memberId}:${leagueId}`
@@ -324,6 +329,7 @@ export function useDynastyRankings({
     const focusedRef = useRef(false)
     const resumeNeededRef = useRef(false)
     const networkEpochRef = useRef(0)
+    const lastOnlineRef = useRef<{ epoch: number; at: number } | null>(null)
     const failedRef = useRef(false)
     const inFlightRef = useRef<{
         identity: string; requestId: number; epoch: number; force: boolean; promise: Promise<void>
@@ -339,14 +345,6 @@ export function useDynastyRankings({
             return
         }
         const identity = `${scopeIdentity}:${scoringSignature}`
-        const pending = inFlightRef.current
-        if (pending?.identity === identity && pending.requestId === requestSeqRef.current) {
-            if (!force || (pending.force && pending.epoch === networkEpochRef.current)) return pending.promise
-            return pending.promise.then(() => {
-                if (requestSeqRef.current !== pending.requestId || !focusedRef.current) return
-                return load(true)
-            })
-        }
         if (ownerScope !== scopeIdentity) {
             setOwnerScope(scopeIdentity)
             activeKeyRef.current = ''
@@ -358,15 +356,25 @@ export function useDynastyRankings({
             setRefreshing(false)
             setError(null)
         }
-        if ((typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
+        if (!active || (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
             (typeof navigator !== 'undefined' && navigator.onLine === false)) {
-            resumeNeededRef.current = true
+            resumeNeededRef.current ||= force || Boolean(inFlightRef.current)
             setLoading(false)
             setRefreshing(false)
             if (!hasDataRef.current && typeof navigator !== 'undefined' && navigator.onLine === false) {
                 setError(new Error('No saved rankings. Connect to load them.'))
             }
             return
+        }
+        force ||= resumeNeededRef.current
+        resumeNeededRef.current = false
+        const pending = inFlightRef.current
+        if (pending?.identity === identity && pending.requestId === requestSeqRef.current) {
+            if (!force || (pending.force && pending.epoch === networkEpochRef.current)) return pending.promise
+            return pending.promise.then(() => {
+                if (requestSeqRef.current !== pending.requestId || !focusedRef.current) return
+                return load(true)
+            })
         }
         const requestId = ++requestSeqRef.current
         const epoch = networkEpochRef.current
@@ -444,7 +452,7 @@ export function useDynastyRankings({
         })()
         inFlightRef.current = { identity, requestId, epoch, force, promise: task }
         return task
-    }, [leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSignature, userId])
+    }, [active, leagueId, memberId, ownerScope, scopeIdentity, scopeReady, scoringSignature, userId])
 
     useEffect(() => {
         void load()
@@ -461,6 +469,11 @@ export function useDynastyRankings({
         } else if (Date.now() - lastLoadedAtRef.current >= STALE_MS) void load()
         return () => {
             focusedRef.current = false
+            if (inFlightRef.current) {
+                resumeNeededRef.current = true
+                requestSeqRef.current += 1
+                inFlightRef.current = null
+            }
         }
     }, [load]))
 
@@ -472,12 +485,27 @@ export function useDynastyRankings({
             resumeNeededRef.current = false
             if (force || Date.now() - lastLoadedAtRef.current >= STALE_MS) void load(force)
         }
-        const online = () => { resumeNeededRef.current = true; resume() }
+        const online = () => {
+            const previous = lastOnlineRef.current
+            const now = Date.now()
+            if (previous?.epoch === networkEpochRef.current && now - previous.at < 1000 && !failedRef.current) return
+            lastOnlineRef.current = { epoch: networkEpochRef.current, at: now }
+            resumeNeededRef.current = true
+            resume()
+        }
         const offline = () => {
             networkEpochRef.current += 1
+            requestSeqRef.current += 1
+            inFlightRef.current = null
             resumeNeededRef.current = true
         }
-        const visibility = () => { resume() }
+        const visibility = () => {
+            if (document.visibilityState === 'hidden' && inFlightRef.current) {
+                resumeNeededRef.current = true
+                requestSeqRef.current += 1
+                inFlightRef.current = null
+            } else resume()
+        }
         window.addEventListener('online', online)
         window.addEventListener('offline', offline)
         window.addEventListener('focus', resume)

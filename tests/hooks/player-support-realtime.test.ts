@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { PanelActivityContext } from '@/contexts/panel-activity'
 import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const boundary = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ const Probe = () => { usePlayerSupportRealtime('member', 'league', boundary.supp
 beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    boundary.subscription = null
     boundary.support.mockResolvedValue(true)
     boundary.recover.mockResolvedValue(true)
 })
@@ -45,4 +47,20 @@ it('retries failed availability reads and stops pending work when the screen lea
     expect(boundary.support).toHaveBeenCalledTimes(2)
     expect(boundary.recover).not.toHaveBeenCalled()
     expect(boundary.stop).toHaveBeenCalledTimes(1)
+})
+
+
+it('unsubscribes while its retained panel is hidden and resumes only its own visible channel', async () => {
+    const panel = (active: boolean) => React.createElement(PanelActivityContext.Provider, { value: active }, React.createElement(Probe))
+    await act(async () => { renderer = create(panel(false)) })
+    expect(boundary.subscription).toBeNull()
+    await act(async () => renderer.update(panel(true)))
+    expect(boundary.subscription).not.toBeNull()
+    await act(async () => { boundary.subscription!.onChange(); renderer.update(panel(false)) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(boundary.support).not.toHaveBeenCalled()
+    expect(boundary.stop).toHaveBeenCalledOnce()
+    await act(async () => renderer.update(panel(true)))
+    await act(async () => { boundary.subscription!.onChange(); await vi.advanceTimersByTimeAsync(200) })
+    expect(boundary.support).toHaveBeenCalledOnce()
 })
