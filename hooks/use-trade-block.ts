@@ -24,7 +24,8 @@ const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v2:'
 const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
     `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
-export function useTradeBlock(memberId: string, leagueId: string, canMutate = true) {
+export function useTradeBlock(memberId: string, leagueId: string, canMutate = true, options: { visible?: boolean } = {}) {
+    const visible = options.visible ?? true
     const canMutateRef = useRef(canMutate)
     canMutateRef.current = canMutate
     const resourceKey = memberId && leagueId ? tradeBlockCacheKey(memberId, leagueId) : null
@@ -51,9 +52,11 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
     const mutationGeneration = useRef(0)
     const mutationQueue = useRef<Promise<void>>(Promise.resolve())
     const [dataKey, setDataKey] = useState<string | null>(resourceKey)
+    const [validatedKey, setValidatedKey] = useState<string | null>(null)
 
     const refresh = useCallback(async () => {
         const requestId = ++loadSequence.current
+        setValidatedKey(null)
         if (!memberId || !leagueId) {
             setItems([])
             setRoster([])
@@ -82,6 +85,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
             setAvgMap(EMPTY_AVG_MAP)
             setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
+            setValidatedKey(resourceKey)
             return true
         } catch (cause) {
             if (loadSequence.current !== requestId) return false
@@ -107,6 +111,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         setBusyId(null)
         setLoading(!cached)
         setDataKey(resourceKey)
+        setValidatedKey(null)
     }, [cached, cachedAvgMap, cachedAvgStatsMap, resourceKey])
 
     // One averages fetch covers the league's listed players and the member's
@@ -114,7 +119,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
     // is written once the averages are known (or known to be missing).
     useEffect(() => {
         const requestId = ++statsLoadSequence.current
-        if (!memberId || !leagueId || dataKey !== resourceKey) return
+        if (!visible || loading || validatedKey !== resourceKey || !memberId || !leagueId || dataKey !== resourceKey) return
         const playerIds = [...new Set([
             ...items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : []),
             ...roster.map((player) => player.players.id),
@@ -145,7 +150,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         return () => {
             if (statsLoadSequence.current === requestId) statsLoadSequence.current += 1
         }
-    }, [dataKey, items, leagueId, memberId, resourceKey, roster])
+    }, [dataKey, items, leagueId, loading, memberId, resourceKey, roster, validatedKey, visible])
 
     useEffect(() => () => {
         loadSequence.current += 1

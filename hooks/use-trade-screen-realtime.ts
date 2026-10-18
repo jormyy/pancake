@@ -42,7 +42,7 @@ export function useTradeScreenRealtime({
     activeTabRef.current = activeTab
     const visibility = useRef({ online, focused })
     visibility.current = { online, focused }
-    const recovery = useRef<{ flush: () => void; pause: () => void } | null>(null)
+    const recovery = useRef<{ flush: () => void; pause: () => void; enter: () => void } | null>(null)
 
     useEffect(() => {
         if (!memberId || !leagueId) return
@@ -103,6 +103,11 @@ export function useTradeScreenRealtime({
             }
         }
         const ownerRecovery = {
+            enter: () => {
+                if (activeTabRef.current === 'block' || activeTabRef.current === 'leagueBlock') pending.add('block')
+                void recover()
+                reconnectIfClosed()
+            },
             pause: () => {
                 mark()
                 refreshing = null
@@ -162,6 +167,6 @@ export function useTradeScreenRealtime({
 
     useEffect(() => {
         if (!online) recovery.current?.pause()
-        else if (focused) recovery.current?.flush()
+        else if (focused) recovery.current?.enter()
     }, [activeTab, focused, leagueId, memberId, online])
 }

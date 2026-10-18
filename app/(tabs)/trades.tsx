@@ -137,7 +137,7 @@ export default function TradesScreen() {
         addPlayer: handleListPlayer,
         addPick: handleListPick,
         removeItem: handleRemoveBlockItem,
-    } = useTradeBlock(myMemberId, leagueId, online)
+    } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && (tab === 'block' || tab === 'leagueBlock') })
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])
@@ -169,10 +169,6 @@ export default function TradesScreen() {
         draftPicksFresh: !picksSnapshot,
         initialTradesRead: true,
     })
-
-    useEffect(() => {
-        if (tab === 'block' || tab === 'leagueBlock') void loadBlock()
-    }, [loadBlock, tab])
 
     const picksList = useMemo(() => picks ?? [], [picks])
     const screenModel = useMemo(() => buildTradeScreenModel({

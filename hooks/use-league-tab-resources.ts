@@ -17,7 +17,7 @@ const EMPTY_ACTIVITY: ActivityPage = { rows: [], hasMore: false }
 const EMPTY_WAIVER_ORDER: WaiverPriorityRow[] = []
 const EMPTY_PICKS: LeaguePickItem[] = []
 const EMPTY_MOCK_ROOMS: MockDraftRoom[] = []
-const PREFETCH_TABS: LeagueTab[] = ['results', 'history', 'settings', 'draftBoard', 'mockRooms']
+const RESOURCE_TABS: LeagueTab[] = ['results', 'history', 'settings', 'draftBoard', 'mockRooms']
 
 // Persistent per-tab cache: revisits render cached content instantly (no
 // blank flash) while the fresh fetch updates it in place.
@@ -137,7 +137,7 @@ export function useLeagueTabResources(
         wasOnline.current = isOnline
         if (!reconnected) return
         resetActivityPagination()
-        for (const tab of PREFETCH_TABS) {
+        for (const tab of RESOURCE_TABS) {
             if (tab === 'auctions') continue
             resourcesRef.current[tab].invalidate(focused.current && activeTabRef.current === tab)
         }
@@ -145,14 +145,7 @@ export function useLeagueTabResources(
 
     useFocusEffect(useCallback(() => {
         if (activeResourceKey) ensureTab(activeTab)
-        // Prefetch the other tabs so switching to one shows content
-        // immediately instead of a blank panel while its first load runs.
-        if (!leagueKey) return
-        for (const tab of PREFETCH_TABS) {
-            if (tab === 'mockRooms' && !memberKey) continue
-            ensureTab(tab)
-        }
-    }, [activeResourceKey, activeTab, ensureTab, leagueKey, memberKey]))
+    }, [activeResourceKey, activeTab, ensureTab]))
 
     const loadMoreActivity = useCallback(async () => {
         const resource = resourcesRef.current.history

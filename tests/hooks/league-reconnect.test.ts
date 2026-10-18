@@ -39,7 +39,8 @@ it('refreshes visible standings on reconnect without fetching hidden tabs or dro
     state.online = true
     await act(async () => { renderer.update(React.createElement(Probe)) })
     expect(state.standings).toHaveBeenCalledTimes(2)
-    expect(state.history).toHaveBeenCalledTimes(1)
+    expect(state.history).not.toHaveBeenCalled()
+    expect(state.rooms).not.toHaveBeenCalled()
     expect(latest.standings[0].memberId).toBe('saved')
     await act(async () => { resolve([{ memberId: 'fresh' }]) })
     expect(latest.standings[0].memberId).toBe('fresh')
@@ -99,4 +100,30 @@ it('ignores the previous league response after reconnect and a league switch', a
     await act(async () => { finish([{ memberId: 'first-member' }]) })
     expect(latest.standings.map((row) => row.memberId)).toEqual(['second-member'])
     await act(async () => { renderer.unmount() })
+})
+
+it('loads each league panel only when selected and retains hidden invalidations until then', async () => {
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = ({ tab }: { tab: 'results' | 'history' | 'mockRooms' }) => {
+        latest = useLeagueTabResources('league', 'member', tab)
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { tab: 'results' })) })
+        expect(state.history).not.toHaveBeenCalled()
+        expect(state.rooms).not.toHaveBeenCalled()
+        await act(async () => { latest.invalidateTab('history') })
+        expect(state.history).not.toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'history' })) })
+        expect(state.history).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'results' })) })
+        await act(async () => { latest.invalidateTab('history') })
+        expect(state.history).toHaveBeenCalledTimes(1)
+        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'history' })) })
+        expect(state.history).toHaveBeenCalledTimes(2)
+        expect(state.rooms).not.toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'mockRooms' })) })
+        expect(state.rooms).toHaveBeenCalledTimes(1)
+    } finally { await act(async () => { renderer.unmount() }) }
 })

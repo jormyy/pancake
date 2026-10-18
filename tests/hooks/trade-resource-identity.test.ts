@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readPersistentCache } from '@/lib/persistent-cache'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
@@ -440,4 +441,32 @@ describe('trade reconnect authority', () => {
         expect(latest.isSnapshot).toBe(false)
         await act(async () => { renderer.unmount() })
     })
+})
+
+it('does not enrich a hidden block cache and waits for its fresh roster before loading averages', async () => {
+    vi.mocked(readPersistentCache).mockReturnValue({
+        items: [], roster: [rosterPlayer('cached-player')], avgEntries: [], avgStatsEntries: [],
+    })
+    getRoster.mockResolvedValue([rosterPlayer('fresh-player')])
+    getTradeBlockItems.mockResolvedValue([])
+    getRosterStatsMaps.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+    let latest!: ReturnType<typeof useTradeBlock>
+    const Probe = ({ visible }: { visible: boolean }) => {
+        latest = useTradeBlock('member', 'league', true, { visible })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { visible: false })) })
+        expect(getRosterStatsMaps).not.toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { visible: true })) })
+        expect(getRosterStatsMaps).not.toHaveBeenCalled()
+        await act(async () => { await latest.refresh() })
+        expect(getRosterStatsMaps).toHaveBeenCalledExactlyOnceWith(['fresh-player'], 'league')
+        await act(async () => { renderer.update(React.createElement(Probe, { visible: false })) })
+        expect(getRosterStatsMaps).toHaveBeenCalledTimes(1)
+    } finally {
+        await act(async () => { renderer.unmount() })
+        vi.mocked(readPersistentCache).mockReturnValue(null)
+    }
 })
