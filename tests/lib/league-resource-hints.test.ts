@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { leagueChangeReceiver } from '@/lib/league-changes'
+import { leagueChangeReceiver, leagueResourceAffects } from '@/lib/league-changes'
 
 const season = '10000000-0000-4000-8000-000000000001'
 const detail = { resource: 'claims', season_id: season }
@@ -64,4 +64,14 @@ it('broadens a missing inventory scope field and requires a new trusted cursor',
     consume({ ...row(2), scopes: undefined })
     consume(row(3))
     expect(receive.mock.calls.map(([change]) => change.details)).toEqual([null, null, null])
+})
+
+
+it('keeps broad invalidation inside its topic and includes future-season picks for their owner', () => {
+    expect(leagueResourceAffects({ topic: 'resources', scopes: null, details: null }, ['season'])).toBe(false)
+    expect(leagueResourceAffects({ topic: 'resources', scopes: null, details: null }, ['averages'])).toBe(true)
+    expect(leagueResourceAffects({ topic: 'inventory', scopes: null, details: null }, ['averages'])).toBe(false)
+    const futurePick = { topic: 'inventory' as const, scopes: null, details: [{ resource: 'picks' as const, season_id: 'future', member_id: 'mine' }] }
+    expect(leagueResourceAffects(futurePick, ['picks'], { seasonId: season, memberId: 'mine' })).toBe(true)
+    expect(leagueResourceAffects(futurePick, ['picks'], { seasonId: season, memberId: 'other' })).toBe(false)
 })

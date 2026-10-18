@@ -9,7 +9,7 @@ type Read = () => void | boolean | Promise<void | boolean>
 type SupportRead = (resources: readonly PlayerSupportResource[]) => ReturnType<Read>
 const ALL_SUPPORT: PlayerSupportResource[] = ['ownership', 'waivers', 'claims', 'transactions']
 
-export function usePlayerSupportRealtime(memberId: string | undefined, leagueId: string | null, refreshSupport: SupportRead, recover: Read, enabled = true, seasonId?: string | null) {
+export function usePlayerSupportRealtime(memberId: string | undefined, leagueId: string | null, refreshSupport: SupportRead, recover: Read, enabled = true, seasonId?: string | null, refreshDerived?: Read) {
     const season = useRef(seasonId)
     season.current = seasonId
     const active = usePanelActivity() && enabled
@@ -17,23 +17,31 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
         if (!active || !leagueId || !memberId) return
         const pending = new Set<PlayerSupportResource>()
         let fullRecovery = false
+        let dailyRecovery = false
         const refresh = deferLeagueRefresh(async () => {
             const resources = [...pending]
             const full = fullRecovery
+            const daily = dailyRecovery
             pending.clear()
             fullRecovery = false
-            try {
-                const result = full ? await recover() : await refreshSupport(resources)
-                if (result === false) {
-                    for (const resource of resources) pending.add(resource)
-                    fullRecovery ||= full
+            dailyRecovery = false
+            const work = full ? [{ read: recover, retry: () => { fullRecovery = true } }]
+                : [
+                    ...(resources.length ? [{ read: () => refreshSupport(resources), retry: () => { for (const resource of resources) pending.add(resource) } }] : []),
+                    ...(daily ? [{ read: refreshDerived ?? recover, retry: () => { dailyRecovery = true } }] : []),
+                ]
+            const results = await Promise.allSettled(work.map(async item => item.read()))
+            let succeeded = true
+            for (let index = 0; index < results.length; index += 1) {
+                const result = results[index]
+                if (result.status === 'rejected' || result.value === false) {
+                    work[index].retry()
+                    succeeded = false
                 }
-                return result
-            } catch (error) {
-                for (const resource of resources) pending.add(resource)
-                fullRecovery ||= full
-                throw error
             }
+            const failed = results.find(result => result.status === 'rejected')
+            if (failed?.status === 'rejected') throw failed.reason
+            return succeeded
         })
         const changed = (...resources: PlayerSupportResource[]) => {
             for (const resource of resources) pending.add(resource)
@@ -53,8 +61,8 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
                 if (leagueResourceAffects(change, ['claims'], selection)) resources.push('claims')
                 if (leagueResourceAffects(change, ['faab'], selection)) resources.push('transactions')
                 if (resources.length) changed(...resources)
-            } else if (change.topic === 'resources' && leagueResourceAffects(change, ['averages', 'projections', 'scoring'], { seasonId: season.current })) {
-                fullRecovery = true
+            } else if (change.topic === 'resources' && leagueResourceAffects(change, ['averages', 'projections', 'scoring'])) {
+                dailyRecovery = true
                 refresh.trigger()
             }
         })
@@ -76,5 +84,5 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
             refresh.cancel()
             reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }
-    }, [active, leagueId, memberId, recover, refreshSupport])
+    }, [active, leagueId, memberId, recover, refreshSupport, refreshDerived])
 }

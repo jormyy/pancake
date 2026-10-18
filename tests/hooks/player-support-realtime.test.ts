@@ -7,7 +7,7 @@ import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const boundary = vi.hoisted(() => ({
     subscription: null as null | { watches: { table: string; onChange: () => void }[]; onReconnect: () => unknown },
-    support: vi.fn(), recover: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
+    support: vi.fn(), recover: vi.fn(), derived: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
 }))
 vi.mock('@/lib/realtime', () => ({
     subscribeToTableChanges: (_name: string, options: NonNullable<typeof boundary.subscription>) => { boundary.subscription = options; return {} },
@@ -96,4 +96,42 @@ it('refreshes derived inputs for daily source changes, independently of live sco
     expect(boundary.recover).not.toHaveBeenCalled()
     await act(async () => { notifyLeagueChange('league', { topic: 'resources', scopes: null, details: [{ resource: 'averages', season_id: seasonId }] }); await vi.advanceTimersByTimeAsync(200) })
     expect(boundary.recover).toHaveBeenCalledOnce()
+})
+
+
+it('refreshes search inputs alone for a daily publication and merges a simultaneous claim change', async () => {
+    boundary.derived.mockResolvedValue(true)
+    const Scoped = () => { usePlayerSupportRealtime('member', 'league', boundary.support, boundary.recover, true, seasonId, boundary.derived); return null }
+    await act(async () => { renderer = create(React.createElement(Scoped)) })
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'resources', scopes: null, details: null })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.derived).toHaveBeenCalledOnce()
+    expect(boundary.support).not.toHaveBeenCalled()
+    expect(boundary.recover).not.toHaveBeenCalled()
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'resources', scopes: null, details: [{ resource: 'projections', season_id: 'historical-selected-search' }] })
+        notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'claims', season_id: seasonId }] })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.derived).toHaveBeenCalledTimes(2)
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims'])
+    expect(boundary.recover).not.toHaveBeenCalled()
+})
+
+
+it('retains only the failed daily read when a joined claim refresh succeeds', async () => {
+    boundary.derived.mockResolvedValueOnce(false).mockResolvedValue(true)
+    const Scoped = () => { usePlayerSupportRealtime('member', 'league', boundary.support, boundary.recover, true, seasonId, boundary.derived); return null }
+    await act(async () => { renderer = create(React.createElement(Scoped)) })
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'resources', scopes: null, details: null })
+        notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'claims', season_id: seasonId }] })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims'])
+    expect(boundary.derived).toHaveBeenCalledTimes(2)
+    expect(boundary.recover).not.toHaveBeenCalled()
 })

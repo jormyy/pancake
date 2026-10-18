@@ -96,6 +96,8 @@ function resourceDetails(value: unknown, topic: Topic): ResourceDetail[] | null 
 export function leagueResourceAffects(change: LeagueChange, resources: ResourceDetail['resource'][], selection: { seasonId?: string | null; memberId?: string } = {}): boolean {
     if (change.topic === 'catchup') return true
     if (change.topic !== 'inventory' && change.topic !== 'resources') return false
+    const allowed = change.topic === 'inventory' ? inventoryResources : dailyResources
+    if (!resources.some(resource => allowed.has(resource))) return false
     return !change.details || change.details.some(detail => resources.includes(detail.resource)
         && (!selection.seasonId || detail.resource === 'picks' || detail.season_id === selection.seasonId)
         && (!detail.member_id || !selection.memberId || detail.member_id === selection.memberId))

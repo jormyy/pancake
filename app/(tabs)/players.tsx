@@ -241,7 +241,7 @@ function PlayerSearchSection() {
         return refreshPlayerSupport()
     }, [retrySearch, refreshPlayerSupport])
 
-    usePlayerSupportRealtime(current?.id, leagueId, refreshSupportResources, refreshPlayers, focused, playerSupportForLeague?.seasonId)
+    usePlayerSupportRealtime(current?.id, leagueId, refreshSupportResources, refreshPlayers, focused, playerSupportForLeague?.seasonId, retrySearch)
 
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
