@@ -224,7 +224,57 @@ export async function getJoinableDraft(
     return data ? mapDraft(data) : null
 }
 
-export async function getDraftState(draftId: string): Promise<DraftState | null> {
+export async function getDraftState(draftId: string, previous?: DraftState | null): Promise<DraftState | null> {
+    if (previous?.draft.id === draftId && previous.openNomination) {
+        const [draftResult, nominationResult, budgetsResult] = await Promise.all([
+            supabase.from('drafts').select(DRAFT_SELECT).eq('id', draftId).maybeSingle(),
+            supabase.from('nominations')
+                .select('id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at')
+                .eq('draft_id', draftId).order('nomination_order', { ascending: false }).limit(1).maybeSingle(),
+            supabase.from('draft_budgets')
+                .select('member_id, remaining, initial_budget, league_members(team_name)').eq('draft_id', draftId),
+        ])
+        if (draftResult.error) throw draftResult.error
+        if (nominationResult.error) throw nominationResult.error
+        if (budgetsResult.error) throw budgetsResult.error
+        if (!draftResult.data) return null
+        const nomination = nominationResult.data
+        const currentDraft = mapDraft(draftResult.data)
+        if (nomination?.id === previous.openNomination.id && nomination.status === 'open'
+            && nomination.current_bid_amount >= previous.openNomination.currentBidAmount
+            && Object.entries(currentDraft).every(([key, value]) => Reflect.get(previous.draft, key) === value)) {
+            const openNomination: DraftNomination = {
+                ...previous.openNomination,
+                currentBidAmount: nomination.current_bid_amount,
+                currentBidderId: nomination.current_bidder_id,
+                currentBidToTaxi: nomination.current_bid_to_taxi,
+                countdownExpiresAt: nomination.countdown_expires_at,
+            }
+            let activeBids = previous.activeBids
+            const lastAmount = Math.max(0, ...activeBids.map(bid => bid.amount))
+            if (nomination.current_bid_amount > lastAmount) {
+                const { data, error } = await supabase.from('bids')
+                    .select('id, nomination_id, member_id, amount, placed_at, league_members(team_name)')
+                    .eq('nomination_id', nomination.id).gt('amount', lastAmount)
+                    .order('placed_at', { ascending: false }).limit(100)
+                if (error) throw error
+                const incoming = (data ?? []).map(bid => ({
+                    id: bid.id, nominationId: bid.nomination_id, memberId: bid.member_id,
+                    teamName: bid.league_members?.team_name ?? 'Unknown', amount: bid.amount, placedAt: bid.placed_at,
+                }))
+                const ids = new Set(incoming.map(bid => bid.id))
+                activeBids = [...incoming, ...activeBids.filter(bid => !ids.has(bid.id))].slice(0, 100)
+            }
+            return {
+                ...previous, draft: currentDraft, openNomination, activeBids,
+                nominations: previous.nominations.map(row => row.id === nomination.id ? openNomination : row),
+                budgets: (budgetsResult.data ?? []).map(row => ({
+                    memberId: row.member_id, teamName: row.league_members?.team_name ?? 'Unknown',
+                    remaining: row.remaining, initialBudget: row.initial_budget,
+                })),
+            }
+        }
+    }
     const [draftResult, ordersResult, budgetsResult, nominationsResult] =
         await Promise.all([
             supabase
