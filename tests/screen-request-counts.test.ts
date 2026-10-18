@@ -1,4 +1,3 @@
-import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
