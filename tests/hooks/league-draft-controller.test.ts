@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagueDraftController } from '@/hooks/use-league-draft-controller'
 import type { Draft } from '@/lib/draft'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const mocks = vi.hoisted(() => ({
     confirmAction: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@/lib/alert', () => ({ confirmAction: mocks.confirmAction, showAlert: vi.fn() }))
 vi.mock('@/components/league/DraftChips', () => ({ normalizeDraftTimerSeconds: (value: number) => value }))
 vi.mock('@/lib/draft', () => ({
-    getJoinableDraft: mocks.getJoinableDraft,
+    acquireJoinableDraft: (leagueId: string, options: unknown) => ({ promise: mocks.getJoinableDraft(leagueId, options), release: vi.fn() }),
     NOMINATION_ORDER_MODE_LABELS: { user_nominated: "Manager's choice", by_projection: 'By projection rank', alphabetical: 'Alphabetical' },
     ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS: { auto_pick: 'Auto-pick', skip_pick: 'Skip', pause_draft: 'Pause', commissioner_pick: 'Commish pick' },
     startDraft: mocks.startDraft,
@@ -54,6 +55,7 @@ const deferred = <Value,>() => {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    setSessionOwner('actor')
 })
 
 describe('useLeagueDraftController', () => {
