@@ -49,7 +49,6 @@ type Harness = {
     listeners: Map<string, Listener>
     caches: FakeCaches
     fetches: string[]
-    networkFetches: string[]
     skipWaitingCalls: number
     claimCalls: number
     install: () => Promise<void>
@@ -75,15 +74,12 @@ async function loadWorker(
     // Successive releases share one Cache Storage, as they do in a browser.
     const cacheStorage = storage ?? new FakeCaches()
     const fetches: string[] = []
-    const networkFetches: string[] = []
-    const harness = { listeners, caches: cacheStorage, fetches, networkFetches, skipWaitingCalls: 0, claimCalls: 0 } as Harness
+    const harness = { listeners, caches: cacheStorage, fetches, skipWaitingCalls: 0, claimCalls: 0 } as Harness
 
     const fakeFetch = async (input: Request | string) => {
         const url = typeof input === 'string' ? input : input.url
         fetches.push(new URL(url, 'https://app.test').pathname)
-        if (typeof input === 'string' || input.cache !== 'only-if-cached') networkFetches.push(new URL(url, 'https://app.test').pathname)
         if (fetchImpl) return fetchImpl(input)
-        if (typeof input !== 'string' && input.cache === 'only-if-cached') return new Response(null, { status: 504 })
         return new Response(`body:${url}`, { status: 200, headers: { 'content-type': new URL(url).pathname === '/' ? 'text/html' : 'application/javascript' } })
     }
 
@@ -421,7 +417,7 @@ describe('service worker', () => {
                 hashes: { '/_expo/static/js/web/chunk.js': createHash('sha256').update(body).digest('hex') },
                 fetchImpl: async input => {
                     const request = input as Request
-                    if (request.cache !== 'only-if-cached') throw new TypeError('offline')
+                    if (!['force-cache', 'only-if-cached'].includes(request.cache)) throw new TypeError('offline')
                     expect(request.credentials).toBe('omit')
                     return new Response(kind === 'poison-public-header' ? 'account A' : body, {
                         headers: { 'cache-control': kind === 'private-header' ? 'private' : 'public' },
@@ -508,7 +504,7 @@ describe('service worker', () => {
         await worker.install()
         expect(await (await shell.match('/'))?.text()).toBe('body:https://app.test/')
         expect(await (await assets.match('/_expo/static/js/web/app.js'))?.text()).toBe('body:https://app.test/_expo/static/js/web/app.js')
-        expect(worker.networkFetches).toHaveLength(2)
+        expect(worker.fetches).toHaveLength(2)
         expect(worker.skipWaitingCalls).toBe(1)
     })
 
@@ -523,7 +519,7 @@ describe('service worker', () => {
         expect(await (await old.match('/'))?.text()).toBe('usable old release')
         put.mockRestore()
         await worker.install()
-        expect(worker.networkFetches).toHaveLength(4)
+        expect(worker.fetches).toHaveLength(4)
         expect(worker.skipWaitingCalls).toBe(1)
     })
 
@@ -757,41 +753,50 @@ describe('service worker', () => {
 
     it('reuses a loaded boot asset only after checking its release digest', async () => {
         const requests: Request[] = []
+        const asset = 'https://app.test/_expo/static/js/web/app.js'
+        const httpCache = new Map([[asset, new Response(`body:${asset}`)]])
+        let downloads = 0
         const worker = await loadWorker({ fetchImpl: async input => {
             const request = input as Request
             requests.push(request)
+            const cached = ['force-cache', 'only-if-cached'].includes(request.cache) ? httpCache.get(request.url) : undefined
+            if (request.cache === 'only-if-cached' && !cached) return new Response(null, { status: 504 })
+            if (cached) return cached.clone()
+            if (request.url === asset) downloads++
             return new Response(`body:${request.url}`, {
                 headers: { 'content-type': new URL(request.url).pathname === '/' ? 'text/html' : 'application/javascript' },
             })
         } })
         await worker.install()
-        expect(worker.networkFetches).toEqual(['/'])
-        const cachedRequest = requests.find(request => request.cache === 'only-if-cached')!
+        expect(downloads).toBe(0)
+        const cachedRequest = requests.find(request => request.url === asset)!
         expect(cachedRequest.credentials).toBe('omit')
         expect(cachedRequest.mode).toBe('same-origin')
         expect(cachedRequest.redirect).toBe('error')
         const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
-        expect(await (await assets.match('/_expo/static/js/web/app.js'))?.text()).toBe('body:https://app.test/_expo/static/js/web/app.js')
+        expect(await (await assets.match('/_expo/static/js/web/app.js'))?.text()).toBe(`body:${asset}`)
         expect(worker.skipWaitingCalls).toBe(1)
     })
 
     it.each(['private', 'wrong-bytes', 'miss', 'unsupported'] as const)(
         'refetches boot assets when the HTTP cache is %s', async kind => {
+            let downloads = 0
             const worker = await loadWorker({ fetchImpl: async input => {
                 const request = input as Request
-                if (request.cache === 'only-if-cached') {
+                if (['force-cache', 'only-if-cached'].includes(request.cache) && kind !== 'miss') {
                     if (kind === 'unsupported') throw new TypeError('Unsupported cache mode')
-                    if (kind === 'miss') return new Response(null, { status: 504 })
                     return new Response(kind === 'wrong-bytes' ? 'private user bytes' : `body:${request.url}`, {
                         headers: { 'cache-control': kind === 'private' ? 'private' : 'public' },
                     })
                 }
+                if (request.cache === 'only-if-cached') return new Response(null, { status: 504 })
+                if (new URL(request.url).pathname !== '/') downloads++
                 return new Response(`body:${request.url}`, {
                     headers: { 'content-type': new URL(request.url).pathname === '/' ? 'text/html' : 'application/javascript' },
                 })
             } })
             await worker.install()
-            expect(worker.networkFetches.sort()).toEqual(['/', '/_expo/static/js/web/app.js'])
+            expect(downloads).toBe(1)
             const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
             expect(await (await assets.match('/_expo/static/js/web/app.js'))?.text()).toBe('body:https://app.test/_expo/static/js/web/app.js')
             expect(worker.skipWaitingCalls).toBe(1)

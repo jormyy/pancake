@@ -46,9 +46,6 @@ function shellRoute(pathname) {
   })
 }
 
-// Strip identity and bypass the HTTP cache: a legacy authenticated response
-// can live there even after the old worker's Cache Storage is removed.
-// Only this worker's validated public cache may supply a shared hit.
 const publicFetch = (url, signal) =>
   fetch(new Request(url, { credentials: 'omit', redirect: 'error', cache: 'no-store', signal }))
 
@@ -69,7 +66,7 @@ async function cachedBuildAsset(url, signal) {
   if (!digest) return undefined
   try {
     const response = await fetch(new Request(url, {
-      credentials: 'omit', redirect: 'error', mode: 'same-origin', cache: 'only-if-cached', signal,
+      credentials: 'omit', redirect: 'error', mode: 'same-origin', cache: 'force-cache', signal,
     }))
     if (cacheable(response) && await matchesBuild(response, digest)) return response
   } catch {}
@@ -77,16 +74,8 @@ async function cachedBuildAsset(url, signal) {
 }
 
 async function publicAssetFetch(url) {
-  try {
-    return await publicFetch(url)
-  } catch (error) {
-    // A first visit can load a lazy chunk before the worker takes control.
-    // Keep those public HTTP-cache bytes usable offline, but never trust a
-    // legacy response merely because its URL or headers look public.
-    const response = await cachedBuildAsset(url)
-    if (!response) throw error
-    return response
-  }
+  const cached = await cachedBuildAsset(url)
+  return cached ?? publicFetch(url)
 }
 
 async function safeMatch(cache, key, options) {
