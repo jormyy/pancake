@@ -1178,6 +1178,7 @@ export type Database = {
           is_current: boolean
           league_id: string
           nba_trade_deadline: string | null
+          playoff_bracket_seed_ids: string[] | null
           playoff_round_weeks: number[] | null
           playoff_seed_member_ids: string[] | null
           playoff_start_week: number | null
@@ -1193,6 +1194,7 @@ export type Database = {
           is_current?: boolean
           league_id: string
           nba_trade_deadline?: string | null
+          playoff_bracket_seed_ids?: string[] | null
           playoff_round_weeks?: number[] | null
           playoff_seed_member_ids?: string[] | null
           playoff_start_week?: number | null
@@ -1208,6 +1210,7 @@ export type Database = {
           is_current?: boolean
           league_id?: string
           nba_trade_deadline?: string | null
+          playoff_bracket_seed_ids?: string[] | null
           playoff_round_weeks?: number[] | null
           playoff_seed_member_ids?: string[] | null
           playoff_start_week?: number | null
@@ -1575,6 +1578,8 @@ export type Database = {
           league_id: string
           league_season_id: string
           matchup_type: Database["public"]["Enums"]["matchup_type"]
+          playoff_position: number | null
+          playoff_round: number | null
           score_read_started_at: string | null
           week_number: number
           winner_member_id: string | null
@@ -1595,6 +1600,8 @@ export type Database = {
           league_id: string
           league_season_id: string
           matchup_type?: Database["public"]["Enums"]["matchup_type"]
+          playoff_position?: number | null
+          playoff_round?: number | null
           score_read_started_at?: string | null
           week_number: number
           winner_member_id?: string | null
@@ -1615,6 +1622,8 @@ export type Database = {
           league_id?: string
           league_season_id?: string
           matchup_type?: Database["public"]["Enums"]["matchup_type"]
+          playoff_position?: number | null
+          playoff_round?: number | null
           score_read_started_at?: string | null
           week_number?: number
           winner_member_id?: string | null

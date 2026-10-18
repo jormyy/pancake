@@ -159,7 +159,7 @@ BEGIN
            END
       FROM locked
      WHERE matchup.id = locked.id
-       AND NOT private.playoff_round_is_consumed(p_league_season_id, locked.matchup_type)
+       AND NOT private.playoff_matchup_is_consumed(locked.id)
      RETURNING
        matchup.id,
        locked.is_finalized AS was_finalized,

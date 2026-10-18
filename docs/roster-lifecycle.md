@@ -247,3 +247,11 @@ The reverse checks apply to plan creation. Shared team locks and sorted player l
 Accepted assets and drops remain reserved through settlement or a terminal outcome.
 Ownership cleanup expires dependent offers with their existing visible failure reason and notification outbox.
 For opted-in leagues, a pending claim whose drop leaves the roster becomes cancelled with an explicit reason.
+
+## Flexible playoff rounds
+
+Explicit playoff entrants use a full seeded elimination tree. Round count equals ceil(log2(entrants)). Top seeds receive first-round byes. Each round starts after the previous round's configured weeks. Calendar validation includes skipped weeks as elapsed time.
+
+The season stores explicit seeds in `playoff_bracket_seed_ids`. Matchups store `playoff_round` and `playoff_position`. These fields drive advancement and freeze consumed results, including consecutive early rounds. The existing matchup types label early rounds, semifinals, and the final.
+
+Null entrant settings retain the legacy four- or six-team bracket and its original seed snapshot. The legacy array constraint remains intact. No existing season receives a new seed snapshot during migration.

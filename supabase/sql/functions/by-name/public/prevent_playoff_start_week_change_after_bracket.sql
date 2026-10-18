@@ -32,7 +32,7 @@ BEGIN
   v_rounds := private.league_playoff_round_plan(NEW.id, v_members);
   PERFORM private.assert_playoff_window(v_season.season_year, NEW.playoff_start_week, v_rounds, true);
   UPDATE public.league_seasons
-     SET playoff_start_week = NEW.playoff_start_week, playoff_round_weeks = NULL, playoff_seed_member_ids = NULL
+     SET playoff_start_week = NEW.playoff_start_week, playoff_round_weeks = NULL, playoff_seed_member_ids = NULL, playoff_bracket_seed_ids = NULL
    WHERE id = v_season.id;
   IF v_had_schedule THEN
     DELETE FROM public.matchups WHERE league_season_id = v_season.id;

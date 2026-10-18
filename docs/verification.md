@@ -107,8 +107,8 @@ All three recipes are part of `npm run test:db`.
 
 New leagues created through `create_league` start playoffs at week 17.
 Existing leagues keep their saved start and legacy duration rules.
-Commissioners can set 2–30 teams and 2–8 playoff entrants.
-Entrants require exactly the elimination rounds needed: one for two entrants, two for three or four, three for five through eight.
+Commissioners can set any team limit of at least two. Entrants range from two through the actual league membership.
+The number of elimination rounds is ceil(log2(entrants)). No product cap limits entrants or rounds.
 Each round accepts its own positive week length. Top seeds receive the required first-round byes.
 Calendar gaps, too many entrants, and mismatched round counts produce explicit errors.
 A changed playoff plan can rebuild an unstarted schedule under the existing schedule lock.
@@ -122,3 +122,9 @@ Scoring, seeding, and automatic season transitions ignore voided matchups.
 Standings-derived draft and waiver orders use the rebuilt snapshots.
 Saved skips cannot be restored through this control. Playoff seed creation locks further week voids.
 The commissioner selects these settings; migrations change no saved league or matchup data.
+
+Configured brackets store explicit round numbers and branch positions. Seed order follows the standard balanced elimination tree.
+Only the first round has byes. Every later round pairs neighboring winning branches.
+Earlier rounds reuse the legacy quarterfinal phase value for compatibility; their explicit round numbers control advancement and scoring locks.
+Legacy null settings retain the original bracket and duration rules.
+Run `npm run test:db:general-brackets` for large brackets, every advancement, exact windows, odd leagues, and invalid plans.

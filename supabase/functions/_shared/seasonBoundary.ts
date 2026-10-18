@@ -1,6 +1,7 @@
 import { supabase } from './supabase.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
+import { fetchAllPages } from './scoreShared.ts'
 
 // NBA stat corrections land 1-2 days after games. Bracket generation,
 // advancement, and rollover wait this long after the prerequisite week
@@ -12,6 +13,7 @@ const DEFAULT_PLAYOFF_START_WEEK = 20
 
 type BoundaryMatchup = {
   matchup_type: string
+  playoff_round?: number | null
   week_number: number
   is_finalized: boolean | null
   finalized_at: string | null
@@ -166,15 +168,14 @@ async function processLeagueBoundary(
   referenceDate: Date,
 ): Promise<string[]> {
   const actions: string[] = []
-  const { data: matchupRows, error: matchupError } = await supabase
+  const matchups = await fetchAllPages<BoundaryMatchup>((from, to) => supabase
     .from('matchups')
-    .select('matchup_type, week_number, is_finalized, finalized_at, winner_member_id')
+    .select('id, matchup_type, playoff_round, week_number, is_finalized, finalized_at, winner_member_id')
     .eq('league_id', leagueId)
     .eq('league_season_id', leagueSeasonId)
     .eq('is_voided', false)
-  if (matchupError) throw matchupError
-
-  const matchups = (matchupRows ?? []) as BoundaryMatchup[]
+    .order('id')
+    .range(from, to))
   if (matchups.length === 0 && playoffStartWeek > 1) {
     // A manually-advanced league can reach 'active' (rookie draft completed)
     // before any tick saw it in 'offseason', leaving a season with no
@@ -205,13 +206,15 @@ async function processLeagueBoundary(
   }
 
   if (finals.length === 0) {
-    const currentRound = semifinals.length > 0 ? semifinals : quarterfinals
+    const latestRound = matchups.reduce((latest, matchup) => Math.max(latest, matchup.playoff_round ?? 0), 0)
+    const currentRound = latestRound > 0 ? matchups.filter((matchup) => matchup.playoff_round === latestRound)
+      : semifinals.length > 0 ? semifinals : quarterfinals
     const roundDecided = currentRound.every((m) => m.is_finalized && m.winner_member_id != null)
     if (currentRound.length === 0 || !roundDecided || !graceElapsed(currentRound, referenceDate)) {
       return actions
     }
     const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'advance', referenceDate)
-    if (result.applied === true) actions.push(semifinals.length > 0 ? 'final-created' : 'semifinals-created')
+    if (result.applied === true) actions.push(semifinals.length > 0 ? 'final-created' : latestRound > 0 ? 'round-created' : 'semifinals-created')
     return actions
   }
 

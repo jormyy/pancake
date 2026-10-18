@@ -69,12 +69,12 @@ BEGIN
       RAISE EXCEPTION '% must be a positive whole number.',v_key USING ERRCODE='22023';
     END IF;
   END LOOP;
-  IF p_settings ? 'team_limit' AND ((p_settings->>'team_limit')::int NOT BETWEEN 2 AND 30 OR
+  IF p_settings ? 'team_limit' AND ((p_settings->>'team_limit')::int < 2 OR
       (p_settings->>'team_limit')::int < (SELECT count(*) FROM public.league_members WHERE league_id=p_league_id)) THEN
-    RAISE EXCEPTION 'Team limit must be between 2 and 30 and include every current team.' USING ERRCODE='22023';
+    RAISE EXCEPTION 'Team limit must be at least 2 and include every current team.' USING ERRCODE='22023';
   END IF;
-  IF p_settings ? 'playoff_entrants' AND (p_settings->>'playoff_entrants')::int NOT BETWEEN 2 AND 8 THEN
-    RAISE EXCEPTION 'Choose 2 through 8 playoff entrants.' USING ERRCODE='22023';
+  IF p_settings ? 'playoff_entrants' AND (p_settings->>'playoff_entrants')::int < 2 THEN
+    RAISE EXCEPTION 'Playoffs require at least 2 entrants.' USING ERRCODE='22023';
   END IF;
   IF p_settings ? 'taxi_rule' AND (p_settings->>'taxi_rule') NOT IN ('drafted_rookies','rookies_or_64_games') THEN
     RAISE EXCEPTION 'Choose a valid taxi eligibility rule.' USING ERRCODE='22023';

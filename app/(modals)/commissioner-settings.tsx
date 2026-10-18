@@ -284,7 +284,7 @@ export default function CommissionerSettingsScreen() {
                             { label: 'Playoff Entrants', value: draft.playoffEntrants ?? '', set: (value: string) => updateField('playoffEntrants', value) },
                             { label: 'Playoff Rounds', value: draft.playoffRoundCount ?? '', set: (value: string) => {
                                 updateField('playoffRoundCount', value)
-                                if (/^[1-3]$/.test(value)) updateField('playoffRoundWeeks', Array.from({ length: Number(value) }, (_, index) => playoffRoundWeeks[index] ?? '1'))
+                                if (/^[1-9][0-9]*$/.test(value) && Number(value) === Math.ceil(Math.log2(Number(draft.playoffEntrants)))) updateField('playoffRoundWeeks', Array.from({ length: Number(value) }, (_, index) => playoffRoundWeeks[index] ?? '1'))
                             } },
                             ...playoffRoundWeeks.map((_, index) => `Round ${index + 1} Weeks`).map((label, index) => ({
                                 label,

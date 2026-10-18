@@ -188,14 +188,24 @@ export function isTradingClosed(
 }
 
 export async function getLeagueMembers(leagueId: string) {
-    const { data, error } = await supabase
+    const fetchPage = (from: number) => supabase
         .from('league_members')
         .select('id, role, team_name, user_id, profiles ( display_name, username )')
         .eq('league_id', leagueId)
         .order('joined_at')
-
-    if (error) throw error
-    return data ?? []
+        .order('id')
+        .range(from, from + 999)
+    const first = await fetchPage(0)
+    if (first.error) throw first.error
+    const rows = first.data ?? []
+    let pageLength = rows.length
+    while (pageLength === 1000) {
+        const page = await fetchPage(rows.length)
+        if (page.error) throw page.error
+        pageLength = page.data?.length ?? 0
+        rows.push(...page.data ?? [])
+    }
+    return rows
 }
 
 export async function updateTeamName(memberId: string, teamName: string) {

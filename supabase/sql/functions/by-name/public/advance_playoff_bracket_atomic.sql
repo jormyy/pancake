@@ -30,6 +30,7 @@ DECLARE
   v_byes int;
   v_winner uuid;
   v_inserted_count int := 0;
+  v_current_round int;
 BEGIN
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
   SELECT id, season_year, playoff_round_weeks, playoff_seed_member_ids INTO v_season_id, v_season_year, v_rounds, v_seed_ids
@@ -48,6 +49,11 @@ BEGIN
 
   IF FOUND THEN
     RETURN jsonb_build_object('inserted', 0, 'skipped', true);
+  END IF;
+
+  SELECT max(playoff_round) INTO v_current_round FROM matchups WHERE league_season_id=v_season_id;
+  IF v_current_round IS NOT NULL THEN
+    RETURN private.generate_playoff_round(p_league_id,v_season_id,v_current_round+1);
   END IF;
 
   SELECT count(*), min(week_number), array_agg(winner_member_id ORDER BY created_at, id), bool_and(is_finalized AND winner_member_id IS NOT NULL)

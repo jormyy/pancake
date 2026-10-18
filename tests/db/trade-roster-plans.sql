@@ -166,7 +166,7 @@ BEGIN
   other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[5]],ARRAY[v_players[3]],'{}','{}');
   claim:=create_waiver_claim_atomic(league,members[1],v_players[6],v_players[5],users[1]);
   UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE id=wire;
-  PERFORM process_next_waiver_claim_atomic(current_date+1);
+  PERFORM process_next_waiver_claim_atomic((SELECT process_date FROM waiver_claims WHERE id=claim));
   PERFORM pg_temp.check_plan((SELECT status='succeeded' FROM waiver_claims WHERE id=claim),'real waiver pickup settles its drop and add');
   PERFORM pg_temp.check_plan((SELECT trades.status='expired' AND completion_failure_reason IS NOT NULL FROM trades WHERE id=other_trade),'waiver completion invalidates dependent pending trade with explicit reason');
   INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
@@ -181,7 +181,7 @@ BEGIN
   VALUES(league,season,v_players[7],members[2],now()-interval '1 minute');
   UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_season_id=season AND player_id=v_players[7];
   claim:=create_waiver_claim_atomic(league,members[3],v_players[7],NULL,users[3]);
-  PERFORM process_next_waiver_claim_atomic(current_date+1);
+  PERFORM process_next_waiver_claim_atomic((SELECT process_date FROM waiver_claims WHERE id=claim));
   PERFORM pg_temp.check_plan((SELECT status='succeeded' FROM waiver_claims WHERE id=claim),
     'legal waiver pickup fills future receipt space: '||(SELECT status||COALESCE(' '||failure_reason,'') FROM waiver_claims WHERE id=claim));
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO before_rosters FROM roster_players roster WHERE league_season_id=season;

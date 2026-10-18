@@ -1,13 +1,16 @@
 SET lock_timeout = '5s';
 SET statement_timeout = '2min';
-ALTER TABLE public.leagues ADD COLUMN team_limit int NOT NULL DEFAULT 10 CHECK (team_limit BETWEEN 2 AND 30);
+ALTER TABLE public.leagues ADD COLUMN team_limit int NOT NULL DEFAULT 10 CHECK (team_limit >= 2);
 ALTER TABLE public.leagues ADD COLUMN taxi_rule text NOT NULL DEFAULT 'drafted_rookies' CHECK (taxi_rule IN ('drafted_rookies','rookies_or_64_games'));
 ALTER TABLE public.leagues ADD COLUMN taxi_max_seasons int CHECK (taxi_max_seasons BETWEEN 1 AND 2);
 ALTER TABLE public.leagues ADD COLUMN allow_inactive_trades boolean NOT NULL DEFAULT false;
-ALTER TABLE public.leagues ADD COLUMN playoff_entrants int CHECK (playoff_entrants BETWEEN 2 AND 8);
+ALTER TABLE public.leagues ADD COLUMN playoff_entrants int CHECK (playoff_entrants >= 2);
 ALTER TABLE public.leagues ADD COLUMN playoff_round_lengths int[];
+ALTER TABLE public.league_seasons ADD COLUMN playoff_bracket_seed_ids uuid[] CHECK (playoff_bracket_seed_ids IS NULL OR (cardinality(playoff_bracket_seed_ids) >= 2 AND array_position(playoff_bracket_seed_ids,NULL) IS NULL));
 ALTER TABLE public.league_seasons ADD COLUMN skipped_weeks int[] NOT NULL DEFAULT '{}';
 ALTER TABLE public.matchups ADD COLUMN is_voided boolean NOT NULL DEFAULT false;
+ALTER TABLE public.matchups ADD COLUMN playoff_round int CHECK (playoff_round > 0);
+ALTER TABLE public.matchups ADD COLUMN playoff_position int CHECK (playoff_position > 0);
 ALTER TABLE public.players ADD COLUMN career_regular_season_games int CHECK (career_regular_season_games >= 0);
 ALTER TABLE public.players ADD COLUMN career_games_checked_at timestamptz;
 ALTER TABLE public.roster_players ADD COLUMN taxi_start_season_year int;
@@ -29,6 +32,61 @@ BEGIN
     NEW.finalized_at := NULL;
   END IF;
   RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.generate_playoff_round(p_league_id uuid,p_season_id uuid,p_round int)
+RETURNS jsonb LANGUAGE plpgsql SET search_path=public AS $$
+DECLARE v_season league_seasons%ROWTYPE; v_order bigint[]; v_seeds uuid[]; v_slots uuid[]; v_next uuid[];
+  v_round int; v_pair int; v_index int; v_home uuid; v_away uuid; v_winner uuid;
+  v_start int; v_end int; v_type matchup_type; v_inserted int:=0; v_rows int;
+BEGIN
+  SELECT * INTO v_season FROM league_seasons WHERE id=p_season_id AND league_id=p_league_id;
+  v_seeds:=COALESCE(v_season.playoff_bracket_seed_ids,v_season.playoff_seed_member_ids);
+  IF v_seeds IS NULL THEN
+    RAISE EXCEPTION 'Original playoff seed order is missing. Existing results are unchanged.';
+  END IF;
+  IF p_round<1 OR p_round>cardinality(v_season.playoff_round_weeks) THEN
+    RAISE EXCEPTION 'Requested playoff round is outside the saved elimination plan.' USING ERRCODE='22023';
+  END IF;
+  v_order:=private.playoff_seed_order(power(2::numeric,cardinality(v_season.playoff_round_weeks))::bigint);
+  v_slots:=array_fill(NULL::uuid,ARRAY[cardinality(v_order)]);
+  FOR v_index IN 1..cardinality(v_order) LOOP
+    IF v_order[v_index]<=cardinality(v_seeds) THEN
+      v_slots[v_index]:=v_seeds[v_order[v_index]::int];
+    END IF;
+  END LOOP;
+  FOR v_round IN 1..p_round-1 LOOP
+    v_next:='{}';
+    FOR v_pair IN 1..cardinality(v_slots)/2 LOOP
+      v_home:=v_slots[v_pair*2-1]; v_away:=v_slots[v_pair*2];
+      IF v_home IS NULL OR v_away IS NULL THEN
+        v_winner:=COALESCE(v_home,v_away);
+      ELSE
+        SELECT winner_member_id INTO v_winner FROM matchups WHERE league_season_id=p_season_id
+          AND playoff_round=v_round AND playoff_position=v_pair AND is_finalized AND winner_member_id IS NOT NULL;
+        IF NOT FOUND THEN RAISE EXCEPTION 'Playoff round % is not yet finalized.',v_round; END IF;
+      END IF;
+      v_next:=array_append(v_next,v_winner);
+    END LOOP;
+    v_slots:=v_next;
+  END LOOP;
+  v_start:=v_season.playoff_start_week+COALESCE((SELECT sum(length) FROM unnest(v_season.playoff_round_weeks[1:p_round-1]) length),0);
+  v_end:=v_start+v_season.playoff_round_weeks[p_round]-1;
+  PERFORM private.assert_playoff_window(v_season.season_year,v_start,v_season.playoff_round_weeks[p_round:cardinality(v_season.playoff_round_weeks)]);
+  v_type:=CASE cardinality(v_season.playoff_round_weeks)-p_round WHEN 0 THEN 'playoff_final'::matchup_type
+    WHEN 1 THEN 'playoff_semifinal'::matchup_type ELSE 'playoff_quarterfinal'::matchup_type END;
+  FOR v_pair IN 1..cardinality(v_slots)/2 LOOP
+    IF v_slots[v_pair*2-1] IS NOT NULL AND v_slots[v_pair*2] IS NOT NULL THEN
+      INSERT INTO matchups(league_id,league_season_id,week_number,end_week_number,matchup_type,
+        home_member_id,away_member_id,playoff_round,playoff_position)
+      VALUES(p_league_id,p_season_id,v_start,v_end,v_type,v_slots[v_pair*2-1],v_slots[v_pair*2],p_round,v_pair)
+      ON CONFLICT (league_id,league_season_id,week_number,home_member_id,away_member_id) DO NOTHING;
+      GET DIAGNOSTICS v_rows=ROW_COUNT;
+      v_inserted:=v_inserted+v_rows;
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('inserted',v_inserted,'skipped',v_inserted=0,'round',p_round);
 END;
 $$;
 
@@ -102,6 +160,9 @@ BEGIN
   IF v_league.playoff_entrants IS NULL THEN
     RETURN private.playoff_round_plan(p_member_count, v_league.playoff_total_weeks, v_league.playoff_round_weeks);
   END IF;
+  IF v_league.playoff_entrants<2 THEN
+    RAISE EXCEPTION 'Playoffs require at least 2 entrants.' USING ERRCODE='22023';
+  END IF;
   IF v_league.playoff_entrants > p_member_count THEN
     RAISE EXCEPTION 'Playoff entrants (%) exceed league teams (%).', v_league.playoff_entrants, p_member_count USING ERRCODE = '22023';
   END IF;
@@ -121,6 +182,33 @@ RETURNS int LANGUAGE sql STABLE SET search_path=public AS $$
   SELECT week.week_number FROM league_seasons season JOIN season_weeks week ON week.season_year=season.season_year
     WHERE season.id=p_season_id
       AND (p_reference_at AT TIME ZONE 'America/Los_Angeles')::date BETWEEN week.week_start AND week.week_end;
+$$;
+
+CREATE OR REPLACE FUNCTION private.playoff_matchup_is_consumed(p_matchup_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SET search_path=public AS $$
+  SELECT CASE WHEN current.playoff_round IS NULL THEN
+    private.playoff_round_is_consumed(current.league_season_id,current.matchup_type)
+  ELSE EXISTS (SELECT 1 FROM matchups later WHERE later.league_season_id=current.league_season_id
+    AND later.playoff_round>current.playoff_round)
+    OR (current.matchup_type='playoff_final' AND EXISTS (SELECT 1 FROM league_seasons
+      WHERE id=current.league_season_id AND NOT is_current)) END
+  FROM matchups current WHERE current.id=p_matchup_id;
+$$;
+
+CREATE OR REPLACE FUNCTION private.playoff_seed_order(p_size bigint)
+RETURNS bigint[] LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE v_order bigint[]:=ARRAY[1::bigint,2::bigint]; v_next bigint[]; v_size bigint:=2; v_seed bigint;
+BEGIN
+  WHILE v_size<p_size LOOP
+    v_size:=v_size*2;
+    v_next:='{}';
+    FOREACH v_seed IN ARRAY v_order LOOP
+      v_next:=v_next||ARRAY[v_seed,v_size+1-v_seed];
+    END LOOP;
+    v_order:=v_next;
+  END LOOP;
+  RETURN v_order;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION private.rebuild_regular_standings(p_league_id uuid, p_season_id uuid)
@@ -1799,6 +1887,7 @@ DECLARE
   v_byes int;
   v_winner uuid;
   v_inserted_count int := 0;
+  v_current_round int;
 BEGIN
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
   SELECT id, season_year, playoff_round_weeks, playoff_seed_member_ids INTO v_season_id, v_season_year, v_rounds, v_seed_ids
@@ -1817,6 +1906,11 @@ BEGIN
 
   IF FOUND THEN
     RETURN jsonb_build_object('inserted', 0, 'skipped', true);
+  END IF;
+
+  SELECT max(playoff_round) INTO v_current_round FROM matchups WHERE league_season_id=v_season_id;
+  IF v_current_round IS NOT NULL THEN
+    RETURN private.generate_playoff_round(p_league_id,v_season_id,v_current_round+1);
   END IF;
 
   SELECT count(*), min(week_number), array_agg(winner_member_id ORDER BY created_at, id), bool_and(is_finalized AND winner_member_id IS NOT NULL)
@@ -2175,6 +2269,7 @@ DECLARE
   v_next record;
   v_week int;
   v_input_token jsonb;
+  v_round int;
 BEGIN
   IF p_action IS NULL OR p_action NOT IN ('generate', 'advance', 'rollover') OR p_reference_at IS NULL THEN
     RAISE EXCEPTION 'Invalid automatic season boundary request.' USING ERRCODE = '22023';
@@ -2197,6 +2292,7 @@ BEGIN
     IF EXISTS(SELECT 1 FROM public.matchups WHERE league_season_id = p_league_season_id AND matchup_type = 'playoff_final') THEN
       RETURN jsonb_build_object('applied', false);
     END IF;
+    SELECT max(playoff_round) INTO v_round FROM public.matchups WHERE league_season_id=p_league_season_id;
     v_type := CASE WHEN EXISTS(SELECT 1 FROM public.matchups WHERE league_season_id = p_league_season_id AND matchup_type = 'playoff_semifinal')
       THEN 'playoff_semifinal'::matchup_type ELSE 'playoff_quarterfinal'::matchup_type END;
   ELSE
@@ -2205,7 +2301,7 @@ BEGIN
 
   SELECT count(*), bool_and(is_finalized IS TRUE AND (v_type = 'regular_season' OR winner_member_id IS NOT NULL)), max(finalized_at)
     INTO v_count, v_ready, v_latest
-    FROM public.matchups WHERE league_season_id = p_league_season_id AND NOT is_voided AND matchup_type = v_type
+    FROM public.matchups WHERE league_season_id = p_league_season_id AND NOT is_voided AND (CASE WHEN v_round IS NOT NULL THEN playoff_round=v_round ELSE matchup_type=v_type END)
       AND (v_type <> 'regular_season' OR week_number < v_start);
   IF NOT (p_action = 'generate' AND v_start = 1) AND
       (v_count = 0 OR v_ready IS DISTINCT FROM true OR v_latest > p_reference_at - interval '48 hours') THEN
@@ -2216,7 +2312,7 @@ BEGIN
   -- certificates require an actual replay, never a timestamp backfill.
   FOR v_week IN SELECT DISTINCT week_number FROM public.matchups
       WHERE league_season_id = p_league_season_id AND NOT is_voided
-        AND (matchup_type = v_type OR (p_action = 'rollover' AND matchup_type = 'regular_season'))
+        AND ((CASE WHEN v_round IS NOT NULL THEN playoff_round=v_round ELSE matchup_type=v_type END) OR (p_action = 'rollover' AND matchup_type = 'regular_season'))
         AND (matchup_type <> 'regular_season' OR week_number < v_start) ORDER BY week_number LOOP
     SELECT input_token INTO v_input_token FROM private.score_week_certificates
       WHERE league_season_id = p_league_season_id AND week_number = v_week;
@@ -2903,7 +2999,7 @@ BEGIN
            END
       FROM locked
      WHERE matchup.id = locked.id
-       AND NOT private.playoff_round_is_consumed(p_league_season_id, locked.matchup_type)
+       AND NOT private.playoff_matchup_is_consumed(locked.id)
      RETURNING
        matchup.id,
        locked.is_finalized AS was_finalized,
@@ -3066,13 +3162,13 @@ BEGIN
    WHERE member.league_id = p_league_id;
 
   IF v_member_count < COALESCE(v_league.playoff_entrants,4) THEN
-    RAISE EXCEPTION 'Not enough teams to seed playoffs (need 4).';
+    RAISE EXCEPTION 'Not enough teams to seed playoffs (need %).',COALESCE(v_league.playoff_entrants,4);
   END IF;
 
   v_playoff_size := COALESCE(v_league.playoff_entrants,CASE WHEN v_member_count >= 10 THEN 6 ELSE 4 END);
 
   v_rounds := private.league_playoff_round_plan(v_league.id, v_member_count);
-  PERFORM private.assert_playoff_window(v_season_year, v_playoff_start_week, v_rounds);
+  PERFORM private.assert_playoff_window(v_season_year, v_playoff_start_week, v_rounds, v_league.playoff_entrants IS NOT NULL);
   UPDATE public.league_seasons
      SET playoff_start_week = v_playoff_start_week, playoff_round_weeks = v_rounds
    WHERE id = v_season_id;
@@ -3081,8 +3177,10 @@ BEGIN
     INTO v_seed_ids
     FROM private.playoff_seed_rankings(p_league_id, v_season_id, v_playoff_start_week) AS seed;
 
-  UPDATE public.league_seasons SET playoff_seed_member_ids = v_seed_ids[1:v_playoff_size]
-    WHERE id = v_season_id;
+  UPDATE public.league_seasons
+     SET playoff_seed_member_ids = CASE WHEN v_playoff_size IN (4,6) THEN v_seed_ids[1:v_playoff_size] END,
+         playoff_bracket_seed_ids = CASE WHEN v_league.playoff_entrants IS NOT NULL THEN v_seed_ids[1:v_playoff_size] END
+   WHERE id = v_season_id;
 
   FOR v_pair IN
     SELECT
@@ -3143,6 +3241,10 @@ BEGIN
     END IF;
   END LOOP;
 
+  IF v_league.playoff_entrants IS NOT NULL THEN
+    RETURN private.generate_playoff_round(p_league_id,v_season_id,1);
+  END IF;
+
   v_size := power(2,cardinality(v_rounds))::int;
   v_type := CASE cardinality(v_rounds) WHEN 3 THEN 'playoff_quarterfinal'::public.matchup_type
     WHEN 2 THEN 'playoff_semifinal'::public.matchup_type ELSE 'playoff_final'::public.matchup_type END;
@@ -3168,7 +3270,7 @@ RETURNS TABLE(week_number int) LANGUAGE sql STABLE SECURITY DEFINER SET search_p
   WHERE matchup.league_season_id = p_league_season_id AND matchup.week_number <= p_through_week
     AND NOT EXISTS(SELECT 1 FROM private.retired_score_inputs WHERE league_season_id = p_league_season_id)
     AND matchup.is_finalized IS TRUE AND NOT matchup.is_voided
-    AND NOT private.playoff_round_is_consumed(p_league_season_id, matchup.matchup_type)
+    AND NOT private.playoff_matchup_is_consumed(matchup.id)
     AND (certificate.input_token IS NULL OR certificate.input_token IS DISTINCT FROM private.score_input_token(p_league_season_id, matchup.week_number))
   ORDER BY matchup.week_number;
 $$;
@@ -3302,7 +3404,7 @@ BEGIN
   v_rounds := private.league_playoff_round_plan(NEW.id, v_members);
   PERFORM private.assert_playoff_window(v_season.season_year, NEW.playoff_start_week, v_rounds, true);
   UPDATE public.league_seasons
-     SET playoff_start_week = NEW.playoff_start_week, playoff_round_weeks = NULL, playoff_seed_member_ids = NULL
+     SET playoff_start_week = NEW.playoff_start_week, playoff_round_weeks = NULL, playoff_seed_member_ids = NULL, playoff_bracket_seed_ids = NULL
    WHERE id = v_season.id;
   IF v_had_schedule THEN
     DELETE FROM public.matchups WHERE league_season_id = v_season.id;
@@ -4153,12 +4255,12 @@ BEGIN
       RAISE EXCEPTION '% must be a positive whole number.',v_key USING ERRCODE='22023';
     END IF;
   END LOOP;
-  IF p_settings ? 'team_limit' AND ((p_settings->>'team_limit')::int NOT BETWEEN 2 AND 30 OR
+  IF p_settings ? 'team_limit' AND ((p_settings->>'team_limit')::int < 2 OR
       (p_settings->>'team_limit')::int < (SELECT count(*) FROM public.league_members WHERE league_id=p_league_id)) THEN
-    RAISE EXCEPTION 'Team limit must be between 2 and 30 and include every current team.' USING ERRCODE='22023';
+    RAISE EXCEPTION 'Team limit must be at least 2 and include every current team.' USING ERRCODE='22023';
   END IF;
-  IF p_settings ? 'playoff_entrants' AND (p_settings->>'playoff_entrants')::int NOT BETWEEN 2 AND 8 THEN
-    RAISE EXCEPTION 'Choose 2 through 8 playoff entrants.' USING ERRCODE='22023';
+  IF p_settings ? 'playoff_entrants' AND (p_settings->>'playoff_entrants')::int < 2 THEN
+    RAISE EXCEPTION 'Playoffs require at least 2 entrants.' USING ERRCODE='22023';
   END IF;
   IF p_settings ? 'taxi_rule' AND (p_settings->>'taxi_rule') NOT IN ('drafted_rookies','rookies_or_64_games') THEN
     RAISE EXCEPTION 'Choose a valid taxi eligibility rule.' USING ERRCODE='22023';
@@ -4475,7 +4577,7 @@ BEGIN
   UPDATE public.matchups AS matchup SET home_points = requested.home_points, away_points = requested.away_points
     FROM jsonb_to_recordset(p_matchups) AS requested(id uuid, home_points numeric, away_points numeric)
     WHERE matchup.id = requested.id
-      AND NOT private.playoff_round_is_consumed(p_league_season_id, matchup.matchup_type)
+      AND NOT private.playoff_matchup_is_consumed(matchup.id)
       AND (matchup.matchup_type = 'regular_season' OR matchup.is_finalized IS NOT TRUE)
       AND (matchup.home_points IS DISTINCT FROM requested.home_points OR matchup.away_points IS DISTINCT FROM requested.away_points);
   GET DIAGNOSTICS v_updated = ROW_COUNT;
@@ -4494,10 +4596,13 @@ CREATE TRIGGER guard_trade_item_plan_reservations BEFORE INSERT OR UPDATE ON pub
 CREATE TRIGGER guard_trade_participant_plan_reservations BEFORE INSERT OR UPDATE OF drop_player_ids ON public.trade_participants FOR EACH ROW EXECUTE FUNCTION private.guard_trade_plan_reservations();
 CREATE TRIGGER guard_waiver_plan_reservations BEFORE INSERT OR UPDATE OF player_id,drop_player_id,status ON public.waiver_claims FOR EACH ROW EXECUTE FUNCTION private.guard_waiver_plan_reservations();
 REVOKE ALL ON FUNCTION private.enforce_skipped_matchup() FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION private.generate_playoff_round(uuid,uuid,int) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION private.guard_trade_plan_reservations() FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION private.guard_waiver_plan_reservations() FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION private.league_playoff_round_plan(uuid,int) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION private.league_week_at_pacific(uuid,timestamptz) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION private.playoff_matchup_is_consumed(uuid) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION private.playoff_seed_order(bigint) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION private.rebuild_regular_standings(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION private.taxi_player_eligible(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
 REVOKE ALL ON FUNCTION private.taxi_start_year(uuid,uuid,int) FROM PUBLIC,anon,authenticated,service_role;

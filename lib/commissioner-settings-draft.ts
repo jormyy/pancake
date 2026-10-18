@@ -184,7 +184,7 @@ export function buildCommissionerSettingsChange(
     const updates: LeagueSettingsUpdate = {}
     if (draft.teamLimit !== baseline.teamLimit) {
         const count = parseStrictInteger(draft.teamLimit ?? '')
-        if (count == null || count < 2 || count > 30) return { error: 'Team limit must be between 2 and 30.' }
+        if (count == null || count < 2) return { error: 'Team limit must be at least 2.' }
         updates.team_limit = count
     }
     if (draft.taxiRule !== baseline.taxiRule) updates.taxi_rule = draft.taxiRule
@@ -220,7 +220,7 @@ export function buildCommissionerSettingsChange(
         const entrants = parseStrictInteger(draft.playoffEntrants)
         const count = parseStrictInteger(draft.playoffRoundCount ?? '')
         const lengths = draft.playoffRoundWeeks.map(parseStrictInteger)
-        if (entrants == null || entrants < 2 || entrants > 8) return { error: 'Choose 2 through 8 playoff entrants.' }
+        if (entrants == null || entrants < 2) return { error: 'Playoffs require at least 2 entrants.' }
         if (count !== Math.ceil(Math.log2(entrants)) || lengths.length !== count) return { error: `Playoffs with ${entrants} entrants need ${Math.ceil(Math.log2(entrants))} rounds.` }
         if (lengths.some((length) => length == null || length < 1)) return { error: 'Enter positive whole weeks for each playoff round.' }
         updates.playoff_entrants = entrants

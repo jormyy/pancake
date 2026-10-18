@@ -49,7 +49,7 @@ BEGIN
   UPDATE public.matchups AS matchup SET home_points = requested.home_points, away_points = requested.away_points
     FROM jsonb_to_recordset(p_matchups) AS requested(id uuid, home_points numeric, away_points numeric)
     WHERE matchup.id = requested.id
-      AND NOT private.playoff_round_is_consumed(p_league_season_id, matchup.matchup_type)
+      AND NOT private.playoff_matchup_is_consumed(matchup.id)
       AND (matchup.matchup_type = 'regular_season' OR matchup.is_finalized IS NOT TRUE)
       AND (matchup.home_points IS DISTINCT FROM requested.home_points OR matchup.away_points IS DISTINCT FROM requested.away_points);
   GET DIAGNOSTICS v_updated = ROW_COUNT;

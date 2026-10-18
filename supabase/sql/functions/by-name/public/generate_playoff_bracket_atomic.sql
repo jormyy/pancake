@@ -72,13 +72,13 @@ BEGIN
    WHERE member.league_id = p_league_id;
 
   IF v_member_count < COALESCE(v_league.playoff_entrants,4) THEN
-    RAISE EXCEPTION 'Not enough teams to seed playoffs (need 4).';
+    RAISE EXCEPTION 'Not enough teams to seed playoffs (need %).',COALESCE(v_league.playoff_entrants,4);
   END IF;
 
   v_playoff_size := COALESCE(v_league.playoff_entrants,CASE WHEN v_member_count >= 10 THEN 6 ELSE 4 END);
 
   v_rounds := private.league_playoff_round_plan(v_league.id, v_member_count);
-  PERFORM private.assert_playoff_window(v_season_year, v_playoff_start_week, v_rounds);
+  PERFORM private.assert_playoff_window(v_season_year, v_playoff_start_week, v_rounds, v_league.playoff_entrants IS NOT NULL);
   UPDATE public.league_seasons
      SET playoff_start_week = v_playoff_start_week, playoff_round_weeks = v_rounds
    WHERE id = v_season_id;
@@ -87,8 +87,10 @@ BEGIN
     INTO v_seed_ids
     FROM private.playoff_seed_rankings(p_league_id, v_season_id, v_playoff_start_week) AS seed;
 
-  UPDATE public.league_seasons SET playoff_seed_member_ids = v_seed_ids[1:v_playoff_size]
-    WHERE id = v_season_id;
+  UPDATE public.league_seasons
+     SET playoff_seed_member_ids = CASE WHEN v_playoff_size IN (4,6) THEN v_seed_ids[1:v_playoff_size] END,
+         playoff_bracket_seed_ids = CASE WHEN v_league.playoff_entrants IS NOT NULL THEN v_seed_ids[1:v_playoff_size] END
+   WHERE id = v_season_id;
 
   FOR v_pair IN
     SELECT
@@ -148,6 +150,10 @@ BEGIN
       );
     END IF;
   END LOOP;
+
+  IF v_league.playoff_entrants IS NOT NULL THEN
+    RETURN private.generate_playoff_round(p_league_id,v_season_id,1);
+  END IF;
 
   v_size := power(2,cardinality(v_rounds))::int;
   v_type := CASE cardinality(v_rounds) WHEN 3 THEN 'playoff_quarterfinal'::public.matchup_type
