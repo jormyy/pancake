@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
-import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ComponentProps, type PropsWithChildren, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { createPortal } from 'react-dom'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
@@ -607,7 +607,7 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
  * during the draft, lineup, trades, and on player detail. Former full-screen
  * `(modals)` takeovers now render as pages inside this content area.
  */
-export function WebAppShell({ children, chrome = true }: { children: ReactNode; chrome?: boolean }) {
+export function WebAppShell({ children, chrome = true }: PropsWithChildren<{ chrome?: boolean }>) {
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
     usePancakeWebTheme()
@@ -619,13 +619,11 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
     // Keep the shell mounted for ALL web routes (stable element type) so toggling
     // chrome on auth state change never remounts the route tree. Auth/loading
     // routes render chrome-less.
-    if (!chrome) return <>{children}</>
-
     return (
-        <View style={[styles.root, compact ? styles.rootCompact : styles.rootDesktop]}>
-            {compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />}
-            <View style={[styles.content, compact && styles.contentCompact]} role="main">{children}</View>
-            {compact ? (
+        <View style={chrome ? [styles.root, compact ? styles.rootCompact : styles.rootDesktop] : styles.flex1}>
+            {chrome ? (compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />) : null}
+            <View key="route-content" style={chrome ? [styles.content, compact && styles.contentCompact] : styles.flex1} role={chrome ? 'main' : undefined}>{children}</View>
+            {chrome && compact ? (
                 <>
                     <MobileBottomNav />
                     <MobileMenuSheet visible={menuOpen} onClose={() => setMenuOpen(false)} />

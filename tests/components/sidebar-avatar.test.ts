@@ -7,11 +7,11 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-    userId: 'owner-a', read: vi.fn(), eq: vi.fn(), renders: [] as { owner: string; uri: unknown }[],
+    userId: 'owner-a', width: 1440, read: vi.fn(), eq: vi.fn(), renders: [] as { owner: string; uri: unknown }[],
 }))
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'ScrollView', Pressable: 'Pressable', Platform: { OS: 'web' },
-    useWindowDimensions: () => ({ width: 1440, height: 900 }), StyleSheet: { create: (styles: unknown) => styles, flatten: (styles: unknown[]) => Object.assign({}, ...styles.filter(Boolean)) },
+    useWindowDimensions: () => ({ width: mocks.width, height: 900 }), StyleSheet: { create: (styles: unknown) => styles, flatten: (styles: unknown[]) => Object.assign({}, ...styles.filter(Boolean)) },
 }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'Icon' }))
 vi.mock('@react-navigation/native', () => ({ StackRouter: vi.fn() }))
@@ -47,6 +47,7 @@ beforeEach(() => {
     vi.spyOn(moduleLoader, '_load').mockImplementation((name, ...args) => name === '@/assets/images/pancake_logo.png'
         ? 1 : originalLoad.call(moduleLoader, name, ...args))
     mocks.userId = 'owner-a'
+    mocks.width = 1440
     mocks.renders = []
     mocks.read.mockResolvedValue({ avatar_url: 'a.png' })
     mocks.eq.mockResolvedValue({ error: null })
@@ -90,4 +91,23 @@ describe('sidebar profile authority', () => {
         await act(async () => { await updateProfile('owner-b', { avatar_url: 'b.png' }) })
         expect(avatar()).toBe('a.png')
     })
+})
+
+it.each([1440, 390])('keeps the route subtree mounted when authentication changes chrome at width %s', async width => {
+    mocks.width = width
+    let mounts = 0
+    const Route = () => {
+        const [value, setValue] = React.useState('')
+        React.useEffect(() => { mounts += 1 }, [])
+        return React.createElement('Route', { value, onChange: setValue })
+    }
+    const render = (chrome: boolean) => React.createElement(WebAppShell, { chrome }, React.createElement(Route))
+    await act(async () => { screen = create(render(true)) })
+    await act(async () => { screen.root.findByType('Route' as React.ElementType).props.onChange('navigation state') })
+    await act(async () => { screen.update(render(false)) })
+    const paused = screen.root.findByType('Route' as React.ElementType).props.value
+    await act(async () => { screen.update(render(true)) })
+    expect(paused).toBe('navigation state')
+    expect(screen.root.findByType('Route' as React.ElementType).props.value).toBe('navigation state')
+    expect(mounts).toBe(1)
 })
