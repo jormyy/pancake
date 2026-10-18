@@ -1,6 +1,7 @@
 import type { Database } from '../_shared/database.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
+import { recordSyncRun } from '../_shared/syncRuns.ts'
 
 const CLOSE_BATCH_LIMIT = 100
 
@@ -8,8 +9,11 @@ type ClosedNominationRow = Database['public']['Functions']['close_expired_auctio
 type ExpiredSnakePickRow = Database['public']['Functions']['process_expired_snake_picks_atomic']['Returns'][number]
 
 serveInternal('close-expired-nominations', async () => {
-  const result = await closeExpiredNominations()
-  return Response.json({ ok: true, ...result })
+  const result = await recordSyncRun('close-expired-nominations', async () => {
+    const result = await closeExpiredNominations()
+    return { result, rowsAffected: result.checked - result.failed, failure: result.failure }
+  })
+  return Response.json({ ok: result.failed === 0, ...result }, { status: result.failed > 0 ? 500 : 200 })
 })
 
 async function closeExpiredNominations(): Promise<{
@@ -19,6 +23,7 @@ async function closeExpiredNominations(): Promise<{
   failed: number
   nominationsChecked: number
   snakePicksChecked: number
+  failure: string | null
 }> {
   const [nominationResult, snakePickResult] = await Promise.all([
     supabase.rpc('close_expired_auction_nominations_atomic', {
@@ -34,6 +39,7 @@ async function closeExpiredNominations(): Promise<{
   let closed = 0
   let autoPicked = 0
   let failed = 0
+  const failures: string[] = []
   const nominationRows: ClosedNominationRow[] = nominationResult.data ?? []
   const snakePickRows: ExpiredSnakePickRow[] = snakePickResult.data ?? []
 
@@ -43,6 +49,7 @@ async function closeExpiredNominations(): Promise<{
       continue
     }
     failed += 1
+    failures.push(`Nomination ${result.nomination_id}: ${result.error_message ?? result.error_code}`)
     console.error(
       `[close-expired-nominations] nomination ${result.nomination_id} failed`,
       result.error_message ?? result.error_code,
@@ -55,6 +62,7 @@ async function closeExpiredNominations(): Promise<{
       continue
     }
     failed += 1
+    failures.push(`Snake pick ${result.pick_id}: ${result.error_message ?? result.error_code}`)
     console.error(
       `[close-expired-nominations] snake pick ${result.pick_id} failed`,
       result.error_message ?? result.error_code,
@@ -68,5 +76,6 @@ async function closeExpiredNominations(): Promise<{
     failed,
     nominationsChecked: nominationRows.length,
     snakePicksChecked: snakePickRows.length,
+    failure: failed > 0 ? `${failed} expired draft action(s) failed: ${failures.slice(0, 5).join('; ')}` : null,
   }
 }

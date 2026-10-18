@@ -145,3 +145,21 @@ The test covers the exact seven-day boundary and calls cleanup as anonymous, man
 It separately creates a new local fixture with missing legacy inputs to retain coverage of existing retirement guards.
 That fixture does not describe the current cleanup policy.
 Migration `20261018000001` replaces function bodies only and invokes no cleanup during deployment.
+
+
+## Draft job failures and Eastern season starts
+
+`npm run test:db:expired-draft-outcomes` uses local HTTP, real RPCs, and row-specific fault triggers.
+One auction closes while an auction and a snake pick fail.
+The endpoint returns `ok: false`, HTTP 500, and a finished failed `sync_runs` row.
+After trigger removal, two concurrent calls settle each remaining action once.
+A final retry does no work.
+A request without internal authentication cannot run the job.
+The recipe removes only its fixtures and triggers.
+
+`npm run test:db:season-boundary-et` calls the real boundary helper against local data.
+It checks the evening before Eastern midnight and the first minute after midnight.
+The cases cover the spring clock change, the fall clock change, and New Year.
+The evening call creates no draft.
+The later call creates and completes the synthetic rookie draft.
+Both recipes run in `npm run test:db`.
