@@ -31,6 +31,7 @@
     "private.current_add_week_number(uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.current_add_week(uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.emit_league_change()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.emit_league_inventory_change()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.end_trade_lifecycle_write(text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.enforce_live_poll_lease()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.enforce_skipped_matchup()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

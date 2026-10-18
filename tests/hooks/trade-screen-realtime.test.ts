@@ -256,3 +256,20 @@ describe('trade screen realtime ownership', () => {
         expect(mocks.dispose).toHaveBeenCalledTimes(1)
     })
 })
+
+it('reuses verified fresh picks only at the initial join and revalidates after a real gap', async () => {
+    const picks = vi.fn().mockResolvedValue(true), trades = vi.fn().mockResolvedValue(true)
+    const Probe = () => {
+        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: 'picks', draftPicksFresh: true,
+            refreshDraftPicks: picks, refreshTrades: trades, refreshHistory: trades, refreshTradeBlock: trades })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    const status = mocks.subscribe.mock.calls[0][1].onStatus
+    await act(async () => { status?.('SUBSCRIBED') })
+    expect(picks).not.toHaveBeenCalled()
+    await act(async () => { status?.('CHANNEL_ERROR'); status?.('SUBSCRIBED') })
+    expect(picks).toHaveBeenCalledOnce()
+    await act(async () => { renderer.unmount() })
+})

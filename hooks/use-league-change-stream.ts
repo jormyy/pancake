@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { leagueChangeReceiver, notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
+import { invalidateSeasonCache } from '@/lib/shared/season'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 
 export function useLeagueChangeStream(leagueId: string | undefined, userId: string | null, validated: boolean) {
@@ -9,7 +10,11 @@ export function useLeagueChangeStream(leagueId: string | undefined, userId: stri
         let cleanup: (() => void) | undefined
         const generation = sessionGeneration()
         const current = () => !disposed && generation === sessionGeneration()
-        const receive = leagueChangeReceiver(leagueId, change => { if (current()) notifyLeagueChange(leagueId, change) })
+        const receive = leagueChangeReceiver(leagueId, change => {
+            if (!current()) return
+            if (change.topic === 'inventory') invalidateSeasonCache(leagueId)
+            notifyLeagueChange(leagueId, change)
+        })
         void import('@/lib/realtime').then(({ subscribeToTableChanges, unsubscribeFromTableChanges, reportRealtimeCleanup }) => {
             if (!current()) return
             const channel = subscribeToTableChanges(`league-changes:${leagueId}:${userId}`, {

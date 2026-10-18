@@ -213,3 +213,57 @@ describe('useFocusAsyncData web reconnect and foreground', () => {
         delete globals.document
     })
 })
+
+it('reuses a fresh saved age, then forces explicit reads and retries failed refreshes', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce('new').mockRejectedValueOnce(new Error('outage')).mockResolvedValue('recovered')
+    const save = vi.fn(), failed = vi.fn()
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    let latest!: ReturnType<typeof useFocusAsyncData<string>>
+    const Probe = () => {
+        latest = useFocusAsyncData(fetcher, ['owner'], { initialData: 'saved', initialFetchedAt: Date.now() - 1000, staleMs: 300_000, onLoaded: save, onFailed: failed })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    let blur: (() => void) | void
+    await act(async () => { blur = (focusCallbacks.at(-1) as () => (() => void) | void)() })
+    expect(latest.data).toBe('saved')
+    expect(latest.isSnapshot).toBe(false)
+    expect(fetcher).not.toHaveBeenCalled()
+    await act(async () => { await latest.refresh() })
+    expect(latest.data).toBe('new')
+    await act(async () => { await latest.refresh() })
+    expect(failed).toHaveBeenCalledOnce()
+    expect(latest.isSnapshot).toBe(true)
+    await act(async () => { blur?.(); (focusCallbacks.at(-1) as () => void)() })
+    expect(latest.data).toBe('recovered')
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    await act(async () => { renderer.unmount() })
+    log.mockRestore()
+})
+
+it.each([0, Date.now() - 300_001, Date.now() + 300_000])('revalidates a missing, expired or future saved timestamp', async (savedAt) => {
+    const fetcher = vi.fn(async () => 'fresh')
+    let renderer!: ReactTestRenderer
+    const Probe = () => { useFocusAsyncData(fetcher, ['owner'], { initialData: 'saved', initialFetchedAt: savedAt, staleMs: 300_000 }); return null }
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { (focusCallbacks.at(-1) as () => void)() })
+    expect(fetcher).toHaveBeenCalledOnce()
+    await act(async () => { renderer.unmount() })
+})
+
+it('saves the revision captured before a held read rather than the newer revision', async () => {
+    const pending = deferred<string>(), save = vi.fn()
+    let revision = 'before'
+    let latest!: ReturnType<typeof useFocusAsyncData<string>>
+    const Probe = () => { latest = useFocusAsyncData(() => pending.promise, ['owner'], { cacheRevision: () => revision, onLoaded: save }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    let read!: Promise<boolean>
+    await act(async () => { read = latest.refresh() })
+    revision = 'after'
+    await act(async () => { pending.resolve('old'); await read })
+    expect(save).toHaveBeenCalledWith('old', 'before')
+    expect(latest.isSnapshot).toBe(true)
+    await act(async () => { renderer.unmount() })
+})

@@ -16,6 +16,7 @@ type TradeScreenRealtimeOptions = {
     refreshHistory: () => void | boolean | Promise<void | boolean>
     refreshTradeBlock: () => void | boolean | Promise<void | boolean>
     refreshDraftPicks: () => void | boolean | Promise<void | boolean>
+    draftPicksFresh?: boolean
     online?: boolean
     focused?: boolean
 }
@@ -28,9 +29,12 @@ export function useTradeScreenRealtime({
     refreshHistory,
     refreshTradeBlock,
     refreshDraftPicks,
+    draftPicksFresh = false,
     online = true,
     focused = true,
 }: TradeScreenRealtimeOptions) {
+    const freshPicksRef = useRef(draftPicksFresh)
+    freshPicksRef.current = draftPicksFresh
     const [subscriptionEpoch, setSubscriptionEpoch] = useState(0)
     const activeTabRef = useRef(activeTab)
     activeTabRef.current = activeTab
@@ -46,6 +50,7 @@ export function useTradeScreenRealtime({
         const pending = new Set<Feed>()
         let refreshing = false
         let retry: ReturnType<typeof setTimeout> | null = null
+        let subscribed = false
         let closed = false
         let reconnect: ReturnType<typeof setTimeout> | null = null
         const reconnectIfClosed = () => {
@@ -103,8 +108,11 @@ export function useTradeScreenRealtime({
             mode: 'per-watch',
             onStatus: (status) => {
                 if (disposed) return
+                const preserveFreshPicks = status === 'SUBSCRIBED' && !subscribed && freshPicksRef.current && !pending.has('picks')
                 mark()
+                if (preserveFreshPicks) pending.delete('picks')
                 if (status === 'SUBSCRIBED') {
+                    subscribed = true
                     closed = false
                     if (reconnect) clearTimeout(reconnect)
                     reconnect = null

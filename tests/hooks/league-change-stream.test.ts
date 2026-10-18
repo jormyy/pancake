@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { TableChangeWatch } from '@/lib/realtime-config'
 
 const boundary = vi.hoisted(() => ({ subscriptions: [] as { watches: TableChangeWatch[]; onStatus: (status: string) => void }[], remove: vi.fn() }))
+vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({
     subscribeToTableChanges: (_name: string, subscription: typeof boundary.subscriptions[number]) => { boundary.subscriptions.push(subscription); return subscription },
     unsubscribeFromTableChanges: boundary.remove, reportRealtimeCleanup: vi.fn(),

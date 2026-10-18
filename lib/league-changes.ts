@@ -1,12 +1,27 @@
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
-type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat'
+type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'inventory'
 type Scope = { season_id: string; member_id?: string; date?: string | null; week?: number }
 export type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null }
 type Listener = (change: LeagueChange) => void
-const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat'])
+const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'inventory'])
 const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
+const revisions = new Map<string, Map<string, number>>()
+export type SnapshotDomain = 'roster' | 'support' | 'picks'
+const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'catchup'], picks: ['inventory', 'catchup'] }
+const runtimeKey = `${Date.now()}:${Math.random()}`
+let sessionEpoch = 0
+
+export function leagueSnapshotRevision(leagueId: string, domain: SnapshotDomain = 'roster'): string | null {
+    return connected.has(leagueId) ? `${runtimeKey}:${sessionEpoch}:${snapshotTopics[domain].map(topic => revisions.get(leagueId)?.get(topic) ?? 0).join(':')}` : null
+}
+
+export function invalidateLeagueSnapshot(leagueId: string, topic = 'catchup'): void {
+    let group = revisions.get(leagueId)
+    if (!group) { group = new Map(); revisions.set(leagueId, group) }
+    group.set(topic, (group.get(topic) ?? 0) + 1)
+}
 
 export function leagueChangesConnected(leagueId: string): boolean {
     return connected.has(leagueId)
@@ -14,10 +29,11 @@ export function leagueChangesConnected(leagueId: string): boolean {
 
 export function setLeagueChangesConnected(leagueId: string, ready: boolean): void {
     if (ready) connected.add(leagueId)
-    else connected.delete(leagueId)
+    else { if (connected.has(leagueId)) invalidateLeagueSnapshot(leagueId); connected.delete(leagueId) }
 }
 
 export function notifyLeagueChange(leagueId: string, change: LeagueChange): void {
+    invalidateLeagueSnapshot(leagueId, change.topic)
     for (const listener of listeners.get(leagueId) ?? []) listener(change)
 }
 
@@ -99,4 +115,4 @@ export function deferLeagueRefresh(read: () => unknown | Promise<unknown>, delay
     }
 }
 
-onSessionCachesCleared(() => { connected.clear() })
+onSessionCachesCleared(() => { connected.clear(); revisions.clear(); sessionEpoch += 1 })

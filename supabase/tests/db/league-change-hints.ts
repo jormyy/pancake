@@ -134,6 +134,39 @@ try {
   await q(admin.from('player_game_stats').update({ points: 3 }).eq('game_id', game).eq('player_id', players[3]))
   assert.equal((await hint('stat')).revision, 3)
   assert.deepEqual((await hint('stat')).scopes, [{ date, season_id: season }]); checks += 2
+  await q(admin.from('league_seasons').update({ is_current: true }).eq('id', season))
+  const inventoryBefore = await hint('inventory')
+  const pick = crypto.randomUUID()
+  await q(admin.from('draft_picks').insert({ id: pick, league_id: league, original_owner_id: members[0], current_owner_id: members[0], season_year: year + 1, round: 1 }))
+  assert.equal((await hint('inventory')).revision, inventoryBefore.revision + 1)
+  await q(admin.from('draft_picks').update({ current_owner_id: members[1] }).eq('id', pick))
+  assert.equal((await hint('inventory')).revision, inventoryBefore.revision + 2)
+  await q(admin.from('draft_picks').update({ current_owner_id: members[1] }).eq('id', pick))
+  assert.equal((await hint('inventory')).revision, inventoryBefore.revision + 2)
+  await q(admin.from('draft_picks').delete().eq('id', pick))
+  assert.equal((await hint('inventory')).revision, inventoryBefore.revision + 3)
+  for (const [table, details] of [
+    ['waiver_claims', { player_id: players[3], priority_at_submission: 1, process_date: date }],
+    ['waiver_priorities', { priority: 1 }],
+    ['waiver_wire_log', { player_id: players[3], clears_at: '2040-01-03T00:00:00Z' }],
+    ['faab_balances', { balance: 100 }],
+  ] as const) {
+    if (table === 'faab_balances') await q(admin.from(table).delete().eq('league_id', league).eq('member_id', members[0]))
+    const before = await hint('inventory'), id = crypto.randomUUID()
+    const row = { id, league_id: league, league_season_id: season, member_id: members[0], ...details }
+    const wire = table === 'waiver_wire_log' ? { id, league_id: league, league_season_id: season, ...details } : row
+    await sql(`INSERT INTO public.${table} (${Object.keys(wire).join(',')}) VALUES (${Object.values(wire).map(value => typeof value === 'number' ? value : `'${value}'`).join(',')})`)
+    assert.equal((await hint('inventory')).revision, before.revision + 1, `${table} insert`)
+    await q(admin.from(table).delete().eq('id', id))
+    assert.equal((await hint('inventory')).revision, before.revision + 2, `${table} delete`)
+    checks += 2
+  }
+  const inventoryRollback = await hint('inventory')
+  await sql(`BEGIN; UPDATE league_seasons SET is_current=false WHERE id='${season}'; ROLLBACK`)
+  assert.deepEqual(await hint('inventory'), inventoryRollback)
+  assert.equal((await hint('inventory')).scopes, null)
+  await waitFor(() => messages[1].some(row => row.topic === 'inventory' && row.revision === inventoryRollback.revision) && messages[2].some(row => row.topic === 'inventory' && row.revision === inventoryRollback.revision), 'Inventory hint is not delivered')
+  checks += 7
   await waitFor(() => messages[2].some(row => row.topic === 'stat' && row.revision === 3), 'Member misses the last pre-removal event')
   const removedCount = messages[2].length
   await q(admin.from('league_members').delete().eq('id', members[2]))

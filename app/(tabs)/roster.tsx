@@ -28,7 +28,8 @@ import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { ROSTER_SLOT_TAG_WIDTH, RosterClaimItem, RosterPickItem, RosterPlayerItem, RosterSectionBand, RosterSlotTag, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
-import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
+import { invalidateLeagueSnapshot } from '@/lib/league-changes'
 import { Avatar } from '@/components/Avatar'
 import { debounceRealtimeRefresh, reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
@@ -91,7 +92,7 @@ type RosterScreenCache = {
     faabBalance?: number | null
     slotPlan: RosterSlotPlan
 }
-const ROSTER_CACHE_PREFIX = 'pancake:roster-screen:v2:'
+const ROSTER_CACHE_PREFIX = 'pancake:roster-screen:v3:'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 
@@ -115,24 +116,25 @@ function rosterCacheKey(memberId: string, leagueId: string) {
     return `${ROSTER_CACHE_PREFIX}${leagueId}:${memberId}`
 }
 
-function readRosterCache(memberId: string | undefined, leagueId: string | undefined): RosterScreenData | undefined {
+function readRosterCache(memberId: string | undefined, leagueId: string | undefined, scope: string): { data: RosterScreenData; savedAt: number } | undefined {
     if (!memberId || !leagueId) return undefined
-    const cached = readPersistentCache<RosterScreenCache>(rosterCacheKey(memberId, leagueId))
+    const cached = readTabSnapshot<RosterScreenCache>(rosterCacheKey(memberId, leagueId), scope, leagueId)
     if (!cached) return undefined
-    return {
-        roster: cached.roster,
-        picks: cached.picks,
-        claims: cached.claims,
-        avgMap: new Map(cached.avgEntries),
-        avgStatsMap: new Map(cached.avgStatsEntries),
-        waiverPriority: cached.waiverPriority,
-        faabBalance: cached.faabBalance,
-        slotPlan: cached.slotPlan,
-    }
+    const value = cached.data
+    return { savedAt: cached.savedAt, data: {
+        roster: value.roster,
+        picks: value.picks,
+        claims: value.claims,
+        avgMap: new Map(value.avgEntries),
+        avgStatsMap: new Map(value.avgStatsEntries),
+        waiverPriority: value.waiverPriority,
+        faabBalance: value.faabBalance,
+        slotPlan: value.slotPlan,
+    } }
 }
 
-function writeRosterCache(memberId: string, leagueId: string, data: RosterScreenData) {
-    writePersistentCache<RosterScreenCache>(rosterCacheKey(memberId, leagueId), {
+function writeRosterCache(memberId: string, leagueId: string, scope: string, revision: string | null | undefined, data: RosterScreenData) {
+    writeTabSnapshot<RosterScreenCache>(rosterCacheKey(memberId, leagueId), scope, revision, {
         roster: data.roster,
         picks: data.picks,
         claims: data.claims,
@@ -275,9 +277,10 @@ export default function RosterScreen() {
     const { user } = useAuth()
     const { current, currentLeague, loading: leagueLoading, membershipStatus } = useLeagueContext()
     const leagueId = currentLeague?.id
+    const snapshotScope = tabSnapshotScope(user?.id, current?.id, leagueId, currentLeague)
     const cachedRosterData = useMemo(
-        () => readRosterCache(current?.id, leagueId),
-        [current?.id, leagueId],
+        () => readRosterCache(current?.id, leagueId, snapshotScope),
+        [current?.id, leagueId, snapshotScope],
     )
     const listRef = useRef<FlashListRef<RosterListItem>>(null)
     const [togglingId, setTogglingId] = useState<string | null>(null)
@@ -337,10 +340,12 @@ export default function RosterScreen() {
         const { avgMap, avgStatsMap } = await getRosterStatsMaps(roster.map((r) => r.players.id), leagueId)
         const result = { roster, picks, claims, avgMap, avgStatsMap, waiverPriority, faabBalance: transactionState?.faabBalance ?? null, slotPlan }
         return result
-    }, [current?.id, user?.id, leagueId, currentLeague?.waiver_mode], {
-        initialData: cachedRosterData ?? undefined, staleMs: 300_000,
-        onLoaded: (result) => {
-            if (current?.id && leagueId && result) writeRosterCache(current.id, leagueId, result)
+    }, [current?.id, user?.id, leagueId, snapshotScope], {
+        initialData: cachedRosterData?.data, initialFetchedAt: cachedRosterData?.savedAt, staleMs: 300_000,
+        cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId) : null,
+        onFailed: () => { if (leagueId) invalidateLeagueSnapshot(leagueId) },
+        onLoaded: (result, revision) => {
+            if (current?.id && leagueId && result) writeRosterCache(current.id, leagueId, snapshotScope, revision, result)
         },
     })
 

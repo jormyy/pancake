@@ -16,14 +16,16 @@ function dependenciesEqual(previous: React.DependencyList, next: React.Dependenc
 export function useFocusAsyncData<T>(
     fetcher: () => Promise<T>,
     deps: React.DependencyList = [],
-    options: { staleMs?: number; initialData?: T; onLoaded?: (data: T) => void } = {},
+    options: { staleMs?: number; initialData?: T; initialFetchedAt?: number; cacheRevision?: () => string | null; onLoaded?: (data: T, revision?: string | null) => void; onFailed?: () => void } = {},
 ) {
     const hasInitialData = options.initialData !== undefined
     const [data, setData] = useState<T | null>(hasInitialData ? options.initialData as T : null)
     const [loading, setLoading] = useState(!hasInitialData)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<Error | null>(null)
-    const lastLoadedAtRef = useRef(0)
+    const savedAt = options.initialFetchedAt ?? 0
+    const initialFetchedAt = hasInitialData && Number.isFinite(savedAt) && savedAt > 0 && savedAt <= Date.now() ? savedAt : 0
+    const lastLoadedAtRef = useRef(initialFetchedAt)
     const inFlightRef = useRef<Promise<boolean> | null>(null)
     const hasDataRef = useRef(hasInitialData)
     const genRef = useRef(0)
@@ -35,6 +37,11 @@ export function useFocusAsyncData<T>(
     const mountedRef = useRef(true)
     const onLoadedRef = useRef(options.onLoaded)
     onLoadedRef.current = options.onLoaded
+    const onFailedRef = useRef(options.onFailed)
+    onFailedRef.current = options.onFailed
+    const cacheRevisionRef = useRef(options.cacheRevision)
+    cacheRevisionRef.current = options.cacheRevision
+    const lastRevisionRef = useRef(options.cacheRevision?.())
     useEffect(() => {
         mountedRef.current = true
         return () => {
@@ -55,7 +62,7 @@ export function useFocusAsyncData<T>(
         forceQueuedRef.current = false
         queuedRefreshRef.current = null
         hasDataRef.current = hasInitialData
-        lastLoadedAtRef.current = 0
+        lastLoadedAtRef.current = initialFetchedAt
     }
     const generation = genRef.current
     const ownsState = stateGenerationRef.current === generation
@@ -65,7 +72,7 @@ export function useFocusAsyncData<T>(
     useEffect(() => {
         const hasNextInitialData = options.initialData !== undefined
         hasDataRef.current = hasNextInitialData
-        lastLoadedAtRef.current = 0
+        lastLoadedAtRef.current = initialFetchedAt
         stateGenerationRef.current = generation
         setData(hasNextInitialData ? options.initialData as T : null)
         setLoading(!hasNextInitialData)
@@ -96,7 +103,8 @@ export function useFocusAsyncData<T>(
             return queuedRefreshRef.current
         }
         const hasData = hasDataRef.current
-        const isFresh = Date.now() - lastLoadedAtRef.current < staleMs
+        const revision = cacheRevisionRef.current?.()
+        const isFresh = Date.now() - lastLoadedAtRef.current < staleMs && lastRevisionRef.current === revision
         if (!loadOptions.force && hasData && isFresh) return true
 
         if (hasData) setRefreshing(true)
@@ -107,14 +115,18 @@ export function useFocusAsyncData<T>(
             try {
                 const result = await fetcher()
                 if (gen !== genRef.current) return false // deps changed mid-fetch — drop stale result
-                onLoadedRef.current?.(result)
+                if (revision === undefined) onLoadedRef.current?.(result)
+                else onLoadedRef.current?.(result, revision)
                 setData(result)
                 stateGenerationRef.current = gen
                 hasDataRef.current = true
-                lastLoadedAtRef.current = Date.now()
+                lastLoadedAtRef.current = revision === cacheRevisionRef.current?.() ? Date.now() : 0
+                lastRevisionRef.current = revision
                 return true
             } catch (e) {
                 if (gen !== genRef.current) return false
+                onFailedRef.current?.()
+                lastLoadedAtRef.current = 0
                 setError(e instanceof Error ? e : new Error(String(e)))
                 console.error(e)
                 return false

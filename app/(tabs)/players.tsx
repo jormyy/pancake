@@ -36,7 +36,8 @@ import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loadPlayerSupport } from '@/lib/player-availability'
-import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
+import { invalidateLeagueSnapshot } from '@/lib/league-changes'
 import {
     debounceRealtimeRefresh,
     reportRealtimeCleanup,
@@ -104,7 +105,7 @@ type PlayerSupportCache = {
     pendingClaimIds: string[]
     transactionState: TransactionState
 }
-const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v2:'
+const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v3:'
 const supportCacheKey = (memberId: string, leagueId: string) => `${SUPPORT_CACHE_PREFIX}${leagueId}:${memberId}`
 
 function PlayerTableHeader({
@@ -166,19 +167,21 @@ function PlayerSearchSection() {
     // screens show every filter as a chip in one toolbar row.
     const [filtersOpen, setFiltersOpen] = useState(false)
 
-    const cachedSupport = useMemo<PlayerSupport | undefined>(() => {
+    const snapshotScope = tabSnapshotScope(user?.id, current?.id, leagueId ?? undefined, currentLeague)
+    const cachedSupport = useMemo(() => {
         if (!current?.id || !leagueId) return undefined
-        const cached = readPersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId))
+        const cached = readTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, leagueId, 'support')
         if (!cached) return undefined
-        return {
+        const value = cached.data
+        return { savedAt: cached.savedAt, data: {
             leagueId,
-            ownedMap: new Map(cached.ownedEntries),
-            waiverIds: new Set(cached.waiverIds),
-            waiverClearsAt: new Map(cached.waiverClearsAtEntries),
-            pendingClaimIds: new Set(cached.pendingClaimIds),
-            transactionState: cached.transactionState,
-        }
-    }, [current?.id, leagueId])
+            ownedMap: new Map(value.ownedEntries),
+            waiverIds: new Set(value.waiverIds),
+            waiverClearsAt: new Map(value.waiverClearsAtEntries),
+            pendingClaimIds: new Set(value.pendingClaimIds),
+            transactionState: value.transactionState,
+        } }
+    }, [current?.id, leagueId, snapshotScope])
 
     const {
         data: playerSupport,
@@ -197,11 +200,13 @@ function PlayerSearchSection() {
             }
         }
         return loadPlayerSupport(current?.id, leagueId)
-    }, [current?.id, leagueId], {
-        initialData: cachedSupport, staleMs: 300_000,
-        onLoaded: (support) => {
+    }, [current?.id, leagueId, snapshotScope], {
+        initialData: cachedSupport?.data, initialFetchedAt: cachedSupport?.savedAt, staleMs: 300_000,
+        cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId, 'support') : null,
+        onFailed: () => { if (leagueId) invalidateLeagueSnapshot(leagueId) },
+        onLoaded: (support, revision) => {
             if (current?.id && leagueId) {
-                writePersistentCache<PlayerSupportCache>(supportCacheKey(current.id, leagueId), {
+                writeTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, revision, {
                     ownedEntries: Array.from(support.ownedMap.entries()),
                     waiverIds: Array.from(support.waiverIds),
                     waiverClearsAtEntries: Array.from(support.waiverClearsAt.entries()),
