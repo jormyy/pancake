@@ -1,3 +1,4 @@
+import type { CommissionerAction } from '@/lib/commissioner-settings-policy'
 import { useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { tradeVetoDescription } from '@/lib/commissioner-settings-policy'
@@ -23,7 +24,7 @@ export function useCommissionerSettingsController() {
     })
     const overrides = useCommissionerOverrides(user?.id ?? null, league?.id, settings.members)
     const admin = useCommissionerAdminActions({
-        ownerId: user?.id ?? null,
+        ownerId: settings.authorityReady ? user?.id ?? null : null,
         league,
         refresh,
         onDeleted: () => {
@@ -32,10 +33,20 @@ export function useCommissionerSettingsController() {
         },
     })
 
+    const authorize = (action: () => void | Promise<unknown>) => async () => {
+        if (await settings.revalidateAuthority()) await action()
+    }
+    const guardAction = (action: CommissionerAction): CommissionerAction => ({ ...action, onPress: authorize(action.onPress) })
+
     return {
         ...settings,
         ...overrides,
         ...admin,
+        handleFaabOverride: authorize(overrides.handleFaabOverride),
+        handleAddCountOverride: authorize(overrides.handleAddCountOverride),
+        handleDeleteLeague: authorize(admin.handleDeleteLeague),
+        lifecycle: { ...admin.lifecycle, actions: admin.lifecycle.actions.map(guardAction) },
+        lowerPriorityActions: admin.lowerPriorityActions.map(guardAction),
         isCommissioner,
         navigateBack: () => replace('/league?tab=settings'),
         tradeVetoModeDescription: tradeVetoDescription(settings.draft.tradeVetoMode),

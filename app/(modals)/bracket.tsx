@@ -1,3 +1,4 @@
+import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     View,
     Text,
@@ -24,6 +25,7 @@ export default function BracketScreen() {
     const { current, currentLeague } = useLeagueContext()
     const router = useRouter()
     const resourceKey = current?.id && currentLeague?.id ? `${current.id}:${currentLeague.id}` : null
+    const { canRead, capture, isCurrent, epoch } = useModalActivity(resourceKey)
     // "No bracket yet" is only true once a load succeeds; until then show loading or a retry.
     const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null; status: LoadStatus }>({
         key: resourceKey,
@@ -45,7 +47,9 @@ export default function BracketScreen() {
 
     useEffect(() => {
         const requestId = ++requestRef.current
-        setResource({ key: resourceKey, bracket: null, status: 'loading' })
+        if (!canRead()) return
+        const generation = capture()
+        setResource(previous => ({ key: resourceKey, bracket: previous.key === resourceKey ? previous.bracket : null, status: 'loading' }))
         async function load() {
             if (!currentId || !currentLeagueId) {
                 setResource({ key: resourceKey, bracket: null, status: 'ready' })
@@ -53,16 +57,16 @@ export default function BracketScreen() {
             }
             try {
                 const data = await getPlayoffBracket(currentLeagueId)
-                if (requestRef.current === requestId) setResource({ key: resourceKey, bracket: data, status: 'ready' })
+                if (requestRef.current === requestId && isCurrent(generation)) setResource({ key: resourceKey, bracket: data, status: 'ready' })
             } catch (e) {
-                if (requestRef.current !== requestId) return
+                if (requestRef.current !== requestId || !isCurrent(generation)) return
                 console.error(e)
                 setResource({ key: resourceKey, bracket: null, status: 'error' })
             }
         }
         load()
         return () => { requestRef.current += 1 }
-    }, [attempt, currentId, currentLeagueId, resourceKey])
+    }, [attempt, currentId, currentLeagueId, resourceKey, canRead, capture, isCurrent, epoch])
 
     const backToStandings = () => router.replace('/league?tab=results')
     const rounds: Round[] = bracket?.rounds?.map((round) => ({

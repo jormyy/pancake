@@ -1,3 +1,4 @@
+import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { getRostersForMembers, type RosterPlayer } from '@/lib/roster'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps } from '@/lib/roster-stats'
@@ -33,6 +34,8 @@ export function useMultiTeamTradeComposer({
     faabEnabled,
     allowInactiveTrades = false,
 }: UseMultiTeamTradeComposerArgs) {
+    const { canRead, capture, isCurrent, epoch } = useModalActivity(leagueId && myMemberId ? `${leagueId}:${myMemberId}` : null)
+    const assetsEpoch = useRef<number | null>(null)
     const [composerState, dispatch] = useReducer(multiTeamTradeReducer, myMemberId, createMultiTeamTradeState)
     const [participantAssets, setParticipantAssets] = useState<{
         rosters: Record<string, RosterPlayer[]>
@@ -185,13 +188,15 @@ export function useMultiTeamTradeComposer({
 
     useEffect(() => {
         const requestId = ++rosterLoadSeqRef.current
+        if (!canRead()) return
+        const generation = capture()
         if (!enabled || !leagueId || !myMemberId || participantIds[0] !== myMemberId) {
             setRosterLoading(false)
             return
         }
 
         const missingParticipantIds = participantIds.filter((memberId) =>
-            !(memberId in participantRosters) || !(memberId in participantPicks))
+            assetsEpoch.current !== generation || !(memberId in participantRosters) || !(memberId in participantPicks))
         if (missingParticipantIds.length === 0) {
             setLoadedParticipantKey(selectedParticipantKey)
             setRosterLoading(false)
@@ -207,12 +212,13 @@ export function useMultiTeamTradeComposer({
                     getRostersForMembers(missingParticipantIds, leagueId),
                     getPicksForMembers(missingParticipantIds, leagueId),
                 ])
-                if (rosterLoadSeqRef.current !== requestId) return
+                if (rosterLoadSeqRef.current !== requestId || !isCurrent(generation)) return
 
                 const nextRosters = Object.fromEntries(missingParticipantIds.map((memberId) => [
                     memberId,
                     (rosters[memberId] ?? []).filter((player) => isTradeableRosterPlayer(player, allowInactiveTrades)),
                 ]))
+                assetsEpoch.current = generation
                 setParticipantAssets((current) => ({
                     rosters: { ...current.rosters, ...nextRosters },
                     picks: { ...current.picks, ...picks },
@@ -220,11 +226,11 @@ export function useMultiTeamTradeComposer({
                 setLoadedParticipantKey(selectedParticipantKey)
                 setRosterLoading(false)
             } catch (error) {
-                if (rosterLoadSeqRef.current !== requestId) return
+                if (rosterLoadSeqRef.current !== requestId || !isCurrent(generation)) return
                 console.error(error)
                 setRosterError(getErrorMessage(error) ?? 'Unknown error')
             } finally {
-                if (rosterLoadSeqRef.current === requestId) setRosterLoading(false)
+                if (rosterLoadSeqRef.current === requestId && isCurrent(generation)) setRosterLoading(false)
             }
         }
 
@@ -232,14 +238,16 @@ export function useMultiTeamTradeComposer({
         return () => {
             if (rosterLoadSeqRef.current === requestId) rosterLoadSeqRef.current += 1
         }
-    }, [allowInactiveTrades, enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey])
+    }, [allowInactiveTrades, enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey, canRead, capture, isCurrent, epoch])
 
     useEffect(() => {
         const requestId = ++statsLoadSeqRef.current
+        if (!canRead()) return
+        const generation = capture()
         setAvgMap(EMPTY_AVG_MAP)
         setAvgStatsMap(EMPTY_STATS_MAP)
 
-        const ownsCompleteSnapshot = enabled && leagueId && myMemberId &&
+        const ownsCompleteSnapshot = assetsEpoch.current === generation && enabled && leagueId && myMemberId &&
             participantIds[0] === myMemberId && loadedParticipantKey === selectedParticipantKey &&
             participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
         if (!ownsCompleteSnapshot) return
@@ -251,11 +259,11 @@ export function useMultiTeamTradeComposer({
                         (participantRosters[memberId] ?? []).map((player) => player.players.id)),
                     leagueId,
                 )
-                if (statsLoadSeqRef.current !== requestId) return
+                if (statsLoadSeqRef.current !== requestId || !isCurrent(generation)) return
                 setAvgMap(stats.avgMap)
                 setAvgStatsMap(stats.avgStatsMap)
             } catch (error) {
-                if (statsLoadSeqRef.current === requestId) {
+                if (statsLoadSeqRef.current === requestId && isCurrent(generation)) {
                     console.warn('Could not load optional trade player averages.', error)
                 }
             }
@@ -266,9 +274,9 @@ export function useMultiTeamTradeComposer({
             if (statsLoadSeqRef.current === requestId) statsLoadSeqRef.current += 1
         }
     }, [enabled, leagueId, loadedParticipantKey, myMemberId, participantIds, participantPicks,
-        participantRosters, selectedParticipantKey])
+        participantRosters, selectedParticipantKey, canRead, capture, isCurrent, epoch])
 
-    const assetsReady = enabled && !rosterLoading && !rosterError &&
+    const assetsReady = canRead() && assetsEpoch.current === epoch && enabled && !rosterLoading && !rosterError &&
         loadedParticipantKey === selectedParticipantKey &&
         participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
     const selectedAssetsAvailable = assetsReady && participantViews.every((participant) =>
