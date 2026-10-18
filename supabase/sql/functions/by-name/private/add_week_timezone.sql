@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION private.add_week_timezone()
 RETURNS text
 LANGUAGE sql
 IMMUTABLE
+SET search_path = ''
 AS $$
   SELECT 'America/New_York'::text
 $$;

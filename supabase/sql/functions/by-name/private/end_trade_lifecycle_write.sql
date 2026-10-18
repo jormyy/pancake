@@ -7,6 +7,7 @@ CREATE OR REPLACE FUNCTION private.end_trade_lifecycle_write(
 )
 RETURNS void
 LANGUAGE sql
+SET search_path = ''
 AS $$
   SELECT set_config('app.trade_lifecycle_server_write', COALESCE(p_previous, ''), true)
 $$;

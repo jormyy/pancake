@@ -4632,6 +4632,7 @@ export type Database = {
       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
       invoke_pre_tipoff_optimizer_if_due: { Args: never; Returns: undefined }
+      invoke_process_trades_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
       invoke_season_boundary_if_due: {
         Args: { p_now?: string }

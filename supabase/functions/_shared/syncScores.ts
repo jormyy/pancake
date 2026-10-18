@@ -814,8 +814,14 @@ export async function syncScores(leagueId?: string, referenceDate = new Date(), 
     }
     const plans: SeasonPlan[] = []
     const planFailures: string[] = []
+    const weekBySeasonYear = new Map<number, Promise<number | null>>()
     await runBounded(seasons.map((season) => async () => {
-        const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
+        let currentWeek = weekBySeasonYear.get(season.season_year)
+        if (!currentWeek) {
+            currentWeek = getWeekNumberForDate(referenceDate, season.season_year)
+            weekBySeasonYear.set(season.season_year, currentWeek)
+        }
+        const weekNumber = await currentWeek
         if (!weekNumber) {
             console.log(`[scores] No current week for season ${season.season_year}`)
             return

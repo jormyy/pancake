@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION private.trade_lifecycle_write_active()
 RETURNS boolean
 LANGUAGE sql
 STABLE
+SET search_path = ''
 AS $$
   SELECT current_setting('app.trade_lifecycle_server_write', true) = 'on'
 $$;

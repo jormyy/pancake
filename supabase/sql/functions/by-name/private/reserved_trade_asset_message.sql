@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION private.reserved_trade_asset_message()
 RETURNS text
 LANGUAGE sql
 IMMUTABLE
+SET search_path = ''
 AS $$
   SELECT 'This asset is reserved by an accepted trade.'
 $$;

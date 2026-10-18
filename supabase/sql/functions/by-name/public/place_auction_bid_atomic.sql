@@ -22,6 +22,7 @@ DECLARE
   v_roster_size int;
   v_active_roster_count int;
   v_next_bid int;
+  v_now timestamptz;
   v_can_outbid_exists boolean := true;
 BEGIN
   IF p_amount IS NULL OR p_amount < 1 THEN
@@ -76,10 +77,6 @@ BEGIN
 
   IF v_nom.status <> 'open'::nomination_status THEN
     RAISE EXCEPTION 'Bidding is closed for this nomination';
-  END IF;
-
-  IF v_nom.countdown_expires_at IS NULL OR v_nom.countdown_expires_at < now() THEN
-    RAISE EXCEPTION 'Bidding has expired';
   END IF;
 
   IF NOT v_draft.is_mock AND EXISTS (
@@ -147,11 +144,16 @@ BEGIN
     END IF;
   END IF;
 
+  v_now := clock_timestamp();
+  IF v_nom.countdown_expires_at IS NULL OR v_nom.countdown_expires_at <= v_now THEN
+    RAISE EXCEPTION 'Bidding has expired';
+  END IF;
+
   UPDATE nominations
      SET current_bid_amount = p_amount,
          current_bidder_id = p_member_id,
          current_bid_to_taxi = COALESCE(p_to_taxi,false),
-         countdown_expires_at = now() + make_interval(secs => v_draft.pick_timer_seconds)
+         countdown_expires_at = v_now + make_interval(secs => v_draft.pick_timer_seconds)
    WHERE id = p_nomination_id;
 
   INSERT INTO bids (nomination_id, member_id, amount, to_taxi)
@@ -186,7 +188,7 @@ BEGIN
 
     IF NOT v_can_outbid_exists THEN
       UPDATE nominations
-         SET countdown_expires_at = now() - interval '1 millisecond'
+         SET countdown_expires_at = clock_timestamp() - interval '1 millisecond'
        WHERE id = p_nomination_id
          AND status = 'open'::nomination_status;
 

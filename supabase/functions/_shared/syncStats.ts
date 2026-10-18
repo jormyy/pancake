@@ -4,7 +4,7 @@ import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
 import {
   loadCdnPlayerResolver,
-  resolveCdnPlayer,
+  resolveCdnPlayers,
   type CdnPlayerResolver,
 } from './playerResolver.ts'
 import { dateFromETDate } from './scoreShared.ts'
@@ -179,8 +179,11 @@ export async function resolveBoxScorePlayers(
 ): Promise<Array<{ player: NBABoxScorePlayer; playerId: string }>> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
   const resolved: Array<{ player: NBABoxScorePlayer; playerId: string }> = []
-  for (const player of allPlayers) {
-    const playerId = await resolveCdnPlayer(resolver, String(player.personId), player.name ?? '')
+  const playerIds = await resolveCdnPlayers(resolver, allPlayers.map(player => ({
+    personId: String(player.personId), displayName: player.name ?? '',
+  })))
+  for (const [index, player] of allPlayers.entries()) {
+    const playerId = playerIds[index]
     if (playerId && player.statistics) resolved.push({ player, playerId })
   }
   if (boxScore.gameStatus === 3 && resolved.length !== allPlayers.length) {

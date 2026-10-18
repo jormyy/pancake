@@ -12,6 +12,7 @@ CREATE OR REPLACE FUNCTION private.assert_not_reserved_trade_asset(
 )
 RETURNS void
 LANGUAGE plpgsql
+SET search_path = ''
 AS $$
 BEGIN
   IF private.is_reserved_trade_asset(p_league_id, p_league_season_id, p_member_id, p_player_id, p_pick_id, p_exclude_trade_id) THEN
