@@ -144,3 +144,16 @@ it('rejects a held response after the session changes away and returns', async (
     await act(async () => { await latest.refresh() })
     expect(latest.matchup?.myPoints).toBe(4)
 })
+
+it('revalidates recent rows when league capacity changes', async () => {
+    const SettingsProbe = ({ size }: { size: number }) => {
+        const configuredLeague = { ...league, roster_size: size }
+        latest = useMatchupData(member, user, configuredLeague)
+        return null
+    }
+    await act(async () => { screen = create(React.createElement(SettingsProbe, { size: 20 })) })
+    boundary.lineup.mockResolvedValue({ starters: [], bench: [], ir: [], taxi: [], benchSlots: 12 })
+    await act(async () => { screen.update(React.createElement(SettingsProbe, { size: 22 })) })
+    expect(boundary.matchup).toHaveBeenCalledTimes(2)
+    expect(latest.myLineup?.benchSlots).toBe(12)
+})
