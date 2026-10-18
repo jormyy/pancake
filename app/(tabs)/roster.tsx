@@ -29,9 +29,9 @@ import { ROSTER_SLOT_TAG_WIDTH, RosterClaimItem, RosterPickItem, RosterPlayerIte
 import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
-import { invalidateLeagueSnapshot } from '@/lib/league-changes'
+import { deferLeagueRefresh, invalidateLeagueSnapshot, listenForLeagueChanges } from '@/lib/league-changes'
 import { Avatar } from '@/components/Avatar'
-import { debounceRealtimeRefresh, reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
+import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 import { AutoSetModal } from '@/components/AutoSetModal'
@@ -352,9 +352,16 @@ export default function RosterScreen() {
     useEffect(() => {
         if (!current?.id || !leagueId) return
 
-        // Debounced: waiver-processing batches touch several of these tables in
-        // one burst — one reload, not one per row event.
-        const refreshRoster = debounceRealtimeRefresh(() => { void refresh() })
+        const refreshRoster = deferLeagueRefresh(refresh)
+        let registering = true
+        const stopHints = listenForLeagueChanges(leagueId, change => {
+            if (registering && change.topic === 'catchup') return
+            if (!['roster', 'lineup', 'inventory', 'catchup'].includes(change.topic)) return
+            if (change.scopes && !change.scopes.some(scope => !scope.member_id || scope.member_id === current.id)) return
+            if (change.topic === 'catchup') invalidateSeasonCache(leagueId)
+            refreshRoster.trigger()
+        })
+        registering = false
         const channel = subscribeToTableChanges(
             `roster-screen:${leagueId}:${current.id}`,
             { mode: 'fallback', watches: [
@@ -366,11 +373,12 @@ export default function RosterScreen() {
                 { table: 'weekly_lineups', filter: `member_id=eq.${current.id}` },
             ], onChange: refreshRoster.trigger, onReconnect: () => {
                 invalidateSeasonCache(leagueId)
-                return refresh()
+                refreshRoster.trigger()
             } },
         )
 
         return () => {
+            stopHints()
             refreshRoster.cancel()
             reportRealtimeCleanup('roster', unsubscribeFromTableChanges(channel))
         }
