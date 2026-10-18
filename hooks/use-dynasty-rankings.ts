@@ -347,24 +347,30 @@ export function useDynastyRankings({
                 return load(true)
             })
         }
+        if (ownerScope !== scopeIdentity) {
+            setOwnerScope(scopeIdentity)
+            activeKeyRef.current = ''
+            setInputs([])
+            setUnmatchedRookies([])
+            hasDataRef.current = false
+            lastLoadedAtRef.current = 0
+            setLoading(true)
+            setRefreshing(false)
+            setError(null)
+        }
         if ((typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
             (typeof navigator !== 'undefined' && navigator.onLine === false)) {
             resumeNeededRef.current = true
+            setLoading(false)
+            setRefreshing(false)
+            if (!hasDataRef.current && typeof navigator !== 'undefined' && navigator.onLine === false) {
+                setError(new Error('No saved rankings. Connect to load them.'))
+            }
             return
         }
         const requestId = ++requestSeqRef.current
         const epoch = networkEpochRef.current
         const task = (async () => {
-            if (ownerScope !== scopeIdentity) {
-                setOwnerScope(scopeIdentity)
-                activeKeyRef.current = ''
-                setInputs([])
-                setUnmatchedRookies([])
-                hasDataRef.current = false
-                lastLoadedAtRef.current = 0
-                setLoading(true)
-                setRefreshing(false)
-            }
             setError(null)
             failedRef.current = false
             try {

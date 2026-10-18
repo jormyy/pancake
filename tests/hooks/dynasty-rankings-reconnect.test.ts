@@ -156,3 +156,43 @@ describe('Dynasty focused source revalidation', () => {
         expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
     })
 })
+
+it('ends a no-cache offline entry with a recovery message and reads once after reconnect', async () => {
+    mocks.readPersistentCache.mockReturnValue(null)
+    online = false
+    await mount()
+    expect(latest.loading).toBe(false)
+    expect(latest.refreshing).toBe(false)
+    expect(latest.players).toEqual([])
+    expect(latest.error?.message).toBe('No saved rankings. Connect to load them.')
+    expect(mocks.getCurrentSeason).not.toHaveBeenCalled()
+    expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
+    online = true
+    await send('online')
+    expect(latest.error).toBeNull()
+    expect(latest.loading).toBe(false)
+    expect(latest.players[0].displayName).toBe('Player new')
+    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledOnce()
+})
+
+it('keeps a saved offline view but clears it when the offline account and league change', async () => {
+    const Scoped = ({ owner }: { owner: string }) => {
+        latest = useDynastyRankings({ userId: owner, memberId: 'member-' + owner, leagueId: 'league-' + owner, scoringSettings, teamCount: 12 })
+        return null
+    }
+    online = false
+    await act(async () => { renderer = create(React.createElement(Scoped, { owner: 'first' })); await flush() })
+    expect(latest.players[0].displayName).toBe('Player saved')
+    expect(latest.loading).toBe(false)
+    expect(latest.error).toBeNull()
+    mocks.readPersistentCache.mockReturnValue(null)
+    await act(async () => { renderer!.update(React.createElement(Scoped, { owner: 'second' })); await flush() })
+    expect(latest.players).toEqual([])
+    expect(latest.loading).toBe(false)
+    expect(latest.error?.message).toBe('No saved rankings. Connect to load them.')
+    expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
+    online = true
+    await send('online')
+    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledExactlyOnceWith({leagueId: 'league-second', memberId: 'member-second', seasonYear: 2026, limit: 600})
+    expect(latest.error).toBeNull()
+})
