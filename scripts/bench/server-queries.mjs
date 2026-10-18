@@ -79,16 +79,16 @@ ANALYZE public.players;
   await q(client.auth.signInWithPassword({ email, password }))
   const searches = { p_query: '', p_position: 'ALL', p_teams: [], p_league_id: league, p_rookies_only: false, p_health: 'all', p_sort_by: 'fpts', p_sort_dir: 'desc', p_season_year: year, p_limit: 50, p_offset: 0 }
   const specs = [
-    ['search-50', () => client.rpc('search_players', searches)],
-    ['search-name', () => client.rpc('search_players', { ...searches, p_query: 'Player' })],
-    ['player-detail', () => client.from('players').select('*').eq('id', player).single()],
-    ['player-game-log', () => client.from('player_game_stats').select('*').eq('player_id', player).eq('season_year', year).order('game_date', { ascending: false }).limit(82)],
-    ['projection-player', () => client.rpc('get_league_projection_rows', { p_league_id: league, p_season_year: year, p_game_date: today, p_view: 'today', p_player_ids: [player], p_limit: 1, p_offset: 0 })],
-    ['projection-600', () => client.rpc('get_league_projection_rows', { p_league_id: league, p_season_year: year, p_game_date: today, p_view: 'today', p_limit: 600, p_offset: 0 })],
-    ['dynasty-inputs-600', () => client.rpc('get_dynasty_forecast_inputs', { p_league_id: league, p_member_id: member, p_season_year: year, p_query: '', p_limit: 600, p_offset: 0 })],
-    ['averages-season', () => client.from('mv_player_season_averages').select('*').eq('season_year', year)],
+    { name: 'search-50', request: () => client.rpc('search_players', searches) },
+    { name: 'search-name', request: () => client.rpc('search_players', { ...searches, p_query: 'Player' }) },
+    { name: 'player-detail', request: () => client.from('players').select('*').eq('id', player).single() },
+    { name: 'player-game-log', request: () => client.from('player_game_stats').select('*').eq('player_id', player).eq('season_year', year).order('game_date', { ascending: false }).limit(82) },
+    { name: 'projection-player', request: () => client.rpc('get_league_projection_rows', { p_league_id: league, p_season_year: year, p_game_date: today, p_view: 'today', p_player_ids: [player], p_limit: 1, p_offset: 0 }) },
+    { name: 'projection-600', request: () => client.rpc('get_league_projection_rows', { p_league_id: league, p_season_year: year, p_game_date: today, p_view: 'today', p_limit: 600, p_offset: 0 }) },
+    { name: 'dynasty-inputs-600', request: () => client.rpc('get_dynasty_forecast_inputs', { p_league_id: league, p_member_id: member, p_season_year: year, p_query: '', p_limit: 600, p_offset: 0 }) },
+    { name: 'averages-season', request: () => client.from('mv_player_season_averages').select('*').eq('season_year', year) },
   ]
-  for (const [name, request] of specs) {
+  for (const { name, request } of specs) {
     const samples = []
     for (let i = 0; i < 11; i++) {
       const at = performance.now(), data = await q(request())
