@@ -14,10 +14,10 @@ import {
     type DraftState,
     type NominationOrderMode,
 } from '@/lib/draft'
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import {
-    debounceRealtimeRefresh,
     reportRealtimeCleanup,
     type RealtimeSubscriptionStatus,
 } from '@/lib/realtime'
@@ -35,6 +35,7 @@ export function useAuctionDraftRoomController({
     memberId?: string
 }) {
     const [state, setState] = useState<DraftState | null>(null)
+    const snapshotRef = useRef<DraftState | null>(null)
     const [stateDraftId, setStateDraftId] = useState(draftId)
     const [tab, setTab] = useState<DraftTab>('budgets')
     const [loadError, setLoadError] = useState<string | null>(null)
@@ -89,7 +90,10 @@ export function useAuctionDraftRoomController({
     const countdownNomination = visibleState?.draft.status === 'in_progress' ? visibleState.openNomination : null
     activeDraftIdRef.current = draftId
 
+    useEffect(() => draftId ? holdPwaUpdate('auction room') : undefined, [draftId])
+
     useEffect(() => {
+        snapshotRef.current = null
         loadSeqRef.current += 1
         searchSeqRef.current += 1
         setState(null)
@@ -116,15 +120,18 @@ export function useAuctionDraftRoomController({
         }
     }, [draftId])
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (incremental = false) => {
         if (!draftId) return false
         const requestedDraftId = draftId
         if (activeDraftIdRef.current !== requestedDraftId) return false
         const seq = ++loadSeqRef.current
         try {
-            const s = await getDraftState(requestedDraftId)
+            const s = incremental
+                ? await getDraftState(requestedDraftId, snapshotRef.current)
+                : await getDraftState(requestedDraftId)
             // Ignore a stale, out-of-order result once a newer load has started.
             if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
+            snapshotRef.current = s
             setLoadError(null)
             // A successful empty read means the room is gone. Read failures throw
             // and keep the last usable state in the catch path below.
@@ -175,7 +182,31 @@ export function useAuctionDraftRoomController({
         load()
         // A bidding war fires several inserts per second and every one of them
         // reloads the whole draft state; coalesce the burst into one reload.
-        const refresh = debounceRealtimeRefresh(() => { void load() })
+        let refreshTimer: ReturnType<typeof setTimeout> | null = null
+        let refreshing = false
+        let pending = false
+        const refresh = {
+            trigger: () => {
+                if (!active) return
+                pending = true
+                if (refreshing || refreshTimer) return
+                refreshTimer = setTimeout(async () => {
+                    refreshTimer = null
+                    refreshing = true
+                    pending = false
+                    try { await load(true) }
+                    finally {
+                        refreshing = false
+                        if (pending && active) refresh.trigger()
+                    }
+                }, 250)
+            },
+            cancel: () => {
+                if (refreshTimer) clearTimeout(refreshTimer)
+                refreshTimer = null
+                pending = false
+            },
+        }
         let rejoin: ReturnType<typeof setTimeout> | null = null
         const channel = subscribeToDraft(draftId, null, refresh.trigger, (status) => {
             if (!active) return
@@ -346,7 +377,7 @@ export function useAuctionDraftRoomController({
         try {
             await placeBid(draftId, memberId, visibleState.openNomination.id, amount, bidToTaxi)
             if (activeDraftIdRef.current !== requestedDraftId) return
-            await load()
+            await load(true)
         } catch (e) {
             if (activeDraftIdRef.current === requestedDraftId) showAlert('Bid failed', getErrorMessage(e))
         } finally {

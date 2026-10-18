@@ -277,7 +277,7 @@ describe('useRookieDraftRoomController', () => {
         expect(mocks.activate).toHaveBeenCalledWith('draft')
         await act(async () => { renderer.unmount() })
     })
-    it('refreshes filtered prospects on a changed HTTP revision and retries failed reads', async () => {
+    it('filters changed picks locally and retries a failed explicit pool refresh', async () => {
         vi.useFakeTimers()
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
         const players = ['a', 'b'].map((id) => ({ id, display_name: id, nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 }))
@@ -301,8 +301,10 @@ describe('useRookieDraftRoomController', () => {
             mocks.getRevision.mockResolvedValue('picked-a')
             mocks.getPlayers.mockRejectedValueOnce(new Error('Prospects unavailable')).mockResolvedValue([players[1]])
             await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
-            expect(mocks.getPlayers.mock.calls.length).toBe(before + 1)
+            expect(mocks.getPlayers.mock.calls.length).toBe(before)
             expect(latest.prospects.map(p => p.id)).toEqual(['b'])
+            await act(async () => { await latest.refresh() })
+            expect(mocks.getPlayers.mock.calls.length).toBe(before + 1)
             await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
             expect(mocks.getPlayers.mock.calls.length).toBe(before + 2)
             expect(mocks.getPlayers).toHaveBeenLastCalledWith('draft', 'Rookie')
