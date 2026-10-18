@@ -395,7 +395,7 @@ describe('live data reference workload', () => {
         lineups.get('mine')!.taxi.pop()
         await visible(false); await dispatch('focus'); await advance(50); await advance(50)
         report('hidden for 60 seconds then resume and focus')
-        expect(boundary.stats).toHaveBeenCalledTimes(2); expect(boundary.games).toHaveBeenCalledTimes(2)
+        expect(boundary.stats).toHaveBeenCalledTimes(2); expect(boundary.games).toHaveBeenCalledOnce()
         expect(boundary.stats.mock.calls.at(-1)?.[1]).not.toContain('p119')
         expect(metrics.fanouts).toBe(1); expect(matchup.myLineup?.taxi).toHaveLength(5)
     })

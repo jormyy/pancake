@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
 import { clampDateToWeek, getWeekDays, getWeeklyLineup, invalidateCachedRoster, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
-import { deferLeagueRefresh, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, leagueChangeAffects, leagueSnapshotRevision, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
 import { todayET } from '@/lib/shared/dates'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
@@ -135,6 +135,7 @@ export function useMatchupData(
     const isFirstRunRef = useRef(true)
     const loadSeqRef = useRef(0)
     const lineupSeqRef = useRef(0)
+    const lineupReadRef = useRef<{ scope: string | null; revision: string | null; promise: Promise<LineupPair> } | null>(null)
 
     useEffect(() => {
         if (isFirstRunRef.current) {
@@ -195,11 +196,12 @@ export function useMatchupData(
 
     const fetchLineups = useCallback(
         async (m: Matchup, date: string, currentLeagueId: string): Promise<LineupPair> => {
-            const [mine, opp] = await Promise.all([
+            const promise = Promise.all([
                 getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
                 getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
-            ])
-            return { mine, opp }
+            ]).then(([mine, opp]) => ({ mine, opp }))
+            lineupReadRef.current = { scope: lineupScope(m, date), revision: leagueSnapshotRevision(currentLeagueId, 'lineup'), promise }
+            return promise
         },
         [],
     )
@@ -320,6 +322,8 @@ export function useMatchupData(
                     throw new Error('Matchup read superseded')
                 }
                 const lineupsPromise = getSeasonWeekDates(m.seasonYear, m.weekNumber).then(async (dates) => {
+                    await waitForLeagueChanges(leagueId)
+                    if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) throw new Error('Matchup read superseded')
                     const boundaries = dates.length > 0 ? dates.map((date) => ({ date })) : await daysPromise
                     return { boundaries, ...await readSelection(boundaries) }
                 })
@@ -391,7 +395,17 @@ export function useMatchupData(
         const eventTimes = new Map<string, number>()
         const isActive = () => !disposed && activeResourceKeyRef.current === resourceKey
             && matchupRef.current?.id === matchup.id
-        const refreshVisibleLineups = deferLeagueRefresh(() => isActive() ? refreshSilently() : undefined)
+        let catchupOnly = true
+        const refreshVisibleLineups = deferLeagueRefresh(async () => {
+            if (!isActive()) return
+            const receipt = lineupReadRef.current
+            const revision = leagueId ? leagueSnapshotRevision(leagueId, 'lineup') : null
+            if (catchupOnly && revision && receipt?.revision === revision && receipt.scope === lineupScope(matchupRef.current, selectedDateRef.current)) {
+                try { await receipt.promise; return true } catch {}
+            }
+            catchupOnly = true
+            return isActive() ? refreshSilently() : undefined
+        })
         const visibleMemberIds = new Set([matchup.myMemberId, matchup.opponentMemberId])
         const channel = subscribeToTableChanges(
             `league-matchups:${matchup.seasonId}:${matchup.weekNumber}`,
@@ -454,6 +468,7 @@ export function useMatchupData(
         const stopChanges = leagueId ? listenForLeagueChanges(leagueId, change => {
             if (!isActive() || !['lineup', 'roster', 'catchup'].includes(change.topic)) return
             if (!leagueChangeAffects(change, { seasonId: matchup.seasonId, memberIds: [...visibleMemberIds], date: selectedDateRef.current })) return
+            if (change.topic !== 'catchup') catchupOnly = false
             for (const memberId of visibleMemberIds) invalidateCachedRoster(memberId, leagueId, matchup.seasonId)
             refreshVisibleLineups.trigger()
         }) : undefined

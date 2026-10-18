@@ -159,3 +159,18 @@ it('ignores another team and stops observing a former owner league', async () =>
     expect(mocks.invalidate).not.toHaveBeenCalled()
     await act(async () => { renderer.unmount() })
 })
+
+it('shares a successful post-join initial read, but rereads after a later stream catch-up', async () => {
+    const changes = await import('@/lib/league-changes')
+    changes.setLeagueChangesConnected('league-a', true)
+    const renderer = await mount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(mocks.getWeeklyLineup).toHaveBeenCalledTimes(2)
+    await act(async () => {
+        changes.notifyLeagueChange('league-a', { topic: 'catchup', scopes: null })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(mocks.getWeeklyLineup).toHaveBeenCalledTimes(4)
+    await act(async () => { renderer.unmount() })
+    changes.setLeagueChangesConnected('league-a', false)
+})

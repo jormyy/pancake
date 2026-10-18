@@ -127,3 +127,27 @@ describe('changed resource reads', () => {
         expect(read).toHaveBeenCalledTimes(4)
     })
 })
+
+it('bounds the initial join wait and releases it when the authenticated stream joins', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', { WebSocket: function WebSocket() {} })
+    const changes = await import('@/lib/league-changes')
+    let joined = false
+    const first = changes.waitForLeagueChanges('join-wait').then(() => { joined = true })
+    await vi.advanceTimersByTimeAsync(299)
+    expect(joined).toBe(false)
+    changes.setLeagueChangesConnected('join-wait', true)
+    changes.notifyLeagueChange('join-wait', { topic: 'catchup', scopes: null })
+    await first
+    expect(joined).toBe(true)
+    let expired = false
+    const second = changes.waitForLeagueChanges('unavailable').then(() => { expired = true })
+    await vi.advanceTimersByTimeAsync(299)
+    expect(expired).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await second
+    expect(expired).toBe(true)
+    changes.setLeagueChangesConnected('join-wait', false)
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+})

@@ -103,6 +103,7 @@ export default function HomeScreen() {
         ...lineup.taxi.map(player => player.playerId),
     ] : []), [myLineup, oppLineup])
     const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, {
+        enabled: Boolean(matchup && league?.id),
         scope: JSON.stringify([user?.id, league?.id, current?.id, matchup?.seasonId, matchup?.id]),
         playerIds: livePlayerIds,
         leagueId: league?.id,

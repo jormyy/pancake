@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
-import { deferLeagueRefresh, leagueChangeAffects, leagueChangesConnected, listenForLeagueChanges } from '@/lib/league-changes'
+import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine, type GameDay } from '@/lib/games'
+import { deferLeagueRefresh, leagueChangeAffects, leagueChangesConnected, leagueSnapshotRevision, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
 import { todayET } from '@/lib/shared/dates'
 import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
 
@@ -16,6 +16,7 @@ type Snapshot = {
 
 type LiveStatsOptions = {
     scope: string
+    enabled?: boolean
     playerIds: readonly string[]
     leagueId?: string
     seasonId?: string
@@ -41,6 +42,7 @@ const EMPTY_SNAPSHOT: Snapshot = {
 }
 
 const scopes = new Map<string, Scope>()
+const gameDays = new Map<string, { at: number; promise: Promise<GameDay>; settled: boolean }>()
 const demands = new Map<string, number>()
 const fulfilledDemands = new Map<string, number>()
 const snapshots = new Map<string, Snapshot>()
@@ -75,6 +77,17 @@ function notify(date: string, snapshot: Snapshot) {
     for (const listener of listenersByScope.get(date) ?? []) listener(snapshot)
 }
 
+function readGameDay(scope: Scope): Promise<GameDay> {
+    const key = JSON.stringify([scope.date, scope.generation, networkEpoch, scope.leagueId ? leagueSnapshotRevision(scope.leagueId, 'game') : null])
+    const existing = gameDays.get(key)
+    if (existing && (!existing.settled || Date.now() - existing.at < LIVE_POLL_MS)) return existing.promise
+    const entry = { at: Date.now(), promise: getGameDay(scope.date), settled: false }
+    gameDays.set(key, entry)
+    while (gameDays.size > MAX_SNAPSHOTS) gameDays.delete(gameDays.keys().next().value!)
+    void entry.promise.then(() => { entry.settled = true }, () => { if (gameDays.get(key) === entry) gameDays.delete(key) })
+    return entry.promise
+}
+
 async function loadSnapshot(date: string): Promise<void> {
     const existing = inFlightByScope.get(date)
     if (existing) return existing
@@ -83,8 +96,11 @@ async function loadSnapshot(date: string): Promise<void> {
     const scope = scopes.get(date)
     if (!scope || scope.generation !== sessionGeneration()) return
     const epoch = networkEpoch
-    const demand = demands.get(date) ?? 0
     const task = (async () => {
+        if (scope.leagueId) await waitForLeagueChanges(scope.leagueId)
+        if (epoch !== networkEpoch || scope.generation !== sessionGeneration() || pageHidden() || !browserOnline()) return
+        const demand = demands.get(date) ?? 0
+        const revision = scope.leagueId ? leagueSnapshotRevision(scope.leagueId, 'live') : null
         const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
         const updating = { ...previous, status: 'refreshing' as const }
         snapshots.set(date, updating)
@@ -95,7 +111,7 @@ async function loadSnapshot(date: string): Promise<void> {
                 failed = true
                 return previous.liveStats
             }),
-            getGameDay(scope.date).catch(() => {
+            readGameDay(scope).catch(() => {
                 failed = true
                 return null
             }),
@@ -112,7 +128,7 @@ async function loadSnapshot(date: string): Promise<void> {
             fetchedAt: failed ? previous.fetchedAt : Date.now(),
             status: failed ? 'failed' : 'fresh',
         }
-        if (!failed) fulfilledDemands.set(date, demand)
+        if (!failed) fulfilledDemands.set(date, revision && revision === leagueSnapshotRevision(scope.leagueId!, 'live') ? demands.get(date) ?? demand : demand)
         snapshots.delete(date)
         snapshots.set(date, snapshot)
         evictSnapshots()
@@ -201,7 +217,20 @@ let stopWatching: (() => void) | null = null
 function watchVisibility() {
     if (stopWatching) return
     if (typeof document === 'undefined') return
-    const online = () => { resumeNeeded = true; catchUpAfterHidden() }
+    let watching = true
+    let onlineQueued = false
+    const online = () => {
+        if (onlineQueued) return
+        onlineQueued = true
+        queueMicrotask(() => {
+            onlineQueued = false
+            if (!watching) return
+            networkEpoch += 1
+            gameDays.clear()
+            resumeNeeded = true
+            catchUpAfterHidden()
+        })
+    }
     const offline = () => {
         networkEpoch += 1
         resumeNeeded = true
@@ -218,6 +247,7 @@ function watchVisibility() {
         window.addEventListener('focus', catchUpAfterHidden)
     }
     stopWatching = () => {
+        watching = false
         document.removeEventListener?.('visibilitychange', catchUpAfterHidden)
         if (typeof window !== 'undefined') {
             window.removeEventListener('online', online)
@@ -247,6 +277,7 @@ function ensurePoll() {
 
 onSessionCachesCleared(() => {
     networkEpoch += 1
+    gameDays.clear()
     snapshots.clear()
     gamesFetchedAtByScope.clear()
     lineupCatchups.clear()
@@ -261,12 +292,13 @@ export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
         const [date, , playerIds, generation, leagueId, seasonId] = JSON.parse(key) as [string, string, string[], number, string | undefined, string | undefined]
         return { date, playerIds, generation, leagueId, seasonId }
     }, [key])
-    const onSilentRefresh = options?.onSilentRefresh
+    const enabled = options?.enabled ?? true
+    const onSilentRefresh = enabled ? options?.onSilentRefresh : undefined
     const [resource, setResource] = useState<{ date: string; snapshot: Snapshot }>(() => ({
         date: key,
         snapshot: snapshots.get(key) ?? EMPTY_SNAPSHOT,
     }))
-    const snapshot = resource.date === key
+    const snapshot = !enabled ? EMPTY_SNAPSHOT : resource.date === key
         ? resource.snapshot
         : snapshots.get(key) ?? EMPTY_SNAPSHOT
 
@@ -301,6 +333,7 @@ export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
     }, [onSilentRefresh, key])
 
     useEffect(() => {
+        if (!enabled) return
         scopes.set(key, scope)
         setResource({ date: key, snapshot: snapshots.get(key) ?? EMPTY_SNAPSHOT })
 
@@ -325,10 +358,10 @@ export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
             }
             evictSnapshots()
         }
-    }, [key, scope])
+    }, [enabled, key, scope])
 
     useEffect(() => {
-        if (!scope.leagueId || !scope.seasonId) return
+        if (!enabled || !scope.leagueId || !scope.seasonId) return
         let disposed = false
         const refresh = deferLeagueRefresh(async () => {
             await inFlightByScope.get(key)
@@ -345,7 +378,7 @@ export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
             }
         })
         return () => { disposed = true; stop(); refresh.cancel() }
-    }, [key, scope])
+    }, [enabled, key, scope])
 
     const liveTeams = useMemo(() => {
         if (!browserOnline() || snapshot.status !== 'fresh') return new Set<string>()
