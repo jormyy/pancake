@@ -128,3 +128,20 @@ Only the first round has byes. Every later round pairs neighboring winning branc
 Earlier rounds reuse the legacy quarterfinal phase value for compatibility; their explicit round numbers control advancement and scoring locks.
 Legacy null settings retain the original bracket and duration rules.
 Run `npm run test:db:general-brackets` for large brackets, every advancement, exact windows, odd leagues, and invalid plans.
+
+## History and operational retention
+
+`npm run test:db:retention` runs the real cleanup function inside a rollback transaction.
+Statement triggers reject any cleanup write to public tables except `sync_runs` and `edge_invocations`.
+They also reject changes to score-retirement markers.
+The fixture retains every season's lineups, standings, transactions, and projection source rows.
+
+Cleanup removes completed successful high-frequency operational records after seven days.
+It keeps failures, unfinished work, unknown jobs, and important daily or weekly outcomes.
+Removed cron jobs qualify only when their command matches a known operational worker or optimizer gate.
+The test covers the exact seven-day boundary and calls cleanup as anonymous, manager, and service roles.
+
+`npm run test:db:retention-scoring` checks that cleanup preserves historical scores and their replay inputs.
+It separately creates a new local fixture with missing legacy inputs to retain coverage of existing retirement guards.
+That fixture does not describe the current cleanup policy.
+Migration `20261018000001` replaces function bodies only and invokes no cleanup during deployment.

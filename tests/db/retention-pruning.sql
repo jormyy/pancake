@@ -1,7 +1,3 @@
--- prune_unbounded_history: deletes only out-of-window rows and keeps
--- everything the product reads (current+previous season lineups, every
--- season's final standings snapshot, three seasons of transactions, recent
--- ops telemetry, 30 days of pg_cron run history).
 BEGIN;
 
 INSERT INTO auth.users (
@@ -95,71 +91,97 @@ FROM unnest(ARRAY[
   '00000000-0000-0000-0000-000000098502'
 ]::uuid[]) AS run_id;
 
-INSERT INTO cron.job_run_details (jobid, runid, command, status, return_message, start_time, end_time)
-VALUES
-  (98601, 9860100001, 'SELECT 1', 'succeeded', 'retention-old', now() - interval '31 days', now() - interval '31 days'),
-  (98601, 9860100002, 'SELECT 1', 'succeeded', 'retention-new', now() - interval '29 days', now() - interval '29 days');
+CREATE TEMP TABLE history_checks(label text PRIMARY KEY);
+CREATE FUNCTION pg_temp.check_history(ok boolean,label text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %',label; END IF;
+  INSERT INTO history_checks VALUES(label);
+END;
+$$;
+
+INSERT INTO public.sync_runs(id,function_name,started_at,finished_at,status,error) VALUES
+  (md5('history-ops-old')::uuid,'live-poll',now()-interval '8 days',now()-interval '8 days','success',NULL),
+  (md5('history-ops-boundary')::uuid,'live-poll',now()-interval '7 days',now()-interval '7 days','success',NULL),
+  (md5('history-ops-recent')::uuid,'live-poll',now()-interval '1 day',now()-interval '1 day','success',NULL),
+  (md5('history-ops-failure')::uuid,'live-poll',now()-interval '120 days',now()-interval '120 days','failed','Provider failed'),
+  (md5('history-daily-old')::uuid,'season-boundary',now()-interval '120 days',now()-interval '120 days','success',NULL),
+  (md5('history-ops-error')::uuid,'live-poll',now()-interval '120 days',now()-interval '120 days','success','Partial failure'),
+  (md5('history-ops-unfinished')::uuid,'live-poll',now()-interval '120 days',NULL,'running',NULL);
+
+INSERT INTO public.edge_invocations(id,function_name,request_id,queued_at,status_code,error_message,reconciled_at)
+OVERRIDING SYSTEM VALUE VALUES
+  (986080001,'live-poll',NULL,now()-interval '8 days',200,NULL,now()-interval '8 days'),
+  (986080002,'live-poll',NULL,now()-interval '7 days',200,NULL,now()-interval '7 days'),
+  (986080003,'live-poll',NULL,now()-interval '120 days',500,'Worker failed',now()-interval '120 days'),
+  (986080004,'live-poll',NULL,now()-interval '120 days',200,'Partial failure',now()-interval '120 days'),
+  (986080005,'season-boundary',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days'),
+  (986080006,'unknown-important',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days');
+
+INSERT INTO cron.job_run_details(jobid,runid,command,status,return_message,start_time,end_time) VALUES
+  (98601,9860100001,'SELECT 1','succeeded','unknown old job',now()-interval '120 days',now()-interval '120 days'),
+  (98602,9860100002,'SELECT public.invoke_edge_function(''sync-stats'');','succeeded','obsolete high frequency',now()-interval '8 days',now()-interval '8 days'),
+  (98602,9860100003,'SELECT public.invoke_edge_function(''sync-stats'');','failed','old failure',now()-interval '120 days',now()-interval '120 days'),
+  (98602,9860100004,'SELECT public.invoke_edge_function(''sync-stats'');','succeeded','exact boundary',now()-interval '7 days',now()-interval '7 days'),
+  (98602,9860100007,'SELECT public.invoke_edge_function(''sync-stats'',''{}''::jsonb);','succeeded','obsolete with body',now()-interval '8 days',now()-interval '8 days'),
+  (98603,9860100005,'SELECT public.invoke_edge_function(''sync-players'');','succeeded','important daily',now()-interval '120 days',now()-interval '120 days');
+INSERT INTO cron.job_run_details(jobid,runid,command,status,return_message,start_time,end_time)
+SELECT jobid,9860100006,'SELECT public.invoke_live_poll_if_due();','succeeded','current high frequency',now()-interval '8 days',now()-interval '8 days'
+FROM cron.job WHERE jobname='nba-live-poll';
+SELECT pg_temp.check_history(EXISTS(SELECT 1 FROM cron.job_run_details WHERE runid=9860100006),'active high frequency job fixture exists');
+
+CREATE FUNCTION pg_temp.reject_cleanup_history_write() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'Cleanup attempts a protected history write on %.%',TG_TABLE_SCHEMA,TG_TABLE_NAME;
+END;
+$$;
+DO $$
+DECLARE target record;
+BEGIN
+  FOR target IN SELECT namespace.nspname AS schema_name,relation.relname AS table_name
+    FROM pg_class relation JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
+    WHERE relation.relkind IN ('r','p') AND (
+      namespace.nspname='public' AND relation.relname NOT IN ('sync_runs','edge_invocations')
+      OR namespace.nspname='private' AND relation.relname='retired_score_inputs'
+    )
+  LOOP
+    EXECUTE format('CREATE TRIGGER history_cleanup_guard BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON %I.%I FOR EACH STATEMENT EXECUTE FUNCTION pg_temp.reject_cleanup_history_write()',target.schema_name,target.table_name);
+  END LOOP;
+END;
+$$;
 
 SELECT public.prune_unbounded_history() AS prune_result \gset
+SELECT private.reconcile_edge_invocations();
 
+SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.weekly_lineups WHERE league_id='00000000-0000-0000-0000-000000098101'),'all season lineups survive');
+SELECT pg_temp.check_history((SELECT count(*)=12 FROM public.standings WHERE league_id='00000000-0000-0000-0000-000000098101'),'all intermediate and final standings survive');
+SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.roster_transactions WHERE league_id='00000000-0000-0000-0000-000000098101'),'all season transactions survive');
+SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.projection_sync_runs WHERE id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'daily projection runs survive');
+SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.fantasypros_projection_rows WHERE run_id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'projection source rows survive');
+SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.sync_runs WHERE function_name LIKE 'retention-%'),'unclassified operations survive');
+SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.sync_runs WHERE id=md5('history-ops-old')::uuid),'old completed high frequency run pruned');
+SELECT pg_temp.check_history((SELECT count(*)=6 FROM public.sync_runs WHERE id IN(SELECT md5(value)::uuid FROM unnest(ARRAY['history-ops-boundary','history-ops-recent','history-ops-failure','history-daily-old','history-ops-error','history-ops-unfinished']) value)),'run boundary failures important jobs and unfinished work survive');
+SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.edge_invocations WHERE id=986080001),'old successful high frequency invocation pruned');
+SELECT pg_temp.check_history((SELECT count(*)=5 FROM public.edge_invocations WHERE id BETWEEN 986080002 AND 986080006),'invocation boundary failures and important jobs survive cleanup and reconciliation');
+SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM cron.job_run_details WHERE runid IN(9860100002,9860100006,9860100007)),'obsolete and current successful high frequency cron rows pruned');
+SELECT pg_temp.check_history((SELECT count(*)=4 FROM cron.job_run_details WHERE runid IN(9860100001,9860100003,9860100004,9860100005)),'cron boundary failures unknown and important jobs survive');
 DO $$
-DECLARE
-  v_count int;
+DECLARE caller text; denied boolean;
 BEGIN
-  -- Ops telemetry: only out-of-window rows pruned.
-  SELECT count(*) INTO v_count FROM public.sync_runs WHERE function_name LIKE 'retention-%';
-  IF v_count <> 1 THEN RAISE EXCEPTION 'sync_runs retention wrong: % rows kept', v_count; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.sync_runs WHERE function_name = 'retention-new') THEN
-    RAISE EXCEPTION 'in-window sync_run was pruned';
-  END IF;
-
-  SELECT count(*) INTO v_count FROM public.projection_sync_runs
-   WHERE id IN ('00000000-0000-0000-0000-000000098501', '00000000-0000-0000-0000-000000098502');
-  IF v_count <> 1 THEN RAISE EXCEPTION 'projection_sync_runs retention wrong: % kept', v_count; END IF;
-  SELECT count(*) INTO v_count FROM public.fantasypros_projection_rows
-   WHERE run_id = '00000000-0000-0000-0000-000000098501';
-  IF v_count <> 0 THEN RAISE EXCEPTION 'old projection rows did not cascade'; END IF;
-  SELECT count(*) INTO v_count FROM public.fantasypros_projection_rows
-   WHERE run_id = '00000000-0000-0000-0000-000000098502';
-  IF v_count <> 1 THEN RAISE EXCEPTION 'in-window projection rows were pruned'; END IF;
-
-  -- pg_cron run history: 30 days kept.
-  IF EXISTS (SELECT 1 FROM cron.job_run_details WHERE jobid = 98601 AND return_message = 'retention-old') THEN
-    RAISE EXCEPTION 'cron run older than 30 days was kept';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM cron.job_run_details WHERE jobid = 98601 AND return_message = 'retention-new') THEN
-    RAISE EXCEPTION 'in-window cron run was pruned';
-  END IF;
-
-  -- Lineups: current + previous season kept, older pruned.
-  SELECT count(*) INTO v_count FROM public.weekly_lineups
-   WHERE league_id = '00000000-0000-0000-0000-000000098101';
-  IF v_count <> 2 THEN RAISE EXCEPTION 'weekly_lineups retention wrong: % kept', v_count; END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.weekly_lineups
-     WHERE league_season_id = md5('retention-season-3904')::uuid
-  ) THEN RAISE EXCEPTION 'current-season lineup pruned'; END IF;
-
-  -- Standings: old seasons keep exactly the final snapshot per member.
-  SELECT count(*) INTO v_count FROM public.standings
-   WHERE league_season_id = md5('retention-season-3901')::uuid;
-  IF v_count <> 1 THEN RAISE EXCEPTION 'old-season standings retention wrong: % kept', v_count; END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.standings
-     WHERE league_season_id = md5('retention-season-3901')::uuid AND week_number = 3
-  ) THEN RAISE EXCEPTION 'final standings snapshot pruned from old season'; END IF;
-  SELECT count(*) INTO v_count FROM public.standings
-   WHERE league_season_id = md5('retention-season-3904')::uuid;
-  IF v_count <> 3 THEN RAISE EXCEPTION 'current-season standings pruned: % kept', v_count; END IF;
-
-  -- Transactions: three seasons kept, the fourth pruned.
-  SELECT count(*) INTO v_count FROM public.roster_transactions
-   WHERE league_id = '00000000-0000-0000-0000-000000098101';
-  IF v_count <> 3 THEN RAISE EXCEPTION 'roster_transactions retention wrong: % kept', v_count; END IF;
-  IF EXISTS (
-    SELECT 1 FROM public.roster_transactions
-     WHERE league_season_id = md5('retention-season-3901')::uuid
-  ) THEN RAISE EXCEPTION 'oldest-season transaction not pruned'; END IF;
-END $$;
-
+  FOREACH caller IN ARRAY ARRAY['anon','authenticated'] LOOP
+    denied:=false;
+    EXECUTE format('SET LOCAL ROLE %I',caller);
+    BEGIN
+      PERFORM public.prune_unbounded_history();
+    EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+    END;
+    RESET ROLE;
+    PERFORM pg_temp.check_history(denied,caller||' cannot execute cleanup');
+  END LOOP;
+END;
+$$;
+SET LOCAL ROLE service_role;
+SELECT public.prune_unbounded_history();
+RESET ROLE;
+SELECT pg_temp.check_history(true,'service role executes cleanup');
+SELECT count(*) AS passed FROM history_checks;
 ROLLBACK;

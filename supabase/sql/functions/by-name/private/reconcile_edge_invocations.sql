@@ -58,9 +58,6 @@ BEGIN
     v_reconciled := v_reconciled + 1;
   END LOOP;
 
-  DELETE FROM public.edge_invocations
-   WHERE reconciled_at < now() - interval '30 days';
-
   RETURN v_reconciled;
 END;
 $$;

@@ -193,52 +193,33 @@ try {
   assert.deepEqual(probe.before, before)
   assert.deepEqual(await snapshot(), before, 'Rollback must restore every observed owned row and certificate')
   const afterPrune = probe.after
+  assert.deepEqual(afterPrune, before, 'Cleanup must preserve every historical row, certificate and retirement state')
   const oldBefore = resultFields(before, seasons[0])
-  const oldPruned = resultFields(afterPrune, seasons[0])
-  assert.equal(seasonRows(afterPrune, 'lineups', seasons[0]).length, 0)
-  assert.deepEqual(oldPruned.matchups, oldBefore.matchups)
-  assert.deepEqual(oldPruned.standings, oldBefore.standings.filter((r: any) => r.week_number === 2))
-  for (const index of [1,2]) {
-    assert.deepEqual(seasonRows(afterPrune, 'lineups', seasons[index]), seasonRows(before, 'lineups', seasons[index]))
-    assert.deepEqual(resultFields(afterPrune, seasons[index]), resultFields(before, seasons[index]))
-  }
-  assert.ok(afterPrune.retired, 'Actual prune must persist the retirement marker before deletion')
-  const survivingLineups = new Set(afterPrune.lineups.map((r: any) => r.id))
-  const survivingStandings = new Set(afterPrune.standings.map((r: any) => r.id))
-  const removedLineups = before.lineups.filter((r: any) => !survivingLineups.has(r.id))
-  const removedStandings = before.standings.filter((r: any) => !survivingStandings.has(r.id))
-  assert.equal(removedLineups.length, 4); assert.equal(removedStandings.length, 2)
-  assert.ok(removedLineups.every((r: any) => r.league_season_id === seasons[0] && insertedLineupIds.includes(r.id)))
-  assert.ok(removedStandings.every((r: any) => r.league_season_id === seasons[0] && r.week_number === 1))
-
-  // Equivalent retention fixture: commit only the exact NEW owned inputs observed retired above.
-  // This is not a committed invocation of the global prune.
-  let retirementInsert = ''
-  if (afterPrune.retired) {
-    assert.ok(hasRetiredTable)
-    const observedDate = afterPrune.retired.retired_at
-    assert.ok(Number.isFinite(Date.parse(observedDate)))
-    retirementInsert = `INSERT INTO private.retired_score_inputs(${retiredKey}, retired_at)
-      VALUES(${old}, '${new Date(observedDate).toISOString()}'::timestamptz) ON CONFLICT(${retiredKey}) DO NOTHING;`
-  }
+  const removedLineups = seasonRows(before, 'lineups', seasons[0])
+  const removedStandings = seasonRows(before, 'standings', seasons[0]).filter((r: any) => r.week_number === 1)
+  assert.equal(removedLineups.length, 4)
+  assert.equal(removedStandings.length, 2)
+  assert.ok(removedLineups.every((r: any) => insertedLineupIds.includes(r.id)))
+  assert.ok(hasRetiredTable)
   await sql(`BEGIN;
     SELECT 1 FROM public.league_seasons WHERE id = ${old} AND league_id = ${own} FOR UPDATE;
-    ${retirementInsert}
+    INSERT INTO private.retired_score_inputs(${retiredKey}) VALUES(${old});
     DELETE FROM public.weekly_lineups WHERE league_id = ${own} AND league_season_id = ${old} AND id IN (${idsSql(removedLineups.map((r: any) => r.id))});
     DELETE FROM public.standings WHERE league_id = ${own} AND league_season_id = ${old} AND id IN (${idsSql(removedStandings.map((r: any) => r.id))});
     COMMIT;`)
-  const equivalent = await snapshot()
-  assert.deepEqual(resultFields(equivalent, seasons[0]), oldPruned)
-  assert.deepEqual(equivalent.lineups, afterPrune.lineups)
+  const legacy = await snapshot()
+  const oldPruned = resultFields(legacy, seasons[0])
+  assert.deepEqual(oldPruned.matchups, oldBefore.matchups)
+  assert.deepEqual(oldPruned.standings, oldBefore.standings.filter((r: any) => r.week_number === 2))
   const staleBefore = await query(supabase.rpc('get_stale_score_weeks', { p_league_season_id: seasons[0], p_through_week: 2 }))
-  assert.deepEqual(staleBefore, [], 'Retired history is excluded from replay planning')
-  phase = 'equivalent retention replay'
+  assert.deepEqual(staleBefore, [], 'Previously retired history stays excluded from replay planning')
+  phase = 'legacy retirement replay'
   let replayError: string | null = null
   try { await syncScores(league) } catch (error) { replayError = (error as Error).message }
   const afterReplay = await snapshot()
-    assert.deepEqual(resultFields(afterReplay, seasons[0]), oldPruned, 'Lost old inputs must preserve every stored result field')
-    assert.equal(seasonRows(afterReplay, 'standings', seasons[0]).length, 2, 'No invented zero intermediate snapshots')
-    assert.equal(await certificateFresh(seasons[0], 1), false, 'Retired inputs must not gain a falsely fresh certificate')
+  assert.deepEqual(resultFields(afterReplay, seasons[0]), oldPruned, 'Lost legacy inputs must preserve every stored result field')
+  assert.equal(seasonRows(afterReplay, 'standings', seasons[0]).length, 2, 'No invented zero intermediate snapshots')
+  assert.equal(await certificateFresh(seasons[0], 1), false, 'Retired inputs must not gain a falsely fresh certificate')
 
   // Supported previous season: actual deletion invalidates its cumulative result token.
   const previousWeekOne = seasonRows(afterReplay, 'standings', seasons[1]).filter((r: any) => r.week_number === 1)
@@ -290,9 +271,10 @@ try {
     direct.push({ operation: 'finalize', rejected: Boolean(finalResponse.error), data: finalResponse.data })
   }
   assert.equal(externalAttempts, 0)
-  finalReport = { setup: 'New owned fixture only', globalPrune: 'Executed in unconditional rollback transaction',
-    committedSetup: 'Equivalent retention fixture removes only observed new owned inputs', removedLineups: removedLineups.length,
-    removedIntermediateSnapshots: removedStandings.length, retiredMarkerObserved: Boolean(afterPrune.retired),
+  finalReport = { setup: 'New owned fixture only', globalPrune: 'Executed in unconditional rollback; preserves all history and retirement state',
+    globalPruneRemovedLineups: 0, globalPruneRemovedSnapshots: 0,
+    legacyGuardFixture: 'Only newly allocated owned rows simulate previously retired inputs',
+    legacyFixtureRemovedLineups: removedLineups.length, legacyFixtureRemovedSnapshots: removedStandings.length,
     oldFinalBefore: standing(before, seasons[0], members[0], 2), oldFinalAfter: standing(afterReplay, seasons[0], members[0], 2),
     replayError, previousRestore: true, currentCorrection: true, directGuards: direct, externalAttempts,
     scoreWrites, limitation: 'Synthetic complete stat inputs; no provider fetch or lost-lineup reconstruction' }
