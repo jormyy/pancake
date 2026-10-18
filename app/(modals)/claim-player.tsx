@@ -48,9 +48,9 @@ export default function ClaimPlayerScreen() {
     const [bidInput, setBidInput] = useState('0')
     const [loading, setLoading] = useState(true)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
-    const [submitting, setSubmitting] = useState(false)
+    const [submittingOwner, setSubmittingOwner] = useState<{ key: string } | null>(null)
     const claimLoadSeqRef = useRef(0)
-    const submittingRef = useRef(false)
+    const submittingRef = useRef<{ key: string } | null>(null)
     const { width, height } = useWindowDimensions()
     const [webViewport, setWebViewport] = useState({ width, height })
     useEffect(() => {
@@ -69,9 +69,15 @@ export default function ClaimPlayerScreen() {
     const leagueId = currentLeague?.id
     const memberId = current?.id
     const userId = user?.id
+    const ownerKey = JSON.stringify([userId, memberId, leagueId, playerId])
+    const ownerRef = useRef({ key: ownerKey })
+    if (ownerRef.current.key !== ownerKey) ownerRef.current = { key: ownerKey }
+    const submitting = submittingOwner === ownerRef.current
+    useEffect(() => () => { ownerRef.current = { key: ownerRef.current.key } }, [])
 
     useEffect(() => {
         const requestId = ++claimLoadSeqRef.current
+        const owner = ownerRef.current
         setLoading(true)
         setPlayer(null)
         setMyRoster([])
@@ -82,7 +88,7 @@ export default function ClaimPlayerScreen() {
         setBidInput('0')
         async function load() {
             if (!memberId || !userId || !playerId || !leagueId) {
-                if (claimLoadSeqRef.current === requestId) setLoading(false)
+                if (claimLoadSeqRef.current === requestId && ownerRef.current === owner) setLoading(false)
                 return
             }
             const requestedPlayerId = playerId
@@ -95,17 +101,17 @@ export default function ClaimPlayerScreen() {
                     loadAddLimitState(memberId, requestedLeagueId),
                     getWaiverClearsAt(requestedLeagueId, requestedPlayerId),
                 ])
-                if (claimLoadSeqRef.current !== requestId) return
+                if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner) return
                 setPlayer(p)
                 setClearsAt(waiverEnds)
                 setMyRoster(roster)
                 setPriority(prio)
                 setTransactionState(txState)
             } catch (e) {
-                if (claimLoadSeqRef.current !== requestId) return
+                if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner) return
                 console.error(e)
             } finally {
-                if (claimLoadSeqRef.current === requestId) setLoading(false)
+                if (claimLoadSeqRef.current === requestId && ownerRef.current === owner) setLoading(false)
             }
         }
         load()
@@ -113,7 +119,9 @@ export default function ClaimPlayerScreen() {
 
     const refreshTransactionState = useCallback(async () => {
         if (!memberId || !leagueId) return
-        setTransactionState(await loadAddLimitState(memberId, leagueId))
+        const owner = ownerRef.current
+        const state = await loadAddLimitState(memberId, leagueId)
+        if (ownerRef.current === owner) setTransactionState(state)
     }, [memberId, leagueId])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
@@ -123,7 +131,7 @@ export default function ClaimPlayerScreen() {
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
-        if (submittingRef.current) return
+        if (submittingRef.current === ownerRef.current) return
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
         if (explainBlock()) return
@@ -137,8 +145,9 @@ export default function ClaimPlayerScreen() {
             return
         }
 
-        submittingRef.current = true
-        setSubmitting(true)
+        const owner = ownerRef.current
+        submittingRef.current = owner
+        setSubmittingOwner(owner)
         try {
             await submitWaiverClaim(
                 current.id,
@@ -147,16 +156,17 @@ export default function ClaimPlayerScreen() {
                 selectedDrop?.players.id,
                 { bidAmount },
             )
+            if (ownerRef.current !== owner) return
             showSuccess(
                 'Claim Submitted',
                 `Your claim processes ${claimProcessTimeLabel(clearsAt)}.`,
             )
             goBack()
         } catch (e) {
-            reportPickupError(e, { refresh: refreshTransactionState })
+            if (ownerRef.current === owner) reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
-            submittingRef.current = false
-            setSubmitting(false)
+            if (submittingRef.current === owner) submittingRef.current = null
+            if (ownerRef.current === owner) setSubmittingOwner(null)
         }
     }
 
