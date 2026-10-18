@@ -42,7 +42,7 @@ export function useTradeScreenRealtime({
     activeTabRef.current = activeTab
     const visibility = useRef({ online, focused })
     visibility.current = { online, focused }
-    const recovery = useRef<{ mark: () => void; flush: () => void } | null>(null)
+    const recovery = useRef<{ flush: () => void; pause: () => void } | null>(null)
 
     useEffect(() => {
         if (!memberId || !leagueId) return
@@ -50,7 +50,7 @@ export function useTradeScreenRealtime({
         const feeds = { trades: refreshTrades, history: refreshHistory, block: refreshTradeBlock, picks: refreshDraftPicks }
         type Feed = keyof typeof feeds
         const pending = new Set<Feed>()
-        let refreshing = false
+        let refreshing: object | null = null
         let retry: ReturnType<typeof setTimeout> | null = null
         let initial: ReturnType<typeof setTimeout> | null = null
         const visible = () => visibility.current.online && visibility.current.focused && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
@@ -83,23 +83,34 @@ export function useTradeScreenRealtime({
             if (!work.length) return
             if (work.includes('trades') && initial) { clearTimeout(initial); initial = null }
             for (const feed of work) pending.delete(feed)
-            refreshing = true
+            const request = {}
+            refreshing = request
             try {
                 await Promise.all(work.map(async (feed) => {
                     try {
-                        if (await feeds[feed]() === false) pending.add(feed)
+                        if (await feeds[feed]() === false && refreshing === request && !disposed) pending.add(feed)
                     } catch {
-                        pending.add(feed)
+                        if (refreshing === request && !disposed) pending.add(feed)
                     }
                 }))
             } finally {
-                refreshing = false
-                if (!disposed && visibleFeeds().some((feed) => pending.has(feed))) {
-                    retry = setTimeout(() => { void recover() }, 15_000)
+                if (refreshing === request) {
+                    refreshing = null
+                    if (!disposed && visibleFeeds().some((feed) => pending.has(feed))) {
+                        retry = setTimeout(() => { void recover() }, 15_000)
+                    }
                 }
             }
         }
-        const ownerRecovery = { mark, flush: () => { void recover(); reconnectIfClosed() } }
+        const ownerRecovery = {
+            pause: () => {
+                mark()
+                refreshing = null
+                if (retry) clearTimeout(retry)
+                retry = null
+            },
+            flush: () => { void recover(); reconnectIfClosed() },
+        }
         recovery.current = ownerRecovery
         const requestFeeds = (...changed: Feed[]) => {
             if (disposed) return
@@ -150,7 +161,7 @@ export function useTradeScreenRealtime({
     }, [initialTradesRead, leagueId, memberId, refreshDraftPicks, refreshHistory, refreshTradeBlock, refreshTrades, subscriptionEpoch])
 
     useEffect(() => {
-        if (!online) recovery.current?.mark()
+        if (!online) recovery.current?.pause()
         else if (focused) recovery.current?.flush()
     }, [activeTab, focused, leagueId, memberId, online])
 }

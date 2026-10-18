@@ -84,6 +84,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
     useEffect(() => {
         loadSequence.current += 1
         setValidatedKey(null)
+        if (!online) setLoading(false)
     }, [online])
 
     useEffect(() => {
