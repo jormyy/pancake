@@ -181,7 +181,7 @@ beforeEach(() => {
             waiver_mode: 'faab',
         },
     }
-    mocks.getLeagueMembers.mockResolvedValue([{ id: 'member-b', team_name: 'Team B' }])
+    mocks.getLeagueMembers.mockImplementation(async () => [{ id: mocks.context.current.id, user_id: mocks.userId, team_name: 'My team' }, { id: 'member-b', team_name: 'Team B' }])
     mocks.getTradeById.mockResolvedValue(null)
     mocks.participantIds = ['member-a', 'member-b']
     mocks.submitMultiTeamTradeComposer.mockResolvedValue(undefined)
@@ -427,6 +427,7 @@ describe('propose trade async ownership', () => {
         )
         const candidateId = `member-${MAX_TRADE_PARTICIPANTS}`
         mocks.getLeagueMembers.mockResolvedValue([
+            { id: 'member-a', user_id: 'user-a', team_name: 'My team' },
             ...mocks.participantIds.slice(1).map((id) => ({ id, team_name: id })),
             { id: candidateId, team_name: candidateId },
         ])
@@ -657,4 +658,57 @@ describe('unsent trade across a page reload', () => {
         expect(stored.has(draftKey)).toBe(false)
         await act(async () => { renderer.unmount() })
     })
+})
+
+
+const activity = vi.hoisted(() => ({ active: true, epoch: 0 }))
+vi.mock('@/components/league/draft-room/useDraftActivity', () => { const gate = {
+    canRead: () => activity.active, canAct: () => activity.active,
+    capture: () => activity.epoch, isCurrent: (epoch: number) => activity.active && epoch === activity.epoch,
+    markReady: () => {}, blockActions: () => {},
+}; return { useDraftActivity: () => ({ ...gate, epoch: activity.epoch, ready: activity.active }) } })
+beforeEach(() => { activity.active = true; activity.epoch = 0 })
+
+it('defers trade member reads while inactive and reloads once on return', async () => {
+    activity.active = false
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(ProposeTradeScreen)) })
+    expect(mocks.getLeagueMembers).not.toHaveBeenCalled()
+    activity.active = true; activity.epoch += 1
+    await act(async () => view.update(React.createElement(ProposeTradeScreen)))
+    expect(mocks.getLeagueMembers).toHaveBeenCalledTimes(1)
+    await act(async () => view.unmount())
+})
+
+it('does not send a trade after membership is removed before confirmation', async () => {
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(ProposeTradeScreen)) })
+    await act(async () => view.root.findByProps({ testID: 'trade-submit' }).props.onPress())
+    mocks.getLeagueMembers.mockResolvedValue([])
+    await act(async () => view.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
+    expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
+    await act(async () => view.unmount())
+})
+it('does not read or send from a confirmation retained while the route is inactive', async () => {
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(ProposeTradeScreen)) })
+    await act(async () => view.root.findByProps({ testID: 'trade-submit' }).props.onPress())
+    const confirm = view.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress
+    mocks.getLeagueMembers.mockClear()
+    activity.active = false; activity.epoch += 1
+    await act(async () => confirm())
+    expect(mocks.getLeagueMembers).not.toHaveBeenCalled()
+    expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
+    await act(async () => view.unmount())
+})
+
+it('clears the former actor notes when the mounted composer changes owners', async () => {
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(ProposeTradeScreen)) })
+    const builder = () => view.root.findByType('MultiTeamTradeBuilder' as never)
+    await act(async () => builder().props.onNotesChange('Former actor private note'))
+    mocks.userId = 'user-b'
+    await act(async () => view.update(React.createElement(ProposeTradeScreen)))
+    expect(builder().props.notes).toBe('')
+    await act(async () => view.unmount())
 })

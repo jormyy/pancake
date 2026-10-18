@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
         membershipStatus: 'available', refresh: vi.fn(),
     },
     params: { memberId: 'other-member', teamName: 'Other team' },
+    changeListener: null as ((change: { topic: string; scopes: { member_id?: string }[] | null }) => void) | null,
     getRoster: vi.fn(),
     getStats: vi.fn(),
 }))
@@ -21,6 +22,9 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => mocks.params, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
+vi.mock('@/lib/league-changes', () => ({ listenForLeagueChanges: (_league: string, listener: typeof mocks.changeListener) => {
+    mocks.changeListener = listener; return () => { mocks.changeListener = null }
+} }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false }))
 vi.mock('@/lib/roster', () => ({ getRoster: mocks.getRoster }))
 vi.mock('@/lib/roster-stats', () => ({ EMPTY_AVG_MAP: new Map(), EMPTY_STATS_MAP: new Map(), getRosterStatsMaps: mocks.getStats }))
@@ -165,4 +169,66 @@ describe('team roster slot capacity', () => {
         expect(counts()).toEqual({ roster: 0, IR: 0, taxi: 0 })
         expect(screen.root.findAllByType('RosterSectionBand' as React.ElementType)).toHaveLength(0)
     })
+})
+
+
+const activity = vi.hoisted(() => ({ active: true, epoch: 0 }))
+vi.mock('@/components/league/draft-room/useDraftActivity', () => { const gate = {
+    canRead: () => activity.active, canAct: () => activity.active,
+    capture: () => activity.epoch, isCurrent: (epoch: number) => activity.active && epoch === activity.epoch,
+    markReady: () => {}, blockActions: () => {},
+}; return { useDraftActivity: () => ({ ...gate, epoch: activity.epoch, ready: activity.active }) } })
+beforeEach(() => { activity.active = true; activity.epoch = 0 })
+
+it('defers team reads while inactive and consumes one pending refresh on return', async () => {
+    vi.clearAllMocks()
+    mocks.context.current = { id: 'own-member' }
+    mocks.context.currentLeague = { id: 'league-a' }
+    activity.active = false
+    mocks.getRoster.mockResolvedValue([])
+    mocks.getStats.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(TeamRosterScreen)) })
+    expect(mocks.getRoster).not.toHaveBeenCalled()
+    activity.active = true; activity.epoch += 1
+    await act(async () => { view.update(React.createElement(TeamRosterScreen)) })
+    expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+    await act(async () => { view.unmount() })
+})
+
+it('does not reload a team when an unchanged league object is replaced', async () => {
+    vi.clearAllMocks()
+    mocks.context.current = { id: 'own-member' }
+    mocks.context.currentLeague = { id: 'league-a' }
+    mocks.getRoster.mockResolvedValue([])
+    mocks.getStats.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(TeamRosterScreen)) })
+    mocks.context.currentLeague = { id: 'league-a' }
+    await act(async () => view.update(React.createElement(TeamRosterScreen)))
+    expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+    await act(async () => view.unmount())
+})
+
+it('revalidates relevant roster changes and coalesces suspended changes into the return load', async () => {
+    vi.clearAllMocks()
+    mocks.context.current = { id: 'own-member' }
+    mocks.context.currentLeague = { id: 'league-a' }
+    mocks.params.memberId = 'other-member'
+    mocks.getRoster.mockResolvedValue([])
+    mocks.getStats.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(TeamRosterScreen)) })
+    await act(async () => mocks.changeListener?.({ topic: 'roster', scopes: [{ member_id: 'unrelated-member' }] }))
+    expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+    await act(async () => mocks.changeListener?.({ topic: 'roster', scopes: [{ member_id: 'other-member' }] }))
+    expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+    activity.active = false; activity.epoch += 1
+    await act(async () => view.update(React.createElement(TeamRosterScreen)))
+    await act(async () => { mocks.changeListener?.({ topic: 'inventory', scopes: null }); mocks.changeListener?.({ topic: 'roster', scopes: null }) })
+    expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+    activity.active = true; activity.epoch += 1
+    await act(async () => view.update(React.createElement(TeamRosterScreen)))
+    expect(mocks.getRoster).toHaveBeenCalledTimes(3)
+    await act(async () => view.unmount())
 })

@@ -8,6 +8,7 @@ import { useCommissionerOverrides } from '@/hooks/use-commissioner-overrides'
 
 const mocks = vi.hoisted(() => ({
     apiPost: vi.fn(),
+    fetchUserLeagues: vi.fn(),
     getLeagueMembers: vi.fn(),
     getLeaguePlayoffCalendar: vi.fn(),
     getLineupSlots: vi.fn(),
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/league', () => ({
     adjustFaabBalance: mocks.adjustFaabBalance,
     deleteLeague: vi.fn(),
+    fetchUserLeagues: mocks.fetchUserLeagues,
     getLeagueMembers: mocks.getLeagueMembers,
     getLeaguePlayoffCalendar: mocks.getLeaguePlayoffCalendar,
     getLineupSlots: mocks.getLineupSlots,
@@ -41,7 +43,9 @@ vi.mock('@/lib/alert', () => ({
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const league = (id: string, rosterSize = 20): LeagueInfo => ({
+const remoteLeagues = new Map<string, LeagueInfo>()
+const league = (id: string, rosterSize = 20): LeagueInfo => {
+const value: LeagueInfo = {
     id,
     name: `League ${id}`,
     invite_code: null,
@@ -59,7 +63,10 @@ const league = (id: string, rosterSize = 20): LeagueInfo => ({
     trade_veto_mode: 'member_vote',
     trade_veto_window_hours: 24,
     trade_veto_threshold_percent: 50,
-})
+}
+remoteLeagues.set(id, value)
+return value
+}
 
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
@@ -69,6 +76,8 @@ const deferred = <Value,>() => {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    remoteLeagues.clear()
+    mocks.fetchUserLeagues.mockImplementation(async () => [...remoteLeagues.values()].map(leagues => ({ role: 'commissioner', leagues })))
     mocks.getLeaguePlayoffCalendar.mockResolvedValue({ seasonYear: 2027, weeks: Array.from({ length: 26 }, (_, index) => index + 1) })
     mocks.getLeagueMembers.mockResolvedValue([{ id: 'member', team_name: 'Team' }])
     mocks.updateLeagueConfiguration.mockResolvedValue(undefined)
@@ -79,6 +88,7 @@ describe('commissioner settings resource', () => {
         mocks.getLineupSlots.mockResolvedValue([])
         mocks.getLeagueMembers.mockResolvedValue(Array.from({ length: 10 }, (_, index) => ({ id: String(index), team_name: `Team ${index}` })))
         const testLeague = { ...league('ten'), playoff_total_weeks: 5, playoff_round_weeks: [2, 3] }
+        remoteLeagues.set('ten', testLeague)
         let latest!: ReturnType<typeof useCommissionerSettingsResource>
         const Probe = () => {
             latest = useCommissionerSettingsResource({ league: testLeague, ownerId: 'user', isCommissioner: true,
@@ -384,4 +394,78 @@ describe('commissioner overrides', () => {
         expect(mocks.showSuccess).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
+})
+
+
+const activity = vi.hoisted(() => ({ active: true, epoch: 0 }))
+vi.mock('@/components/league/draft-room/useDraftActivity', () => { const gate = {
+    canRead: () => activity.active, canAct: () => activity.active,
+    capture: () => activity.epoch, isCurrent: (epoch: number) => activity.active && epoch === activity.epoch,
+    markReady: () => {}, blockActions: () => {},
+}; return { useDraftActivity: () => ({ ...gate, epoch: activity.epoch, ready: activity.active }) } })
+beforeEach(() => { activity.active = true; activity.epoch = 0 })
+
+it('defers settings reads and retry until the current view returns', async () => {
+    activity.active = false
+    const value = league('activity')
+    let latest!: ReturnType<typeof useCommissionerSettingsResource>
+    const Probe = () => { latest = useCommissionerSettingsResource({ league: value, ownerId: 'user',
+        isCommissioner: true, refresh: vi.fn(), onSaved: vi.fn() }); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    await act(async () => latest.retryLoad())
+    expect(mocks.getLineupSlots).not.toHaveBeenCalled()
+    activity.active = true; activity.epoch += 1
+    mocks.getLineupSlots.mockResolvedValue([])
+    await act(async () => view.update(React.createElement(Probe)))
+    expect(mocks.getLineupSlots).toHaveBeenCalledTimes(1)
+    await act(async () => view.unmount())
+})
+
+it('keeps dirty settings across suspension and detects remote conflicts on return', async () => {
+    const value = league('dirty')
+    mocks.getLineupSlots.mockResolvedValue([])
+    let latest!: ReturnType<typeof useCommissionerSettingsResource>
+    const Probe = () => { latest = useCommissionerSettingsResource({ league: value, ownerId: 'user',
+        isCommissioner: true, refresh: vi.fn(), onSaved: vi.fn() }); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    await act(async () => latest.updateField('rosterSize', '22'))
+    activity.active = false; activity.epoch += 1
+    await act(async () => view.update(React.createElement(Probe)))
+    await act(async () => latest.save())
+    expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+    expect(latest.draft.rosterSize).toBe('22')
+    activity.active = true; activity.epoch += 1
+    await act(async () => view.update(React.createElement(Probe)))
+    expect(latest.draft.rosterSize).toBe('22')
+    expect(latest.loadState).toBe('ready')
+    activity.active = false; activity.epoch += 1
+    await act(async () => view.update(React.createElement(Probe)))
+    remoteLeagues.set('dirty', { ...value, roster_size: 24 })
+    activity.active = true; activity.epoch += 1
+    await act(async () => view.update(React.createElement(Probe)))
+    expect(latest.draft.rosterSize).toBe('22')
+    expect(latest.loadState).toBe('error')
+    await act(async () => latest.save())
+    expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+    await act(async () => view.unmount())
+})
+
+it('checks commissioner authority again before saving and accepts co-commissioners', async () => {
+    const value = league('authority')
+    mocks.getLineupSlots.mockResolvedValue([])
+    mocks.fetchUserLeagues.mockResolvedValue([{ role: 'co_commissioner', leagues: value }])
+    let latest!: ReturnType<typeof useCommissionerSettingsResource>
+    const Probe = () => { latest = useCommissionerSettingsResource({ league: value, ownerId: 'user',
+        isCommissioner: true, refresh: vi.fn(), onSaved: vi.fn() }); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    expect(latest.loadState).toBe('ready')
+    await act(async () => latest.updateField('rosterSize', '22'))
+    mocks.fetchUserLeagues.mockResolvedValue([{ role: 'member', leagues: value }])
+    await act(async () => latest.save())
+    expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+    expect(latest.loadState).toBe('unauthorized')
+    await act(async () => view.unmount())
 })

@@ -236,3 +236,28 @@ describe('useMultiTeamTradeComposer', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+
+const activity = vi.hoisted(() => ({ active: true, epoch: 0 }))
+vi.mock('@/components/league/draft-room/useDraftActivity', () => { const gate = {
+    canRead: () => activity.active, canAct: () => activity.active,
+    capture: () => activity.epoch, isCurrent: (epoch: number) => activity.active && epoch === activity.epoch,
+    markReady: () => {}, blockActions: () => {},
+}; return { useDraftActivity: () => ({ ...gate, epoch: activity.epoch, ready: activity.active }) } })
+beforeEach(() => { activity.active = true; activity.epoch = 0 })
+
+it('defers participant reads and retry while inactive without discarding the offer', async () => {
+    activity.active = false
+    let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+    const Probe = () => { latest = useMultiTeamTradeComposer({ enabled: true, leagueId: 'league',
+        myMemberId: 'member', myTeamName: 'Team', members: [], faabEnabled: true }); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    await act(async () => { latest.setParticipantIds(['member', 'other']); latest.setParticipantFaab('member', 'other', '9'); latest.retry() })
+    expect(getRostersForMembers).not.toHaveBeenCalled()
+    activity.active = true; activity.epoch += 1
+    await act(async () => view.update(React.createElement(Probe)))
+    expect(getRostersForMembers).toHaveBeenCalledTimes(1)
+    expect(latest.buildMultiTeamItems()).toEqual([expect.objectContaining({ faabAmount: 9 })])
+    await act(async () => view.unmount())
+})

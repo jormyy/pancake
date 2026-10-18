@@ -1,7 +1,8 @@
+import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { useEffect, useRef, useState } from 'react'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import type { LeagueInfo } from '@/types/app'
-import { getLeagueMembers, getLeaguePlayoffCalendar, getLineupSlots, updateLeagueConfiguration } from '@/lib/league'
+import { fetchUserLeagues, getLeagueMembers, getLeaguePlayoffCalendar, getLineupSlots, updateLeagueConfiguration } from '@/lib/league'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { COMMISSIONER_SCORING_FIELDS } from '@/lib/commissioner-settings-fields'
@@ -88,6 +89,8 @@ export function useCommissionerSettingsResource({
     const [loadError, setLoadError] = useState<string | null>(null)
     const [loadAttempt, setLoadAttempt] = useState(0)
     const ownerKey = league && ownerId && isCommissioner ? `${ownerId}:${league.id}` : null
+    const leagueId = league?.id
+    const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch, ready } = useModalActivity(ownerKey)
     const activeOwnerKey = useRef(ownerKey)
     const mutation = useRef<{ ownerKey: string; token: symbol } | null>(null)
     const [savingOwnerKey, setSavingOwnerKey] = useState<string | null>(null)
@@ -111,15 +114,21 @@ export function useCommissionerSettingsResource({
             setLoadError(null)
             return
         }
-        if (!league) {
+        if (!leagueId || !ownerId) {
             setLoadState('loading')
             return
         }
+        if (!canRead()) return
+        const generation = capture()
+        blockActions()
         setLoadState('loading')
         setLoadError(null)
-        Promise.all([getLineupSlots(league.id), getLeagueMembers(league.id), getLeaguePlayoffCalendar(league.id)])
-            .then(([slotData, memberData, calendar]) => {
-                if (cancelled) return
+        Promise.all([getLineupSlots(leagueId), getLeagueMembers(leagueId), getLeaguePlayoffCalendar(leagueId), fetchUserLeagues(ownerId)])
+            .then(([slotData, memberData, calendar, memberships]) => {
+                if (cancelled || !isCurrent(generation)) return
+                const membership = memberships.find(row => row.leagues.id === leagueId && (row.role === 'commissioner' || row.role === 'co_commissioner'))
+                if (!membership) { setLoadState('unauthorized'); return }
+                const league = membership.leagues
                 const nextDraft = { ...remoteDraft(league, slotData, memberData.length), skippedWeeks: calendar?.skippedWeeks ?? [] }
                 const hydration = commissionerHydrationDecision({
                     incomingLeagueId: ownerKey ?? league.id,
@@ -142,16 +151,17 @@ export function useCommissionerSettingsResource({
                     setDraft(nextDraft)
                     setBaseline(nextDraft)
                 }
+                markReady(generation)
                 setLoadState('ready')
             })
             .catch((error: unknown) => {
-                if (!cancelled) {
+                if (!cancelled && isCurrent(generation)) {
                     setLoadError(getErrorMessage(error) ?? 'Could not load league settings.')
                     setLoadState('error')
                 }
             })
         return () => { cancelled = true }
-    }, [isCommissioner, league, loadAttempt, ownerKey])
+    }, [isCommissioner, leagueId, ownerId, loadAttempt, ownerKey, canRead, capture, isCurrent, markReady, blockActions, epoch])
 
     const updateField = <Key extends keyof CommissionerSettingsDraft>(
         key: Key,
@@ -169,8 +179,27 @@ export function useCommissionerSettingsResource({
         }))
     }
 
+    const revalidateAuthority = async () => {
+        if (!ownerId || !leagueId || !canAct()) return false
+        const generation = capture()
+        try {
+            const memberships = await fetchUserLeagues(ownerId)
+            if (!isCurrent(generation)) return false
+            if (memberships.some(row => row.leagues.id === leagueId && (row.role === 'commissioner' || row.role === 'co_commissioner'))) return true
+            blockActions()
+            setLoadState('unauthorized')
+        } catch (error) {
+            if (isCurrent(generation)) {
+                blockActions()
+                setLoadState('error')
+                setLoadError(getErrorMessage(error) ?? 'Could not verify commissioner access.')
+            }
+        }
+        return false
+    }
+
     const save = async () => {
-        if (!league || !ownerKey || activeOwnerKey.current !== ownerKey || mutation.current?.ownerKey === ownerKey) return
+        if (!canAct() || loadState !== 'ready' || !league || !ownerKey || activeOwnerKey.current !== ownerKey || mutation.current?.ownerKey === ownerKey) return
         const mutationOwnerKey = ownerKey
         const mutationToken = Symbol('commissioner-settings-save')
         const submittedDraft = draft
@@ -190,6 +219,7 @@ export function useCommissionerSettingsResource({
         }
         setSavingOwnerKey(mutationOwnerKey)
         try {
+            if (!await revalidateAuthority() || !ownsMutation()) return
             if (Object.keys(change.updates).length > 0 || change.slotsChanged) {
                 await updateLeagueConfiguration(league.id, change.updates, change.slotUpdates)
             }
@@ -210,6 +240,8 @@ export function useCommissionerSettingsResource({
 
     return {
         adjustSlot,
+        authorityReady: ready && loadState === 'ready',
+        revalidateAuthority,
         draft: ownsDraft ? draft : EMPTY_COMMISSIONER_SETTINGS_DRAFT,
         loadError: loadOwnerKey === ownerKey ? loadError : null,
         loadState: ownerKey && loadOwnerKey !== ownerKey ? 'loading' : loadState,
