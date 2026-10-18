@@ -15,6 +15,7 @@ import {
     getLineupMoveTargetState,
     getWeekDays,
     getWeeklyLineup,
+    invalidateCachedRoster,
     LineupContext,
     LineupPlayer,
     LineupSlot,
@@ -442,10 +443,11 @@ export default function LineupScreen() {
 
     useEffect(() => {
         if (!visibleCtx || !current?.id || !currentLeague) return
+        let disposed = false
         const memberId = current.id
         const lineupCtx = visibleCtx
         const refreshLineup = debounceRealtimeRefresh(() => {
-            if (online && document.visibilityState !== 'hidden') void load(selectedDate)
+            if (!disposed && online && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) void load(selectedDate)
         }, 200)
         const channel = subscribeToTableChanges(
             `lineup-screen:${lineupCtx.seasonId}:${memberId}`,
@@ -455,8 +457,10 @@ export default function LineupScreen() {
                     table: 'weekly_lineups',
                     filter: `league_season_id=eq.${lineupCtx.seasonId}`,
                     onChange: (payload) => {
-                        const row = payload.eventType === 'DELETE' ? payload.old : payload.new
-                        if (row.member_id !== memberId || row.game_date !== selectedDate) return
+                        if (disposed) return
+                        if (payload.eventType !== 'DELETE' &&
+                            (payload.new.member_id !== memberId || payload.new.game_date !== selectedDate)) return
+                        invalidateCachedRoster(memberId, currentLeague.id, lineupCtx.seasonId)
                         refreshLineup.trigger()
                     },
                 }],
@@ -464,6 +468,7 @@ export default function LineupScreen() {
         )
 
         return () => {
+            disposed = true
             reportRealtimeCleanup(
                 'lineup',
                 disposeTableChangeSubscription(channel, [refreshLineup]),

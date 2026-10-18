@@ -446,7 +446,12 @@ export function useMatchupData(
                     filter: `league_season_id=eq.${matchup.seasonId}`,
                     onChange: (payload) => {
                         if (!isActive()) return
-                        const row = payload.eventType === 'DELETE' ? payload.old : payload.new
+                        if (payload.eventType === 'DELETE') {
+                            if (leagueId) for (const memberId of visibleMemberIds) invalidateCachedRoster(memberId, leagueId, matchup.seasonId)
+                            refreshVisibleLineups.trigger()
+                            return
+                        }
+                        const row = payload.new
                         if (!isWeeklyLineupRealtimeRow(row)) return
                         if (row.week_number !== matchup.weekNumber) return
                         // Read the date from a ref so day-taps don't tear down and

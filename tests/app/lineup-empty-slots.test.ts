@@ -2,10 +2,13 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import LineupScreen from '@/app/(modals)/lineup'
+import type { LineupPlayer } from '@/lib/lineup'
+import type { TableChangeWatch } from '@/lib/realtime-config'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
-    lineup: { starters: [] as { slotType: string; player: null }[], bench: [] as { playerId: string; displayName: string; eligiblePositions: string[]; nbaTeam: null }[], benchSlots: 3 },
+    lineup: { starters: [] as { slotType: string; player: null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
+    subscriptions: [] as { watches: TableChangeWatch[] }[], invalidate: vi.fn(),
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v } }))
@@ -21,6 +24,7 @@ vi.mock('@/lib/lineup', () => ({
     clampDateToWeek: (date: string) => date,
     getLineupContext: async (league: string) => ({ seasonId: `season-${league}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' }),
     getWeekDays: async () => [{ date: '2026-10-11', playingTeams: [] }, { date: '2026-10-12', playingTeams: [] }],
+    invalidateCachedRoster: mocks.invalidate,
     getWeeklyLineup: async () => mocks.lineup, getLineupMoveTargetState: () => null,
 }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
@@ -30,7 +34,11 @@ vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11', endOfETDayUTC: () => '2026-10-12T04:00:00Z' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
-vi.mock('@/lib/realtime', () => ({ debounceRealtimeRefresh: () => ({ trigger: vi.fn() }), disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(), subscribeToTableChanges: vi.fn() }))
+vi.mock('@/lib/realtime', () => ({
+    debounceRealtimeRefresh: (refresh: () => void) => ({ trigger: refresh, cancel: vi.fn() }),
+    disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(),
+    subscribeToTableChanges: (_name: string, subscription: { watches: TableChangeWatch[] }) => { mocks.subscriptions.push(subscription); return {} },
+}))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.showAlert }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => '' }))
 vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
@@ -46,7 +54,7 @@ vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'Scree
 
 let screen: ReactTestRenderer
 beforeEach(() => {
-    vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
+    vi.clearAllMocks(); mocks.subscriptions.length = 0; vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
     vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
     vi.stubGlobal('document', { visibilityState: 'visible', addEventListener: vi.fn(), removeEventListener: vi.fn() })
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
@@ -65,7 +73,7 @@ it('shows each configured bench place on an entirely empty team', async () => {
 })
 
 it('keeps occupied bench rows and every remaining place', async () => {
-    mocks.lineup.bench = [{ playerId: 'player', displayName: 'Bench Player', eligiblePositions: ['PG'], nbaTeam: null }]
+    mocks.lineup.bench = [{ playerId: 'player', rosterPlayerId: 'roster-player', displayName: 'Bench Player', position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, nbaId: null, injuryStatus: null }]
     await mount()
     expect(screen.root.findAll((node) => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(1)
     expect(emptyRows()).toHaveLength(2)
@@ -89,4 +97,25 @@ it('omits starters when the league has no starter places', async () => {
     mocks.lineup.starters = []
     await mount()
     expect(screen.root.findAll((node) => node.props.accessibilityLabel === 'Starters')).toHaveLength(0)
+})
+
+
+it('removes a player after the id-only RLS delete and discards a retained old subscription', async () => {
+    mocks.lineup.bench = [{ playerId: 'player', rosterPlayerId: 'roster-player', displayName: 'Bench Player',
+        position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, nbaId: null, injuryStatus: null }]
+    await mount()
+    expect(screen.root.findAll(node => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(1)
+    const callback = mocks.subscriptions.at(-1)!.watches[0].onChange
+    mocks.lineup = { starters: [], bench: [], benchSlots: 3 }
+    await act(async () => { callback({ eventType: 'DELETE', schema: 'public', table: 'weekly_lineups',
+        commit_timestamp: '2026-10-11T12:00:00Z', errors: [], old: { id: 'deleted-row' }, new: {} }) })
+    expect(screen.root.findAll(node => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(0)
+    expect(mocks.invalidate).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a')
+    mocks.context.current = { id: 'member-b' }
+    mocks.context.currentLeague = { id: 'league-b' }
+    await act(async () => { screen.update(React.createElement(LineupScreen)) })
+    mocks.invalidate.mockClear()
+    await act(async () => { callback({ eventType: 'DELETE', schema: 'public', table: 'weekly_lineups',
+        commit_timestamp: '2026-10-11T12:00:01Z', errors: [], old: { id: 'old-owner-row' }, new: {} }) })
+    expect(mocks.invalidate).not.toHaveBeenCalled()
 })
