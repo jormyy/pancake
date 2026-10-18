@@ -2,21 +2,25 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
+import { planLineupMove } from '@/lib/lineup/movePlan'
 
 const mocks = vi.hoisted(() => ({
     confirmAction: vi.fn(),
     showAlert: vi.fn(),
     showSuccess: vi.fn(),
     autoSetLineup: vi.fn(),
+    move: vi.fn(),
+    plan: vi.fn(),
+    activate: vi.fn(),
 }))
 
 vi.mock('@/lib/lineup', () => ({
     autoSetLineup: mocks.autoSetLineup,
-    planLineupMove: vi.fn(),
-    setPlayerSlotMoves: vi.fn(),
+    planLineupMove: mocks.plan,
+    setPlayerSlotMoves: mocks.move,
 }))
 vi.mock('@/lib/roster', () => ({
-    activateRosterPlayerWithLineup: vi.fn(),
+    activateRosterPlayerWithLineup: mocks.activate,
     toggleIR: vi.fn(),
     toggleTaxi: vi.fn(),
 }))
@@ -194,4 +198,47 @@ it('suppresses optimization feedback when the editor leaves during reload', asyn
     await act(async () => { renderer.unmount() })
     await act(async () => { finishReload(); await pending })
     expect(mocks.showSuccess).not.toHaveBeenCalled()
+})
+
+it.each([
+    ['move', 'read-failure'], ['auto-set', 'read-failure'], ['activation', 'read-failure'],
+    ['move', 'write-failure'], ['auto-set', 'write-failure'], ['activation', 'write-failure'],
+] as const)('%s distinguishes %s from a saved write', async (kind, outcome) => {
+    const reload = vi.fn().mockRejectedValue(new Error('Lineup read offline'))
+    mocks.move.mockResolvedValue(undefined)
+    mocks.activate.mockResolvedValue(undefined)
+    mocks.autoSetLineup.mockResolvedValue(null)
+    mocks.plan.mockImplementation(planLineupMove)
+    const write = kind === 'auto-set' ? mocks.autoSetLineup : kind === 'activation' ? mocks.activate : mocks.move
+    if (outcome === 'write-failure') write.mockRejectedValueOnce(new Error('Write refused'))
+    const player = { rosterPlayerId: 'roster', playerId: 'player', displayName: 'Player', position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, injuryStatus: null, nbaId: null }
+    let actions!: ReturnType<typeof useLineupActions>
+    const Probe = () => {
+        actions = useLineupActions({
+            actionContext: { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
+            myLineup: { starters: [{ slotType: 'PG', player: null }], bench: kind === 'activation' ? [] : [player], taxi: kind === 'activation' ? [player] : [] },
+            league: { roster_size: 20 }, selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: reload,
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        if (kind === 'auto-set') await act(async () => { await actions.doAutoSet('2026-07-09') })
+        else {
+            await act(async () => { await actions.handleTap({ kind: kind === 'activation' ? 'taxi' : 'bench', index: 0 }) })
+            await act(async () => { await actions.handleTap({ kind: 'starter', index: 0 }) })
+        }
+        expect(write).toHaveBeenCalledOnce()
+        expect(reload).toHaveBeenCalledTimes(outcome === 'read-failure' || kind === 'auto-set' ? 1 : 0)
+        if (outcome === 'read-failure') {
+            expect(mocks.showAlert).toHaveBeenCalledWith('Lineup saved', expect.stringContaining('Refresh'), 'info')
+            expect(mocks.showAlert.mock.calls.some(([title]) => title === 'Error' || title === 'Auto-set failed')).toBe(false)
+        } else {
+            expect(mocks.showAlert).toHaveBeenCalledWith(kind === 'auto-set' ? 'Auto-set failed' : 'Error', 'Write refused')
+            expect(mocks.showAlert.mock.calls.some(([title]) => title === 'Lineup saved')).toBe(false)
+        }
+        expect(actions.saving).toBe(false)
+        expect(actions.autoSetting).toBe(false)
+    } finally { await act(async () => { renderer.unmount() }) }
 })

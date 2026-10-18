@@ -173,5 +173,5 @@ function numberPart(value: number | null | undefined, label: string): string | n
 function shortDate(date: string): string {
     const parsed = new Date(`${date}T12:00:00Z`)
     if (!Number.isFinite(parsed.getTime())) return date
-    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
 }

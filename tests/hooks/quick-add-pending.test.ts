@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import type { RosterPlayer } from '@/lib/roster'
 
-const mocks = vi.hoisted(() => ({ gate: vi.fn(), add: vi.fn(), alert: vi.fn(), success: vi.fn() }))
-vi.mock('@/lib/roster', () => ({ dropAndAddFreeAgent: vi.fn() }))
+const mocks = vi.hoisted(() => ({ gate: vi.fn(), add: vi.fn(), alert: vi.fn(), success: vi.fn(), dropAndAdd: vi.fn() }))
+vi.mock('@/lib/roster', () => ({ dropAndAddFreeAgent: mocks.dropAndAdd }))
 vi.mock('@/lib/roster-add-flow', () => ({
     loadRosterAddGate: mocks.gate, addFreeAgentOrRequestDrop: mocks.add, resolveRosterAddIRConflict: vi.fn(),
 }))
@@ -146,4 +146,59 @@ describe('pickup pending admission', () => {
         expect(mocks.success).toHaveBeenCalledOnce()
     })
 
+})
+
+it.each(['gate', 'write'] as const)('admits one drop-and-add while its %s is pending', async (phase) => {
+    const rosterPlayer = { id: 'roster-a' } as RosterPlayer
+    mocks.add.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [rosterPlayer] })
+    await act(async () => { await latest.handleAdd(player) })
+    const gate = deferred<typeof clearGate>()
+    const write = deferred<void>()
+    mocks.gate.mockReturnValue(gate.promise)
+    mocks.dropAndAdd.mockReturnValue(write.promise)
+    const submit = latest.handleDropAndAdd
+    let first!: Promise<void>, second!: Promise<void>
+    await act(async () => { first = submit(rosterPlayer) })
+    const pendingIndicator = latest.dropping
+    if (phase === 'write') await act(async () => { gate.resolve(clearGate) })
+    await act(async () => { second = submit(rosterPlayer) })
+    await act(async () => { gate.resolve(clearGate); write.resolve(); await Promise.all([first, second]) })
+    expect(pendingIndicator).toBe(rosterPlayer.id)
+    expect(mocks.gate).toHaveBeenCalledTimes(2)
+    expect(mocks.dropAndAdd).toHaveBeenCalledOnce()
+    expect(changed).toHaveBeenCalledOnce()
+    expect(latest.dropPickerPlayer).toBeNull()
+    expect(latest.dropping).toBeNull()
+})
+
+it.each(['gate', 'write'] as const)('allows drop-and-add retry after %s failure', async (phase) => {
+    const rosterPlayer = { id: 'roster-a' } as RosterPlayer
+    mocks.add.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [rosterPlayer] })
+    await act(async () => { await latest.handleAdd(player) })
+    if (phase === 'gate') mocks.gate.mockRejectedValueOnce(new Error('Gate failed'))
+    else mocks.dropAndAdd.mockRejectedValueOnce(new Error('Write failed'))
+    await act(async () => { await latest.handleDropAndAdd(rosterPlayer) })
+    expect(latest.dropping).toBeNull()
+    expect(latest.dropPickerPlayer).toEqual(player)
+    expect(changed).not.toHaveBeenCalled()
+    await act(async () => { await latest.handleDropAndAdd(rosterPlayer) })
+    expect(mocks.dropAndAdd).toHaveBeenCalledTimes(phase === 'gate' ? 1 : 2)
+    expect(changed).toHaveBeenCalledOnce()
+})
+
+it('keeps a late drop gate from writing into another owner lifetime', async () => {
+    const rosterPlayer = { id: 'roster-a' } as RosterPlayer
+    mocks.add.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [rosterPlayer] })
+    await act(async () => { await latest.handleAdd(player) })
+    const gate = deferred<typeof clearGate>()
+    mocks.gate.mockReturnValueOnce(gate.promise)
+    let pending!: Promise<void>
+    const submit = latest.handleDropAndAdd
+    await act(async () => { pending = submit(rosterPlayer) })
+    await act(async () => { renderer!.update(React.createElement(Probe, { memberId: 'different' })) })
+    await act(async () => { gate.resolve(clearGate); await pending; await submit(rosterPlayer) })
+    expect(mocks.dropAndAdd).not.toHaveBeenCalled()
+    expect(changed).not.toHaveBeenCalled()
+    expect(latest.dropping).toBeNull()
+    expect(latest.dropPickerPlayer).toBeNull()
 })

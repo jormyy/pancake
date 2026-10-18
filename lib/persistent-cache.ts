@@ -21,6 +21,8 @@ const PREFIX_LIMITS = [
     ['pancake:dynasty-rankings:', 8],
     ['pancake:dynasty-decisions:', 16],
     ['pancake:dynasty-decisions-latest:', 8],
+    ['pancake:dynasty-forecast-snapshot:', 16],
+    ['pancake:dynasty-forecast-latest:', 8],
     ['pancake:dynasty-analyzer-snapshot:', 4],
     ['pancake:dynasty-analyzer-latest:', 4],
     ['pancake:dynasty-analyzer-scope:', 4],
