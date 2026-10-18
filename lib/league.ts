@@ -1,3 +1,4 @@
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import type { Json, League, LeagueStatus } from '@/types/database'
 import type { LeagueInfo, LeagueMembership, TradeVetoMode } from '@/types/app'
@@ -108,24 +109,28 @@ export async function createLeague(
     teamName: string,
     auctionBudget: number = 200,
 ) {
-    const { data: league, error } = await supabase.rpc('create_league', {
-        p_name: name,
-        p_team_name: teamName,
-        p_auction_budget: auctionBudget,
-    })
+    return withPwaMutation('createLeague', async () => {
+        const { data: league, error } = await supabase.rpc('create_league', {
+            p_name: name,
+            p_team_name: teamName,
+            p_auction_budget: auctionBudget,
+        })
 
-    if (error) throw error
-    return jsonRecord(league, 'create league') as League
+        if (error) throw error
+        return jsonRecord(league, 'create league') as League
+    })
 }
 
 export async function joinLeague(inviteCode: string, _userId: string, teamName: string) {
-    const { data, error } = await supabase.rpc('join_league_by_invite_code', {
-        p_invite_code: inviteCode,
-        p_team_name: teamName,
-    })
+    return withPwaMutation('joinLeague', async () => {
+        const { data, error } = await supabase.rpc('join_league_by_invite_code', {
+            p_invite_code: inviteCode,
+            p_team_name: teamName,
+        })
 
-    if (error) throw new Error(error.message)
-    return joinedLeagueFromJson(data)
+        if (error) throw new Error(error.message)
+        return joinedLeagueFromJson(data)
+    })
 }
 
 export async function fetchUserLeagues(userId: string) {
@@ -209,11 +214,13 @@ export async function getLeagueMembers(leagueId: string) {
 }
 
 export async function updateTeamName(memberId: string, teamName: string) {
-    const { error } = await supabase
-        .from('league_members')
-        .update({ team_name: teamName })
-        .eq('id', memberId)
-    if (error) throw error
+    return withPwaMutation('updateTeamName', async () => {
+        const { error } = await supabase
+            .from('league_members')
+            .update({ team_name: teamName })
+            .eq('id', memberId)
+        if (error) throw error
+    })
 }
 
 export async function getLineupSlots(leagueId: string) {
@@ -231,27 +238,31 @@ export async function updateLeagueConfiguration(
     updates: LeagueSettingsUpdate,
     slots: LineupSlotUpdate[] | null,
 ) {
-    const { error } = await supabase.rpc('update_league_configuration_atomic', {
-        p_league_id: leagueId,
-        p_settings: leagueSettingsPayload(updates),
-        p_slots: slots ? lineupSlotsPayload(slots) : undefined,
+    return withPwaMutation('updateLeagueConfiguration', async () => {
+        const { error } = await supabase.rpc('update_league_configuration_atomic', {
+            p_league_id: leagueId,
+            p_settings: leagueSettingsPayload(updates),
+            p_slots: slots ? lineupSlotsPayload(slots) : undefined,
+        })
+        if (error) throw error
     })
-    if (error) throw error
 }
 
 export async function deleteLeague(leagueId: string) {
-    const { data, error } = await supabase.rpc('delete_league_atomic', {
-        p_league_id: leagueId,
+    return withPwaMutation('deleteLeague', async () => {
+        const { data, error } = await supabase.rpc('delete_league_atomic', {
+            p_league_id: leagueId,
+        })
+        if (error) throw error
+        return data as {
+            deleted: boolean
+            alreadyDeleted: boolean
+            leagueId: string
+            deletedAt: string
+            cancelledDrafts?: number
+            closedNominations?: number
+        }
     })
-    if (error) throw error
-    return data as {
-        deleted: boolean
-        alreadyDeleted: boolean
-        leagueId: string
-        deletedAt: string
-        cancelledDrafts?: number
-        closedNominations?: number
-    }
 }
 
 export type MemberTransactionState = {
@@ -313,13 +324,15 @@ export async function adjustFaabBalance(
     memberId: string,
     balance: number,
 ): Promise<number> {
-    const { data, error } = await supabase.rpc('commissioner_adjust_faab_balance_atomic', {
-        p_league_id: leagueId,
-        p_member_id: memberId,
-        p_balance: balance,
+    return withPwaMutation('adjustFaabBalance', async () => {
+        const { data, error } = await supabase.rpc('commissioner_adjust_faab_balance_atomic', {
+            p_league_id: leagueId,
+            p_member_id: memberId,
+            p_balance: balance,
+        })
+        if (error) throw error
+        return Number(data)
     })
-    if (error) throw error
-    return Number(data)
 }
 
 export async function overrideWeeklyAddCount(
@@ -327,13 +340,15 @@ export async function overrideWeeklyAddCount(
     memberId: string,
     addCount: number,
 ): Promise<number> {
-    const { data, error } = await supabase.rpc('commissioner_override_weekly_add_count_atomic', {
-        p_league_id: leagueId,
-        p_member_id: memberId,
-        p_add_count: addCount,
+    return withPwaMutation('overrideWeeklyAddCount', async () => {
+        const { data, error } = await supabase.rpc('commissioner_override_weekly_add_count_atomic', {
+            p_league_id: leagueId,
+            p_member_id: memberId,
+            p_add_count: addCount,
+        })
+        if (error) throw error
+        return Number(data)
     })
-    if (error) throw error
-    return Number(data)
 }
 
 export async function getLeaguePlayoffCalendar(leagueId: string) {

@@ -1,3 +1,4 @@
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason, invalidateSeasonCache } from '@/lib/shared/season'
@@ -427,17 +428,19 @@ export async function setPlayerSlotMoves(
     },
     moves: LineupSlotMove[],
 ): Promise<void> {
-    if (moves.length === 0) return
-    const { error } = await supabase.rpc('set_player_slot_moves_atomic', {
-        p_member_id: memberId,
-        p_league_id: leagueId,
-        p_league_season_id: seasonId,
-        p_game_date: gameDate,
-        p_week_number: weekNumber,
-        p_moves: moves.map((move) => ({
-            player_id: move.playerId,
-            slot_type: move.slotType as RosterSlotType,
-        })),
+    return withPwaMutation('setPlayerSlotMoves', async () => {
+        if (moves.length === 0) return
+        const { error } = await supabase.rpc('set_player_slot_moves_atomic', {
+            p_member_id: memberId,
+            p_league_id: leagueId,
+            p_league_season_id: seasonId,
+            p_game_date: gameDate,
+            p_week_number: weekNumber,
+            p_moves: moves.map((move) => ({
+                player_id: move.playerId,
+                slot_type: move.slotType as RosterSlotType,
+            })),
+        })
+        if (error) throw error
     })
-    if (error) throw error
 }

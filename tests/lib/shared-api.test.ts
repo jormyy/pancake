@@ -10,6 +10,7 @@ vi.mock('@/lib/supabase', () => ({
 
 import { apiPost, resolveDefaultApiUrl } from '@/lib/shared/api'
 import { supabase } from '@/lib/supabase'
+import { isPwaUpdateHeld } from '@/lib/pwa-update-guard'
 
 afterEach(() => {
     vi.useRealTimers()
@@ -103,5 +104,65 @@ describe('apiPost account binding', () => {
         await expect(apiPost('/bound', {}, { beforeSend })).rejects.toThrow('shared logout closed')
         expect(beforeSend).toHaveBeenCalledOnce()
         expect(send).not.toHaveBeenCalled()
+    })
+})
+
+
+describe('pending API update protection', () => {
+    it('holds through session admission and the complete response body', async () => {
+        vi.stubGlobal('window', new EventTarget())
+        let admit!: (value: Awaited<ReturnType<typeof supabase.auth.getSession>>) => void
+        vi.mocked(supabase.auth.getSession).mockReturnValue(new Promise(resolve => { admit = resolve }))
+        let finish!: (value: unknown) => void
+        const body = new Promise(resolve => { finish = resolve })
+        const send = vi.fn(async () => ({ ok: true, status: 200, json: () => body }))
+        vi.stubGlobal('fetch', send)
+        const request = apiPost('/league/roster/taxi', {})
+        try {
+            expect(isPwaUpdateHeld()).toBe(true)
+            admit({ data: { session: null }, error: null })
+            await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+            expect(isPwaUpdateHeld()).toBe(true)
+        } finally {
+            admit({ data: { session: null }, error: null })
+            finish({ ok: true })
+            await request
+        }
+        expect(isPwaUpdateHeld()).toBe(false)
+    })
+
+    it.each(['network', 'server', 'json', 'admission'])('releases after %s failure', async mode => {
+        vi.stubGlobal('window', new EventTarget())
+        vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null })
+        vi.stubGlobal('fetch', vi.fn(async () => {
+            expect(isPwaUpdateHeld()).toBe(true)
+            if (mode === 'network') throw new Error('network failed')
+            return { ok: mode !== 'server', status: 400, json: async () => {
+                if (mode === 'json') throw new Error('json failed')
+                return { error: 'server failed' }
+            } }
+        }))
+        await expect(apiPost('/write', {}, { beforeSend: async () => {
+            expect(isPwaUpdateHeld()).toBe(true)
+            if (mode === 'admission') throw new Error('admission failed')
+        } })).rejects.toThrow(`${mode} failed`)
+        expect(isPwaUpdateHeld()).toBe(false)
+    })
+
+    it('releases a timed-out request without releasing an overlapping write', async () => {
+        vi.useFakeTimers()
+        vi.stubGlobal('window', new EventTarget())
+        vi.mocked(supabase.auth.getSession).mockReturnValue(new Promise(() => {}))
+        const first = apiPost('/first', {}, { timeoutMs: 25 })
+        const second = apiPost('/second', {}, { timeoutMs: 50 })
+        const firstResult = expect(first).rejects.toThrow('25ms')
+        const secondResult = expect(second).rejects.toThrow('50ms')
+        expect(isPwaUpdateHeld()).toBe(true)
+        await vi.advanceTimersByTimeAsync(25)
+        await firstResult
+        expect(isPwaUpdateHeld()).toBe(true)
+        await vi.advanceTimersByTimeAsync(25)
+        await secondResult
+        expect(isPwaUpdateHeld()).toBe(false)
     })
 })

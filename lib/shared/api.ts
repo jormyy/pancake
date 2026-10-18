@@ -1,3 +1,4 @@
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { supabase } from '@/lib/supabase'
 import { RequestError } from '@/lib/shared/errors'
 
@@ -96,6 +97,7 @@ export async function apiPost<T = unknown>(
     body: Record<string, unknown>,
     options: ApiRequestOptions = {},
 ): Promise<T> {
+    const release = holdPwaUpdate(`API ${path}`)
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
     const controller = new AbortController()
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -134,5 +136,6 @@ export async function apiPost<T = unknown>(
         return await Promise.race([request(), timeout])
     } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
+        release()
     }
 }

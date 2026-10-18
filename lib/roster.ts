@@ -1,3 +1,4 @@
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
 import { isDTD, isIREligible, isTaxiEligible as isEligibleForTaxi } from '@pancake/core'
@@ -156,22 +157,24 @@ export async function addFreeAgent(
     leagueId: string,
     playerId: string,
 ): Promise<void> {
-    // Atomic: validate caller ownership, waiver hold, roster-cap, and insert
-    // both the roster_players row and the roster_transactions audit row in a
-    // single SECURITY DEFINER RPC. The prior client-side INSERT had a race
-    // window between drop_player_atomic's commit and another tab's
-    // getPlayerRosterStatus refresh, letting a second user scoop a player off
-    // waivers and breaking queued waiver_claims.
-    const { error } = await supabase.rpc('add_free_agent_atomic', {
-        p_member_id: memberId,
-        p_league_id: leagueId,
-        p_player_id: playerId,
-    })
+    return withPwaMutation('addFreeAgent', async () => {
+        // Atomic: validate caller ownership, waiver hold, roster-cap, and insert
+        // both the roster_players row and the roster_transactions audit row in a
+        // single SECURITY DEFINER RPC. The prior client-side INSERT had a race
+        // window between drop_player_atomic's commit and another tab's
+        // getPlayerRosterStatus refresh, letting a second user scoop a player off
+        // waivers and breaking queued waiver_claims.
+        const { error } = await supabase.rpc('add_free_agent_atomic', {
+            p_member_id: memberId,
+            p_league_id: leagueId,
+            p_player_id: playerId,
+        })
 
-    if (error) {
-        if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
-        throw rpcError(error)
-    }
+        if (error) {
+            if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
+            throw rpcError(error)
+        }
+    })
 }
 
 export async function dropAndAddFreeAgent(
@@ -180,39 +183,43 @@ export async function dropAndAddFreeAgent(
     leagueId: string,
     playerId: string,
 ): Promise<void> {
-    const { error } = await supabase.rpc('drop_and_add_free_agent_atomic', {
-        p_roster_player_id: rosterPlayerId,
-        p_member_id: memberId,
-        p_league_id: leagueId,
-        p_player_id: playerId,
-    })
+    return withPwaMutation('dropAndAddFreeAgent', async () => {
+        const { error } = await supabase.rpc('drop_and_add_free_agent_atomic', {
+            p_roster_player_id: rosterPlayerId,
+            p_member_id: memberId,
+            p_league_id: leagueId,
+            p_player_id: playerId,
+        })
 
-    if (error) {
-        if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
-        throw rpcError(error)
-    }
+        if (error) {
+            if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
+            throw rpcError(error)
+        }
+    })
 }
 
 export async function dropPlayer(rosterPlayerId: string, expectedLeagueSeasonId?: string, rookieDraftId?: string): Promise<void> {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        throw new Error('Connect to the internet to drop a player.')
-    }
-    // Atomic: delete roster row, insert 48h waiver_wire_log, insert
-    // roster_transactions audit row — all in a single Postgres transaction.
-    // Prior implementation issued 3 serial writes with no rollback, so a
-    // failure between steps could remove the player from the roster without
-    // ever placing them on waivers.
-    const { error } = await supabase.rpc('drop_player_atomic', {
-        p_roster_player_id: rosterPlayerId,
-        ...(expectedLeagueSeasonId ? { p_expected_league_season_id: expectedLeagueSeasonId } : {}),
-        ...(rookieDraftId ? { p_rookie_draft_id: rookieDraftId } : {}),
-    })
-    if (error) {
-        if (error.code === 'P0002') {
-            throw rpcError(error, 'Could not drop player — you may not have permission or they are no longer on your roster.')
+    return withPwaMutation('dropPlayer', async () => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            throw new Error('Connect to the internet to drop a player.')
         }
-        throw error
-    }
+        // Atomic: delete roster row, insert 48h waiver_wire_log, insert
+        // roster_transactions audit row — all in a single Postgres transaction.
+        // Prior implementation issued 3 serial writes with no rollback, so a
+        // failure between steps could remove the player from the roster without
+        // ever placing them on waivers.
+        const { error } = await supabase.rpc('drop_player_atomic', {
+            p_roster_player_id: rosterPlayerId,
+            ...(expectedLeagueSeasonId ? { p_expected_league_season_id: expectedLeagueSeasonId } : {}),
+            ...(rookieDraftId ? { p_rookie_draft_id: rookieDraftId } : {}),
+        })
+        if (error) {
+            if (error.code === 'P0002') {
+                throw rpcError(error, 'Could not drop player — you may not have permission or they are no longer on your roster.')
+            }
+            throw error
+        }
+    })
 }
 
 type RosterOverflowFreeAction = 'drop' | 'ir' | 'taxi'
@@ -236,14 +243,16 @@ export async function activateRosterPlayerWithOverflow(
     freeRosterPlayerId: string,
     freeAction: RosterOverflowFreeAction,
 ): Promise<void> {
-    const { error } = await supabase.rpc('activate_roster_player_with_overflow_atomic', {
-        p_activate_roster_player_id: activateRosterPlayerId,
-        p_activate_source: activateSource,
-        p_free_roster_player_id: freeRosterPlayerId,
-        p_free_action: freeAction,
-    })
+    return withPwaMutation('activateRosterPlayerWithOverflow', async () => {
+        const { error } = await supabase.rpc('activate_roster_player_with_overflow_atomic', {
+            p_activate_roster_player_id: activateRosterPlayerId,
+            p_activate_source: activateSource,
+            p_free_roster_player_id: freeRosterPlayerId,
+            p_free_action: freeAction,
+        })
 
-    if (error) throw rpcError(error)
+        if (error) throw rpcError(error)
+    })
 }
 
 export async function activateRosterPlayerWithLineup({
@@ -258,18 +267,20 @@ export async function activateRosterPlayerWithLineup({
     weekNumber,
     slotType = null,
 }: RosterActivationWithLineup): Promise<void> {
-    const { error } = await supabase.rpc('activate_roster_player_with_lineup_atomic', {
-        p_activate_roster_player_id: activateRosterPlayerId,
-        p_activate_source: activateSource,
-        p_free_roster_player_id: freeRosterPlayerId,
-        p_free_action: freeAction,
-        p_member_id: memberId,
-        p_league_id: leagueId,
-        p_league_season_id: seasonId,
-        p_game_date: gameDate,
-        p_week_number: weekNumber,
-        p_slot_type: slotType as RosterSlotType | null,
-    })
+    return withPwaMutation('activateRosterPlayerWithLineup', async () => {
+        const { error } = await supabase.rpc('activate_roster_player_with_lineup_atomic', {
+            p_activate_roster_player_id: activateRosterPlayerId,
+            p_activate_source: activateSource,
+            p_free_roster_player_id: freeRosterPlayerId,
+            p_free_action: freeAction,
+            p_member_id: memberId,
+            p_league_id: leagueId,
+            p_league_season_id: seasonId,
+            p_game_date: gameDate,
+            p_week_number: weekNumber,
+            p_slot_type: slotType as RosterSlotType | null,
+        })
 
-    if (error) throw rpcError(error)
+        if (error) throw rpcError(error)
+    })
 }
