@@ -15,6 +15,8 @@ for (const engine of ['chromium', 'webkit']) {
     if (fonts?.length !== 3 || fonts.some(face => face.status !== 'loaded')) failures.push({ engine, sample: sample.sample, reason: 'font load failed' })
     if (!warm || warm.responses.some(response => response.path !== '/sw.js')) failures.push({ engine, sample: sample.sample, reason: 'warm delivery downloads' })
     if (cold?.repeatedAssets.some(([url]) => /manifest|\/pwa-|\/assets\/pwa\//.test(url))) failures.push({ engine, sample: sample.sample, reason: 'duplicate boot delivery' })
+    const logos = cold?.responses.filter(response => /\/pancake_logo\.[a-f0-9]+\.png$/.test(response.path))
+    if (logos?.length !== 1) failures.push({ engine, sample: sample.sample, reason: 'auth logo delivery', requests: logos?.length })
   }
 }
 console.log(JSON.stringify({ passed: failures.length === 0, failures }))
