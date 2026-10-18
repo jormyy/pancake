@@ -1,4 +1,4 @@
--- pg_net purges responses without telling autovacuum, so the hourly
+-- pg_net purges responses without telling autovacuum, so the daily
 -- pg-net-response-vacuum job is what keeps net._http_response compact. Runs
 -- outside a transaction because VACUUM cannot run inside one.
 -- A live Realtime reader can retain pre-delete tuples. Wait for those readers
@@ -32,7 +32,7 @@ BEGIN
     FROM cron.job WHERE jobname = 'pg-net-response-vacuum';
   IF NOT FOUND THEN RAISE EXCEPTION 'pg-net-response-vacuum is not scheduled'; END IF;
   IF NOT v_job.active THEN RAISE EXCEPTION 'pg-net-response-vacuum is inactive'; END IF;
-  IF v_job.schedule <> '17 * * * *' THEN RAISE EXCEPTION 'unexpected schedule %', v_job.schedule; END IF;
+  IF v_job.schedule <> '17 8 * * *' THEN RAISE EXCEPTION 'unexpected schedule %', v_job.schedule; END IF;
   IF NOT has_table_privilege(v_job.username, 'net._http_response', 'MAINTAIN') THEN
     RAISE EXCEPTION 'job user % cannot vacuum net._http_response', v_job.username;
   END IF;
