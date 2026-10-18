@@ -1,10 +1,10 @@
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native'
-import { Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, useFonts } from '@expo-google-fonts/outfit'
+import { Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold } from '@expo-google-fonts/outfit'
+import { FontDisplay, useFonts } from 'expo-font'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
 import { Platform, View } from 'react-native'
-import 'react-native-reanimated'
 
 import { colors } from '@/constants/tokens'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
@@ -22,7 +22,11 @@ export default function RootLayout() {
     // Display face (headlines + big numerals). Deliberately NOT gating render on
     // the loaded flag: text paints immediately with the fallback stack in
     // constants/tokens.ts fontFamily and upgrades in place once the font arrives.
-    useFonts({ Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold })
+    useFonts({
+        Outfit_500Medium: { uri: Outfit_500Medium, display: FontDisplay.SWAP },
+        Outfit_600SemiBold: { uri: Outfit_600SemiBold, display: FontDisplay.SWAP },
+        Outfit_700Bold: { uri: Outfit_700Bold, display: FontDisplay.SWAP },
+    })
 
     // Navigation chrome (stack headers, card backgrounds) uses the app's own
     // tokens. On web those are CSS variables, so headers follow the system

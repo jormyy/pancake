@@ -1,4 +1,4 @@
-import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
@@ -56,7 +56,7 @@ const publicDelivery = async (root) => {
   }
   await walk(path.join(root, 'dist'))
   const fixed = new Set(['/manifest.webmanifest', '/favicon.ico', '/apple-touch-icon.png',
-    '/pwa-192.png', '/pwa-512.png', '/pwa-512-maskable.png'])
+    '/pwa-192.png', '/pwa-512.png', '/pwa-512-maskable.png', '/boot-logo.png'])
   const assets = files.filter((url) => url.startsWith('/assets/') || url.startsWith('/_expo/static/') || fixed.has(url)).sort()
   return {
     assets,
@@ -77,8 +77,9 @@ const bootAssets = (html, assets) => {
     if (isSameOriginPath(href)) urls.add(href)
   }
   // The boot shell paints its brand mark before any bundle runs.
-  urls.add('/pwa-192.png')
-  urls.add('/manifest.webmanifest')
+  for (const [, url] of html.matchAll(/<(?:link[^>]+rel="manifest"[^>]+href|img[^>]+src)="([^"]+)"/g)) {
+    if (isSameOriginPath(url) && (/manifest[^/]*\.webmanifest$/.test(url) || /boot-logo[^/]*\.png$/.test(url))) urls.add(url)
+  }
   // Fonts are fetched by the bundle, not the document, so they only start
   // downloading once the app has mounted: the chrome renders empty icon boxes
   // and fallback type for seconds after the shell hands off. Precache the ones
@@ -169,6 +170,61 @@ const setServiceWorkerVersion = async (root, version) => {
   )
 }
 
+const contentAddressPublicFiles = async (root) => {
+  const dist = path.join(root, 'dist')
+  const destination = path.join(dist, 'assets/pwa')
+  await mkdir(destination, { recursive: true })
+  const replacements = new Map()
+  const emit = async (file, bytes) => {
+    const extension = path.extname(file)
+    const stem = path.basename(file, extension)
+    const digest = createHash('sha256').update(bytes).digest('hex').slice(0, 32)
+    const url = `/assets/pwa/${stem}.${digest}${extension}`
+    await writeFile(path.join(dist, url), bytes)
+    replacements.set(`/${file}`, url)
+  }
+  for (const file of ['boot-logo.png', 'pwa-192.png', 'pwa-512.png', 'pwa-512-maskable.png', 'apple-touch-icon.png', 'favicon.ico']) {
+    const bytes = await readFile(path.join(dist, file)).catch(() => null)
+    if (bytes) await emit(file, bytes)
+  }
+  const scripts = path.join(dist, '_expo/static/js/web')
+  for (const file of await readdir(scripts).catch(() => [])) {
+    if (/^entry-[^.]+\.js$/.test(file)) await emit(`_expo/static/js/web/${file}`, await readFile(path.join(scripts, file)))
+  }
+  const manifestFile = await readFile(path.join(dist, 'manifest.webmanifest'), 'utf8').catch(() => null)
+  if (manifestFile) {
+    const manifest = JSON.parse(manifestFile)
+    for (const icon of manifest.icons ?? []) icon.src = replacements.get(icon.src) ?? icon.src
+    await emit('manifest.webmanifest', Buffer.from(JSON.stringify(manifest)))
+  }
+  const walk = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name)
+      if (entry.isDirectory()) await walk(file)
+      else if (entry.name.endsWith('.html')) {
+        let html = await readFile(file, 'utf8')
+        for (const [before, after] of replacements) html = html.replaceAll(`"${before}"`, `"${after}"`)
+        await writeFile(file, html)
+      }
+    }
+  }
+  await walk(dist)
+}
+
+const setDocumentVersion = async (root, version) => {
+  const walk = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name)
+      if (entry.isDirectory()) await walk(file)
+      else if (entry.name.endsWith('.html')) {
+        const html = await readFile(file, 'utf8')
+        await writeFile(file, html.replace(/(<meta name="pancake-release" content=")[^"]*(")/g, `$1${version}$2`))
+      }
+    }
+  }
+  await walk(path.join(root, 'dist'))
+}
+
 export const stampReleaseProvenance = async ({
   root = process.cwd(),
   commitSha = process.env.E2E_EXPECTED_RELEASE_SHA || process.env.PANCAKE_RELEASE_SHA ||
@@ -176,13 +232,15 @@ export const stampReleaseProvenance = async ({
 } = {}) => {
   if (!fullSha(commitSha)) throw new Error('Release marker requires a full commit SHA')
   // Before the digest, so the precached set is covered by the cache version.
+  await contentAddressPublicFiles(root)
+  await setDocumentVersion(root, 'pancake-build')
   await setServiceWorkerPrecache(root)
   await setServiceWorkerVersion(root, 'pancake-build')
   const cacheDigest = await digestReleaseBundle(root)
-  await setServiceWorkerVersion(
-    root,
-    `pancake-${commitSha.slice(0, 12)}-${cacheDigest.slice(0, 12)}`,
-  )
+  const version = `pancake-${commitSha.slice(0, 12)}-${cacheDigest.slice(0, 12)}`
+  await setDocumentVersion(root, version)
+  await setServiceWorkerPrecache(root)
+  await setServiceWorkerVersion(root, version)
   const marker = {
     commitSha: commitSha.toLowerCase(),
     bundleDigest: await digestReleaseBundle(root),

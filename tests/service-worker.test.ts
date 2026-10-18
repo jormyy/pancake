@@ -147,6 +147,26 @@ describe('service worker', () => {
         expect(worker.skipWaitingCalls).toBe(1)
     })
 
+    it('installs when CacheStorage accepts one file write at a time', async () => {
+        const worker = await loadWorker({ precache: ['/', '/_expo/static/js/web/app.js', '/_expo/static/js/web/chunk.js'] })
+        let writing = false
+        for (const name of ['pancake-test-1-public-v1-shell', 'pancake-test-1-public-v1-assets']) {
+            const cache = await worker.caches.open(name)
+            const put = cache.put.bind(cache)
+            vi.spyOn(cache, 'put').mockImplementation(async (request, response) => {
+                if (writing) throw new TypeError('Failed writing data to the file system')
+                writing = true
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 0))
+                    await put(request, response)
+                } finally { writing = false }
+            })
+        }
+        await worker.install()
+        expect(worker.skipWaitingCalls).toBe(1)
+        expect((await worker.caches.open('pancake-test-1-public-v1-assets')).entries.size).toBe(2)
+    })
+
     it('rejects a required manifest entry the host no longer serves', async () => {
         const worker = await loadWorker({
             precache: ['/', '/_expo/static/js/web/gone.js'],
@@ -272,15 +292,11 @@ describe('service worker', () => {
         expect(await response.text()).toContain('Pancake')
     })
 
-    it.each(['asset', 'shell'])('keeps the %s refresh alive until its cache write finishes', async (kind) => {
+    it.each(['asset', 'shell'])('finishes the %s cache fill before resolving a miss', async (kind) => {
         const response = new Response('updated', { headers: { 'content-type': kind === 'shell' ? 'text/html' : 'application/manifest+json' } })
-        Object.defineProperty(response, 'type', { value: 'basic' })
         const worker = await loadWorker({ fetchImpl: async () => response, hashes: { '/': createHash('sha256').update('updated').digest('hex') } })
         const cache = await worker.caches.open(`pancake-test-1-public-v1-${kind === 'shell' ? 'shell' : 'assets'}`)
         const request = kind === 'shell' ? navigation('/') : scoped('/manifest.webmanifest')
-        const key = kind === 'shell' ? '/' : request
-        await cache.put(key, new Response('cached'))
-
         let releaseWrite!: () => void
         let writeStarted!: () => void
         const blocked = new Promise<void>((resolve) => { releaseWrite = resolve })
@@ -291,24 +307,13 @@ describe('service worker', () => {
             await blocked
             await put(...args)
         })
-        const pending: Promise<unknown>[] = []
-        let result: unknown
-        worker.listeners.get('fetch')!({
-            request,
-            waitUntil: (promise) => { pending.push(promise) },
-            respondWith: (promise) => { result = promise },
-        })
-        const cached = await result as Response
-        expect(await cached.text()).toBe('cached')
-        await started
-        expect(pending).toHaveLength(1)
         let finished = false
-        const lifetime = Promise.all(pending).then(() => { finished = true })
-        await new Promise<void>((resolve) => setImmediate(resolve))
+        const result = worker.respond(request).then(value => { finished = true; return value })
+        await started
         expect(finished).toBe(false)
         releaseWrite()
-        await lifetime
-        expect(await (await cache.match(key))?.text()).toBe('updated')
+        expect(await (await result).text()).toBe('updated')
+        expect(await (await cache.match(kind === 'shell' ? '/' : request))?.text()).toBe('updated')
     })
 
     // An install that cannot fetch the shell must not activate: activation
@@ -380,7 +385,7 @@ describe('service worker', () => {
     })
 
     it('keeps declared public shell routes offline with route parameters and trailing slashes', async () => {
-        const worker = await loadWorker({ fetchImpl: async () => { throw new TypeError('offline') } })
+        const worker = await loadWorker({ fetchImpl: async () => { throw new TypeError('offline') }, hashes: { '/': createHash('sha256').update(await html().text()).digest('hex') } })
         await (await worker.caches.open('pancake-test-1-public-v1-shell')).put('/', html())
         for (const route of ['/players/?tab=saved', '/player/fixture-player?view=stats']) {
             expect(await (await worker.respond(navigation(route))).text()).toContain('Not found')
@@ -427,18 +432,6 @@ describe('service worker', () => {
             const result = worker.respond(scoped('/_expo/static/js/web/chunk.js'))
             if (kind === 'public') expect(await (await result).text()).toBe(body)
             else await expect(result).rejects.toThrow('offline')
-        },
-    )
-
-    it.each([['shell', 503], ['shell', 404], ['asset', 503], ['asset', 404]] as const)(
-        'retains a valid public %s after a %s background refresh', async (kind, status) => {
-            const worker = await loadWorker({ fetchImpl: async () => new Response('unavailable', { status }) })
-            const cache = await worker.caches.open(`pancake-test-1-public-v1-${kind === 'shell' ? 'shell' : 'assets'}`)
-            const request = kind === 'shell' ? navigation('/') : scoped('/manifest.webmanifest')
-            const key = kind === 'shell' ? '/' : request
-            await cache.put(key, new Response('public cached content'))
-            expect(await (await worker.respond(request)).text()).toBe('public cached content')
-            expect(await (await cache.match(key))?.text()).toBe('public cached content')
         },
     )
 
@@ -524,13 +517,14 @@ describe('service worker', () => {
     })
 
     it('keeps a usable release shell when the host serves a different release', async () => {
-        const worker = await loadWorker({ fetchImpl: async () => new Response('new shell missing its chunk', { headers: { 'content-type': 'text/html' } }) })
+        const worker = await loadWorker({ fetchImpl: async () => new Response('new shell missing its chunk', { headers: { 'content-type': 'text/html' } }), hashes: { '/': createHash('sha256').update('old shell').digest('hex') } })
         const shell = await worker.caches.open('pancake-test-1-public-v1-shell')
         await shell.put('/', new Response('old shell', { headers: { 'content-type': 'text/html' } }))
         expect(await (await worker.respond(navigation('/'))).text()).toBe('old shell')
         expect(await (await shell.match('/'))?.text()).toBe('old shell')
         await shell.delete('/')
-        await expect(worker.respond(navigation('/'))).rejects.toThrow(/shell precache rejected/)
+        expect(await (await worker.respond(navigation('/'))).text()).toBe('new shell missing its chunk')
+        expect(await shell.match('/')).toBeUndefined()
     })
 
     it('carries only current verified public lazy bytes before discarding a warmed release', async () => {
@@ -802,4 +796,71 @@ describe('service worker', () => {
             expect(worker.skipWaitingCalls).toBe(1)
         },
     )
+    it('does not redownload verified mutable boot assets or shell on warm launches', async () => {
+        const manifest = '/manifest.webmanifest'
+        const worker = await loadWorker({ precache: ['/', manifest] })
+        await worker.install()
+        worker.fetches.length = 0
+        await worker.respond(scoped(manifest))
+        await worker.respond(navigation('/players'))
+        expect(worker.fetches).toEqual([])
+    })
+
+    it('recovers an absent old shell from anonymous online HTML without caching it as the old release', async () => {
+        const requests: Request[] = []
+        const worker = await loadWorker({ fetchImpl: async input => {
+            requests.push(input as Request)
+            return new Response('<!doctype html><title>Next release</title>', { headers: { 'content-type': 'text/html' } })
+        } })
+        expect(await (await worker.respond(navigation('/players'))).text()).toContain('Next release')
+        expect((await worker.caches.open('pancake-test-1-public-v1-shell')).entries.size).toBe(0)
+        expect(requests.every(request => request.credentials === 'omit')).toBe(true)
+    })
+
+    it.each(['http', 'cache-storage'])('rejects poisoned runtime bytes from %s', async source => {
+        const url = '/_expo/static/js/web/chunk.js'
+        const body = 'verified runtime script'
+        const worker = await loadWorker({
+            hashes: { [url]: createHash('sha256').update(body).digest('hex') },
+            fetchImpl: async () => script(source === 'http' ? 'poisoned' : body),
+        })
+        const cache = await worker.caches.open('pancake-test-1-public-v1-assets')
+        if (source === 'cache-storage') await cache.put(url, script('poisoned'))
+        const response = await worker.respond(scoped(url))
+        if (source === 'http') {
+            expect(response.status).toBe(502)
+            expect(await cache.match(url)).toBeUndefined()
+        } else {
+            expect(await response.text()).toBe(body)
+            expect(await (await cache.match(scoped(url)))?.text()).toBe(body)
+        }
+    })
+
+    it('reports push rotation to same-origin windows without sending a notification or storing an endpoint', async () => {
+        const listeners = new Map<string, (event: { waitUntil: (promise: Promise<unknown>) => void }) => void>()
+        const owned = { url: 'https://app.test/players', postMessage: vi.fn() }
+        const foreign = { url: 'https://other.test/', postMessage: vi.fn() }
+        const scope = {
+            location: { origin: 'https://app.test' },
+            addEventListener: (type: string, listener: (event: { waitUntil: (promise: Promise<unknown>) => void }) => void) => listeners.set(type, listener),
+            clients: { matchAll: async () => [owned, foreign] },
+        }
+        new Function('self', await readFile('public/sw.js', 'utf8'))(scope)
+        const pending: Promise<unknown>[] = []
+        listeners.get('pushsubscriptionchange')!({ waitUntil: promise => pending.push(promise) })
+        await Promise.all(pending)
+        expect(owned.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'PANCAKE_PUSH_SUBSCRIPTION_CHANGED' })
+        expect(foreign.postMessage).not.toHaveBeenCalled()
+    })
+
+    it('rejects a poisoned runtime response when CacheStorage is unavailable', async () => {
+        const url = '/_expo/static/js/web/chunk.js'
+        const worker = await loadWorker({
+            hashes: { [url]: createHash('sha256').update('verified script').digest('hex') },
+            fetchImpl: async () => script('poisoned'),
+        })
+        vi.spyOn(worker.caches, 'open').mockRejectedValue(new Error('Storage unavailable'))
+        expect((await worker.respond(scoped(url))).status).toBe(502)
+    })
+
 })

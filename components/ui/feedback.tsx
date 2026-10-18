@@ -1,7 +1,7 @@
 import { createContext, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-reanimated'
+import { useReducedMotion } from '@/components/Motion'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { breakpoints, colors, elevation, fontSize, fontWeight, radii, scrim, spacing } from '@/constants/tokens'
 import { Button } from './Button'
@@ -11,7 +11,7 @@ import { scheduleWebFocusRecovery } from './webFocus'
 type ToastVariant = 'info' | 'success' | 'warning' | 'error'
 
 type ToastInput = { message: string; title?: string; variant?: ToastVariant; duration?: number }
-type Toast = Required<Omit<ToastInput, 'title'>> & { id: number; title?: string }
+type Toast = Required<Omit<ToastInput, 'title'>> & { id: number; title?: string; leaving?: boolean }
 
 type ConfirmInput = {
     title: string
@@ -62,7 +62,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     const dialogMessageId = `${dialogId}-confirm-message`
 
     const dismiss = useCallback((id: number) => {
-        setToasts((prev) => prev.filter((t) => t.id !== id))
+        setToasts((prev) => prev.map((t) => t.id === id ? { ...t, leaving: true } : t))
         const timer = timers.current.get(id)
         if (timer) {
             clearTimeout(timer)
@@ -140,12 +140,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 {toasts.map((t) => {
                     const meta = VARIANT_META[t.variant]
                     return (
-                        <Animated.View
-                            key={t.id}
-                            entering={Platform.OS === 'web' ? FadeIn.duration(180) : SlideInUp.duration(220)}
-                            exiting={Platform.OS === 'web' ? FadeOut.duration(140) : SlideOutUp.duration(180)}
-                            style={[styles.toast, { borderLeftColor: meta.color }]}
-                        >
+                        <ToastView key={t.id} toast={t} onExited={() => setToasts(prev => prev.filter(item => item.id !== t.id))}>
                             <MaterialIcons name={meta.icon} size={20} color={meta.color} />
                             <View style={styles.toastBody}>
                                 {t.title ? <Text style={styles.toastTitle}>{t.title}</Text> : null}
@@ -154,7 +149,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                             <Pressable onPress={() => dismiss(t.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss">
                                 <MaterialIcons name="close" size={18} color={colors.textMuted} />
                             </Pressable>
-                        </Animated.View>
+                        </ToastView>
                     )
                 })}
             </View>
@@ -202,6 +197,23 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     )
 }
 
+
+function ToastView({ toast, onExited, children }: { toast: Toast; onExited: () => void; children: ReactNode }) {
+    const reduced = useReducedMotion()
+    const [opacity] = useState(() => new Animated.Value(reduced ? 1 : 0))
+    const finish = useRef(onExited)
+    finish.current = onExited
+    useEffect(() => {
+        const animation = Animated.timing(opacity, {
+            toValue: toast.leaving ? 0 : 1,
+            duration: reduced ? 0 : toast.leaving ? 140 : 180,
+            useNativeDriver: Platform.OS !== 'web',
+        })
+        animation.start(({ finished }) => { if (finished && toast.leaving) finish.current() })
+        return () => animation.stop()
+    }, [opacity, reduced, toast.leaving])
+    return <Animated.View style={[styles.toast, { borderLeftColor: VARIANT_META[toast.variant].color, opacity }]}>{children}</Animated.View>
+}
 
 const styles = StyleSheet.create({
     toastHost: {
