@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION private.weekly_add_limit_reset_label(p_resets_at time
 RETURNS text
 LANGUAGE sql
 STABLE
+SET search_path = ''
 AS $$
   -- "Mon, Nov 2 at 12:00 AM ET": the one rendering of the reset boundary, shown by
   -- the rejection message and by every client surface.

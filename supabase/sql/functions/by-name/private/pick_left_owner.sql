@@ -9,6 +9,7 @@ CREATE OR REPLACE FUNCTION private.pick_left_owner(
 RETURNS text
 LANGUAGE sql
 IMMUTABLE
+SET search_path = ''
 AS $$
   -- How a pick left its owner's hands: 'used' in a draft, 'owner' when it
   -- changed hands, NULL when it did not leave.

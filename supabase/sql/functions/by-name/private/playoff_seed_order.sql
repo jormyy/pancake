@@ -1,5 +1,6 @@
 CREATE OR REPLACE FUNCTION private.playoff_seed_order(p_size bigint)
-RETURNS bigint[] LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS bigint[] LANGUAGE plpgsql IMMUTABLE SET search_path = ''
+AS $$
 DECLARE v_order bigint[]:=ARRAY[1::bigint,2::bigint]; v_next bigint[]; v_size bigint:=2; v_seed bigint;
 BEGIN
   WHILE v_size<p_size LOOP

@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION private.is_ir_designation(p_injury_status text)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
+SET search_path = ''
 AS $$
   SELECT lower(COALESCE(p_injury_status, '')) = 'out'
       OR lower(COALESCE(p_injury_status, '')) LIKE 'ir%'

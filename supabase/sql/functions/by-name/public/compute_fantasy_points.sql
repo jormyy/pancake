@@ -2,22 +2,23 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION compute_fantasy_points(
+CREATE OR REPLACE FUNCTION public.compute_fantasy_points(
   p_stat_id   uuid,
   p_league_id uuid
 )
-RETURNS numeric LANGUAGE plpgsql STABLE AS $$
+RETURNS numeric LANGUAGE plpgsql STABLE SET search_path = ''
+AS $$
 DECLARE
   v_settings jsonb;
-  v_stats    player_game_stats%ROWTYPE;
+  v_stats    public.player_game_stats%ROWTYPE;
   v_total    numeric := 0;
 BEGIN
   SELECT scoring_settings INTO v_settings
-    FROM leagues WHERE id = p_league_id;
+    FROM public.leagues WHERE id = p_league_id;
 
   SELECT pgs.* INTO v_stats
-    FROM player_game_stats pgs
-    INNER JOIN nba_games g ON g.id = pgs.game_id
+    FROM public.player_game_stats pgs
+    INNER JOIN public.nba_games g ON g.id = pgs.game_id
     WHERE pgs.id = p_stat_id
       AND public.is_regular_season_game_id(g.nba_game_id);
 

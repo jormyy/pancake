@@ -10,6 +10,7 @@ CREATE OR REPLACE FUNCTION private.weekly_add_limit_message(
 RETURNS text
 LANGUAGE sql
 STABLE
+SET search_path = ''
 AS $$
   -- The rejection sentence while the week's adds are used up, NULL otherwise.
   SELECT CASE
