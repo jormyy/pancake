@@ -20,6 +20,12 @@ type ConfirmInput = {
     cancelText?: string
     destructive?: boolean
 }
+type Confirmation = ConfirmInput & {
+    id: number
+    resolve: (value: boolean) => void
+    result?: boolean
+    opener: HTMLElement | null
+}
 type WebKeyDownProps = {
     onKeyDown?: (event: DialogKeyboardEvent) => void
 }
@@ -54,7 +60,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     // a centered window on wider screens.
     const bottomSheet = useWindowDimensions().width < breakpoints.compact
     const [toasts, setToasts] = useState<Toast[]>([])
-    const [confirmState, setConfirmState] = useState<(ConfirmInput & { resolve: (v: boolean) => void }) | null>(null)
+    const reduced = useReducedMotion()
+    const [confirmState, setConfirmState] = useState<Confirmation | null>(null)
+    const [confirmVisible, setConfirmVisible] = useState(false)
+    const activeConfirm = useRef<Confirmation | null>(null)
+    const confirmQueue = useRef<Confirmation[]>([])
+    const confirmSequence = useRef(0)
+    const mounted = useRef(true)
     const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
     const dialogId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
     const dialogContainerId = `${dialogId}-confirm-dialog`
@@ -81,13 +93,49 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         [dismiss],
     )
 
+    const advanceConfirm = useCallback(() => {
+        if (!mounted.current || activeConfirm.current) return
+        const next = confirmQueue.current.shift()
+        if (!next) return
+        activeConfirm.current = next
+        setConfirmState(next)
+        setConfirmVisible(true)
+    }, [])
+
     const confirm = useCallback(
         (input: ConfirmInput) =>
             new Promise<boolean>((resolve) => {
-                setConfirmState({ ...input, resolve })
+                if (!mounted.current) { resolve(false); return }
+                const opener = Platform.OS === 'web' && typeof document !== 'undefined'
+                    && document.activeElement instanceof HTMLElement ? document.activeElement : null
+                confirmQueue.current.push({ ...input, resolve, opener, id: ++confirmSequence.current })
+                advanceConfirm()
             }),
-        [],
+        [advanceConfirm],
     )
+
+    useEffect(() => {
+        if (confirmState || activeConfirm.current?.result === undefined) return
+        const completed = activeConfirm.current
+        activeConfirm.current = null
+        if (completed.opener?.isConnected) completed.opener.focus()
+        completed.resolve(completed.result!)
+        queueMicrotask(advanceConfirm)
+    }, [confirmState, advanceConfirm])
+
+    useEffect(() => {
+        mounted.current = true
+        const toastTimers = timers.current
+        const queued = confirmQueue.current
+        return () => {
+            mounted.current = false
+            activeConfirm.current?.resolve(false)
+            activeConfirm.current = null
+            queued.splice(0).forEach(request => request.resolve(false))
+            toastTimers.forEach(timer => clearTimeout(timer))
+            toastTimers.clear()
+        }
+    }, [])
 
     const api = useMemo<FeedbackApi>(
         () => ({
@@ -108,7 +156,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     }, [api])
 
     useEffect(() => {
-        if (!confirmState || Platform.OS !== 'web' || typeof document === 'undefined') return
+        if (!confirmState || !confirmVisible || Platform.OS !== 'web' || typeof document === 'undefined') return
         const focusDialog = () => {
             const dialog = document.getElementById(dialogContainerId)
             if (!(dialog instanceof HTMLElement)) return
@@ -123,11 +171,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             else dialog.focus()
         }
         return scheduleWebFocusRecovery(focusDialog)
-    }, [confirmState, dialogContainerId])
+    }, [confirmState, confirmVisible, dialogContainerId])
 
     const closeConfirm = (result: boolean) => {
-        confirmState?.resolve(result)
-        setConfirmState(null)
+        const current = activeConfirm.current
+        if (!current || current.result !== undefined) return
+        current.result = result
+        setConfirmVisible(false)
+        if (Platform.OS !== 'web') setConfirmState(null)
     }
     const dialogKeyProps: WebKeyDownProps = Platform.OS === 'web'
         ? { onKeyDown: (event) => trapDialogTabFocus(dialogContainerId, event) }
@@ -154,7 +205,17 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 })}
             </View>
 
-            <Modal visible={!!confirmState} transparent animationType={bottomSheet ? 'slide' : 'fade'} onRequestClose={() => closeConfirm(false)}>
+            {(Platform.OS !== 'web' || confirmState) && <Modal
+                visible={confirmVisible}
+                transparent
+                animationType={reduced ? 'none' : bottomSheet ? 'slide' : 'fade'}
+                onRequestClose={() => closeConfirm(false)}
+                onDismiss={() => {
+                    if (activeConfirm.current?.id === confirmState?.id && activeConfirm.current?.result !== undefined) {
+                        setConfirmState(null)
+                    }
+                }}
+            >
                 <Pressable style={[styles.dialogScrim, bottomSheet && styles.dialogScrimBottom]} onPress={() => closeConfirm(false)}>
                     <Pressable
                         nativeID={dialogContainerId}
@@ -192,7 +253,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                         </View>
                     </Pressable>
                 </Pressable>
-            </Modal>
+            </Modal>}
         </FeedbackContext.Provider>
     )
 }
