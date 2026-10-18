@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
+import { deferLeagueRefresh, leagueChangeAffects, leagueChangesConnected, listenForLeagueChanges } from '@/lib/league-changes'
 import { todayET } from '@/lib/shared/dates'
 import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
 
@@ -16,6 +17,8 @@ type Snapshot = {
 type LiveStatsOptions = {
     scope: string
     playerIds: readonly string[]
+    leagueId?: string
+    seasonId?: string
     onSilentRefresh?: () => void | boolean | Promise<void | boolean>
 }
 type LineupRefresh = {
@@ -24,7 +27,7 @@ type LineupRefresh = {
     inFlight: boolean
     active: boolean
 }
-type Scope = { date: string; playerIds: string[]; generation: number }
+type Scope = { date: string; playerIds: string[]; generation: number; leagueId?: string; seasonId?: string }
 
 type Listener = (snapshot: Snapshot) => void
 
@@ -38,6 +41,8 @@ const EMPTY_SNAPSHOT: Snapshot = {
 }
 
 const scopes = new Map<string, Scope>()
+const demands = new Map<string, number>()
+const fulfilledDemands = new Map<string, number>()
 const snapshots = new Map<string, Snapshot>()
 const listenersByScope = new Map<string, Set<Listener>>()
 const inFlightByScope = new Map<string, Promise<void>>()
@@ -60,6 +65,8 @@ function evictSnapshots() {
         snapshots.delete(date)
         gamesFetchedAtByScope.delete(date)
         scopes.delete(date)
+        demands.delete(date)
+        fulfilledDemands.delete(date)
         if (snapshots.size <= MAX_SNAPSHOTS) return
     }
 }
@@ -76,6 +83,7 @@ async function loadSnapshot(date: string): Promise<void> {
     const scope = scopes.get(date)
     if (!scope || scope.generation !== sessionGeneration()) return
     const epoch = networkEpoch
+    const demand = demands.get(date) ?? 0
     const task = (async () => {
         const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
         const updating = { ...previous, status: 'refreshing' as const }
@@ -104,6 +112,7 @@ async function loadSnapshot(date: string): Promise<void> {
             fetchedAt: failed ? previous.fetchedAt : Date.now(),
             status: failed ? 'failed' : 'fresh',
         }
+        if (!failed) fulfilledDemands.set(date, demand)
         snapshots.delete(date)
         snapshots.set(date, snapshot)
         evictSnapshots()
@@ -134,7 +143,7 @@ function anyGameInProgress(date: string): boolean {
 function snapshotFresh(date: string): boolean {
     const snapshot = snapshots.get(date)
     const fetchedAt = snapshot?.fetchedAt ?? 0
-    const maxAge = anyGameInProgress(date) ? LIVE_POLL_MS : IDLE_POLL_MS
+    const maxAge = anyGameInProgress(date) && !leagueChangesConnected(scopes.get(date)?.leagueId ?? '') ? LIVE_POLL_MS : IDLE_POLL_MS
     return snapshot?.status === 'fresh' && fetchedAt > 0 && Date.now() - fetchedAt < maxAge
 }
 
@@ -231,7 +240,7 @@ function ensurePoll() {
         }
         if (pageHidden() || !browserOnline()) return
         pollTick += 1
-        await Promise.all(dates.filter(date => anyGameInProgress(date) ||
+        await Promise.all(dates.filter(date => (anyGameInProgress(date) && !leagueChangesConnected(scopes.get(date)?.leagueId ?? '')) ||
             pollTick % (IDLE_POLL_MS / LIVE_POLL_MS) === 0).map(date => refreshLiveDate(date)))
     }, LIVE_POLL_MS)
 }
@@ -241,14 +250,16 @@ onSessionCachesCleared(() => {
     snapshots.clear()
     gamesFetchedAtByScope.clear()
     lineupCatchups.clear()
+    demands.clear()
+    fulfilledDemands.clear()
     for (const key of listenersByScope.keys()) notify(key, EMPTY_SNAPSHOT)
 })
 
 export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
-    const key = JSON.stringify([selectedDate, options?.scope ?? '', [...new Set(options?.playerIds ?? [])].sort(), sessionGeneration()])
+    const key = JSON.stringify([selectedDate, options?.scope ?? '', [...new Set(options?.playerIds ?? [])].sort(), sessionGeneration(), options?.leagueId, options?.seasonId])
     const scope = useMemo<Scope>(() => {
-        const [date, , playerIds, generation] = JSON.parse(key) as [string, string, string[], number]
-        return { date, playerIds, generation }
+        const [date, , playerIds, generation, leagueId, seasonId] = JSON.parse(key) as [string, string, string[], number, string | undefined, string | undefined]
+        return { date, playerIds, generation, leagueId, seasonId }
     }, [key])
     const onSilentRefresh = options?.onSilentRefresh
     const [resource, setResource] = useState<{ date: string; snapshot: Snapshot }>(() => ({
@@ -314,6 +325,26 @@ export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
             }
             evictSnapshots()
         }
+    }, [key, scope])
+
+    useEffect(() => {
+        if (!scope.leagueId || !scope.seasonId) return
+        let disposed = false
+        const refresh = deferLeagueRefresh(async () => {
+            await inFlightByScope.get(key)
+            if (disposed || scope.generation !== sessionGeneration()) return
+            if ((fulfilledDemands.get(key) ?? -1) >= (demands.get(key) ?? 0) && snapshots.get(key)?.status === 'fresh') return true
+            await refreshLiveDate(key)
+            return snapshots.get(key)?.status === 'fresh'
+        })
+        const stop = listenForLeagueChanges(scope.leagueId, change => {
+            if (!['stat', 'game', 'catchup'].includes(change.topic)) return
+            if (leagueChangeAffects(change, { seasonId: scope.seasonId!, date: scope.date })) {
+                demands.set(key, (demands.get(key) ?? 0) + 1)
+                refresh.trigger()
+            }
+        })
+        return () => { disposed = true; stop(); refresh.cancel() }
     }, [key, scope])
 
     const liveTeams = useMemo(() => {

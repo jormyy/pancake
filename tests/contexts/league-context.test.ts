@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     cache: new Map<string, unknown>(),
 }))
 
+vi.mock('@/hooks/use-league-change-stream', () => ({ useLeagueChangeStream: vi.fn() }))
 vi.mock('@/hooks/use-auth', () => ({
     useAuth: () => ({ user: mocks.userId ? { id: mocks.userId } : null }),
 }))

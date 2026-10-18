@@ -1,15 +1,14 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 import LineupScreen from '@/app/(modals)/lineup'
 import type { LineupPlayer } from '@/lib/lineup'
-import type { TableChangeWatch } from '@/lib/realtime-config'
 
-type Subscription = { watches: TableChangeWatch[]; onReconnect?: () => Promise<void> }
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number }, online: true },
     lineup: { starters: [] as { slotType: string; player: null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
-    subscriptions: [] as Subscription[], invalidate: vi.fn(),
+    invalidate: vi.fn(),
     readLineup: vi.fn(), hidden: false,
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
@@ -32,15 +31,10 @@ vi.mock('@/lib/lineup', () => ({
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
 vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: { user: { id: 'user' } } }) }))
-vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1 }))
+vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1, onSessionCachesCleared: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11', endOfETDayUTC: () => '2026-10-12T04:00:00Z' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
-vi.mock('@/lib/realtime', () => ({
-    debounceRealtimeRefresh: (refresh: () => void) => ({ trigger: refresh, cancel: vi.fn() }),
-    disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(),
-    subscribeToTableChanges: (_name: string, subscription: Subscription) => { mocks.subscriptions.push(subscription); return {} },
-}))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.showAlert }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => '' }))
 vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
@@ -56,7 +50,7 @@ vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'Scree
 
 let screen: ReactTestRenderer
 beforeEach(() => {
-    vi.clearAllMocks(); mocks.subscriptions.length = 0; vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
+    vi.clearAllMocks(); setLeagueChangesConnected('league-a', false); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
     vi.stubGlobal('window', new EventTarget())
     const page = new EventTarget()
     Object.defineProperty(page, 'visibilityState', { get: () => mocks.hidden ? 'hidden' : 'visible' })
@@ -67,7 +61,7 @@ beforeEach(() => {
     mocks.lineup = { starters: [{ slotType: 'PG', player: null }], bench: [], benchSlots: 3 }
     mocks.readLineup.mockReset().mockImplementation(async () => mocks.lineup)
 })
-afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(async () => { await act(async () => screen?.unmount()); setLeagueChangesConnected('league-a', false); vi.useRealTimers(); vi.unstubAllGlobals() })
 const mount = async () => { await act(async () => { screen = create(React.createElement(LineupScreen)) }) }
 
 const emptyRows = () => screen.root.findAllByType('Text' as React.ElementType)
@@ -122,16 +116,16 @@ it('revalidates fresh lineup capacity after league settings change', async () =>
 
 it('catches up missed lineup changes and ignores a disposed owner', async () => {
     await mount()
-    const reconnect = mocks.subscriptions.at(-1)!.onReconnect!
+    const reconnect = () => notifyLeagueChange('league-a', { topic: 'catchup', scopes: null })
     mocks.lineup.benchSlots = 2
-    await act(async () => { await reconnect() })
+    await act(async () => { reconnect(); await vi.advanceTimersByTimeAsync(200) })
     expect(emptyRows()).toHaveLength(2)
     expect(mocks.invalidate).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a')
     mocks.context.current = { id: 'member-b' }
     mocks.context.currentLeague = { id: 'league-b' }
     await act(async () => { screen.update(React.createElement(LineupScreen)) })
     mocks.invalidate.mockClear()
-    await act(async () => { await reconnect() })
+    await act(async () => { reconnect(); await vi.advanceTimersByTimeAsync(200) })
     expect(mocks.invalidate).not.toHaveBeenCalled()
 })
 
@@ -149,22 +143,40 @@ it('omits starters when the league has no starter places', async () => {
 })
 
 
-it('removes a player after the id-only RLS delete and discards a retained old subscription', async () => {
+it('removes a player after a compact deletion hint and stops the old league observer', async () => {
     mocks.lineup.bench = [{ playerId: 'player', rosterPlayerId: 'roster-player', displayName: 'Bench Player',
         position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, nbaId: null, injuryStatus: null }]
     await mount()
     expect(screen.root.findAll(node => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(1)
-    const callback = mocks.subscriptions.at(-1)!.watches[0].onChange
     mocks.lineup = { starters: [], bench: [], benchSlots: 3 }
-    await act(async () => { callback({ eventType: 'DELETE', schema: 'public', table: 'weekly_lineups',
-        commit_timestamp: '2026-10-11T12:00:00Z', errors: [], old: { id: 'deleted-row' }, new: {} }) })
+    await act(async () => { notifyLeagueChange('league-a', { topic: 'lineup', scopes: [{ season_id: 'season-league-a', member_id: 'member-a', date: '2026-10-11' }] }); await vi.advanceTimersByTimeAsync(200) })
     expect(screen.root.findAll(node => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(0)
     expect(mocks.invalidate).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a')
     mocks.context.current = { id: 'member-b' }
     mocks.context.currentLeague = { id: 'league-b' }
     await act(async () => { screen.update(React.createElement(LineupScreen)) })
     mocks.invalidate.mockClear()
-    await act(async () => { callback({ eventType: 'DELETE', schema: 'public', table: 'weekly_lineups',
-        commit_timestamp: '2026-10-11T12:00:01Z', errors: [], old: { id: 'old-owner-row' }, new: {} }) })
+    await act(async () => { notifyLeagueChange('league-a', { topic: 'catchup', scopes: null }); await vi.advanceTimersByTimeAsync(200) })
     expect(mocks.invalidate).not.toHaveBeenCalled()
+})
+
+
+it('does not repeat the initial catch-up when a fresh context object arrives', async () => {
+    setLeagueChangesConnected('league-a', true)
+    await mount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(mocks.readLineup).toHaveBeenCalledTimes(2)
+})
+
+it('retries a failed hinted read without waiting for a focus event', async () => {
+    await mount()
+    mocks.readLineup.mockRejectedValueOnce(new Error('Unavailable'))
+    await act(async () => {
+        notifyLeagueChange('league-a', { topic: 'lineup', scopes: null })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    mocks.lineup.benchSlots = 4
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(emptyRows()).toHaveLength(4)
+    expect(mocks.readLineup).toHaveBeenCalledTimes(3)
 })

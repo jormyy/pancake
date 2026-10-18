@@ -78,3 +78,14 @@ User-facing surfaces that changed: Players gained a Season filter (current seaso
 Active band shows its `n/size` count like IR and taxi. Every empty roster, IR, taxi and lineup slot still renders as its
 own row on Roster and Matchup. A completely empty Roster keeps its "Browse Players" prompt above those rows instead of
 replacing them (`tests/app/roster-empty-slots.test.ts`).
+
+
+## League change hints
+
+`league_change_hints` stores one revision per league and change topic. Statement triggers group lineup, roster, matchup, game and stat writes. Timestamp-only updates stay quiet. Markers contain scope keys and revisions, never player rows or box scores. A marker includes at most sixteen distinct scopes. Larger batches use a whole-league invalidation; this does not limit league size or discard changes.
+
+The selected league has one shared authenticated subscription. Current membership controls both reads and actual Realtime delivery. Clients cannot insert, update or delete markers. A missed revision broadens the read. Rejoin, account and day changes retain authoritative catch-up and ownership fences. Hidden or offline consumers defer reads. Reads coalesce with a one-second maximum wait, retry failures within a bound, and keep one follow-up after an overlapping change.
+
+Home and the lineup editor use compact lineup and roster hints. Live stats use game and stat hints to read only displayed players. A healthy stream keeps a one-minute safety poll. A disconnected stream retains the fifteen-second live fallback. Existing raw publications remain for other consumers and older clients.
+
+Markers have no cascading foreign key. A league deletion must not publish a deleted marker through the Realtime DELETE path. Existing membership policy denies access after deletion. At most five small operational rows remain per deleted league; they contain no player stats or league history. Runtime code never deletes these markers. The migration changes no saved settings, history or records and performs no backfill.

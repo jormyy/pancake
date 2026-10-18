@@ -1062,6 +1062,30 @@ export type Database = {
           },
         ]
       }
+      league_change_hints: {
+        Row: {
+          league_id: string
+          revision: number
+          scopes: Json | null
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          league_id: string
+          revision: number
+          scopes?: Json | null
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          league_id?: string
+          revision?: number
+          scopes?: Json | null
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       league_member_taxi_exits: {
         Row: {
           exited_at: string

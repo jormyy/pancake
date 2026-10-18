@@ -8,6 +8,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useLiveStats } from '@/hooks/use-live-stats'
+import { deferLeagueRefresh, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { getErrorMessage } from '@/lib/shared/errors'
 import {
     clampDateToWeek,
@@ -24,12 +25,6 @@ import {
 } from '@/lib/lineup'
 import { getLineupOptimizerEnabled, setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
 import { playerHeadshotUrl } from '@/lib/format'
-import {
-    debounceRealtimeRefresh,
-    disposeTableChangeSubscription,
-    reportRealtimeCleanup,
-    subscribeToTableChanges,
-} from '@/lib/realtime'
 import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { invalidateWeekNumberCache } from '@/lib/shared/week'
@@ -250,10 +245,10 @@ export default function LineupScreen() {
     selectedDateRef.current = selectedDate
     const [savedSnapshot, setSavedSnapshot] = useState(true)
     const [contextAuthority, setContextAuthority] = useState(false)
-    const loadPendingRef = useRef<{ key: string; requestId: number; promise: Promise<void> } | null>(null)
+    const loadPendingRef = useRef<{ key: string; requestId: number; promise: Promise<boolean> } | null>(null)
     const [dataOwnerKey, setDataOwnerKey] = useState(ownerKey)
 
-    const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate)
+    const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, { scope: ownerKey ?? '', playerIds: [], leagueId, seasonId: ctx?.seasonId })
     // Wrap in a ref so memoized row components read the latest value without re-rendering on poll updates
     const liveTeamsRef = useRef(liveTeams)
     liveTeamsRef.current = online && contextAuthority && !savedSnapshot ? liveTeams : new Set()
@@ -295,12 +290,12 @@ export default function LineupScreen() {
     }, [snapshotScope])
 
     const lastReadRef = useRef<{ ownerKey: string; generation: number; date: string; at: number; leagueRevision: string } | null>(null)
-    const load = useCallback((requestedDate?: string): Promise<void> => {
+    const load = useCallback((requestedDate?: string): Promise<boolean> => {
         if (!snapshotScope || !ownerKey) {
             setCtx(null); setStarters([]); setBench([]); setWeekDays([]); setLineupLoading(false)
-            return Promise.resolve()
+            return Promise.resolve(false)
         }
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return Promise.resolve()
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return Promise.resolve(false)
         const wanted = requestedDate ?? (dataOwnerKey === ownerKey ? selectedDateRef.current : currentDay)
         const pendingKey = `${ownerKey}:${sessionGeneration()}:${online}:${wanted}`
         // Join a pending load only while it is still the newest request; a load that a later
@@ -326,39 +321,41 @@ export default function LineupScreen() {
             setLineupLoading(false)
             setLineupRefreshing(false)
             if (!cached) setLineupError('No saved lineup for this day. Connect to load it.')
-            return Promise.resolve()
+            return Promise.resolve(false)
         }
         const task = (async () => {
             try {
                 const lineupCtx = await getLineupContext(snapshotScope.leagueId, { memberId: snapshotScope.memberId, userId: snapshotScope.ownerId })
-                if (!requestIsCurrent(requestId, generation)) return
+                if (!requestIsCurrent(requestId, generation)) return false
                 if (!lineupCtx) {
                     lastReadRef.current = null
                     discardLineupSnapshot(snapshotScope)
                     setCtx(null); setStarters([]); setBench([]); setWeekDays([])
-                    return
+                    return false
                 }
                 if (cached && cached.context.seasonId !== lineupCtx.seasonId) {
                     discardLineupSnapshot(snapshotScope)
                     setCtx(null); setStarters([]); setBench([])
                 }
                 const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
-                if (!requestIsCurrent(requestId, generation)) return
+                if (!requestIsCurrent(requestId, generation)) return false
                 const date = clampDateToWeek(wanted, days)
                 const optimizerEnabled = await getLineupOptimizerEnabled(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId)
-                if (!requestIsCurrent(requestId, generation)) return
+                if (!requestIsCurrent(requestId, generation)) return false
                 const lineup = await getWeeklyLineup(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId, lineupCtx.weekNumber, date)
-                if (!requestIsCurrent(requestId, generation)) return
+                if (!requestIsCurrent(requestId, generation)) return false
                 const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, optimizerEnabled }
                 saveLineupSnapshot(snapshotScope, generation, value)
                 applySnapshot(value, false)
                 setContextAuthority(true)
                 lastReadRef.current = { ownerKey, generation, date, at: Date.now(), leagueRevision }
+                return true
             } catch (error) {
                 if (requestIsCurrent(requestId, generation)) {
                     lastReadRef.current = null
                     failedLoad(error)
                 }
+                return false
             } finally {
                 if (requestIsCurrent(requestId, generation)) { setLineupLoading(false); setLineupRefreshing(false) }
             }
@@ -453,47 +450,32 @@ export default function LineupScreen() {
         await load(date)
     }, [load])
 
+    const visibleSeasonId = visibleCtx?.seasonId
     useEffect(() => {
-        if (!visibleCtx || !current?.id || !currentLeague) return
+        if (!visibleSeasonId || !current?.id || !currentLeague) return
         let disposed = false
         const memberId = current.id
-        const lineupCtx = visibleCtx
-        const refreshLineup = debounceRealtimeRefresh(() => {
-            if (!disposed && online && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) void load(selectedDate)
-        }, 200)
-        const channel = subscribeToTableChanges(
-            `lineup-screen:${lineupCtx.seasonId}:${memberId}`,
-            {
-                mode: 'per-watch',
-                onReconnect: async () => {
-                    if (disposed) return
-                    invalidateSeasonCache(currentLeague.id)
-                    invalidateWeekNumberCache()
-                    invalidateCachedRoster(memberId, currentLeague.id, lineupCtx.seasonId)
-                    await load(selectedDate)
-                },
-                watches: [{
-                    table: 'weekly_lineups',
-                    filter: `league_season_id=eq.${lineupCtx.seasonId}`,
-                    onChange: (payload) => {
-                        if (disposed) return
-                        if (payload.eventType !== 'DELETE' &&
-                            (payload.new.member_id !== memberId || payload.new.game_date !== selectedDate)) return
-                        invalidateCachedRoster(memberId, currentLeague.id, lineupCtx.seasonId)
-                        refreshLineup.trigger()
-                    },
-                }],
-            },
-        )
+        const refreshLineup = deferLeagueRefresh(() => {
+            if (!disposed) {
+                invalidateCachedRoster(memberId, currentLeague.id, visibleSeasonId)
+                return load(selectedDate)
+            }
+        })
+        const stopChanges = listenForLeagueChanges(currentLeague.id, change => {
+            if (disposed || !['lineup', 'roster', 'catchup'].includes(change.topic)) return
+            if (change.topic === 'catchup') {
+                invalidateSeasonCache(currentLeague.id)
+                invalidateWeekNumberCache()
+            }
+            if (leagueChangeAffects(change, { seasonId: visibleSeasonId, memberIds: [memberId], date: selectedDate })) refreshLineup.trigger()
+        })
 
         return () => {
             disposed = true
-            reportRealtimeCleanup(
-                'lineup',
-                disposeTableChangeSubscription(channel, [refreshLineup]),
-            )
+            stopChanges()
+            refreshLineup.cancel()
         }
-    }, [current?.id, currentLeague, load, selectedDate, visibleCtx, online])
+    }, [current?.id, currentLeague, load, selectedDate, visibleSeasonId])
     const {
         selected,
         setSelected,

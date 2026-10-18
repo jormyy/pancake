@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
 import { clampDateToWeek, getWeekDays, getWeeklyLineup, invalidateCachedRoster, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
+import { deferLeagueRefresh, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { todayET } from '@/lib/shared/dates'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import {
-    debounceRealtimeRefresh,
     disposeTableChangeSubscription,
     reportRealtimeCleanup,
     subscribeToTableChanges,
@@ -25,7 +25,7 @@ type MatchupRealtimeRow = {
     is_finalized: boolean
     winner_member_id: string | null
 }
-type WeeklyLineupRealtimeRow = { week_number: number; game_date: string; member_id: string }
+
 type MatchupScreenCache = {
     today: string
     selectedDate: string
@@ -56,11 +56,6 @@ function isMatchupRealtimeRow(row: object): row is MatchupRealtimeRow {
         && 'winner_member_id' in row && (typeof row.winner_member_id === 'string' || row.winner_member_id === null)
 }
 
-function isWeeklyLineupRealtimeRow(row: object): row is WeeklyLineupRealtimeRow {
-    return 'week_number' in row && typeof row.week_number === 'number'
-        && 'game_date' in row && typeof row.game_date === 'string'
-        && 'member_id' in row && typeof row.member_id === 'string'
-}
 
 function matchupCacheKey(memberId: string, leagueId: string) {
     return `${MATCHUP_CACHE_PREFIX}${leagueId}:${memberId}`
@@ -396,7 +391,7 @@ export function useMatchupData(
         const eventTimes = new Map<string, number>()
         const isActive = () => !disposed && activeResourceKeyRef.current === resourceKey
             && matchupRef.current?.id === matchup.id
-        const refreshVisibleLineups = debounceRealtimeRefresh(() => { void refreshSilently() }, 200)
+        const refreshVisibleLineups = deferLeagueRefresh(() => isActive() ? refreshSilently() : undefined)
         const visibleMemberIds = new Set([matchup.myMemberId, matchup.opponentMemberId])
         const channel = subscribeToTableChanges(
             `league-matchups:${matchup.seasonId}:${matchup.weekNumber}`,
@@ -452,32 +447,20 @@ export function useMatchupData(
                             ),
                         )
                     },
-                }, {
-                    table: 'weekly_lineups',
-                    filter: `league_season_id=eq.${matchup.seasonId}`,
-                    onChange: (payload) => {
-                        if (!isActive()) return
-                        if (payload.eventType === 'DELETE') {
-                            if (leagueId) for (const memberId of visibleMemberIds) invalidateCachedRoster(memberId, leagueId, matchup.seasonId)
-                            refreshVisibleLineups.trigger()
-                            return
-                        }
-                        const row = payload.new
-                        if (!isWeeklyLineupRealtimeRow(row)) return
-                        if (row.week_number !== matchup.weekNumber) return
-                        // Read the date from a ref so day-taps don't tear down and
-                        // rebuild the whole realtime channel (websocket rejoin).
-                        if (row.game_date !== selectedDateRef.current) return
-                        if (!visibleMemberIds.has(row.member_id)) return
-                        if (leagueId) invalidateCachedRoster(row.member_id, leagueId, matchup.seasonId)
-                        refreshVisibleLineups.trigger()
-                    },
                 }],
             },
         )
 
+        const stopChanges = leagueId ? listenForLeagueChanges(leagueId, change => {
+            if (!isActive() || !['lineup', 'roster', 'catchup'].includes(change.topic)) return
+            if (!leagueChangeAffects(change, { seasonId: matchup.seasonId, memberIds: [...visibleMemberIds], date: selectedDateRef.current })) return
+            for (const memberId of visibleMemberIds) invalidateCachedRoster(memberId, leagueId, matchup.seasonId)
+            refreshVisibleLineups.trigger()
+        }) : undefined
+
         return () => {
             disposed = true
+            stopChanges?.()
             reportRealtimeCleanup(
                 'matchup',
                 disposeTableChangeSubscription(channel, [refreshVisibleLineups]),

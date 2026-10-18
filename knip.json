@@ -47,7 +47,8 @@
     "supabase/tests/db/pre-tipoff-resume.ts",
     "supabase/tests/db/pre-tipoff-crash-worker.ts",
     "supabase/tests/db/matchup-final-outbox.ts",
-    "supabase/tests/db/rookie-activation-actor.ts"
+    "supabase/tests/db/rookie-activation-actor.ts",
+    "supabase/tests/db/league-change-hints.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

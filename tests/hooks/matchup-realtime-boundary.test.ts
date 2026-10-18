@@ -1,8 +1,9 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { RealtimePostgresUpdatePayload } from '@supabase/supabase-js'
 import { useMatchupData } from '@/hooks/use-matchup-data'
+import { notifyLeagueChange } from '@/lib/league-changes'
 import type { TableChangeWatch } from '@/lib/realtime-config'
 
 type Subscription = { watches: TableChangeWatch[]; onReconnect?: () => Promise<void> }
@@ -52,7 +53,7 @@ const event = (id: string, points: number, second = 1): RealtimePostgresUpdatePa
         away_points: 12, is_finalized: false, winner_member_id: null },
 })
 beforeEach(() => {
-    vi.clearAllMocks()
+    vi.clearAllMocks(); vi.useFakeTimers()
     mocks.subscriptions.length = 0
     mocks.getWeeklyLineup.mockResolvedValue({ starters: [], bench: [], ir: [], taxi: [], benchSlots: 3 })
     mocks.getMyMatchup.mockImplementation(async (member: string) => ({
@@ -60,6 +61,7 @@ beforeEach(() => {
         myPoints: 200, opponentPoints: 200, seasonId: `season-${member}`, seasonYear: 2026, isFinalized: false,
     }))
 })
+afterEach(() => vi.useRealTimers())
 const mount = async () => {
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(Probe, { owner: 'a' })) })
@@ -120,16 +122,17 @@ it('converges after duplicate and reversed deliveries, including a downward scor
 })
 
 
-it('reconciles an id-only lineup deletion and invalidates both visible rosters', async () => {
+it('reconciles a compact deletion hint and invalidates both visible rosters', async () => {
     const player = { playerId: 'removed', rosterPlayerId: 'roster-removed', displayName: 'Removed',
         position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, injuryStatus: null, nbaId: null }
     mocks.getWeeklyLineup.mockResolvedValue({ starters: [], bench: [player], ir: [], taxi: [], benchSlots: 3 })
     const renderer = await mount()
     expect(latest.myLineup?.bench[0].playerId).toBe('removed')
     mocks.getWeeklyLineup.mockResolvedValue({ starters: [], bench: [], ir: [], taxi: [], benchSlots: 3 })
-    const subscription = mocks.subscriptions.at(-1)!.watches.find(watch => watch.table === 'weekly_lineups')!
-    await act(async () => { subscription.onChange({ eventType: 'DELETE', schema: 'public', table: 'weekly_lineups',
-        commit_timestamp: '2026-07-09T12:00:00Z', errors: [], new: {}, old: { id: 'deleted-row' } }) })
+    await act(async () => {
+        notifyLeagueChange('league-a', { topic: 'lineup', scopes: [{ season_id: 'season-member-a', member_id: 'member-a', date: '2026-07-09' }] })
+        await vi.advanceTimersByTimeAsync(200)
+    })
     expect(latest.myLineup?.bench).toEqual([])
     expect(mocks.invalidate.mock.calls).toEqual([
         ['member-a', 'league-a', 'season-member-a'], ['opponent', 'league-a', 'season-member-a'],
@@ -137,19 +140,21 @@ it('reconciles an id-only lineup deletion and invalidates both visible rosters',
     await act(async () => { renderer.unmount() })
 })
 
-it('ignores irrelevant lineup updates and retained deletion callbacks after an owner change', async () => {
+it('ignores another team and stops observing a former owner league', async () => {
     const renderer = await mount()
-    const callback = mocks.subscriptions.at(-1)!.watches.find(watch => watch.table === 'weekly_lineups')!.onChange
     mocks.getWeeklyLineup.mockClear()
-    await act(async () => { callback({ eventType: 'INSERT', schema: 'public', table: 'weekly_lineups',
-        commit_timestamp: '2026-07-09T12:00:00Z', errors: [], old: {},
-        new: { member_id: 'unrelated', game_date: '2026-07-09', week_number: 1 } }) })
+    await act(async () => {
+        notifyLeagueChange('league-a', { topic: 'lineup', scopes: [{ season_id: 'season-member-a', member_id: 'unrelated', date: '2026-07-09' }] })
+        await vi.advanceTimersByTimeAsync(200)
+    })
     expect(mocks.getWeeklyLineup).not.toHaveBeenCalled()
     await act(async () => { renderer.update(React.createElement(Probe, { owner: 'b' })) })
     await act(async () => { await latest.refresh() })
     mocks.getWeeklyLineup.mockClear()
-    await act(async () => { callback({ eventType: 'DELETE', schema: 'public', table: 'weekly_lineups',
-        commit_timestamp: '2026-07-09T12:00:00Z', errors: [], old: { id: 'old-owner-row' }, new: {} }) })
+    await act(async () => {
+        notifyLeagueChange('league-a', { topic: 'catchup', scopes: null })
+        await vi.advanceTimersByTimeAsync(200)
+    })
     expect(mocks.getWeeklyLineup).not.toHaveBeenCalled()
     expect(mocks.invalidate).not.toHaveBeenCalled()
     await act(async () => { renderer.unmount() })

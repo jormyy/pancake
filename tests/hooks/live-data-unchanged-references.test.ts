@@ -299,18 +299,21 @@ describe('live data reference workload', () => {
         expect(matchup.oppLineup).toBe(opponent)
     })
 
-    it.each([
-        ['rosterPlayerId', 'replacement-roster-id'], ['playerId', 'replacement-player-id'],
-        ['displayName', 'New name'], ['position', null], ['eligiblePositions', ['SF', 'F']],
-        ['nbaTeam', 'DEN'], ['injuryStatus', 'OUT'], ['nbaId', null],
-    ] satisfies [keyof LineupPlayer, string | string[] | null][])(
-        'keeps changed player %s in the refreshed lineup', async (field, value) => {
-            await mount()
-            Object.assign(lineups.get('mine')!.bench[0], { [field]: value })
-            for (let tick = 0; tick < 4; tick += 1) await poll()
-            expect(matchup.myLineup?.bench[0][field]).toEqual(value)
-        },
-    )
+    it('refreshes a new roster assignment for the same player', async () => {
+        await mount()
+        lineups.get('mine')!.bench[0].rosterPlayerId = 'replacement-roster-id'
+        for (let tick = 0; tick < 4; tick += 1) await poll()
+        expect(matchup.myLineup?.bench[0].playerId).toBe('p18')
+        expect(matchup.myLineup?.bench[0].rosterPlayerId).toBe('replacement-roster-id')
+    })
+
+    it('refreshes player metadata without changing slots or ownership', async () => {
+        await mount()
+        const updated = { displayName: 'New name', position: 'SF', eligiblePositions: ['SF', 'F'], nbaTeam: 'DEN', injuryStatus: 'OUT', nbaId: null }
+        Object.assign(lineups.get('mine')!.bench[0], updated)
+        for (let tick = 0; tick < 4; tick += 1) await poll()
+        expect(matchup.myLineup?.bench[0]).toMatchObject({ ...updated, playerId: 'p18', rosterPlayerId: 'r18' })
+    })
 
     it('applies slot types, order, added players and confirmed empty reserves', async () => {
         await mount()

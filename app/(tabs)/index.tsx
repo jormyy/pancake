@@ -105,6 +105,8 @@ export default function HomeScreen() {
     const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, {
         scope: JSON.stringify([user?.id, league?.id, current?.id, matchup?.seasonId, matchup?.id]),
         playerIds: livePlayerIds,
+        leagueId: league?.id,
+        seasonId: matchup?.seasonId,
         onSilentRefresh: refreshSilently,
     })
     const actionContext = useMemo(() => matchup && league ? {
