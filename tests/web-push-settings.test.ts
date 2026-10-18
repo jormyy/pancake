@@ -104,3 +104,24 @@ describe('web notification controls retain their initiating owner', () => {
         await act(async () => { view.renderer.unmount() })
     })
 })
+
+it.each(['hidden', 'offline'])('does not warm push configuration during %s entry', async mode => {
+    const browser = new EventTarget(), page = new EventTarget()
+    let hidden = mode === 'hidden', online = mode !== 'offline'
+    Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('window', browser); vi.stubGlobal('document', page)
+    vi.stubGlobal('navigator', { get onLine() { return online } })
+    const view = await mount('off')
+    try {
+        expect(getWebPushStatus).not.toHaveBeenCalled()
+        const { getWebPushPublicKey } = await import('@/lib/web-push')
+        expect(getWebPushPublicKey).not.toHaveBeenCalled()
+        hidden = false; online = true
+        await act(async () => { page.dispatchEvent(new Event('visibilitychange')); browser.dispatchEvent(new Event('online')) })
+        expect(getWebPushStatus).toHaveBeenCalledOnce()
+        expect(getWebPushPublicKey).toHaveBeenCalledOnce()
+    } finally {
+        await act(async () => { view.renderer.unmount() })
+        vi.unstubAllGlobals()
+    }
+})

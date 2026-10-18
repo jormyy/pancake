@@ -6,7 +6,7 @@ import {
 import type { Profile } from '@/types/database'
 import { completeWebPushLogin, detachWebPushFromAccount, prepareWebPushLogin } from '@/lib/web-push'
 import { waitForAuthInitialization } from '@/lib/auth-lock'
-import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
+import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 export async function signUp(
     email: string,
@@ -106,25 +106,73 @@ export async function changePassword(currentPassword: string, newPassword: strin
     })
 }
 
-export async function getProfile(userId: string) {
-    // Explicit column list — push_token is column-revoked from authenticated
-    // (iter 27 Slice C); `select('*')` would 42501 in production.
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, created_at, updated_at')
-        .eq('id', userId)
-        .single<Profile>()
-    if (error) throw error
-    return data
+type ProfileRead = {
+    value?: Profile
+    at: number
+    pending?: Promise<Profile>
+    request?: symbol
+    patches: { display_name?: string; avatar_url?: string }
+}
+const profileReads = new Map<string, ProfileRead>()
+onSessionCachesCleared(() => profileReads.clear())
+
+export function getProfile(userId: string, options: { force?: boolean } = {}): Promise<Profile> {
+    let entry = profileReads.get(userId)
+    if (!entry) {
+        entry = { at: 0, patches: {} }
+        profileReads.set(userId, entry)
+    }
+    if (entry.pending) return entry.pending
+    if (!options.force && entry.value && Date.now() - entry.at < 15_000) return Promise.resolve(entry.value)
+    const captured = entry
+    captured.patches = {}
+    const request = Symbol('profile')
+    captured.request = request
+    const task: Promise<Profile> = (async () => {
+        // Explicit column list — push_token is column-revoked from authenticated
+        // (iter 27 Slice C); `select('*')` would 42501 in production.
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url, created_at, updated_at')
+            .eq('id', userId)
+            .single<Profile>()
+        if (error) throw error
+        const value = { ...data, ...captured.patches }
+        if (profileReads.get(userId) === captured && captured.request === request) {
+            captured.value = value
+            captured.at = Date.now()
+        }
+        return value
+    })()
+    captured.pending = task
+    const clear = () => { if (captured.pending === task) captured.pending = undefined }
+    void task.then(clear, clear)
+    return task
+}
+
+export function suspendProfileRead(userId: string): void {
+    const entry = profileReads.get(userId)
+    if (entry) {
+        entry.pending = undefined
+        entry.request = undefined
+        entry.at = 0
+    }
 }
 
 export async function updateProfile(userId: string, updates: { display_name?: string; avatar_url?: string }) {
     return withPwaMutation('updateProfile', async () => {
+        const generation = sessionGeneration()
         const { error } = await supabase
             .from('profiles')
             .update({ ...updates, updated_at: new Date().toISOString() })
             .eq('id', userId)
         if (error) throw error
+        if (sessionGeneration() !== generation) return
+        const entry = profileReads.get(userId)
+        if (entry) {
+            if (entry.pending) entry.patches = { ...entry.patches, ...updates }
+            if (entry.value) entry.value = { ...entry.value, ...updates }
+        }
         notifyProfileUpdated(userId, updates)
     })
 }

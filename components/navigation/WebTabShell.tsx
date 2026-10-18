@@ -1,13 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
-import { ComponentProps, type PropsWithChildren, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ComponentProps, type PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { createPortal } from 'react-dom'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
-import { getProfile } from '@/lib/auth'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { getProfile, suspendProfileRead } from '@/lib/auth'
 import { listenForProfileUpdates } from '@/lib/profile-updates'
 import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
@@ -386,8 +387,10 @@ function WebSidebar() {
     // Keyed on the id: sign-in and token refreshes replace the user object
     // several times, and each replacement re-read the same profile.
     const userId = user?.id
+    const profileActivity = useBrowserReadActivity()
     useEffect(() => {
         if (!userId) return
+        if (!profileActivity.active) suspendProfileRead(userId)
         let cancelled = false
         let updated = false
         const stop = listenForProfileUpdates(userId, update => {
@@ -395,7 +398,7 @@ function WebSidebar() {
             updated = true
             setAvatar({ owner: userId, uri: update.avatar_url })
         })
-        getProfile(userId)
+        if (profileActivity.active) getProfile(userId, { force: profileActivity.revision > 0 })
             .then((profile) => {
                 if (!cancelled && !updated) setAvatar({ owner: userId, uri: profile.avatar_url ?? null })
             })
@@ -406,7 +409,7 @@ function WebSidebar() {
             cancelled = true
             stop()
         }
-    }, [userId])
+    }, [userId, profileActivity.active, profileActivity.revision])
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">
