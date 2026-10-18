@@ -29,7 +29,7 @@ import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { playerSeasonFilterOptions, seasonLabel } from '@/lib/player-search-state'
-import { currentSeasonYear, invalidateSeasonCache } from '@/lib/shared/season'
+import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { addLimitSummary } from '@/lib/pickup'
@@ -38,12 +38,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loadPlayerSupport } from '@/lib/player-availability'
 import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
 import { invalidateLeagueSnapshot } from '@/lib/league-changes'
-import {
-    debounceRealtimeRefresh,
-    reportRealtimeCleanup,
-    subscribeToTableChanges,
-    unsubscribeFromTableChanges,
-} from '@/lib/realtime'
+import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -232,29 +227,7 @@ function PlayerSearchSection() {
         return refreshPlayerSupport()
     }, [retrySearch, refreshPlayerSupport])
 
-    useEffect(() => {
-        if (!leagueId) return
-
-        const refreshSupport = debounceRealtimeRefresh(() => { void refreshPlayers() })
-        const channel = subscribeToTableChanges(
-            `players-screen:${leagueId}`,
-            { mode: 'fallback', watches: [
-                { table: 'roster_players', filter: `league_id=eq.${leagueId}` },
-                { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
-                { table: 'waiver_claims', filter: `league_id=eq.${leagueId}` },
-                { table: 'waiver_priorities', filter: `league_id=eq.${leagueId}` },
-                { table: 'league_members', filter: `league_id=eq.${leagueId}` },
-            ], onChange: refreshSupport.trigger, onReconnect: () => {
-                invalidateSeasonCache(leagueId)
-                return refreshPlayers()
-            } },
-        )
-
-        return () => {
-            refreshSupport.cancel()
-            reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
-        }
-    }, [leagueId, refreshPlayers])
+    usePlayerSupportRealtime(current?.id, leagueId, refreshPlayerSupport, refreshPlayers)
 
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
@@ -273,7 +246,7 @@ function PlayerSearchSection() {
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
-        onChanged: refreshPlayers,
+        onChanged: refreshPlayerSupport,
         transactionState,
         onClaimInstead: openClaim,
     })
