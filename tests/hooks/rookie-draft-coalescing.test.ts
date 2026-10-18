@@ -186,6 +186,25 @@ it('coalesces one pick transaction across both watched tables', async () => {
     expect(measured.visibleMs).toBeLessThanOrEqual(300)
 })
 
+it('catches up a missed pick and prospect removal after rejoin', async () => {
+    await mount()
+    pickFirst()
+    let recovered!: Promise<boolean>
+    const reconnect = boundary.subscribe.mock.calls.at(-1)![2] as () => Promise<boolean>
+    await act(async () => { recovered = reconnect() })
+    await advance(100)
+    expect(await recovered).toBe(true)
+    expect(latest.state?.nextPick?.overallPick).toBe(2)
+    expect(latest.prospects.map(player => player.id)).toEqual(['b'])
+    expect(boundary.state).toHaveBeenCalledTimes(1)
+    expect(boundary.prospects).toHaveBeenCalledTimes(1)
+    expect(boundary.revision).not.toHaveBeenCalled()
+    await act(async () => { renderer?.unmount() })
+    const reads = boundary.state.mock.calls.length
+    expect(await reconnect()).toBe(false)
+    expect(boundary.state).toHaveBeenCalledTimes(reads)
+})
+
 it('coalesces repeated notifications of the same pick', async () => {
     await mount()
     pickFirst()

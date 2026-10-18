@@ -29,7 +29,7 @@ import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { playerSeasonFilterOptions, seasonLabel } from '@/lib/player-search-state'
-import { currentSeasonYear } from '@/lib/shared/season'
+import { currentSeasonYear, invalidateSeasonCache } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { getMemberTransactionState } from '@/lib/league'
 import { addLimitSummary } from '@/lib/pickup'
@@ -239,7 +239,10 @@ function PlayerSearchSection() {
                 { table: 'waiver_claims', filter: `league_id=eq.${leagueId}` },
                 { table: 'waiver_priorities', filter: `league_id=eq.${leagueId}` },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}` },
-            ], onChange: refreshSupport.trigger },
+            ], onChange: refreshSupport.trigger, onReconnect: () => {
+                invalidateSeasonCache(leagueId)
+                return refreshPlayers()
+            } },
         )
 
         return () => {

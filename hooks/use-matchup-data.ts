@@ -400,6 +400,15 @@ export function useMatchupData(
             `league-matchups:${matchup.seasonId}:${matchup.weekNumber}`,
             {
                 mode: 'per-watch',
+                onReconnect: async () => {
+                    if (!isActive()) return
+                    if (leagueId) {
+                        invalidateSeasonCache(leagueId)
+                        for (const memberId of visibleMemberIds) invalidateCachedRoster(memberId, leagueId, matchup.seasonId)
+                    }
+                    invalidateWeekNumberCache()
+                    await load()
+                },
                 watches: [{
                     event: 'UPDATE',
                     table: 'matchups',
@@ -472,7 +481,7 @@ export function useMatchupData(
                 disposeTableChangeSubscription(channel, [refreshVisibleLineups]),
             )
         }
-    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, matchup?.roundStartWeek, ownsResource, refreshSilently, resourceKey, leagueId])
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, matchup?.roundStartWeek, ownsResource, refreshSilently, resourceKey, leagueId, load])
 
     const setVisibleSelectedDate = useCallback((date: string) => {
         if (ownsResource && activeResourceKeyRef.current === resourceKey) setSelectedDate(date)

@@ -118,7 +118,7 @@ export function usePendingTradeCount(): number {
             { mode: 'fallback', watches: [
                 { table: 'trades', filter: `league_id=eq.${leagueId}` },
                 { table: 'trade_participants', filter: `league_id=eq.${leagueId}` },
-            ], onChange: refresh },
+            ], onChange: refresh, onReconnect: refreshQueue.run },
         )
         if (typeof window !== 'undefined') window.addEventListener('focus', refresh)
         void refreshQueue.run()

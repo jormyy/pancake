@@ -38,9 +38,11 @@ A short map of where each concern lives. Detailed contracts stay in the linked d
 ## Live updates
 
 Realtime subscriptions go through `lib/realtime.ts`: one private channel per consumer; `per-watch` gives each table its
-own handler and `fallback` sends every watched table to one refresh callback. Polling, focus and reconnect catch-up live
-in the consuming hooks. Bursts are coalesced per consumer with a bounded window that starts at the first event, one read
-in flight and one queued follow-up. Membership and rookie draft event refreshes wait while hidden:
+own handler and `fallback` sends every watched table to one refresh callback. Consumers supply an `onReconnect` read
+to recover changes missed during a socket gap. The adapter waits for rejoin, network access and a visible page. It
+skips duplicate initial reads, permits one recovery read in flight, and retries failed recovery twice with backoff.
+Disposal cancels retries and resume listeners. Polling, focus, row handling and read ownership stay in the consuming
+hooks. Membership and rookie draft event refreshes wait while hidden:
 
 | Consumer | File | Coalescing |
 | --- | --- | --- |

@@ -278,6 +278,11 @@ export function useRookieDraftRoomController({
             eventRevision += 1
             pollRevisionRef.current = null
             reloadRoom.trigger()
+        }, async () => {
+            if (!isCurrent()) return false
+            eventRevision += 1
+            pollRevisionRef.current = null
+            return reloadRoom.run()
         })
         channelRef.current = channel
         let polling = false

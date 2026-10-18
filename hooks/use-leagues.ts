@@ -215,7 +215,7 @@ export function useLeagues() {
                     { table: 'leagues', filter: `id=eq.${leagueId}` },
                     { table: 'league_members', filter: `league_id=eq.${leagueId}` },
                 ]),
-            ], onChange: () => { if (!disposed) refreshQueue.trigger() } },
+            ], onChange: () => { if (!disposed) refreshQueue.trigger() }, onReconnect: refreshQueue.run },
         )
 
         return () => {

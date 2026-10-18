@@ -10,6 +10,72 @@ type TableChangeSubscription =
 export type RealtimeSubscriptionStatus = 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR'
 type SubscriptionWithStatus = TableChangeSubscription & {
     onStatus?: (status: RealtimeSubscriptionStatus) => void
+    onReconnect?: () => void | boolean | Promise<void | boolean>
+}
+
+const subscriptionCleanups = new WeakMap<RealtimeChannel, () => void>()
+
+function reconnectRecovery(reload: NonNullable<SubscriptionWithStatus['onReconnect']>) {
+    let disposed = false
+    let joined = false
+    let disconnected = false
+    let pending = false
+    let inFlight = false
+    let attempts = 0
+    let retry: ReturnType<typeof setTimeout> | null = null
+    const canRead = () => !disposed && joined
+        && (typeof navigator === 'undefined' || navigator.onLine !== false)
+        && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
+    const run = async () => {
+        if (!pending || inFlight || attempts >= 3 || !canRead()) return
+        if (retry) clearTimeout(retry)
+        retry = null
+        pending = false
+        inFlight = true
+        attempts += 1
+        try {
+            if (await reload() === false) pending = true
+        } catch (error) {
+            pending = true
+            if (!disposed) console.error('Could not recover missed realtime updates.', error)
+        } finally {
+            inFlight = false
+            if (pending && canRead() && attempts < 3) {
+                retry = setTimeout(() => { retry = null; void run() }, 2_000 * attempts)
+            }
+        }
+    }
+    const resume = () => {
+        if (!canRead() || !pending) return
+        attempts = 0
+        void run()
+    }
+    if (typeof window !== 'undefined') window.addEventListener('online', resume)
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
+    return {
+        onStatus: (status: RealtimeSubscriptionStatus) => {
+            if (disposed) return
+            if (status !== 'SUBSCRIBED') {
+                joined = false
+                disconnected = true
+                return
+            }
+            joined = true
+            if (disconnected) {
+                disconnected = false
+                pending = true
+                attempts = 0
+            }
+            void run()
+        },
+        cancel: () => {
+            disposed = true
+            pending = false
+            if (retry) clearTimeout(retry)
+            if (typeof window !== 'undefined') window.removeEventListener('online', resume)
+            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume)
+        },
+    }
 }
 
 export function subscribeToTableChanges(
@@ -34,7 +100,12 @@ export function subscribeToTableChanges(
     } else {
         for (const watch of subscription.watches) register(watch, subscription.onChange)
     }
-    return channel.subscribe((status) => subscription.onStatus?.(status))
+    const recovery = subscription.onReconnect ? reconnectRecovery(subscription.onReconnect) : null
+    if (recovery) subscriptionCleanups.set(channel, recovery.cancel)
+    return channel.subscribe((status) => {
+        subscription.onStatus?.(status)
+        recovery?.onStatus(status)
+    })
 }
 
 export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {
@@ -55,6 +126,8 @@ export function debounceRealtimeRefresh(onChange: () => void, delayMs = 250) {
 }
 
 export async function unsubscribeFromTableChanges(channel: RealtimeChannel): Promise<void> {
+    subscriptionCleanups.get(channel)?.()
+    subscriptionCleanups.delete(channel)
     await supabase.removeChannel(channel)
 }
 

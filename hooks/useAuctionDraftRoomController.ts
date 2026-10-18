@@ -87,7 +87,6 @@ export function useAuctionDraftRoomController({
 
     const visibleState = stateDraftId === draftId ? state : null
     const countdownNomination = visibleState?.draft.status === 'in_progress' ? visibleState.openNomination : null
-    const draftLeagueId = visibleState?.draft.leagueId ?? null
     activeDraftIdRef.current = draftId
 
     useEffect(() => {
@@ -178,7 +177,7 @@ export function useAuctionDraftRoomController({
         // reloads the whole draft state; coalesce the burst into one reload.
         const refresh = debounceRealtimeRefresh(() => { void load() })
         let rejoin: ReturnType<typeof setTimeout> | null = null
-        const channel = subscribeToDraft(draftId, draftLeagueId, refresh.trigger, (status) => {
+        const channel = subscribeToDraft(draftId, null, refresh.trigger, (status) => {
             if (!active) return
             setRealtimeStatus(status)
             // CHANNEL_ERROR and TIMED_OUT rejoin inside the client; CLOSED is terminal, so subscribe again.
@@ -190,14 +189,14 @@ export function useAuctionDraftRoomController({
                     setSubscriptionEpoch((epoch) => epoch + 1)
                 }, AUCTION_REJOIN_DELAY_MS)
             }
-        })
+        }, load)
         return () => {
             active = false
             if (rejoin) clearTimeout(rejoin)
             refresh.cancel()
             reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
         }
-    }, [draftId, draftLeagueId, load, subscriptionEpoch])
+    }, [draftId, load, subscriptionEpoch])
 
     // Realtime is primary. The fallback probes only current mutable rows and
     // reloads history/ages when their revision actually changes.

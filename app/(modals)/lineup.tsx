@@ -453,6 +453,13 @@ export default function LineupScreen() {
             `lineup-screen:${lineupCtx.seasonId}:${memberId}`,
             {
                 mode: 'per-watch',
+                onReconnect: async () => {
+                    if (disposed) return
+                    invalidateSeasonCache(currentLeague.id)
+                    invalidateWeekNumberCache()
+                    invalidateCachedRoster(memberId, currentLeague.id, lineupCtx.seasonId)
+                    await load(selectedDate)
+                },
                 watches: [{
                     table: 'weekly_lineups',
                     filter: `league_season_id=eq.${lineupCtx.seasonId}`,

@@ -73,6 +73,10 @@ export function useLeagueScreenState() {
         const channel = subscribeToTableChanges(`league-screen:${lid}`, {
             mode: 'per-watch',
             watches: leagueWatches,
+            onReconnect: () => {
+                for (const target of ['results', 'history', 'settings', 'draftBoard', 'mockRooms'] as const) invalidateTab(target)
+                return fetchActiveDraft(lid)
+            },
         })
         return () => reportRealtimeCleanup(
             'league screen',
@@ -107,6 +111,11 @@ export function useLeagueScreenState() {
         const channel = subscribeToTableChanges(`league-screen-drafts:${lid}:${currentDraftKey}`, {
             mode: 'per-watch',
             watches: draftWatches,
+            onReconnect: () => {
+                invalidateTab('draftBoard')
+                invalidateTab('mockRooms')
+                return fetchActiveDraft(lid)
+            },
         })
         return () => reportRealtimeCleanup(
             'league screen drafts',

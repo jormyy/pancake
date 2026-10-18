@@ -5,7 +5,8 @@ import type { RealtimePostgresUpdatePayload } from '@supabase/supabase-js'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import type { TableChangeWatch } from '@/lib/realtime-config'
 
-const mocks = vi.hoisted(() => ({ getMyMatchup: vi.fn(), getWeeklyLineup: vi.fn(), invalidate: vi.fn(), subscriptions: [] as { watches: TableChangeWatch[] }[] }))
+type Subscription = { watches: TableChangeWatch[]; onReconnect?: () => Promise<void> }
+const mocks = vi.hoisted(() => ({ getMyMatchup: vi.fn(), getWeeklyLineup: vi.fn(), invalidate: vi.fn(), subscriptions: [] as Subscription[] }))
 vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
 vi.mock('@/lib/scoring', () => ({ getMyMatchup: mocks.getMyMatchup, getLeagueWeekMatchups: async () => [] }))
 vi.mock('@/lib/lineup', () => ({
@@ -20,7 +21,7 @@ vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: (refresh: () => void) => ({ trigger: refresh, cancel: vi.fn() }),
     disposeTableChangeSubscription: async () => {}, reportRealtimeCleanup: vi.fn(),
-    subscribeToTableChanges: (_name: string, subscription: { watches: TableChangeWatch[] }) => {
+    subscribeToTableChanges: (_name: string, subscription: Subscription) => {
         mocks.subscriptions.push(subscription)
         return {}
     },
@@ -85,6 +86,24 @@ it('rejects an old subscription after the same owner changes matchup', async () 
     await act(async () => { old(event('a', 11)) })
     expect(latest.matchup?.id).toBe('replacement')
     expect(latest.matchup?.myPoints).toBe(200)
+    await act(async () => { renderer.unmount() })
+})
+
+it('catches up missed scores and lineups, including a downward correction, without accepting a former owner', async () => {
+    const renderer = await mount()
+    const reconnect = mocks.subscriptions.at(-1)!.onReconnect!
+    mocks.getMyMatchup.mockResolvedValue({ ...latest.matchup, myPoints: 100 })
+    mocks.getWeeklyLineup.mockResolvedValue({ starters: [], bench: [{ playerId: 'incoming' }], ir: [], taxi: [], benchSlots: 3 })
+    await act(async () => { await reconnect() })
+    expect(latest.matchup?.myPoints).toBe(100)
+    expect(latest.myLineup?.bench[0].playerId).toBe('incoming')
+    expect(mocks.invalidate.mock.calls).toEqual([
+        ['member-a', 'league-a', 'season-member-a'], ['opponent', 'league-a', 'season-member-a'],
+    ])
+    await act(async () => { renderer.update(React.createElement(Probe, { owner: 'b' })) })
+    mocks.getMyMatchup.mockClear()
+    await act(async () => { await reconnect() })
+    expect(mocks.getMyMatchup).not.toHaveBeenCalled()
     await act(async () => { renderer.unmount() })
 })
 

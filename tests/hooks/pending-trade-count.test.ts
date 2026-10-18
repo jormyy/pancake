@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
+import { subscribeToTableChanges } from '@/lib/realtime'
 
 const { getPendingIncomingTradeCount, league } = vi.hoisted(() => ({
     getPendingIncomingTradeCount: vi.fn(),
@@ -35,6 +36,20 @@ afterEach(() => {
 })
 
 describe('usePendingTradeCount', () => {
+    it('reconciles a missed offer after rejoin', async () => {
+        let count = -1
+        const Probe = () => { count = usePendingTradeCount(); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(count).toBe(3)
+        getPendingIncomingTradeCount.mockResolvedValue(7)
+        const reconnect = vi.mocked(subscribeToTableChanges).mock.calls.at(-1)![1].onReconnect!
+        await act(async () => { await reconnect() })
+        expect(count).toBe(7)
+        expect(getPendingIncomingTradeCount).toHaveBeenCalledTimes(2)
+        await act(async () => { renderer.unmount() })
+    })
+
     it('shows only the current league count and retries a failed read', async () => {
         let latest = -1
         const Probe = ({ leagueId }: { leagueId: string }) => {

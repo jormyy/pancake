@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagues } from '@/hooks/use-leagues'
+import { subscribeToTableChanges } from '@/lib/realtime'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active' } }))
 
@@ -76,6 +77,22 @@ describe('league refresh contract', () => {
         await act(async () => { renderer = create(React.createElement(Probe, { userId: 'user-a' })); await Promise.resolve() })
         await act(async () => { renderer.update(React.createElement(Probe, { userId: 'user-b' })) })
         expect(latest.memberships.every((row) => !row.id.includes('user-a'))).toBe(true)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('clears membership access revoked during a socket gap', async () => {
+        const rows = [{ id: 'member', leagues: { id: 'league' } }]
+        mocks.fetchUserLeagues.mockResolvedValueOnce(rows).mockResolvedValueOnce([])
+        let latest!: ReturnType<typeof useLeagues>
+        const Probe = () => { latest = useLeagues(); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.memberships).toEqual(rows)
+        const reconnect = vi.mocked(subscribeToTableChanges).mock.calls.at(-1)![1].onReconnect!
+        await act(async () => { await reconnect() })
+        expect(latest.memberships).toEqual([])
+        expect(latest.membershipValidated).toBe(true)
+        expect(latest.membershipStatus).toBe('empty')
         await act(async () => { renderer.unmount() })
     })
 })

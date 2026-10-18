@@ -35,7 +35,7 @@ import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 import { AutoSetModal } from '@/components/AutoSetModal'
 import { autoSetLineup, getLineupContext, getRosterSlotPlan, type RosterSlotPlan } from '@/lib/lineup'
-import { getActiveSeasonId } from '@/lib/shared/season'
+import { getActiveSeasonId, invalidateSeasonCache } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 import { arrangeActiveRoster } from '@/lib/roster-slots'
 import { getMemberTransactionState, isTradingClosed } from '@/lib/league'
@@ -359,7 +359,10 @@ export default function RosterScreen() {
                 { table: 'waiver_priorities', filter: `member_id=eq.${current.id}` },
                 { table: 'waiver_wire_log', filter: `league_id=eq.${leagueId}` },
                 { table: 'weekly_lineups', filter: `member_id=eq.${current.id}` },
-            ], onChange: refreshRoster.trigger },
+            ], onChange: refreshRoster.trigger, onReconnect: () => {
+                invalidateSeasonCache(leagueId)
+                return refresh()
+            } },
         )
 
         return () => {

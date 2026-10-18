@@ -5,10 +5,11 @@ import LineupScreen from '@/app/(modals)/lineup'
 import type { LineupPlayer } from '@/lib/lineup'
 import type { TableChangeWatch } from '@/lib/realtime-config'
 
+type Subscription = { watches: TableChangeWatch[]; onReconnect?: () => Promise<void> }
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
     lineup: { starters: [] as { slotType: string; player: null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
-    subscriptions: [] as { watches: TableChangeWatch[] }[], invalidate: vi.fn(),
+    subscriptions: [] as Subscription[], invalidate: vi.fn(),
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v } }))
@@ -37,7 +38,7 @@ vi.mock('@/lib/shared/week', () => ({ invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: (refresh: () => void) => ({ trigger: refresh, cancel: vi.fn() }),
     disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(),
-    subscribeToTableChanges: (_name: string, subscription: { watches: TableChangeWatch[] }) => { mocks.subscriptions.push(subscription); return {} },
+    subscribeToTableChanges: (_name: string, subscription: Subscription) => { mocks.subscriptions.push(subscription); return {} },
 }))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.showAlert }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => '' }))
@@ -84,6 +85,21 @@ it('uses the new day capacity after switching dates', async () => {
     mocks.lineup = { starters: [], bench: [], benchSlots: 2 }
     await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12'))
     expect(emptyRows()).toHaveLength(2)
+})
+
+it('catches up missed lineup changes and ignores a disposed owner', async () => {
+    await mount()
+    const reconnect = mocks.subscriptions.at(-1)!.onReconnect!
+    mocks.lineup.benchSlots = 2
+    await act(async () => { await reconnect() })
+    expect(emptyRows()).toHaveLength(2)
+    expect(mocks.invalidate).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a')
+    mocks.context.current = { id: 'member-b' }
+    mocks.context.currentLeague = { id: 'league-b' }
+    await act(async () => { screen.update(React.createElement(LineupScreen)) })
+    mocks.invalidate.mockClear()
+    await act(async () => { await reconnect() })
+    expect(mocks.invalidate).not.toHaveBeenCalled()
 })
 
 it('omits a bench section when the league has no bench places', async () => {

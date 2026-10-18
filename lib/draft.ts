@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
-import { subscribeToTableChanges } from '@/lib/realtime'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import type { RealtimeSubscriptionStatus } from '@/lib/realtime'
 
 type DraftOrderEntry = {
@@ -556,6 +556,7 @@ export function subscribeToDraft(
     _leagueId: string | null | undefined,
     onChange: () => void,
     onStatus?: (status: RealtimeSubscriptionStatus) => void,
+    onReconnect?: () => Promise<boolean>,
 ): RealtimeChannel {
     return subscribeToTableChanges(`draft:${draftId}`, {
         mode: 'fallback',
@@ -566,9 +567,10 @@ export function subscribeToDraft(
         ],
         onChange,
         onStatus,
+        onReconnect,
     })
 }
 
 export async function unsubscribeFromDraft(channel: RealtimeChannel): Promise<void> {
-    await supabase.removeChannel(channel)
+    await unsubscribeFromTableChanges(channel)
 }

@@ -289,7 +289,7 @@ export async function advanceSeason(leagueId: string) {
 }
 
 
-export function subscribeToRookieDraft(draftId: string, onChange: () => void): RealtimeChannel {
+export function subscribeToRookieDraft(draftId: string, onChange: () => void, onReconnect?: () => Promise<boolean>): RealtimeChannel {
     return subscribeToTableChanges(`rookie-draft:${draftId}`, {
         mode: 'fallback',
         watches: [
@@ -297,6 +297,7 @@ export function subscribeToRookieDraft(draftId: string, onChange: () => void): R
             { table: 'drafts', event: 'UPDATE', filter: `id=eq.${draftId}` },
         ],
         onChange,
+        onReconnect,
     })
 }
 
