@@ -148,3 +148,44 @@ describe('useLeagueDraftController', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+it('defers hidden draft status and retry, then joins one current read on return', async () => {
+    const doc = new EventTarget()
+    let hidden = true
+    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', doc)
+    mocks.getJoinableDraft.mockResolvedValue(draft('fresh'))
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = () => { latest = useLeagueDraftController('league'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.retryActiveDraft() })
+        expect(mocks.getJoinableDraft).not.toHaveBeenCalled()
+        hidden = false
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
+        expect(mocks.getJoinableDraft).toHaveBeenCalledTimes(1)
+        expect(latest.activeDraft?.id).toBe('fresh')
+    } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
+})
+
+it('fences same-league member changes and refuses unvalidated draft actions', async () => {
+    const pending = deferred<Draft>()
+    mocks.getJoinableDraft.mockReturnValueOnce(pending.promise).mockResolvedValue(draft('current'))
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = ({ member, authorized = true }: { member: string; authorized?: boolean }) => {
+        latest = useLeagueDraftController('league', { memberId: member, authorized })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { member: 'first' })) })
+        await act(async () => { renderer.update(React.createElement(Probe, { member: 'second' })) })
+        await act(async () => { pending.resolve(draft('stale')) })
+        expect(latest.activeDraft?.id).toBe('current')
+        await act(async () => { renderer.update(React.createElement(Probe, { member: 'second', authorized: false })) })
+        await act(async () => { await latest.handleJoinDraftRoom(); await latest.handleStartDraft() })
+        expect(mocks.push).not.toHaveBeenCalled()
+        expect(mocks.confirmAction).not.toHaveBeenCalled()
+    } finally { await act(async () => { renderer.unmount() }) }
+})

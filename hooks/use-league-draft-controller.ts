@@ -13,6 +13,8 @@ import {
 import { getActiveRookieDraft, reseedRookieDraftPicks, startRookieDraft } from '@/lib/rookieDraft'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { normalizeDraftTimerSeconds, type DraftTimerOption, type RookieRoundOption } from '@/lib/draft-options'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -27,17 +29,26 @@ const readActiveDraftCache = (leagueId: string) =>
 const writeActiveDraftCache = (leagueId: string, draft: Draft | null) =>
     writePersistentCache<ActiveDraftCacheEntry>(`${ACTIVE_DRAFT_CACHE_PREFIX}${leagueId}`, { draft })
 
-export function useLeagueDraftController(leagueId: string | undefined) {
+export function useLeagueDraftController(leagueId: string | undefined, options: { memberId?: string; authorized?: boolean } = {}) {
     const { push } = useRouter()
+    const activity = useBrowserReadActivity()
+    const focused = useRef(false)
+    const resourceKey = JSON.stringify([sessionOwner(), sessionGeneration(), leagueId, options.memberId])
+    const activeResource = useRef(resourceKey)
+    activeResource.current = resourceKey
+    const admission = () => focused.current && options.authorized !== false && sessionOwner() !== null
+        && activity.isCurrent(activity.revision) && activeResource.current === resourceKey
+    const admissionRef = useRef(admission)
+    admissionRef.current = admission
     const activeLeagueIdRef = useRef(leagueId)
-    const renderedLeagueIdRef = useRef(leagueId)
+    const renderedLeagueIdRef = useRef(resourceKey)
     const mutationGenerationRef = useRef(0)
     const requestSequence = useRef(0)
     const inFlightRequest = useRef<{ leagueId: string; promise: Promise<void> } | null>(null)
     const refreshQueued = useRef(false)
     activeLeagueIdRef.current = leagueId
-    if (renderedLeagueIdRef.current !== leagueId) {
-        renderedLeagueIdRef.current = leagueId
+    if (renderedLeagueIdRef.current !== resourceKey) {
+        renderedLeagueIdRef.current = resourceKey
         mutationGenerationRef.current += 1
     }
     const [draftLoadingOwner, setDraftLoadingOwner] = useState<string | null>(null)
@@ -46,7 +57,8 @@ export function useLeagueDraftController(leagueId: string | undefined) {
     const [rookieRounds, setRookieRounds] = useState<RookieRoundOption>(3)
     const [rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior] =
         useState<RookieTimerExpiryBehavior>('auto_pick')
-    const initialCached = leagueId ? readActiveDraftCache(leagueId) : undefined
+    const initialCached = leagueId ? readActiveDraftCache(resourceKey) : undefined
+    const [draftOwnerKey, setDraftOwnerKey] = useState(resourceKey)
     const [activeDraft, setActiveDraft] = useState<Draft | null>(initialCached?.draft ?? null)
     const [activeDraftLoading, setActiveDraftLoading] = useState(true)
     // True once the first status fetch for this league has resolved (or the
@@ -59,42 +71,48 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         requestSequence.current += 1
         inFlightRequest.current = null
         refreshQueued.current = false
-        const cached = leagueId ? readActiveDraftCache(leagueId) : undefined
+        setDraftOwnerKey(resourceKey)
+        const cached = leagueId ? readActiveDraftCache(resourceKey) : undefined
         setActiveDraft(cached?.draft ?? null)
         setActiveDraftError(null)
         setActiveDraftLoading(Boolean(leagueId))
         setActiveDraftLoaded(cached !== undefined)
         setDraftLoadingOwner(null)
-    }, [leagueId])
+    }, [leagueId, resourceKey])
 
     const ownsAction = useCallback((capturedLeagueId: string, generation: number) => (
-        activeLeagueIdRef.current === capturedLeagueId && mutationGenerationRef.current === generation
+        admissionRef.current() && activeLeagueIdRef.current === capturedLeagueId && mutationGenerationRef.current === generation
     ), [])
 
     const fetchActiveDraft = useCallback((lid: string): Promise<void> => {
+        if (activeLeagueIdRef.current !== lid) return Promise.resolve()
+        if (!admissionRef.current()) { refreshQueued.current = true; return Promise.resolve() }
+        const permits = admissionRef.current
+        const key = activeResource.current
         const existing = inFlightRequest.current
         if (existing?.leagueId === lid) {
             refreshQueued.current = true
             return existing.promise
         }
+        refreshQueued.current = false
         const requestId = ++requestSequence.current
         const request = { leagueId: lid, promise: Promise.resolve() }
         setActiveDraftLoading(true)
         request.promise = getJoinableDraft(lid, { includeCompletedRookie: true })
             .then((nextDraft) => {
-                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
-                writeActiveDraftCache(lid, nextDraft)
+                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId || activeResource.current !== key || !permits()) return
+                writeActiveDraftCache(key, nextDraft)
                 setActiveDraft(nextDraft)
                 setActiveDraftError(null)
             })
             .catch((error: unknown) => {
-                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
+                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId || activeResource.current !== key || !permits()) return
                 setActiveDraftError(error instanceof Error ? error.message : 'Could not load active draft')
             })
             .finally(() => {
                 if (inFlightRequest.current !== request) return
                 inFlightRequest.current = null
-                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId) return
+                if (activeLeagueIdRef.current !== lid || requestSequence.current !== requestId || activeResource.current !== key || !permits()) return
                 setActiveDraftLoaded(true)
                 if (refreshQueued.current) {
                     refreshQueued.current = false
@@ -107,9 +125,23 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         return request.promise
     }, [])
 
+    const suspend = useCallback(() => {
+        if (inFlightRequest.current) refreshQueued.current = true
+        requestSequence.current += 1
+        inFlightRequest.current = null
+        setActiveDraftLoading(false)
+    }, [])
+
     useFocusEffect(useCallback(() => {
+        focused.current = true
         if (leagueId) void fetchActiveDraft(leagueId)
-    }, [fetchActiveDraft, leagueId]))
+        return () => { focused.current = false; suspend() }
+    }, [fetchActiveDraft, leagueId, resourceKey, suspend]))
+
+    useEffect(() => {
+        if (!admissionRef.current()) suspend()
+        else if (leagueId && refreshQueued.current) void fetchActiveDraft(leagueId)
+    }, [activity.revision, options.authorized, leagueId, fetchActiveDraft, suspend])
 
     const openDraftRoom = useCallback((draftId: string, draftType: string) => {
         push({
@@ -119,7 +151,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
     }, [push])
 
     const handleStartDraft = async () => {
-        if (!leagueId) return
+        if (!leagueId || !admissionRef.current()) return
         const capturedLeagueId = leagueId
         const generation = mutationGenerationRef.current
         confirmAction(
@@ -147,14 +179,12 @@ export function useLeagueDraftController(leagueId: string | undefined) {
     }
 
     const handleJoinDraftRoom = async () => {
-        if (!leagueId) return
+        if (!leagueId || !admissionRef.current()) return
         const capturedLeagueId = leagueId
         const generation = mutationGenerationRef.current
         setDraftLoadingOwner(capturedLeagueId)
         try {
-            const draft = activeDraft?.leagueId === capturedLeagueId
-                ? activeDraft
-                : await getJoinableDraft(capturedLeagueId, { includeCompletedRookie: true })
+            const draft = await getJoinableDraft(capturedLeagueId, { includeCompletedRookie: true })
             if (!ownsAction(capturedLeagueId, generation)) return
             if (!draft || (!OPEN_DRAFT_STATUSES.has(draft.status) && draft.status !== 'completed')) {
                 setActiveDraft(null)
@@ -172,7 +202,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
     }
 
     const handleStartRookieDraft = async () => {
-        if (!leagueId) return
+        if (!leagueId || !admissionRef.current()) return
         const capturedLeagueId = leagueId
         const generation = mutationGenerationRef.current
         confirmAction(
@@ -204,7 +234,7 @@ export function useLeagueDraftController(leagueId: string | undefined) {
     }
 
     const handleReseedRookiePicks = async () => {
-        if (!leagueId) return
+        if (!leagueId || !admissionRef.current()) return
         const capturedLeagueId = leagueId
         const generation = mutationGenerationRef.current
         setDraftLoadingOwner(capturedLeagueId)
@@ -228,11 +258,12 @@ export function useLeagueDraftController(leagueId: string | undefined) {
         }
     }
 
+    const ownsState = draftOwnerKey === resourceKey
     return {
-        activeDraft,
-        activeDraftError,
-        activeDraftLoading,
-        activeDraftLoaded,
+        activeDraft: ownsState ? activeDraft : null,
+        activeDraftError: ownsState ? activeDraftError : null,
+        activeDraftLoading: ownsState ? activeDraftLoading : Boolean(leagueId),
+        activeDraftLoaded: ownsState && activeDraftLoaded,
         draftLoading: draftLoadingOwner === leagueId,
         draftTimerSeconds,
         fetchActiveDraft,

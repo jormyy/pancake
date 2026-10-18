@@ -19,11 +19,11 @@ export function useLeagueScreenState() {
     const router = useRouter()
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
-    const { current, currentLeague, isCommissioner, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, isCommissioner, loading: leagueLoading, membershipValidated } = useLeagueContext()
     const [tab, setTab] = useState<LeagueTab>(() => parseLeagueTab(params.tab))
     const [sharing, setSharing] = useState(false)
-    const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab)
-    const draft = useLeagueDraftController(currentLeague?.id)
+    const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab, membershipValidated)
+    const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated })
     const mockRooms = useMockRoomsController({
         leagueId: currentLeague?.id,
         memberId: current?.id,

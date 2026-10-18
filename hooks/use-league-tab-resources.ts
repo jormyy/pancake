@@ -7,6 +7,8 @@ import { getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
+import { useBrowserReadActivity, browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -45,19 +47,27 @@ export function useLeagueTabResources(
     leagueId: string | undefined,
     memberId: string | undefined,
     activeTab: LeagueTab,
+    authorized = true,
 ) {
     const isOnline = useOnlineStatus()
+    const activity = useBrowserReadActivity()
     const wasOnline = useRef(isOnline)
     const focused = useRef(false)
-    const leagueKey = leagueId ?? null
+    const generation = sessionGeneration()
+    const leagueKey = leagueId && memberId ? JSON.stringify([sessionOwner(), generation, leagueId, memberId]) : null
+    const admission = () => focused.current && isOnline && authorized && sessionOwner() !== null
+        && sessionGeneration() === generation && activity.isCurrent(activity.revision)
+    const admissionRef = useRef(admission)
+    admissionRef.current = admission
     const activeLeagueRef = useRef(leagueKey)
     activeLeagueRef.current = leagueKey
-    const memberKey = leagueId && memberId ? `${leagueId}:${memberId}` : null
+    const memberKey = leagueId && memberId ? leagueKey : null
     const standings = useKeyedResource(
         leagueKey,
         EMPTY_STANDINGS,
         useCallback(() => leagueId ? getLeagueStandings(leagueId) : Promise.resolve([]), [leagueId]),
         STANDINGS_CACHE,
+        admission,
     )
     const history = useKeyedResource(
         leagueKey,
@@ -65,26 +75,30 @@ export function useLeagueTabResources(
         useCallback(async () => {
             const rows = leagueId ? await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : []
             return { rows, hasMore: rows.length === ACTIVITY_LIMIT }
-        }, [leagueId]),
+        }, [leagueId, leagueKey]),
         HISTORY_CACHE,
+        admission,
     )
     const waiverOrder = useKeyedResource(
         leagueKey,
         EMPTY_WAIVER_ORDER,
         useCallback(() => leagueId ? getWaiverPriorityOrder(leagueId) : Promise.resolve([]), [leagueId]),
         WAIVER_ORDER_CACHE,
+        admission,
     )
     const picks = useKeyedResource(
         leagueKey,
         EMPTY_PICKS,
         useCallback(() => leagueId ? getAllLeaguePicks(leagueId) : Promise.resolve([]), [leagueId]),
         PICKS_CACHE,
+        admission,
     )
     const mockRooms = useKeyedResource(
         memberKey,
         EMPTY_MOCK_ROOMS,
         useCallback(() => leagueId && memberId ? getMockDraftRooms(leagueId, memberId) : Promise.resolve([]), [leagueId, memberId]),
         MOCK_ROOMS_CACHE,
+        admission,
     )
     const resources = useMemo(() => ({
         results: standings,
@@ -116,21 +130,27 @@ export function useLeagueTabResources(
     }, [leagueKey, resetActivityPagination])
 
     const ensureTab = useCallback((tab: LeagueTab) => {
-        if (tab !== 'auctions') void resourcesRef.current[tab].ensure()
+        if (tab !== 'auctions' && admissionRef.current()) void resourcesRef.current[tab].ensure()
     }, [])
     const invalidateTab = useCallback((tab: LeagueTab) => {
         if (tab === 'history') resetActivityPagination()
-        if (tab !== 'auctions') resourcesRef.current[tab].invalidate(activeTabRef.current === tab)
+        if (tab !== 'auctions') resourcesRef.current[tab].invalidate(activeTabRef.current === tab && admissionRef.current())
     }, [resetActivityPagination])
     const refreshTab = useCallback((tab: LeagueTab) => {
         if (tab === 'history') resetActivityPagination()
-        return tab === 'auctions' ? Promise.resolve() : resourcesRef.current[tab].refresh()
+        if (tab === 'auctions') return Promise.resolve()
+        if (!admissionRef.current()) { resourcesRef.current[tab].invalidate(false); return Promise.resolve() }
+        return resourcesRef.current[tab].refresh()
     }, [resetActivityPagination])
 
     useFocusEffect(useCallback(() => {
         focused.current = true
-        return () => { focused.current = false }
-    }, []))
+        return () => {
+            focused.current = false
+            for (const resource of Object.values(resourcesRef.current)) resource.suspend()
+            resetActivityPagination()
+        }
+    }, [resetActivityPagination]))
 
     useEffect(() => {
         const reconnected = !wasOnline.current && isOnline
@@ -139,9 +159,16 @@ export function useLeagueTabResources(
         resetActivityPagination()
         for (const tab of RESOURCE_TABS) {
             if (tab === 'auctions') continue
-            resourcesRef.current[tab].invalidate(focused.current && activeTabRef.current === tab)
+            resourcesRef.current[tab].invalidate(false)
         }
     }, [isOnline, resetActivityPagination])
+
+    useEffect(() => {
+        if (!admissionRef.current()) {
+            for (const resource of Object.values(resourcesRef.current)) resource.suspend()
+            resetActivityPagination()
+        } else if (activeResourceKey) ensureTab(activeTab)
+    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, resetActivityPagination])
 
     useFocusEffect(useCallback(() => {
         if (activeResourceKey) ensureTab(activeTab)
@@ -149,20 +176,21 @@ export function useLeagueTabResources(
 
     const loadMoreActivity = useCallback(async () => {
         const resource = resourcesRef.current.history
-        if (!leagueId || activeLeagueRef.current !== leagueId || activityRequest.current || resource.loading || !resource.loaded || !resource.data.hasMore) return
+        if (!admissionRef.current() || !browserReadsAllowed() || !leagueId || activeLeagueRef.current !== leagueKey || activityRequest.current || resource.loading || !resource.loaded || !resource.data.hasMore) return
+        const permits = admissionRef.current
         const snapshot = resource.data
         const request = Symbol('activity')
         activityRequest.current = request
         setActivityLoadingMore(true)
         try {
             const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, snapshot.rows.length)
-            if (activityRequest.current !== request) return
+            if (activityRequest.current !== request || activeLeagueRef.current !== leagueKey || !permits()) return
             resource.setData((current) => current === snapshot
                 ? { rows: [...current.rows, ...data], hasMore: data.length === ACTIVITY_LIMIT }
                 : current)
             setActivityLoadMoreError(null)
         } catch (error) {
-            if (activityRequest.current === request) {
+            if (activityRequest.current === request && permits()) {
                 setActivityLoadMoreError(error instanceof Error ? error.message : 'Could not load more activity')
             }
         } finally {
@@ -171,7 +199,9 @@ export function useLeagueTabResources(
                 setActivityLoadingMore(false)
             }
         }
-    }, [leagueId])
+    }, [leagueId, leagueKey])
+
+    const refreshMockRooms = useCallback(() => refreshTab('mockRooms'), [refreshTab])
 
     return {
         activityHasMore: history.data.hasMore,
@@ -189,7 +219,7 @@ export function useLeagueTabResources(
         loadMoreActivity,
         mockRooms: mockRooms.data,
         refreshTab,
-        refreshMockRooms: mockRooms.refresh,
+        refreshMockRooms,
         standings: standings.data,
         tabError: activeResource?.error ?? undefined,
         transactions: history.data.rows,

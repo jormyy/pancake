@@ -63,7 +63,7 @@ it('defers hidden-screen reconnect reads until focus returns', async () => {
     await act(async () => { renderer.unmount() })
 })
 
-it('coalesces reconnect and mutation invalidation behind an inflight history read', async () => {
+it('replaces a suspended history read on reconnect and ignores the old response', async () => {
     let finish!: (rows: { id: string }[]) => void
     state.history.mockReturnValueOnce(new Promise((done) => { finish = done })).mockResolvedValueOnce([{ id: 'authoritative' }])
     let latest!: ReturnType<typeof useLeagueTabResources>
@@ -74,7 +74,8 @@ it('coalesces reconnect and mutation invalidation behind an inflight history rea
     await act(async () => { renderer.update(React.createElement(Probe)) })
     state.online = true
     await act(async () => { renderer.update(React.createElement(Probe)); latest.invalidateTab('history') })
-    expect(state.history).toHaveBeenCalledTimes(1)
+    expect(state.history).toHaveBeenCalledTimes(2)
+    expect(latest.transactions.map(row => row.id)).toEqual(['authoritative'])
     await act(async () => { finish([{ id: 'old' }]) })
     expect(state.history).toHaveBeenCalledTimes(2)
     expect(latest.transactions.map((row) => row.id)).toEqual(['authoritative'])
@@ -126,4 +127,49 @@ it('loads each league panel only when selected and retains hidden invalidations 
         await act(async () => { renderer.update(React.createElement(Probe, { tab: 'mockRooms' })) })
         expect(state.rooms).toHaveBeenCalledTimes(1)
     } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('defers a hidden initial panel and manual retry until it is visible', async () => {
+    const doc = new EventTarget()
+    let hidden = true
+    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', doc)
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'results'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.refreshTab('results'); latest.invalidateTab('history') })
+        expect(state.standings).not.toHaveBeenCalled()
+        expect(state.history).not.toHaveBeenCalled()
+        hidden = false
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
+        expect(state.standings).toHaveBeenCalledTimes(1)
+        expect(state.history).not.toHaveBeenCalled()
+    } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
+})
+
+it('releases a suspended read and retains dirty intent without a hidden follow-up', async () => {
+    const doc = new EventTarget()
+    let hidden = false
+    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', doc)
+    let release!: (rows: { memberId: string }[]) => void
+    state.standings.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+        .mockResolvedValue([{ memberId: 'new' }])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'results'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        hidden = true
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')); latest.invalidateTab('results') })
+        await act(async () => { release([{ memberId: 'late' }]) })
+        expect(state.standings).toHaveBeenCalledTimes(1)
+        expect(latest.standings).toEqual([])
+        hidden = false
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
+        expect(state.standings).toHaveBeenCalledTimes(2)
+        expect(latest.standings[0].memberId).toBe('new')
+    } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
 })
