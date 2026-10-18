@@ -96,8 +96,12 @@ export default function ProfileScreen() {
 
     useEffect(() => {
         setEditing(false)
-        setDisplayName(profileLoaded ? profile?.display_name ?? '' : '')
-    }, [preferenceUserId, profile?.display_name, profileLoaded])
+        setDisplayName('')
+    }, [preferenceUserId])
+
+    useEffect(() => {
+        if (!editing) setDisplayName(profileLoaded ? profile?.display_name ?? '' : '')
+    }, [editing, profile?.display_name, profileLoaded])
 
     // Sync team name from context whenever it changes
     useEffect(() => {

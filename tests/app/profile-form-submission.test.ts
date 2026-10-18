@@ -6,6 +6,7 @@ import ProfileScreen from '@/app/(tabs)/profile'
 const mocks = vi.hoisted(() => ({
     userId: 'user', memberId: 'member', teamName: 'Team', serverTeam: 'Team', platform: 'web',
     retryProfile: vi.fn(), refresh: vi.fn(),
+    receiveProfile: null as null | ((profile: { display_name: string; username: string; avatar_url: null }) => void),
     updatePreferences: vi.fn(),
     getPreferences: vi.fn(),
     teamRenders: [] as { memberId: string; value: unknown }[],
@@ -30,6 +31,7 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current
 vi.mock('@/hooks/use-profile-resource', () => ({ useProfileResource: function useProfileResource() {
     const [preferences, setPreferences] = React.useState(mocks.preferences)
     const [profile, setProfile] = React.useState(mocks.profile)
+    mocks.receiveProfile = setProfile
     return {
         profile, profileLoaded: true, preferences, setProfile, setPreferences,
         retryProfile: async () => { mocks.retryProfile(); setProfile(mocks.profile); setPreferences(await mocks.getPreferences()) },
@@ -320,4 +322,26 @@ it('does not reconcile or report an old account failure into the new account', a
     expect(mocks.retryProfile).not.toHaveBeenCalled()
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.alert).not.toHaveBeenCalled()
+})
+
+
+it('keeps editing busy when the profile resource updates before the team save settles', async () => {
+    let finish!: () => void
+    mocks.updateTeamName.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve }))
+    mocks.updateProfile.mockImplementationOnce(async () => {
+        mocks.profile = { ...mocks.profile, display_name: 'Committed name' }
+        mocks.receiveProfile?.(mocks.profile)
+    })
+    await act(async () => input('Display name').props.onChangeText('Committed name'))
+    let pending!: Promise<void>
+    await act(async () => { pending = input('Team name').props.onSubmitEditing() })
+    try {
+        expect(button('Save')).toBeDefined()
+        expect(button('Save').props.loading).toBe(true)
+        expect(mocks.success).not.toHaveBeenCalled()
+    } finally {
+        await act(async () => { finish(); await pending })
+    }
+    expect(mocks.success).toHaveBeenCalledOnce()
+    expect(button('Edit')).toBeDefined()
 })
