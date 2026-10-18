@@ -12,7 +12,8 @@ import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cach
 
 const ACTIVITY_LIMIT = 50
 const EMPTY_STANDINGS: StandingRow[] = []
-const EMPTY_TRANSACTIONS: TransactionRow[] = []
+type ActivityPage = { rows: TransactionRow[]; hasMore: boolean }
+const EMPTY_ACTIVITY: ActivityPage = { rows: [], hasMore: false }
 const EMPTY_WAIVER_ORDER: WaiverPriorityRow[] = []
 const EMPTY_PICKS: LeaguePickItem[] = []
 const EMPTY_MOCK_ROOMS: MockDraftRoom[] = []
@@ -28,7 +29,14 @@ function tabCache<Value>(tab: LeagueTab) {
     }
 }
 const STANDINGS_CACHE = tabCache<StandingRow[]>('results')
-const HISTORY_CACHE = tabCache<TransactionRow[]>('history')
+const HISTORY_ROWS_CACHE = tabCache<TransactionRow[]>('history')
+const HISTORY_CACHE = {
+    read: (key: string): ActivityPage | undefined => {
+        const rows = HISTORY_ROWS_CACHE.read(key)
+        return rows ? { rows, hasMore: rows.length > 0 && rows.length % ACTIVITY_LIMIT === 0 } : undefined
+    },
+    write: (key: string, page: ActivityPage) => HISTORY_ROWS_CACHE.write(key, page.rows),
+}
 const WAIVER_ORDER_CACHE = tabCache<WaiverPriorityRow[]>('settings')
 const PICKS_CACHE = tabCache<LeaguePickItem[]>('draftBoard')
 const MOCK_ROOMS_CACHE = tabCache<MockDraftRoom[]>('mockRooms')
@@ -42,6 +50,8 @@ export function useLeagueTabResources(
     const wasOnline = useRef(isOnline)
     const focused = useRef(false)
     const leagueKey = leagueId ?? null
+    const activeLeagueRef = useRef(leagueKey)
+    activeLeagueRef.current = leagueKey
     const memberKey = leagueId && memberId ? `${leagueId}:${memberId}` : null
     const standings = useKeyedResource(
         leagueKey,
@@ -51,8 +61,11 @@ export function useLeagueTabResources(
     )
     const history = useKeyedResource(
         leagueKey,
-        EMPTY_TRANSACTIONS,
-        useCallback(() => leagueId ? getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : Promise.resolve([]), [leagueId]),
+        EMPTY_ACTIVITY,
+        useCallback(async () => {
+            const rows = leagueId ? await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : []
+            return { rows, hasMore: rows.length === ACTIVITY_LIMIT }
+        }, [leagueId]),
         HISTORY_CACHE,
     )
     const waiverOrder = useKeyedResource(
@@ -86,8 +99,6 @@ export function useLeagueTabResources(
     const activeResourceKey = activeTab === 'auctions'
         ? null
         : activeTab === 'mockRooms' ? memberKey : leagueKey
-    const [activityOffset, setActivityOffset] = useState(0)
-    const [activityHasMore, setActivityHasMore] = useState(false)
     const [activityLoadingMore, setActivityLoadingMore] = useState(false)
     const [activityLoadMoreError, setActivityLoadMoreError] = useState<string | null>(null)
     const activityRequest = useRef<symbol | null>(null)
@@ -96,8 +107,6 @@ export function useLeagueTabResources(
 
     const resetActivityPagination = useCallback(() => {
         activityRequest.current = null
-        setActivityOffset(0)
-        setActivityHasMore(false)
         setActivityLoadingMore(false)
         setActivityLoadMoreError(null)
     }, [])
@@ -105,10 +114,6 @@ export function useLeagueTabResources(
     useEffect(() => {
         resetActivityPagination()
     }, [leagueKey, resetActivityPagination])
-
-    useEffect(() => {
-        if (activityOffset === 0) setActivityHasMore(history.data.length === ACTIVITY_LIMIT)
-    }, [activityOffset, history.data.length])
 
     const ensureTab = useCallback((tab: LeagueTab) => {
         if (tab !== 'auctions') void resourcesRef.current[tab].ensure()
@@ -150,17 +155,18 @@ export function useLeagueTabResources(
     }, [activeResourceKey, activeTab, ensureTab, leagueKey, memberKey]))
 
     const loadMoreActivity = useCallback(async () => {
-        if (!leagueId || activityRequest.current) return
+        const resource = resourcesRef.current.history
+        if (!leagueId || activeLeagueRef.current !== leagueId || activityRequest.current || resource.loading || !resource.loaded || !resource.data.hasMore) return
+        const snapshot = resource.data
         const request = Symbol('activity')
         activityRequest.current = request
         setActivityLoadingMore(true)
         try {
-            const nextOffset = activityOffset + ACTIVITY_LIMIT
-            const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, nextOffset)
+            const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, snapshot.rows.length)
             if (activityRequest.current !== request) return
-            resourcesRef.current.history.setData((current) => [...current, ...data])
-            setActivityOffset(nextOffset)
-            setActivityHasMore(data.length === ACTIVITY_LIMIT)
+            resource.setData((current) => current === snapshot
+                ? { rows: [...current.rows, ...data], hasMore: data.length === ACTIVITY_LIMIT }
+                : current)
             setActivityLoadMoreError(null)
         } catch (error) {
             if (activityRequest.current === request) {
@@ -172,10 +178,10 @@ export function useLeagueTabResources(
                 setActivityLoadingMore(false)
             }
         }
-    }, [activityOffset, leagueId])
+    }, [leagueId])
 
     return {
-        activityHasMore,
+        activityHasMore: history.data.hasMore,
         activityLoadMoreError,
         activityLoadingMore,
         currentLeaguePicks: picks.data,
@@ -193,7 +199,7 @@ export function useLeagueTabResources(
         refreshMockRooms: mockRooms.refresh,
         standings: standings.data,
         tabError: activeResource?.error ?? undefined,
-        transactions: history.data,
+        transactions: history.data.rows,
         waiverOrder: waiverOrder.data,
     }
 }

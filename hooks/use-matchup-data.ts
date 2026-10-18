@@ -38,6 +38,10 @@ type MatchupScreenCache = {
 
 const MATCHUP_CACHE_PREFIX = 'pancake:home-matchup:v1:'
 
+function lineupScope(matchup: Matchup | null | undefined, date: string): string | null {
+    return matchup ? `${matchup.seasonId}:${matchup.id}:${matchup.weekNumber}:${date}` : null
+}
+
 function reuseLineup(previous: LineupData | null, next: LineupData): LineupData {
     return previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next
 }
@@ -120,6 +124,8 @@ export function useMatchupData(
     const [leagueMatchups, setLeagueMatchups] = useState<LeagueWeekMatchup[]>(initialCache?.leagueMatchups ?? [])
     const [myLineup, setMyLineup] = useState<LineupData | null>(initialCache?.myLineup ?? null)
     const [oppLineup, setOppLineup] = useState<LineupData | null>(initialCache?.oppLineup ?? null)
+    const [myLineupScope, setMyLineupScope] = useState(() => lineupScope(initialCache?.matchup, selectedDate))
+    const [oppLineupScope, setOppLineupScope] = useState(() => lineupScope(initialCache?.matchup, selectedDate))
     const [matchupLoading, setMatchupLoading] = useState(!initialCache)
     const [lineupLoading, setLineupLoading] = useState(false)
     // A picked day whose lineup failed to load shows a retry, never the day before.
@@ -148,6 +154,8 @@ export function useMatchupData(
         setLeagueMatchups(cached?.leagueMatchups ?? [])
         setMyLineup(cached?.myLineup ?? null)
         setOppLineup(cached?.oppLineup ?? null)
+        setMyLineupScope(lineupScope(cached?.matchup, cached?.selectedDate ?? todayET()))
+        setOppLineupScope(lineupScope(cached?.matchup, cached?.selectedDate ?? todayET()))
         setSelectedDate(cached?.selectedDate ?? todayET())
         setMatchupLoading(!cached)
         setLineupLoading(false)
@@ -209,12 +217,14 @@ export function useMatchupData(
             const currentLeagueId = leagueId
             setLineupLoading(true)
             const stillCurrent = () => seq === lineupSeqRef.current &&
-                activeResourceKeyRef.current === capturedResourceKey && date === selectedDateRef.current
+                activeResourceKeyRef.current === capturedResourceKey && date === selectedDateRef.current && matchupRef.current?.id === m.id
             try {
                 const lineups = await fetchLineups(m, date, currentLeagueId)
                 if (!stillCurrent()) return null
                 setMyLineup(lineups.mine)
                 setOppLineup(lineups.opp)
+                setMyLineupScope(lineupScope(m, date))
+                setOppLineupScope(lineupScope(m, date))
                 setLineupError(false)
                 return lineups
             } catch (e) {
@@ -241,6 +251,7 @@ export function useMatchupData(
             if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
                 date !== selectedDateRef.current) return
             setMyLineup(data)
+            setMyLineupScope(lineupScope(m, date))
         },
         [leagueId, ownsResource, resourceKey],
     )
@@ -262,6 +273,8 @@ export function useMatchupData(
                     date !== selectedDateRef.current) return
                 setMyLineup((previous) => reuseLineup(previous, mine))
                 setOppLineup((previous) => reuseLineup(previous, opp))
+                setMyLineupScope(lineupScope(m, date))
+                setOppLineupScope(lineupScope(m, date))
                 setLineupError(false)
             } catch (error) {
                 if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
@@ -296,24 +309,44 @@ export function useMatchupData(
                 setEmptyConfirmed(false)
                 setMatchup(m)
                 matchupRef.current = m
-                const today = todayET()
                 const daysPromise = getWeekDays(m.weekNumber, m.seasonYear)
+                const readSelection = async (boundaries: { date: string }[]) => {
+                    while (seq === loadSeqRef.current && activeResourceKeyRef.current === capturedResourceKey) {
+                        const requested = selectedDateRef.current
+                        const selected = clampDateToWeek(requested, boundaries)
+                        try {
+                            return { requested, selected, lineups: await fetchLineups(m, selected, leagueId) }
+                        } catch (error) {
+                            if (requested === selectedDateRef.current) throw error
+                        }
+                    }
+                    throw new Error('Matchup read superseded')
+                }
                 const lineupsPromise = getSeasonWeekDates(m.seasonYear, m.weekNumber).then(async (dates) => {
                     const boundaries = dates.length > 0 ? dates.map((date) => ({ date })) : await daysPromise
-                    const selected = clampDateToWeek(today, boundaries)
-                    return { selected, lineups: await fetchLineups(m, selected, leagueId) }
+                    return { boundaries, ...await readSelection(boundaries) }
                 })
-                const [days, weekMatchups, { selected, lineups }] = await Promise.all([
+                const [days, weekMatchups, initial] = await Promise.all([
                     daysPromise,
                     getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
                     lineupsPromise,
                 ])
                 if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
+                let selection = initial
+                while (selection.requested !== selectedDateRef.current) {
+                    selection = { ...initial, ...await readSelection(initial.boundaries) }
+                    if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
+                }
+                const { selected, lineups } = selection
+                lineupSeqRef.current += 1
                 setWeekDays(days)
                 setLeagueMatchups(weekMatchups)
                 setSelectedDate(selected)
                 setMyLineup(lineups.mine)
                 setOppLineup(lineups.opp)
+                setMyLineupScope(lineupScope(m, selected))
+                setOppLineupScope(lineupScope(m, selected))
+                setLineupLoading(false)
                 setLineupError(false)
                 writeMatchupCache(current.id, leagueId, {
                     selectedDate: selected,
@@ -447,9 +480,9 @@ export function useMatchupData(
         weekDays: ownsResource ? weekDays : [],
         selectedDate: ownsResource ? selectedDate : todayET(),
         setSelectedDate: setVisibleSelectedDate,
-        myLineup: ownsResource ? myLineup : null,
+        myLineup: ownsResource && myLineupScope === lineupScope(matchup, selectedDate) ? myLineup : null,
         setMyLineup,
-        oppLineup: ownsResource ? oppLineup : null,
+        oppLineup: ownsResource && oppLineupScope === lineupScope(matchup, selectedDate) ? oppLineup : null,
         matchupLoading: ownsResource ? matchupLoading : true,
         lineupLoading: ownsResource ? lineupLoading : false,
         lineupError: ownsResource ? lineupError : false,
