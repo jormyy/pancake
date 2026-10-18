@@ -281,6 +281,7 @@ it('reconciles a successful profile write after the team write fails first', asy
     } }))
     mocks.updateTeamName.mockRejectedValueOnce(new Error('Team save failed'))
     await act(async () => input('Display name').props.onChangeText('Committed name'))
+    await act(async () => input('Team name').props.onChangeText('Unsaved team'))
     let pending!: Promise<void>
     await act(async () => { pending = input('Team name').props.onSubmitEditing(); await Promise.resolve() })
     const prematureError = mocks.alert.mock.calls.length
@@ -293,6 +294,7 @@ it('reconciles a successful profile write after the team write fails first', asy
     await act(async () => { button('Cancel')?.props.onPress() })
     await act(async () => { button('Edit').props.onPress() })
     expect(input('Display name').props.value).toBe('Committed name')
+    expect(input('Team name').props.value).toBe('Team')
 })
 
 it('reconciles a successful team write after the profile write fails', async () => {

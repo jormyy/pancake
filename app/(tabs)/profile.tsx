@@ -249,7 +249,11 @@ export default function ProfileScreen() {
                         <Button title="Save" size="sm" onPress={handleSave} loading={saving} />
                     </>
                 ) : (
-                    <Button title="Edit" variant="outline" size="sm" icon="edit" disabled={!profileLoaded || !user} onPress={() => setEditing(true)} />
+                    <Button title="Edit" variant="outline" size="sm" icon="edit" disabled={!profileLoaded || !user} onPress={() => {
+                        setDisplayName(profile?.display_name ?? '')
+                        setTeamName(current?.team_name ?? '')
+                        setEditing(true)
+                    }} />
                 )}
             />
             {profileError ? (
