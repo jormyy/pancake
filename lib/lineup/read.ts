@@ -204,12 +204,13 @@ function ttlCached<T>(
     ttlMs: number,
     allowCached: boolean,
     fetcher: () => Promise<T>,
+    sharePending = allowCached,
 ): Promise<T> {
     const now = Date.now()
     const hit = cache.get(key)
     // A read still in flight is as fresh as a new one, so the two lineups of a
     // full matchup load share one slot-template request.
-    if (hit && (!hit.settled || (allowCached && now - hit.at < ttlMs))) return hit.promise
+    if (hit && ((!hit.settled && sharePending) || (hit.settled && allowCached && now - hit.at < ttlMs))) return hit.promise
     const entry: CachedRead<T> = { at: now, promise: fetcher(), settled: false }
     cache.set(key, entry)
     entry.promise.then(
@@ -238,7 +239,7 @@ export async function getWeeklyLineup(
 
     const [templates, roster, assignmentsResult] = await Promise.all([
         ttlCached(templateCache, leagueId, TEMPLATE_CACHE_TTL_MS, allowCached,
-            () => fetchSlotTemplates(leagueId)),
+            () => fetchSlotTemplates(leagueId), true),
         ttlCached(rosterCache, `${memberId}:${leagueId}:${seasonId}`, ROSTER_CACHE_TTL_MS, allowCached,
             () => fetchRosterPlayers(memberId, leagueId, seasonId)),
         supabase
