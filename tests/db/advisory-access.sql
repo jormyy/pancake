@@ -45,6 +45,8 @@ SELECT format('SELECT public.auto_set_lineup_atomic(%L,%L,%L,(now() AT TIME ZONE
   :'member_id',:'league_id',:'season_id') AS move_call \gset
 SELECT set_config('request.jwt.claim.sub',:'outsider_id',true);
 SET LOCAL ROLE authenticated;
+SELECT pg_temp.expect_error('SELECT public.place_auction_bid_atomic(NULL,NULL,NULL,1,NULL,false)','42501');
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SELECT pg_temp.expect_error(:'auto_call','42501');
 SELECT pg_temp.expect_error(:'move_call','42501');
 SELECT pg_temp.check_taxi_reads(:'league_id',0);
@@ -53,6 +55,8 @@ SELECT pg_temp.expect_error('SELECT * FROM analytics.search_cache_source_state',
 RESET ROLE;
 SELECT set_config('request.jwt.claim.sub',:'owner_id',true);
 SET LOCAL ROLE authenticated;
+SELECT pg_temp.expect_error('SELECT public.place_auction_bid_atomic(NULL,NULL,NULL,1,NULL,false)','42501');
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SELECT pg_temp.check_taxi_reads(:'league_id',1);
 SELECT pg_temp.expect_error(:'auto_call','P0001','Roster is over%');
 SELECT pg_temp.expect_error(:'move_call','P0001','Roster is over%');
@@ -60,27 +64,36 @@ SELECT pg_temp.expect_error(format('DELETE FROM public.league_member_taxi_exits 
 RESET ROLE;
 UPDATE public.leagues SET roster_size=1 WHERE id=:'league_id';
 SET LOCAL ROLE authenticated;
+SELECT pg_temp.expect_error('SELECT public.place_auction_bid_atomic(NULL,NULL,NULL,1,NULL,false)','42501');
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SELECT public.auto_set_lineup_atomic(:'member_id',:'league_id',:'season_id',(now() AT TIME ZONE 'America/New_York')::date,'[]');
 SELECT public.set_player_slot_moves_atomic(:'member_id',:'league_id',:'season_id',(now() AT TIME ZONE 'America/New_York')::date,1,'[]');
 RESET ROLE;
 SELECT set_config('request.jwt.claim.sub',:'removed_id',true);
 SET LOCAL ROLE authenticated;
+SELECT pg_temp.expect_error('SELECT public.place_auction_bid_atomic(NULL,NULL,NULL,1,NULL,false)','42501');
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SELECT pg_temp.check_taxi_reads(:'league_id',1);
 RESET ROLE;
 DELETE FROM public.league_members WHERE id=:'removed_member';
 SET LOCAL ROLE authenticated;
+SELECT pg_temp.expect_error('SELECT public.place_auction_bid_atomic(NULL,NULL,NULL,1,NULL,false)','42501');
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SELECT pg_temp.check_taxi_reads(:'league_id',0);
 SELECT pg_temp.expect_error(:'auto_call','42501');
 SELECT pg_temp.expect_error(:'move_call','42501');
 RESET ROLE;
 SELECT set_config('request.jwt.claim.sub','',true);
 SET LOCAL ROLE anon;
+SELECT pg_temp.expect_error('SELECT public.place_auction_bid_atomic(NULL,NULL,NULL,1,NULL,false)','42501');
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SELECT pg_temp.expect_error('SELECT * FROM public.league_player_taxi_exits','42501');
 SELECT pg_temp.expect_error('SELECT * FROM public.league_member_taxi_exits','42501');
 SELECT pg_temp.expect_error(:'auto_call','42501');
 SELECT pg_temp.expect_error(:'move_call','42501');
 RESET ROLE;
 SET LOCAL ROLE service_role;
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SELECT pg_temp.check_taxi_reads(:'league_id',1);
 SELECT pg_temp.expect_error(:'auto_call','42501');
 SELECT pg_temp.expect_error(:'move_call','42501');
@@ -91,6 +104,8 @@ CREATE TEMP TABLE player_game_stats AS SELECT * FROM public.player_game_stats WH
 GRANT SELECT ON pg_temp.leagues,pg_temp.player_game_stats TO authenticated;
 SELECT set_config('request.jwt.claim.sub',:'owner_id',true);
 SET LOCAL ROLE authenticated;
+SELECT pg_temp.expect_error('SELECT public.place_auction_bid_atomic(NULL,NULL,NULL,1,NULL,false)','42501');
+SELECT pg_temp.expect_error('SELECT private.is_ir_designation(NULL)','42501');
 SET LOCAL search_path = pg_temp,public;
 SELECT set_config('test.stat',:'stat_id',true),set_config('test.league',:'league_id',true);
 DO $$ BEGIN
