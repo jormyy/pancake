@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) } }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
-vi.mock('@/lib/draft', () => ({ getJoinableDraft: mocks.getJoinableDraft }))
+vi.mock('@/lib/draft', () => ({ acquireJoinableDraft: (...args: unknown[]) => ({ promise: mocks.getJoinableDraft(...args), release: vi.fn() }) }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: null }) }))
 vi.mock('@/lib/alert', () => ({
     getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
     showAlert: mocks.showAlert,
@@ -102,7 +103,7 @@ describe('resolved draft launcher', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
         await act(async () => { await latest.openDraftRoom({ fallbackOnMissing: false }) })
-        expect(mocks.getJoinableDraft).toHaveBeenCalledWith('league', { includeCompletedRookie: true })
+        expect(mocks.getJoinableDraft).toHaveBeenCalledWith('league', { includeCompletedRookie: true, memberId: undefined, canRead: expect.any(Function) })
         expect(mocks.push).not.toHaveBeenCalled()
         expect(latest.draft).toEqual(draft)
         expect(latest.draftChecked).toBe(true)

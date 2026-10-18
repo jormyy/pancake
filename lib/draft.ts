@@ -3,6 +3,8 @@ import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
 import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import type { RealtimeSubscriptionStatus } from '@/lib/realtime'
+import { assertReadActive } from '@/lib/shared/read-admission'
+import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 type DraftOrderEntry = {
     position: number
@@ -196,9 +198,12 @@ async function getActiveDraft(leagueId: string): Promise<Draft | null> {
 
 export async function getJoinableDraft(
     leagueId: string,
-    options: { includeCompletedRookie?: boolean } = {},
+    options: { includeCompletedRookie?: boolean; canRead?: () => boolean } = {},
 ): Promise<Draft | null> {
+    const { canRead } = options
+    assertReadActive(canRead)
     const activeDraft = await getActiveDraft(leagueId)
+    assertReadActive(canRead)
     if (activeDraft || !options.includeCompletedRookie) return activeDraft
 
     const { data: league, error: leagueError } = await supabase
@@ -206,6 +211,7 @@ export async function getJoinableDraft(
         .select('status')
         .eq('id', leagueId)
         .maybeSingle()
+    assertReadActive(canRead)
     if (leagueError) throw leagueError
     if (league?.status !== 'drafting') return null
 
@@ -220,8 +226,66 @@ export async function getJoinableDraft(
         .limit(1)
         .maybeSingle()
 
+    assertReadActive(canRead)
     if (error) throw error
     return data ? mapDraft(data) : null
+}
+
+type PendingJoinableDraft = {
+    readers: Set<() => boolean>
+    promise: Promise<Draft | null>
+}
+
+const pendingJoinableDrafts = new Map<string, PendingJoinableDraft>()
+
+onSessionCachesCleared(() => {
+    for (const pending of pendingJoinableDrafts.values()) pending.readers.clear()
+    pendingJoinableDrafts.clear()
+})
+
+function hasJoinableDraftReaders(readers: Set<() => boolean>): boolean {
+    for (const canRead of readers) if (!canRead()) readers.delete(canRead)
+    return readers.size > 0
+}
+
+export function acquireJoinableDraft(
+    leagueId: string,
+    options: { memberId?: string; includeCompletedRookie?: boolean; canRead: () => boolean },
+): { promise: Promise<Draft | null>; release: () => void } {
+    const actor = sessionOwner()
+    const generation = sessionGeneration()
+    const { canRead, memberId, includeCompletedRookie = false } = options
+    const key = JSON.stringify([actor, generation, leagueId, memberId ?? null, includeCompletedRookie])
+    const admitted = () => actor != null && sessionOwner() === actor && sessionGeneration() === generation && canRead()
+    let pending = pendingJoinableDrafts.get(key)
+    if (pending && !hasJoinableDraftReaders(pending.readers)) {
+        pendingJoinableDrafts.delete(key)
+        pending = undefined
+    }
+    if (pending) {
+        pending.readers.add(admitted)
+    } else {
+        const readers = new Set([admitted])
+        pending = {
+            readers,
+            promise: getJoinableDraft(leagueId, { includeCompletedRookie, canRead: () => hasJoinableDraftReaders(readers) }),
+        }
+        pendingJoinableDrafts.set(key, pending)
+    }
+    const owned = pending
+    const evict = () => {
+        if (pendingJoinableDrafts.get(key) === owned) pendingJoinableDrafts.delete(key)
+    }
+    void owned.promise.then(evict, evict)
+    const release = () => {
+        owned.readers.delete(admitted)
+        if (!hasJoinableDraftReaders(owned.readers)) evict()
+    }
+    const promise = owned.promise.then(draft => {
+        assertReadActive(() => owned.readers.has(admitted) && admitted())
+        return draft
+    }).finally(release)
+    return { promise, release }
 }
 
 export async function getDraftState(draftId: string, previous?: DraftState | null): Promise<DraftState | null> {

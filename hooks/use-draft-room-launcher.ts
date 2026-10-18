@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
-import { getJoinableDraft, type Draft } from '@/lib/draft'
+import { acquireJoinableDraft, type Draft } from '@/lib/draft'
+import { useLeagueContext } from '@/contexts/league-context'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 
@@ -16,13 +17,15 @@ export function useDraftRoomLauncher(
     options: { notifyOnError?: boolean; renderAuctionInline?: boolean; scopeKey?: string } = {},
 ) {
     const router = useRouter()
-    const activity = useDraftActivity(JSON.stringify([leagueId ?? null, options.scopeKey ?? null]))
+    const { current } = useLeagueContext()
+    const memberId = options.scopeKey ?? (current?.leagues.id === leagueId ? current?.id : undefined)
+    const activity = useDraftActivity(JSON.stringify([leagueId ?? null, memberId ?? null]))
     const { identity: resourceKey, epoch, capture, canRead, isCurrent } = activity
     const pendingRef = useRef<{ key: string; fallbackOnMissing: boolean } | null>(null)
     const activeResourceKeyRef = useRef(resourceKey)
     activeResourceKeyRef.current = resourceKey
     const generationRef = useRef(0)
-    const inFlightRef = useRef<{ key: string; epoch: number; promise: Promise<LaunchResult> } | null>(null)
+    const inFlightRef = useRef<{ key: string; epoch: number; promise: Promise<LaunchResult>; release: () => void } | null>(null)
     const [request, setRequest] = useState<{
         key: string
         loading: boolean
@@ -31,6 +34,12 @@ export function useDraftRoomLauncher(
     } | null>(null)
 
     useEffect(() => () => { generationRef.current += 1 }, [])
+    useEffect(() => () => {
+        if (inFlightRef.current?.key === resourceKey && inFlightRef.current.epoch === epoch) {
+            inFlightRef.current.release()
+            inFlightRef.current = null
+        }
+    }, [resourceKey, epoch])
 
     const openDraftRoom = useCallback((launchOptions: { fallbackOnMissing?: boolean } = {}) => {
         const fallbackOnMissing = launchOptions.fallbackOnMissing ?? true
@@ -48,6 +57,7 @@ export function useDraftRoomLauncher(
         }
         const readEpoch = capture()
         if (inFlightRef.current?.key === capturedKey && inFlightRef.current.epoch === readEpoch) return inFlightRef.current.promise
+        inFlightRef.current?.release()
         pendingRef.current = { key: capturedKey, fallbackOnMissing }
 
         const generation = ++generationRef.current
@@ -56,9 +66,10 @@ export function useDraftRoomLauncher(
             isCurrent(readEpoch) && activeResourceKeyRef.current === capturedKey
             && generationRef.current === generation
         )
+        const read = acquireJoinableDraft(leagueId, { memberId, includeCompletedRookie: true, canRead: ownsRequest })
         const promise = (async (): Promise<LaunchResult> => {
             try {
-                const draft = await getJoinableDraft(leagueId, { includeCompletedRookie: true })
+                const draft = await read.promise
                 if (!ownsRequest()) {
                     if (activeResourceKeyRef.current === capturedKey && generationRef.current === generation) pendingRef.current = { key: capturedKey, fallbackOnMissing }
                     return 'stale'
@@ -82,6 +93,7 @@ export function useDraftRoomLauncher(
                 if (options.notifyOnError) showAlert('Could not open draft room', message)
                 return 'error'
             } finally {
+                read.release()
                 if (ownsRequest()) {
                     setRequest((current) => current?.key === capturedKey
                         ? { ...current, loading: false }
@@ -90,9 +102,9 @@ export function useDraftRoomLauncher(
                 if (inFlightRef.current?.key === capturedKey && inFlightRef.current.epoch === readEpoch) inFlightRef.current = null
             }
         })()
-        inFlightRef.current = { key: capturedKey, epoch: readEpoch, promise }
+        inFlightRef.current = { key: capturedKey, epoch: readEpoch, promise, release: read.release }
         return promise
-    }, [leagueId, resourceKey, options.renderAuctionInline, options.notifyOnError, router, canRead, capture, isCurrent])
+    }, [leagueId, memberId, resourceKey, options.renderAuctionInline, options.notifyOnError, router, canRead, capture, isCurrent])
 
     useEffect(() => {
         if (pendingRef.current?.key !== resourceKey) { pendingRef.current = null; return }
