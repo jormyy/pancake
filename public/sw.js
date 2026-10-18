@@ -64,6 +64,18 @@ async function matchesDigest(bytes, digest) {
   return actual === digest
 }
 
+async function cachedBuildAsset(url, signal) {
+  const digest = PUBLIC_ASSET_HASHES[new URL(url, self.location.origin).pathname]
+  if (!digest) return undefined
+  try {
+    const response = await fetch(new Request(url, {
+      credentials: 'omit', redirect: 'error', mode: 'same-origin', cache: 'only-if-cached', signal,
+    }))
+    if (cacheable(response) && await matchesBuild(response, digest)) return response
+  } catch {}
+  return undefined
+}
+
 async function publicAssetFetch(url) {
   try {
     return await publicFetch(url)
@@ -71,13 +83,8 @@ async function publicAssetFetch(url) {
     // A first visit can load a lazy chunk before the worker takes control.
     // Keep those public HTTP-cache bytes usable offline, but never trust a
     // legacy response merely because its URL or headers look public.
-    const digest = PUBLIC_ASSET_HASHES[new URL(url, self.location.origin).pathname]
-    if (!digest) throw error
-    const response = await fetch(new Request(url, {
-      credentials: 'omit', redirect: 'error', mode: 'same-origin', cache: 'only-if-cached',
-    }))
-    if (!cacheable(response)) throw error
-    if (!(await matchesBuild(response, digest))) throw error
+    const response = await cachedBuildAsset(url)
+    if (!response) throw error
     return response
   }
 }
@@ -91,8 +98,10 @@ async function safeMatch(cache, key, options) {
 }
 
 async function bootResponse(url, signal) {
-  const response = await publicFetch(url, signal)
   const shell = url === SHELL_URL
+  const cached = !shell && await cachedBuildAsset(url, signal)
+  if (cached) return cached
+  const response = await publicFetch(url, signal)
   if (!cacheable(response, { allowDocument: shell }) ||
       (shell && !/text\/html/i.test(response.headers.get('content-type') || '')) ||
       !(await matchesBuild(response, PUBLIC_ASSET_HASHES[url]))) {
