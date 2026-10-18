@@ -1,18 +1,23 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LeagueInfo } from '@/types/app'
 import { useCommissionerSettingsResource } from '@/hooks/use-commissioner-settings-resource'
 import { useCommissionerAdminActions } from '@/hooks/use-commissioner-admin-actions'
 import { useCommissionerOverrides } from '@/hooks/use-commissioner-overrides'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const mocks = vi.hoisted(() => ({
-    getLineupSlots: vi.fn(), getLeagueMembers: vi.fn(), getLeaguePlayoffCalendar: vi.fn(),
+    getLineupSlots: vi.fn(), getLeagueMembers: vi.fn(), getLeaguePlayoffCalendar: vi.fn(), fetchUserLeagues: vi.fn(),
     updateLeagueConfiguration: vi.fn(), deleteLeague: vi.fn(),
     adjustFaabBalance: vi.fn(), overrideWeeklyAddCount: vi.fn(), apiPost: vi.fn(),
     showAlert: vi.fn(), showSuccess: vi.fn(), confirmAction: vi.fn(),
+    focused: true, visible: true, online: true,
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => mocks.focused }))
+vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) } }))
 vi.mock('@/lib/league', () => ({
+    fetchUserLeagues: mocks.fetchUserLeagues,
     getLineupSlots: mocks.getLineupSlots,
     getLeagueMembers: mocks.getLeagueMembers,
     getLeaguePlayoffCalendar: mocks.getLeaguePlayoffCalendar,
@@ -47,11 +52,22 @@ const deferred = () => {
 
 beforeEach(() => {
     vi.resetAllMocks()
+    setSessionOwner('user-a')
+    mocks.focused = true
+    mocks.visible = true
+    mocks.online = true
+    const page = new EventTarget()
+    Object.defineProperty(page, 'visibilityState', { get: () => mocks.visible ? 'visible' : 'hidden' })
+    vi.stubGlobal('document', page)
+    vi.stubGlobal('window', new EventTarget())
+    vi.stubGlobal('navigator', { get onLine() { return mocks.online } })
+    mocks.fetchUserLeagues.mockResolvedValue([{ id: 'member-a', role: 'commissioner', leagues: fixture }])
     mocks.getLineupSlots.mockResolvedValue([])
     mocks.getLeagueMembers.mockResolvedValue([{ id: 'member-a', team_name: 'Synthetic team' }])
     mocks.getLeaguePlayoffCalendar.mockResolvedValue({ seasonYear: 2027, weeks: [20, 21, 22] })
     mocks.updateLeagueConfiguration.mockResolvedValue(undefined)
 })
+afterEach(() => { vi.unstubAllGlobals() })
 
 describe('originating screen lifetime', () => {
     it.each(['update', 'refresh'] as const)('does not close a new screen after unmount during %s', async (phase) => {
@@ -73,6 +89,7 @@ describe('originating screen lifetime', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
         expect(latest.loadState).toBe('ready')
+        expect(latest.authorityReady).toBe(true)
         await act(async () => { latest.updateField('rosterSize', '22') })
         let pending!: Promise<void>
         await act(async () => { pending = latest.save() })
@@ -103,11 +120,52 @@ describe('originating screen lifetime', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.authorityReady).toBe(true)
         await act(async () => { latest.updateField('rosterSize', '22') })
         await act(async () => { await latest.save() })
         expect(mocks.updateLeagueConfiguration).toHaveBeenCalledWith('league-a', { roster_size: 22 }, null)
         expect(refresh).toHaveBeenCalledOnce()
         expect(onSaved).toHaveBeenCalledOnce()
+        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(2)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it.each(['hidden', 'offline', 'unfocused'] as const)('keeps the real activity gate closed while %s', async state => {
+        mocks.visible = state !== 'hidden'
+        mocks.online = state !== 'offline'
+        mocks.focused = state !== 'unfocused'
+        let latest!: ReturnType<typeof useCommissionerSettingsResource>
+        const Probe = () => {
+            latest = useCommissionerSettingsResource({ league: fixture, ownerId: 'user-a',
+                isCommissioner: true, refresh: vi.fn(), onSaved: vi.fn() })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.save() })
+        expect(latest.authorityReady).toBe(false)
+        expect(mocks.fetchUserLeagues).not.toHaveBeenCalled()
+        expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('refuses a save after fresh commissioner membership is removed', async () => {
+        const onSaved = vi.fn()
+        let latest!: ReturnType<typeof useCommissionerSettingsResource>
+        const Probe = () => {
+            latest = useCommissionerSettingsResource({ league: fixture, ownerId: 'user-a',
+                isCommissioner: true, refresh: vi.fn(), onSaved })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.authorityReady).toBe(true)
+        await act(async () => { latest.updateField('rosterSize', '22') })
+        mocks.fetchUserLeagues.mockResolvedValue([])
+        await act(async () => { await latest.save() })
+        expect(latest.loadState).toBe('unauthorized')
+        expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+        expect(onSaved).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 
