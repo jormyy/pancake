@@ -230,3 +230,22 @@ Failed context reads retry separately, and failed completion records resume with
 A killed worker recovers after its natural lease expiry and preserves completed lineups.
 The actual tipoff deadline cancels outstanding work and records an explicit failure.
 The recipe removes its own users, leagues, games, progress and listeners.
+
+## Durable final notifications
+
+`npm run test:db:matchup-final-outbox` checks committed results and private notification rows through actual local RPCs.
+It overlaps two finalizations at the league lock and verifies one notification per recipient.
+A later standings failure rolls back both the result and its queued notifications.
+Corrections preserve the original notification and do not send another final alert.
+The existing trade worker drains final alerts with activity preferences, retry leases and durable Expo receipts.
+The recipe uses its own local push server for an outage, recovery and concurrent delivery.
+No migration backfills alerts for existing finalized matchups.
+
+## Rookie activation actors
+
+`npm run test:db:rookie-activation-actor` calls the actual local Edge API with separately authenticated users.
+Commissioners and co-commissioners can activate a ready league; managers and outsiders cannot.
+The database repeats the actor check under locks after the API check.
+The recipe overlaps a role demotion with that transaction and verifies refusal without activation.
+It also checks anonymous access, forged actors, legacy commissioner calls and a stale season.
+Automatic draft completion continues through the existing private readiness helper.

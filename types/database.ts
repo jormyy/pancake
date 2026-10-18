@@ -3850,6 +3850,10 @@ export type Database = {
         Args: { p_draft_id: string }
         Returns: boolean
       }
+      activate_rookie_draft_league_for_user_atomic: {
+        Args: { p_draft_id: string; p_user_id: string }
+        Returns: boolean
+      }
       activate_roster_player_with_lineup_atomic: {
         Args: {
           p_activate_roster_player_id: string

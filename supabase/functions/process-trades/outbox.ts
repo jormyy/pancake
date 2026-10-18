@@ -28,7 +28,7 @@ type RecordTicket = (row: TradeNotificationOutboxRow, ticketId: string, pushToke
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
 function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
-  if (row.category !== 'trade') throw new Error(`Unsupported trade outbox category: ${row.category}`)
+  if (row.category !== 'trade' && row.category !== 'activity') throw new Error(`Unsupported notification outbox category: ${row.category}`)
   const data = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
     ? row.data as Record<string, unknown>
     : {}
@@ -37,7 +37,7 @@ function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
     title: row.title,
     body: row.body,
     data,
-    category: 'trade',
+    category: row.category,
   }
 }
 

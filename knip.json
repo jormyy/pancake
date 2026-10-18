@@ -45,7 +45,9 @@
     "scripts/bench/**/*.ts",
     "supabase/tests/db/postponed-scoring.ts",
     "supabase/tests/db/pre-tipoff-resume.ts",
-    "supabase/tests/db/pre-tipoff-crash-worker.ts"
+    "supabase/tests/db/pre-tipoff-crash-worker.ts",
+    "supabase/tests/db/matchup-final-outbox.ts",
+    "supabase/tests/db/rookie-activation-actor.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

@@ -130,6 +130,7 @@
     "public.accept_trade_atomic(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.accept_trade_with_plan_atomic(uuid,uuid,uuid,uuid[],uuid[],uuid[])": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.activate_rookie_draft_league_atomic(uuid)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.activate_rookie_draft_league_for_user_atomic(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.activate_roster_player_with_lineup_atomic(uuid,text,uuid,text,uuid,uuid,uuid,date,integer,roster_slot_type)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.activate_roster_player_with_overflow_atomic(uuid,text,uuid,text)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.add_free_agent_atomic(uuid,uuid,uuid)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
