@@ -5,10 +5,11 @@ import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/Badge'
 import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
+import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
 import { useAuth } from '@/hooks/use-auth'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useLiveStats } from '@/hooks/use-live-stats'
-import { deferLeagueRefresh, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, leagueChangeAffects, leagueSnapshotRevision, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
 import { getErrorMessage } from '@/lib/shared/errors'
 import {
     clampDateToWeek,
@@ -254,7 +255,7 @@ export default function LineupScreen() {
     liveTeamsRef.current = online && contextAuthority && !savedSnapshot ? liveTeams : new Set()
 
     const requestIsCurrent = useCallback((requestId: number, generation: number) =>
-        activeOwnerRef.current === ownerKey && lineupLoadSeqRef.current === requestId
+        activeOwnerRef.current === ownerKey && lineupLoadSeqRef.current === requestId && browserReadsAllowed()
         && currentDay === todayET() && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId,
     [ownerKey, userId, currentDay])
 
@@ -289,7 +290,7 @@ export default function LineupScreen() {
         setLineupError(getErrorMessage(error) ?? 'Could not load lineup.')
     }, [snapshotScope])
 
-    const lastReadRef = useRef<{ ownerKey: string; generation: number; date: string; at: number; leagueRevision: string } | null>(null)
+    const lastReadRef = useRef<{ ownerKey: string; generation: number; date: string; at: number; leagueRevision: string; streamRevision: string | null } | null>(null)
     const load = useCallback((requestedDate?: string): Promise<boolean> => {
         if (!snapshotScope || !ownerKey) {
             setCtx(null); setStarters([]); setBench([]); setWeekDays([]); setLineupLoading(false)
@@ -297,7 +298,7 @@ export default function LineupScreen() {
         }
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return Promise.resolve(false)
         const wanted = requestedDate ?? (dataOwnerKey === ownerKey ? selectedDateRef.current : currentDay)
-        const pendingKey = `${ownerKey}:${sessionGeneration()}:${online}:${wanted}`
+        const pendingKey = `${ownerKey}:${sessionGeneration()}:${online}:${wanted}:${leagueRevision}`
         // Join a pending load only while it is still the newest request; a load that a later
         // request (such as going offline) superseded will discard its result.
         const joinable = loadPendingRef.current
@@ -325,6 +326,9 @@ export default function LineupScreen() {
         }
         const task = (async () => {
             try {
+                await waitForLeagueChanges(snapshotScope.leagueId)
+                if (!requestIsCurrent(requestId, generation)) return false
+                const streamRevision = leagueSnapshotRevision(snapshotScope.leagueId, 'lineup')
                 const lineupCtx = await getLineupContext(snapshotScope.leagueId, { memberId: snapshotScope.memberId, userId: snapshotScope.ownerId })
                 if (!requestIsCurrent(requestId, generation)) return false
                 if (!lineupCtx) {
@@ -347,8 +351,9 @@ export default function LineupScreen() {
                 const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, optimizerEnabled }
                 saveLineupSnapshot(snapshotScope, generation, value)
                 applySnapshot(value, false)
-                setContextAuthority(true)
-                lastReadRef.current = { ownerKey, generation, date, at: Date.now(), leagueRevision }
+                const unchanged = streamRevision === leagueSnapshotRevision(snapshotScope.leagueId, 'lineup')
+                setContextAuthority(unchanged)
+                lastReadRef.current = { ownerKey, generation, date, at: unchanged ? Date.now() : 0, leagueRevision, streamRevision }
                 return true
             } catch (error) {
                 if (requestIsCurrent(requestId, generation)) {
@@ -362,7 +367,13 @@ export default function LineupScreen() {
         })()
         const pending = { key: pendingKey, requestId, promise: task }
         loadPendingRef.current = pending
-        void task.finally(() => { if (loadPendingRef.current === pending) loadPendingRef.current = null })
+        void task.finally(() => {
+            if (loadPendingRef.current !== pending) return
+            loadPendingRef.current = null
+            const lastRead = lastReadRef.current
+            if (lastRead?.ownerKey === ownerKey && lastRead.generation === generation && lastRead.at === 0
+                && requestIsCurrent(requestId, generation)) void load(selectedDateRef.current)
+        })
         return task
     }, [snapshotScope, ownerKey, online, dataOwnerKey, currentDay, applySnapshot, requestIsCurrent, failedLoad, leagueRevision])
 
@@ -382,13 +393,25 @@ export default function LineupScreen() {
     useEffect(() => () => { lineupLoadSeqRef.current += 1 }, [])
     useEffect(() => {
         const refresh = () => {
-            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+            if (!browserReadsAllowed()) {
+                if (loadPendingRef.current) {
+                    lineupLoadSeqRef.current += 1
+                    loadPendingRef.current = null
+                    lastReadRef.current = null
+                    setContextAuthority(false)
+                    setSavedSnapshot(true)
+                    setLineupLoading(false)
+                    setLineupRefreshing(false)
+                }
+                return
+            }
             const day = todayET()
             if (day !== currentDay) setCurrentDay(day)
             else {
                 const lastRead = lastReadRef.current
                 if (lastRead?.ownerKey === ownerKey && lastRead.generation === sessionGeneration()
-                    && lastRead.leagueRevision === leagueRevision && lastRead.date === selectedDateRef.current && Date.now() - lastRead.at < 300_000) return
+                    && lastRead.leagueRevision === leagueRevision && lastRead.date === selectedDateRef.current
+                    && lastRead.streamRevision === (leagueId ? leagueSnapshotRevision(leagueId, 'lineup') : null) && Date.now() - lastRead.at < 300_000) return
                 invalidateSeasonCache(leagueId)
                 invalidateWeekNumberCache()
                 void load()
@@ -397,11 +420,13 @@ export default function LineupScreen() {
         const timer = setTimeout(() => setCurrentDay(todayET()), Math.max(1, Date.parse(endOfETDayUTC(currentDay)) - Date.now() + 1))
         window.addEventListener('focus', refresh)
         window.addEventListener('pageshow', refresh)
+        window.addEventListener('offline', refresh)
         document.addEventListener('visibilitychange', refresh)
         return () => {
             clearTimeout(timer)
             window.removeEventListener('focus', refresh)
             window.removeEventListener('pageshow', refresh)
+            window.removeEventListener('offline', refresh)
             document.removeEventListener('visibilitychange', refresh)
         }
     }, [currentDay, load, leagueId, ownerKey, leagueRevision])
@@ -455,7 +480,14 @@ export default function LineupScreen() {
         if (!visibleSeasonId || !current?.id || !currentLeague) return
         let disposed = false
         const memberId = current.id
+        const covered = () => {
+            const read = lastReadRef.current
+            return read?.ownerKey === ownerKey && read.generation === sessionGeneration()
+                && read.date === selectedDateRef.current && read.leagueRevision === leagueRevision && read.at > 0
+                && read.streamRevision !== null && read.streamRevision === leagueSnapshotRevision(currentLeague.id, 'lineup')
+        }
         const refreshLineup = deferLeagueRefresh(() => {
+            if (covered()) return true
             if (!disposed) {
                 invalidateCachedRoster(memberId, currentLeague.id, visibleSeasonId)
                 return load(selectedDate)
@@ -463,6 +495,7 @@ export default function LineupScreen() {
         })
         const stopChanges = listenForLeagueChanges(currentLeague.id, change => {
             if (disposed || !['lineup', 'roster', 'catchup'].includes(change.topic)) return
+            if (change.topic === 'catchup' && covered()) return
             if (change.topic === 'catchup') {
                 invalidateSeasonCache(currentLeague.id)
                 invalidateWeekNumberCache()
@@ -475,7 +508,7 @@ export default function LineupScreen() {
             stopChanges()
             refreshLineup.cancel()
         }
-    }, [current?.id, currentLeague, load, selectedDate, visibleSeasonId])
+    }, [current?.id, currentLeague, load, selectedDate, visibleSeasonId, ownerKey, leagueRevision])
     const {
         selected,
         setSelected,
