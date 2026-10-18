@@ -29,13 +29,13 @@ import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { playerSeasonFilterOptions, seasonLabel } from '@/lib/player-search-state'
+import { todayET } from '@/lib/shared/dates'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
-import { getMemberTransactionState } from '@/lib/league'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { loadPlayerSupport } from '@/lib/player-availability'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { loadPlayerSupport, type PlayerSupport, type PlayerSupportResource } from '@/lib/player-availability'
 import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
 import { invalidateLeagueSnapshot } from '@/lib/league-changes'
 import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
@@ -84,23 +84,14 @@ const STAT_LABELS: Record<string, string> = {
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
 
-type TransactionState = Awaited<ReturnType<typeof getMemberTransactionState>> | null
-type PlayerSupport = {
-    leagueId: string | null
-    ownedMap: Map<string, OwnedEntry>
-    waiverIds: Set<string>
-    waiverClearsAt: Map<string, string>
-    pendingClaimIds: Set<string>
-    transactionState: TransactionState
-}
-type PlayerSupportCache = {
+type PlayerSupportCache = Pick<PlayerSupport, 'seasonId' | 'memberId' | 'day'> & {
     ownedEntries: [string, OwnedEntry][]
     waiverIds: string[]
     waiverClearsAtEntries: [string, string][]
     pendingClaimIds: string[]
-    transactionState: TransactionState
+    transactionState: PlayerSupport['transactionState']
 }
-const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v3:'
+const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v4:'
 const supportCacheKey = (memberId: string, leagueId: string) => `${SUPPORT_CACHE_PREFIX}${leagueId}:${memberId}`
 
 function PlayerTableHeader({
@@ -169,7 +160,7 @@ function PlayerSearchSection() {
         if (!cached) return undefined
         const value = cached.data
         return { savedAt: cached.savedAt, data: {
-            leagueId,
+            leagueId, seasonId: value.seasonId, memberId: value.memberId, day: value.day,
             ownedMap: new Map(value.ownedEntries),
             waiverIds: new Set(value.waiverIds),
             waiverClearsAt: new Map(value.waiverClearsAtEntries),
@@ -178,15 +169,17 @@ function PlayerSearchSection() {
         } }
     }, [current?.id, leagueId, snapshotScope])
 
+    const supportReads = useRef<{ scope: string; previous?: PlayerSupport | null; resources?: Set<PlayerSupportResource>; forceFull?: boolean }>({ scope: snapshotScope })
+    if (supportReads.current.scope !== snapshotScope) supportReads.current = { scope: snapshotScope }
     const {
         data: playerSupport,
         loading: playerSupportFetchLoading,
         error: playerSupportError,
-        refresh: refreshPlayerSupport,
+        refresh: refreshSupportSnapshot,
     } = useFocusAsyncData<PlayerSupport>(async () => {
         if (!leagueId) {
             return {
-                leagueId: null,
+                leagueId: null, seasonId: null, memberId: current?.id ?? null, day: todayET(),
                 ownedMap: new Map<string, OwnedEntry>(),
                 waiverIds: new Set<string>(),
                 waiverClearsAt: new Map<string, string>(),
@@ -194,14 +187,21 @@ function PlayerSearchSection() {
                 transactionState: null,
             }
         }
-        return loadPlayerSupport(current?.id, leagueId)
+        const reads = supportReads.current
+        const resources = !reads.forceFull && reads.resources ? [...reads.resources] : undefined
+        reads.forceFull = true
+        reads.resources = undefined
+        return loadPlayerSupport(current?.id, leagueId, { previous: reads.previous, resources })
     }, [current?.id, leagueId, snapshotScope], {
         initialData: cachedSupport?.data, initialFetchedAt: cachedSupport?.savedAt, staleMs: 300_000,
         cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId, 'support') : null,
-        onFailed: () => { if (leagueId) invalidateLeagueSnapshot(leagueId) },
+        onFailed: () => { supportReads.current.forceFull = true; if (leagueId) invalidateLeagueSnapshot(leagueId) },
         onLoaded: (support, revision) => {
+            supportReads.current.previous = support
+            supportReads.current.forceFull = revision !== (leagueId ? tabSnapshotRevision(leagueId, 'support') : null)
             if (current?.id && leagueId) {
                 writeTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, revision, {
+                    seasonId: support.seasonId, memberId: support.memberId, day: support.day,
                     ownedEntries: Array.from(support.ownedMap.entries()),
                     waiverIds: Array.from(support.waiverIds),
                     waiverClearsAtEntries: Array.from(support.waiverClearsAt.entries()),
@@ -213,6 +213,16 @@ function PlayerSearchSection() {
     })
 
 
+    const refreshPlayerSupport = useCallback(() => {
+        supportReads.current.resources = undefined
+        supportReads.current.forceFull = true
+        return refreshSupportSnapshot()
+    }, [refreshSupportSnapshot])
+    const refreshSupportResources = useCallback((resources: readonly PlayerSupportResource[]) => {
+        supportReads.current.resources ??= new Set()
+        for (const resource of resources) supportReads.current.resources.add(resource)
+        return refreshSupportSnapshot()
+    }, [refreshSupportSnapshot])
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
     const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
     const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
@@ -227,7 +237,7 @@ function PlayerSearchSection() {
         return refreshPlayerSupport()
     }, [retrySearch, refreshPlayerSupport])
 
-    usePlayerSupportRealtime(current?.id, leagueId, refreshPlayerSupport, refreshPlayers, focused)
+    usePlayerSupportRealtime(current?.id, leagueId, refreshSupportResources, refreshPlayers, focused, playerSupportForLeague?.seasonId)
 
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to

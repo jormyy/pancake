@@ -1,15 +1,16 @@
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
-type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'inventory'
+type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'inventory' | 'resources'
 type Scope = { season_id: string; member_id?: string; date?: string | null; week?: number }
-export type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null }
+export type ResourceDetail = { resource: 'picks' | 'claims' | 'waivers' | 'priority' | 'faab' | 'season' | 'averages' | 'projections' | 'scoring'; season_id: string; member_id?: string }
+export type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null; details?: ResourceDetail[] | null }
 type Listener = (change: LeagueChange) => void
-const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'inventory'])
+const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'inventory', 'resources'])
 const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
 const revisions = new Map<string, Map<string, number>>()
 export type SnapshotDomain = 'roster' | 'support' | 'picks' | 'game' | 'lineup' | 'live'
-const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'catchup'], picks: ['inventory', 'catchup'], game: ['game', 'catchup'], lineup: ['lineup', 'roster', 'catchup'], live: ['game', 'stat', 'catchup'] }
+const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'resources', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'catchup'], picks: ['inventory', 'catchup'], game: ['game', 'catchup'], lineup: ['lineup', 'roster', 'catchup'], live: ['game', 'stat', 'catchup'] }
 const runtimeKey = `${Date.now()}:${Math.random()}`
 let sessionEpoch = 0
 
@@ -72,15 +73,49 @@ export function leagueChangeAffects(change: LeagueChange, selection: { seasonId:
         && (scope.week === undefined || selection.week === undefined || scope.week === selection.week))
 }
 
-export function leagueChangeReceiver(leagueId: string, receive: Listener): (row: Record<string, unknown>) => void {
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const inventoryResources = new Set(['picks', 'claims', 'waivers', 'priority', 'faab', 'season'])
+const dailyResources = new Set(['averages', 'projections', 'scoring'])
+
+function resourceDetails(value: unknown, topic: Topic): ResourceDetail[] | null {
+    if (!Array.isArray(value) || !value.length || value.length > 16 || JSON.stringify(value).length > 4096) return null
+    const resources = topic === 'inventory' ? inventoryResources : dailyResources
+    const seen = new Set<string>()
+    for (const entry of value) {
+        if (!entry || typeof entry !== 'object' || Object.keys(entry).some(key => !['resource', 'season_id', 'member_id'].includes(key))
+            || !resources.has(entry.resource) || typeof entry.season_id !== 'string' || !uuid.test(entry.season_id)) return null
+        const memberRequired = ['picks', 'priority', 'faab'].includes(entry.resource)
+        if (memberRequired ? typeof entry.member_id !== 'string' || !uuid.test(entry.member_id) : entry.member_id !== undefined) return null
+        const key = JSON.stringify([entry.resource, entry.season_id, entry.member_id])
+        if (seen.has(key)) return null
+        seen.add(key)
+    }
+    return value as ResourceDetail[]
+}
+
+export function leagueResourceAffects(change: LeagueChange, resources: ResourceDetail['resource'][], selection: { seasonId?: string | null; memberId?: string } = {}): boolean {
+    if (change.topic === 'catchup') return true
+    if (change.topic !== 'inventory' && change.topic !== 'resources') return false
+    return !change.details || change.details.some(detail => resources.includes(detail.resource)
+        && (!selection.seasonId || detail.resource === 'picks' || detail.season_id === selection.seasonId)
+        && (!detail.member_id || !selection.memberId || detail.member_id === selection.memberId))
+}
+
+export function leagueChangeReceiver(leagueId: string, receive: Listener) {
     const revisions = new Map<string, bigint>()
-    return row => {
-        if (row.league_id !== leagueId || typeof row.topic !== 'string' || !topics.has(row.topic)) return
+    const consume = (row: Record<string, unknown>) => {
+        if (row.league_id !== leagueId || typeof row.topic !== 'string') return
+        if (!topics.has(row.topic)) { receive({ topic: 'catchup', scopes: null }); return }
+        const topic = row.topic as Topic
         const raw = row.revision
         if (!(typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0)
-            && !(typeof raw === 'string' && /^[1-9]\d*$/.test(raw))) return
+            && !(typeof raw === 'string' && /^[1-9]\d*$/.test(raw))) {
+            revisions.delete(topic)
+            receive({ topic, scopes: null, ...(['inventory', 'resources'].includes(topic) ? { details: null } : {}) })
+            return
+        }
         const revision = BigInt(raw as number | string)
-        const previous = revisions.get(row.topic)
+        const previous = revisions.get(topic)
         if (previous !== undefined && revision <= previous) return
         const scopes = row.scopes
         if (scopes !== null && (!Array.isArray(scopes) || !scopes.every(scope => scope && typeof scope === 'object'
@@ -88,9 +123,14 @@ export function leagueChangeReceiver(leagueId: string, receive: Listener): (row:
             && (scope.member_id === undefined || typeof scope.member_id === 'string')
             && (scope.date == null || typeof scope.date === 'string')
             && (scope.week === undefined || Number.isSafeInteger(scope.week))))) return
-        revisions.set(row.topic, revision)
-        receive({ topic: row.topic as Topic, scopes: previous !== undefined && revision > previous + 1n ? null : scopes as Scope[] | null })
+        revisions.set(topic, revision)
+        const gap = previous !== undefined && revision > previous + 1n
+        receive({ topic, scopes: gap || ['inventory', 'resources'].includes(topic) ? null : scopes as Scope[] | null,
+            ...(['inventory', 'resources'].includes(topic) ? { details: previous !== undefined && !gap ? resourceDetails(row.details, topic) : null } : {}),
+        })
     }
+    consume.reset = () => revisions.clear()
+    return consume
 }
 
 export function deferLeagueRefresh(read: () => unknown | Promise<unknown>, delayMs = 200) {

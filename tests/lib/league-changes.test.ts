@@ -40,7 +40,7 @@ describe('compact league changes', () => {
         consume(row('invalid'))
         consume(row('9007199254740993', null))
         consume(row('9007199254740994'))
-        expect(receive).toHaveBeenCalledTimes(2)
+        expect(receive).toHaveBeenCalledTimes(3)
         expect(receive.mock.calls.at(-1)?.[0].scopes).toEqual(row(1).scopes)
     })
 
