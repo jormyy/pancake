@@ -35,6 +35,8 @@ import { useQuickAdd } from '@/hooks/use-quick-add'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { sessionGeneration } from '@/lib/session-cache-registry'
 import { loadPlayerSupport, type PlayerSupport, type PlayerSupportResource } from '@/lib/player-availability'
 import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
 import { invalidateLeagueSnapshot } from '@/lib/league-changes'
@@ -142,10 +144,11 @@ function PlayerTableHeader({
 function PlayerSearchSection() {
     const { push } = useRouter()
     const { user, loading: authLoading } = useAuth()
-    const { memberships, current, currentLeague, loading: leagueLoading, online } = useLeagueContext()
+    const { memberships, current, currentLeague, loading: leagueLoading, online, membershipValidated } = useLeagueContext()
     const focused = useIsFocused()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
+    const readGeneration = sessionGeneration()
     const searchEnabled = !!user && !!current?.id && !!leagueId
     const { compact: compactToolbar, padX } = usePageMetrics()
     const showStatTable = width >= 1180
@@ -191,8 +194,9 @@ function PlayerSearchSection() {
         const resources = !reads.forceFull && reads.resources ? [...reads.resources] : undefined
         reads.forceFull = true
         reads.resources = undefined
-        return loadPlayerSupport(current?.id, leagueId, { previous: reads.previous, resources })
-    }, [current?.id, leagueId, snapshotScope], {
+        return loadPlayerSupport(current?.id, leagueId, { previous: reads.previous, resources, canRead: () => browserReadsAllowed() && supportReads.current.scope === snapshotScope && readGeneration === sessionGeneration() })
+    }, [current?.id, leagueId, snapshotScope, readGeneration], {
+        enabled: focused && membershipValidated && searchEnabled,
         initialData: cachedSupport?.data, initialFetchedAt: cachedSupport?.savedAt, staleMs: 300_000,
         cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId, 'support') : null,
         onFailed: () => { supportReads.current.forceFull = true; if (leagueId) invalidateLeagueSnapshot(leagueId) },

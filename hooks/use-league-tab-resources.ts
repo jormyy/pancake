@@ -65,7 +65,7 @@ export function useLeagueTabResources(
     const standings = useKeyedResource(
         leagueKey,
         EMPTY_STANDINGS,
-        useCallback(() => leagueId ? getLeagueStandings(leagueId) : Promise.resolve([]), [leagueId]),
+        useCallback(() => leagueId ? getLeagueStandings(leagueId, admissionRef.current) : Promise.resolve([]), [leagueId]),
         STANDINGS_CACHE,
         admission,
     )
@@ -82,7 +82,7 @@ export function useLeagueTabResources(
     const waiverOrder = useKeyedResource(
         leagueKey,
         EMPTY_WAIVER_ORDER,
-        useCallback(() => leagueId ? getWaiverPriorityOrder(leagueId) : Promise.resolve([]), [leagueId]),
+        useCallback(() => leagueId ? getWaiverPriorityOrder(leagueId, admissionRef.current) : Promise.resolve([]), [leagueId]),
         WAIVER_ORDER_CACHE,
         admission,
     )

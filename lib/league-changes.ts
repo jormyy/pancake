@@ -104,30 +104,36 @@ export function leagueResourceAffects(change: LeagueChange, resources: ResourceD
 export function leagueChangeReceiver(leagueId: string, receive: Listener) {
     const revisions = new Map<string, bigint>()
     const consume = (row: Record<string, unknown>) => {
-        if (row.league_id !== leagueId || typeof row.topic !== 'string') return
-        if (!topics.has(row.topic)) { receive({ topic: 'catchup', scopes: null }); return }
+        if (row.league_id !== leagueId || typeof row.topic !== 'string') return false
+        if (!topics.has(row.topic)) { receive({ topic: 'catchup', scopes: null }); return false }
         const topic = row.topic as Topic
         const raw = row.revision
         if (!(typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0)
             && !(typeof raw === 'string' && /^[1-9]\d*$/.test(raw))) {
             revisions.delete(topic)
             receive({ topic, scopes: null, ...(['inventory', 'resources'].includes(topic) ? { details: null } : {}) })
-            return
+            return false
         }
         const revision = BigInt(raw as number | string)
         const previous = revisions.get(topic)
-        if (previous !== undefined && revision <= previous) return
+        if (previous !== undefined && revision <= previous) return true
         const scopes = row.scopes
+        if (['inventory', 'resources'].includes(topic) && scopes !== null) {
+            revisions.delete(topic)
+            receive({ topic, scopes: null, details: null })
+            return false
+        }
         if (scopes !== null && (!Array.isArray(scopes) || !scopes.every(scope => scope && typeof scope === 'object'
             && typeof scope.season_id === 'string'
             && (scope.member_id === undefined || typeof scope.member_id === 'string')
             && (scope.date == null || typeof scope.date === 'string')
-            && (scope.week === undefined || Number.isSafeInteger(scope.week))))) return
+            && (scope.week === undefined || Number.isSafeInteger(scope.week))))) return false
         revisions.set(topic, revision)
         const gap = previous !== undefined && revision > previous + 1n
         receive({ topic, scopes: gap || ['inventory', 'resources'].includes(topic) ? null : scopes as Scope[] | null,
             ...(['inventory', 'resources'].includes(topic) ? { details: previous !== undefined && !gap ? resourceDetails(row.details, topic) : null } : {}),
         })
+        return true
     }
     consume.reset = () => revisions.clear()
     return consume

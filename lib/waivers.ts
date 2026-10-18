@@ -1,3 +1,4 @@
+import { assertReadActive } from '@/lib/shared/read-admission'
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 import { apiPost } from '@/lib/shared/api'
@@ -193,8 +194,10 @@ export type WaiverPriorityRow = {
     priority: number
 }
 
-export async function getWaiverPriorityOrder(leagueId: string): Promise<WaiverPriorityRow[]> {
+export async function getWaiverPriorityOrder(leagueId: string, canRead?: () => boolean): Promise<WaiverPriorityRow[]> {
+    assertReadActive(canRead)
     const seasonId = await getCurrentSeasonId(leagueId)
+    assertReadActive(canRead)
     if (!seasonId) return []
 
     const { data, error } = await supabase

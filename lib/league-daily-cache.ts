@@ -2,19 +2,19 @@ import { leagueSnapshotRevision } from '@/lib/league-changes'
 import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
 import { todayET } from '@/lib/shared/dates'
 
-type Entry = { promise: Promise<unknown>; savedAt: number; settled: boolean }
+type Entry = { leagueId: string; promise: Promise<unknown>; savedAt: number; settled: boolean }
 const entries = new Map<string, Entry>()
 const MAX_AGE = 300_000
 const MAX_ENTRIES = 64
 
-function releasePending() {
-    for (const [key, entry] of entries) if (!entry.settled) entries.delete(key)
+export function releaseLeagueDailyPending(leagueId?: string) {
+    for (const [key, entry] of entries) if (!entry.settled && (!leagueId || entry.leagueId === leagueId)) entries.delete(key)
 }
 
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') releasePending()
+    if (document.visibilityState === 'hidden') releaseLeagueDailyPending()
 })
-if (typeof window !== 'undefined') window.addEventListener('offline', releasePending)
+if (typeof window !== 'undefined') window.addEventListener('offline', () => releaseLeagueDailyPending())
 onSessionCachesCleared(() => entries.clear())
 
 export function readLeagueDaily<Value>(leagueId: string, resourceKey: string, read: () => Promise<Value>): Promise<Value> {
@@ -25,7 +25,7 @@ export function readLeagueDaily<Value>(leagueId: string, resourceKey: string, re
     const key = JSON.stringify([generation, leagueId, day, revision, resourceKey])
     const existing = entries.get(key)
     if (existing && Date.now() - existing.savedAt < MAX_AGE) return existing.promise as Promise<Value>
-    const entry: Entry = { promise: Promise.resolve(), savedAt: Date.now(), settled: false }
+    const entry: Entry = { leagueId, promise: Promise.resolve(), savedAt: Date.now(), settled: false }
     entry.promise = read().then(value => {
         entry.settled = true
         if (generation !== sessionGeneration() || day !== todayET() || revision !== leagueSnapshotRevision(leagueId, 'daily')) {

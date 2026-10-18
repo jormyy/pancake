@@ -1,3 +1,4 @@
+import { assertReadActive } from '@/lib/shared/read-admission'
 import { getCurrentSeasonId, getLatestSeasonId } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
 import { getOwnedPlayerMapForSeason, type OwnedEntry } from '@/lib/roster'
@@ -20,10 +21,13 @@ export type PlayerSupportResource = 'ownership' | 'waivers' | 'claims' | 'transa
 export async function loadPlayerSupport(
     memberId: string | undefined,
     leagueId: string,
-    options: { previous?: PlayerSupport | null; resources?: readonly PlayerSupportResource[] } = {},
+    options: { previous?: PlayerSupport | null; resources?: readonly PlayerSupportResource[]; canRead?: () => boolean } = {},
 ): Promise<PlayerSupport> {
+    assertReadActive(options.canRead)
     const currentSeasonId = await getCurrentSeasonId(leagueId)
+    assertReadActive(options.canRead)
     const seasonId = currentSeasonId ?? await getLatestSeasonId(leagueId)
+    assertReadActive(options.canRead)
     const day = todayET()
     const previous = options.previous
     const reuse = previous?.leagueId === leagueId && previous.seasonId === seasonId

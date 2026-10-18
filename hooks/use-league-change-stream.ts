@@ -26,7 +26,8 @@ export function useLeagueChangeStream(leagueId: string | undefined, userId: stri
                 .select('league_id,topic,revision,scopes,details,updated_at').eq('league_id', leagueId)
             if (!current() || !joined || epoch !== joinEpoch) return true
             if (error) return false
-            for (const row of data ?? []) receive(row)
+            const trusted = (data ?? []).map(row => receive(row)).every(Boolean)
+            if (!trusted) return false
             setLeagueChangesConnected(leagueId, true)
             notifyLeagueChange(leagueId, { topic: 'catchup', scopes: null })
             return true
@@ -48,7 +49,10 @@ export function useLeagueChangeStream(leagueId: string | undefined, userId: stri
                     if (joined) baseline.trigger()
                 },
                 watches: [{ table: 'league_change_hints', filter: `league_id=eq.${leagueId}`, onChange: payload => {
-                    if (current() && payload.eventType !== 'DELETE') receive(payload.new)
+                    if (current() && payload.eventType !== 'DELETE' && !receive(payload.new)) {
+                        setLeagueChangesConnected(leagueId, false)
+                        baseline.trigger()
+                    }
                 } }],
             })
             cleanup = () => reportRealtimeCleanup('league changes', unsubscribeFromTableChanges(channel))

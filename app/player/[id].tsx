@@ -102,7 +102,7 @@ export default function PlayerDetailScreen() {
         setStatusEpoch(null)
         if (!memberId || !leagueId || !requestedOwner) return
         try {
-            const { status, transactionState, claimPending } = await loadPickupState(id, memberId, leagueId)
+            const { status, transactionState, claimPending } = await loadPickupState(id, memberId, leagueId, () => isCurrent(generation, requestedOwner))
             if (isCurrent(generation, requestedOwner)) {
                 setRosterStatusResource({ ownerIdentity: requestedOwner, status, claimPending, error: null })
                 setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })

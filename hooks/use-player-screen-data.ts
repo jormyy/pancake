@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { releaseLeagueDailyPending } from '@/lib/league-daily-cache'
 import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import {
@@ -122,6 +123,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         registering = false
         return () => { stop(); refresh.cancel() }
     }, [leagueId, resourceKey, authorized])
+    useEffect(() => () => { if (leagueId) releaseLeagueDailyPending(leagueId) }, [leagueId, readEpoch])
     const initialCacheRef = useRef<{ loaded: boolean; value?: PlayerScreenCache }>({ loaded: false })
     if (!initialCacheRef.current.loaded) {
         initialCacheRef.current = { loaded: true, value: readPlayerScreenCache(playerId, leagueId, owner) }

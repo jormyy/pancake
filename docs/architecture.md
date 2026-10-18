@@ -88,7 +88,14 @@ The selected league has one shared authenticated subscription. Current membershi
 
 Home and the lineup editor use compact lineup and roster hints. Live stats use game and stat hints to read only displayed players. A healthy stream keeps a one-minute safety poll. A disconnected stream retains the fifteen-second live fallback. Existing raw publications remain for other consumers and older clients.
 
-Markers have no cascading foreign key. A league deletion must not publish a deleted marker through the Realtime DELETE path. Existing membership policy denies access after deletion. At most six small operational rows remain per deleted league; they contain no player stats or league history. Runtime code never deletes these markers. The migration changes no saved settings, history or records and performs no backfill.
+Markers have no cascading foreign key. A league deletion must not publish a deleted marker through the Realtime DELETE path. Existing membership policy denies access after deletion. At most seven small operational rows remain per deleted league; they contain no player stats or league history. Runtime code never deletes these markers. The migration changes no saved settings, history or records and performs no backfill.
 
 
 Roster, player-support and trade-pick snapshots retain their five-minute age across tab remounts. Their keys include user, member, league, Eastern day and saved league settings. Each read captures the shared stream revision before fetching. A later change, reconnect or session switch makes that snapshot require another read. Cold startup still validates against the server while saved content paints. Inventory hints cover pick ownership, waiver claims/wire/priority, FAAB and season changes. They contain no asset rows. A failed refresh invalidates snapshot freshness. Explicit refresh and reconnect still bypass the age check.
+
+
+Inventory details name only a resource, season and optional member. Private claim details omit the member. Pick lists include future seasons. Unknown future seasons, overflow, malformed hints and revision gaps require a full read. Narrow details require a contiguous bigint revision after a trusted baseline. Reconnection reads current markers before snapshots become fresh.
+
+The separate `resources` topic covers published averages, projections and scoring settings. Live stat ingestion does not advance it. Daily runtime caches require the current actor, league, ET day, season, player selection and trusted source revision. They expire after five minutes. Changed or failed reads cannot certify freshness. Hidden or offline clients release pending admission and keep invalidation for their next active read.
+
+League panels and player detail gate reads on route focus, document visibility, connectivity and current membership. Saved rows remain display data. Draft joins and player pickup controls revalidate authority before use. Only the selected dirty panel resumes. Late replies cannot replace another actor or suspended resource.

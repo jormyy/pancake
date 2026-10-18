@@ -1,3 +1,4 @@
+import { assertReadActive } from '@/lib/shared/read-admission'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
@@ -113,8 +114,11 @@ export async function getPlayerRosterStatus(
     playerId: string,
     memberId: string,
     leagueId: string,
+    canRead?: () => boolean,
 ): Promise<PlayerRosterStatus> {
+    assertReadActive(canRead)
     const seasonId = await getActiveSeasonId(leagueId)
+    assertReadActive(canRead)
     if (!seasonId) return { status: 'free_agent' }
 
     const { data, error } = await supabase
@@ -131,6 +135,7 @@ export async function getPlayerRosterStatus(
         return { status: 'taken', ownerTeamName: data.league_members?.team_name ?? 'Another team' }
     }
 
+    assertReadActive(canRead)
     const now = new Date().toISOString()
     const { data: waiverLog, error: waiverLogError } = await supabase
         .from('waiver_wire_log')

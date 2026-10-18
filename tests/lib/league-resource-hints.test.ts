@@ -56,3 +56,12 @@ describe('bounded resource hints', () => {
         expect(receive.mock.calls[1][0]).toMatchObject({ topic: 'resources', details: [{ resource: 'averages', season_id: season }] })
     })
 })
+
+it('broadens a missing inventory scope field and requires a new trusted cursor', () => {
+    const receive = vi.fn()
+    const consume = leagueChangeReceiver('league', receive)
+    consume(row(1))
+    consume({ ...row(2), scopes: undefined })
+    consume(row(3))
+    expect(receive.mock.calls.map(([change]) => change.details)).toEqual([null, null, null])
+})

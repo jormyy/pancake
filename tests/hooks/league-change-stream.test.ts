@@ -93,3 +93,10 @@ it('keeps a failed baseline untrusted and retries it before marking the stream f
     expect(state.leagueChangesConnected('one')).toBe(true)
     expect(boundary.baseline).toHaveBeenCalledTimes(2)
 })
+
+it('never certifies a baseline with an unsafe counter', async () => {
+    boundary.baseline.mockResolvedValue({ data: [{ league_id: 'one', topic: 'inventory', revision: Number.MAX_SAFE_INTEGER + 1, scopes: null, details: null }], error: null })
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { boundary.subscriptions[0].onStatus('SUBSCRIBED'); await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(state.leagueChangesConnected('one')).toBe(false)
+})
