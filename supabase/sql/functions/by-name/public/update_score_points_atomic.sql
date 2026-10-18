@@ -28,6 +28,7 @@ BEGIN
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
   PERFORM 1 FROM public.league_seasons WHERE id = p_league_season_id AND league_id = p_league_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'League season not found.' USING ERRCODE = '22023'; END IF;
+  IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_league_season_id AND p_week_number=ANY(skipped_weeks)) THEN RETURN 0; END IF;
   IF EXISTS(SELECT 1 FROM private.retired_score_inputs WHERE league_season_id = p_league_season_id) THEN
     RAISE EXCEPTION 'Historical score inputs have been retired. Existing results are preserved.' USING ERRCODE = '55000';
   END IF;
@@ -48,7 +49,7 @@ BEGIN
   UPDATE public.matchups AS matchup SET home_points = requested.home_points, away_points = requested.away_points
     FROM jsonb_to_recordset(p_matchups) AS requested(id uuid, home_points numeric, away_points numeric)
     WHERE matchup.id = requested.id
-      AND NOT private.playoff_round_is_consumed(p_league_season_id, matchup.matchup_type)
+      AND NOT private.playoff_matchup_is_consumed(matchup.id)
       AND (matchup.matchup_type = 'regular_season' OR matchup.is_finalized IS NOT TRUE)
       AND (matchup.home_points IS DISTINCT FROM requested.home_points OR matchup.away_points IS DISTINCT FROM requested.away_points);
   GET DIAGNOSTICS v_updated = ROW_COUNT;

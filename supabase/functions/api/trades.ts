@@ -148,6 +148,19 @@ function optionalTradeExpirationField(body: Record<string, unknown>, key: string
   return date.toISOString()
 }
 
+function rosterPlanPayload(body: Record<string, unknown>): JsonObject {
+  if (body.rosterPlan === undefined) return {}
+  if (!body.rosterPlan || typeof body.rosterPlan !== 'object' || Array.isArray(body.rosterPlan)) {
+    throw new ValidationError('rosterPlan must be an object.')
+  }
+  const plan = body.rosterPlan as Record<string, unknown>
+  return { rosterPlan: {
+    taxiPlayerIds: optionalUuidArrayField(plan, 'taxiPlayerIds'),
+    irPlayerIds: optionalUuidArrayField(plan, 'irPlayerIds'),
+    dropPlayerIds: optionalUuidArrayField(plan, 'dropPlayerIds'),
+  } }
+}
+
 function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
   const payload = {
     offerPlayerIds: optionalUuidArrayField(body, 'offerPlayerIds'),
@@ -230,7 +243,7 @@ async function proposeTrade(userId: string, body: Record<string, unknown>): Prom
 
   const { data: tradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: 'propose',
-    p_payload: { ...payload,
+    p_payload: { ...payload, ...rosterPlanPayload(body),
       leagueId: uuidField(body, 'leagueId'), leagueSeasonId: uuidField(body, 'leagueSeasonId'),
       recipientMemberId: uuidField(body, 'recipientMemberId'),
     },
@@ -250,7 +263,7 @@ async function proposeMultiTeamTrade(userId: string, body: Record<string, unknow
 
   const { data: tradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: 'propose-multi',
-    p_payload: { ...payload, items: multiTeamTradeItemsJson(payload.items),
+    p_payload: { ...payload, ...rosterPlanPayload(body), items: multiTeamTradeItemsJson(payload.items),
       leagueId: uuidField(body, 'leagueId'), leagueSeasonId: uuidField(body, 'leagueSeasonId'),
     },
   })
@@ -266,7 +279,14 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
 
-  const { data, error } = await supabase.rpc('accept_trade_atomic', {
+  const encodedPlan = rosterPlanPayload(body).rosterPlan
+  const { data, error } = encodedPlan && typeof encodedPlan === 'object' && !Array.isArray(encodedPlan)
+    ? await supabase.rpc('accept_trade_with_plan_atomic', {
+      p_trade_id: tradeId, p_member_id: memberId, p_user_id: userId,
+      p_taxi_player_ids: optionalUuidArrayField(body.rosterPlan as Record<string, unknown>, 'taxiPlayerIds'),
+      p_ir_player_ids: optionalUuidArrayField(body.rosterPlan as Record<string, unknown>, 'irPlayerIds'),
+      p_drop_player_ids: optionalUuidArrayField(body.rosterPlan as Record<string, unknown>, 'dropPlayerIds'),
+    }) : await supabase.rpc('accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: memberId,
   })
@@ -327,7 +347,7 @@ async function replaceTrade(
 
   const { data: newTradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: action.action,
-    p_payload: { ...payload, tradeId },
+    p_payload: { ...payload, ...rosterPlanPayload(body), tradeId },
   })
   if (error || !newTradeId) {
     if (error) throwDb(error)
@@ -349,7 +369,7 @@ async function replaceMultiTeamTrade(
 
   const { data: newTradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: action.action,
-    p_payload: { ...payload, items: multiTeamTradeItemsJson(payload.items), tradeId },
+    p_payload: { ...payload, ...rosterPlanPayload(body), items: multiTeamTradeItemsJson(payload.items), tradeId },
   })
   if (error || !newTradeId) {
     if (error) throwDb(error)
@@ -453,6 +473,18 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
   const userId = await requireUser(req)
   const body = await readJsonObject(req)
 
+  if (action.action === 'roster-plan') {
+    const memberId = uuidField(body, 'memberId')
+    await requireOwnMember(userId, memberId)
+    const { error } = await supabase.rpc('set_trade_roster_plan_atomic', {
+      p_trade_id: action.tradeId, p_member_id: memberId, p_user_id: userId,
+      p_taxi_player_ids: optionalUuidArrayField(body, 'taxiPlayerIds'),
+      p_ir_player_ids: optionalUuidArrayField(body, 'irPlayerIds'),
+      p_drop_player_ids: optionalUuidArrayField(body, 'dropPlayerIds'),
+    })
+    if (error) throwDb(error)
+    return json({ ok: true })
+  }
   if (action.action === 'taxi-destinations') {
     const memberId = uuidField(body, 'memberId')
     await requireOwnMember(userId, memberId)

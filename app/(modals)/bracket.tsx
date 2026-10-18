@@ -65,11 +65,13 @@ export default function BracketScreen() {
     }, [attempt, currentId, currentLeagueId, resourceKey])
 
     const backToStandings = () => router.replace('/league?tab=results')
-    const rounds: Round[] = bracket ? [
+    const rounds: Round[] = bracket?.rounds?.map((round) => ({
+        key: String(round.number), label: round.label, matchups: round.matchups, final: round.label === 'Championship',
+    })) ?? (bracket ? [
         { key: 'qf', label: 'Quarterfinals', matchups: bracket.quarterfinals },
         { key: 'sf', label: 'Semifinals', matchups: bracket.semifinals },
         { key: 'final', label: 'Championship', matchups: finalMatchups, final: true },
-    ].filter((round) => round.matchups.length > 0) : []
+    ].filter((round) => round.matchups.length > 0) : [])
     // Wide screens draw the real bracket, rounds left to right. Narrow screens
     // stack rounds and lead with the one still being played.
     const columns = rounds.length > 1 && usableWidth >= rounds.length * ROUND_COLUMN_W + (rounds.length - 1) * spacing['3xl']
@@ -97,7 +99,7 @@ export default function BracketScreen() {
                         onAction={backToStandings}
                     />
                 ) : (
-                    <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }, compactLandscape && styles.scrollCompact]}>
+                    <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX, maxWidth: rounds.length * ROUND_COLUMN_W + (rounds.length - 1) * spacing['3xl'] + 2 * padX }, compactLandscape && styles.scrollCompact]}>
                         {bracket?.champion ? (
                             <View style={[styles.championBanner, compactLandscape && styles.championBannerCompact]}>
                                 <Text style={textStyles.sectionLabel}>Champion</Text>
@@ -264,7 +266,7 @@ function TeamRow({
 }
 
 const styles = StyleSheet.create({
-    scroll: { paddingTop: spacing.xl, paddingBottom: spacing['5xl'], gap: spacing.lg, width: '100%', maxWidth: 3 * ROUND_COLUMN_W + 2 * spacing['3xl'] + 2 * spacing['3xl'], alignSelf: 'center' },
+    scroll: { paddingTop: spacing.xl, paddingBottom: spacing['5xl'], gap: spacing.lg, width: '100%', alignSelf: 'center' },
     scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
     stack: { gap: spacing.lg },
     columns: { flexDirection: 'row', alignItems: 'stretch', gap: spacing['3xl'] },

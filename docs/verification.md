@@ -96,3 +96,35 @@ The driver runs the base Edge code and the candidate against the same pinned NBA
 It measures real PostgreSQL statement and tuple counters, including each production cron predicate tick.
 It checks every opted-in team at every distinct tipoff with an independent assignment oracle.
 Keep measured results and logs outside the checkout. Report local measurements separately from hosted costs.
+
+## Dynasty rules, skipped weeks, and trade plans
+
+Run `npm run test:db:dynasty-rules`, `npm run test:db:trade-roster-plans`, and `npm run test:db:trade-plan-concurrency` against an isolated local stack.
+The first recipe checks the Pacific Oct 20–25 boundary and the report-only target calendar.
+It generates regular weeks 2–17 and two two-week playoff rounds spanning weeks 18–21.
+The trade recipes cover stored plans, settlement rollback, capacity, IR/taxi transfers, and concurrent drop reservations.
+All three recipes are part of `npm run test:db`.
+
+New leagues created through `create_league` start playoffs at week 17.
+Existing leagues keep their saved start and legacy duration rules.
+Commissioners can set any team limit of at least two. Entrants range from two through the actual league membership.
+The number of elimination rounds is ceil(log2(entrants)). No product cap limits entrants or rounds.
+Each round accepts its own positive week length. Top seeds receive the required first-round byes.
+Calendar gaps, too many entrants, and mismatched round counts produce explicit errors.
+A changed playoff plan can rebuild an unstarted schedule under the existing schedule lock.
+Team count follows the existing setup lock. Existing capacity and scoring locks stay in force.
+Taxi eligibility and tenure are prospective policies. Commissioners can change them for acquisition checks and season rollover.
+
+Skipped weeks belong to one league season. The date selector displays date keys in Pacific time.
+Before generation, skipped weeks create no matchups and do not consume the round-robin rotation.
+Voiding an existing week retains marked matchup history, clears its decision, and rebuilds later regular standings.
+Scoring, seeding, and automatic season transitions ignore voided matchups.
+Standings-derived draft and waiver orders use the rebuilt snapshots.
+Saved skips cannot be restored through this control. Playoff seed creation locks further week voids.
+The commissioner selects these settings; migrations change no saved league or matchup data.
+
+Configured brackets store explicit round numbers and branch positions. Seed order follows the standard balanced elimination tree.
+Only the first round has byes. Every later round pairs neighboring winning branches.
+Earlier rounds reuse the legacy quarterfinal phase value for compatibility; their explicit round numbers control advancement and scoring locks.
+Legacy null settings retain the original bracket and duration rules.
+Run `npm run test:db:general-brackets` for large brackets, every advancement, exact windows, odd leagues, and invalid plans.

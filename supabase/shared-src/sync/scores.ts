@@ -161,16 +161,18 @@ async function loadLockedPlayoffTypes(
     leagueId: string,
     leagueSeasonId: string,
 ): Promise<Set<string>> {
-    const { data, error } = await supabase
+    const data = await fetchAllPages<{ id: string; matchup_type: string; playoff_round: number | null }>((from, to) => supabase
         .from('matchups')
-        .select('matchup_type')
+        .select('id, matchup_type, playoff_round')
         .eq('league_id', leagueId)
         .eq('league_season_id', leagueSeasonId)
-        .in('matchup_type', ['playoff_semifinal', 'playoff_final'])
-    if (error) throw error
-
-    const present = new Set((data ?? []).map((row) => row.matchup_type))
-    const locked = new Set<string>()
+        .eq('is_voided', false)
+        .neq('matchup_type', 'regular_season')
+        .order('id')
+        .range(from, to))
+    const present = new Set(data.filter((row) => row.playoff_round == null).map((row) => row.matchup_type))
+    const latestRound = data.reduce((latest, row) => Math.max(latest, row.playoff_round ?? 0), 0)
+    const locked = new Set(data.filter((row) => row.playoff_round != null && row.playoff_round < latestRound).map((row) => row.id))
     if (present.has('playoff_semifinal')) locked.add('playoff_quarterfinal')
     if (present.has('playoff_final')) locked.add('playoff_semifinal')
     const { data: season, error: seasonError } = await supabase.from('league_seasons')
@@ -264,6 +266,7 @@ async function buildStandingsSnapshotRows(
             .select('week_number, home_member_id, away_member_id')
             .eq('league_id', leagueId)
             .eq('league_season_id', leagueSeasonId)
+            .eq('is_voided', false)
             .eq('matchup_type', 'regular_season')
             .lt('week_number', weekNumber)
             .order('week_number')
@@ -474,6 +477,7 @@ async function finalizeWeekIfComplete(
         .select('id, end_week_number, home_member_id, away_member_id, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id, is_finalized, matchup_type')
         .eq('league_id', leagueId)
         .eq('league_season_id', leagueSeasonId)
+        .eq('is_voided', false)
         .eq('week_number', weekNumber)
         .order('id')
         .range(from, to))
@@ -501,7 +505,7 @@ async function finalizeWeekIfComplete(
 
     const lockedTypes = await loadLockedPlayoffTypes(leagueId, leagueSeasonId)
     const decidableMatchups = matchups.filter((m) =>
-        !(m.is_finalized && lockedTypes.has(m.matchup_type))
+        !(m.is_finalized && (lockedTypes.has(m.id) || lockedTypes.has(m.matchup_type)))
     )
     if (!decidableMatchups.length) return
 
@@ -624,6 +628,7 @@ async function updateWeekPoints(
         .select('id, league_id, league_season_id, week_number, end_week_number, matchup_type, is_finalized, home_member_id, away_member_id, home_points, away_points')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
+        .eq('is_voided', false)
         .eq('week_number', weekNumber)
         .order('id')
         .range(from, to))
@@ -632,7 +637,7 @@ async function updateWeekPoints(
 
     const lockedTypes = await loadLockedPlayoffTypes(leagueId, seasonId)
     const matchups = allMatchups.filter((m) =>
-        !(m.is_finalized && lockedTypes.has(m.matchup_type))
+        !(m.is_finalized && (lockedTypes.has(m.id) || lockedTypes.has(m.matchup_type)))
     )
     if (!matchups.length) return
 
@@ -698,6 +703,7 @@ async function loadWeeksToSync(
         .select('id, week_number')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
+        .eq('is_voided', false)
         .lte('week_number', currentWeek)
         .eq('is_finalized', false)
         .order('week_number')
@@ -737,6 +743,7 @@ async function loadEarliestMissingFinalizedSnapshotWeek(
         .select('week_number, is_finalized')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
+        .eq('is_voided', false)
         .eq('matchup_type', 'regular_season')
         .lte('week_number', currentWeek)
         .order('week_number')

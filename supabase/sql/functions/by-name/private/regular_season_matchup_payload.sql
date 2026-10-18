@@ -16,6 +16,7 @@ DECLARE
   v_pair int;
   v_home uuid;
   v_away uuid;
+  v_played int := 0;
   v_rows jsonb := '[]'::jsonb;
 BEGIN
   SELECT array_agg(id ORDER BY joined_at, id) INTO v_members FROM public.league_members WHERE league_id = p_league_id;
@@ -27,7 +28,9 @@ BEGIN
   END IF;
   -- Same fixed-team rotation as roundRobinRounds in matchupGeneration.ts.
   FOR v_week IN 1..p_weeks LOOP
-    v_round := (v_week - 1) % (v_count - 1);
+    IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_season_id AND v_week=ANY(skipped_weeks)) THEN CONTINUE; END IF;
+    v_round := v_played % (v_count - 1);
+    v_played := v_played + 1;
     FOR v_pair IN 0..(v_count / 2 - 1) LOOP
       v_home := CASE WHEN v_pair = 0 THEN v_members[1] ELSE v_members[2 + (v_pair - 1 + v_round) % (v_count - 1)] END;
       v_away := v_members[2 + (v_count - 2 - v_pair + v_round) % (v_count - 1)];

@@ -1178,6 +1178,7 @@ export type Database = {
           is_current: boolean
           league_id: string
           nba_trade_deadline: string | null
+          playoff_bracket_seed_ids: string[] | null
           playoff_round_weeks: number[] | null
           playoff_seed_member_ids: string[] | null
           playoff_start_week: number | null
@@ -1185,6 +1186,7 @@ export type Database = {
           regular_season_start: string | null
           rookie_draft_scheduled_at: string | null
           season_year: number
+          skipped_weeks: number[]
         }
         Insert: {
           created_at?: string
@@ -1192,6 +1194,7 @@ export type Database = {
           is_current?: boolean
           league_id: string
           nba_trade_deadline?: string | null
+          playoff_bracket_seed_ids?: string[] | null
           playoff_round_weeks?: number[] | null
           playoff_seed_member_ids?: string[] | null
           playoff_start_week?: number | null
@@ -1199,6 +1202,7 @@ export type Database = {
           regular_season_start?: string | null
           rookie_draft_scheduled_at?: string | null
           season_year: number
+          skipped_weeks?: number[]
         }
         Update: {
           created_at?: string
@@ -1206,6 +1210,7 @@ export type Database = {
           is_current?: boolean
           league_id?: string
           nba_trade_deadline?: string | null
+          playoff_bracket_seed_ids?: string[] | null
           playoff_round_weeks?: number[] | null
           playoff_seed_member_ids?: string[] | null
           playoff_start_week?: number | null
@@ -1213,6 +1218,7 @@ export type Database = {
           regular_season_start?: string | null
           rookie_draft_scheduled_at?: string | null
           season_year?: number
+          skipped_weeks?: number[]
         }
         Relationships: [
           {
@@ -1233,6 +1239,7 @@ export type Database = {
       }
       leagues: {
         Row: {
+          allow_inactive_trades: boolean
           auction_budget: number
           commissioner_id: string
           created_at: string
@@ -1243,6 +1250,8 @@ export type Database = {
           invite_code: string | null
           ir_slots: number
           name: string
+          playoff_entrants: number | null
+          playoff_round_lengths: number[] | null
           playoff_round_weeks: number[] | null
           playoff_start_week: number
           playoff_total_weeks: number | null
@@ -1250,7 +1259,10 @@ export type Database = {
           scoring_settings: Json
           slug: string
           status: Database["public"]["Enums"]["league_status"]
+          taxi_max_seasons: number | null
+          taxi_rule: string
           taxi_slots: number
+          team_limit: number
           trade_deadline: string | null
           trade_veto_mode: string
           trade_veto_threshold_percent: number
@@ -1260,6 +1272,7 @@ export type Database = {
           weekly_add_limit: number | null
         }
         Insert: {
+          allow_inactive_trades?: boolean
           auction_budget?: number
           commissioner_id: string
           created_at?: string
@@ -1270,6 +1283,8 @@ export type Database = {
           invite_code?: string | null
           ir_slots?: number
           name: string
+          playoff_entrants?: number | null
+          playoff_round_lengths?: number[] | null
           playoff_round_weeks?: number[] | null
           playoff_start_week?: number
           playoff_total_weeks?: number | null
@@ -1277,7 +1292,10 @@ export type Database = {
           scoring_settings?: Json
           slug: string
           status?: Database["public"]["Enums"]["league_status"]
+          taxi_max_seasons?: number | null
+          taxi_rule?: string
           taxi_slots?: number
+          team_limit?: number
           trade_deadline?: string | null
           trade_veto_mode?: string
           trade_veto_threshold_percent?: number
@@ -1287,6 +1305,7 @@ export type Database = {
           weekly_add_limit?: number | null
         }
         Update: {
+          allow_inactive_trades?: boolean
           auction_budget?: number
           commissioner_id?: string
           created_at?: string
@@ -1297,6 +1316,8 @@ export type Database = {
           invite_code?: string | null
           ir_slots?: number
           name?: string
+          playoff_entrants?: number | null
+          playoff_round_lengths?: number[] | null
           playoff_round_weeks?: number[] | null
           playoff_start_week?: number
           playoff_total_weeks?: number | null
@@ -1304,7 +1325,10 @@ export type Database = {
           scoring_settings?: Json
           slug?: string
           status?: Database["public"]["Enums"]["league_status"]
+          taxi_max_seasons?: number | null
+          taxi_rule?: string
           taxi_slots?: number
+          team_limit?: number
           trade_deadline?: string | null
           trade_veto_mode?: string
           trade_veto_threshold_percent?: number
@@ -1550,9 +1574,12 @@ export type Database = {
           home_points: number | null
           id: string
           is_finalized: boolean
+          is_voided: boolean
           league_id: string
           league_season_id: string
           matchup_type: Database["public"]["Enums"]["matchup_type"]
+          playoff_position: number | null
+          playoff_round: number | null
           score_read_started_at: string | null
           week_number: number
           winner_member_id: string | null
@@ -1569,9 +1596,12 @@ export type Database = {
           home_points?: number | null
           id?: string
           is_finalized?: boolean
+          is_voided?: boolean
           league_id: string
           league_season_id: string
           matchup_type?: Database["public"]["Enums"]["matchup_type"]
+          playoff_position?: number | null
+          playoff_round?: number | null
           score_read_started_at?: string | null
           week_number: number
           winner_member_id?: string | null
@@ -1588,9 +1618,12 @@ export type Database = {
           home_points?: number | null
           id?: string
           is_finalized?: boolean
+          is_voided?: boolean
           league_id?: string
           league_season_id?: string
           matchup_type?: Database["public"]["Enums"]["matchup_type"]
+          playoff_position?: number | null
+          playoff_round?: number | null
           score_read_started_at?: string | null
           week_number?: number
           winner_member_id?: string | null
@@ -2098,6 +2131,8 @@ export type Database = {
       }
       players: {
         Row: {
+          career_games_checked_at: string | null
+          career_regular_season_games: number | null
           created_at: string
           display_name: string | null
           dynasty_rank: number | null
@@ -2122,6 +2157,8 @@ export type Database = {
           years_exp: number | null
         }
         Insert: {
+          career_games_checked_at?: string | null
+          career_regular_season_games?: number | null
           created_at?: string
           display_name?: string | null
           dynasty_rank?: number | null
@@ -2146,6 +2183,8 @@ export type Database = {
           years_exp?: number | null
         }
         Update: {
+          career_games_checked_at?: string | null
+          career_regular_season_games?: number | null
           created_at?: string
           display_name?: string | null
           dynasty_rank?: number | null
@@ -2282,6 +2321,7 @@ export type Database = {
           league_season_id: string
           member_id: string
           player_id: string
+          taxi_start_season_year: number | null
         }
         Insert: {
           acquired_at?: string
@@ -2294,6 +2334,7 @@ export type Database = {
           league_season_id: string
           member_id: string
           player_id: string
+          taxi_start_season_year?: number | null
         }
         Update: {
           acquired_at?: string
@@ -2306,6 +2347,7 @@ export type Database = {
           league_season_id?: string
           member_id?: string
           player_id?: string
+          taxi_start_season_year?: number | null
         }
         Relationships: [
           {
@@ -2867,6 +2909,7 @@ export type Database = {
           pick_id: string | null
           player_id: string | null
           side: Database["public"]["Enums"]["trade_side"]
+          to_ir: boolean
           to_member_id: string
           to_taxi: boolean
           trade_id: string
@@ -2880,6 +2923,7 @@ export type Database = {
           pick_id?: string | null
           player_id?: string | null
           side: Database["public"]["Enums"]["trade_side"]
+          to_ir?: boolean
           to_member_id: string
           to_taxi?: boolean
           trade_id: string
@@ -2893,6 +2937,7 @@ export type Database = {
           pick_id?: string | null
           player_id?: string | null
           side?: Database["public"]["Enums"]["trade_side"]
+          to_ir?: boolean
           to_member_id?: string
           to_taxi?: boolean
           trade_id?: string
@@ -2967,6 +3012,7 @@ export type Database = {
         Row: {
           accepted_at: string | null
           created_at: string
+          drop_player_ids: string[]
           is_initiator: boolean
           league_id: string
           member_id: string
@@ -2977,6 +3023,7 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           created_at?: string
+          drop_player_ids?: string[]
           is_initiator?: boolean
           league_id: string
           member_id: string
@@ -2987,6 +3034,7 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           created_at?: string
+          drop_player_ids?: string[]
           is_initiator?: boolean
           league_id?: string
           member_id?: string
@@ -3755,6 +3803,17 @@ export type Database = {
     Functions: {
       accept_trade_atomic: {
         Args: { p_accepting_member_id: string; p_trade_id: string }
+        Returns: Json
+      }
+      accept_trade_with_plan_atomic: {
+        Args: {
+          p_drop_player_ids: string[]
+          p_ir_player_ids: string[]
+          p_member_id: string
+          p_taxi_player_ids: string[]
+          p_trade_id: string
+          p_user_id: string
+        }
         Returns: Json
       }
       activate_rookie_draft_league_atomic: {
@@ -4841,6 +4900,17 @@ export type Database = {
           p_member_id: string
           p_moves: Json
           p_week_number: number
+        }
+        Returns: undefined
+      }
+      set_trade_roster_plan_atomic: {
+        Args: {
+          p_drop_player_ids: string[]
+          p_ir_player_ids: string[]
+          p_member_id: string
+          p_taxi_player_ids: string[]
+          p_trade_id: string
+          p_user_id: string
         }
         Returns: undefined
       }

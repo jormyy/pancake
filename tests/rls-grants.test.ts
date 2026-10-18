@@ -146,12 +146,12 @@ describe('waiver privacy policies', () => {
 })
 
 describe('profile privacy and invite capacity policies', () => {
-    it('blocks direct invite joins after the tenth league member', () => {
+    it('blocks direct invite joins at the configured team limit', () => {
         const joinBody = latestFunctionDefinition('join_league_by_invite_code')
 
         expect(joinBody).toContain('v_member_count')
         expect(joinBody).toContain('SELECT count(*)')
-        expect(joinBody).toContain('IF v_member_count >= 10 THEN')
+        expect(joinBody).toContain('IF v_member_count >= v_league.team_limit THEN')
         expect(joinBody).toContain('This league is full.')
     })
 

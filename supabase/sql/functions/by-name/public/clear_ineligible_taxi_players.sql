@@ -34,8 +34,7 @@ BEGIN
        AND league.status IN ('drafting'::league_status, 'active'::league_status, 'playoffs'::league_status)
      WHERE rp.is_on_taxi = true
        AND (
-         p.nba_draft_number IS NULL
-         OR p.years_exp IS DISTINCT FROM 0
+         NOT private.taxi_player_eligible(rp.league_id,p.id)
        )
      ORDER BY rp.league_id, rp.member_id, rp.player_id
   LOOP
@@ -56,8 +55,7 @@ BEGIN
      WHERE rp.id = v_candidate.roster_player_id
        AND rp.is_on_taxi = true
        AND (
-         p.nba_draft_number IS NULL
-         OR p.years_exp IS DISTINCT FROM 0
+         NOT private.taxi_player_eligible(rp.league_id,p.id)
        )
      FOR UPDATE OF rp;
 

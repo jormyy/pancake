@@ -7,8 +7,11 @@ export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
 
+export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[] }
+
 type TradePlayerItem = {
     kind: 'player'
+    toIR?: boolean
     toTaxi?: boolean
     playerId: string
     playerName: string
@@ -49,10 +52,12 @@ type TradeParticipant = {
     teamName: string
     sortOrder: number
     isInitiator: boolean
+    dropPlayerIds?: string[]
     acceptedAt: string | null
 }
 
 export type Trade = {
+    completionFailureReason?: string | null
     id: string
     status: TradeStatus
     proposedAt: string
@@ -131,6 +136,7 @@ type TradePlayerQueryRow = {
     years_exp: number | null
 } | null
 type TradeItemQueryRow = {
+    to_ir: boolean
     to_taxi: boolean
     side: 'proposer' | 'recipient'
     player_id: string | null
@@ -146,6 +152,7 @@ type TradeItemQueryRow = {
     } | null
 }
 type TradeParticipantQueryRow = {
+    drop_player_ids: string[]
     member_id: string
     sort_order: number
     is_initiator: boolean
@@ -153,6 +160,7 @@ type TradeParticipantQueryRow = {
     league_members: TeamNameRow
 }
 type TradeQueryRow = {
+    completion_failure_reason: string | null
     id: string
     league_id: string
     status: TradeStatus
@@ -181,6 +189,7 @@ type TradeQueryRow = {
 }
 
 export type TradeProposalOptions = {
+    rosterPlan?: TradeRosterPlan
     requestId?: string
     notes?: string | null
     expiresAt?: string | null
@@ -209,7 +218,7 @@ export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
-} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId'>
+} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId' | 'rosterPlan'>
 
 function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
     return items.map((item) => {
@@ -283,6 +292,7 @@ export async function proposeTrade(
     options: Omit<TradeProposalOptions, 'notes'> = {},
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose', {
+        ...(options.rosterPlan ? { rosterPlan: options.rosterPlan } : {}),
         requestId: options.requestId,
         memberId,
         leagueId,
@@ -308,6 +318,7 @@ export async function proposeMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose-multi', {
+        ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
         leagueId,
@@ -327,6 +338,7 @@ export async function counterMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
+        ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
         participantMemberIds: payload.participantMemberIds,
@@ -344,6 +356,7 @@ export async function editMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
+        ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
         participantMemberIds: payload.participantMemberIds,
@@ -387,6 +400,10 @@ export async function editTrade(
     return result.tradeId
 }
 
+export async function setTradeRosterPlan(tradeId: string, memberId: string, plan: TradeRosterPlan) {
+    await apiPost(`/trades/${tradeId}/roster-plan`, { memberId, ...plan })
+}
+
 export async function setTradeTaxiDestinations(tradeId: string, memberId: string, playerIds: string[]) {
     await apiPost(`/trades/${tradeId}/taxi-destinations`, { memberId, playerIds })
 }
@@ -414,6 +431,7 @@ const TRADE_SELECT = `
             id,
             league_id,
             status,
+            completion_failure_reason,
             proposed_at,
             accepted_at,
             veto_window_expires_at,
@@ -438,14 +456,14 @@ const TRADE_SELECT = `
                 member_id,
                 sort_order,
                 is_initiator,
-                accepted_at,
+                accepted_at, drop_player_ids,
                 league_members ( team_name )
             ),
             trade_items (
                 id,
                 side,
                 player_id,
-                to_taxi,
+                to_taxi, to_ir,
                 pick_id,
                 from_member_id,
                 to_member_id,
@@ -471,6 +489,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
             tradeItem = {
                 kind: 'player',
                 toTaxi: item.to_taxi,
+                toIR: item.to_ir,
                 playerId: item.player_id,
                 playerName: item.players?.display_name ?? 'Unknown',
                 position: item.players?.position ?? null,
@@ -512,12 +531,14 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
             sortOrder: participant.sort_order ?? 0,
             isInitiator: participant.is_initiator ?? false,
             acceptedAt: participant.accepted_at ?? null,
+            dropPlayerIds: participant.drop_player_ids ?? [],
         }))
         .sort((a, b) => a.sortOrder - b.sortOrder || a.teamName.localeCompare(b.teamName))
 
     return {
         id: row.id,
         status: row.status,
+        completionFailureReason: row.completion_failure_reason,
         proposedAt: row.proposed_at,
         acceptedAt: row.accepted_at ?? null,
         vetoWindowExpiresAt: row.veto_window_expires_at ?? null,

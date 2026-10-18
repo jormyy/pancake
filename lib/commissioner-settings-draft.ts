@@ -3,6 +3,13 @@ import type { LeagueSettingsUpdate, WaiverMode } from '@/lib/league'
 import type { LeagueStatus } from '@/types/database'
 
 export type CommissionerSettingsDraft = {
+    teamLimit?: string
+    taxiRule?: 'drafted_rookies' | 'rookies_or_64_games'
+    taxiMaxSeasons?: string
+    allowInactiveTrades?: boolean
+    playoffEntrants?: string
+    playoffRoundCount?: string
+    skippedWeeks?: number[]
     scoring: Record<string, string>
     slots: Record<string, number>
     rosterSize: string
@@ -41,6 +48,7 @@ export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
 }
 
 const DRAFT_SCALAR_FIELDS = [
+    'teamLimit', 'taxiRule', 'taxiMaxSeasons', 'allowInactiveTrades', 'playoffEntrants', 'playoffRoundCount',
     'rosterSize',
     'irSlots',
     'taxiSlots',
@@ -66,7 +74,7 @@ function sameCommissionerSettingsDraft(
     left: CommissionerSettingsDraft,
     right: CommissionerSettingsDraft,
 ): boolean {
-    return DRAFT_SCALAR_FIELDS.every((field) => left[field] === right[field]) &&
+    return JSON.stringify(left.skippedWeeks ?? []) === JSON.stringify(right.skippedWeeks ?? []) && DRAFT_SCALAR_FIELDS.every((field) => left[field] === right[field]) &&
         left.playoffRoundWeeks.length === right.playoffRoundWeeks.length &&
         left.playoffRoundWeeks.every((value, index) => value === right.playoffRoundWeeks[index]) &&
         sameRecord(left.scoring, right.scoring) && sameRecord(left.slots, right.slots)
@@ -174,6 +182,22 @@ export function buildCommissionerSettingsChange(
     }
 
     const updates: LeagueSettingsUpdate = {}
+    if (draft.teamLimit !== baseline.teamLimit) {
+        const count = parseStrictInteger(draft.teamLimit ?? '')
+        if (count == null || count < 2) return { error: 'Team limit must be at least 2.' }
+        updates.team_limit = count
+    }
+    if (draft.taxiRule !== baseline.taxiRule) updates.taxi_rule = draft.taxiRule
+    if (draft.taxiMaxSeasons !== baseline.taxiMaxSeasons) {
+        const cap = parseStrictInteger(draft.taxiMaxSeasons ?? '')
+        if (cap == null || cap < 1 || cap > 2) return { error: 'Taxi tenure must be 1 or 2 seasons.' }
+        updates.taxi_max_seasons = cap
+    }
+    if (draft.allowInactiveTrades !== baseline.allowInactiveTrades) updates.allow_inactive_trades = draft.allowInactiveTrades
+    if (JSON.stringify(draft.skippedWeeks ?? []) !== JSON.stringify(baseline.skippedWeeks ?? [])) updates.skipped_weeks = draft.skippedWeeks ?? []
+    if (status !== 'setup' && updates.team_limit != null) {
+        return { error: 'Team count can only change during league setup.' }
+    }
     if (scoringKeys.some((key) => draft.scoring[key] !== baseline.scoring[key])) {
         const scoringEntries: [string, number][] = []
         for (const key of scoringKeys) {
@@ -191,7 +215,18 @@ export function buildCommissionerSettingsChange(
         draft.playoffTotalWeeks !== baseline.playoffTotalWeeks ||
         draft.playoffRoundWeeks.length !== baseline.playoffRoundWeeks.length ||
         draft.playoffRoundWeeks.some((value, index) => value !== baseline.playoffRoundWeeks[index])
-    if (playoffsChanged) {
+    const flexibleChanged = draft.playoffEntrants !== baseline.playoffEntrants || draft.playoffRoundCount !== baseline.playoffRoundCount || playoffsChanged
+    if (draft.playoffEntrants != null && flexibleChanged) {
+        const entrants = parseStrictInteger(draft.playoffEntrants)
+        const count = parseStrictInteger(draft.playoffRoundCount ?? '')
+        const lengths = draft.playoffRoundWeeks.map(parseStrictInteger)
+        if (entrants == null || entrants < 2) return { error: 'Playoffs require at least 2 entrants.' }
+        if (count !== Math.ceil(Math.log2(entrants)) || lengths.length !== count) return { error: `Playoffs with ${entrants} entrants need ${Math.ceil(Math.log2(entrants))} rounds.` }
+        if (lengths.some((length) => length == null || length < 1)) return { error: 'Enter positive whole weeks for each playoff round.' }
+        updates.playoff_entrants = entrants
+        updates.playoff_round_lengths = lengths.filter((length): length is number => length != null)
+        if (draft.playoffWeek !== baseline.playoffWeek) updates.playoff_start_week = integerValue('playoffWeek')
+    } else if (playoffsChanged) {
         const total = parseStrictInteger(draft.playoffTotalWeeks)
         const rounds = draft.playoffRoundWeeks.map(parseStrictInteger)
         if (total == null || total < 1) return { error: 'Total playoff weeks must be a positive whole number.' }

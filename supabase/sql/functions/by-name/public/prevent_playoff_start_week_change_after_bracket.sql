@@ -29,10 +29,10 @@ BEGIN
   SELECT EXISTS (SELECT 1 FROM public.matchups WHERE league_season_id = v_season.id AND matchup_type <> 'regular_season') INTO v_had_bracket;
   PERFORM private.assert_schedule_not_started(v_season.id);
   SELECT count(*) INTO v_members FROM public.league_members WHERE league_id = NEW.id;
-  v_rounds := private.playoff_round_plan(v_members, NEW.playoff_total_weeks, NEW.playoff_round_weeks);
+  v_rounds := private.league_playoff_round_plan(NEW.id, v_members);
   PERFORM private.assert_playoff_window(v_season.season_year, NEW.playoff_start_week, v_rounds, true);
   UPDATE public.league_seasons
-     SET playoff_start_week = NEW.playoff_start_week, playoff_round_weeks = NULL, playoff_seed_member_ids = NULL
+     SET playoff_start_week = NEW.playoff_start_week, playoff_round_weeks = NULL, playoff_seed_member_ids = NULL, playoff_bracket_seed_ids = NULL
    WHERE id = v_season.id;
   IF v_had_schedule THEN
     DELETE FROM public.matchups WHERE league_season_id = v_season.id;

@@ -25,7 +25,12 @@ DECLARE
   v_semifinal_winners uuid[];
   v_semifinals_ready boolean;
   v_seed_ids uuid[];
+  v_branches uuid[];
+  v_seed int;
+  v_byes int;
+  v_winner uuid;
   v_inserted_count int := 0;
+  v_current_round int;
 BEGIN
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
   SELECT id, season_year, playoff_round_weeks, playoff_seed_member_ids INTO v_season_id, v_season_year, v_rounds, v_seed_ids
@@ -46,6 +51,11 @@ BEGIN
     RETURN jsonb_build_object('inserted', 0, 'skipped', true);
   END IF;
 
+  SELECT max(playoff_round) INTO v_current_round FROM matchups WHERE league_season_id=v_season_id;
+  IF v_current_round IS NOT NULL THEN
+    RETURN private.generate_playoff_round(p_league_id,v_season_id,v_current_round+1);
+  END IF;
+
   SELECT count(*), min(week_number), array_agg(winner_member_id ORDER BY created_at, id), bool_and(is_finalized AND winner_member_id IS NOT NULL)
     INTO v_quarterfinal_count, v_quarterfinal_week, v_quarterfinal_winners, v_quarterfinals_ready
     FROM (
@@ -64,7 +74,7 @@ BEGIN
    FOR UPDATE;
 
   IF v_quarterfinal_count > 0 AND NOT FOUND THEN
-    IF v_quarterfinal_count < 2 OR v_quarterfinals_ready IS DISTINCT FROM true THEN
+    IF v_quarterfinals_ready IS DISTINCT FROM true THEN
       RAISE EXCEPTION 'Quarterfinals are not yet finalized.';
     END IF;
 
@@ -80,13 +90,18 @@ BEGIN
       RAISE EXCEPTION 'Original playoff seed order is missing. Semifinals cannot be generated until verified original seeds are restored. Existing results are unchanged.';
     END IF;
 
-    -- Generated quarterfinals have seed 3 and seed 4 at home. Preserve
-    -- those bracket branches regardless of row IDs or which team wins.
-    SELECT array_agg(matchup.winner_member_id ORDER BY array_position(v_seed_ids, matchup.home_member_id))
-      INTO v_quarterfinal_winners
-      FROM public.matchups AS matchup
-     WHERE matchup.league_season_id = v_season_id
-       AND matchup.matchup_type = 'playoff_quarterfinal'::public.matchup_type;
+    v_branches := array_fill(NULL::uuid,ARRAY[4]);
+    v_byes := 8-cardinality(v_seed_ids);
+    FOR v_seed IN 1..4 LOOP
+      IF v_seed<=v_byes THEN
+        v_branches[v_seed] := v_seed_ids[v_seed];
+      ELSE
+        SELECT winner_member_id INTO v_winner FROM public.matchups
+          WHERE league_season_id=v_season_id AND matchup_type='playoff_quarterfinal'
+            AND home_member_id=v_seed_ids[v_seed];
+        v_branches[v_seed] := v_winner;
+      END IF;
+    END LOOP;
 
     SELECT max(COALESCE(end_week_number, week_number)) + 1 INTO v_next_start
       FROM public.matchups WHERE league_season_id = v_season_id AND matchup_type = 'playoff_quarterfinal';
@@ -104,8 +119,8 @@ BEGIN
         away_member_id
       )
       VALUES
-        (p_league_id, v_season_id, v_next_start, v_next_end, 'playoff_semifinal'::public.matchup_type, v_seed_ids[1], v_quarterfinal_winners[2]),
-        (p_league_id, v_season_id, v_next_start, v_next_end, 'playoff_semifinal'::public.matchup_type, v_seed_ids[2], v_quarterfinal_winners[1])
+        (p_league_id, v_season_id, v_next_start, v_next_end, 'playoff_semifinal'::public.matchup_type, v_branches[1], v_branches[4]),
+        (p_league_id, v_season_id, v_next_start, v_next_end, 'playoff_semifinal'::public.matchup_type, v_branches[2], v_branches[3])
       ON CONFLICT (league_id, league_season_id, week_number, home_member_id, away_member_id)
       DO NOTHING
       RETURNING 1
@@ -126,7 +141,7 @@ BEGIN
        FOR UPDATE
     ) AS semifinals;
 
-  IF v_semifinal_count < 2 THEN
+  IF v_semifinal_count < (CASE WHEN cardinality(v_seed_ids)=3 THEN 1 ELSE 2 END) THEN
     RAISE EXCEPTION 'Semifinals not found.';
   END IF;
 
@@ -134,6 +149,9 @@ BEGIN
     RAISE EXCEPTION 'Semifinals are not yet finalized.';
   END IF;
 
+  IF cardinality(v_seed_ids)=3 THEN
+    v_semifinal_winners := ARRAY[v_seed_ids[1],v_semifinal_winners[1]];
+  END IF;
   SELECT max(COALESCE(end_week_number, week_number)) + 1 INTO v_next_start
     FROM public.matchups WHERE league_season_id = v_season_id AND matchup_type = 'playoff_semifinal';
   v_next_end := v_next_start + COALESCE(v_rounds[cardinality(v_rounds)], 1) - 1;

@@ -22,6 +22,7 @@ DECLARE
   v_balance int;
   v_item_faab_amount int;
   v_previous_flag text;
+  v_drop record;
 BEGIN
   SELECT *
     INTO v_trade
@@ -56,11 +57,10 @@ BEGIN
   END LOOP;
 
   FOR v_lock_player_id IN
-    SELECT DISTINCT player_id
-      FROM trade_items
-     WHERE trade_id = p_trade_id
-       AND player_id IS NOT NULL
-     ORDER BY player_id ASC
+    SELECT DISTINCT player_id FROM (
+      SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
+      UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
+    ) touched ORDER BY player_id ASC
   LOOP
     PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_lock_player_id::text));
   END LOOP;
@@ -91,6 +91,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM private.validate_trade_rosters(p_trade_id);
+
   FOR v_from_member, v_item_faab_amount IN
     SELECT
       item.from_member_id,
@@ -119,8 +121,7 @@ BEGIN
          AND league_season_id = v_trade.league_season_id
          AND member_id = v_from_member
          AND player_id = v_item.player_id
-         AND is_on_ir = false
-         AND is_on_taxi = false
+         AND (v_league.allow_inactive_trades OR (is_on_ir = false AND is_on_taxi = false))
        FOR UPDATE;
 
       IF NOT FOUND THEN
@@ -177,6 +178,16 @@ BEGIN
   -- A reserved pick may only change hands through this completion; the
   -- draft_picks guard and the trade status guard honour this mark.
   v_previous_flag := private.begin_trade_lifecycle_write();
+  IF v_league.allow_inactive_trades THEN
+    FOR v_drop IN SELECT roster.* FROM trade_participants participant JOIN roster_players roster
+      ON roster.member_id=participant.member_id AND roster.league_season_id=v_trade.league_season_id
+        AND roster.player_id=ANY(participant.drop_player_ids)
+      WHERE participant.trade_id=p_trade_id ORDER BY roster.player_id FOR UPDATE OF roster
+    LOOP
+      PERFORM private.release_roster_player_to_waivers(v_drop.id,v_trade.league_id,v_trade.league_season_id,
+        v_drop.member_id,v_drop.player_id,'drop',NULL,p_trade_id);
+    END LOOP;
+  END IF;
 
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
@@ -185,20 +196,20 @@ BEGIN
     v_to_member := v_item.to_member_id;
 
     IF v_item.player_id IS NOT NULL THEN
-      IF v_item.to_taxi THEN
+      IF v_item.to_taxi OR v_league.allow_inactive_trades THEN
         PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_to_member,v_item.player_id,'trade',p_trade_id);
       END IF;
       BEGIN
       UPDATE roster_players
          SET member_id = v_to_member,
              acquired_via = 'trade',
-             is_on_taxi = v_item.to_taxi
+             is_on_taxi = v_item.to_taxi OR (v_league.allow_inactive_trades AND is_on_taxi),
+             is_on_ir = CASE WHEN v_league.allow_inactive_trades THEN v_item.to_ir ELSE is_on_ir END
        WHERE league_id = v_trade.league_id
          AND league_season_id = v_trade.league_season_id
          AND member_id = v_from_member
          AND player_id = v_item.player_id
-         AND is_on_ir = false
-         AND is_on_taxi = false;
+         AND (v_league.allow_inactive_trades OR (is_on_ir = false AND is_on_taxi = false));
 
       GET DIAGNOSTICS v_rows = ROW_COUNT;
       IF v_rows <> 1 THEN

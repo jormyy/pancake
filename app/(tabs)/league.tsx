@@ -41,6 +41,7 @@ export default function LeagueScreen() {
         if (screen.tab === 'results') {
             return (
                 <StandingsTable
+                    playoffEntrants={screen.currentLeague?.playoff_entrants}
                     standings={screen.standings}
                     leagueStatus={screen.currentLeague?.status}
                     loading={screen.isTabLoading}

@@ -54,6 +54,7 @@ BEGIN
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
   PERFORM 1 FROM public.league_seasons WHERE id = p_league_season_id AND league_id = p_league_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'League season not found.' USING ERRCODE = '22023'; END IF;
+  IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_league_season_id AND p_week_number=ANY(skipped_weeks)) THEN RETURN '[]'::jsonb; END IF;
   IF EXISTS(SELECT 1 FROM private.retired_score_inputs WHERE league_season_id = p_league_season_id) THEN
     RAISE EXCEPTION 'Historical score inputs have been retired. Existing results are preserved.' USING ERRCODE = '55000';
   END IF;
@@ -158,7 +159,7 @@ BEGIN
            END
       FROM locked
      WHERE matchup.id = locked.id
-       AND NOT private.playoff_round_is_consumed(p_league_season_id, locked.matchup_type)
+       AND NOT private.playoff_matchup_is_consumed(locked.id)
      RETURNING
        matchup.id,
        locked.is_finalized AS was_finalized,
@@ -238,6 +239,10 @@ BEGIN
     points_against = EXCLUDED.points_against,
     max_possible_points = EXCLUDED.max_possible_points,
     waiver_priority = EXCLUDED.waiver_priority;
+
+  IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_league_season_id AND cardinality(skipped_weeks)>0) THEN
+    PERFORM private.rebuild_regular_standings(p_league_id,p_league_season_id);
+  END IF;
 
   INSERT INTO private.score_week_certificates(league_season_id, week_number, input_token)
     VALUES(p_league_season_id, p_week_number, private.score_input_token(p_league_season_id, p_week_number))

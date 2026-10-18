@@ -41,7 +41,7 @@ export default function CommissionerSettingsScreen() {
     const {
         scoring, slots, rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek,
         weeklyAddLimit, waiverMode, faabBudget, tradeVetoMode, tradeVetoWindowHours,
-        tradeVetoThresholdPercent, tradeDeadline, playoffTotalWeeks, playoffRoundWeeks,
+        tradeVetoThresholdPercent, tradeDeadline, playoffRoundWeeks,
     } = draft
 
     // Save stays in reach at the top while the long form scrolls under it.
@@ -245,13 +245,34 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">League and taxi rules</Text>
+                    <View style={styles.card}>
+                        {[
+                            { label: 'Team Limit', value: draft.teamLimit ?? '10', set: (value: string) => updateField('teamLimit', value) },
+                            { label: 'Taxi Tenure (seasons)', value: draft.taxiMaxSeasons ?? '', set: (value: string) => updateField('taxiMaxSeasons', value) },
+                        ].map(({ label, value, set }) => <View key={label} style={styles.row}>
+                            <Text style={styles.rowLabel}>{label}</Text>
+                            <TextInput style={styles.scoreInput} accessibilityLabel={label} value={value} onChangeText={set} keyboardType="numeric" />
+                        </View>)}
+                        <Pressable accessibilityRole="checkbox" aria-checked={draft.taxiRule === 'rookies_or_64_games'} accessibilityState={{ checked: draft.taxiRule === 'rookies_or_64_games' }}
+                            onPress={() => updateField('taxiRule', draft.taxiRule === 'rookies_or_64_games' ? 'drafted_rookies' : 'rookies_or_64_games')} style={styles.row}>
+                            <Text style={styles.rowLabel}>Taxi: rookie or fewer than 65 NBA games</Text>
+                            <Text>{draft.taxiRule === 'rookies_or_64_games' ? 'On' : 'Off'}</Text>
+                        </Pressable>
+                        <Pressable accessibilityRole="checkbox" aria-checked={draft.allowInactiveTrades ?? false} accessibilityState={{ checked: draft.allowInactiveTrades ?? false }}
+                            onPress={() => updateField('allowInactiveTrades', !draft.allowInactiveTrades)} style={styles.row}>
+                            <Text style={styles.rowLabel}>Allow IR and taxi trades</Text><Text>{draft.allowInactiveTrades ? 'On' : 'Off'}</Text>
+                        </Pressable>
+                        <Text style={styles.settingHint}>Team count locks after setup. Taxi rules apply at acquisition and season rollover. Expired tenure promotes the player; roster overflow needs resolution.</Text>
+                    </View>
+
                     <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Playoffs</Text>
                     <View style={styles.card}>
                         <Text style={styles.settingHint}>
                             {playoffCalendar?.weeks.length
                                 ? `Season ${playoffCalendar.seasonYear} has calendar weeks ${playoffCalendar.weeks[0]}–${playoffCalendar.weeks[playoffCalendar.weeks.length - 1]}. Every week through the final must exist.`
                                 : 'The season calendar is unavailable. New playoff settings cannot be saved until it loads.'}
-                            {' Choose positive whole weeks. Round weeks must add up to total playoff weeks. Changes rebuild an unstarted schedule. Settings cannot change after its first week starts.'}
+                            {' Choose positive whole weeks for each round. Changes rebuild an unstarted schedule. Settings cannot change after its first week starts.'}
                         </Text>
                         {playoffRoundsNeedReview && (
                             <Text style={styles.settingHint}>
@@ -260,12 +281,16 @@ export default function CommissionerSettingsScreen() {
                         )}
                         {[
                             { label: 'Playoff Start Week', value: playoffWeek, set: (value: string) => updateField('playoffWeek', value) },
-                            { label: 'Total Playoff Weeks', value: playoffTotalWeeks, set: (value: string) => updateField('playoffTotalWeeks', value) },
-                            ...(members.length >= 10 ? ['Quarterfinal Weeks', 'Semifinal Weeks', 'Final Weeks'] : ['Semifinal Weeks', 'Final Weeks']).map((label, index) => ({
+                            { label: 'Playoff Entrants', value: draft.playoffEntrants ?? '', set: (value: string) => updateField('playoffEntrants', value) },
+                            { label: 'Playoff Rounds', value: draft.playoffRoundCount ?? '', set: (value: string) => {
+                                updateField('playoffRoundCount', value)
+                                if (/^[1-9][0-9]*$/.test(value) && Number(value) === Math.ceil(Math.log2(Number(draft.playoffEntrants)))) updateField('playoffRoundWeeks', Array.from({ length: Number(value) }, (_, index) => playoffRoundWeeks[index] ?? '1'))
+                            } },
+                            ...playoffRoundWeeks.map((_, index) => `Round ${index + 1} Weeks`).map((label, index) => ({
                                 label,
                                 value: playoffRoundWeeks[index] ?? '',
                                 set: (value: string) => updateField('playoffRoundWeeks',
-                                    Array.from({ length: members.length >= 10 ? 3 : 2 }, (_, round) => round === index ? value : playoffRoundWeeks[round] ?? '')),
+                                    Array.from({ length: playoffRoundWeeks.length }, (_, round) => round === index ? value : playoffRoundWeeks[round] ?? '')),
                             })),
                         ].map(({ label, value, set }) => (
                             <View key={label} style={[styles.row, styles.rowBorder]}>
@@ -274,6 +299,19 @@ export default function CommissionerSettingsScreen() {
                                     onChangeText={set} keyboardType="numeric" selectTextOnFocus />
                             </View>
                         ))}
+                    </View>
+
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Skipped weeks (Pacific)</Text>
+                    <View style={styles.card}>
+                        <Text style={styles.settingHint}>Skipped weeks have no scores or records. Saved skips cannot be restored. Playoff seeds lock this control.</Text>
+                        {(playoffCalendar?.ranges ?? []).filter((week) => week.week_number < Number(playoffWeek)).map((week) => {
+                            const skipped = draft.skippedWeeks?.includes(week.week_number) ?? false
+                            return <Pressable key={week.week_number} accessibilityRole="checkbox" aria-checked={skipped} accessibilityState={{ checked: skipped }} style={styles.row}
+                                onPress={() => updateField('skippedWeeks', skipped ? (draft.skippedWeeks ?? []).filter((value) => value !== week.week_number) : [...draft.skippedWeeks ?? [], week.week_number].sort((a, b) => a - b))}>
+                                <Text style={styles.rowLabel}>Week {week.week_number}: {week.week_start}–{week.week_end} PT</Text>
+                                <Text>{skipped ? 'Skipped' : 'Play'}</Text>
+                            </Pressable>
+                        })}
                     </View>
 
                     <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Trade deadline</Text>

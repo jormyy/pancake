@@ -25,12 +25,19 @@ function remoteDraft(
     const slots = Object.fromEntries(slotData.map((slot) => [slot.slot_type, slot.slot_count]))
     const source = league.scoring_settings && typeof league.scoring_settings === 'object' &&
         !Array.isArray(league.scoring_settings) ? league.scoring_settings : {}
-    const rounds = league.playoff_round_weeks ?? Array.from({ length: memberCount >= 10 ? 3 : 2 }, () => 1)
-    const roundCount = memberCount >= 10 ? 3 : 2
+    const rounds = league.playoff_round_lengths ?? league.playoff_round_weeks ?? Array.from({ length: memberCount >= 10 ? 3 : 2 }, () => 1)
+    const roundCount = league.playoff_entrants ? Math.ceil(Math.log2(league.playoff_entrants)) : memberCount >= 10 ? 3 : 2
     const roundInputs = rounds.map(String)
     if (roundInputs.length < roundCount) roundInputs.unshift('')
     if (roundInputs.length > roundCount) roundInputs.shift()
     return {
+        teamLimit: String(league.team_limit ?? 10),
+        taxiRule: league.taxi_rule ?? 'drafted_rookies',
+        taxiMaxSeasons: league.taxi_max_seasons == null ? '' : String(league.taxi_max_seasons),
+        allowInactiveTrades: league.allow_inactive_trades ?? false,
+        playoffEntrants: String(league.playoff_entrants ?? (memberCount >= 10 ? 6 : 4)),
+        playoffRoundCount: String(roundCount),
+        skippedWeeks: [],
         rosterSize: String(league.roster_size ?? 20),
         irSlots: String(league.ir_slots ?? 2),
         taxiSlots: String(league.taxi_slots ?? 0),
@@ -113,7 +120,7 @@ export function useCommissionerSettingsResource({
         Promise.all([getLineupSlots(league.id), getLeagueMembers(league.id), getLeaguePlayoffCalendar(league.id)])
             .then(([slotData, memberData, calendar]) => {
                 if (cancelled) return
-                const nextDraft = remoteDraft(league, slotData, memberData.length)
+                const nextDraft = { ...remoteDraft(league, slotData, memberData.length), skippedWeeks: calendar?.skippedWeeks ?? [] }
                 const hydration = commissionerHydrationDecision({
                     incomingLeagueId: ownerKey ?? league.id,
                     hydratedLeagueId: hydratedOwnerKey.current,
@@ -209,7 +216,7 @@ export function useCommissionerSettingsResource({
         members: ownsDraft ? members : [],
         playoffCalendar: ownsDraft ? playoffCalendar : null,
         playoffRoundsNeedReview: ownsDraft && league?.playoff_round_weeks != null &&
-            league.playoff_round_weeks.length !== (members.length >= 10 ? 3 : 2),
+            league.playoff_round_weeks.length !== (members.length >= 10 ? 3 : 2) && league.playoff_entrants == null,
         retryLoad: () => {
             forceHydrate.current = true
             setLoadAttempt((attempt) => attempt + 1)

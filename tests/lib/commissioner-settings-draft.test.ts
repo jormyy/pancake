@@ -30,6 +30,15 @@ function draft(overrides: Partial<CommissionerSettingsDraft> = {}): Commissioner
 }
 
 describe('commissioner settings draft', () => {
+    it('accepts large leagues and a six-round asymmetric plan without a product cap', () => {
+        const baseline = draft({ teamLimit: '10', playoffEntrants: '4', playoffRoundCount: '2' })
+        const changed = draft({ teamLimit: '1001', playoffEntrants: '33', playoffRoundCount: '6', playoffRoundWeeks: ['1', '2', '1', '1', '2', '1'] })
+        const result = buildCommissionerSettingsChange(changed, baseline, 'setup', ['points'], ['PG'])
+        expect(result).toMatchObject({ updates: { team_limit: 1001, playoff_entrants: 33, playoff_round_lengths: [1, 2, 1, 1, 2, 1] } })
+        expect(buildCommissionerSettingsChange({ ...changed, playoffRoundCount: '5' }, baseline, 'setup', ['points'], ['PG']))
+            .toEqual({ error: 'Playoffs with 33 entrants need 6 rounds.' })
+    })
+
     it('normalizes persisted option strings without casts', () => {
         expect(waiverModeFromValue('rolling')).toBe('rolling')
         expect(waiverModeFromValue('unknown')).toBe('faab')

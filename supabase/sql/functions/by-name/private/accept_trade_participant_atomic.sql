@@ -45,8 +45,7 @@ BEGIN
   PERFORM 1
     FROM trade_participants
    WHERE trade_id = p_trade_id
-     AND member_id = p_accepting_member_id
-   FOR UPDATE;
+     AND member_id = p_accepting_member_id;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Only a trade participant can accept this trade.'
@@ -77,11 +76,10 @@ BEGIN
   END LOOP;
 
   FOR v_lock_player_id IN
-    SELECT DISTINCT player_id
-      FROM trade_items
-     WHERE trade_id = p_trade_id
-       AND player_id IS NOT NULL
-     ORDER BY player_id ASC
+    SELECT DISTINCT player_id FROM (
+      SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
+      UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
+    ) touched ORDER BY player_id ASC
   LOOP
     PERFORM pg_advisory_xact_lock(
       hashtext(v_trade.league_id::text),

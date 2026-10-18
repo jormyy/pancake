@@ -87,7 +87,7 @@ try {
             .in('player_id', players.filter((_, index) => !homes.has(members[index]))))
           intercept = async (url, method, response) => {
             if (method !== 'GET' || !url.pathname.endsWith('/matchups') ||
-              url.searchParams.get('select') !== 'matchup_type,week_number,is_finalized,finalized_at,winner_member_id' ||
+              url.searchParams.get('select')?.split(',').includes('finalized_at') !== true ||
               url.searchParams.get('league_season_id') !== `eq.${season}`) return
             intercept = undefined
             assert.equal(response.ok, true)

@@ -76,7 +76,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
                 getRoster(memberId, leagueId),
             ])
             if (loadSequence.current !== requestId) return false
-            const nextRoster = memberRoster.filter(isTradeableRosterPlayer)
+            const nextRoster = memberRoster.filter((player) => isTradeableRosterPlayer(player))
             setItems(nextItems)
             setRoster(nextRoster)
             setAvgMap(EMPTY_AVG_MAP)

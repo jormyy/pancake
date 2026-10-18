@@ -100,7 +100,7 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_member_count FROM public.league_members WHERE league_id = p_league_id;
-  IF v_member_count >= 2 AND (
+  IF v_member_count >= 2 AND p_matchups IS DISTINCT FROM private.regular_season_matchup_payload(p_league_id,p_league_season_id,v_start-1) AND (
     (SELECT count(DISTINCT (value->>'week_number')::int) FROM jsonb_array_elements(p_matchups)) <> v_start - 1
     OR jsonb_array_length(p_matchups) <> (v_start - 1)::bigint * (v_member_count / 2)
   ) THEN
@@ -116,7 +116,7 @@ BEGIN
     RETURN jsonb_build_object('inserted', 0, 'skipped', true);
   END IF;
 
-  v_rounds := private.playoff_round_plan(v_member_count, v_league.playoff_total_weeks, v_league.playoff_round_weeks);
+  v_rounds := private.league_playoff_round_plan(v_league.id, v_member_count);
   PERFORM private.assert_playoff_window(v_year, v_start, v_rounds, true);
 
   IF v_existing_count > 0 THEN
@@ -143,7 +143,7 @@ BEGIN
 
   WITH requested AS (
     SELECT *
-      FROM jsonb_to_recordset(p_matchups) AS requested(
+      FROM jsonb_to_recordset(private.regular_season_matchup_payload(p_league_id,p_league_season_id,v_start-1)) AS requested(
         league_id uuid,
         league_season_id uuid,
         week_number int,
@@ -169,6 +169,7 @@ BEGIN
       requested.home_member_id,
       requested.away_member_id
     FROM requested
+    WHERE NOT EXISTS (SELECT 1 FROM league_seasons WHERE id=p_league_season_id AND requested.week_number=ANY(skipped_weeks))
     ON CONFLICT (league_id, league_season_id, week_number, home_member_id, away_member_id)
     DO NOTHING
     RETURNING 1

@@ -7,6 +7,13 @@ export type WaiverMode = 'rolling' | 'faab'
 export type { TradeVetoMode } from '@/types/app'
 
 export type LeagueSettingsUpdate = {
+    team_limit?: number
+    taxi_rule?: 'drafted_rookies' | 'rookies_or_64_games'
+    taxi_max_seasons?: number
+    allow_inactive_trades?: boolean
+    playoff_entrants?: number
+    playoff_round_lengths?: number[]
+    skipped_weeks?: number[]
     scoring_settings?: Record<string, number>
     roster_size?: number
     ir_slots?: number
@@ -45,6 +52,9 @@ function numericRecordPayload(values: Record<string, number>): JsonObject {
 
 function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     const payload: JsonObject = {}
+    for (const key of ['team_limit','taxi_rule','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
+        if (updates[key] !== undefined) payload[key] = updates[key]
+    }
     if (updates.scoring_settings != null) payload.scoring_settings = numericRecordPayload(updates.scoring_settings)
     if (updates.roster_size != null) payload.roster_size = updates.roster_size
     if (updates.ir_slots != null) payload.ir_slots = updates.ir_slots
@@ -135,6 +145,7 @@ export async function fetchUserLeagues(userId: string) {
         auction_budget,
         scoring_settings,
         playoff_start_week,
+        team_limit, taxi_rule, taxi_max_seasons, allow_inactive_trades, playoff_entrants, playoff_round_lengths,
         playoff_total_weeks,
         playoff_round_weeks,
         roster_size,
@@ -177,14 +188,24 @@ export function isTradingClosed(
 }
 
 export async function getLeagueMembers(leagueId: string) {
-    const { data, error } = await supabase
+    const fetchPage = (from: number) => supabase
         .from('league_members')
         .select('id, role, team_name, user_id, profiles ( display_name, username )')
         .eq('league_id', leagueId)
         .order('joined_at')
-
-    if (error) throw error
-    return data ?? []
+        .order('id')
+        .range(from, from + 999)
+    const first = await fetchPage(0)
+    if (first.error) throw first.error
+    const rows = first.data ?? []
+    let pageLength = rows.length
+    while (pageLength === 1000) {
+        const page = await fetchPage(rows.length)
+        if (page.error) throw page.error
+        pageLength = page.data?.length ?? 0
+        rows.push(...page.data ?? [])
+    }
+    return rows
 }
 
 export async function updateTeamName(memberId: string, teamName: string) {
@@ -317,11 +338,11 @@ export async function overrideWeeklyAddCount(
 
 export async function getLeaguePlayoffCalendar(leagueId: string) {
     const { data: season, error: seasonError } = await supabase.from('league_seasons')
-        .select('season_year').eq('league_id', leagueId).eq('is_current', true).maybeSingle()
+        .select('season_year, skipped_weeks').eq('league_id', leagueId).eq('is_current', true).maybeSingle()
     if (seasonError) throw seasonError
     if (!season) return null
     const { data: weeks, error } = await supabase.from('season_weeks')
-        .select('week_number').eq('season_year', season.season_year).order('week_number')
+        .select('week_number, week_start, week_end').eq('season_year', season.season_year).order('week_number')
     if (error) throw error
-    return { seasonYear: season.season_year, weeks: (weeks ?? []).map((week) => week.week_number) }
+    return { seasonYear: season.season_year, skippedWeeks: season.skipped_weeks, ranges: weeks ?? [], weeks: (weeks ?? []).map((week) => week.week_number) }
 }

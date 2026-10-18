@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { WeekOffNotice } from '@/components/WeekOffNotice'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -362,15 +363,7 @@ export default function HomeScreen() {
                 </View>
             ) : (
                 <View style={styles.playSurface}>
-                    <EmptyState
-                        fullScreen={false}
-                        framed
-                        icon="event"
-                        message="No matchup this week yet"
-                        description="Matchups post before each week starts. Until then, scout the player pool and get your roster ready."
-                        actionLabel="Browse Players"
-                        onAction={() => router.push('/players')}
-                    />
+                    <WeekOffNotice leagueId={league?.id} onBrowse={() => router.push('/players')} />
                 </View>
             )}
 

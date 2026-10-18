@@ -182,6 +182,7 @@ const outputs = [
   ['supabase/functions/_shared/scoringCore.ts', await scoringCore()],
   ['supabase/functions/_shared/season.ts', `${HEADER}${await read('core/src/season/year.ts')}`],
   ['supabase/functions/_shared/tradeLimits.ts', `${HEADER}${await read('core/src/trades/limits.ts')}`],
+  ['supabase/functions/_shared/careerGames.ts', `${HEADER}${await read('core/src/roster/careerGames.ts')}`],
   ['supabase/functions/_shared/syncScores.ts', await syncScores()],
 ]
 

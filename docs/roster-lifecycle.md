@@ -202,3 +202,56 @@ step for step; rerun it a few times. The oracle found the pick-reservation gap f
 `20260827000003_reserve_accepted_trade_picks.sql`; removing `sync_roster_linked_state`,
 `sync_pick_linked_state`, or the `prevent_accepted_trade_pick_change` guard turns it
 red within a few dozen steps.
+
+## Configurable taxi and trade plans
+
+New columns preserve legacy rules until the commissioner changes them.
+`taxi_rule = rookies_or_64_games` accepts `years_exp = 0` or fewer than 65 career NBA regular-season games.
+Draft position does not affect this rule. An undrafted rookie qualifies. A second-year player with 64 games qualifies.
+A nonrookie with an unknown count does not qualify. No local box-score count substitutes for a career count.
+
+The daily `sync-players` pipeline reads ESPN's public NBA athlete stats endpoint:
+`https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/{espn_id}/stats?seasontype=2`.
+The parser requires the NBA league filter and regular-season filter (`seasontype = 2`).
+It reads the career `GP` aggregate from `categories[].totals` using the matching column name or label.
+It does not sum season rows, which can include both team splits and season totals.
+It accepts only nonnegative whole counts and stores the check time.
+Missing or malformed responses make the count unknown. A failed request clears the count and fails the sync run.
+Players without an ESPN identity remain unknown. Rookie experience still qualifies independently.
+
+`taxi_start_season_year` records the first taxi season. Trades and season carryover retain that value.
+A missing start uses the earliest recorded taxi roster or acquisition season. Drops and later draft acquisitions do not restart that clock.
+With `taxi_max_seasons = 2`, the third season promotes the player during the existing rollover.
+The player stays owned. An overflowing active roster needs resolution before lineup edits or further restricted transactions.
+A taxi exit still prevents a return to that team's taxi. Free agents cannot enter taxi.
+
+`allow_inactive_trades` enables IR and taxi assets and strict trade plans.
+Each manager chooses incoming IR/taxi destinations and planned drops while the offer is pending.
+The proposer can include the plan in the existing idempotent submission payload.
+Counterparties can save choices before acceptance or submit choices with acceptance.
+Acceptance stores and checks the plan. It changes no roster.
+Settlement checks every participant again, then applies all drops and transfers in one transaction.
+A failed transaction restores assets, drops, placements, waiver entries, and tenure.
+Vetoes, rejection, withdrawal, and expiry apply no roster changes.
+Taxi assets retain taxi placement and tenure. IR assets enter the active roster unless the receiver chooses eligible IR placement.
+Only Out or IR-designated incoming players can enter IR.
+
+The active limit remains `roster_size`, which includes starters and bench players.
+The total limit is `roster_size + ir_slots + taxi_slots`. IR and taxi also have separate limits.
+Trades do not place incoming players into lineup slots. Existing lineup validation still controls the unchanged ten starter slots.
+Capacity uses the full plan, including outgoing players and chosen drops, for all participants.
+Drops happen only at settlement. They use the existing release function and enter 48-hour waivers.
+
+Pending planned drops block other pending trade assets, other planned drops, and active waiver drops.
+The reverse checks apply to plan creation. Shared team locks and sorted player locks serialize reservations.
+Accepted assets and drops remain reserved through settlement or a terminal outcome.
+Ownership cleanup expires dependent offers with their existing visible failure reason and notification outbox.
+For opted-in leagues, a pending claim whose drop leaves the roster becomes cancelled with an explicit reason.
+
+## Flexible playoff rounds
+
+Explicit playoff entrants use a full seeded elimination tree. Round count equals ceil(log2(entrants)). Top seeds receive first-round byes. Each round starts after the previous round's configured weeks. Calendar validation includes skipped weeks as elapsed time.
+
+The season stores explicit seeds in `playoff_bracket_seed_ids`. Matchups store `playoff_round` and `playoff_position`. These fields drive advancement and freeze consumed results, including consecutive early rounds. The existing matchup types label early rounds, semifinals, and the final.
+
+Null entrant settings retain the legacy four- or six-team bracket and its original seed snapshot. The legacy array constraint remains intact. No existing season receives a new seed snapshot during migration.

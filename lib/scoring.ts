@@ -122,6 +122,7 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
         )
         .eq('league_id', leagueId)
         .eq('league_season_id', season.id)
+        .eq('is_voided', false)
         .lte('week_number', weekNumber)
         .or(`and(home_member_id.eq.${memberId},or(end_week_number.gte.${weekNumber},week_number.eq.${weekNumber})),and(away_member_id.eq.${memberId},or(end_week_number.gte.${weekNumber},week_number.eq.${weekNumber}))`)
         .maybeSingle()
@@ -141,6 +142,7 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
             .select('home_member_id, away_member_id, winner_member_id')
             .eq('league_id', leagueId)
             .eq('league_season_id', season.id)
+            .eq('is_voided', false)
             .eq('is_finalized', true)
             // Records (wins/losses) shown alongside the current matchup must
             // count regular-season games only; playoff outcomes don't change
@@ -214,6 +216,7 @@ export async function getLeagueWeekMatchups(
         )
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
+        .eq('is_voided', false)
         .lte('week_number', weekNumber)
         .or(`end_week_number.gte.${weekNumber},week_number.eq.${weekNumber}`)
 
@@ -264,6 +267,7 @@ export async function getLeagueStandings(leagueId: string): Promise<StandingRow[
             )
             .eq('league_id', leagueId)
             .eq('league_season_id', season.id)
+            .eq('is_voided', false)
             // League standings reflect regular-season records only; playoff
             // matchups have their own bracket display and must not inflate
             // wins/losses/PF/PA totals.

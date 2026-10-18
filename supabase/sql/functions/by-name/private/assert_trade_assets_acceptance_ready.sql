@@ -12,6 +12,7 @@ LANGUAGE plpgsql
 SET search_path = public
 AS $$
 BEGIN
+  PERFORM private.validate_trade_rosters(p_trade_id);
   PERFORM 1
     FROM trade_items AS item
     JOIN roster_players AS roster
@@ -36,8 +37,7 @@ BEGIN
             AND roster.league_season_id = p_league_season_id
             AND roster.member_id = item.from_member_id
             AND roster.player_id = item.player_id
-            AND roster.is_on_ir = false
-            AND roster.is_on_taxi = false
+            AND (EXISTS (SELECT 1 FROM leagues WHERE id=p_league_id AND allow_inactive_trades) OR (roster.is_on_ir = false AND roster.is_on_taxi = false))
        )
   ) THEN
     RAISE EXCEPTION 'Player asset is no longer owned by the expected active roster side';

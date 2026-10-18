@@ -208,8 +208,7 @@ BEGIN
        AND roster.league_season_id = p_league_season_id
        AND roster.member_id = item.from_member_id
        AND roster.player_id = item.player_id
-       AND roster.is_on_ir = false
-       AND roster.is_on_taxi = false
+       AND (EXISTS (SELECT 1 FROM leagues WHERE id=p_league_id AND allow_inactive_trades) OR (roster.is_on_ir = false AND roster.is_on_taxi = false))
      WHERE item.player_id IS NOT NULL
      FOR SHARE OF roster
   )

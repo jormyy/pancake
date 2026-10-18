@@ -12,7 +12,7 @@ describe('home matchup surface wiring', () => {
         const source = await read('app/(tabs)/index.tsx')
         expect(source).toContain("resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })")
         for (const surface of ['draft', 'loading', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
-        expect(source.indexOf("homeSurface === 'error'")).toBeLessThan(source.indexOf('message="No matchup this week yet"'))
+        expect(source.indexOf("homeSurface === 'error'")).toBeLessThan(source.indexOf('<WeekOffNotice leagueId='))
     })
 })
 
