@@ -42,17 +42,7 @@ async function loadPlayers(select: string): Promise<PlayerRow[]> {
 }
 
 export async function loadCdnPlayerResolver(): Promise<CdnPlayerResolver> {
-  const byNbaId = new Map<string, string>()
-  const byExactName = new Map<string, string>()
-  const byName = new Map<string, string>()
-  for (const player of await loadPlayers('id, display_name, nba_id')) {
-    if (player.nba_id) byNbaId.set(player.nba_id, player.id)
-    if (player.display_name) {
-      setUniqueName(byExactName, player.display_name.toLowerCase(), player.id)
-      setUniqueName(byName, normalizeName(player.display_name), player.id)
-    }
-  }
-  return { byNbaId, byExactName, byName }
+  return { byNbaId: new Map(), byExactName: new Map(), byName: new Map() }
 }
 
 export async function loadNamePlayerResolver(): Promise<NamePlayerResolver> {
@@ -74,13 +64,26 @@ export async function resolveCdnPlayer(
 ): Promise<string | null> {
   // Cached names are hints only. A merge or another provider can change the
   // canonical UUID after this resolver loads.
-  const { results } = await resolvePlayerImports('nba_cdn', [{ provider_id: personId, display_name: displayName }])
-  const playerId = results[0].player_id
-  if (!playerId) throw new Error(`Ambiguous CDN player name without NBA id: ${displayName}`)
-  resolver.byNbaId.set(personId, playerId)
-  setUniqueName(resolver.byExactName, displayName.toLowerCase(), playerId)
-  setUniqueName(resolver.byName, normalizeName(displayName), playerId)
-  return playerId
+  return (await resolveCdnPlayers(resolver, [{ personId, displayName }]))[0]
+}
+
+export async function resolveCdnPlayers(
+  resolver: CdnPlayerResolver,
+  players: { personId: string; displayName: string }[],
+): Promise<string[]> {
+  if (players.length === 0) return []
+  const { results } = await resolvePlayerImports('nba_cdn', players.map(player => ({
+    provider_id: player.personId, display_name: player.displayName,
+  })))
+  return results.map((result, index) => {
+    const { personId, displayName } = players[index]
+    const playerId = result.player_id
+    if (!playerId) throw new Error(`Ambiguous CDN player name without NBA id: ${displayName}`)
+    resolver.byNbaId.set(personId, playerId)
+    setUniqueName(resolver.byExactName, displayName.toLowerCase(), playerId)
+    setUniqueName(resolver.byName, normalizeName(displayName), playerId)
+    return playerId
+  })
 }
 
 export async function resolveNamedPlayer(
