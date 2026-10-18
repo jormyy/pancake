@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
@@ -12,6 +13,7 @@ const boundary = vi.hoisted(() => ({
     stateDelay: 50, prospectDelay: 50, revisionDelay: 50, failState: false, failProspects: false,
     activeState: 0, activeProspects: 0, activeRevision: 0, maxState: 0, maxProspects: 0, maxRevision: 0,
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     AppState: {
         get currentState() { return boundary.appState },
@@ -29,6 +31,8 @@ vi.mock('@/lib/rookieDraft', () => ({
 }))
 vi.mock('@/lib/roster', () => ({ getRoster: async () => [], dropPlayer: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn() }))
+setSessionOwner('draft-test-user')
+
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const players: RookieProspect[] = ['a', 'b'].map((id, index) => ({
@@ -283,7 +287,7 @@ it('defers hidden notifications and catches up once on resume', async () => {
     expect(hiddenReads).toBe(0)
     expect(measured.stateReads).toBe(1)
     expect(measured.prospectReads).toBe(0)
-    expect(measured.revisionProbes).toBe(1)
+    expect(measured.revisionProbes).toBe(0)
 })
 
 it('keeps failed board reads due without reloading unchanged prospects', async () => {
@@ -393,7 +397,7 @@ it('does not starve removal under continuous notifications every 100 ms for five
     expect(measured.maxProspects).toBe(0)
 })
 
-it('reprobes once after resume during an old pending revision probe', async () => {
+it('reads current state once after resume during an old pending revision probe', async () => {
     await mount()
     boundary.revisionDelay = 500
     await advance(14500)
@@ -406,7 +410,7 @@ it('reprobes once after resume during an old pending revision probe', async () =
     await advance(700)
     const measured = report('resume/during-500ms-revision-probe', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
-    expect(measured.revisionProbes).toBe(2)
+    expect(measured.revisionProbes).toBe(1)
     expect(measured.maxRevision).toBe(1)
     expect(measured.stateReads).toBe(1)
     expect(measured.prospectReads).toBe(0)

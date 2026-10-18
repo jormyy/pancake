@@ -177,3 +177,28 @@ describe('draft admin action ownership', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+it('rechecks activity and the captured owner after a confirmation closes', async () => {
+    let allowed = true
+    const oldOwner = () => allowed
+    let latest!: ReturnType<typeof useDraftAdminControls>
+    const Probe = ({ canAct }: { canAct: () => boolean }) => {
+        latest = useDraftAdminControls({
+            draftId: 'draft', canAct,
+            confirmCopy: { stop: 'stop', reset: 'reset', pause: 'pause', resume: 'resume' },
+            refresh: vi.fn(), onStopped: vi.fn(),
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe, { canAct: oldOwner })) })
+    await act(async () => { latest.handlePauseDraft() })
+    const confirm = mocks.confirmAction.mock.calls.at(-1)![2] as () => void
+    allowed = false
+    await act(async () => { renderer.update(React.createElement(Probe, { canAct: () => true })); confirm() })
+    expect(mocks.pauseDraft).not.toHaveBeenCalled()
+    await act(async () => { latest.handlePauseDraft() })
+    await act(async () => { (mocks.confirmAction.mock.calls.at(-1)![2] as () => void)() })
+    expect(mocks.pauseDraft).toHaveBeenCalledExactlyOnceWith('draft')
+    await act(async () => { renderer.unmount() })
+})

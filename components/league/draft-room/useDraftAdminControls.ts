@@ -16,12 +16,14 @@ export function useDraftAdminControls({
     refresh,
     onStopped,
     onReset,
+    canAct = () => true,
 }: {
     draftId?: string
     confirmCopy: DraftAdminConfirmCopy
     refresh: () => Promise<void>
     onStopped: () => void
     onReset?: () => void
+    canAct?: () => boolean
 }) {
     const activeDraftIdRef = useRef(draftId)
     const generationRef = useRef(0)
@@ -41,7 +43,7 @@ export function useDraftAdminControls({
         }
     }, [draftId])
     const ownsDraft = (capturedDraftId: string, generation: number) =>
-        activeDraftIdRef.current === capturedDraftId && generationRef.current === generation
+        canAct() && activeDraftIdRef.current === capturedDraftId && generationRef.current === generation
 
     async function runAction(
         capturedDraftId: string,
@@ -50,7 +52,7 @@ export function useDraftAdminControls({
         failureTitle: string,
         after: () => void | Promise<void>,
     ) {
-        if (!ownsDraft(capturedDraftId, generation) || pendingDraftsRef.current.has(capturedDraftId)) return
+        if (!canAct() || !ownsDraft(capturedDraftId, generation) || pendingDraftsRef.current.has(capturedDraftId)) return
         pendingDraftsRef.current.add(capturedDraftId)
         setBusyDrafts(new Set(pendingDraftsRef.current))
         try {
@@ -65,7 +67,7 @@ export function useDraftAdminControls({
     }
 
     function handleStopDraft() {
-        if (!draftId || pendingDraftsRef.current.has(draftId)) return
+        if (!canAct() || !draftId || pendingDraftsRef.current.has(draftId)) return
         const capturedDraftId = draftId
         const generation = generationRef.current
         confirmAction('Stop draft?', confirmCopy.stop, () => {
@@ -74,7 +76,7 @@ export function useDraftAdminControls({
     }
 
     function handleResetDraft() {
-        if (!draftId || pendingDraftsRef.current.has(draftId)) return
+        if (!canAct() || !draftId || pendingDraftsRef.current.has(draftId)) return
         const capturedDraftId = draftId
         const generation = generationRef.current
         confirmAction('Reset draft?', confirmCopy.reset, () => {
@@ -86,7 +88,7 @@ export function useDraftAdminControls({
     }
 
     function handlePauseDraft() {
-        if (!draftId || pendingDraftsRef.current.has(draftId)) return
+        if (!canAct() || !draftId || pendingDraftsRef.current.has(draftId)) return
         const capturedDraftId = draftId
         const generation = generationRef.current
         confirmAction('Pause draft?', confirmCopy.pause, () => {
@@ -95,7 +97,7 @@ export function useDraftAdminControls({
     }
 
     function handleResumeDraft() {
-        if (!draftId || pendingDraftsRef.current.has(draftId)) return
+        if (!canAct() || !draftId || pendingDraftsRef.current.has(draftId)) return
         const capturedDraftId = draftId
         const generation = generationRef.current
         confirmAction('Resume draft?', confirmCopy.resume, () => {
