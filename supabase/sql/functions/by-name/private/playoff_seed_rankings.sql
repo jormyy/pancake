@@ -47,7 +47,7 @@ AS $$
       ON matchup.league_season_id = p_league_season_id
      AND matchup.matchup_type = 'regular_season'::public.matchup_type
      AND matchup.week_number < p_playoff_start_week
-     AND matchup.is_finalized = true
+     AND matchup.is_finalized = true AND NOT matchup.is_voided
      AND member.id IN (matchup.home_member_id, matchup.away_member_id)
     WHERE member.league_id = p_league_id
     GROUP BY member.id

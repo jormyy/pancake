@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
-import { Trade, TradeItem, needsMemberAcceptance } from '@/lib/trades'
+import { Trade, TradeItem, type TradeRosterPlan, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -30,6 +30,7 @@ const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric',
 export type TradeCardActions = {
     acting: boolean
     onAccept: () => void
+    onRosterPlan?: (plan: TradeRosterPlan) => void
     onTaxiDestination?: (playerId: string, value: boolean) => void
     onReject: () => void
     onVeto: () => void
@@ -307,6 +308,7 @@ export function TradeCard({
     /** Beside an open detail pane: names only, the pane shows season context and notes. */
     brief?: boolean
     onAccept: () => void
+    onRosterPlan?: (plan: TradeRosterPlan) => void
     onTaxiDestination?: (playerId: string, value: boolean) => void
     onReject: () => void
     onVeto: () => void

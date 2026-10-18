@@ -50,7 +50,7 @@ BEGIN
 
   SELECT count(*), bool_and(is_finalized IS TRUE AND (v_type = 'regular_season' OR winner_member_id IS NOT NULL)), max(finalized_at)
     INTO v_count, v_ready, v_latest
-    FROM public.matchups WHERE league_season_id = p_league_season_id AND matchup_type = v_type
+    FROM public.matchups WHERE league_season_id = p_league_season_id AND NOT is_voided AND matchup_type = v_type
       AND (v_type <> 'regular_season' OR week_number < v_start);
   IF NOT (p_action = 'generate' AND v_start = 1) AND
       (v_count = 0 OR v_ready IS DISTINCT FROM true OR v_latest > p_reference_at - interval '48 hours') THEN
@@ -60,7 +60,7 @@ BEGIN
   -- Keep input revisions locked through the transition. Missing legacy
   -- certificates require an actual replay, never a timestamp backfill.
   FOR v_week IN SELECT DISTINCT week_number FROM public.matchups
-      WHERE league_season_id = p_league_season_id
+      WHERE league_season_id = p_league_season_id AND NOT is_voided
         AND (matchup_type = v_type OR (p_action = 'rollover' AND matchup_type = 'regular_season'))
         AND (matchup_type <> 'regular_season' OR week_number < v_start) ORDER BY week_number LOOP
     SELECT input_token INTO v_input_token FROM private.score_week_certificates

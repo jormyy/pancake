@@ -95,7 +95,7 @@ BEGIN
   END IF;
 
   IF NOT v_is_mock THEN
-    PERFORM private.playoff_round_plan(v_member_count, v_league.playoff_total_weeks, v_league.playoff_round_weeks);
+    PERFORM private.league_playoff_round_plan(v_league.id, v_member_count);
   END IF;
 
   SELECT id

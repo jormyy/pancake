@@ -1,3 +1,4 @@
+import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
@@ -39,6 +40,7 @@ import {
     editTrade,
     getCurrentSeasonId,
     getTradeById,
+    type TradeRosterPlan,
     proposeMultiTeamTrade,
     proposeTrade,
 } from '@/lib/trades'
@@ -80,6 +82,7 @@ export default function ProposeTradeScreen() {
     const [expirationDays, setExpirationDays] = useState('3')
     const [loading, setLoading] = useState(true)
     const [membersError, setMembersError] = useState<string | null>(null)
+    const [rosterPlan, setRosterPlan] = useState<TradeRosterPlan>({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
     // The sender tab outlives the editor so Review and back lands on the same side.
@@ -107,6 +110,7 @@ export default function ProposeTradeScreen() {
         myTeamName: current?.team_name ?? 'Your team',
         members,
         faabEnabled,
+        allowInactiveTrades: currentLeague?.allow_inactive_trades,
     })
     const {
         loadedParticipantKey,
@@ -308,7 +312,7 @@ export default function ProposeTradeScreen() {
             : 'Trade team limit reached. Remove a team before selecting another.'
         : null
     const intent = JSON.stringify({ ownerIdentity, mode, sourceTradeId, multiTeamMode, selectedRecipientId,
-        participantIds, items, notes, expirationDays })
+        participantIds, items, notes, expirationDays, rosterPlan })
     const retainedAttempt = retainedAttemptRef.current?.ownerIdentity === ownerIdentity &&
         retainedAttemptRef.current.intent === intent ? retainedAttemptRef.current : null
     useEffect(() => {
@@ -356,6 +360,7 @@ export default function ProposeTradeScreen() {
                         counterTradeId,
                         myMemberId,
                         leagueId,
+                        rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined,
                         participantMemberIds: [...participantIds],
                         items: items.map((item) => ({ ...item })),
                         notes,
@@ -376,7 +381,7 @@ export default function ProposeTradeScreen() {
                         myMemberId,
                         leagueId,
                         selectedRecipientId,
-                        payload: { ...payload, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
+                        payload: { ...payload, rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
                             offerPickIds: [...payload.offerPickIds], requestPickIds: [...payload.requestPickIds] },
                     }
                     send = () => submitTradeComposer(input,
@@ -410,6 +415,8 @@ export default function ProposeTradeScreen() {
             }
         }
     }, [
+        rosterPlan,
+        currentLeague?.allow_inactive_trades,
         back,
         canSubmit,
         counterTradeId,
@@ -438,6 +445,7 @@ export default function ProposeTradeScreen() {
         items,
         myMemberId,
         faabEnabled,
+        allowInactiveTrades: currentLeague?.allow_inactive_trades,
         notes,
         notesError,
         expirationDays,
@@ -501,6 +509,14 @@ export default function ProposeTradeScreen() {
                     <View style={styles.reviewColumn}>
                         {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
+                        {currentLeague?.allow_inactive_trades ? <TradeRosterPlanEditor
+                            incoming={items.flatMap((item) => {
+                                if (item.kind !== 'player' || item.toMemberId !== myMemberId) return []
+                                const player = composer.participantRosters[item.fromMemberId]?.find((row) => row.players.id === item.playerId)?.players
+                                return [{ ...item, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status }]
+                            })}
+                            roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
+                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting} /> : null}
                         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
                     </View>

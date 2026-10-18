@@ -15,6 +15,9 @@ DECLARE
   v_league public.leagues%ROWTYPE;
   v_user_id uuid := (SELECT auth.uid());
   v_touches_structural boolean;
+  v_key text;
+  v_skip int[];
+  v_current public.league_seasons%ROWTYPE;
   v_scoring_settings jsonb;
   v_roster_size int;
   v_ir_slots int;
@@ -61,6 +64,32 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  FOREACH v_key IN ARRAY ARRAY['team_limit','playoff_entrants','taxi_max_seasons'] LOOP
+    IF p_settings ? v_key AND (jsonb_typeof(p_settings->v_key)<>'number' OR (p_settings->>v_key)!~'^[0-9]+$') THEN
+      RAISE EXCEPTION '% must be a positive whole number.',v_key USING ERRCODE='22023';
+    END IF;
+  END LOOP;
+  IF p_settings ? 'team_limit' AND ((p_settings->>'team_limit')::int NOT BETWEEN 2 AND 30 OR
+      (p_settings->>'team_limit')::int < (SELECT count(*) FROM public.league_members WHERE league_id=p_league_id)) THEN
+    RAISE EXCEPTION 'Team limit must be between 2 and 30 and include every current team.' USING ERRCODE='22023';
+  END IF;
+  IF p_settings ? 'playoff_entrants' AND (p_settings->>'playoff_entrants')::int NOT BETWEEN 2 AND 8 THEN
+    RAISE EXCEPTION 'Choose 2 through 8 playoff entrants.' USING ERRCODE='22023';
+  END IF;
+  IF p_settings ? 'taxi_rule' AND (p_settings->>'taxi_rule') NOT IN ('drafted_rookies','rookies_or_64_games') THEN
+    RAISE EXCEPTION 'Choose a valid taxi eligibility rule.' USING ERRCODE='22023';
+  END IF;
+  IF p_settings ? 'taxi_max_seasons' AND (p_settings->>'taxi_max_seasons')::int NOT BETWEEN 1 AND 2 THEN
+    RAISE EXCEPTION 'Taxi tenure must be 1 or 2 seasons.' USING ERRCODE='22023';
+  END IF;
+  IF p_settings ? 'allow_inactive_trades' AND jsonb_typeof(p_settings->'allow_inactive_trades')<>'boolean' THEN
+    RAISE EXCEPTION 'Allow IR and taxi trades must be true or false.' USING ERRCODE='22023';
+  END IF;
+  IF p_settings ? 'playoff_round_lengths' AND (jsonb_typeof(p_settings->'playoff_round_lengths')<>'array'
+      OR EXISTS (SELECT 1 FROM jsonb_array_elements(p_settings->'playoff_round_lengths') value
+        WHERE jsonb_typeof(value)<>'number' OR value::text!~'^[0-9]+$')) THEN
+    RAISE EXCEPTION 'Enter positive whole weeks for each playoff round.' USING ERRCODE='22023';
+  END IF;
   IF p_settings ? 'scoring_settings' AND jsonb_typeof(p_settings -> 'scoring_settings') = 'object' THEN
     v_scoring_settings := p_settings -> 'scoring_settings';
   END IF;
@@ -232,7 +261,8 @@ BEGIN
     OR v_roster_size IS NOT NULL
     OR v_ir_slots IS NOT NULL
     OR v_taxi_slots IS NOT NULL
-    OR v_auction_budget IS NOT NULL;
+    OR v_auction_budget IS NOT NULL
+    OR p_settings ? 'team_limit';
 
   IF v_touches_structural
      AND v_league.status IS DISTINCT FROM 'setup'::public.league_status
@@ -243,7 +273,13 @@ BEGIN
   END IF;
 
   UPDATE public.leagues
-     SET scoring_settings = COALESCE(v_scoring_settings, scoring_settings),
+     SET team_limit = CASE WHEN p_settings ? 'team_limit' THEN (p_settings->>'team_limit')::int ELSE team_limit END,
+         taxi_rule = COALESCE(p_settings->>'taxi_rule',taxi_rule),
+         taxi_max_seasons = CASE WHEN p_settings ? 'taxi_max_seasons' THEN (p_settings->>'taxi_max_seasons')::int ELSE taxi_max_seasons END,
+         allow_inactive_trades = CASE WHEN p_settings ? 'allow_inactive_trades' THEN (p_settings->>'allow_inactive_trades')::boolean ELSE allow_inactive_trades END,
+         playoff_entrants = CASE WHEN p_settings ? 'playoff_entrants' THEN (p_settings->>'playoff_entrants')::int ELSE playoff_entrants END,
+         playoff_round_lengths = CASE WHEN p_settings ? 'playoff_round_lengths' THEN ARRAY(SELECT jsonb_array_elements_text(p_settings->'playoff_round_lengths'))::int[] ELSE playoff_round_lengths END,
+         scoring_settings = COALESCE(v_scoring_settings, scoring_settings),
          roster_size = COALESCE(v_roster_size, roster_size),
          ir_slots = COALESCE(v_ir_slots, ir_slots),
          taxi_slots = COALESCE(v_taxi_slots, taxi_slots),
@@ -263,6 +299,33 @@ BEGIN
          trade_veto_window_hours = COALESCE(v_trade_veto_window_hours, trade_veto_window_hours),
          trade_veto_threshold_percent = COALESCE(v_trade_veto_threshold_percent, trade_veto_threshold_percent)
    WHERE id = p_league_id;
+
+  IF p_settings ? 'skipped_weeks' THEN
+    IF jsonb_typeof(p_settings->'skipped_weeks')<>'array' OR EXISTS (
+      SELECT 1 FROM jsonb_array_elements(p_settings->'skipped_weeks') value
+        WHERE jsonb_typeof(value)<>'number' OR value::text!~'^[0-9]+$') THEN
+      RAISE EXCEPTION 'Skipped weeks must be positive whole week numbers.' USING ERRCODE='22023';
+    END IF;
+    SELECT ARRAY(SELECT DISTINCT value::int FROM jsonb_array_elements_text(p_settings->'skipped_weeks') value ORDER BY value::int) INTO v_skip;
+    SELECT * INTO v_current FROM public.league_seasons WHERE league_id=p_league_id AND is_current FOR UPDATE;
+    PERFORM pg_advisory_xact_lock(hashtext('regular-season-matchups'),hashtext(v_current.id::text));
+    PERFORM pg_advisory_xact_lock(hashtext('playoff-bracket'),hashtext(v_current.id::text));
+    IF NOT v_current.skipped_weeks <@ v_skip THEN
+      RAISE EXCEPTION 'Skipped weeks cannot be restored. Contact the commissioner before skipping a week.';
+    END IF;
+    IF v_skip IS DISTINCT FROM v_current.skipped_weeks THEN
+      IF EXISTS (SELECT 1 FROM unnest(v_skip) week WHERE week<1 OR week>=COALESCE(v_playoff_start_week,v_league.playoff_start_week)
+        OR NOT EXISTS (SELECT 1 FROM public.season_weeks WHERE season_year=v_current.season_year AND week_number=week)) THEN
+        RAISE EXCEPTION 'Only calendar weeks before playoffs can be skipped.' USING ERRCODE='22023';
+      END IF;
+      IF EXISTS (SELECT 1 FROM public.matchups WHERE league_season_id=v_current.id AND matchup_type<>'regular_season') THEN
+        RAISE EXCEPTION 'Weeks cannot be voided after playoff seeds are frozen.';
+      END IF;
+      UPDATE public.league_seasons SET skipped_weeks=v_skip WHERE id=v_current.id;
+      UPDATE public.matchups SET is_voided=true WHERE league_season_id=v_current.id AND week_number=ANY(v_skip);
+      PERFORM private.rebuild_regular_standings(p_league_id,v_current.id);
+    END IF;
+  END IF;
 
   IF v_faab_starting_budget IS NOT NULL THEN
     UPDATE public.faab_balances AS balance

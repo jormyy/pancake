@@ -189,8 +189,7 @@ BEGIN
        AND league_season_id = p_league_season_id
        AND member_id = p_proposer_member_id
        AND player_id = ANY(v_offer_player_ids)
-       AND is_on_ir = false
-       AND is_on_taxi = false
+       AND (EXISTS (SELECT 1 FROM leagues WHERE id=p_league_id AND allow_inactive_trades) OR (is_on_ir = false AND is_on_taxi = false))
      FOR SHARE
   )
   SELECT count(*) INTO v_rows FROM locked;
@@ -205,8 +204,7 @@ BEGIN
        AND league_season_id = p_league_season_id
        AND member_id = p_recipient_member_id
        AND player_id = ANY(v_request_player_ids)
-       AND is_on_ir = false
-       AND is_on_taxi = false
+       AND (EXISTS (SELECT 1 FROM leagues WHERE id=p_league_id AND allow_inactive_trades) OR (is_on_ir = false AND is_on_taxi = false))
      FOR SHARE
   )
   SELECT count(*) INTO v_rows FROM locked;

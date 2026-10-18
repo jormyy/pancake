@@ -21,6 +21,9 @@ DECLARE
   v_seed_ids uuid[];
   v_inserted_count int := 0;
   v_pair record;
+  v_seed int;
+  v_size int;
+  v_type public.matchup_type;
   v_existing_challenge public.rps_challenges%ROWTYPE;
 BEGIN
   SELECT * INTO v_league FROM public.leagues WHERE id = p_league_id FOR UPDATE;
@@ -36,7 +39,7 @@ BEGIN
   PERFORM 1
     FROM public.matchups AS matchup
    WHERE matchup.league_season_id = v_season_id
-     AND matchup.matchup_type IN ('playoff_quarterfinal'::public.matchup_type, 'playoff_semifinal'::public.matchup_type)
+     AND matchup.matchup_type <> 'regular_season'
    FOR UPDATE;
 
   IF FOUND THEN
@@ -48,7 +51,7 @@ BEGIN
    WHERE matchup.league_season_id = v_season_id
      AND matchup.matchup_type = 'regular_season'::public.matchup_type
      AND matchup.week_number < v_playoff_start_week
-     AND matchup.is_finalized = false
+     AND matchup.is_finalized = false AND NOT matchup.is_voided
    FOR UPDATE;
 
   IF FOUND THEN
@@ -68,13 +71,13 @@ BEGIN
     FROM public.league_members AS member
    WHERE member.league_id = p_league_id;
 
-  IF v_member_count < 4 THEN
+  IF v_member_count < COALESCE(v_league.playoff_entrants,4) THEN
     RAISE EXCEPTION 'Not enough teams to seed playoffs (need 4).';
   END IF;
 
-  v_playoff_size := CASE WHEN v_member_count >= 10 THEN 6 ELSE 4 END;
+  v_playoff_size := COALESCE(v_league.playoff_entrants,CASE WHEN v_member_count >= 10 THEN 6 ELSE 4 END);
 
-  v_rounds := private.playoff_round_plan(v_member_count, v_league.playoff_total_weeks, v_league.playoff_round_weeks);
+  v_rounds := private.league_playoff_round_plan(v_league.id, v_member_count);
   PERFORM private.assert_playoff_window(v_season_year, v_playoff_start_week, v_rounds);
   UPDATE public.league_seasons
      SET playoff_start_week = v_playoff_start_week, playoff_round_weeks = v_rounds
@@ -146,46 +149,18 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF v_playoff_size >= 6 THEN
-    WITH inserted AS (
-      INSERT INTO public.matchups (
-        league_id,
-        league_season_id,
-        week_number,
-        end_week_number,
-        matchup_type,
-        home_member_id,
-        away_member_id
-      )
-      VALUES
-        (p_league_id, v_season_id, v_playoff_start_week, v_playoff_start_week + v_rounds[1] - 1, 'playoff_quarterfinal'::public.matchup_type, v_seed_ids[3], v_seed_ids[6]),
-        (p_league_id, v_season_id, v_playoff_start_week, v_playoff_start_week + v_rounds[1] - 1, 'playoff_quarterfinal'::public.matchup_type, v_seed_ids[4], v_seed_ids[5])
-      ON CONFLICT (league_id, league_season_id, week_number, home_member_id, away_member_id)
-      DO NOTHING
-      RETURNING 1
-    )
-    SELECT count(*) INTO v_inserted_count FROM inserted;
-  ELSE
-    WITH inserted AS (
-      INSERT INTO public.matchups (
-        league_id,
-        league_season_id,
-        week_number,
-        end_week_number,
-        matchup_type,
-        home_member_id,
-        away_member_id
-      )
-      VALUES
-        (p_league_id, v_season_id, v_playoff_start_week, v_playoff_start_week + v_rounds[1] - 1, 'playoff_semifinal'::public.matchup_type, v_seed_ids[1], v_seed_ids[4]),
-        (p_league_id, v_season_id, v_playoff_start_week, v_playoff_start_week + v_rounds[1] - 1, 'playoff_semifinal'::public.matchup_type, v_seed_ids[2], v_seed_ids[3])
-      ON CONFLICT (league_id, league_season_id, week_number, home_member_id, away_member_id)
-      DO NOTHING
-      RETURNING 1
-    )
-    SELECT count(*) INTO v_inserted_count FROM inserted;
-  END IF;
-
-  RETURN jsonb_build_object('inserted', v_inserted_count, 'skipped', false);
+  v_size := power(2,cardinality(v_rounds))::int;
+  v_type := CASE cardinality(v_rounds) WHEN 3 THEN 'playoff_quarterfinal'::public.matchup_type
+    WHEN 2 THEN 'playoff_semifinal'::public.matchup_type ELSE 'playoff_final'::public.matchup_type END;
+  FOR v_seed IN 1..(v_size/2) LOOP
+    IF v_size+1-v_seed <= v_playoff_size THEN
+      INSERT INTO public.matchups(league_id,league_season_id,week_number,end_week_number,matchup_type,home_member_id,away_member_id)
+      VALUES(p_league_id,v_season_id,v_playoff_start_week,v_playoff_start_week+v_rounds[1]-1,v_type,
+        v_seed_ids[v_seed],v_seed_ids[v_size+1-v_seed])
+      ON CONFLICT (league_id,league_season_id,week_number,home_member_id,away_member_id) DO NOTHING;
+      v_inserted_count := v_inserted_count+1;
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('inserted',v_inserted_count,'skipped',false);
 END;
 $$;

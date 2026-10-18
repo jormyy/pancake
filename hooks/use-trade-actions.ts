@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { acceptTrade, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade } from '@/lib/trades'
+import { acceptTrade, setTradeRosterPlan, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade, type TradeRosterPlan } from '@/lib/trades'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 
@@ -95,6 +95,10 @@ export function useTradeActions({
             'Could not save the taxi destination.')
     }, [memberId, runTerminalAction])
 
+    const setRosterPlan = useCallback((trade: Trade, plan: TradeRosterPlan) => runTerminalAction(trade.id,
+        (tradeId, receiverId) => setTradeRosterPlan(tradeId, receiverId, plan),
+        'Could not save the roster plan.'), [runTerminalAction])
+
     const reject = useCallback((tradeId: string) => {
         confirmAction('Reject Trade', 'Are you sure you want to reject this trade?',
             () => runTerminalAction(tradeId, rejectTrade, 'Could not reject trade.'), 'Reject')
@@ -111,6 +115,7 @@ export function useTradeActions({
     return {
         accept,
         setTaxiDestination,
+        setRosterPlan,
         busyTradeId,
         reject,
         veto,

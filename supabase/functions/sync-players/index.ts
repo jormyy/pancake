@@ -7,6 +7,7 @@ import { fetchEspnNews, fetchEspnPlayerRecords } from '../_shared/playerSource.t
 import { fetchAllPlayers } from './players.ts'
 import { resolvePlayerImports } from '../_shared/playerImports.ts'
 import { errorMessage } from '../_shared/responses.ts'
+import { syncCareerGames } from './career.ts'
 import { importPlayerChunk } from './imports.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
@@ -26,7 +27,8 @@ serveInternal('sync-players', async () => {
       : await syncPlayersFromEspn()
     const nbaIds = await syncNBAIds()
     const news = await syncDynastyNews()
-    const failures = [...players.failures, ...nbaIds.failures, ...news.failures]
+    const career = await syncCareerGames()
+    const failures = [...players.failures, ...nbaIds.failures, ...news.failures, ...career.failures]
     if (failures.length > 0) {
       throw new Error(`sync-players had ${failures.length} failure(s): ${failures.join('; ')}`)
     }
@@ -37,6 +39,7 @@ serveInternal('sync-players', async () => {
         ambiguousSkipped: players.ambiguousSkipped,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
+        careerGamesUpdated: career.updated,
         newsUpserted: news.upserted,
         newsFailures: news.failures,
       },

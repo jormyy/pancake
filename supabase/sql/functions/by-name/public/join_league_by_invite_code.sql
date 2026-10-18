@@ -59,7 +59,7 @@ BEGIN
   FROM   public.league_members
   WHERE  league_id = v_league.id;
 
-  IF v_member_count >= 10 THEN
+  IF v_member_count >= v_league.team_limit THEN
     RAISE EXCEPTION 'This league is full.'
       USING ERRCODE = 'P0001';
   END IF;

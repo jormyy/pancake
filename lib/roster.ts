@@ -7,14 +7,15 @@ import type { RosterSlotType } from '@/types/database'
 
 export { isIREligible, isDTD }
 
-export function isTaxiEligible(player: RosterPlayer['players']): boolean {
-    return isEligibleForTaxi(player.nba_draft_number, player.years_exp)
+export function isTaxiEligible(player: RosterPlayer['players'], extended = false): boolean {
+    return isEligibleForTaxi(player.nba_draft_number, player.years_exp, player.career_regular_season_games ?? null, extended)
 }
 
 export type RosterPlayer = {
     id: string
     is_on_ir: boolean
     is_on_taxi: boolean
+    taxi_start_season_year?: number | null
     acquired_via: string
     players: {
         id: string
@@ -25,6 +26,7 @@ export type RosterPlayer = {
         injury_status: string | null
         nba_id: string | null
         nba_draft_number: number | null
+        career_regular_season_games?: number | null
         years_exp: number | null
     }
 }
@@ -55,8 +57,8 @@ export async function getRostersForMembers(
         .from('roster_players')
         .select(
             `
-      id, member_id, is_on_ir, is_on_taxi, acquired_via,
-      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number, years_exp )
+      id, member_id, is_on_ir, is_on_taxi, acquired_via, taxi_start_season_year,
+      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number, years_exp, career_regular_season_games )
     `,
         )
         .in('member_id', uniqueMemberIds)

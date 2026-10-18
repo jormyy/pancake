@@ -20,6 +20,7 @@ type UseMultiTeamTradeComposerArgs = {
     leagueId: string
     myTeamName: string
     members: TradeComposerMember[]
+    allowInactiveTrades?: boolean
     faabEnabled: boolean
 }
 
@@ -30,6 +31,7 @@ export function useMultiTeamTradeComposer({
     myTeamName,
     members,
     faabEnabled,
+    allowInactiveTrades = false,
 }: UseMultiTeamTradeComposerArgs) {
     const [composerState, dispatch] = useReducer(multiTeamTradeReducer, myMemberId, createMultiTeamTradeState)
     const [participantAssets, setParticipantAssets] = useState<{
@@ -209,7 +211,7 @@ export function useMultiTeamTradeComposer({
 
                 const nextRosters = Object.fromEntries(missingParticipantIds.map((memberId) => [
                     memberId,
-                    (rosters[memberId] ?? []).filter(isTradeableRosterPlayer),
+                    (rosters[memberId] ?? []).filter((player) => isTradeableRosterPlayer(player, allowInactiveTrades)),
                 ]))
                 setParticipantAssets((current) => ({
                     rosters: { ...current.rosters, ...nextRosters },
@@ -230,7 +232,7 @@ export function useMultiTeamTradeComposer({
         return () => {
             if (rosterLoadSeqRef.current === requestId) rosterLoadSeqRef.current += 1
         }
-    }, [enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey])
+    }, [allowInactiveTrades, enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey])
 
     useEffect(() => {
         const requestId = ++statsLoadSeqRef.current

@@ -228,8 +228,8 @@ function StandingsHeader({
 
 // Mirrors the server bracket seeding convention (supabase/migrations/
 // 20260628000008_edge_atomic_playoffs.sql): leagues with 10+ teams send 6 to
-// the bracket, smaller leagues send the top 4. There is no client-visible
-// playoff team-count setting, so the cutoff is derived from league size.
+// the bracket, smaller leagues send the top 4. A saved entrant count takes
+// priority over this legacy fallback.
 function playoffTeamCount(teamCount: number) {
     return teamCount >= 10 ? 6 : 4
 }
@@ -254,12 +254,14 @@ function PlayoffCutLine({ teamCount, padX }: { teamCount: number; padX: number }
 export function StandingsTable({
     standings,
     leagueStatus,
+    playoffEntrants,
     loading = false,
     myMemberId,
     onSelectTeam,
 }: {
     standings: StandingRow[]
     leagueStatus?: LeagueStatus
+    playoffEntrants?: number | null
     loading?: boolean
     myMemberId?: string
     onSelectTeam: (memberId: string, teamName: string) => void
@@ -305,7 +307,7 @@ export function StandingsTable({
     const listAccessibilityLabel = standingsListAccessibilityLabel(leagueStatus, sorted.length, sortBy, sortDir)
     // The cut line only makes sense while the table reads in seed order
     // (default wins-desc sort); any other sort scrambles seeding.
-    const cutTeamCount = playoffTeamCount(sorted.length)
+    const cutTeamCount = playoffEntrants ?? playoffTeamCount(sorted.length)
     const playoffCutIndex =
         sortBy === 'wins' && sortDir === 'desc' && sorted.length > cutTeamCount ? cutTeamCount : -1
     const emptyState = loading

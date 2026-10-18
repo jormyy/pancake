@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     setSelected: vi.fn(),
 }))
+vi.mock('@/components/WeekOffNotice', () => ({ WeekOffNotice: 'WeekOffNotice' }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView',
     StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }),

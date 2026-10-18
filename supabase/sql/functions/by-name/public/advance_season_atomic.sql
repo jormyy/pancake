@@ -77,6 +77,7 @@ BEGIN
     player_id,
     is_on_ir,
     is_on_taxi,
+    taxi_start_season_year,
     acquired_via
   )
   SELECT
@@ -86,6 +87,7 @@ BEGIN
     player_id,
     is_on_ir,
     is_on_taxi,
+    taxi_start_season_year,
     'carry_over'
   FROM roster_players
   WHERE league_id = p_league_id
@@ -131,6 +133,12 @@ BEGIN
     AND league_season_id = v_new_season_id
     AND acquired_via = 'carry_over'
     AND (is_on_ir = true OR is_on_taxi = true);
+
+  INSERT INTO roster_transactions(league_id,league_season_id,member_id,player_id,transaction_type,occurred_at)
+  SELECT current.league_id,current.league_season_id,current.member_id,current.player_id,'taxi_return',current.acquired_at+interval '1 millisecond'
+  FROM roster_players current JOIN roster_players previous ON previous.league_season_id=v_current_season.id
+    AND previous.member_id=current.member_id AND previous.player_id=current.player_id
+  WHERE current.league_season_id=v_new_season_id AND previous.is_on_taxi AND NOT current.is_on_taxi;
 
   INSERT INTO draft_picks (
     league_id,

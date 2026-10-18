@@ -16,6 +16,12 @@ export interface LeagueInfo {
     auction_budget: number
     scoring_settings: Json
     playoff_start_week: number
+    team_limit?: number
+    taxi_rule?: 'drafted_rookies' | 'rookies_or_64_games'
+    taxi_max_seasons?: number | null
+    allow_inactive_trades?: boolean
+    playoff_entrants?: number | null
+    playoff_round_lengths?: number[] | null
     playoff_total_weeks?: number | null
     playoff_round_weeks?: number[] | null
     roster_size: number

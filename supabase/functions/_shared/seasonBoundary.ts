@@ -171,6 +171,7 @@ async function processLeagueBoundary(
     .select('matchup_type, week_number, is_finalized, finalized_at, winner_member_id')
     .eq('league_id', leagueId)
     .eq('league_season_id', leagueSeasonId)
+    .eq('is_voided', false)
   if (matchupError) throw matchupError
 
   const matchups = (matchupRows ?? []) as BoundaryMatchup[]

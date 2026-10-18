@@ -59,8 +59,8 @@ BEGIN
             || '-' || substring(gen_random_uuid()::text, 1, 4);
   v_invite_code := public.generate_invite_code();
 
-  INSERT INTO public.leagues (name, slug, invite_code, commissioner_id, auction_budget)
-  VALUES (trim(p_name), v_slug, v_invite_code, v_user_id, p_auction_budget)
+  INSERT INTO public.leagues (name, slug, invite_code, commissioner_id, auction_budget, playoff_start_week)
+  VALUES (trim(p_name), v_slug, v_invite_code, v_user_id, p_auction_budget, 17)
   RETURNING id INTO v_league_id;
 
   INSERT INTO public.league_members (league_id, user_id, role, team_name)

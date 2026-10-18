@@ -1,4 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
+import { useLeagueContext } from '@/contexts/league-context'
+import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { MotionPressable } from '@/components/Motion'
 import { MultiTeamTradeOverview } from '@/components/trades/MultiTeamTradeOverview'
@@ -32,6 +34,7 @@ export function TradeDetailsPanel({
     /** The sheet already titles the trade, so it hides this header. */
     showHeader?: boolean
 }) {
+    const { currentLeague } = useLeagueContext()
     const { trade, myMemberId } = context
     const model = tradeCardModel(context)
     const proposed = `Proposed by ${trade.proposerMemberId === myMemberId ? 'you' : trade.proposerTeamName} · ${new Date(trade.proposedAt).toLocaleString([], DATE)}`
@@ -71,7 +74,9 @@ export function TradeDetailsPanel({
                 </View>
             ) : null}
 
-            {trade.status === 'pending' && actions.onTaxiDestination ? trade.routedItems.flatMap((item) =>
+            {trade.completionFailureReason ? <Text>{trade.completionFailureReason}</Text> : null}
+            {trade.status === 'pending' && currentLeague?.allow_inactive_trades && actions.onRosterPlan ? <PendingTradeRosterPlan trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
+            {trade.status === 'pending' && !currentLeague?.allow_inactive_trades && actions.onTaxiDestination ? trade.routedItems.flatMap((item) =>
                 item.kind === 'player' && item.toMemberId === myMemberId ? [<TaxiAcquisitionChoice
                     key={item.playerId} value={item.toTaxi === true} disabled={actions.acting}
                     label={`Receive ${item.playerName} into taxi`}

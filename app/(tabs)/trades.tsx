@@ -307,6 +307,7 @@ export default function TradesScreen() {
     const detailActions = openTrade ? {
         acting: tradeActions.busyTradeId !== null || decisionsDisabled,
         onAccept: () => tradeActions.accept(openTrade),
+        onRosterPlan: (plan: import('@/lib/trades').TradeRosterPlan) => tradeActions.setRosterPlan(openTrade, plan),
         onTaxiDestination: (playerId: string, value: boolean) => tradeActions.setTaxiDestination(openTrade, playerId, value),
         onReject: () => tradeActions.reject(openTrade.id),
         onVeto: () => tradeActions.veto(openTrade.id),
