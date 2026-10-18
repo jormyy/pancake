@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { PlayerSupportResource } from '@/lib/player-availability'
+import { sessionGeneration } from '@/lib/session-cache-registry'
 import { usePanelActivity } from '@/contexts/panel-activity'
-import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, invalidateLeagueSnapshot, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
@@ -9,16 +10,23 @@ type Read = () => void | boolean | Promise<void | boolean>
 type SupportRead = (resources: readonly PlayerSupportResource[]) => ReturnType<Read>
 const ALL_SUPPORT: PlayerSupportResource[] = ['ownership', 'waivers', 'claims', 'transactions']
 
-export function usePlayerSupportRealtime(memberId: string | undefined, leagueId: string | null, refreshSupport: SupportRead, recover: Read, enabled = true, seasonId?: string | null, refreshDerived?: Read) {
+export function usePlayerSupportRealtime(memberId: string | undefined, leagueId: string | null, refreshSupport: SupportRead, recover: Read, enabled = true, seasonId?: string | null, refreshDerived?: Read, invalidateSupport?: (resources: readonly PlayerSupportResource[] | null) => void) {
     const season = useRef(seasonId)
     season.current = seasonId
+    const identity = JSON.stringify([leagueId, memberId, sessionGeneration()])
+    const currentIdentity = useRef(identity)
+    currentIdentity.current = identity
     const active = usePanelActivity() && enabled
     useEffect(() => {
         if (!active || !leagueId || !memberId) return
+        let disposed = false
+        const generation = sessionGeneration()
+        const current = () => !disposed && generation === sessionGeneration() && currentIdentity.current === identity
         const pending = new Set<PlayerSupportResource>()
         let fullRecovery = false
         let dailyRecovery = false
         const refresh = deferLeagueRefresh(async () => {
+            if (!current()) return true
             const resources = [...pending]
             const full = fullRecovery
             const daily = dailyRecovery
@@ -44,14 +52,18 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
             return succeeded
         })
         const changed = (...resources: PlayerSupportResource[]) => {
+            if (!current()) return
+            invalidateSupport?.(resources)
             for (const resource of resources) pending.add(resource)
             refresh.trigger()
         }
         let registering = true
         const stop = listenForLeagueChanges(leagueId, change => {
+            if (!current()) return
             if (registering && change.topic === 'catchup') return
             if (change.topic === 'catchup' || leagueResourceAffects(change, ['season'])) {
                 invalidateSeasonCache(leagueId)
+                invalidateSupport?.(null)
                 fullRecovery = true
                 refresh.trigger()
             } else if (change.topic === 'inventory') {
@@ -71,21 +83,27 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
             mode: 'per-watch',
             watches: [
                 { table: 'roster_players', filter: `league_id=eq.${leagueId}`, onChange: payload => {
+                    if (!current()) return
+                    invalidateLeagueSnapshot(leagueId, 'supportRaw')
                     const knownOtherPickup = payload?.eventType === 'INSERT' && typeof payload.new.member_id === 'string' && payload.new.member_id !== memberId
                     changed('ownership', ...(!knownOtherPickup ? ['transactions' as const] : []))
                 } },
-                { table: 'league_members', filter: `league_id=eq.${leagueId}`, onChange: () => changed(...ALL_SUPPORT) },
+                { table: 'league_members', filter: `league_id=eq.${leagueId}`, onChange: () => { if (!current()) return; invalidateLeagueSnapshot(leagueId, 'supportRaw'); changed(...ALL_SUPPORT) } },
             ],
             onReconnect: () => {
+                if (!current()) return
+                invalidateLeagueSnapshot(leagueId)
                 invalidateSeasonCache(leagueId)
+                invalidateSupport?.(null)
                 fullRecovery = true
                 refresh.trigger()
             },
         })
         return () => {
+            disposed = true
             stop()
             refresh.cancel()
             reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }
-    }, [active, leagueId, memberId, recover, refreshSupport, refreshDerived])
+    }, [active, identity, leagueId, memberId, recover, refreshSupport, refreshDerived, invalidateSupport])
 }

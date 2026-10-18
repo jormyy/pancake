@@ -129,6 +129,11 @@ export function useLeagueTabResources(
         resetActivityPagination()
     }, [leagueKey, resetActivityPagination])
 
+    const suspendActivityPagination = useCallback(() => {
+        activityRequest.current = null
+        setActivityLoadingMore(false)
+    }, [])
+
     const ensureTab = useCallback((tab: LeagueTab) => {
         if (tab !== 'auctions' && admissionRef.current()) void resourcesRef.current[tab].ensure()
     }, [])
@@ -148,9 +153,9 @@ export function useLeagueTabResources(
         return () => {
             focused.current = false
             for (const resource of Object.values(resourcesRef.current)) resource.suspend()
-            resetActivityPagination()
+            suspendActivityPagination()
         }
-    }, [resetActivityPagination]))
+    }, [suspendActivityPagination]))
 
     useEffect(() => {
         const reconnected = !wasOnline.current && isOnline
@@ -166,9 +171,9 @@ export function useLeagueTabResources(
     useEffect(() => {
         if (!admissionRef.current()) {
             for (const resource of Object.values(resourcesRef.current)) resource.suspend()
-            resetActivityPagination()
+            suspendActivityPagination()
         } else if (activeResourceKey) ensureTab(activeTab)
-    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, resetActivityPagination])
+    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, suspendActivityPagination])
 
     useFocusEffect(useCallback(() => {
         if (activeResourceKey) ensureTab(activeTab)

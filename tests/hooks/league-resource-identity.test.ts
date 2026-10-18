@@ -170,6 +170,7 @@ it('keeps the failed history offset across suspension and fences a removed membe
         hidden = true
         await act(async () => { doc.dispatchEvent(new Event('visibilitychange')); await latest.loadMoreActivity() })
         expect(getLeagueTransactions).toHaveBeenCalledTimes(2)
+        expect(latest.activityLoadMoreError).toBe('page unavailable')
         hidden = false
         await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
         await act(async () => { await latest.loadMoreActivity() })

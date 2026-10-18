@@ -4,8 +4,8 @@ import { leagueSnapshotRevision, type SnapshotDomain } from '@/lib/league-change
 
 type Snapshot<T> = { data: T; scope: string; revision: string | null; savedAt: number }
 
-export function tabSnapshotRevision(leagueId: string, domain: SnapshotDomain = 'roster'): string | null {
-    const revision = leagueSnapshotRevision(leagueId, domain)
+export function tabSnapshotRevision(leagueId: string, domain: SnapshotDomain = 'roster', memberId?: string): string | null {
+    const revision = leagueSnapshotRevision(leagueId, domain, memberId)
     return revision ? `${todayET()}:${revision}` : null
 }
 
@@ -13,11 +13,11 @@ export function tabSnapshotScope(userId: string | undefined, memberId: string | 
     return JSON.stringify([userId, memberId, leagueId, todayET(), settings])
 }
 
-export function readTabSnapshot<T>(key: string | undefined, scope: string, leagueId: string | undefined, domain: SnapshotDomain = 'roster'): { data: T; savedAt: number } | undefined {
+export function readTabSnapshot<T>(key: string | undefined, scope: string, leagueId: string | undefined, domain: SnapshotDomain = 'roster', memberId?: string): { data: T; savedAt: number } | undefined {
     if (!key || !leagueId) return undefined
     const snapshot = readPersistentCache<Snapshot<T>>(key)
     if (!snapshot || snapshot.scope !== scope || !Number.isFinite(snapshot.savedAt) || snapshot.savedAt > Date.now()) return undefined
-    const revision = tabSnapshotRevision(leagueId, domain)
+    const revision = tabSnapshotRevision(leagueId, domain, memberId)
     return { data: snapshot.data, savedAt: revision && revision === snapshot.revision ? snapshot.savedAt : 0 }
 }
 

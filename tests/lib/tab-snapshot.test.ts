@@ -73,3 +73,20 @@ it('does not expire slow-changing pick or support snapshots on score and stat ti
     notifyLeagueChange('league', { topic: 'inventory', scopes: null })
     expect(tabSnapshotRevision('league', 'picks')).not.toBe(picks)
 })
+
+it('keeps member support fresh for picks, priority and another balance but invalidates own claims and balance', () => {
+    const revision = () => tabSnapshotRevision('league', 'support', 'mine')
+    const initial = revision()
+    for (const resource of ['picks', 'priority', 'faab'] as const) {
+        notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource, season_id: 'season', member_id: 'other' }] })
+        expect(revision()).toBe(initial)
+    }
+    notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'claims', season_id: 'season' }] })
+    const claims = revision()
+    expect(claims).not.toBe(initial)
+    notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'faab', season_id: 'season', member_id: 'mine' }] })
+    expect(revision()).not.toBe(claims)
+    const own = revision()
+    notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: null })
+    expect(revision()).not.toBe(own)
+})

@@ -39,7 +39,7 @@ import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { loadPlayerSupport, type PlayerSupport, type PlayerSupportResource } from '@/lib/player-availability'
 import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
-import { invalidateLeagueSnapshot } from '@/lib/league-changes'
+import { invalidateLeagueSnapshot, waitForLeagueChanges } from '@/lib/league-changes'
 import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const POSITIONS = [
@@ -149,7 +149,7 @@ function PlayerSearchSection() {
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
     const readGeneration = sessionGeneration()
-    const searchEnabled = !!user && !!current?.id && !!leagueId
+    const searchEnabled = membershipValidated && !!user && !!current?.id && !!leagueId
     const { compact: compactToolbar, padX } = usePageMetrics()
     const showStatTable = width >= 1180
     // Phones keep search on screen and move the filters into a sheet; wider
@@ -159,7 +159,7 @@ function PlayerSearchSection() {
     const snapshotScope = tabSnapshotScope(user?.id, current?.id, leagueId ?? undefined, currentLeague)
     const cachedSupport = useMemo(() => {
         if (!current?.id || !leagueId) return undefined
-        const cached = readTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, leagueId, 'support')
+        const cached = readTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, leagueId, 'support', current.id)
         if (!cached) return undefined
         const value = cached.data
         return { savedAt: cached.savedAt, data: {
@@ -172,13 +172,16 @@ function PlayerSearchSection() {
         } }
     }, [current?.id, leagueId, snapshotScope])
 
-    const supportReads = useRef<{ scope: string; previous?: PlayerSupport | null; resources?: Set<PlayerSupportResource>; forceFull?: boolean }>({ scope: snapshotScope })
-    if (supportReads.current.scope !== snapshotScope) supportReads.current = { scope: snapshotScope }
+    const supportReads = useRef<{ scope: string; previous?: PlayerSupport | null; resources?: Set<PlayerSupportResource>; forceFull?: boolean; savedAt: number }>({ scope: snapshotScope, previous: cachedSupport?.data, forceFull: !cachedSupport?.savedAt, savedAt: cachedSupport?.savedAt ?? 0 })
+    if (supportReads.current.scope !== snapshotScope) supportReads.current = { scope: snapshotScope, previous: cachedSupport?.data, forceFull: !cachedSupport?.savedAt, savedAt: cachedSupport?.savedAt ?? 0 }
     const {
         data: playerSupport,
         loading: playerSupportFetchLoading,
         error: playerSupportError,
         refresh: refreshSupportSnapshot,
+        refreshIfStale: refreshSupportIfStale,
+        isSnapshot: supportSnapshot,
+        markStale: markSupportStale,
     } = useFocusAsyncData<PlayerSupport>(async () => {
         if (!leagueId) {
             return {
@@ -191,18 +194,21 @@ function PlayerSearchSection() {
             }
         }
         const reads = supportReads.current
-        const resources = !reads.forceFull && reads.resources ? [...reads.resources] : undefined
+        const resources = !reads.forceFull && Date.now() - reads.savedAt < 300_000 && reads.resources ? [...reads.resources] : undefined
         reads.forceFull = true
         reads.resources = undefined
         return loadPlayerSupport(current?.id, leagueId, { previous: reads.previous, resources, canRead: () => browserReadsAllowed() && supportReads.current.scope === snapshotScope && readGeneration === sessionGeneration() })
     }, [current?.id, leagueId, snapshotScope, readGeneration], {
         enabled: focused && membershipValidated && searchEnabled,
+        followSourceChanges: true,
+        beforeRead: () => leagueId ? waitForLeagueChanges(leagueId) : Promise.resolve(),
         initialData: cachedSupport?.data, initialFetchedAt: cachedSupport?.savedAt, staleMs: 300_000,
-        cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId, 'support') : null,
+        cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId, 'support', current?.id) : null,
         onFailed: () => { supportReads.current.forceFull = true; if (leagueId) invalidateLeagueSnapshot(leagueId) },
         onLoaded: (support, revision) => {
             supportReads.current.previous = support
-            supportReads.current.forceFull = revision !== (leagueId ? tabSnapshotRevision(leagueId, 'support') : null)
+            supportReads.current.savedAt = Date.now()
+            supportReads.current.forceFull = revision !== (leagueId ? tabSnapshotRevision(leagueId, 'support', current?.id) : null)
             if (current?.id && leagueId) {
                 writeTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, revision, {
                     seasonId: support.seasonId, memberId: support.memberId, day: support.day,
@@ -222,11 +228,13 @@ function PlayerSearchSection() {
         supportReads.current.forceFull = true
         return refreshSupportSnapshot()
     }, [refreshSupportSnapshot])
-    const refreshSupportResources = useCallback((resources: readonly PlayerSupportResource[]) => {
+    const invalidateSupport = useCallback((resources: readonly PlayerSupportResource[] | null) => {
+        markSupportStale()
+        if (!resources) { supportReads.current.forceFull = true; supportReads.current.resources = undefined; return }
         supportReads.current.resources ??= new Set()
         for (const resource of resources) supportReads.current.resources.add(resource)
-        return refreshSupportSnapshot()
-    }, [refreshSupportSnapshot])
+    }, [markSupportStale])
+    const refreshSupportResources = useCallback(() => refreshSupportIfStale(), [refreshSupportIfStale])
     const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
     const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
     const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
@@ -234,14 +242,21 @@ function PlayerSearchSection() {
     const playerSupportReady = !leagueId || playerSupportForLeague != null
     const transactionState = playerSupportForLeague?.transactionState ?? null
 
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, online, focused, ownerId: user?.id })
+    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id })
     const retrySearch = search.results.retry
     const refreshPlayers = useCallback(() => {
+        const support = refreshPlayerSupport()
         retrySearch()
-        return refreshPlayerSupport()
+        return support
     }, [retrySearch, refreshPlayerSupport])
 
-    usePlayerSupportRealtime(current?.id, leagueId, refreshSupportResources, refreshPlayers, focused, playerSupportForLeague?.seasonId, retrySearch)
+    const refreshChangedSearch = search.results.refreshIfChanged
+    const recoverPlayerResources = useCallback(() => {
+        const support = refreshSupportIfStale()
+        refreshChangedSearch()
+        return support
+    }, [refreshChangedSearch, refreshSupportIfStale])
+    usePlayerSupportRealtime(current?.id, leagueId, refreshSupportResources, recoverPlayerResources, focused, playerSupportForLeague?.seasonId, refreshChangedSearch, invalidateSupport)
 
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
@@ -264,14 +279,15 @@ function PlayerSearchSection() {
         transactionState,
         onClaimInstead: openClaim,
     })
+    const availabilityUpdating = supportSnapshot || playerSupportFetchLoading
     const addBlockedReason = quickAdd.addBlockedReason
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
-        if (!online) return
+        if (!online || availabilityUpdating) return
         if (playerSupportForLeague?.pendingClaimIds.has(player.id)) push('/roster?claims=1')
         else if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
         else void quickAddHandleAdd(player)
-    }, [online, waiverIds, playerSupportForLeague?.pendingClaimIds, push, quickAddHandleClaim, quickAddHandleAdd])
+    }, [online, availabilityUpdating, waiverIds, playerSupportForLeague?.pendingClaimIds, push, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
         push(`/player/${player.id}`)
     }, [push])
@@ -284,7 +300,7 @@ function PlayerSearchSection() {
             waiverClearsAt={playerSupportForLeague?.waiverClearsAt.get(item.id) ?? null}
             claimPending={playerSupportForLeague?.pendingClaimIds.has(item.id) ?? false}
             isAdding={quickAdd.adding === item.id}
-            addDisabled={!online}
+            addDisabled={!online || availabilityUpdating}
             showStats={showStatTable}
             showCompactStats={false}
             animate={false}
@@ -292,7 +308,7 @@ function PlayerSearchSection() {
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, online, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,

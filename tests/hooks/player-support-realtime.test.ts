@@ -7,7 +7,7 @@ import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const boundary = vi.hoisted(() => ({
     subscription: null as null | { watches: { table: string; onChange: (payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void }[]; onReconnect: () => unknown },
-    support: vi.fn(), recover: vi.fn(), derived: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
+    support: vi.fn(), recover: vi.fn(), derived: vi.fn(), invalidate: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
 }))
 vi.mock('@/lib/realtime', () => ({
     subscribeToTableChanges: (_name: string, options: NonNullable<typeof boundary.subscription>) => { boundary.subscription = options; return {} },
@@ -149,4 +149,38 @@ it('keeps another manager pickup to ownership while retaining current transactio
         await vi.advanceTimersByTimeAsync(200)
     })
     expect(boundary.support).toHaveBeenLastCalledWith(['ownership', 'transactions'])
+})
+
+
+it('ignores a retained former-member callback before it can dirty the current resource plan', async () => {
+    const Scoped = ({ member }: { member: string }) => {
+        usePlayerSupportRealtime(member, 'league', boundary.support, boundary.recover, true, seasonId, boundary.derived, boundary.invalidate)
+        return null
+    }
+    await act(async () => { renderer = create(React.createElement(Scoped, { member: 'first' })) })
+    const old = boundary.subscription!
+    await act(async () => { renderer.update(React.createElement(Scoped, { member: 'second' })) })
+    await act(async () => { old.watches[0].onChange({ eventType: 'INSERT', new: { member_id: 'first' }, old: {} }); await vi.advanceTimersByTimeAsync(200) })
+    expect(boundary.invalidate).not.toHaveBeenCalled()
+    expect(boundary.support).not.toHaveBeenCalled()
+    await act(async () => { boundary.subscription!.watches[0].onChange({ eventType: 'INSERT', new: { member_id: 'second' }, old: {} }); await vi.advanceTimersByTimeAsync(200) })
+    expect(boundary.invalidate).toHaveBeenCalledExactlyOnceWith(['ownership', 'transactions'])
+    expect(boundary.support).toHaveBeenCalledOnce()
+})
+
+it('marks a hidden claim invalidation before any foreground reader can consume its plan', async () => {
+    let hidden = true
+    const doc = new EventTarget()
+    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', doc)
+    const Scoped = () => { usePlayerSupportRealtime('member', 'league', boundary.support, boundary.recover, true, seasonId, boundary.derived, boundary.invalidate); return null }
+    try {
+        await act(async () => { renderer = create(React.createElement(Scoped)) })
+        await act(async () => { notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'claims', season_id: seasonId }] }) })
+        expect(boundary.invalidate).toHaveBeenCalledExactlyOnceWith(['claims'])
+        expect(boundary.support).not.toHaveBeenCalled()
+        hidden = false
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')); await vi.advanceTimersByTimeAsync(200) })
+        expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims'])
+    } finally { vi.unstubAllGlobals() }
 })

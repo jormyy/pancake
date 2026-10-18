@@ -98,3 +98,49 @@ describe('retained read activity', () => {
         expect(saved.mock.calls).toEqual([['after return']])
     })
 })
+
+it('waits for admission before capturing a revision or starting its authoritative read', async () => {
+    const gate = pending()
+    let revision = 'before'
+    const Gated = () => {
+        latest = useFocusAsyncData(read, ['gate'], { beforeRead: () => gate.promise, cacheRevision: () => revision, onLoaded: saved })
+        return null
+    }
+    await act(async () => { screen = create(React.createElement(Gated)) })
+    expect(read).not.toHaveBeenCalled()
+    revision = 'after'
+    await act(async () => { gate.resolve('ready') })
+    expect(read).toHaveBeenCalledOnce()
+    expect(saved).toHaveBeenCalledExactlyOnceWith('current', 'after')
+})
+
+it('joins one current follow-up when the source changes during a held authoritative read', async () => {
+    const first = pending()
+    let revision = 'before'
+    read.mockReturnValueOnce(first.promise).mockResolvedValue('newer')
+    const Versioned = () => {
+        latest = useFocusAsyncData(read, ['source'], { cacheRevision: () => revision, onLoaded: saved, followSourceChanges: true })
+        return null
+    }
+    await act(async () => { screen = create(React.createElement(Versioned)) })
+    revision = 'after'
+    await act(async () => { first.resolve('older') })
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(latest.data).toBe('newer')
+    expect(saved.mock.calls).toEqual([['older', 'before'], ['newer', 'after']])
+})
+
+it('retains a dirty raw event during a held read even when the shared stream is unavailable', async () => {
+    const first = pending()
+    read.mockReturnValueOnce(first.promise).mockResolvedValue('newer')
+    const Unconnected = () => {
+        latest = useFocusAsyncData(read, ['raw'], { cacheRevision: () => null, followSourceChanges: true })
+        return null
+    }
+    await act(async () => { screen = create(React.createElement(Unconnected)) })
+    await act(async () => { latest.markStale() })
+    await act(async () => { first.resolve('older') })
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(latest.data).toBe('newer')
+    expect(latest.isSnapshot).toBe(false)
+})

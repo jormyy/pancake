@@ -17,7 +17,7 @@ function dependenciesEqual(previous: React.DependencyList, next: React.Dependenc
 export function useFocusAsyncData<T>(
     fetcher: () => Promise<T>,
     deps: React.DependencyList = [],
-    options: { enabled?: boolean; staleMs?: number; initialData?: T; initialFetchedAt?: number; cacheRevision?: () => string | null; onLoaded?: (data: T, revision?: string | null) => void; onFailed?: () => void } = {},
+    options: { enabled?: boolean; staleMs?: number; initialData?: T; initialFetchedAt?: number; cacheRevision?: () => string | null; onLoaded?: (data: T, revision?: string | null) => void; onFailed?: () => void; beforeRead?: () => Promise<unknown>; followSourceChanges?: boolean } = {},
 ) {
     const panelActive = usePanelActivity()
     const enabled = options.enabled ?? true
@@ -33,6 +33,8 @@ export function useFocusAsyncData<T>(
     const savedAt = options.initialFetchedAt ?? 0
     const initialFetchedAt = hasInitialData && Number.isFinite(savedAt) && savedAt > 0 && savedAt <= Date.now() ? savedAt : 0
     const lastLoadedAtRef = useRef(initialFetchedAt)
+    const invalidationRevision = useRef(0)
+    const [, renderInvalidation] = useState(0)
     const inFlightRef = useRef<Promise<boolean> | null>(null)
     const hasDataRef = useRef(hasInitialData)
     const genRef = useRef(0)
@@ -42,6 +44,10 @@ export function useFocusAsyncData<T>(
     const queuedRefreshRef = useRef<Promise<boolean> | null>(null)
     const staleMs = options.staleMs ?? 30_000
     const mountedRef = useRef(true)
+    const followSourceChangesRef = useRef(options.followSourceChanges)
+    followSourceChangesRef.current = options.followSourceChanges
+    const beforeReadRef = useRef(options.beforeRead)
+    beforeReadRef.current = options.beforeRead
     const onLoadedRef = useRef(options.onLoaded)
     onLoadedRef.current = options.onLoaded
     const onFailedRef = useRef(options.onFailed)
@@ -134,7 +140,8 @@ export function useFocusAsyncData<T>(
             return queuedRefreshRef.current
         }
         const hasData = hasDataRef.current
-        const revision = cacheRevisionRef.current?.()
+        let revision = cacheRevisionRef.current?.()
+        let invalidation = invalidationRevision.current
         const isFresh = Date.now() - lastLoadedAtRef.current < staleMs && lastRevisionRef.current === revision
         if (!force && hasData && isFresh) return true
         resumeNeededRef.current = false
@@ -146,6 +153,14 @@ export function useFocusAsyncData<T>(
         const epoch = requestEpochRef.current
         const task = (async () => {
             try {
+                if (beforeReadRef.current) {
+                    await beforeReadRef.current()
+                    if (gen !== genRef.current || epoch !== requestEpochRef.current || !activeRef.current
+                        || (typeof document !== 'undefined' && document.visibilityState === 'hidden')
+                        || (typeof navigator !== 'undefined' && navigator.onLine === false)) return false
+                    revision = cacheRevisionRef.current?.()
+                    invalidation = invalidationRevision.current
+                }
                 const result = await fetcher()
                 if (gen !== genRef.current || epoch !== requestEpochRef.current) return false // deps changed mid-fetch — drop stale result
                 if (revision === undefined) onLoadedRef.current?.(result)
@@ -153,8 +168,13 @@ export function useFocusAsyncData<T>(
                 setData(result)
                 stateGenerationRef.current = gen
                 hasDataRef.current = true
-                lastLoadedAtRef.current = revision === cacheRevisionRef.current?.() ? Date.now() : 0
+                lastLoadedAtRef.current = revision === cacheRevisionRef.current?.() && invalidation === invalidationRevision.current ? Date.now() : 0
                 lastRevisionRef.current = revision
+                if (followSourceChangesRef.current && (revision !== cacheRevisionRef.current?.() || invalidation !== invalidationRevision.current)) {
+                    void Promise.resolve().then(() => {
+                        if (gen === genRef.current && epoch === requestEpochRef.current && !forceQueuedRef.current) void load({ force: true })
+                    })
+                }
                 return true
             } catch (e) {
                 if (gen !== genRef.current || epoch !== requestEpochRef.current) return false
@@ -211,7 +231,14 @@ export function useFocusAsyncData<T>(
         }
     }, [load, suspend])
 
+    const markStale = useCallback(() => {
+        if (!mountedRef.current) return
+        invalidationRevision.current += 1
+        lastLoadedAtRef.current = 0
+        renderInvalidation(revision => revision + 1)
+    }, [])
     const refresh = useCallback(() => load({ force: true }), [load])
+    const refreshIfStale = useCallback(() => load(), [load])
 
     return {
         data: ownsState ? data : hasInitialData ? options.initialData as T : null,
@@ -220,5 +247,7 @@ export function useFocusAsyncData<T>(
         error: ownsState ? error : null,
         isSnapshot: !ownsState || lastLoadedAtRef.current === 0 || refreshing || Boolean(error),
         refresh,
+        refreshIfStale,
+        markStale,
     }
 }

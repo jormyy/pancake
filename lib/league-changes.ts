@@ -10,12 +10,13 @@ const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
 const revisions = new Map<string, Map<string, number>>()
 export type SnapshotDomain = 'roster' | 'support' | 'picks' | 'game' | 'lineup' | 'live' | 'daily'
-const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'resources', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'catchup'], picks: ['inventory', 'catchup'], game: ['game', 'catchup'], lineup: ['lineup', 'roster', 'catchup'], live: ['game', 'stat', 'catchup'], daily: ['resources', 'catchup'] }
+const snapshotTopics = { roster: ['lineup', 'roster', 'inventory', 'resources', 'game', 'stat', 'catchup'], support: ['roster', 'inventory', 'supportRaw', 'catchup'], picks: ['inventory', 'catchup'], game: ['game', 'catchup'], lineup: ['lineup', 'roster', 'catchup'], live: ['game', 'stat', 'catchup'], daily: ['resources', 'catchup'] }
 const runtimeKey = `${Date.now()}:${Math.random()}`
 let sessionEpoch = 0
 
-export function leagueSnapshotRevision(leagueId: string, domain: SnapshotDomain = 'roster'): string | null {
-    return connected.has(leagueId) ? `${runtimeKey}:${sessionEpoch}:${snapshotTopics[domain].map(topic => revisions.get(leagueId)?.get(topic) ?? 0).join(':')}` : null
+export function leagueSnapshotRevision(leagueId: string, domain: SnapshotDomain = 'roster', memberId?: string): string | null {
+    const keys = domain === 'support' && memberId ? ['roster', 'supportRaw', 'catchup', 'supportBroad', 'supportClaims', 'supportWaivers', `supportFaab:${memberId}`] : snapshotTopics[domain]
+    return connected.has(leagueId) ? `${runtimeKey}:${sessionEpoch}:${keys.map(topic => revisions.get(leagueId)?.get(topic) ?? 0).join(':')}` : null
 }
 
 export function waitForLeagueChanges(leagueId: string): Promise<void> {
@@ -52,6 +53,16 @@ export function setLeagueChangesConnected(leagueId: string, ready: boolean): voi
 
 export function notifyLeagueChange(leagueId: string, change: LeagueChange): void {
     invalidateLeagueSnapshot(leagueId, change.topic)
+    if (change.topic === 'inventory') {
+        const affected = new Set<string>()
+        if (!change.details || change.details.some(detail => detail.resource === 'season')) affected.add('supportBroad')
+        else for (const detail of change.details) {
+            if (detail.resource === 'claims') affected.add('supportClaims')
+            if (detail.resource === 'waivers') affected.add('supportWaivers')
+            if (detail.resource === 'faab') affected.add(`supportFaab:${detail.member_id}`)
+        }
+        for (const key of affected) invalidateLeagueSnapshot(leagueId, key)
+    }
     for (const listener of listeners.get(leagueId) ?? []) listener(change)
 }
 
