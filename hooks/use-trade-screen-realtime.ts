@@ -16,6 +16,7 @@ type TradeScreenRealtimeOptions = {
     refreshHistory: () => void | boolean | Promise<void | boolean>
     refreshTradeBlock: () => void | boolean | Promise<void | boolean>
     refreshDraftPicks: () => void | boolean | Promise<void | boolean>
+    initialTradesRead?: boolean
     draftPicksFresh?: boolean
     online?: boolean
     focused?: boolean
@@ -29,6 +30,7 @@ export function useTradeScreenRealtime({
     refreshHistory,
     refreshTradeBlock,
     refreshDraftPicks,
+    initialTradesRead = false,
     draftPicksFresh = false,
     online = true,
     focused = true,
@@ -50,14 +52,16 @@ export function useTradeScreenRealtime({
         const pending = new Set<Feed>()
         let refreshing = false
         let retry: ReturnType<typeof setTimeout> | null = null
+        let initial: ReturnType<typeof setTimeout> | null = null
+        const visible = () => visibility.current.online && visibility.current.focused && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
         let subscribed = false
         let closed = false
         let reconnect: ReturnType<typeof setTimeout> | null = null
         const reconnectIfClosed = () => {
-            if (disposed || !closed || reconnect || !visibility.current.online || !visibility.current.focused) return
+            if (disposed || !closed || reconnect || !visible()) return
             reconnect = setTimeout(() => {
                 reconnect = null
-                if (!disposed && closed && visibility.current.online && visibility.current.focused) {
+                if (!disposed && closed && visible()) {
                     setSubscriptionEpoch((epoch) => epoch + 1)
                 }
             }, 15_000)
@@ -72,11 +76,12 @@ export function useTradeScreenRealtime({
         }
         const mark = () => { for (const feed of Object.keys(feeds) as Feed[]) pending.add(feed) }
         const recover = async () => {
-            if (disposed || refreshing || !visibility.current.online || !visibility.current.focused) return
+            if (disposed || refreshing || !visible()) return
             if (retry) clearTimeout(retry)
             retry = null
             const work = visibleFeeds().filter((feed) => pending.has(feed))
             if (!work.length) return
+            if (work.includes('trades') && initial) { clearTimeout(initial); initial = null }
             for (const feed of work) pending.delete(feed)
             refreshing = true
             try {
@@ -104,6 +109,8 @@ export function useTradeScreenRealtime({
         const trades = debounceRealtimeRefresh(() => requestFeeds('trades', 'history'))
         const tradeBlock = debounceRealtimeRefresh(() => requestFeeds('block'))
         const draftPicks = debounceRealtimeRefresh(() => requestFeeds('picks'))
+        if (initialTradesRead) initial = setTimeout(() => requestFeeds('trades'), 300)
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', ownerRecovery.flush)
         const channel = subscribeToTableChanges(`trades-screen:${leagueId}:${memberId}`, {
             mode: 'per-watch',
             onStatus: (status) => {
@@ -112,6 +119,8 @@ export function useTradeScreenRealtime({
                 mark()
                 if (preserveFreshPicks) pending.delete('picks')
                 if (status === 'SUBSCRIBED') {
+                    if (initial) clearTimeout(initial)
+                    initial = null
                     subscribed = true
                     closed = false
                     if (reconnect) clearTimeout(reconnect)
@@ -131,12 +140,14 @@ export function useTradeScreenRealtime({
         })
         return () => {
             disposed = true
+            if (initial) clearTimeout(initial)
+            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', ownerRecovery.flush)
             if (retry) clearTimeout(retry)
             if (reconnect) clearTimeout(reconnect)
             if (recovery.current === ownerRecovery) recovery.current = null
             reportRealtimeCleanup('trades', disposeTableChangeSubscription(channel, [trades, tradeBlock, draftPicks]))
         }
-    }, [leagueId, memberId, refreshDraftPicks, refreshHistory, refreshTradeBlock, refreshTrades, subscriptionEpoch])
+    }, [initialTradesRead, leagueId, memberId, refreshDraftPicks, refreshHistory, refreshTradeBlock, refreshTrades, subscriptionEpoch])
 
     useEffect(() => {
         if (!online) recovery.current?.mark()

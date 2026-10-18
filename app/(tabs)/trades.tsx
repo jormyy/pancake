@@ -108,7 +108,7 @@ export default function TradesScreen() {
         loadMoreError: offersLoadMoreError,
         refresh: load,
         loadMore: loadMoreOffers,
-    } = useTradesFeed(myMemberId, leagueId, online)
+    } = useTradesFeed(myMemberId, leagueId, online, { autoLoad: false })
     const {
         trades: historyTrades,
         loading: historyLoading,
@@ -167,6 +167,7 @@ export default function TradesScreen() {
         refreshTradeBlock: loadBlock,
         refreshDraftPicks: refreshPicks,
         draftPicksFresh: !picksSnapshot,
+        initialTradesRead: true,
     })
 
     useEffect(() => {
