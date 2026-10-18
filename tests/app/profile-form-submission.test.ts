@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ProfileScreen from '@/app/(tabs)/profile'
 
 const mocks = vi.hoisted(() => ({
-    userId: 'user', memberId: 'member', platform: 'web',
+    userId: 'user', memberId: 'member', teamName: 'Team', serverTeam: 'Team', platform: 'web',
+    retryProfile: vi.fn(), refresh: vi.fn(),
     updatePreferences: vi.fn(),
     getPreferences: vi.fn(),
     teamRenders: [] as { memberId: string; value: unknown }[],
@@ -25,12 +26,13 @@ vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('expo-image-picker', () => ({ requestMediaLibraryPermissionsAsync: mocks.permission, launchImageLibraryAsync: mocks.pickImage }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
-vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: mocks.memberId, team_name: 'Team' }, currentLeague: { id: `league-${mocks.memberId}` }, refresh: vi.fn() }) }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: mocks.memberId, team_name: mocks.teamName }, currentLeague: { id: `league-${mocks.memberId}` }, refresh: mocks.refresh }) }))
 vi.mock('@/hooks/use-profile-resource', () => ({ useProfileResource: function useProfileResource() {
     const [preferences, setPreferences] = React.useState(mocks.preferences)
+    const [profile, setProfile] = React.useState(mocks.profile)
     return {
-        profile: mocks.profile, profileLoaded: true, preferences, setProfile: vi.fn(), setPreferences,
-        retryProfile: async () => { setPreferences(await mocks.getPreferences()) },
+        profile, profileLoaded: true, preferences, setProfile, setPreferences,
+        retryProfile: async () => { mocks.retryProfile(); setProfile(mocks.profile); setPreferences(await mocks.getPreferences()) },
     }
 } }))
 vi.mock('@/lib/auth', () => ({ updateProfile: mocks.updateProfile, signOut: vi.fn(), uploadAvatar: mocks.uploadAvatar }))
@@ -62,6 +64,10 @@ beforeEach(async () => {
     mocks.platform = 'web'
     mocks.userId = 'user'
     mocks.memberId = 'member'
+    mocks.teamName = 'Team'
+    mocks.serverTeam = 'Team'
+    mocks.profile = { display_name: 'Manager', username: 'manager', avatar_url: null }
+    mocks.refresh.mockImplementation(async () => { mocks.teamName = mocks.serverTeam })
     mocks.teamRenders = []
     mocks.permission.mockResolvedValue({ status: 'granted' })
     mocks.pickImage.mockResolvedValue({ canceled: false, assets: [{ uri: 'fixture.png', width: 1, height: 1 }] })
@@ -265,3 +271,51 @@ it.each([[false, false], [true, false], [false, true], [true, true]])(
         expect(setting('Waivers').props.checked).toBe(!secondSucceeds)
     },
 )
+
+
+it('reconciles a successful profile write after the team write fails first', async () => {
+    let finish!: () => void
+    mocks.updateProfile.mockImplementationOnce(() => new Promise<void>(resolve => { finish = () => {
+        mocks.profile = { ...mocks.profile, display_name: 'Committed name' }
+        resolve()
+    } }))
+    mocks.updateTeamName.mockRejectedValueOnce(new Error('Team save failed'))
+    await act(async () => input('Display name').props.onChangeText('Committed name'))
+    let pending!: Promise<void>
+    await act(async () => { pending = input('Team name').props.onSubmitEditing(); await Promise.resolve() })
+    const prematureError = mocks.alert.mock.calls.length
+    const prematureIdle = !button('Save').props.loading
+    await act(async () => { finish(); await pending })
+    expect(prematureError).toBe(0)
+    expect(prematureIdle).toBe(false)
+    expect(mocks.success).not.toHaveBeenCalled()
+    expect(mocks.alert).toHaveBeenLastCalledWith('Error', 'Team save failed')
+    await act(async () => { button('Cancel')?.props.onPress() })
+    await act(async () => { button('Edit').props.onPress() })
+    expect(input('Display name').props.value).toBe('Committed name')
+})
+
+it('reconciles a successful team write after the profile write fails', async () => {
+    mocks.updateProfile.mockRejectedValueOnce(new Error('Profile save failed'))
+    mocks.updateTeamName.mockImplementationOnce(async () => { mocks.serverTeam = 'Committed team' })
+    await act(async () => input('Team name').props.onChangeText('Committed team'))
+    await act(async () => input('Team name').props.onSubmitEditing())
+    await act(async () => button('Cancel')?.props.onPress())
+    await act(async () => button('Edit').props.onPress())
+    expect(input('Team name').props.value).toBe('Committed team')
+    expect(mocks.success).not.toHaveBeenCalled()
+    expect(mocks.alert).toHaveBeenLastCalledWith('Error', 'Profile save failed')
+})
+
+it('does not reconcile or report an old account failure into the new account', async () => {
+    let fail!: (error: Error) => void
+    mocks.updateProfile.mockReturnValueOnce(new Promise<void>((_, reject) => { fail = reject }))
+    let pending!: Promise<void>
+    await act(async () => { pending = input('Team name').props.onSubmitEditing() })
+    mocks.userId = 'next-user'
+    await act(async () => screen.update(React.createElement(ProfileScreen)))
+    await act(async () => { fail(new Error('Old save failed')); await pending })
+    expect(mocks.retryProfile).not.toHaveBeenCalled()
+    expect(mocks.refresh).not.toHaveBeenCalled()
+    expect(mocks.alert).not.toHaveBeenCalled()
+})

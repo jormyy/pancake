@@ -122,8 +122,13 @@ export default function ProfileScreen() {
             if (current && trimmedTeam) {
                 saves.push(updateTeamName(current.id, trimmedTeam))
             }
-            await Promise.all(saves)
+            const results = await Promise.allSettled(saves)
             if (activeUserIdRef.current !== ownerId) return
+            const failure = results.find((result) => result.status === 'rejected')
+            if (failure) {
+                await Promise.allSettled([retryProfile(), refresh()])
+                throw failure.reason
+            }
             setProfile((prev) => prev ? { ...prev, display_name: trimmedDisplay } : prev)
             setEditing(false)
             if (current && trimmedTeam !== current.team_name) {
