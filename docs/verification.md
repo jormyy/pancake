@@ -220,3 +220,13 @@ Schedule imports retain provider status text.
 Scoring and ingestion use the existing game-availability rule for postponed, cancelled and suspended games.
 A rescheduled game keeps its identity and history, then contributes in its actual calendar week.
 Scheduled, live and incomplete final games still block finalization.
+
+## Pre-tipoff recovery
+
+`npm run test:db:pre-tipoff-resume` uses real local HTTP, PostgreSQL, timers and an actual local Edge invocation.
+Set `E2E_INVOCATION_WORKER_HOST=host.lima.internal` when the database runs inside Lima.
+A fifty-second context read retains its lease while the worker drains more than one hundred teams.
+Failed context reads retry separately, and failed completion records resume without repeating completed team reads.
+A killed worker recovers after its natural lease expiry and preserves completed lineups.
+The actual tipoff deadline cancels outstanding work and records an explicit failure.
+The recipe removes its own users, leagues, games, progress and listeners.

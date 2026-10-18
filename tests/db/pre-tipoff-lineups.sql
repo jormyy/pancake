@@ -68,14 +68,33 @@ BEGIN
   SELECT token INTO v_token FROM public.lineup_tipoff_dispatches WHERE tipoff_at=v_tipoff;
   IF public.claim_lineup_tipoff_dispatch(v_tipoff,v_token) IS DISTINCT FROM v_date
      OR public.claim_lineup_tipoff_dispatch(v_tipoff,v_token) IS NOT NULL THEN RAISE EXCEPTION 'Concurrent claim succeeds'; END IF;
+  IF (SELECT count(*) FROM public.get_pending_tipoff_members(v_tipoff,v_token))<>1 THEN RAISE EXCEPTION 'Pending work misses enabled team'; END IF;
+  IF EXISTS(SELECT 1 FROM public.get_pending_tipoff_members(v_tipoff,v_token,ARRAY[v_member])) THEN RAISE EXCEPTION 'Failed team exclusion is ignored'; END IF;
+  BEGIN
+    PERFORM public.get_pending_tipoff_members(v_tipoff,v_token,ARRAY[]::uuid[],0);
+    RAISE EXCEPTION 'Invalid batch size accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+  IF public.renew_lineup_tipoff_dispatch(v_tipoff,gen_random_uuid()) THEN RAISE EXCEPTION 'Wrong token renews lease'; END IF;
+  UPDATE public.lineup_tipoff_dispatches SET lease_until=now()+interval '5 seconds' WHERE tipoff_at=v_tipoff;
+  IF NOT public.renew_lineup_tipoff_dispatch(v_tipoff,v_token) THEN RAISE EXCEPTION 'Active holder cannot renew during reads'; END IF;
   UPDATE public.lineup_tipoff_dispatches SET lease_until=now()+interval '5 seconds' WHERE tipoff_at=v_tipoff;
   v_assignments:=jsonb_build_array(jsonb_build_object('player_id',v_pg,'slot_type','PG','week_number',1,'is_auto_set',true));
   IF NOT public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,v_assignments) THEN RAISE EXCEPTION 'First apply fails'; END IF;
   IF NOT EXISTS(SELECT 1 FROM public.lineup_tipoff_dispatches WHERE tipoff_at=v_tipoff AND lease_until>now()+interval '30 seconds') THEN RAISE EXCEPTION 'Active worker lease is not renewed'; END IF;
+  IF EXISTS(SELECT 1 FROM public.get_pending_tipoff_members(v_tipoff,v_token)) THEN RAISE EXCEPTION 'Completed team repeats expensive reads'; END IF;
   SELECT id,set_at INTO v_id,v_set_at FROM public.weekly_lineups WHERE member_id=v_member;
   IF public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,'[]')
      OR NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE id=v_id AND set_at=v_set_at) THEN RAISE EXCEPTION 'Retry flaps lineup'; END IF;
   UPDATE public.lineup_tipoff_dispatches SET status='running',lease_until=now()-interval '1 second' WHERE tipoff_at=v_tipoff;
+  IF public.renew_lineup_tipoff_dispatch(v_tipoff,v_token) THEN RAISE EXCEPTION 'Expired lease revived'; END IF;
+  BEGIN
+    PERFORM public.get_pending_tipoff_members(v_tipoff,v_token);
+    RAISE EXCEPTION 'Expired holder reads work';
+  EXCEPTION WHEN serialization_failure THEN NULL; END;
+  BEGIN
+    PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,'[]');
+    RAISE EXCEPTION 'Expired holder writes before replacement';
+  EXCEPTION WHEN serialization_failure THEN NULL; END;
   v_old_token:=v_token;
   PERFORM public.invoke_pre_tipoff_optimizer_if_due();
   SELECT token INTO v_token FROM public.lineup_tipoff_dispatches WHERE tipoff_at=v_tipoff;
@@ -187,4 +206,32 @@ BEGIN
      OR has_table_privilege('authenticated','public.lineup_tipoff_members','SELECT') THEN RAISE EXCEPTION 'Internal dispatch is public'; END IF;
 END;
 $$;
+DO $$
+DECLARE role_name text;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
+    EXECUTE format('SET LOCAL ROLE %I',role_name);
+    BEGIN
+      PERFORM public.renew_lineup_tipoff_dispatch(now(),gen_random_uuid());
+      RAISE EXCEPTION 'Client renews internal tipoff lease';
+    EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+    BEGIN
+      PERFORM public.get_pending_tipoff_members(now(),gen_random_uuid());
+      RAISE EXCEPTION 'Client reads internal pending teams';
+    EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+    RESET ROLE;
+  END LOOP;
+END;
+$$;
+SET LOCAL ROLE service_role;
+DO $$
+BEGIN
+  IF public.renew_lineup_tipoff_dispatch(now(),gen_random_uuid()) THEN RAISE EXCEPTION 'Service invents a lease'; END IF;
+  BEGIN
+    PERFORM public.get_pending_tipoff_members(now(),gen_random_uuid());
+    RAISE EXCEPTION 'Service bypasses holder validation';
+  EXCEPTION WHEN serialization_failure THEN NULL; END;
+END;
+$$;
+RESET ROLE;
 ROLLBACK;

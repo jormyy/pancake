@@ -15,6 +15,7 @@ BEGIN
   SELECT * INTO v_dispatch FROM public.lineup_tipoff_dispatches
    WHERE tipoff_at = p_tipoff_at FOR UPDATE;
   IF NOT FOUND OR v_dispatch.token <> p_token OR v_dispatch.status <> 'running'
+     OR v_dispatch.lease_until IS NULL OR v_dispatch.lease_until <= clock_timestamp()
      OR v_dispatch.game_date <> (now() AT TIME ZONE 'America/New_York')::date THEN
     RAISE EXCEPTION 'Tipoff claim is no longer current.' USING ERRCODE = '40001';
   END IF;

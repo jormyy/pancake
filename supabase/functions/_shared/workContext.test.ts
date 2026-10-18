@@ -22,6 +22,8 @@ await t.step('concurrent work contexts keep their lease identity and do not send
   })))
   assert.deepEqual(results, holders.map(holder => ({ db: holder, upstream: null })))
   assert.equal((await (await workFetch(`http://127.0.0.1:${database.addr.port}`)).json()).holder, null)
+  const bounded = await withWorkContext({ signal: AbortSignal.timeout(5000) }, async () => await (await workFetch(`http://127.0.0.1:${database.addr.port}`)).json())
+  assert.equal(bounded.holder, null)
 })
 
 await t.step('work deadline cancels a real response body after headers arrive', async () => {

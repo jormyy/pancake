@@ -43,7 +43,9 @@
     "supabase/tests/db/scoring-partial-failure.ts",
     "tests/e2e/draft-reset-activation-db.mjs",
     "scripts/bench/**/*.ts",
-    "supabase/tests/db/postponed-scoring.ts"
+    "supabase/tests/db/postponed-scoring.ts",
+    "supabase/tests/db/pre-tipoff-resume.ts",
+    "supabase/tests/db/pre-tipoff-crash-worker.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

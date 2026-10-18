@@ -1,6 +1,9 @@
 import { supabase } from '../_shared/supabase.ts'
 import { chooseBestAssignments } from './assignments.ts'
-import { loadEnabledOptimizerSettings } from './settings.ts'
+import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
+import { withWorkContext } from '../_shared/workContext.ts'
+import { runBounded } from '../_shared/runBounded.ts'
+import { errorMessage } from '../_shared/responses.ts'
 
 export type TipoffContext = {
   date: string
@@ -30,18 +33,13 @@ export function tipoffAssignments(context: TipoffContext, projections: Projectio
   const weekNumber = context.weekNumber
   if (weekNumber === null) throw new Error('Season week is missing for the tipoff date.')
   const locked = context.stored.filter((entry) => entry.locked)
-  const lockedIds = new Set(locked.map((entry) => entry.player_id))
   const projectionMap = new Map(projections.map((row) => [row.player_id, Number(row.projection_fantasy_points ?? 0)]))
   const slots = [...context.templates]
     .sort((a, b) => slotOrder.indexOf(a.slotType) - slotOrder.indexOf(b.slotType))
     .flatMap((template) => Array.from({ length: Math.max(0,
       template.count - locked.filter((entry) => entry.slot_type === template.slotType).length,
     ) }, () => template.slotType))
-  const players = context.players.filter((player) => {
-    const status = player.injuryStatus?.toLowerCase() ?? ''
-    return !player.locked && !lockedIds.has(player.playerId) && player.hasGame
-      && status !== 'out' && !status.startsWith('ir')
-  }).map((player) => ({
+  const players = tipoffPlayers(context).map((player) => ({
     ...player,
     projected: projectionMap.get(player.playerId) ?? 0,
     avoidInLineup: false,
@@ -58,6 +56,15 @@ export function tipoffAssignments(context: TipoffContext, projections: Projectio
   ]
 }
 
+function tipoffPlayers(context: TipoffContext) {
+  const lockedIds = new Set(context.stored.filter(entry => entry.locked).map(entry => entry.player_id))
+  return context.players.filter(player => {
+    const status = player.injuryStatus?.toLowerCase() ?? ''
+    return !player.locked && !lockedIds.has(player.playerId) && player.hasGame
+      && status !== 'out' && !status.startsWith('ir')
+  })
+}
+
 export async function processPreTipoff(body: Record<string, unknown>) {
   if (typeof body.tipoffAt !== 'string' || typeof body.token !== 'string') {
     throw new TypeError('Tipoff and claim token are required.')
@@ -66,47 +73,70 @@ export async function processPreTipoff(body: Record<string, unknown>) {
   const token = body.token
   const { data: date, error: claimError } = await supabase.rpc('claim_lineup_tipoff_dispatch', {
     p_tipoff_at: tipoffAt, p_token: token,
-  })
+  }).abortSignal(AbortSignal.timeout(5000))
   if (claimError) throw claimError
-  if (!date) return { optimized: 0, failed: 0, claimed: false }
+  if (!date) return { optimized: 0, failed: 0, claimed: false, errors: [] as string[] }
+  const controller = new AbortController()
+  const budget = Math.max(0, Math.min(110_000, Date.parse(tipoffAt) + 55_000 - Date.now()))
+  const deadline = setTimeout(() => controller.abort(new Error('Tipoff optimization reached its work deadline')), budget)
+  const heartbeat = startLeaseHeartbeat(async () => {
+    const { data, error } = await supabase.rpc('renew_lineup_tipoff_dispatch', {
+      p_tipoff_at: tipoffAt, p_token: token,
+    }).abortSignal(AbortSignal.timeout(5000))
+    if (error) throw error
+    return data === true
+  }, 15_000, error => controller.abort(error ?? new Error('Tipoff lease expired or changed')))
   let optimized = 0
   const failures: string[] = []
+  const excluded: string[] = []
   try {
-    const { data: games, error: gamesError } = await supabase.from('nba_games')
-      .select('season_year').eq('game_date', date).eq('game_time', tipoffAt)
-    if (gamesError) throw gamesError
-    const settings = await loadEnabledOptimizerSettings(supabase, [...new Set((games ?? []).map((game) => game.season_year))])
-    for (const setting of settings) {
-      try {
-        const { data, error } = await supabase.rpc('get_pre_tipoff_lineup_context', {
-          p_league_id: setting.league_id, p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
+    await withWorkContext({ signal: controller.signal }, async () => {
+      while (!controller.signal.aborted) {
+        const { data: settings, error: workError } = await supabase.rpc('get_pending_tipoff_members', {
+          p_tipoff_at: tipoffAt, p_token: token, p_excluded_members: excluded, p_limit: 100,
         })
-        if (error) throw error
-        if (!data) continue
-        const context = data as unknown as TipoffContext
-        const playerIds = context.players.map((player) => player.playerId)
-        const { data: projections, error: projectionError } = await supabase.rpc('get_league_projection_rows', {
-          p_league_id: setting.league_id, p_season_year: context.seasonYear, p_game_date: date,
-          p_view: 'today', p_player_ids: playerIds, p_limit: Math.max(1, playerIds.length), p_offset: 0,
-        })
-        if (projectionError) throw projectionError
-        const { data: changed, error: applyError } = await supabase.rpc('apply_pre_tipoff_lineup', {
-          p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
-          p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
-          p_assignments: tipoffAssignments(context, projections ?? []),
-        })
-        if (applyError) throw applyError
-        if (changed) optimized++
-      } catch (error) {
-        failures.push(`${setting.member_id}: ${error instanceof Error ? error.message : JSON.stringify(error)}`)
+        if (workError) throw workError
+        if (!settings?.length) break
+        await runBounded(settings.map(setting => async () => {
+          if (controller.signal.aborted) return
+          try {
+            const { data, error } = await supabase.rpc('get_pre_tipoff_lineup_context', {
+              p_league_id: setting.league_id, p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
+            })
+            if (error) throw error
+            if (!data) throw new Error('Tipoff context is no longer available')
+            const context = data as unknown as TipoffContext
+            if (context.date !== date) throw new Error('Tipoff date changed during optimization')
+            const playerIds = tipoffPlayers(context).map(player => player.playerId)
+            const projections = playerIds.length ? await supabase.rpc('get_league_projection_rows', {
+              p_league_id: setting.league_id, p_season_year: context.seasonYear, p_game_date: date,
+              p_view: 'today', p_player_ids: playerIds, p_limit: playerIds.length, p_offset: 0,
+            }) : { data: [], error: null }
+            if (projections.error) throw projections.error
+            const { data: changed, error: applyError } = await supabase.rpc('apply_pre_tipoff_lineup', {
+              p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
+              p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
+              p_assignments: tipoffAssignments(context, projections.data ?? []),
+            })
+            if (applyError) throw applyError
+            if (changed) optimized++
+          } catch (error) {
+            excluded.push(setting.member_id)
+            failures.push(`${setting.member_id}: ${errorMessage(error)}`)
+          }
+        }), 4)
       }
-    }
+    })
   } catch (error) {
-    failures.push(error instanceof Error ? error.message : JSON.stringify(error))
+    failures.push(errorMessage(error))
+  } finally {
+    clearTimeout(deadline)
+    heartbeat.stop()
   }
+  if (controller.signal.aborted) failures.push(errorMessage(controller.signal.reason))
   const { error: finishError } = await supabase.rpc('finish_lineup_tipoff_dispatch', {
     p_tipoff_at: tipoffAt, p_token: token, ...(failures.length ? { p_error: failures.join('\n') } : {}),
-  })
-  if (finishError) throw finishError
-  return { optimized, failed: failures.length, claimed: true }
+  }).abortSignal(AbortSignal.timeout(5000))
+  if (finishError) failures.push(errorMessage(finishError))
+  return { optimized, failed: failures.length, claimed: true, errors: failures }
 }

@@ -4521,6 +4521,19 @@ export type Database = {
           weekly_add_limit: number
         }[]
       }
+      get_pending_tipoff_members: {
+        Args: {
+          p_excluded_members?: string[]
+          p_limit?: number
+          p_tipoff_at: string
+          p_token: string
+        }
+        Returns: {
+          league_id: string
+          league_season_id: string
+          member_id: string
+        }[]
+      }
       get_pending_trade_count: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: number
@@ -4824,6 +4837,10 @@ export type Database = {
       remove_trade_block_item_atomic: {
         Args: { p_item_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined
+      }
+      renew_lineup_tipoff_dispatch: {
+        Args: { p_tipoff_at: string; p_token: string }
+        Returns: boolean
       }
       renew_live_poll_lease: {
         Args: {
