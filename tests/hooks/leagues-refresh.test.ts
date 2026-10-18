@@ -135,7 +135,7 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
     mocks.userId = 'user'
     mocks.online = false
     mocks.cache.clear()
-    mocks.fetchUserLeagues.mockReset().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(rows).mockResolvedValueOnce([])
+    mocks.fetchUserLeagues.mockReset().mockResolvedValueOnce(rows).mockResolvedValueOnce([])
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     let latest!: ReturnType<typeof useLeagues>
     const Probe = () => { latest = useLeagues(); return null }
@@ -143,7 +143,8 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
     try {
         await act(async () => { renderer = create(React.createElement(Probe)) })
         expect(latest.memberships).toEqual([])
-        expect(latest.membershipStatus).toBe('unavailable')
+        expect(latest.membershipStatus).toBe('loading')
+        expect(mocks.fetchUserLeagues).not.toHaveBeenCalled()
         mocks.online = true
         await act(async () => { renderer.update(React.createElement(Probe)) })
         await finishReconnectWindow()
@@ -151,7 +152,7 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
         expect(latest.membershipStatus).toBe('available')
         expect(latest.error).toBeNull()
         await act(async () => { renderer.update(React.createElement(Probe)) })
-        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(2)
+        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(1)
         mocks.online = false
         await act(async () => { renderer.update(React.createElement(Probe)) })
         expect(latest.memberships).toEqual(rows)
@@ -160,7 +161,7 @@ it('recovers empty memberships on reconnect and clears an authoritative revocati
         await finishReconnectWindow()
         expect(latest.memberships).toEqual([])
         expect(latest.membershipStatus).toBe('empty')
-        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(3)
+        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(2)
     } finally {
         await act(async () => { renderer.unmount() })
         log.mockRestore()
@@ -174,7 +175,7 @@ it('rejects late reconnect results after account switch and logout', async () =>
     mocks.cache.clear()
     let finishOld!: (rows: { id: string }[]) => void
     let finishNew!: (rows: { id: string; leagues: { id: string } }[]) => void
-    mocks.fetchUserLeagues.mockReset().mockResolvedValueOnce([])
+    mocks.fetchUserLeagues.mockReset()
         .mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve }))
         .mockResolvedValueOnce([{ id: 'new-member', leagues: { id: 'new-league' } }])
         .mockReturnValueOnce(new Promise((resolve) => { finishNew = resolve }))
@@ -185,7 +186,7 @@ it('rejects late reconnect results after account switch and logout', async () =>
     mocks.online = true
     await act(async () => { renderer.update(React.createElement(Probe)) })
     await finishReconnectWindow()
-    expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(2)
+    expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(1)
     mocks.userId = 'user-b'
     await act(async () => { renderer.update(React.createElement(Probe)) })
     await act(async () => { finishOld([{ id: 'old-member' }]) })
@@ -200,6 +201,43 @@ it('rejects late reconnect results after account switch and logout', async () =>
     await act(async () => { finishNew([{ id: 'new-member', leagues: { id: 'new-league' } }]) })
     expect(latest.memberships).toEqual([])
     expect(latest.membershipStatus).toBe('signed-out')
-    expect(mocks.fetchUserLeagues.mock.calls.map(([id]) => id)).toEqual(['user-a', 'user-a', 'user-b', 'user-b'])
+    expect(mocks.fetchUserLeagues.mock.calls.map(([id]) => id)).toEqual(['user-a', 'user-b', 'user-b'])
     await act(async () => { renderer.unmount() })
+})
+
+it.each(['hidden', 'offline'])('defers %s bootstrap and never validates cached membership before resumption', async mode => {
+    const browser = new EventTarget(), page = new EventTarget()
+    let hidden = mode === 'hidden', online = mode !== 'offline'
+    Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('window', browser)
+    vi.stubGlobal('document', page)
+    vi.stubGlobal('navigator', { get onLine() { return online } })
+    const rows = [{ id: 'removed-member', leagues: { id: 'league' } }]
+    mocks.userId = 'user'
+    mocks.online = online
+    mocks.cache.set('pancake:league-memberships:v1:user', rows)
+    mocks.fetchUserLeagues.mockReset().mockResolvedValue([])
+    let latest!: ReturnType<typeof useLeagues>
+    const Probe = () => { latest = useLeagues(); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(mocks.fetchUserLeagues).not.toHaveBeenCalled()
+        expect(latest.memberships).toEqual(rows)
+        expect(latest.membershipValidated).toBe(false)
+        await act(async () => { await latest.refresh() })
+        expect(mocks.fetchUserLeagues).not.toHaveBeenCalled()
+        hidden = false
+        online = true
+        mocks.online = true
+        await act(async () => {
+            renderer.update(React.createElement(Probe))
+        })
+        await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+        expect(mocks.fetchUserLeagues).toHaveBeenCalledOnce()
+        expect(latest.memberships).toEqual([])
+        expect(latest.membershipValidated).toBe(true)
+    } finally {
+        await act(async () => { renderer.unmount() })
+    }
 })

@@ -119,6 +119,7 @@ export function useLeagues() {
         const run = (options: { force?: boolean } = { force: true }): Promise<void> => {
             if (!isCurrent()) return Promise.resolve()
             pending = true
+            if (userId && !canRefresh()) return Promise.resolve()
             if (inFlight) {
                 requestIdRef.current += 1
                 return inFlight
