@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
+import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
 import { getJoinableDraft, type Draft } from '@/lib/draft'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 
-type LaunchResult = 'opened' | 'missing' | 'error' | 'stale'
+type LaunchResult = 'opened' | 'missing' | 'error' | 'stale' | 'deferred'
 
 // The "No active draft" page. It has its own URL so it never collides with the
 // auction room at /draft-room.
@@ -15,11 +16,13 @@ export function useDraftRoomLauncher(
     options: { notifyOnError?: boolean; renderAuctionInline?: boolean; scopeKey?: string } = {},
 ) {
     const router = useRouter()
-    const resourceKey = leagueId ? JSON.stringify([leagueId, options.scopeKey ?? null]) : null
+    const activity = useDraftActivity(JSON.stringify([leagueId ?? null, options.scopeKey ?? null]))
+    const { identity: resourceKey, epoch, capture, canRead, isCurrent } = activity
+    const pendingRef = useRef<{ key: string; fallbackOnMissing: boolean } | null>(null)
     const activeResourceKeyRef = useRef(resourceKey)
     activeResourceKeyRef.current = resourceKey
     const generationRef = useRef(0)
-    const inFlightRef = useRef<{ key: string; promise: Promise<LaunchResult> } | null>(null)
+    const inFlightRef = useRef<{ key: string; epoch: number; promise: Promise<LaunchResult> } | null>(null)
     const [request, setRequest] = useState<{
         key: string
         loading: boolean
@@ -32,22 +35,35 @@ export function useDraftRoomLauncher(
     const openDraftRoom = useCallback((launchOptions: { fallbackOnMissing?: boolean } = {}) => {
         const fallbackOnMissing = launchOptions.fallbackOnMissing ?? true
         const capturedKey = resourceKey
-        if (!capturedKey || !leagueId) {
+        if (activeResourceKeyRef.current !== capturedKey) return Promise.resolve<LaunchResult>('stale')
+        if (!canRead()) {
+            pendingRef.current = { key: capturedKey, fallbackOnMissing }
+            setRequest({ key: capturedKey, loading: true, error: null, draft: null })
+            return Promise.resolve<LaunchResult>('deferred')
+        }
+        if (!leagueId) {
+            pendingRef.current = null
             if (fallbackOnMissing && !options.renderAuctionInline) router.push(NO_DRAFT_ROUTE)
             return Promise.resolve<LaunchResult>('missing')
         }
-        if (inFlightRef.current?.key === capturedKey) return inFlightRef.current.promise
+        const readEpoch = capture()
+        if (inFlightRef.current?.key === capturedKey && inFlightRef.current.epoch === readEpoch) return inFlightRef.current.promise
+        pendingRef.current = { key: capturedKey, fallbackOnMissing }
 
         const generation = ++generationRef.current
         setRequest({ key: capturedKey, loading: true, error: null, draft: null })
         const ownsRequest = () => (
-            activeResourceKeyRef.current === capturedKey
+            isCurrent(readEpoch) && activeResourceKeyRef.current === capturedKey
             && generationRef.current === generation
         )
         const promise = (async (): Promise<LaunchResult> => {
             try {
                 const draft = await getJoinableDraft(leagueId, { includeCompletedRookie: true })
-                if (!ownsRequest()) return 'stale'
+                if (!ownsRequest()) {
+                    if (activeResourceKeyRef.current === capturedKey && generationRef.current === generation) pendingRef.current = { key: capturedKey, fallbackOnMissing }
+                    return 'stale'
+                }
+                pendingRef.current = null
                 if (!draft) {
                     if (fallbackOnMissing && !options.renderAuctionInline) router.push(NO_DRAFT_ROUTE)
                     return 'missing'
@@ -60,6 +76,7 @@ export function useDraftRoomLauncher(
                 return 'opened'
             } catch (error) {
                 if (!ownsRequest()) return 'stale'
+                pendingRef.current = null
                 const message = getErrorMessage(error)
                 setRequest({ key: capturedKey, loading: false, error: message, draft: null })
                 if (options.notifyOnError) showAlert('Could not open draft room', message)
@@ -70,12 +87,17 @@ export function useDraftRoomLauncher(
                         ? { ...current, loading: false }
                         : current)
                 }
-                if (inFlightRef.current?.key === capturedKey) inFlightRef.current = null
+                if (inFlightRef.current?.key === capturedKey && inFlightRef.current.epoch === readEpoch) inFlightRef.current = null
             }
         })()
-        inFlightRef.current = { key: capturedKey, promise }
+        inFlightRef.current = { key: capturedKey, epoch: readEpoch, promise }
         return promise
-    }, [leagueId, resourceKey, options.renderAuctionInline, options.notifyOnError, router])
+    }, [leagueId, resourceKey, options.renderAuctionInline, options.notifyOnError, router, canRead, capture, isCurrent])
+
+    useEffect(() => {
+        if (pendingRef.current?.key !== resourceKey) { pendingRef.current = null; return }
+        if (canRead() && inFlightRef.current?.epoch !== capture()) void openDraftRoom({ fallbackOnMissing: pendingRef.current.fallbackOnMissing })
+    }, [resourceKey, epoch, canRead, openDraftRoom, capture])
 
     const ownsState = request?.key === resourceKey
     return {

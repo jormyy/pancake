@@ -1,7 +1,7 @@
 const path = require('node:path')
-const { readFileSync, readdirSync } = require('node:fs')
 const { getDefaultConfig } = require('expo/metro-config')
 const { scopeWebModuleIds } = require('./scripts/scope-web-module-ids.js')
+const { collectMaterialIconNames } = require('./assets/fonts/collect-icons.js')
 
 const config = getDefaultConfig(__dirname)
 config.resolver.assetExts = [...config.resolver.assetExts, 'woff2']
@@ -17,22 +17,12 @@ const outfitFiles = new Map(['500Medium', '600SemiBold', '700Bold'].map(weight =
   path.join(outfitRoot, weight, `Outfit_${weight}.ttf`),
   path.join(__dirname, `assets/fonts/Outfit_${weight}.woff2`),
 ]))
-const availableGlyphs = require(path.join(iconRoot, 'glyphmaps/MaterialIcons.json'))
 const shippedGlyphs = require('./assets/fonts/MaterialIcons.glyphs.json')
-const scanGlyphs = (directory) => {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const file = path.join(directory, entry.name)
-    if (entry.isDirectory()) scanGlyphs(file)
-    else if (/\.tsx?$/.test(entry.name)) {
-      for (const [, , name] of readFileSync(file, 'utf8').matchAll(/(['"])([a-zA-Z0-9_-]+)\1/g)) {
-        if (availableGlyphs[name] !== undefined && shippedGlyphs[name] !== availableGlyphs[name]) {
-          throw new Error(`MaterialIcons subset is missing ${name}. Regenerate assets/fonts using assets/fonts/README.md.`)
-        }
-      }
-    }
+for (const [name, point] of Object.entries(collectMaterialIconNames(__dirname))) {
+  if (shippedGlyphs[name] !== point) {
+    throw new Error(`MaterialIcons subset is missing ${name}. Regenerate assets/fonts using assets/fonts/README.md.`)
   }
 }
-for (const directory of ['app', 'components', 'constants', 'hooks', 'lib', 'contexts']) scanGlyphs(path.join(__dirname, directory))
 
 const previousResolver = config.resolver.resolveRequest
 config.resolver.resolveRequest = (context, moduleName, platform) => {

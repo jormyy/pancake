@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
@@ -10,10 +11,12 @@ const mocks = vi.hoisted(() => ({
     placeBid: vi.fn(),
     closeExpiredNominations: vi.fn(),
     appState: 'active',
+    reconnectCallback: null as null | (() => Promise<boolean>),
     statusCallback: null as ((status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => void) | null,
     unsubscribeFromDraft: vi.fn(async () => undefined),
 }))
 
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     AppState: { get currentState() { return mocks.appState }, addEventListener: () => ({ remove: vi.fn() }) },
 }))
@@ -30,7 +33,9 @@ vi.mock('@/lib/draft', () => ({
         _leagueId: string | null,
         _onChange: () => void,
         onStatus: typeof mocks.statusCallback,
+        onReconnect: () => Promise<boolean>,
     ) => {
+        mocks.reconnectCallback = onReconnect
         mocks.statusCallback = onStatus
         return { topic: 'draft' }
     }),
@@ -45,6 +50,8 @@ vi.mock('@/lib/realtime', () => ({
     reportRealtimeCleanup: vi.fn(),
     debounceRealtimeRefresh: (onChange: () => void) => ({ trigger: onChange, cancel: () => {} }),
 }))
+
+setSessionOwner('draft-test-user')
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -105,7 +112,7 @@ afterEach(() => {
 })
 
 describe('auction draft resource identity', () => {
-    it('fails closed on channel failure and recovers only after subscription', async () => {
+    it('fails closed until subscription and authoritative recovery both finish', async () => {
         mocks.getDraftState.mockResolvedValue(state('draft-a'))
         let latest!: ReturnType<typeof useAuctionDraftRoomController>
         const Probe = () => {
@@ -122,6 +129,8 @@ describe('auction draft resource identity', () => {
         await act(async () => {
             mocks.statusCallback?.('SUBSCRIBED')
         })
+        expect(latest.realtimeConnected).toBe(false)
+        await act(async () => { await mocks.reconnectCallback?.() })
         expect(latest.realtimeConnected).toBe(true)
         expect(latest.loadError).toBeNull()
         await act(async () => { renderer.unmount() })

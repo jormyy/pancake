@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
     channels: [] as { on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> }[],
     remove: vi.fn(async () => undefined),
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) },
 }))
@@ -36,6 +38,8 @@ vi.mock('@/lib/draft', async (original) => ({
     getDraftPollRevision: mocks.revision,
 }))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn() }))
+setSessionOwner('draft-test-user')
+
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let renderer: ReactTestRenderer | undefined
 let latest!: ReturnType<typeof useAuctionDraftRoomController>

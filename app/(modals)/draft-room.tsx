@@ -41,6 +41,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
 
     const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =
         useDraftAdminControls({
+            canAct: controller.canAct,
             draftId,
             refresh,
             onStopped: () => navigateBackToDraftList(state?.draft.isMock),
@@ -132,7 +133,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
             <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
                 {isCommissioner && isDesktop ? (
                     <DraftAdminBar
-                        disabled={adminBusy}
+                        disabled={adminBusy || !controller.actionsReady}
                         inline
                         showLabel={false}
                         isPaused={isPaused}
@@ -153,7 +154,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
 
             {isCommissioner && !isDesktop ? (
                 <DraftAdminBar
-                    disabled={adminBusy}
+                    disabled={adminBusy || !controller.actionsReady}
                     isPaused={isPaused}
                     onPause={handlePauseDraft}
                     onResume={handleResumeDraft}
