@@ -124,3 +124,14 @@ it('starts one detail read after the initial marker baseline and ignores its cov
         expect(reads()).toEqual(Array(8).fill(1))
     } finally { setLeagueChangesConnected('league', false); vi.useRealTimers() }
 })
+
+
+it('keeps public player data available without a league while skipping private scoring and history', async () => {
+    const Public = () => { latest = usePlayerScreenData('player', null, { ownerKey: 'actor', authorized: true }); return null }
+    await act(async () => { renderer = create(React.createElement(Public)) })
+    expect(reads()).toEqual([1, 1, 1, 1, 0, 0, 0, 1])
+    expect(latest.player?.display_name).toBe('Current')
+    expect(latest.fantasyPointsMap).toBeNull()
+    expect(latest.transactions).toEqual([])
+    expect(latest.nextProjection).toBeNull()
+})

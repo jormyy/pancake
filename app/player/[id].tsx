@@ -65,7 +65,7 @@ export default function PlayerDetailScreen() {
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError, projectionSettled,
         transactions, transactionsError, transactionsSettled,
-    } = usePlayerScreenData(id, leagueId, { ownerKey: ownerIdentity ?? undefined, authorized: membershipValidated && !!current })
+    } = usePlayerScreenData(id, leagueId, { ownerKey: ownerIdentity ?? undefined, authorized: membershipValidated })
 
     const isCurrent = useCallback((generation: number, identity: string | null) =>
         generationRef.current === generation && activeOwnerRef.current === identity && isCurrentRead(readEpoch), [isCurrentRead, readEpoch])
