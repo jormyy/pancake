@@ -16,6 +16,7 @@ const goodSchedule = {
           homeTeam: { teamTricode: 'BOS' },
           awayTeam: { teamTricode: 'NYK' },
           gameStatus: 1,
+          gameStatusText: 'PPD - postponed',
           weekNumber: 1,
         },
         {
@@ -94,6 +95,7 @@ Deno.test({
     const games = await fetchSeasonSchedule()
     if (games.length !== 2) throw new Error(`expected 2 games, got ${games.length}`)
     if (games[0].gameDate !== '2026-10-21') throw new Error('game date parsed incorrectly')
+    if (games[0].statusText !== 'PPD - postponed') throw new Error('postponed marker was discarded')
   },
 })
 

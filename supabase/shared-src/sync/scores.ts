@@ -493,11 +493,8 @@ async function finalizeWeekIfComplete(
     if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
     if (matchups.some((matchup) => isPlayoffMatchupType(matchup.matchup_type)) && toETDate(referenceDate) <= endDate) return
     const { data: pendingGames, error: pendingGamesError } = await supabase
-        .from('nba_games')
+        .rpc('get_score_sync_games', { p_start_date: weekData.week_start, p_end_date: endDate, p_season_year: seasonYear })
         .select('id, nba_game_id')
-        .eq('season_year', seasonYear)
-        .gte('game_date', weekData.week_start)
-        .lte('game_date', endDate)
         // Final status alone does not prove that a complete box score exists.
         .or('status.in.(Scheduled,InProgress),and(status.eq.Final,stats_synced_at.is.null)')
     if (pendingGamesError) throw pendingGamesError
@@ -823,11 +820,8 @@ async function syncStatsForCompletedWeeks(
 
     const today = toETDate(referenceDate)
     const games = await fetchAllPages<GameDateForRefresh>((from, to) => supabase
-        .from('nba_games')
+        .rpc('get_score_sync_games', { p_start_date: firstWeekStart, p_end_date: lastWeekEnd, p_season_year: seasonYear })
         .select('game_date, nba_game_id, status, stats_synced_at')
-        .eq('season_year', seasonYear)
-        .gte('game_date', firstWeekStart)
-        .lte('game_date', lastWeekEnd)
         .order('game_date')
         .order('nba_game_id')
         .range(from, to))

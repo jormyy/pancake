@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION public.publish_nba_schedule_atomic(p_season_year int,p_games jsonb,p_weeks jsonb)
 RETURNS int LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_games jsonb; v_weeks jsonb; v_count int;
+DECLARE v_games jsonb; v_weeks jsonb; v_count int; v_status_text jsonb;
 BEGIN
   PERFORM private.lock_nba_source(p_season_year);
   PERFORM public.assert_nba_game_imports(p_games);
@@ -63,14 +63,21 @@ BEGIN
     RAISE EXCEPTION 'Calendar resolution required: proposed weeks overlap or omit retained games. Existing calendar is preserved.' USING ERRCODE='55000';
   END IF;
 
-  INSERT INTO nba_games AS stored(nba_game_id,season_year,game_date,home_team,away_team,status,week_number,
+  SELECT COALESCE(jsonb_object_agg(game->>'nba_game_id',game->'game_status_text'),'{}'::jsonb)
+    INTO v_status_text FROM jsonb_array_elements(p_games) game WHERE game ? 'game_status_text';
+
+  INSERT INTO nba_games AS stored(nba_game_id,season_year,game_date,home_team,away_team,status,game_status_text,week_number,
     started_at,game_time,bbref_home_team,bbref_away_team,updated_at)
-  SELECT game.nba_game_id,p_season_year,game.game_date,game.home_team,game.away_team,game.status,game.week_number,
+  SELECT game.nba_game_id,p_season_year,game.game_date,game.home_team,game.away_team,game.status,game.game_status_text,game.week_number,
     game.started_at,game.game_time,game.bbref_home_team,game.bbref_away_team,clock_timestamp()
     FROM jsonb_populate_recordset(NULL::nba_games,p_games) game
   ON CONFLICT(nba_game_id) DO UPDATE SET
     season_year=EXCLUDED.season_year,game_date=EXCLUDED.game_date,home_team=EXCLUDED.home_team,away_team=EXCLUDED.away_team,
-    status=EXCLUDED.status,week_number=EXCLUDED.week_number,started_at=EXCLUDED.started_at,game_time=EXCLUDED.game_time,
+    status=EXCLUDED.status,
+    game_status_text=CASE WHEN v_status_text ? EXCLUDED.nba_game_id THEN EXCLUDED.game_status_text
+      WHEN ROW(stored.game_date,stored.game_time,stored.status) IS DISTINCT FROM ROW(EXCLUDED.game_date,EXCLUDED.game_time,EXCLUDED.status) THEN NULL
+      ELSE stored.game_status_text END,
+    week_number=EXCLUDED.week_number,started_at=EXCLUDED.started_at,game_time=EXCLUDED.game_time,
     bbref_home_team=COALESCE(EXCLUDED.bbref_home_team,stored.bbref_home_team),bbref_away_team=COALESCE(EXCLUDED.bbref_away_team,stored.bbref_away_team),updated_at=EXCLUDED.updated_at;
 
   UPDATE player_game_stats stat SET week_number=game.week_number

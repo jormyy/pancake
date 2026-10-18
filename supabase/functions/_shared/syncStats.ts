@@ -112,10 +112,8 @@ export async function syncStatsGame(game: StatsSyncGame): Promise<number> {
 async function statsGamesForDate(dateStr: string, afterGameId?: string, limit?: number): Promise<StatsSyncGame[]> {
   const isPast = dateStr < toETDate(new Date())
   let query = supabase
-    .from('nba_games')
+    .rpc('get_score_sync_games', { p_start_date: dateStr, p_end_date: dateStr })
     .select('id, nba_game_id, week_number, season_year, status')
-    .eq('game_date', dateStr)
-    .like('nba_game_id', '002%')
     .order('id', { ascending: true })
   if (!isPast) query = query.neq('status', 'Scheduled')
   // Skip Final games whose stats were synced within the recheck window; they

@@ -206,6 +206,7 @@
     "public.get_member_transaction_state(uuid,uuid)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_pending_trade_count(uuid,uuid)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_pre_tipoff_lineup_context(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.get_score_sync_games(date,date,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_stale_score_weeks(uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_trade_page_refs(uuid,uuid,integer,text)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.handle_new_auth_user()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

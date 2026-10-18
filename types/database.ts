@@ -4533,6 +4533,22 @@ export type Database = {
         }
         Returns: Json
       }
+      get_score_sync_games: {
+        Args: {
+          p_end_date: string
+          p_season_year?: number
+          p_start_date: string
+        }
+        Returns: {
+          game_date: string
+          id: string
+          nba_game_id: string
+          season_year: number
+          stats_synced_at: string
+          status: string
+          week_number: number
+        }[]
+      }
       get_stale_score_weeks: {
         Args: { p_league_season_id: string; p_through_week: number }
         Returns: {

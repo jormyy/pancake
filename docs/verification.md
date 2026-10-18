@@ -211,3 +211,12 @@ They do not emit client events or change game content, completion stamps, or sco
 A completed final game does not wake an idle worker.
 During live activity, due completed games still receive correction checks.
 The broader historical recovery in normal score sync stays enabled; the live loop scores its already-ingested inputs once per tick.
+
+## Postponed games and scoring
+
+`npm run test:db:postponed-scoring` exercises real schedule parsing, two regular weeks, seeded playoffs, rescheduling, missing-final recovery and corrections.
+`npm run test:db:postponed-score-access` verifies internal read scope and actual client-role denials.
+Schedule imports retain provider status text.
+Scoring and ingestion use the existing game-availability rule for postponed, cancelled and suspended games.
+A rescheduled game keeps its identity and history, then contributes in its actual calendar week.
+Scheduled, live and incomplete final games still block finalization.

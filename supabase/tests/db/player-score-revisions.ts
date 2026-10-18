@@ -49,7 +49,7 @@ const leagueIds = [uuid(), uuid()]
 const seasonIds = [uuid(), uuid()]
 const memberIds = [uuid(), uuid(), uuid(), uuid()]
 const playerIds = [uuid(), uuid(), uuid(), uuid(), uuid()]
-const gameId = uuid(), weekId = uuid(), matchupIds = [uuid(), uuid()]
+const gameId = uuid(), availabilityGameId = uuid(), weekId = uuid(), matchupIds = [uuid(), uuid()]
 const userIds: string[] = []
 let year = 0
 let insertedWeek = false
@@ -238,6 +238,28 @@ try {
   assert.equal(Number((await standing(0)).max_possible_points), 0)
   console.log(JSON.stringify({ scenario: 'equal-time-transaction-id', oldMaximum: 10, freshMaximum: 0, oldCertificateRejected: true, replayed: true }))
 
+  await query(supabase.from('nba_games').insert({ id: availabilityGameId, nba_game_id: `002-availability-${token}`, season_year: year,
+    week_number: 1, game_date: gameDate, home_team: 'XRV', away_team: 'XRW', status: 'Scheduled', game_status_text: 'PPD - postponed' }))
+  await syncScores(leagueIds[0]); await syncScores(leagueIds[1])
+  await syncScores(leagueIds[0])
+  const availabilityPayload = structuredClone(observedPayload)
+  const availabilityToken = await capture(0)
+  const beforeAvailability = await matchup(0)
+  const availabilityWriter = openSql()
+  await availabilityWriter.sql(`BEGIN; UPDATE public.nba_games SET game_status_text='7:30 PM ET' WHERE id='${availabilityGameId}'`)
+  const rejectedAvailability = await supabase.rpc('finalize_score_week_atomic', availabilityPayload)
+  assert.equal(rejectedAvailability.error?.code, 'PT409', 'An in-flight availability-only writer must defer old scoring')
+  assert.deepEqual(await matchup(0), beforeAvailability)
+  await availabilityWriter.sql('COMMIT'); await availabilityWriter.close()
+  assert.notDeepEqual(await capture(0), availabilityToken)
+  const committedAvailability = await supabase.rpc('finalize_score_week_atomic', availabilityPayload)
+  assert.equal(committedAvailability.error?.code, 'PT409', 'A committed availability change must reject the prior certificate')
+  assert.deepEqual(await matchup(0), beforeAvailability)
+  await query(supabase.from('nba_games').update({ game_status_text: 'PPD - postponed' }).eq('id', availabilityGameId))
+  await syncScores(leagueIds[0]); await syncScores(leagueIds[1])
+  assert.deepEqual(await stale(0), []); assert.deepEqual(await stale(1), [])
+  console.log(JSON.stringify({ scenario: 'availability-only-writer', concurrentAndCommittedCertificatesRejected: true, resultsPreserved: true }))
+
   const targetBeforeUnrelated = await capture(0), controlBeforeUnrelated = await capture(1)
   await changeEligibility(4, 'SG')
   assert.deepEqual(await capture(0), targetBeforeUnrelated)
@@ -252,7 +274,7 @@ try {
   const cleanup = async (work: () => Promise<unknown>) => { try { await work() } catch (error) { cleanupErrors.push(error) } }
   for (const leagueId of leagueIds) await cleanup(() => query(supabase.from('leagues').delete().eq('id', leagueId)))
   await cleanup(() => query(supabase.from('player_game_stats').delete().eq('game_id', gameId)))
-  await cleanup(() => query(supabase.from('nba_games').delete().eq('id', gameId)))
+  await cleanup(() => query(supabase.from('nba_games').delete().in('id', [gameId, availabilityGameId])))
   await cleanup(() => query(supabase.from('players').delete().in('id', playerIds)))
   if (insertedWeek) await cleanup(() => query(supabase.from('season_weeks').delete().eq('id', weekId)))
   for (const userId of userIds) await cleanup(async () => { const { error } = await supabase.auth.admin.deleteUser(userId); if (error) throw error })
