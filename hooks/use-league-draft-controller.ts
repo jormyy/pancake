@@ -134,7 +134,7 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
 
     useFocusEffect(useCallback(() => {
         focused.current = true
-        if (leagueId) void fetchActiveDraft(leagueId)
+        if (leagueId && activeResource.current === resourceKey) void fetchActiveDraft(leagueId)
         return () => { focused.current = false; suspend() }
     }, [fetchActiveDraft, leagueId, resourceKey, suspend]))
 

@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
     pending: new Promise<never>(() => undefined),
 }))
 
+vi.mock('@react-navigation/native', async () => {
+    const { useEffect } = await import('react')
+    return { useFocusEffect: (callback: React.EffectCallback) => useEffect(callback, [callback]) }
+})
 vi.mock('@/lib/players', () => ({
     getAvailableSeasons: vi.fn(() => mocks.pending),
     getPlayer: vi.fn(() => mocks.pending),

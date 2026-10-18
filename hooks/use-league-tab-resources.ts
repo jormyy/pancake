@@ -75,7 +75,7 @@ export function useLeagueTabResources(
         useCallback(async () => {
             const rows = leagueId ? await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : []
             return { rows, hasMore: rows.length === ACTIVITY_LIMIT }
-        }, [leagueId, leagueKey]),
+        }, [leagueId]),
         HISTORY_CACHE,
         admission,
     )
