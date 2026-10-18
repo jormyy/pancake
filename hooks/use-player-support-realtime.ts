@@ -70,7 +70,10 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
         const channel = subscribeToTableChanges(`players-screen:${leagueId}`, {
             mode: 'per-watch',
             watches: [
-                { table: 'roster_players', filter: `league_id=eq.${leagueId}`, onChange: () => changed('ownership', 'transactions') },
+                { table: 'roster_players', filter: `league_id=eq.${leagueId}`, onChange: payload => {
+                    const knownOtherPickup = payload?.eventType === 'INSERT' && typeof payload.new.member_id === 'string' && payload.new.member_id !== memberId
+                    changed('ownership', ...(!knownOtherPickup ? ['transactions' as const] : []))
+                } },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}`, onChange: () => changed(...ALL_SUPPORT) },
             ],
             onReconnect: () => {

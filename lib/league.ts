@@ -1,3 +1,4 @@
+import { sessionGeneration } from '@/lib/session-cache-registry'
 import { notifyLeagueChange } from '@/lib/league-changes'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
@@ -240,13 +241,14 @@ export async function updateLeagueConfiguration(
     slots: LineupSlotUpdate[] | null,
 ) {
     return withPwaMutation('updateLeagueConfiguration', async () => {
+        const generation = sessionGeneration()
         const { error } = await supabase.rpc('update_league_configuration_atomic', {
             p_league_id: leagueId,
             p_settings: leagueSettingsPayload(updates),
             p_slots: slots ? lineupSlotsPayload(slots) : undefined,
         })
         if (error) throw error
-        if (updates.scoring_settings !== undefined) notifyLeagueChange(leagueId, { topic: 'resources', scopes: null })
+        if (updates.scoring_settings !== undefined && generation === sessionGeneration()) notifyLeagueChange(leagueId, { topic: 'resources', scopes: null })
     })
 }
 

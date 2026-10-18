@@ -6,7 +6,7 @@ import { PanelActivityContext } from '@/contexts/panel-activity'
 import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const boundary = vi.hoisted(() => ({
-    subscription: null as null | { watches: { table: string; onChange: () => void }[]; onReconnect: () => unknown },
+    subscription: null as null | { watches: { table: string; onChange: (payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void }[]; onReconnect: () => unknown },
     support: vi.fn(), recover: vi.fn(), derived: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
 }))
 vi.mock('@/lib/realtime', () => ({
@@ -134,4 +134,19 @@ it('retains only the failed daily read when a joined claim refresh succeeds', as
     expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims'])
     expect(boundary.derived).toHaveBeenCalledTimes(2)
     expect(boundary.recover).not.toHaveBeenCalled()
+})
+
+
+it('keeps another manager pickup to ownership while retaining current transaction reads for unknown deletes', async () => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => {
+        boundary.subscription!.watches[0].onChange({ eventType: 'INSERT', new: { member_id: 'other' }, old: {} })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['ownership'])
+    await act(async () => {
+        boundary.subscription!.watches[0].onChange({ eventType: 'DELETE', new: {}, old: { id: 'unknown-owner' } })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenLastCalledWith(['ownership', 'transactions'])
 })
