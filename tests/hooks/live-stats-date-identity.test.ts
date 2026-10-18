@@ -76,7 +76,7 @@ describe('useLiveStats date identity', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
         expect(todayRefresh).toHaveBeenCalledOnce()
         expect(historicalRefresh).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount(); await vi.advanceTimersByTimeAsync(15_000) })

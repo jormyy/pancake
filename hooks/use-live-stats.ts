@@ -16,7 +16,13 @@ type Snapshot = {
 type LiveStatsOptions = {
     scope: string
     playerIds: readonly string[]
-    onSilentRefresh?: () => void
+    onSilentRefresh?: () => void | boolean | Promise<void | boolean>
+}
+type LineupRefresh = {
+    run: NonNullable<LiveStatsOptions['onSilentRefresh']>
+    dueAt: number
+    inFlight: boolean
+    active: boolean
 }
 type Scope = { date: string; playerIds: string[]; generation: number }
 
@@ -37,13 +43,14 @@ const listenersByScope = new Map<string, Set<Listener>>()
 const inFlightByScope = new Map<string, Promise<void>>()
 const inFlightEpochByScope = new Map<string, number>()
 const gamesFetchedAtByScope = new Map<string, number>()
-const silentRefreshListenersByScope = new Map<string, Set<() => void>>()
+const silentRefreshListenersByScope = new Map<string, Set<LineupRefresh>>()
 let pollInterval: ReturnType<typeof setInterval> | null = null
 const MAX_SNAPSHOTS = 14
 const LIVE_POLL_MS = 15_000
 const IDLE_POLL_MS = 60_000
 let networkEpoch = 0
 let resumeNeeded = false
+const lineupCatchups = new Set<string>()
 const refreshesByScope = new Map<string, Promise<void>>()
 
 function evictSnapshots() {
@@ -142,7 +149,8 @@ function pageHidden(): boolean {
 // Nothing is on screen while the page is hidden, so the poll skips its ticks.
 // On return a snapshot older than the cadence refreshes at once, and live
 // lineups with it.
-function refreshLiveDate(date: string): Promise<void> {
+function refreshLiveDate(date: string, forceLineups = false): Promise<void> {
+    if (forceLineups && silentRefreshListenersByScope.has(date)) lineupCatchups.add(date)
     const existing = refreshesByScope.get(date)
     if (existing) return existing
     const task = (async () => {
@@ -152,9 +160,20 @@ function refreshLiveDate(date: string): Promise<void> {
             epoch = inFlightEpochByScope.get(date) ?? networkEpoch
             await loadSnapshot(date)
         } while (epoch !== networkEpoch && browserOnline() && !pageHidden() && listenersByScope.has(date))
-        if (!browserOnline() || pageHidden() || snapshots.get(date)?.status !== 'fresh') return
+        if (!browserOnline() || pageHidden()) return
+        const force = lineupCatchups.delete(date)
         if (!wasLive && !anyGameInProgress(date)) return
-        for (const listener of silentRefreshListenersByScope.get(date) ?? []) listener()
+        for (const listener of silentRefreshListenersByScope.get(date) ?? []) {
+            if (listener.inFlight || (!force && Date.now() < listener.dueAt)) continue
+            listener.inFlight = true
+            void Promise.resolve().then(() => listener.active ? listener.run() : false).then(result => {
+                if (listener.active) listener.dueAt = result === false ? 0 : Date.now() + IDLE_POLL_MS
+            }).catch(error => {
+                if (!listener.active) return
+                listener.dueAt = 0
+                console.error('Could not refresh live lineups.', error)
+            }).finally(() => { listener.inFlight = false })
+        }
     })().finally(() => { refreshesByScope.delete(date) })
     refreshesByScope.set(date, task)
     return task
@@ -165,7 +184,7 @@ function catchUpAfterHidden() {
     const force = resumeNeeded
     resumeNeeded = false
     for (const date of listenersByScope.keys()) {
-        if (force || !snapshotFresh(date)) void refreshLiveDate(date)
+        if (force || !snapshotFresh(date)) void refreshLiveDate(date, true)
     }
 }
 
@@ -213,7 +232,7 @@ function ensurePoll() {
         if (pageHidden() || !browserOnline()) return
         pollTick += 1
         await Promise.all(dates.filter(date => anyGameInProgress(date) ||
-            pollTick % (IDLE_POLL_MS / LIVE_POLL_MS) === 0).map(refreshLiveDate))
+            pollTick % (IDLE_POLL_MS / LIVE_POLL_MS) === 0).map(date => refreshLiveDate(date)))
     }, LIVE_POLL_MS)
 }
 
@@ -221,6 +240,7 @@ onSessionCachesCleared(() => {
     networkEpoch += 1
     snapshots.clear()
     gamesFetchedAtByScope.clear()
+    lineupCatchups.clear()
     for (const key of listenersByScope.keys()) notify(key, EMPTY_SNAPSHOT)
 })
 
@@ -256,10 +276,15 @@ export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
                 listeners = new Set()
                 silentRefreshListenersByScope.set(key, listeners)
             }
-            listeners.add(onSilentRefresh)
+            const listener: LineupRefresh = { run: onSilentRefresh, dueAt: Date.now() + IDLE_POLL_MS, inFlight: false, active: true }
+            listeners.add(listener)
             return () => {
-                listeners?.delete(onSilentRefresh)
-                if (listeners?.size === 0) silentRefreshListenersByScope.delete(key)
+                listener.active = false
+                listeners?.delete(listener)
+                if (listeners?.size === 0) {
+                    silentRefreshListenersByScope.delete(key)
+                    lineupCatchups.delete(key)
+                }
             }
         }
     }, [onSilentRefresh, key])

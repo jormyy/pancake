@@ -120,7 +120,7 @@ describe('live stats snapshot', () => {
         silentRefreshes = 0
         await advance(60_000)
         expect(reads()).toBe(8)
-        expect(silentRefreshes).toBe(4)
+        expect(silentRefreshes).toBe(1)
     })
 
     it('does not poll while the page is hidden', async () => {

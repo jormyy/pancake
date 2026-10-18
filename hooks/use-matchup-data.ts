@@ -260,7 +260,7 @@ export function useMatchupData(
         async () => {
             const m = matchupRef.current
             const capturedResourceKey = resourceKey
-            if (!capturedResourceKey || !ownsResource || !m || !leagueId) return
+            if (!capturedResourceKey || !ownsResource || !m || !leagueId) return false
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             const date = selectedDateRef.current
@@ -270,17 +270,19 @@ export function useMatchupData(
                     getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
                 ])
                 if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
-                    date !== selectedDateRef.current) return
+                    date !== selectedDateRef.current) return false
                 setMyLineup((previous) => reuseLineup(previous, mine))
                 setOppLineup((previous) => reuseLineup(previous, opp))
                 setMyLineupScope(lineupScope(m, date))
                 setOppLineupScope(lineupScope(m, date))
                 setLineupError(false)
+                return true
             } catch (error) {
                 if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
-                    date !== selectedDateRef.current) return
+                    date !== selectedDateRef.current) return false
                 console.error(error)
                 setLineupError(true)
+                return false
             }
         },
         [leagueId, ownsResource, resourceKey],

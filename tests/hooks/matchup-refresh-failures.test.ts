@@ -56,11 +56,11 @@ it('handles a failed background read, keeps the last lineup, and clears the retr
     log.mockClear()
     const previous = latest.myLineup
     mocks.lineup.mockRejectedValueOnce(new TypeError('Failed to fetch'))
-    await act(async () => { await expect(latest.refreshSilently()).resolves.toBeUndefined() })
+    await act(async () => { await expect(latest.refreshSilently()).resolves.toBe(false) })
     expect(latest.myLineup).toBe(previous)
     expect(latest.lineupError).toBe(true)
     expect(log).toHaveBeenCalledWith(expect.objectContaining({ message: 'Failed to fetch' }))
-    await act(async () => { await latest.refreshSilently() })
+    await act(async () => { await expect(latest.refreshSilently()).resolves.toBe(true) })
     expect(latest.myLineup?.bench[0].playerId).toBe('fresh')
     expect(latest.lineupError).toBe(false)
 })
@@ -72,12 +72,12 @@ it('consumes an old owner failure without altering the current owner or reportin
     await act(async () => { renderer = create(React.createElement(Probe, { owner: 'a' })) })
     log.mockClear()
     mocks.lineup.mockReturnValueOnce(pending)
-    let request!: Promise<void>
+    let request!: Promise<boolean>
     await act(async () => { request = latest.refreshSilently() })
     await act(async () => { renderer.update(React.createElement(Probe, { owner: 'b' })) })
     await act(async () => {
         reject(new TypeError('Old request aborted'))
-        await expect(request).resolves.toBeUndefined()
+        await expect(request).resolves.toBe(false)
     })
     expect(latest.myLineup?.bench[0].playerId).toBe('b')
     expect(latest.lineupError).toBe(false)

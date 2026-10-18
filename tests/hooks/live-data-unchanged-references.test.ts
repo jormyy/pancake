@@ -222,7 +222,7 @@ beforeEach(async () => {
 afterEach(() => { act(() => renderer?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('live data reference workload', () => {
-    it('keeps equal lineups through eight identical 240-player snapshots without reducing reads', async () => {
+    it('keeps equal lineups through eight stat snapshots and two safety refreshes', async () => {
         await mount()
         const mine = matchup.myLineup
         const theirs = matchup.oppLineup
@@ -230,8 +230,8 @@ describe('live data reference workload', () => {
         report('eight identical live polls')
         expect(boundary.stats).toHaveBeenCalledTimes(8)
         expect(boundary.games).toHaveBeenCalledTimes(8)
-        expect(boundary.lineup).toHaveBeenCalledTimes(16)
-        expect(metrics.fanouts).toBe(8)
+        expect(boundary.lineup).toHaveBeenCalledTimes(4)
+        expect(metrics.fanouts).toBe(2)
         expect(matchup.myLineup).toBe(mine)
         expect(matchup.oppLineup).toBe(theirs)
         expect(metrics.builds).toBe(0)
@@ -257,7 +257,7 @@ describe('live data reference workload', () => {
         await poll(); await poll(); await poll()
         report('Scheduled to InProgress to Final, eight ticks')
         expect(boundary.stats).toHaveBeenCalledTimes(3)
-        expect(metrics.fanouts).toBe(2)
+        expect(metrics.fanouts).toBe(1)
     })
 
     it('applies DNP, downward corrections, row removal, and game metadata changes', async () => {
@@ -280,14 +280,14 @@ describe('live data reference workload', () => {
         expect(live.teamMatchups.get('BOS')?.isHome).toBe(false)
     })
 
-    it('refreshes lineup edits despite unchanged stats and keeps every empty slot', async () => {
+    it('catches missed lineup edits within a minute and keeps every empty slot', async () => {
         await mount()
         const opponent = matchup.oppLineup
         const mine = lineups.get('mine')!
         const moved = mine.starters[0].player!
         mine.starters[0].player = mine.bench[0]; mine.bench[0] = moved
         mine.ir.pop(); mine.taxi[0].injuryStatus = 'OUT'
-        await poll()
+        for (let tick = 0; tick < 4; tick += 1) await poll()
         report('lineup edit with equal stats')
         expect(matchup.myLineup?.starters[0].player?.playerId).toBe('p18')
         expect(matchup.myLineup?.bench[0].playerId).toBe('p0')
@@ -307,7 +307,7 @@ describe('live data reference workload', () => {
         'keeps changed player %s in the refreshed lineup', async (field, value) => {
             await mount()
             Object.assign(lineups.get('mine')!.bench[0], { [field]: value })
-            await poll()
+            for (let tick = 0; tick < 4; tick += 1) await poll()
             expect(matchup.myLineup?.bench[0][field]).toEqual(value)
         },
     )
@@ -318,7 +318,7 @@ describe('live data reference workload', () => {
         mine.starters[0].slotType = 'PG'
         ;[mine.starters[0], mine.starters[1]] = [mine.starters[1], mine.starters[0]]
         mine.bench.push(makePlayer(999)); mine.ir = []; mine.taxi = []
-        await poll()
+        for (let tick = 0; tick < 4; tick += 1) await poll()
         expect(matchup.myLineup).toEqual(mine)
         expect(matchup.myLineup?.starters[1].slotType).toBe('PG')
         expect(matchup.myLineup?.bench.at(-1)?.playerId).toBe('p999')
