@@ -75,10 +75,10 @@ Every failure path renders plain chrome rather than breaking the launch:
 
 | Data | Policy | Invalidation |
 | --- | --- | --- |
-| App shell | Cache first, then refresh `/` | Every release gets a new cache version. |
+| App shell | Verified cache first | A new worker installs the next complete release. A missing old shell can use uncached anonymous online HTML. |
 | Boot bundle and fonts | Precached during install | The release's own manifest lists them. |
 | Hashed assets (`/_expo/static`, `/assets`) | Cache first | The filename is the version. |
-| Other same-origin assets | Stale while revalidate | A new URL creates a new entry. |
+| Declared public assets | Verified cache first | Content-addressed files change with their bytes. The worker never caches undeclared account data. |
 | Supabase API | Never intercepted | Each request reaches Supabase. |
 | Realtime | Never intercepted | The socket reconnects to Supabase. |
 | Matchup data | Same-day, user-scoped local cache | Focus, realtime, or reconnect refreshes it. |
@@ -373,3 +373,24 @@ Health-filtered search evaluates the existing invoker score view once per statem
 At the isolated 1,330-player population, five paired OUT and IR caller medians fell from 486/331ms to 43/31ms. Ordered output and response bytes stayed equal. Singleton, empty, sort, role, materialized-cache, correction, DNP, settings-refresh, and concurrent-user cases retain the frozen cost and correctness guards. These are local synthetic-data measurements, not production or phone timings.
 
 Migration `20261009000002_health_search_score_reuse.sql` only replaces `public.search_players`; its signature, invoker privileges, stability and existing function settings stay unchanged. It takes no table rewrite or index-build lock. A three-second lock timeout aborts blocked application. Recovery reinstalls the prior canonical function from the accepted pre-migration revision in a transaction, then verifies its body and ACL. Existing callers work with either definition. Production application still requires the release migration preflight and readback.
+
+## Safe release changes
+
+The exported document and worker carry the same release identity. The page observes controller changes before load. A new online document first reconciles an older controller. It does not immediately reload into that older release.
+
+Call `holdPwaUpdate(reason)` before a mutation. Release the returned hold in `finally`. Hold the live auction view for its entire active lifetime. All holds share one browser registry. Release is idempotent. `isPwaUpdateHeld()` reports whether any hold remains.
+
+```ts
+const release = holdPwaUpdate('save lineup')
+try {
+    await saveLineup()
+} finally {
+    release()
+}
+```
+
+A pending release waits until the document loads, the page is visible, the network returns, and every hold releases. After sixty seconds, a notice replaces silent waiting. The timeout never expires a hold or forces a reload. A per-route session marker prevents repeated automatic reloads for one release. The final hold release resumes the update.
+
+Missing old route scripts request an update. Recovery uses the same hold checks. If a controlled navigation loses its cached shell, it can use fresh anonymous HTML. That response never enters the older release cache. Cached and fetched release assets retain digest checks. API requests and account data remain outside worker caches.
+
+Push subscription changes notify open same-origin windows. Signed-in pages reconcile the browser's current subscription on that notice, reconnect, controller changes, and foreground return. Concurrent signals coalesce. Ordinary foreground checks wait five minutes after success. Disabled or logged-out notification intent remains closed. Missing subscriptions and changed VAPID keys still require explicit Enable.

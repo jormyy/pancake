@@ -13,59 +13,126 @@ import { THEME_BOOT_SCRIPT } from '@/lib/theme-preference'
 // ("Requiring unknown module"). Registration is a production-build concern only.
 const SW_REGISTER = process.env.NODE_ENV === 'production' ? `
 if ('serviceWorker' in navigator && window.isSecureContext) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js').then(function (registration) {
-      // Auto-update: re-check on every foreground so a backgrounded PWA picks
-      // up new deploys, and reload once when the new worker takes control.
-      var checkForUpdate = function () { registration.update().catch(function () {}); };
-      document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible') checkForUpdate();
-      });
-      // An SPA never navigates the document, so a PWA left in the foreground
-      // (live scoring) would otherwise run a superseded bundle for hours.
-      window.addEventListener('online', checkForUpdate);
-      setInterval(function () {
-        if (document.visibilityState === 'visible') checkForUpdate();
-      }, 60 * 60 * 1000);
-      // Ask the worker for its release version. A changed version reloads once.
-      // A first install stores its version without reloading the fresh page.
-      var workerVersionKey = 'pancake-sw-worker-version';
-      var reloaded = false;
-      var observeWorkerVersion = function (worker) {
-        if (!worker) return;
-        var channel = new MessageChannel();
-        var settled = false;
-        var finish = function (version) {
-          if (settled) return;
-          settled = true;
-          channel.port1.close();
-          if (!version) return;
-          var previous;
-          try {
-            previous = sessionStorage.getItem(workerVersionKey);
-            sessionStorage.setItem(workerVersionKey, version);
-          } catch {
-            // Without a saved version, a reload could repeat on every reply.
-            return;
-          }
-          if (!previous || previous === version || reloaded) return;
-          reloaded = true;
-          window.location.reload();
-        };
-        channel.port1.onmessage = function (event) {
-          finish(event.data && event.data.version);
-        };
-        worker.postMessage({ type: 'PANCAKE_WORKER_VERSION' }, [channel.port2]);
-        // A freshly activated worker on a slow phone can take more than a
-        // couple of seconds to answer; giving up early lost the reload.
-        setTimeout(function () { finish(null); }, 10000);
+  (function () {
+    var documentVersion = document.querySelector?.('meta[name="pancake-release"]')?.content;
+    var workerVersionKey = 'pancake-sw-worker-version';
+    var pendingVersion = null;
+    var workerReconciled = !documentVersion;
+    var reloaded = false;
+    var noticeTimer = null;
+    var registration = null;
+    var observation = 0;
+    var lastCheck = 0;
+    var checking = null;
+    var held = function () { return !!window.__pancakePwaHolds?.size; };
+    var showNotice = function () {
+      noticeTimer = null;
+      if (!pendingVersion || reloaded || document.getElementById('pancake-update-notice')) return;
+      var notice = document.createElement('div');
+      notice.id = 'pancake-update-notice';
+      notice.setAttribute('role', 'status');
+      notice.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:10000;padding:16px;border-radius:12px;background:var(--pancake-bg-card,#fff);color:var(--pancake-text-primary,#382b23);box-shadow:0 4px 24px #0003;font:14px system-ui';
+      notice.textContent = 'An update is ready. Finish your current work, then reload.';
+      var button = document.createElement('button');
+      button.textContent = 'Reload';
+      button.disabled = held();
+      button.style.cssText = 'margin-left:12px;padding:8px 12px;font:inherit';
+      button.addEventListener('click', function () { tryReload(true); });
+      notice.appendChild(button);
+      document.body.appendChild(notice);
+    };
+    var tryReload = function (manual) {
+      if (!pendingVersion || reloaded) return;
+      if (!workerReconciled || held() || document.readyState === 'loading' || document.readyState === 'interactive' ||
+          document.visibilityState === 'hidden' || navigator.onLine === false) {
+        if (!noticeTimer) noticeTimer = setTimeout(showNotice, 60000);
+        return;
+      }
+      try {
+        var key = 'pancake-update-reload:' + window.location.pathname;
+        if (!manual && sessionStorage.getItem(key) === pendingVersion) { showNotice(); return; }
+        sessionStorage.setItem(key, pendingVersion);
+      } catch { return; }
+      reloaded = true;
+      if (noticeTimer) clearTimeout(noticeTimer);
+      window.location.reload();
+    };
+    var observeWorkerVersion = function (worker) {
+      if (!worker) return;
+      var currentObservation = ++observation;
+      var channel = new MessageChannel();
+      var settled = false;
+      var finish = function (version) {
+        if (settled) return;
+        settled = true;
+        channel.port1.close();
+        if (!version || reloaded || currentObservation !== observation ||
+            (navigator.serviceWorker.controller && worker !== navigator.serviceWorker.controller)) return;
+        var previous;
+        try {
+          previous = sessionStorage.getItem(workerVersionKey);
+          sessionStorage.setItem(workerVersionKey, version);
+        } catch { return; }
+        if ((documentVersion || previous) === version || (!documentVersion && !previous)) {
+          pendingVersion = null;
+          if (noticeTimer) clearTimeout(noticeTimer);
+          noticeTimer = null;
+          return;
+        }
+        pendingVersion = version;
+        if (!workerReconciled) checkForUpdate(true);
+        tryReload(false);
       };
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        observeWorkerVersion(navigator.serviceWorker.controller);
+      channel.port1.onmessage = function (event) { finish(event.data && event.data.version); };
+      worker.postMessage({ type: 'PANCAKE_WORKER_VERSION' }, [channel.port2]);
+      setTimeout(function () { finish(null); }, 10000);
+    };
+    var checkForUpdate = function (force) {
+      if (!registration || navigator.onLine === false || checking ||
+          (!force && Date.now() - lastCheck < 300000)) return;
+      lastCheck = Date.now();
+      checking = registration.update().catch(function () {}).finally(function () {
+        checking = null;
+        if (!registration.installing && !registration.waiting) workerReconciled = true;
+        observeWorkerVersion(navigator.serviceWorker.controller || registration.active);
       });
-      observeWorkerVersion(navigator.serviceWorker.controller || registration.active);
-    }).catch(function () {});
-  });
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      workerReconciled = true;
+      observeWorkerVersion(navigator.serviceWorker.controller);
+    });
+    navigator.serviceWorker.addEventListener('message', function (event) {
+      if (event.data?.type === 'PANCAKE_ASSET_MISS') checkForUpdate(true);
+    });
+    window.addEventListener('pancake-pwa-hold-change', function () {
+      var button = document.getElementById('pancake-update-notice')?.querySelector('button');
+      if (button) button.disabled = held();
+      tryReload(false);
+    });
+    window.addEventListener('online', function () { checkForUpdate(false); tryReload(false); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') { checkForUpdate(false); tryReload(false); }
+    });
+    var failedChunk = function (event) {
+      var message = String(event.reason?.message || event.message || '');
+      if (/Loading chunk|ChunkLoadError|dynamically imported module|Importing a module script failed/.test(message)) checkForUpdate(true);
+    };
+    window.addEventListener('error', failedChunk);
+    window.addEventListener('unhandledrejection', failedChunk);
+    if (documentVersion) observeWorkerVersion(navigator.serviceWorker.controller);
+    window.addEventListener('load', function () {
+      tryReload(false);
+      navigator.serviceWorker.register('/sw.js').then(function (value) {
+        registration = value;
+        lastCheck = Date.now();
+        if (pendingVersion && !workerReconciled) checkForUpdate(true);
+        else observeWorkerVersion(navigator.serviceWorker.controller || registration.active);
+        setInterval(function () {
+          if (document.visibilityState === 'visible') checkForUpdate(false);
+        }, 60 * 60 * 1000);
+      }).catch(function () {});
+    });
+  })();
 }
 ` : `
 if ('serviceWorker' in navigator) {
@@ -105,6 +172,7 @@ export default function Root({ children }: PropsWithChildren) {
                     content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
                 />
                 <title>Pancake</title>
+                <meta name="pancake-release" content="pancake-build" />
                 {/* Warm up the Supabase connection (DNS + TLS) before the first
                     auth/data request fires from the JS bundle. */}
                 <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />
