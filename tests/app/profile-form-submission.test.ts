@@ -4,7 +4,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ProfileScreen from '@/app/(tabs)/profile'
 
 const mocks = vi.hoisted(() => ({
-    userId: 'user', memberId: 'member',
+    userId: 'user', memberId: 'member', platform: 'web',
+    updatePreferences: vi.fn(),
+    getPreferences: vi.fn(),
     teamRenders: [] as { memberId: string; value: unknown }[],
     permission: vi.fn(), pickImage: vi.fn(), uploadAvatar: vi.fn(),
     updateProfile: vi.fn(), updateTeamName: vi.fn(), success: vi.fn(), alert: vi.fn(),
@@ -12,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     preferences: { tradeEnabled: true, waiverEnabled: true, draftEnabled: true, activityEnabled: true },
 }))
 vi.mock('react-native', () => ({
-    Platform: { OS: 'web' }, View: 'View', Text: 'Text',
+    Platform: { get OS() { return mocks.platform } }, View: 'View', Text: 'Text',
     TextInput: (props: Record<string, unknown>) => {
         if (props.accessibilityLabel === 'Team name') mocks.teamRenders.push({ memberId: mocks.memberId, value: props.value })
         return React.createElement('TextInput', props)
@@ -24,12 +26,17 @@ vi.mock('expo-image-picker', () => ({ requestMediaLibraryPermissionsAsync: mocks
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: mocks.memberId, team_name: 'Team' }, currentLeague: { id: `league-${mocks.memberId}` }, refresh: vi.fn() }) }))
-vi.mock('@/hooks/use-profile-resource', () => ({ useProfileResource: () => ({
-    profile: mocks.profile, profileLoaded: true, preferences: mocks.preferences, setProfile: vi.fn(), setPreferences: vi.fn(),
-}) }))
+vi.mock('@/hooks/use-profile-resource', () => ({ useProfileResource: function useProfileResource() {
+    const [preferences, setPreferences] = React.useState(mocks.preferences)
+    return {
+        profile: mocks.profile, profileLoaded: true, preferences, setProfile: vi.fn(), setPreferences,
+        retryProfile: async () => { setPreferences(await mocks.getPreferences()) },
+    }
+} }))
 vi.mock('@/lib/auth', () => ({ updateProfile: mocks.updateProfile, signOut: vi.fn(), uploadAvatar: mocks.uploadAvatar }))
 vi.mock('@/lib/league', () => ({ updateTeamName: mocks.updateTeamName }))
-vi.mock('@/lib/notification-preferences', () => ({ createNotificationPreferenceWriter: () => ({ enqueue: vi.fn() }), updateNotificationPreferences: vi.fn() }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
+vi.mock('@/lib/notification-preferences', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/notification-preferences')>(), updateNotificationPreferences: mocks.updatePreferences }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1, sessionOwner: () => 'user' }))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: mocks.success, confirmAction: vi.fn() }))
 vi.mock('@/components/ui/useGoBack', () => ({ useGoBack: () => vi.fn() }))
@@ -39,7 +46,7 @@ vi.mock('@/components/ui', () => ({
 }))
 vi.mock('@/components/settings/SettingsGroup', () => ({
     SettingsGroup: 'SettingsGroup', SettingsToggle: 'SettingsToggle',
-    SettingsRow: ({ accessory }: { accessory?: React.ReactNode }) => React.createElement('View', null, accessory),
+    SettingsRow: (props: { accessory?: React.ReactNode }) => React.createElement('SettingsRow', props, props.accessory),
 }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/WebPushSettings', () => ({ WebPushSettings: 'WebPushSettings' }))
@@ -51,6 +58,8 @@ const button = (title: string) => screen.root.findAllByType('Button' as React.El
 const input = (label: string) => screen.root.findAllByType('TextInput' as React.ElementType).find((node) => node.props.accessibilityLabel === label)!
 beforeEach(async () => {
     vi.clearAllMocks()
+    mocks.getPreferences.mockResolvedValue(mocks.preferences)
+    mocks.platform = 'web'
     mocks.userId = 'user'
     mocks.memberId = 'member'
     mocks.teamRenders = []
@@ -144,6 +153,8 @@ it('keeps a returning account guarded until its original save completes', async 
     await act(async () => { screen.update(React.createElement(ProfileScreen)) })
     await act(async () => button('Edit').props.onPress())
     await act(async () => { newRequest = input('Team name').props.onSubmitEditing() })
+    mocks.getPreferences.mockResolvedValue(mocks.preferences)
+    mocks.platform = 'web'
     mocks.userId = 'user'
     await act(async () => { screen.update(React.createElement(ProfileScreen)) })
     await act(async () => button('Edit').props.onPress())
@@ -218,3 +229,39 @@ it('hides old league form text before the membership effect runs', async () => {
     expect(renders.length).toBeGreaterThan(0)
     expect(renders.every((value) => value.value === 'Team')).toBe(true)
 })
+
+
+it.each([[false, false], [true, false], [false, true], [true, true]])(
+    'reconciles queued preferences when saves succeed as %s then %s', async (firstSucceeds, secondSucceeds) => {
+        mocks.platform = 'ios'
+        await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+        const setting = (label: string) => screen.root.findAllByType('SettingsRow' as React.ElementType)
+            .find(node => node.props.label === label)!
+        const persisted = { ...mocks.preferences }
+        mocks.getPreferences.mockImplementation(async () => ({ ...persisted }))
+        let finishFirst!: () => void
+        let finishSecond!: () => void
+        mocks.updatePreferences.mockImplementationOnce((_owner, value) => new Promise<void>((resolve, reject) => {
+            finishFirst = () => {
+                if (firstSucceeds) { Object.assign(persisted, value); resolve() }
+                else reject(new Error('First save failed'))
+            }
+        })).mockImplementationOnce((_owner, value) => new Promise<void>((resolve, reject) => {
+            finishSecond = () => {
+                if (secondSucceeds) { Object.assign(persisted, value); resolve() }
+                else reject(new Error('Second save failed'))
+            }
+        }))
+        let first!: Promise<void>
+        let second!: Promise<void>
+        await act(async () => { first = setting('Trades').props.onPress(); second = setting('Waivers').props.onPress() })
+        expect(mocks.updatePreferences).toHaveBeenCalledTimes(1)
+        expect(setting('Trades').props.checked).toBe(false)
+        expect(setting('Waivers').props.checked).toBe(false)
+        await act(async () => { finishFirst(); await first })
+        expect(mocks.updatePreferences).toHaveBeenCalledTimes(2)
+        await act(async () => { finishSecond(); await second })
+        expect(setting('Trades').props.checked).toBe(!(firstSucceeds || secondSucceeds))
+        expect(setting('Waivers').props.checked).toBe(!secondSucceeds)
+    },
+)

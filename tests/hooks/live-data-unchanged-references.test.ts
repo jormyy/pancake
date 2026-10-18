@@ -324,6 +324,7 @@ describe('live data reference workload', () => {
     it('does not reuse equal lineups across a selected-date change or apply the old read', async () => {
         await mount()
         const original = matchup.myLineup
+        gamesByDate.get(TOMORROW)!.games.forEach(game => { game.status = 'Scheduled' })
         delay = 500
         lineups.get('mine')!.bench[0].displayName = 'Old date'
         await act(async () => { void matchup.refreshSilently() })

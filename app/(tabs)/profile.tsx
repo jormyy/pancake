@@ -219,8 +219,7 @@ export default function ProfileScreen() {
             await task
         } catch (e) {
             if (preferenceSessionRef.current === session && preferencesRef.current === next) {
-                preferencesRef.current = previous
-                setPreferences(previous)
+                await retryProfile()
             }
             if (preferenceSessionRef.current === session) showAlert('Error', getErrorMessage(e))
         }

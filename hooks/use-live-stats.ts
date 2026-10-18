@@ -27,8 +27,9 @@ const snapshots = new Map<string, Snapshot>()
 const listenersByDate = new Map<string, Set<Listener>>()
 const inFlightByDate = new Map<string, Promise<void>>()
 const inFlightEpochByDate = new Map<string, number>()
+const gamesFetchedAtByDate = new Map<string, number>()
 const silentRefreshListenersByDate = new Map<string, Set<() => void>>()
-let todayPoll: ReturnType<typeof setInterval> | null = null
+let pollInterval: ReturnType<typeof setInterval> | null = null
 const MAX_SNAPSHOT_DATES = 14
 const LIVE_POLL_MS = 15_000
 const IDLE_POLL_MS = 60_000
@@ -41,6 +42,7 @@ function evictSnapshots() {
     for (const date of snapshots.keys()) {
         if (listenersByDate.has(date)) continue
         snapshots.delete(date)
+        gamesFetchedAtByDate.delete(date)
         if (snapshots.size <= MAX_SNAPSHOT_DATES) return
     }
 }
@@ -56,7 +58,6 @@ async function loadSnapshot(date: string): Promise<void> {
 
     const epoch = networkEpoch
     const task = (async () => {
-        const isToday = date === todayET()
         const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
         const updating = { ...previous, status: 'refreshing' as const }
         snapshots.set(date, updating)
@@ -73,10 +74,10 @@ async function loadSnapshot(date: string): Promise<void> {
             }),
         ])
         if (epoch !== networkEpoch) return
-        if (isToday && gameDay) todaysGamesFetchedAt = Date.now()
+        if (gameDay) gamesFetchedAtByDate.set(date, Date.now())
 
         const snapshot: Snapshot = {
-            todaysGames: isToday && gameDay ? gameDay.games : previous.todaysGames,
+            todaysGames: gameDay?.games ?? previous.todaysGames,
             liveStats,
             startedTeams: gameDay?.startedTeams ?? previous.startedTeams,
             teamMatchups: gameDay?.teamMatchups ?? previous.teamMatchups,
@@ -88,6 +89,7 @@ async function loadSnapshot(date: string): Promise<void> {
         snapshots.set(date, snapshot)
         evictSnapshots()
         notify(date, snapshot)
+        if (listenersByDate.has(date) && (date === todayET() || anyGameInProgress(date))) ensurePoll()
     })().finally(() => {
         inFlightByDate.delete(date)
         inFlightEpochByDate.delete(date)
@@ -99,13 +101,12 @@ async function loadSnapshot(date: string): Promise<void> {
 }
 
 let pollTick = 0
-let todaysGamesFetchedAt = 0
 
 function anyGameInProgress(date: string): boolean {
     // A persistently failing games endpoint keeps serving the last snapshot;
     // don't let a frozen "InProgress" pin the aggressive poll + lineup
     // reload fan-out forever.
-    if (Date.now() - todaysGamesFetchedAt > 15 * 60_000) return false
+    if (Date.now() - (gamesFetchedAtByDate.get(date) ?? 0) > 15 * 60_000) return false
     return snapshots.get(date)?.todaysGames.some((g) => g.status === 'InProgress') ?? false
 }
 
@@ -114,7 +115,7 @@ function anyGameInProgress(date: string): boolean {
 function snapshotFresh(date: string): boolean {
     const snapshot = snapshots.get(date)
     const fetchedAt = snapshot?.fetchedAt ?? 0
-    const maxAge = date === todayET() && anyGameInProgress(date) ? LIVE_POLL_MS : IDLE_POLL_MS
+    const maxAge = anyGameInProgress(date) ? LIVE_POLL_MS : IDLE_POLL_MS
     return snapshot?.status === 'fresh' && fetchedAt > 0 && Date.now() - fetchedAt < maxAge
 }
 
@@ -137,7 +138,6 @@ function refreshLiveDate(date: string): Promise<void> {
         let epoch: number
         do {
             epoch = inFlightEpochByDate.get(date) ?? networkEpoch
-            resumeNeeded = false
             await loadSnapshot(date)
         } while (epoch !== networkEpoch && browserOnline() && !pageHidden() && listenersByDate.has(date))
         if (!browserOnline() || pageHidden() || snapshots.get(date)?.status !== 'fresh') return
@@ -149,10 +149,12 @@ function refreshLiveDate(date: string): Promise<void> {
 }
 
 function catchUpAfterHidden() {
-    const today = todayET()
-    if (!browserOnline() || pageHidden() || (listenersByDate.get(today)?.size ?? 0) === 0) return
-    if (!resumeNeeded && snapshotFresh(today)) return
-    void refreshLiveDate(today)
+    if (!browserOnline() || pageHidden()) return
+    const force = resumeNeeded
+    resumeNeeded = false
+    for (const date of listenersByDate.keys()) {
+        if (force || !snapshotFresh(date)) void refreshLiveDate(date)
+    }
 }
 
 let stopWatching: (() => void) | null = null
@@ -186,26 +188,20 @@ function watchVisibility() {
     }
 }
 
-function ensureTodayPoll() {
-    if (todayPoll) return
+function ensurePoll() {
+    if (pollInterval) return
     watchVisibility()
-    todayPoll = setInterval(async () => {
-        const today = todayET()
-        if ((listenersByDate.get(today)?.size ?? 0) === 0) {
-            clearInterval(todayPoll!)
-            todayPoll = null
+    pollInterval = setInterval(async () => {
+        const dates = [...listenersByDate.keys()].filter(date => date === todayET() || anyGameInProgress(date))
+        if (dates.length === 0) {
+            clearInterval(pollInterval!)
+            pollInterval = null
             return
         }
         if (pageHidden() || !browserOnline()) return
-
-        // With no game in progress nothing is changing — back the poll off to
-        // one snapshot per minute and skip the silent-refresh fan-out (which
-        // reloads both visible lineups) entirely until play resumes.
         pollTick += 1
-        const wasLive = anyGameInProgress(today)
-        if (!wasLive && pollTick % (IDLE_POLL_MS / LIVE_POLL_MS) !== 0) return
-
-        await refreshLiveDate(today)
+        await Promise.all(dates.filter(date => anyGameInProgress(date) ||
+            pollTick % (IDLE_POLL_MS / LIVE_POLL_MS) === 0).map(refreshLiveDate))
     }, LIVE_POLL_MS)
 }
 
@@ -255,28 +251,28 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
         listeners.add(listener)
 
         if (!snapshotFresh(selectedDate)) loadSnapshot(selectedDate)
-        if (selectedDate === todayET()) ensureTodayPoll()
+        ensurePoll()
 
         return () => {
             listeners?.delete(listener)
             if (listeners?.size === 0) listenersByDate.delete(selectedDate)
             if (listenersByDate.size === 0) {
                 stopWatching?.()
-                if (todayPoll) clearInterval(todayPoll)
-                todayPoll = null
+                if (pollInterval) clearInterval(pollInterval)
+                pollInterval = null
             }
             evictSnapshots()
         }
     }, [selectedDate])
 
     const liveTeams = useMemo(() => {
-        if (selectedDate !== todayET() || !browserOnline() || snapshot.status !== 'fresh') return new Set<string>()
+        if (!browserOnline() || snapshot.status !== 'fresh') return new Set<string>()
         return new Set(
             snapshot.todaysGames
                 .filter((g) => g.status === 'InProgress')
                 .flatMap((g) => [g.home_team, g.away_team]),
         )
-    }, [selectedDate, snapshot.status, snapshot.todaysGames])
+    }, [snapshot.status, snapshot.todaysGames])
 
     return {
         todaysGames: snapshot.todaysGames,

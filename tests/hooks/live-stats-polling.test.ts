@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
     counts: new Map<string, number>(),
     fixtures: {} as Record<string, Record<string, unknown>[]>,
     failGames: false,
+    today: '2026-10-05',
     visibility: 'visible',
     visibilityListeners: [] as (() => void)[],
 }))
@@ -30,7 +31,7 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'web' },
     AppState: { currentState: 'active', addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
 }))
-vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-05', endOfETDayUTC: () => '2026-10-06T04:00:00.000Z' }))
+vi.mock('@/lib/shared/dates', () => ({ todayET: () => state.today, endOfETDayUTC: () => '2026-10-06T04:00:00.000Z' }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 ;(globalThis as { document?: unknown }).document = {
@@ -83,6 +84,7 @@ beforeEach(async () => {
     state.counts.clear()
     state.fixtures.nba_games = [game('1', 'Scheduled'), game('2', 'Scheduled')]
     state.fixtures.player_game_stats = []
+    state.today = TODAY
     state.failGames = false
     state.visibility = 'visible'
     state.visibilityListeners.length = 0
@@ -195,11 +197,45 @@ describe('live stats snapshot', () => {
         expect([...latest.teamMatchups.keys()].sort()).toEqual(['A1', 'A2', 'H1', 'H2'])
         unmount()
 
-        state.failGames = false
+        state.today = TODAY
+    state.failGames = false
         state.counts.clear()
         await advance(1_000)
         await mount()
 
         expect(state.counts.get('nba_games')).toBe(1)
     })
+})
+
+
+it('keeps yesterday live across ET midnight and stops after the final score', async () => {
+    state.fixtures.nba_games = [game('1', 'InProgress')]
+    await mount()
+    state.today = '2026-10-06'
+    state.counts.clear()
+    await advance(15_000)
+    expect(state.counts.get('player_game_stats')).toBe(1)
+    expect([...latest.liveTeams].sort()).toEqual(['A1', 'H1'])
+    state.fixtures.nba_games = [game('1', 'Final')]
+    await advance(15_000)
+    expect(latest.todaysGames[0].status).toBe('Final')
+    expect(latest.liveTeams.size).toBe(0)
+    state.counts.clear()
+    await advance(60_000)
+    expect(reads()).toBe(0)
+})
+
+it('loads a late game first opened after midnight and catches up after background', async () => {
+    state.today = '2026-10-06'
+    state.fixtures.nba_games = [game('1', 'InProgress')]
+    await mount()
+    expect([...latest.liveTeams].sort()).toEqual(['A1', 'H1'])
+    await setVisibility('hidden')
+    state.counts.clear()
+    await advance(20 * 60_000)
+    expect(reads()).toBe(0)
+    state.fixtures.nba_games = [game('1', 'Final')]
+    await setVisibility('visible')
+    expect(reads()).toBe(2)
+    expect(latest.todaysGames[0].status).toBe('Final')
 })

@@ -15,7 +15,7 @@ vi.mock('@/lib/games', () => ({
     getGameDay: vi.fn(async (date: string) => ({
         startedTeams: await mocks.getStartedTeams(date),
         teamMatchups: await mocks.getTeamMatchups(date),
-        games: [{ status: 'InProgress', home_team: 'LAL', away_team: 'BOS' }],
+        games: [{ status: date === 'historical' ? 'Final' : 'InProgress', home_team: 'LAL', away_team: 'BOS' }],
     })),
     getLivePlayerStats: mocks.getLivePlayerStats,
 }))
@@ -62,7 +62,7 @@ describe('useLiveStats date identity', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('notifies silent refresh listeners only for today', async () => {
+    it('notifies silent refresh listeners only for live dates', async () => {
         vi.useFakeTimers()
         mocks.getLivePlayerStats.mockResolvedValue(new Map())
         mocks.getTeamMatchups.mockResolvedValue(new Map())

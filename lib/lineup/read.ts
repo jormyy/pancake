@@ -56,23 +56,6 @@ export function gameHasStarted(game: { status: string | null; game_time: string 
         || (game.started_at != null && game.started_at <= now)
 }
 
-export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
-    const { data, error } = await supabase
-        .from('nba_games')
-        .select('home_team, away_team, status, game_time, started_at')
-        .eq('game_date', gameDate)
-    if (error) throw error
-
-    const teams = new Set<string>()
-    const now = new Date().toISOString()
-    for (const g of data ?? []) {
-        if (!gameHasStarted(g, now)) continue
-        if (g.home_team) teams.add(g.home_team)
-        if (g.away_team) teams.add(g.away_team)
-    }
-    return teams
-}
-
 export async function getLineupContext(
     leagueId: string,
     owner?: { memberId: string; userId: string },

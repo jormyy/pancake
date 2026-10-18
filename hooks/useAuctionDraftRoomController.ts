@@ -45,6 +45,7 @@ export function useAuctionDraftRoomController({
     const [bidToTaxi, setBidToTaxi] = useState(false)
     useEffect(() => { setBidToTaxi(false) }, [draftId, memberId])
     const [bidding, setBidding] = useState(false)
+    const bidRequestRef = useRef<object | null>(null)
     const [withdrawing, setWithdrawing] = useState(false)
 
     const [realtimeStatus, setRealtimeStatus] =
@@ -69,8 +70,9 @@ export function useAuctionDraftRoomController({
     const lastNomIdRef = useRef<string | null>(null)
     // Mirror of bidText so load() can read the current value without a dep.
     const bidTextRef = useRef('1')
-    // Track which nomination has had its expiry close triggered so we only fire once per nomination.
-    const closeTriggeredForNomRef = useRef<string | null>(null)
+    const expiryAttemptRef = useRef<{
+        key: string; attempts: number; nextAt: number; inFlight: boolean; completed: boolean
+    } | null>(null)
     // The draft's nomination-order mode is stable; keep it in a ref so the search
     // effect can read it without re-running on every poll-driven state change.
     const nominationModeRef = useRef<NominationOrderMode>('user_nominated')
@@ -84,7 +86,7 @@ export function useAuctionDraftRoomController({
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
     const visibleState = stateDraftId === draftId ? state : null
-    const countdownNomination = visibleState?.openNomination
+    const countdownNomination = visibleState?.draft.status === 'in_progress' ? visibleState.openNomination : null
     const draftLeagueId = visibleState?.draft.leagueId ?? null
     activeDraftIdRef.current = draftId
 
@@ -95,6 +97,7 @@ export function useAuctionDraftRoomController({
         setStateDraftId(draftId)
         setLoadError(null)
         setBidText('1')
+        bidRequestRef.current = null
         setBidding(false)
         setWithdrawing(false)
         setNominating(false)
@@ -106,7 +109,7 @@ export function useAuctionDraftRoomController({
         setTimeLeft(0)
         setRealtimeStatus('CONNECTING')
         lastNomIdRef.current = null
-        closeTriggeredForNomRef.current = null
+        expiryAttemptRef.current = null
         pollRevisionRef.current = undefined
         return () => {
             loadSeqRef.current += 1
@@ -155,7 +158,7 @@ export function useAuctionDraftRoomController({
                 setTimeLeft(0)
                 setNominating(false)
                 lastNomIdRef.current = null
-                closeTriggeredForNomRef.current = null
+                expiryAttemptRef.current = null
             }
             return true
         } catch (e) {
@@ -252,24 +255,29 @@ export function useAuctionDraftRoomController({
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
             setTimeLeft(diff)
-            // When the clock hits zero, trigger server-side close once per nomination.
-            if (diff === 0 && draftId && closeTriggeredForNomRef.current !== countdownNomination.id) {
-                const requestedDraftId = draftId
-                closeTriggeredForNomRef.current = countdownNomination.id
-                closeExpiredNominations(requestedDraftId)
-                    .then(({ closed }) => {
-                        if (activeDraftIdRef.current !== requestedDraftId) return
-                        // If the server closed nothing (clock skew — client hit 0 before
-                        // the server expiry), reset so the next tick retries.
-                        if (closed === 0) closeTriggeredForNomRef.current = null
-                        else load()
-                    })
-                    .catch(() => {
-                        if (activeDraftIdRef.current !== requestedDraftId) return
-                        // Network/auth failure — reset so the next tick can retry.
-                        closeTriggeredForNomRef.current = null
-                    })
+            if (diff !== 0 || Date.now() < new Date(exp).getTime() + 1_000 || !draftId || AppState.currentState !== 'active' ||
+                (typeof document !== 'undefined' && document.visibilityState === 'hidden') ||
+                (typeof navigator !== 'undefined' && navigator.onLine === false)) return
+            const key = `${draftId}:${countdownNomination.id}:${exp}`
+            if (expiryAttemptRef.current?.key !== key) {
+                expiryAttemptRef.current = { key, attempts: 0, nextAt: 0, inFlight: false, completed: false }
             }
+            const attempt = expiryAttemptRef.current
+            if (attempt.completed || attempt.inFlight || attempt.attempts >= 5 || Date.now() < attempt.nextAt) return
+            const requestedDraftId = draftId
+            attempt.inFlight = true
+            attempt.attempts += 1
+            attempt.nextAt = Date.now() + [2_000, 5_000, 10_000, 30_000, 30_000][attempt.attempts - 1]
+            void closeExpiredNominations(requestedDraftId)
+                .then(async ({ closed }) => {
+                    if (activeDraftIdRef.current !== requestedDraftId || expiryAttemptRef.current !== attempt) return
+                    if (closed > 0) {
+                        attempt.completed = true
+                        await load()
+                    }
+                })
+                .catch(() => undefined)
+                .finally(() => { attempt.inFlight = false })
         }
         // Seed immediately so a fresh nomination doesn't render the urgent
         // (<=10s) styling for the first 500ms while timeLeft is still 0.
@@ -312,6 +320,7 @@ export function useAuctionDraftRoomController({
     }, [searchQuery, draftId, nominating])
 
     async function handleBid() {
+        if (bidRequestRef.current) return
         if (!visibleState?.openNomination || !memberId || !draftId) return
         if (!realtimeConnected) {
             showAlert('Live connection unavailable', 'Reconnect to the live draft before bidding.')
@@ -332,15 +341,20 @@ export function useAuctionDraftRoomController({
             showAlert('Over budget', `You only have $${remaining} left to spend.`)
             return
         }
+        const request = {}
+        bidRequestRef.current = request
         setBidding(true)
         try {
             await placeBid(draftId, memberId, visibleState.openNomination.id, amount, bidToTaxi)
             if (activeDraftIdRef.current !== requestedDraftId) return
-            load()
+            await load()
         } catch (e) {
             if (activeDraftIdRef.current === requestedDraftId) showAlert('Bid failed', getErrorMessage(e))
         } finally {
-            if (activeDraftIdRef.current === requestedDraftId) setBidding(false)
+            if (bidRequestRef.current === request) {
+                bidRequestRef.current = null
+                if (activeDraftIdRef.current === requestedDraftId) setBidding(false)
+            }
         }
     }
 
