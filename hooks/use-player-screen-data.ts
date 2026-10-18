@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { releaseLeagueDailyPending } from '@/lib/league-daily-cache'
-import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import {
     getPlayer,
@@ -103,9 +103,16 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const activeKey = useRef(resourceKey)
     activeKey.current = resourceKey
     const authorized = options.authorized !== false
-    const readEpoch = JSON.stringify([resourceKey, focused, activity.revision, authorized, sourceEpoch])
-    const permits = () => focused && authorized && activeKey.current === resourceKey
+    const lifecycleEpoch = JSON.stringify([resourceKey, focused, activity.revision, authorized])
+    const lifecycleRef = useRef(lifecycleEpoch)
+    lifecycleRef.current = lifecycleEpoch
+    const admittedRef = useRef<string | null>(null)
+    const [admitted, setAdmitted] = useState<string | null>(null)
+    const readEpoch = JSON.stringify([lifecycleEpoch, sourceEpoch, admitted === lifecycleEpoch])
+    const lifecycleAdmission = useRef<() => boolean>(() => false)
+    lifecycleAdmission.current = () => focused && authorized && activeKey.current === resourceKey
         && sessionGeneration() === generation && activity.isCurrent(activity.revision)
+    const permits = () => lifecycleAdmission.current() && admittedRef.current === lifecycleEpoch
     const admission = useRef(permits)
     admission.current = permits
     const epochRef = useRef(readEpoch)
@@ -113,11 +120,26 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const canRead = useCallback(() => admission.current(), [])
     const isCurrentRead = useCallback((epoch: string) => epochRef.current === epoch && admission.current(), [])
     useEffect(() => {
+        admittedRef.current = null
+        const current = lifecycleAdmission.current
+        if (!current()) { setAdmitted(null); return }
+        let disposed = false
+        void (leagueId ? waitForLeagueChanges(leagueId) : Promise.resolve()).then(() => {
+            if (disposed || !current() || lifecycleRef.current !== lifecycleEpoch) return
+            admittedRef.current = lifecycleEpoch
+            setAdmitted(lifecycleEpoch)
+        })
+        return () => {
+            disposed = true
+            if (admittedRef.current === lifecycleEpoch) admittedRef.current = null
+        }
+    }, [lifecycleEpoch, leagueId])
+    useEffect(() => {
         if (!leagueId || !authorized) return
         const refresh = deferLeagueRefresh(() => { setSourceEpoch(epoch => epoch + 1) })
         let registering = true
         const stop = listenForLeagueChanges(leagueId, change => {
-            if (registering && change.topic === 'catchup') return
+            if ((registering && change.topic === 'catchup') || !admission.current()) return
             if (leagueResourceAffects(change, ['averages', 'projections', 'scoring', 'season'])) refresh.trigger()
         })
         registering = false

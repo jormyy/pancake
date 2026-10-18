@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 
 const state = vi.hoisted(() => ({
@@ -104,4 +105,22 @@ it('keeps the selected season, retries the failed page offset and stops reads af
     expect(reads()).toEqual(before)
     await act(async () => { renderer!.update(React.createElement(Probe, { owner: 'next', authorized: false })) })
     expect(latest.player).toBeNull()
+})
+
+
+it('starts one detail read after the initial marker baseline and ignores its covered catch-up', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(events, 'WebSocket', { value: function WebSocket() {} })
+    setLeagueChangesConnected('league', false)
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(reads()).toEqual(Array(8).fill(0))
+        await act(async () => {
+            notifyLeagueChange('league', { topic: 'resources', scopes: null })
+            setLeagueChangesConnected('league', true)
+            notifyLeagueChange('league', { topic: 'catchup', scopes: null })
+        })
+        await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+        expect(reads()).toEqual(Array(8).fill(1))
+    } finally { setLeagueChangesConnected('league', false); vi.useRealTimers() }
 })
