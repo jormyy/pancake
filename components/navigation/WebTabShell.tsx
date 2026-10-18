@@ -8,6 +8,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { getProfile } from '@/lib/auth'
+import { listenForProfileUpdates } from '@/lib/profile-updates'
 import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
@@ -379,7 +380,8 @@ function WebSidebar() {
     const { user } = useAuth()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
     const pendingTradeCount = usePendingTradeCount()
-    const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    const [avatar, setAvatar] = useState<{ owner: string; uri: string | null } | null>(null)
+    const avatarUrl = avatar?.owner === user?.id ? avatar?.uri ?? null : null
 
     // Keyed on the id: sign-in and token refreshes replace the user object
     // several times, and each replacement re-read the same profile.
@@ -387,15 +389,22 @@ function WebSidebar() {
     useEffect(() => {
         if (!userId) return
         let cancelled = false
+        let updated = false
+        const stop = listenForProfileUpdates(userId, update => {
+            if (update.avatar_url === undefined) return
+            updated = true
+            setAvatar({ owner: userId, uri: update.avatar_url })
+        })
         getProfile(userId)
             .then((profile) => {
-                if (!cancelled) setAvatarUrl(profile.avatar_url ?? null)
+                if (!cancelled && !updated) setAvatar({ owner: userId, uri: profile.avatar_url ?? null })
             })
             .catch((error) => {
                 if (!cancelled) console.error('Could not load sidebar profile', error)
             })
         return () => {
             cancelled = true
+            stop()
         }
     }, [userId])
 

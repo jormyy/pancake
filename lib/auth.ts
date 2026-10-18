@@ -1,3 +1,4 @@
+import { notifyProfileUpdated } from '@/lib/profile-updates'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import {
     supabase, captureLocalAuthSession, localAuthSessionMatches, invalidateLocalAuthSession, readStoredSessionTokens, revokeDetachedSession,
@@ -124,6 +125,7 @@ export async function updateProfile(userId: string, updates: { display_name?: st
             .update({ ...updates, updated_at: new Date().toISOString() })
             .eq('id', userId)
         if (error) throw error
+        notifyProfileUpdated(userId, updates)
     })
 }
 
