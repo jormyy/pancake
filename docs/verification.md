@@ -185,3 +185,29 @@ Ranking checks run hourly and keep the existing weekly claim.
 Reconciliation waits for every request in a claim before releasing it.
 An older failed attempt cannot release a newer claim.
 No retry changes league history or settings.
+
+## Bounded live ingestion
+
+`npm run test:db:live-ingestion-work` checks shared eligibility, retry boundaries, client-role denials, and stale-holder write fences.
+`npm run test:db:live-ingestion-clock` uses real HTTP, the local database, and real timers.
+It observes six ticks about twenty seconds apart, duplicate exclusion, a killed process, the natural ninety-second lease expiry, finalization, and provider backoff.
+The clock recipe takes several minutes and removes only its synthetic league, games, players and users.
+The default runs host Deno; `LIVE_POLL_USE_EDGE=1` targets the local Edge endpoint with an explicitly configured local provider.
+The latter mode needs `LIVE_POLL_PROVIDER_URL` and the matching `NBA_CDN_BASE_URL` in the local functions environment.
+
+The cron checks every two minutes, at every UTC hour.
+Live games and the two minutes before a scheduled tipoff start a bounded loop.
+Healthy loops start up to six ticks at twenty-second intervals.
+Each tick has an eighteen-second network budget; the invocation also has a hard work deadline.
+Every database write carries its lease identity and fails if that identity expires or changes.
+The database holds the lease lock through each write transaction, so a replacement waits for an admitted write to finish.
+A lost lease aborts outstanding network work.
+Bookkeeping has a separate five-second budget and can record failure after the work deadline.
+
+The scheduler and worker use the same final-completion marker and thirty-minute retry rule.
+One partial stat row cannot certify a final game.
+Retry timestamps stay in a private operational table.
+They do not emit client events or change game content, completion stamps, or score-input revisions.
+A completed final game does not wake an idle worker.
+During live activity, due completed games still receive correction checks.
+The broader historical recovery in normal score sync stays enabled; the live loop scores its already-ingested inputs once per tick.

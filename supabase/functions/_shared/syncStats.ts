@@ -8,6 +8,7 @@ import {
   type CdnPlayerResolver,
 } from './playerResolver.ts'
 import { dateFromETDate } from './scoreShared.ts'
+import { runBounded } from './runBounded.ts'
 import type { Database } from './database.ts'
 
 export type StatsSyncGame = Pick<
@@ -259,4 +260,19 @@ export function buildStatRow(
     did_not_play: dnp,
     updated_at: new Date().toISOString(),
   }
+}
+
+export async function syncLiveStatsGames(games: StatsSyncGame[]): Promise<{ statLines: number; failures: unknown[] }> {
+  let statLines = 0
+  const failures: unknown[] = []
+  const resolver: CdnPlayerResolver = { byNbaId: new Map(), byExactName: new Map(), byName: new Map() }
+  await runBounded(games.map(game => async () => {
+    try {
+      const lines = await syncStatsGameWithResolver(game, resolver, true)
+      statLines += lines
+    } catch (error) {
+      failures.push(error)
+    }
+  }), 4)
+  return { statLines, failures }
 }

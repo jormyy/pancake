@@ -17,7 +17,7 @@ describe('configured source observability', () => {
     })
 
     it('records NBA scoreboard failures before using stored active games', () => {
-        const source = readSource('supabase/functions/live-poll/index.ts')
+        const source = readSource('supabase/functions/live-poll/runner.ts')
 
         expect(source).toContain("recordSyncRun('source:nba-cdn-scoreboard'")
     })

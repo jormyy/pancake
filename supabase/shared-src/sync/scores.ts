@@ -857,7 +857,7 @@ async function syncStatsForCompletedWeeks(
 }
 
 // Update current matchups and replay corrected historical seasons.
-export async function syncScores(leagueId?: string, referenceDate = new Date()) {
+export async function syncScores(leagueId?: string, referenceDate = new Date(), options: { recoverStats?: boolean } = {}) {
     const seasons = await fetchAllPages<{
         id: string
         league_id: string
@@ -918,7 +918,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     const recoveryFailures: Error[] = []
     const failedRecoveryYears = new Set<number>()
     const failedRecoveryDates = new Map<number, Set<string>>()
-    for (const [seasonYear, weeks] of weeksBySeasonYear) {
+    for (const [seasonYear, weeks] of options.recoverStats !== false ? weeksBySeasonYear : []) {
         const failedDates = new Set<string>()
         failedRecoveryDates.set(seasonYear, failedDates)
         try {

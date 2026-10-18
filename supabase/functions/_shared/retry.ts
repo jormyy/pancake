@@ -1,3 +1,5 @@
+import { workFetch } from './workContext.ts'
+
 // One bounded retry with small jitter for flaky upstream (CDN/provider)
 // fetches in the sync functions. Retries a single time on network errors,
 // 429s, and 5xx responses; anything else is returned as-is.
@@ -27,7 +29,7 @@ async function attempt(url: string | URL, init: RequestInit | undefined, timeout
     ? null
     : setTimeout(() => controller.abort(new DOMException('Attempt timed out.', 'TimeoutError')), timeoutMs)
   try {
-    const response = await fetch(url, { ...init, signal: controller.signal })
+    const response = await workFetch(url, { ...init, signal: controller.signal })
     // The per-attempt timer only guards the wait for headers. The caller's own
     // signal stays linked so a later abort (an overall deadline) still cancels
     // the body stream the caller is reading; a discarded attempt unlinks it.

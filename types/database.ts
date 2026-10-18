@@ -4485,6 +4485,27 @@ export type Database = {
           projection_week_number: number
         }[]
       }
+      get_live_poll_work: {
+        Args: { p_now?: string }
+        Returns: {
+          away_score: number
+          away_team: string
+          game_date: string
+          game_status_text: string
+          game_time: string
+          home_score: number
+          home_team: string
+          id: string
+          nba_game_id: string
+          needs_scoreboard: boolean
+          needs_stats: boolean
+          season_year: number
+          started_at: string
+          stats_synced_at: string
+          status: string
+          week_number: number
+        }[]
+      }
       get_member_transaction_state: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: {
@@ -4728,6 +4749,14 @@ export type Database = {
       rebuild_nba_calendar_atomic: {
         Args: { p_season_year: number }
         Returns: number
+      }
+      record_live_poll_attempts: {
+        Args: {
+          p_checked_ids?: string[]
+          p_holder: string
+          p_stats_ids?: string[]
+        }
+        Returns: undefined
       }
       record_notification_outbox_ticket_atomic: {
         Args: {

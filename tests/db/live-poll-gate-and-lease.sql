@@ -8,8 +8,8 @@ SELECT set_config('app.edge_internal_token', 'live-poll-gate-test-token', true);
 SELECT set_config('test.preexisting_games', (SELECT count(*) FROM public.nba_games WHERE game_date IN ((timezone('America/New_York', now()))::date - 1, (timezone('America/New_York', now()))::date))::text, true);
 SELECT public.invoke_live_poll_if_due();
 SELECT set_config('test.before_final', (SELECT count(*) FROM public.edge_invocations WHERE function_name = 'live-poll' AND queued_at >= now() - interval '1 minute')::text, true);
-INSERT INTO public.nba_games (id, season_year, game_date, week_number, home_team, away_team, status)
-VALUES ('00000000-0000-4000-8000-0000000000e1', 2026, (timezone('America/New_York', now()))::date - 1, 1, 'BOS', 'MIA', 'Final');
+INSERT INTO public.nba_games (id, season_year, game_date, week_number, home_team, away_team, status, nba_game_id)
+VALUES ('00000000-0000-4000-8000-0000000000e1', 2026, (timezone('America/New_York', now()))::date - 1, 1, 'BOS', 'MIA', 'Final', '0022600992');
 SELECT public.invoke_live_poll_if_due();
 SELECT set_config('test.after_final', (SELECT count(*) FROM public.edge_invocations WHERE function_name = 'live-poll' AND queued_at >= now() - interval '1 minute')::text, true);
 -- A Final game that already has its box score must not keep the poll awake.
@@ -17,6 +17,7 @@ INSERT INTO public.players (id, sportsdata_id, first_name, last_name, position, 
 VALUES ('00000000-0000-4000-8000-0000000000e2', 'live-poll-gate-fixture', 'Gate', 'Fixture', 'PG', ARRAY['PG'], 'Active', 'BOS');
 INSERT INTO public.player_game_stats (player_id, game_id, season_year, week_number, minutes_played, points, rebounds, assists, steals, blocks)
 VALUES ('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000000e1', 2026, 1, 1, 0, 0, 0, 0, 0);
+UPDATE public.nba_games SET stats_synced_at=now() WHERE id='00000000-0000-4000-8000-0000000000e1';
 SELECT set_config('test.after_stats', (SELECT count(*) FROM public.edge_invocations WHERE function_name = 'live-poll' AND queued_at >= now() - interval '1 minute')::text, true);
 SELECT public.invoke_live_poll_if_due();
 SELECT set_config('test.after_stats2', (SELECT count(*) FROM public.edge_invocations WHERE function_name = 'live-poll' AND queued_at >= now() - interval '1 minute')::text, true);

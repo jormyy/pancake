@@ -1,5 +1,6 @@
 import { errorMessage } from './responses.ts'
 import { supabase } from './supabase.ts'
+import { withoutWorkContext } from './workContext.ts'
 
 // Best-effort sync_runs bookkeeping keeps cron health queryable without putting
 // observability writes on the critical path of the sync itself.
@@ -55,27 +56,33 @@ export async function recordSyncRun<T>(
 }
 
 async function startSyncRun(functionName: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('sync_runs')
-    .insert({ function_name: functionName })
-    .select('id')
-    .single()
-  if (error) {
-    console.error(`[${functionName}] could not start sync run record:`, error)
-    return null
-  }
-  return data.id
+  return await withoutWorkContext(async () => {
+    const { data, error } = await supabase
+      .from('sync_runs')
+      .insert({ function_name: functionName })
+      .select('id')
+      .abortSignal(AbortSignal.timeout(5000))
+      .single()
+    if (error) {
+      console.error(`[${functionName}] could not start sync run record:`, error)
+      return null
+    }
+    return data.id
+  })
 }
 
 async function finishSyncRun(
   runId: string,
   fields: { status: 'success' | 'failed'; rows_affected?: number | null; error?: string },
 ): Promise<void> {
-  const { error } = await supabase
-    .from('sync_runs')
-    .update({ finished_at: new Date().toISOString(), ...fields })
-    .eq('id', runId)
-  if (error) throw error
+  await withoutWorkContext(async () => {
+    const { error } = await supabase
+      .from('sync_runs')
+      .update({ finished_at: new Date().toISOString(), ...fields })
+      .eq('id', runId)
+      .abortSignal(AbortSignal.timeout(5000))
+    if (error) throw error
+  })
 }
 
 type InvocationRun = {
@@ -95,7 +102,7 @@ export async function runEdgeInvocation(
   if (!key) return await handler(request)
   const { error: startError } = await supabase.rpc('start_edge_invocation', {
     p_invocation_key: key, p_function_name: functionName,
-  })
+  }).abortSignal(AbortSignal.timeout(5000))
   if (startError) throw startError
   const invocation: InvocationRun = { functionName, rowsAffected: null, failure: null }
   invocationRuns.set(request, invocation)
@@ -121,7 +128,7 @@ async function finishInvocation(key: string, invocation: InvocationRun): Promise
       p_status: invocation.failure ? 'failed' : 'success',
       p_rows_affected: invocation.rowsAffected ?? undefined,
       p_error: invocation.failure ?? undefined,
-    })
+    }).abortSignal(AbortSignal.timeout(5000))
     if (error) throw error
   } catch (error) {
     console.error(`[${invocation.functionName}] could not finish invocation:`, error)
