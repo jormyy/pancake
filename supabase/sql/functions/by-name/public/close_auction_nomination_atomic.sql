@@ -23,7 +23,7 @@ BEGIN
     FROM nominations
    WHERE id = p_nomination_id
      AND status = 'open'
-     AND countdown_expires_at < now()
+     AND countdown_expires_at < clock_timestamp()
    FOR UPDATE;
 
   IF NOT FOUND THEN
@@ -71,7 +71,7 @@ BEGIN
   ) THEN
     UPDATE nominations
        SET status = 'no_bid',
-           closed_at = now()
+           closed_at = clock_timestamp()
      WHERE id = v_nom.id;
   ELSIF v_nom.current_bidder_id IS NOT NULL THEN
     SELECT *
@@ -121,7 +121,7 @@ BEGIN
     IF NOT v_can_sell THEN
       UPDATE nominations
          SET status = 'no_bid',
-             closed_at = now()
+             closed_at = clock_timestamp()
        WHERE id = v_nom.id;
     ELSE
       UPDATE draft_budgets
@@ -175,13 +175,13 @@ BEGIN
          SET status = 'sold',
              winning_member_id = v_nom.current_bidder_id,
              final_price = v_nom.current_bid_amount,
-             closed_at = now()
+             closed_at = clock_timestamp()
        WHERE id = v_nom.id;
     END IF;
   ELSE
     UPDATE nominations
        SET status = 'no_bid',
-           closed_at = now()
+           closed_at = clock_timestamp()
      WHERE id = v_nom.id;
   END IF;
 
@@ -213,7 +213,7 @@ BEGIN
   ) THEN
     UPDATE drafts
        SET status = 'completed',
-           completed_at = now()
+           completed_at = clock_timestamp()
      WHERE id = v_nom.draft_id;
 
     IF NOT v_draft.is_mock THEN
