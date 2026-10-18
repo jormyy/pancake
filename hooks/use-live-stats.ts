@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine } from '@/lib/games'
 import { todayET } from '@/lib/shared/dates'
+import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
 
 type Snapshot = {
     todaysGames: NBAGameRow[]
@@ -11,6 +12,13 @@ type Snapshot = {
     fetchedAt: number
     status: 'fresh' | 'refreshing' | 'failed' | 'offline'
 }
+
+type LiveStatsOptions = {
+    scope: string
+    playerIds: readonly string[]
+    onSilentRefresh?: () => void
+}
+type Scope = { date: string; playerIds: string[]; generation: number }
 
 type Listener = (snapshot: Snapshot) => void
 
@@ -23,39 +31,43 @@ const EMPTY_SNAPSHOT: Snapshot = {
     status: 'refreshing',
 }
 
+const scopes = new Map<string, Scope>()
 const snapshots = new Map<string, Snapshot>()
-const listenersByDate = new Map<string, Set<Listener>>()
-const inFlightByDate = new Map<string, Promise<void>>()
-const inFlightEpochByDate = new Map<string, number>()
-const gamesFetchedAtByDate = new Map<string, number>()
-const silentRefreshListenersByDate = new Map<string, Set<() => void>>()
+const listenersByScope = new Map<string, Set<Listener>>()
+const inFlightByScope = new Map<string, Promise<void>>()
+const inFlightEpochByScope = new Map<string, number>()
+const gamesFetchedAtByScope = new Map<string, number>()
+const silentRefreshListenersByScope = new Map<string, Set<() => void>>()
 let pollInterval: ReturnType<typeof setInterval> | null = null
-const MAX_SNAPSHOT_DATES = 14
+const MAX_SNAPSHOTS = 14
 const LIVE_POLL_MS = 15_000
 const IDLE_POLL_MS = 60_000
 let networkEpoch = 0
 let resumeNeeded = false
-const refreshesByDate = new Map<string, Promise<void>>()
+const refreshesByScope = new Map<string, Promise<void>>()
 
 function evictSnapshots() {
-    if (snapshots.size <= MAX_SNAPSHOT_DATES) return
+    if (snapshots.size <= MAX_SNAPSHOTS) return
     for (const date of snapshots.keys()) {
-        if (listenersByDate.has(date)) continue
+        if (listenersByScope.has(date)) continue
         snapshots.delete(date)
-        gamesFetchedAtByDate.delete(date)
-        if (snapshots.size <= MAX_SNAPSHOT_DATES) return
+        gamesFetchedAtByScope.delete(date)
+        scopes.delete(date)
+        if (snapshots.size <= MAX_SNAPSHOTS) return
     }
 }
 
 function notify(date: string, snapshot: Snapshot) {
-    for (const listener of listenersByDate.get(date) ?? []) listener(snapshot)
+    for (const listener of listenersByScope.get(date) ?? []) listener(snapshot)
 }
 
 async function loadSnapshot(date: string): Promise<void> {
-    const existing = inFlightByDate.get(date)
+    const existing = inFlightByScope.get(date)
     if (existing) return existing
     if (pageHidden() || !browserOnline()) return
 
+    const scope = scopes.get(date)
+    if (!scope || scope.generation !== sessionGeneration()) return
     const epoch = networkEpoch
     const task = (async () => {
         const previous = snapshots.get(date) ?? EMPTY_SNAPSHOT
@@ -64,17 +76,17 @@ async function loadSnapshot(date: string): Promise<void> {
         notify(date, updating)
         let failed = false
         const [liveStats, gameDay] = await Promise.all([
-            getLivePlayerStats(date).catch(() => {
+            (scope.playerIds.length ? getLivePlayerStats(scope.date, scope.playerIds) : Promise.resolve(new Map<string, LiveStatLine>())).catch(() => {
                 failed = true
                 return previous.liveStats
             }),
-            getGameDay(date).catch(() => {
+            getGameDay(scope.date).catch(() => {
                 failed = true
                 return null
             }),
         ])
         if (epoch !== networkEpoch) return
-        if (gameDay) gamesFetchedAtByDate.set(date, Date.now())
+        if (gameDay) gamesFetchedAtByScope.set(date, Date.now())
 
         const snapshot: Snapshot = {
             todaysGames: gameDay?.games ?? previous.todaysGames,
@@ -89,14 +101,14 @@ async function loadSnapshot(date: string): Promise<void> {
         snapshots.set(date, snapshot)
         evictSnapshots()
         notify(date, snapshot)
-        if (listenersByDate.has(date) && (date === todayET() || anyGameInProgress(date))) ensurePoll()
+        if (listenersByScope.has(date) && (scopes.get(date)?.date === todayET() || anyGameInProgress(date))) ensurePoll()
     })().finally(() => {
-        inFlightByDate.delete(date)
-        inFlightEpochByDate.delete(date)
+        inFlightByScope.delete(date)
+        inFlightEpochByScope.delete(date)
     })
 
-    inFlightByDate.set(date, task)
-    inFlightEpochByDate.set(date, epoch)
+    inFlightByScope.set(date, task)
+    inFlightEpochByScope.set(date, epoch)
     return task
 }
 
@@ -106,7 +118,7 @@ function anyGameInProgress(date: string): boolean {
     // A persistently failing games endpoint keeps serving the last snapshot;
     // don't let a frozen "InProgress" pin the aggressive poll + lineup
     // reload fan-out forever.
-    if (Date.now() - (gamesFetchedAtByDate.get(date) ?? 0) > 15 * 60_000) return false
+    if (Date.now() - (gamesFetchedAtByScope.get(date) ?? 0) > 15 * 60_000) return false
     return snapshots.get(date)?.todaysGames.some((g) => g.status === 'InProgress') ?? false
 }
 
@@ -131,20 +143,20 @@ function pageHidden(): boolean {
 // On return a snapshot older than the cadence refreshes at once, and live
 // lineups with it.
 function refreshLiveDate(date: string): Promise<void> {
-    const existing = refreshesByDate.get(date)
+    const existing = refreshesByScope.get(date)
     if (existing) return existing
     const task = (async () => {
         const wasLive = anyGameInProgress(date)
         let epoch: number
         do {
-            epoch = inFlightEpochByDate.get(date) ?? networkEpoch
+            epoch = inFlightEpochByScope.get(date) ?? networkEpoch
             await loadSnapshot(date)
-        } while (epoch !== networkEpoch && browserOnline() && !pageHidden() && listenersByDate.has(date))
+        } while (epoch !== networkEpoch && browserOnline() && !pageHidden() && listenersByScope.has(date))
         if (!browserOnline() || pageHidden() || snapshots.get(date)?.status !== 'fresh') return
         if (!wasLive && !anyGameInProgress(date)) return
-        for (const listener of silentRefreshListenersByDate.get(date) ?? []) listener()
-    })().finally(() => { refreshesByDate.delete(date) })
-    refreshesByDate.set(date, task)
+        for (const listener of silentRefreshListenersByScope.get(date) ?? []) listener()
+    })().finally(() => { refreshesByScope.delete(date) })
+    refreshesByScope.set(date, task)
     return task
 }
 
@@ -152,7 +164,7 @@ function catchUpAfterHidden() {
     if (!browserOnline() || pageHidden()) return
     const force = resumeNeeded
     resumeNeeded = false
-    for (const date of listenersByDate.keys()) {
+    for (const date of listenersByScope.keys()) {
         if (force || !snapshotFresh(date)) void refreshLiveDate(date)
     }
 }
@@ -192,7 +204,7 @@ function ensurePoll() {
     if (pollInterval) return
     watchVisibility()
     pollInterval = setInterval(async () => {
-        const dates = [...listenersByDate.keys()].filter(date => date === todayET() || anyGameInProgress(date))
+        const dates = [...listenersByScope.keys()].filter(date => scopes.get(date)?.date === todayET() || anyGameInProgress(date))
         if (dates.length === 0) {
             clearInterval(pollInterval!)
             pollInterval = null
@@ -205,14 +217,27 @@ function ensurePoll() {
     }, LIVE_POLL_MS)
 }
 
-export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void) {
+onSessionCachesCleared(() => {
+    networkEpoch += 1
+    snapshots.clear()
+    gamesFetchedAtByScope.clear()
+    for (const key of listenersByScope.keys()) notify(key, EMPTY_SNAPSHOT)
+})
+
+export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
+    const key = JSON.stringify([selectedDate, options?.scope ?? '', [...new Set(options?.playerIds ?? [])].sort(), sessionGeneration()])
+    const scope = useMemo<Scope>(() => {
+        const [date, , playerIds, generation] = JSON.parse(key) as [string, string, string[], number]
+        return { date, playerIds, generation }
+    }, [key])
+    const onSilentRefresh = options?.onSilentRefresh
     const [resource, setResource] = useState<{ date: string; snapshot: Snapshot }>(() => ({
-        date: selectedDate,
-        snapshot: snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT,
+        date: key,
+        snapshot: snapshots.get(key) ?? EMPTY_SNAPSHOT,
     }))
-    const snapshot = resource.date === selectedDate
+    const snapshot = resource.date === key
         ? resource.snapshot
-        : snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT
+        : snapshots.get(key) ?? EMPTY_SNAPSHOT
 
     const liveStatsRef = useRef<Map<string, LiveStatLine>>(snapshot.liveStats)
     const teamMatchupsRef = useRef<Map<string, { opponent: string; isHome: boolean }>>(snapshot.teamMatchups)
@@ -226,44 +251,45 @@ export function useLiveStats(selectedDate: string, onSilentRefresh?: () => void)
 
     useEffect(() => {
         if (onSilentRefresh) {
-            let listeners = silentRefreshListenersByDate.get(selectedDate)
+            let listeners = silentRefreshListenersByScope.get(key)
             if (!listeners) {
                 listeners = new Set()
-                silentRefreshListenersByDate.set(selectedDate, listeners)
+                silentRefreshListenersByScope.set(key, listeners)
             }
             listeners.add(onSilentRefresh)
             return () => {
                 listeners?.delete(onSilentRefresh)
-                if (listeners?.size === 0) silentRefreshListenersByDate.delete(selectedDate)
+                if (listeners?.size === 0) silentRefreshListenersByScope.delete(key)
             }
         }
-    }, [onSilentRefresh, selectedDate])
+    }, [onSilentRefresh, key])
 
     useEffect(() => {
-        setResource({ date: selectedDate, snapshot: snapshots.get(selectedDate) ?? EMPTY_SNAPSHOT })
+        scopes.set(key, scope)
+        setResource({ date: key, snapshot: snapshots.get(key) ?? EMPTY_SNAPSHOT })
 
-        let listeners = listenersByDate.get(selectedDate)
+        let listeners = listenersByScope.get(key)
         if (!listeners) {
             listeners = new Set()
-            listenersByDate.set(selectedDate, listeners)
+            listenersByScope.set(key, listeners)
         }
-        const listener: Listener = (nextSnapshot) => setResource({ date: selectedDate, snapshot: nextSnapshot })
+        const listener: Listener = (nextSnapshot) => setResource({ date: key, snapshot: nextSnapshot })
         listeners.add(listener)
 
-        if (!snapshotFresh(selectedDate)) loadSnapshot(selectedDate)
+        if (!snapshotFresh(key)) loadSnapshot(key)
         ensurePoll()
 
         return () => {
             listeners?.delete(listener)
-            if (listeners?.size === 0) listenersByDate.delete(selectedDate)
-            if (listenersByDate.size === 0) {
+            if (listeners?.size === 0) listenersByScope.delete(key)
+            if (listenersByScope.size === 0) {
                 stopWatching?.()
                 if (pollInterval) clearInterval(pollInterval)
                 pollInterval = null
             }
             evictSnapshots()
         }
-    }, [selectedDate])
+    }, [key, scope])
 
     const liveTeams = useMemo(() => {
         if (!browserOnline() || snapshot.status !== 'fresh') return new Set<string>()

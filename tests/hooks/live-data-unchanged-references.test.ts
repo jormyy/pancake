@@ -122,7 +122,11 @@ const Probe = ({ owner = OWNER }: { owner?: typeof OWNER }) => {
         metrics.fanouts += 1
         void refreshSilently()
     }, [refreshSilently])
-    live = useLiveStats(data.selectedDate, onSilentRefresh)
+    live = useLiveStats(data.selectedDate, {
+        scope: JSON.stringify(owner),
+        playerIds: [data.myLineup, data.oppLineup].flatMap(lineup => lineup ? rowList(lineup).flatMap(player => player ? [player.playerId] : []) : []),
+        onSilentRefresh,
+    })
     const rows = useMemo(() => {
         if (!data.myLineup || !data.oppLineup) return []
         metrics.builds += 1
@@ -388,7 +392,8 @@ describe('live data reference workload', () => {
         lineups.get('mine')!.taxi.pop()
         await visible(false); await dispatch('focus'); await advance(50); await advance(50)
         report('hidden for 60 seconds then resume and focus')
-        expect(boundary.stats).toHaveBeenCalledTimes(1); expect(boundary.games).toHaveBeenCalledTimes(1)
+        expect(boundary.stats).toHaveBeenCalledTimes(2); expect(boundary.games).toHaveBeenCalledTimes(2)
+        expect(boundary.stats.mock.calls.at(-1)?.[1]).not.toContain('p119')
         expect(metrics.fanouts).toBe(1); expect(matchup.myLineup?.taxi).toHaveLength(5)
     })
 

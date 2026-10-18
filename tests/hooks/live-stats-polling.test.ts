@@ -64,7 +64,7 @@ let silentRefreshes: number
 let latest: ReturnType<typeof useLiveStats>
 const onSilentRefresh = () => { silentRefreshes += 1 }
 const Probe = () => {
-    latest = useLiveStats(TODAY, onSilentRefresh)
+    latest = useLiveStats(TODAY, { scope: 'owner', playerIds: ['player'], onSilentRefresh })
     return null
 }
 const mount = async () => {

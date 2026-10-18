@@ -70,8 +70,8 @@ describe('useLiveStats date identity', () => {
         const todayRefresh = vi.fn()
         const historicalRefresh = vi.fn()
         const Probe = () => {
-            useLiveStats('today', todayRefresh)
-            useLiveStats('historical', historicalRefresh)
+            useLiveStats('today', { scope: 'owner', playerIds: [], onSilentRefresh: todayRefresh })
+            useLiveStats('historical', { scope: 'owner', playerIds: [], onSilentRefresh: historicalRefresh })
             return null
         }
         let renderer!: ReactTestRenderer
