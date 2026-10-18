@@ -1,5 +1,5 @@
 import json
-import re
+import subprocess
 from pathlib import Path
 from fontTools import subset
 from fontTools.ttLib import TTFont
@@ -8,14 +8,7 @@ root = Path(__file__).resolve().parents[2]
 fonts = root / 'assets/fonts'
 fonts.mkdir(parents=True, exist_ok=True)
 vendor = root / 'node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons'
-glyphs = json.loads((vendor / 'glyphmaps/MaterialIcons.json').read_text())
-used = set()
-for directory in ['app', 'components', 'constants', 'hooks', 'lib', 'contexts']:
-    for file in (root / directory).rglob('*'):
-        if file.suffix not in ['.ts', '.tsx']:
-            continue
-        used.update(name for _, name in re.findall(r'''(['"])([a-zA-Z0-9_-]+)\1''', file.read_text()) if name in glyphs)
-selected = {name: glyphs[name] for name in sorted(used)}
+selected = json.loads(subprocess.check_output(['node', str(fonts / 'collect-icons.js')], cwd=root))
 (fonts / 'MaterialIcons.glyphs.json').write_text(json.dumps(selected, indent=2) + '\n')
 font = TTFont(vendor / 'Fonts/MaterialIcons.ttf', recalcTimestamp=False)
 options = subset.Options()
