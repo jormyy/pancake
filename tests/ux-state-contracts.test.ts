@@ -1,5 +1,13 @@
 import { readFile } from 'node:fs/promises'
-import { describe, expect, it } from 'vitest'
+import { runInNewContext } from 'node:vm'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { colors, shadows } from '@/constants/tokens'
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
+
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }))
+vi.mock('expo-router/html', () => ({ ScrollViewStyleReset: () => null }))
 
 const read = (path: string) => readFile(path, 'utf8')
 
@@ -27,12 +35,178 @@ describe('trades tab empty states', () => {
 })
 
 describe('service worker registration cadence', () => {
-    it('re-checks for a new release on reconnect and hourly while visible, and waits 10s for the worker version', async () => {
-        const source = await read('app/+html.tsx')
-        expect(source).toContain("window.addEventListener('online', checkForUpdate)")
-        expect(source).toMatch(/setInterval\(function \(\) \{\s*if \(document\.visibilityState === 'visible'\) checkForUpdate\(\);\s*\}, 60 \* 60 \* 1000\)/)
-        expect(source).toContain('setTimeout(function () { finish(null); }, 10000)')
-        expect(source).not.toContain('finish(null); }, 2000)')
+    let script: string
+    beforeAll(async () => {
+        await import('react/jsx-dev-runtime')
+        vi.stubEnv('NODE_ENV', 'production')
+        let Root: typeof import('@/app/+html')['default']
+        try {
+            Root = (await import('@/app/+html')).default
+        } finally { vi.unstubAllEnvs() }
+        const html = renderToStaticMarkup(React.createElement(Root))
+        const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(match => match[1])
+        script = scripts.find(value => value.includes('navigator.serviceWorker.register'))!
+        expect(script).toBeTruthy()
+    })
+    beforeEach(() => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-10-18T12:00:00Z'))
+    })
+    afterEach(() => {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+    })
+
+    class Element extends EventTarget {
+        id = ''
+        disabled = false
+        textContent = ''
+        style = { cssText: '' }
+        children: Element[] = []
+        setAttribute = vi.fn()
+        appendChild(child: Element) { this.children.push(child) }
+        querySelector() { return this.children[0] ?? null }
+    }
+
+    function updatePage() {
+        const ports: { onmessage: ((event: { data: { version: string } }) => void) | null; close: ReturnType<typeof vi.fn> }[] = []
+        const reload = vi.fn()
+        const update = vi.fn(async () => {})
+        const worker = { postMessage: vi.fn() }
+        const registration = { active: worker, update }
+        const serviceWorker = Object.assign(new EventTarget(), { controller: worker, register: vi.fn(async () => registration) })
+        const navigator = { onLine: true, serviceWorker }
+        const body = new Element()
+        const document = Object.assign(new EventTarget(), {
+            readyState: 'complete', visibilityState: 'visible', body,
+            querySelector: () => ({ content: 'current' }),
+            getElementById: (id: string) => body.children.find(child => child.id === id) ?? null,
+            createElement: () => new Element(),
+        })
+        const window = Object.assign(new EventTarget(), {
+            isSecureContext: true, location: { pathname: '/draft-room', reload },
+        })
+        vi.stubGlobal('window', window)
+        const storage = new Map<string, string>()
+        runInNewContext(script, {
+            window, document, navigator, Date, setTimeout, clearTimeout, setInterval,
+            sessionStorage: {
+                getItem: (key: string) => storage.get(key) ?? null,
+                setItem: (key: string, value: string) => storage.set(key, value),
+            },
+            MessageChannel: class {
+                port1 = { onmessage: null, close: vi.fn() }
+                port2 = {}
+                constructor() { ports.push(this.port1) }
+            },
+        })
+        const reply = (version: string) => {
+            expect(ports.length).toBeGreaterThan(0)
+            ports.at(-1)!.onmessage?.({ data: { version } })
+        }
+        return { update, reload, document, navigator, window, serviceWorker, ports, reply,
+            load: async () => {
+                window.dispatchEvent(new Event('load'))
+                await vi.advanceTimersByTimeAsync(0)
+                expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js')
+                reply('current')
+            },
+        }
+    }
+
+    it('checks hourly only while visible and online, and checks again on reconnect', async () => {
+        const page = updatePage()
+        await page.load()
+        await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+        expect(page.update).toHaveBeenCalledTimes(1)
+        page.document.visibilityState = 'hidden'
+        await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+        expect(page.update).toHaveBeenCalledTimes(1)
+        page.document.visibilityState = 'visible'
+        page.navigator.onLine = false
+        await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+        expect(page.update).toHaveBeenCalledTimes(1)
+        page.navigator.onLine = true
+        page.window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(page.update).toHaveBeenCalledTimes(2)
+    })
+
+    it('throttles foreground and reconnect checks for five minutes and joins an unfinished check', async () => {
+        const page = updatePage()
+        await page.load()
+        page.window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(299999)
+        page.document.dispatchEvent(new Event('visibilitychange'))
+        expect(page.update).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(1)
+        let finish!: () => void
+        page.update.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve }))
+        page.document.dispatchEvent(new Event('visibilitychange'))
+        expect(page.update).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(300000)
+        page.window.dispatchEvent(new Event('online'))
+        expect(page.update).toHaveBeenCalledTimes(1)
+        finish()
+        await vi.advanceTimersByTimeAsync(0)
+        page.window.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(page.update).toHaveBeenCalledTimes(2)
+    })
+
+    it('accepts a worker version after nine seconds', async () => {
+        const page = updatePage()
+        await page.load()
+        page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+        const port = page.ports.at(-1)!
+        await vi.advanceTimersByTimeAsync(9000)
+        expect(port.close).not.toHaveBeenCalled()
+        page.reply('next')
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('closes an unanswered version request at ten seconds and ignores its late reply', async () => {
+        const page = updatePage()
+        await page.load()
+        page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+        const port = page.ports.at(-1)!
+        await vi.advanceTimersByTimeAsync(9999)
+        expect(port.close).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(1)
+        expect(port.close).toHaveBeenCalledOnce()
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+    })
+
+    it('keeps a held update through the notice deadline and reloads once after safe recovery', async () => {
+        const page = updatePage()
+        const release = holdPwaUpdate('live auction')
+        await page.load()
+        page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(60000)
+        const notice = page.document.getElementById('pancake-update-notice')!
+        expect(notice.textContent).toContain('Finish your current work')
+        expect(notice.style.cssText).toContain(`background:${colors.bgCard}`)
+        expect(notice.style.cssText).toContain(`color:${colors.textPrimary}`)
+        expect(notice.style.cssText).toContain(`box-shadow:${shadows.lg}`)
+        expect(notice.querySelector()?.disabled).toBe(true)
+        expect(page.reload).not.toHaveBeenCalled()
+        page.document.visibilityState = 'hidden'
+        page.navigator.onLine = false
+        release()
+        expect(notice.querySelector()?.disabled).toBe(false)
+        expect(page.reload).not.toHaveBeenCalled()
+        page.navigator.onLine = true
+        page.window.dispatchEvent(new Event('online'))
+        expect(page.reload).not.toHaveBeenCalled()
+        page.document.visibilityState = 'visible'
+        page.document.dispatchEvent(new Event('visibilitychange'))
+        expect(page.reload).toHaveBeenCalledOnce()
+        release()
+        page.window.dispatchEvent(new Event('online'))
+        expect(page.reload).toHaveBeenCalledOnce()
     })
 })
 

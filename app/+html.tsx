@@ -1,6 +1,6 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
 import { type PropsWithChildren } from 'react'
-import { webChrome } from '@/constants/tokens'
+import { colors, shadows, webChrome } from '@/constants/tokens'
 import { BOOT_SHELL_CSS, BOOT_SHELL_HTML, BOOT_SHELL_SCRIPT } from '@/constants/boot-shell'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme-preference'
 
@@ -31,7 +31,7 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
       var notice = document.createElement('div');
       notice.id = 'pancake-update-notice';
       notice.setAttribute('role', 'status');
-      notice.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:10000;padding:16px;border-radius:12px;background:var(--pancake-bg-card,#fff);color:var(--pancake-text-primary,#382b23);box-shadow:0 4px 24px #0003;font:14px system-ui';
+      notice.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:10000;padding:16px;border-radius:12px;background:${colors.bgCard};color:${colors.textPrimary};box-shadow:${shadows.lg};font:14px system-ui';
       notice.textContent = 'An update is ready. Finish your current work, then reload.';
       var button = document.createElement('button');
       button.textContent = 'Reload';
