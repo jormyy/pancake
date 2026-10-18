@@ -1064,6 +1064,7 @@ export type Database = {
       }
       league_change_hints: {
         Row: {
+          details: Json | null
           league_id: string
           revision: number
           scopes: Json | null
@@ -1071,6 +1072,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          details?: Json | null
           league_id: string
           revision: number
           scopes?: Json | null
@@ -1078,6 +1080,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          details?: Json | null
           league_id?: string
           revision?: number
           scopes?: Json | null
