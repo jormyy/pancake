@@ -5,7 +5,7 @@ import { getOwnedPlayerMapForSeason, type OwnedEntry } from '@/lib/roster'
 import { getWaiverClearsAtForSeason, getPendingWaiverPlayerIdsForSeason } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 
-export type PlayerAvailabilitySnapshot = {
+type PlayerAvailabilitySnapshot = {
     leagueId: string | null
     seasonId: string | null
     memberId: string | null
