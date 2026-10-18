@@ -25,6 +25,7 @@ try {
     const token = crypto.randomUUID().replaceAll('-', '')
     const league = crypto.randomUUID(), season = crypto.randomUUID()
     const members = [crypto.randomUUID(), crypto.randomUUID()]
+    const players = Array.from({ length: 6 }, () => crypto.randomUUID())
     const users: string[] = []
     let year = 0
     try {
@@ -53,6 +54,10 @@ try {
       await query(supabase.from('draft_picks').insert(members.flatMap(member => [1, 2, 3].map(round => ({
         league_id: league, season_year: year, round, original_owner_id: member, current_owner_id: member,
       })))))
+      await query(supabase.from('players').insert(players.map((id, index) => ({
+        id, first_name: 'Synthetic', last_name: `ET rookie ${token} ${index}`,
+        position: 'PG' as const, eligible_positions: ['PG'], nba_team: null, years_exp: 0, nba_draft_number: index + 1,
+      }))))
       const early = await runSeasonBoundary(new Date(before), league)
       const draftsBefore = await query(supabase.from('drafts').select('id').eq('league_id', league))
       console.log(JSON.stringify({ case: 'manual evening ET', weekStart, reference: before, report: early, drafts: draftsBefore?.length }))
@@ -64,7 +69,12 @@ try {
       const draftsAfter = await query(supabase.from('drafts').select('id,status').eq('league_id', league))
       assert.equal(due[0]?.error, undefined)
       assert.ok(due[0]?.actions.includes('rookie-draft-started'))
-      assert.equal(draftsAfter?.length, 1)
+      assert.ok(draftsAfter)
+      assert.equal(draftsAfter.length, 1)
+      const picks = await query(supabase.from('snake_draft_picks').select('player_id').eq('draft_id', draftsAfter[0].id))
+      assert.ok(picks)
+      assert.equal(picks.length, 6)
+      assert.ok(picks.every(pick => pick.player_id != null))
       console.log(JSON.stringify({ case: 'ET midnight reached', weekStart, reference: after, actions: due[0].actions }))
     } finally {
       const drafts = await query(supabase.from('drafts').select('id').eq('league_id', league))
@@ -76,6 +86,8 @@ try {
         await query(supabase.from('drafts').delete().in('id', ids))
       }
       await query(supabase.from('leagues').delete().eq('id', league))
+      await query(supabase.from('players').delete().in('id', players))
+      assert.equal((await query(supabase.from('players').select('id').in('id', players)))?.length, 0)
       if (year) await query(supabase.from('season_weeks').delete().eq('season_year', year))
       for (const user of users) {
         const { error } = await supabase.auth.admin.deleteUser(user)
