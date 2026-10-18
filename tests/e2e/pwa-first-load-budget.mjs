@@ -11,6 +11,8 @@ for (const engine of ['chromium', 'webkit']) {
     const cold = sample.segments.find(segment => segment.mode === 'cold')
     const warm = sample.segments.find(segment => segment.mode === 'warm')
     if (!cold || cold.bodyBytes >= 1000000) failures.push({ engine, sample: sample.sample, reason: 'cold transfer', bytes: cold?.bodyBytes })
+    const fonts = cold?.paint.fonts?.filter(face => face.family.startsWith('Outfit'))
+    if (fonts?.length !== 3 || fonts.some(face => face.status !== 'loaded')) failures.push({ engine, sample: sample.sample, reason: 'font load failed' })
     if (!warm || warm.responses.some(response => response.path !== '/sw.js')) failures.push({ engine, sample: sample.sample, reason: 'warm delivery downloads' })
     if (cold?.repeatedAssets.some(([url]) => /manifest|\/pwa-|\/assets\/pwa\//.test(url))) failures.push({ engine, sample: sample.sample, reason: 'duplicate boot delivery' })
   }

@@ -176,8 +176,10 @@ self.addEventListener('install', (event) => {
       // entire verified set on retry; activation, not cache existence, commits it.
       await Promise.race([
         (async () => {
-          await Promise.all(PRECACHE_URLS.map((url, index) =>
-            (url === SHELL_URL ? shell : assets).put(url, responses[index])))
+          for (let index = 0; index < PRECACHE_URLS.length; index++) {
+            const url = PRECACHE_URLS[index]
+            await (url === SHELL_URL ? shell : assets).put(url, responses[index])
+          }
           await carryPublicAssets(assets)
         })(),
         deadline,

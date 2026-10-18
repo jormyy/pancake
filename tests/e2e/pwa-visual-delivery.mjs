@@ -59,6 +59,10 @@ try {
         await page.screenshot({ path: `${directory}/${engine}-${build}-fonts-pending.png` })
         await heading.screenshot({ path: `${directory}/${engine}-${build}-heading-pending.png` })
         await page.evaluate(() => document.fonts.ready)
+        result.loaded = await page.evaluate(() => [...document.fonts].map(face => ({ family: face.family, status: face.status })))
+        const outfit = result.loaded.filter(face => face.family.startsWith('Outfit'))
+        assert.equal(outfit.length, 3)
+        assert(outfit.every(face => face.status === 'loaded'), JSON.stringify(outfit))
         delayed = false
         await page.screenshot({ path: `${directory}/${engine}-${build}-fonts-loaded.png` })
         if (build === 'after') {

@@ -393,4 +393,6 @@ A pending release waits until the document loads, the page is visible, the netwo
 
 Missing old route scripts request an update. Recovery uses the same hold checks. If a controlled navigation loses its cached shell, it can use fresh anonymous HTML. That response never enters the older release cache. Cached and fetched release assets retain digest checks. API requests and account data remain outside worker caches.
 
+The worker verifies every boot file before storage. It stores files one at a time. Activation still requires the full set.
+
 Push subscription changes notify open same-origin windows. Signed-in pages reconcile the browser's current subscription on that notice, reconnect, controller changes, and foreground return. Concurrent signals coalesce. Ordinary foreground checks wait five minutes after success. Disabled or logged-out notification intent remains closed. Missing subscriptions and changed VAPID keys still require explicit Enable.

@@ -147,6 +147,26 @@ describe('service worker', () => {
         expect(worker.skipWaitingCalls).toBe(1)
     })
 
+    it('installs when CacheStorage accepts one file write at a time', async () => {
+        const worker = await loadWorker({ precache: ['/', '/_expo/static/js/web/app.js', '/_expo/static/js/web/chunk.js'] })
+        let writing = false
+        for (const name of ['pancake-test-1-public-v1-shell', 'pancake-test-1-public-v1-assets']) {
+            const cache = await worker.caches.open(name)
+            const put = cache.put.bind(cache)
+            vi.spyOn(cache, 'put').mockImplementation(async (request, response) => {
+                if (writing) throw new TypeError('Failed writing data to the file system')
+                writing = true
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 0))
+                    await put(request, response)
+                } finally { writing = false }
+            })
+        }
+        await worker.install()
+        expect(worker.skipWaitingCalls).toBe(1)
+        expect((await worker.caches.open('pancake-test-1-public-v1-assets')).entries.size).toBe(2)
+    })
+
     it('rejects a required manifest entry the host no longer serves', async () => {
         const worker = await loadWorker({
             precache: ['/', '/_expo/static/js/web/gone.js'],
