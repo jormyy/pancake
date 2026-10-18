@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React, { memo, useMemo } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +22,7 @@ vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: boundary.cache, writePersistentCache: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({
     subscribeToTableChanges: vi.fn(() => ({})), disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(),
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
@@ -176,6 +177,7 @@ const mount = async () => {
     resetMetrics()
 }
 beforeEach(async () => {
+    clearSessionCaches()
     vi.useFakeTimers(); vi.setSystemTime(START); vi.resetModules(); vi.clearAllMocks()
     boundary.online = true; boundary.hidden = false
     delay = 50; failStats = false; failGames = false; failLineups = false; renderer = null

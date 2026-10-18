@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -8,7 +9,7 @@ import type { TableChangeWatch } from '@/lib/realtime-config'
 
 type Subscription = { watches: TableChangeWatch[]; onReconnect?: () => Promise<void> }
 const mocks = vi.hoisted(() => ({ getMyMatchup: vi.fn(), getWeeklyLineup: vi.fn(), invalidate: vi.fn(), subscriptions: [] as Subscription[] }))
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/lib/scoring', () => ({ getMyMatchup: mocks.getMyMatchup, getLeagueWeekMatchups: async () => [] }))
 vi.mock('@/lib/lineup', () => ({
     clampDateToWeek: () => '2026-07-09', getWeekDays: async () => [],
@@ -53,6 +54,7 @@ const event = (id: string, points: number, second = 1): RealtimePostgresUpdatePa
         away_points: 12, is_finalized: false, winner_member_id: null },
 })
 beforeEach(() => {
+    clearSessionCaches()
     vi.clearAllMocks(); vi.useFakeTimers()
     mocks.subscriptions.length = 0
     mocks.getWeeklyLineup.mockResolvedValue({ starters: [], bench: [], ir: [], taxi: [], benchSlots: 3 })

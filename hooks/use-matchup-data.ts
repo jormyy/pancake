@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useIsFocused } from '@react-navigation/native'
 import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
 import { clampDateToWeek, getWeekDays, getWeeklyLineup, invalidateCachedRoster, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { deferLeagueRefresh, leagueChangeAffects, leagueSnapshotRevision, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
@@ -7,6 +7,8 @@ import { todayET } from '@/lib/shared/dates'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import {
     disposeTableChangeSubscription,
@@ -35,6 +37,10 @@ type MatchupScreenCache = {
     myLineup: LineupData | null
     oppLineup: LineupData | null
 }
+
+type MatchupReadReceipt = { key: string; generation: number; day: string; date: string; revision: string | null; at: number }
+const matchupReadReceipts = new Map<string, MatchupReadReceipt>()
+onSessionCachesCleared(() => matchupReadReceipts.clear())
 
 const MATCHUP_CACHE_PREFIX = 'pancake:home-matchup:v1:'
 
@@ -93,6 +99,17 @@ export function useMatchupData(
     const refreshMembershipsRef = useRef(refreshMemberships)
     refreshMembershipsRef.current = refreshMemberships
     const online = useOnlineStatus()
+    const focused = useIsFocused()
+    const readActivityRef = useRef({ online, focused, userId: user?.id })
+    readActivityRef.current = { online, focused, userId: user?.id }
+    const canRead = useCallback(() => {
+        const owner = sessionOwner()
+        return readActivityRef.current.online && readActivityRef.current.focused && browserReadsAllowed()
+            && (owner === undefined || owner === readActivityRef.current.userId)
+    }, [])
+    const pendingRefreshRef = useRef(false)
+    const fullReadRef = useRef<{ key: string; promise: Promise<void>; queued?: Promise<void> } | null>(null)
+    const lastLoadRef = useRef<MatchupReadReceipt | null>(null)
     const wasOnlineRef = useRef(online)
     const leagueId = league?.id
     const resourceKey = current && user && leagueId
@@ -209,15 +226,17 @@ export function useMatchupData(
     const loadLineups = useCallback(
         async (m: Matchup, date: string): Promise<LineupPair | null> => {
             const capturedResourceKey = resourceKey
-            if (!capturedResourceKey || !ownsResource || !leagueId || date !== selectedDateRef.current) return null
+            if (!capturedResourceKey || !canRead() || !ownsResource || !leagueId || date !== selectedDateRef.current) return null
+            const generation = sessionGeneration()
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             setLineupLoading(true)
-            const stillCurrent = () => seq === lineupSeqRef.current &&
-                activeResourceKeyRef.current === capturedResourceKey && date === selectedDateRef.current && matchupRef.current?.id === m.id
+            const stillCurrent = () => seq === lineupSeqRef.current && generation === sessionGeneration() &&
+                activeResourceKeyRef.current === capturedResourceKey && canRead() && date === selectedDateRef.current && matchupRef.current?.id === m.id
             try {
                 const lineups = await fetchLineups(m, date, currentLeagueId)
                 if (!stillCurrent()) return null
+                matchupReadReceipts.delete(capturedResourceKey)
                 setMyLineup(lineups.mine)
                 setOppLineup(lineups.opp)
                 setMyLineupScope(lineupScope(m, date))
@@ -235,29 +254,32 @@ export function useMatchupData(
                 if (seq === lineupSeqRef.current) setLineupLoading(false)
             }
         },
-        [fetchLineups, leagueId, ownsResource, resourceKey],
+        [canRead, fetchLineups, leagueId, ownsResource, resourceKey],
     )
 
     const loadMyLineup = useCallback(
         async (m: Matchup, date: string) => {
             const capturedResourceKey = resourceKey
-            if (!capturedResourceKey || !ownsResource || !leagueId || date !== selectedDateRef.current) return
+            if (!capturedResourceKey || !canRead() || !ownsResource || !leagueId || date !== selectedDateRef.current) return
+            const generation = sessionGeneration()
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             const data = await getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date)
-            if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
+            if (seq !== lineupSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead() ||
                 date !== selectedDateRef.current) return
+            matchupReadReceipts.delete(capturedResourceKey)
             setMyLineup(data)
             setMyLineupScope(lineupScope(m, date))
         },
-        [leagueId, ownsResource, resourceKey],
+        [canRead, leagueId, ownsResource, resourceKey],
     )
 
     const refreshSilently = useCallback(
         async () => {
             const m = matchupRef.current
             const capturedResourceKey = resourceKey
-            if (!capturedResourceKey || !ownsResource || !m || !leagueId) return false
+            if (!capturedResourceKey || !canRead() || !ownsResource || !m || !leagueId) return false
+            const generation = sessionGeneration()
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId
             const date = selectedDateRef.current
@@ -266,8 +288,9 @@ export function useMatchupData(
                     getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
                     getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics: true }),
                 ])
-                if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
+                if (seq !== lineupSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead() ||
                     date !== selectedDateRef.current) return false
+                matchupReadReceipts.delete(capturedResourceKey)
                 setMyLineup((previous) => reuseLineup(previous, mine))
                 setOppLineup((previous) => reuseLineup(previous, opp))
                 setMyLineupScope(lineupScope(m, date))
@@ -275,21 +298,22 @@ export function useMatchupData(
                 setLineupError(false)
                 return true
             } catch (error) {
-                if (seq !== lineupSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey ||
+                if (seq !== lineupSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead() ||
                     date !== selectedDateRef.current) return false
                 console.error(error)
                 setLineupError(true)
                 return false
             }
         },
-        [leagueId, ownsResource, resourceKey],
+        [canRead, leagueId, ownsResource, resourceKey],
     )
 
-    const load = useCallback(async () => {
+    const read = useCallback(async () => {
         const capturedResourceKey = resourceKey
-        if (!capturedResourceKey || !current || !user || !leagueId || activeResourceKeyRef.current !== capturedResourceKey) return
+        if (!capturedResourceKey || !current || !user || !leagueId || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
         // Sequence concurrent loads (league switch / focus) so a slower fetch for
         // a previous league can never overwrite the current league's matchup.
+        const generation = sessionGeneration()
         const seq = ++loadSeqRef.current
         lineupSeqRef.current += 1
         const hasVisibleMatchup = matchupRef.current != null
@@ -302,7 +326,7 @@ export function useMatchupData(
         try {
             setError(null)
             const m = await getMyMatchup(current.id, leagueId)
-            if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
+            if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
             if (m) {
                 confirmedEmptyKeyRef.current = null
                 setEmptyConfirmed(false)
@@ -310,7 +334,7 @@ export function useMatchupData(
                 matchupRef.current = m
                 const daysPromise = getWeekDays(m.weekNumber, m.seasonYear)
                 const readSelection = async (boundaries: { date: string }[]) => {
-                    while (seq === loadSeqRef.current && activeResourceKeyRef.current === capturedResourceKey) {
+                    while (seq === loadSeqRef.current && generation === sessionGeneration() && activeResourceKeyRef.current === capturedResourceKey && canRead()) {
                         const requested = selectedDateRef.current
                         const selected = clampDateToWeek(requested, boundaries)
                         try {
@@ -323,7 +347,7 @@ export function useMatchupData(
                 }
                 const lineupsPromise = getSeasonWeekDates(m.seasonYear, m.weekNumber).then(async (dates) => {
                     await waitForLeagueChanges(leagueId)
-                    if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) throw new Error('Matchup read superseded')
+                    if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) throw new Error('Matchup read superseded')
                     const boundaries = dates.length > 0 ? dates.map((date) => ({ date })) : await daysPromise
                     return { boundaries, ...await readSelection(boundaries) }
                 })
@@ -332,11 +356,11 @@ export function useMatchupData(
                     getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
                     lineupsPromise,
                 ])
-                if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
+                if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
                 let selection = initial
                 while (selection.requested !== selectedDateRef.current) {
                     selection = { ...initial, ...await readSelection(initial.boundaries) }
-                    if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
+                    if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
                 }
                 const { selected, lineups } = selection
                 lineupSeqRef.current += 1
@@ -360,24 +384,115 @@ export function useMatchupData(
             } else {
                 pendingNullKeyRef.current = capturedResourceKey
                 confirmEmpty()
+                return membershipValidatedRef.current && !membershipErrorRef.current
             }
+            return true
         } catch (e) {
-            if (seq !== loadSeqRef.current || activeResourceKeyRef.current !== capturedResourceKey) return
+            if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
             console.error(e)
             setError('Failed to load matchup')
         } finally {
-            if (seq === loadSeqRef.current && activeResourceKeyRef.current === capturedResourceKey) {
+            if (seq === loadSeqRef.current && generation === sessionGeneration() && activeResourceKeyRef.current === capturedResourceKey) {
                 setMatchupLoading(false)
             }
         }
-    }, [current, user, leagueId, fetchLineups, resourceKey, setSelectedDate, confirmEmpty])
+    }, [canRead, current, user, leagueId, fetchLineups, resourceKey, setSelectedDate, confirmEmpty])
+
+    const suspend = useCallback(() => {
+        if (fullReadRef.current) {
+            pendingRefreshRef.current = true
+            if (activeResourceKeyRef.current) matchupReadReceipts.delete(activeResourceKeyRef.current)
+            lastLoadRef.current = null
+        }
+        loadSeqRef.current += 1
+        lineupSeqRef.current += 1
+        fullReadRef.current = null
+        setMatchupLoading(false)
+        setLineupLoading(false)
+    }, [])
+
+    const load = useCallback((force = false): Promise<void> => {
+        if (!canRead()) {
+            pendingRefreshRef.current = true
+            return Promise.resolve()
+        }
+        if (!resourceKey || !leagueId || activeResourceKeyRef.current !== resourceKey) return Promise.resolve()
+        const existing = fullReadRef.current
+        if (existing?.key === resourceKey) {
+            if (force) {
+                pendingRefreshRef.current = true
+                existing.queued ??= existing.promise.then(() => load())
+                return existing.queued
+            }
+            return existing.promise
+        }
+        const revision = leagueSnapshotRevision(leagueId, 'lineup')
+        const day = todayET()
+        const previous = lastLoadRef.current?.key === resourceKey ? lastLoadRef.current : matchupReadReceipts.get(resourceKey)
+        const hasRows = ownsResource && matchupRef.current !== null || Boolean(readMatchupCache(current?.id, leagueId))
+        if (hasRows && !force && !pendingRefreshRef.current && previous?.key === resourceKey && previous.generation === sessionGeneration() && previous.day === day
+            && previous.date === selectedDateRef.current && previous.revision === revision && Date.now() - previous.at < 30_000) {
+            pendingRefreshRef.current = false
+            lastLoadRef.current = previous
+            return Promise.resolve()
+        }
+        pendingRefreshRef.current = false
+        const request = { key: resourceKey, promise: Promise.resolve() }
+        const generation = sessionGeneration()
+        let readRevision = revision
+        request.promise = waitForLeagueChanges(leagueId).then(() => {
+            if (fullReadRef.current !== request || generation !== sessionGeneration() || !canRead() || activeResourceKeyRef.current !== resourceKey) return
+            readRevision = leagueSnapshotRevision(leagueId, 'lineup')
+            return read()
+        }).then(success => {
+            if (fullReadRef.current !== request || generation !== sessionGeneration() || !canRead() || activeResourceKeyRef.current !== resourceKey) return
+            if (success) {
+                lastLoadRef.current = { key: resourceKey, generation, day, date: selectedDateRef.current, revision: readRevision, at: Date.now() }
+                matchupReadReceipts.delete(resourceKey)
+                matchupReadReceipts.set(resourceKey, lastLoadRef.current)
+                if (matchupReadReceipts.size > 16) matchupReadReceipts.delete(matchupReadReceipts.keys().next().value!)
+                if (readRevision !== leagueSnapshotRevision(leagueId, 'lineup')) pendingRefreshRef.current = true
+            } else {
+                lastLoadRef.current = null
+                matchupReadReceipts.delete(resourceKey)
+            }
+        }).finally(() => {
+            if (fullReadRef.current !== request) return
+            fullReadRef.current = null
+            if (pendingRefreshRef.current && canRead()) void load()
+        })
+        fullReadRef.current = request
+        return request.promise
+    }, [canRead, current?.id, leagueId, ownsResource, read, resourceKey])
 
     const refresh = useCallback(async () => {
         if (membershipErrorRef.current) await refreshMembershipsRef.current?.()
-        await load()
+        await load(true)
     }, [load])
 
-    useFocusEffect(useCallback(() => { load() }, [load]))
+    useFocusEffect(useCallback(() => {
+        void load()
+        return suspend
+    }, [load, suspend]))
+
+    useEffect(() => {
+        const resume = () => {
+            if (!canRead()) suspend()
+            else void load()
+        }
+        if (typeof window !== 'undefined') {
+            window.addEventListener('focus', resume)
+            window.addEventListener('offline', resume)
+        }
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('focus', resume)
+                window.removeEventListener('offline', resume)
+            }
+            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume)
+        }
+    }, [canRead, load, suspend])
 
     useEffect(() => {
         const wasOnline = wasOnlineRef.current
@@ -385,6 +500,7 @@ export function useMatchupData(
         if (!wasOnline && online && leagueId) {
             invalidateSeasonCache(leagueId)
             invalidateWeekNumberCache()
+            pendingRefreshRef.current = true
             void load()
         }
     }, [leagueId, load, online])
@@ -398,8 +514,12 @@ export function useMatchupData(
         let catchupOnly = true
         const refreshVisibleLineups = deferLeagueRefresh(async () => {
             if (!isActive()) return
+            if (!canRead()) { pendingRefreshRef.current = true; return true }
             const receipt = lineupReadRef.current
             const revision = leagueId ? leagueSnapshotRevision(leagueId, 'lineup') : null
+            const fullReceipt = resourceKey ? matchupReadReceipts.get(resourceKey) : undefined
+            if (catchupOnly && revision && fullReceipt?.revision === revision && fullReceipt.generation === sessionGeneration() && fullReceipt.day === todayET()
+                && fullReceipt.date === selectedDateRef.current && Date.now() - fullReceipt.at < 30_000) return true
             if (catchupOnly && revision && receipt?.revision === revision && receipt.scope === lineupScope(matchupRef.current, selectedDateRef.current)) {
                 try { await receipt.promise; return true } catch {}
             }
@@ -418,7 +538,7 @@ export function useMatchupData(
                         for (const memberId of visibleMemberIds) invalidateCachedRoster(memberId, leagueId, matchup.seasonId)
                     }
                     invalidateWeekNumberCache()
-                    await load()
+                    await load(true)
                 },
                 watches: [{
                     event: 'UPDATE',
@@ -429,6 +549,7 @@ export function useMatchupData(
                         const row = payload.new
                         const { home_points, away_points, is_finalized, winner_member_id } = row
                         if (row.week_number !== (matchup.roundStartWeek ?? matchup.weekNumber)) return
+                        if (resourceKey) matchupReadReceipts.delete(resourceKey)
                         // Order by the server commit time, not the score: corrections can reduce points.
                         const eventTime = Date.parse(payload.commit_timestamp)
                         if (Number.isFinite(eventTime)) {
@@ -470,7 +591,8 @@ export function useMatchupData(
             if (!leagueChangeAffects(change, { seasonId: matchup.seasonId, memberIds: [...visibleMemberIds], date: selectedDateRef.current })) return
             if (change.topic !== 'catchup') catchupOnly = false
             for (const memberId of visibleMemberIds) invalidateCachedRoster(memberId, leagueId, matchup.seasonId)
-            refreshVisibleLineups.trigger()
+            if (!canRead()) pendingRefreshRef.current = true
+            else refreshVisibleLineups.trigger()
         }) : undefined
 
         return () => {
@@ -481,7 +603,7 @@ export function useMatchupData(
                 disposeTableChangeSubscription(channel, [refreshVisibleLineups]),
             )
         }
-    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, matchup?.roundStartWeek, ownsResource, refreshSilently, resourceKey, leagueId, load])
+    }, [matchup?.id, matchup?.seasonId, matchup?.weekNumber, matchup?.myMemberId, matchup?.opponentMemberId, matchup?.roundStartWeek, ownsResource, refreshSilently, resourceKey, leagueId, load, canRead])
 
     const setVisibleSelectedDate = useCallback((date: string) => {
         if (ownsResource && activeResourceKeyRef.current === resourceKey) setSelectedDate(date)

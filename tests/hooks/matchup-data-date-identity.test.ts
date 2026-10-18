@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +22,7 @@ const {
     write: vi.fn(),
 }))
 
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/lib/scoring', () => ({ getLeagueWeekMatchups, getMyMatchup }))
 vi.mock('@/lib/lineup', async () => ({
     planLineupMove: (await import('@/lib/lineup/movePlan')).planLineupMove,
@@ -67,6 +68,7 @@ const lineup = (id: string) => ({
 })
 
 beforeEach(() => {
+    clearSessionCaches()
     vi.clearAllMocks()
     readPersistentCache.mockReturnValue(undefined)
     getLeagueWeekMatchups.mockResolvedValue([])

@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React, { useEffect } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -15,7 +16,7 @@ const boundary = vi.hoisted(() => ({
 }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: boundary.owner ? boundary.users[boundary.owner] : null }) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: (callback: () => void) => useEffect(callback, [callback]) }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: (callback: () => void) => useEffect(callback, [callback]) }))
 vi.mock('@/lib/league', () => ({ fetchUserLeagues: boundary.fetch }))
 vi.mock('@/lib/scoring', () => ({ getMyMatchup: boundary.matchup, getLeagueWeekMatchups: async () => [] }))
 vi.mock('@/lib/lineup', () => ({
@@ -115,6 +116,7 @@ const report = (workload: string, extra: Record<string, number | null> = {}) => 
 }
 
 beforeEach(() => {
+    clearSessionCaches()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-13T12:00:00Z'))
     boundary.owner = 'a'

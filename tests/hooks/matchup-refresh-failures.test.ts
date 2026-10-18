@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -5,7 +6,7 @@ import { useMatchupData } from '@/hooks/use-matchup-data'
 import type { Matchup } from '@/lib/scoring'
 
 const mocks = vi.hoisted(() => ({ lineup: vi.fn(), cache: vi.fn() }))
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/lib/scoring', () => ({ getMyMatchup: vi.fn(), getLeagueWeekMatchups: vi.fn() }))
 vi.mock('@/lib/lineup', () => ({
     getWeeklyLineup: mocks.lineup, getWeekDays: vi.fn(), clampDateToWeek: vi.fn(), invalidateCachedRoster: vi.fn(),
@@ -44,6 +45,7 @@ const Probe = ({ owner }: { owner: string }) => {
 }
 
 beforeEach(() => {
+    clearSessionCaches()
     vi.clearAllMocks()
     mocks.cache.mockImplementation((key: string) => caches[key.endsWith('member-b') ? 'b' : 'a'])
     mocks.lineup.mockResolvedValue(lineup('fresh'))
