@@ -96,7 +96,7 @@ serveInternal('lineup-optimizer', async (req) => {
     const result = await recordSyncRun('lineup-optimizer', async () => {
       const outcome = await processPreTipoff(body)
       return { result: outcome, rowsAffected: outcome.optimized, failure: outcome.failed ? `${outcome.failed} tipoff team(s) failed` : null }
-    })
+    }, req)
     return Response.json({ ok: true, ...result })
   }
   const manual = manualRequest(body)
@@ -116,7 +116,7 @@ serveInternal('lineup-optimizer', async (req) => {
         ? `${outcome.failed} of ${outcome.settings} enabled member(s) failed auto-set (see function logs)`
         : null,
     }
-  })
+  }, req)
   return Response.json({ ok: true, ...result })
 })
 

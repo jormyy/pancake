@@ -23,8 +23,8 @@ BEGIN
   IF NOT private.claim_cron_dispatch('et-time:sync-rankings', to_char(v_now, 'IYYY-IW')) THEN
     RETURN;
   END IF;
-  PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT_3"}'::jsonb);
-  PERFORM public.invoke_edge_function('sync-rankings', '{"view":"ROOKIE"}'::jsonb);
-  PERFORM public.invoke_edge_function('sync-rankings', '{"view":"POINT_5"}'::jsonb);
+  PERFORM private.invoke_claimed_edge_function('et-time:sync-rankings', 'sync-rankings', '{"view":"POINT_3"}'::jsonb);
+  PERFORM private.invoke_claimed_edge_function('et-time:sync-rankings', 'sync-rankings', '{"view":"ROOKIE"}'::jsonb);
+  PERFORM private.invoke_claimed_edge_function('et-time:sync-rankings', 'sync-rankings', '{"view":"POINT_5"}'::jsonb);
 END;
 $$;

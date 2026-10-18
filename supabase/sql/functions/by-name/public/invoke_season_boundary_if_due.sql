@@ -38,6 +38,6 @@ BEGIN
   IF NOT private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD')) THEN
     RETURN;
   END IF;
-  PERFORM public.invoke_edge_function('season-boundary');
+  PERFORM private.invoke_claimed_edge_function('season-boundary', 'season-boundary');
 END;
 $$;

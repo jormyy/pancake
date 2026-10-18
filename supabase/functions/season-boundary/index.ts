@@ -12,6 +12,6 @@ serveInternal('season-boundary', async (req) => {
   await recordSyncRun('season-boundary', async () => {
     reports = await runSeasonBoundary(referenceDate, leagueId)
     return { result: undefined, rowsAffected: reports.length, failure: summarizeBoundaryFailures(reports) }
-  })
+  }, req)
   return Response.json({ ok: true, leagues: reports })
 })

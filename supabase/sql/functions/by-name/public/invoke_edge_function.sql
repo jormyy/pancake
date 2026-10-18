@@ -15,6 +15,8 @@ DECLARE
   _base_url text;
   _internal_token text;
   _request_id bigint;
+  _invocation_key uuid := gen_random_uuid();
+  _claim public.cron_dispatch_state%ROWTYPE;
 BEGIN
   _base_url := NULLIF(rtrim(current_setting('app.supabase_url', true), '/'), '');
   _internal_token := NULLIF(current_setting('app.edge_internal_token', true), '');
@@ -55,15 +57,18 @@ BEGIN
     NULL,
     jsonb_build_object(
       'x-internal-function-token', _internal_token,
-      'Content-Type', 'application/json'
+      'Content-Type', 'application/json',
+      'x-pancake-invocation-id', _invocation_key::text
     ),
     30000
   ) INTO _request_id;
 
-  -- pg_net is fire-and-forget; the request id is the only handle on the
-  -- outcome. private.reconcile_edge_invocations() turns the response (or its
-  -- absence) into a durable sync_runs failure row.
-  INSERT INTO public.edge_invocations (function_name, request_id)
-  VALUES (function_name, _request_id);
+  SELECT * INTO _claim FROM public.cron_dispatch_state
+   WHERE job_key = NULLIF(current_setting('pancake.cron_job_key', true), '');
+  INSERT INTO public.edge_invocations (
+    function_name, request_id, invocation_key, dispatch_job_key, dispatch_period_key, dispatch_claimed_at
+  ) VALUES (
+    function_name, _request_id, _invocation_key, _claim.job_key, _claim.period_key, _claim.dispatched_at
+  );
 END;
 $$;

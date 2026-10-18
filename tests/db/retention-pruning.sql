@@ -117,6 +117,11 @@ OVERRIDING SYSTEM VALUE VALUES
   (986080005,'season-boundary',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days'),
   (986080006,'unknown-important',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days');
 
+INSERT INTO public.edge_invocations (id,function_name,queued_at,status_code,reconciled_at,worker_status,worker_started_at,worker_finished_at)
+OVERRIDING SYSTEM VALUE VALUES
+  (986080007,'live-poll',now()-interval '120 days',200,now()-interval '120 days','failed',now()-interval '120 days',now()-interval '120 days'),
+  (986080008,'live-poll',now()-interval '120 days',200,now()-interval '120 days','running',now()-interval '120 days',NULL);
+
 INSERT INTO cron.job_run_details(jobid,runid,command,status,return_message,start_time,end_time) VALUES
   (98601,9860100001,'SELECT 1','succeeded','unknown old job',now()-interval '120 days',now()-interval '120 days'),
   (98602,9860100002,'SELECT public.invoke_edge_function(''sync-stats'');','succeeded','obsolete high frequency',now()-interval '8 days',now()-interval '8 days'),
@@ -162,6 +167,7 @@ SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.sync_runs WHERE id=
 SELECT pg_temp.check_history((SELECT count(*)=6 FROM public.sync_runs WHERE id IN(SELECT md5(value)::uuid FROM unnest(ARRAY['history-ops-boundary','history-ops-recent','history-ops-failure','history-daily-old','history-ops-error','history-ops-unfinished']) value)),'run boundary failures important jobs and unfinished work survive');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.edge_invocations WHERE id=986080001),'old successful high frequency invocation pruned');
 SELECT pg_temp.check_history((SELECT count(*)=5 FROM public.edge_invocations WHERE id BETWEEN 986080002 AND 986080006),'invocation boundary failures and important jobs survive cleanup and reconciliation');
+SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.edge_invocations WHERE id IN(986080007,986080008)),'worker failures and unfinished outcomes survive even with HTTP 200');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM cron.job_run_details WHERE runid IN(9860100002,9860100006,9860100007)),'obsolete and current successful high frequency cron rows pruned');
 SELECT pg_temp.check_history((SELECT count(*)=4 FROM cron.job_run_details WHERE runid IN(9860100001,9860100003,9860100004,9860100005)),'cron boundary failures unknown and important jobs survive');
 DO $$

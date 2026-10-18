@@ -13,7 +13,7 @@ serveInternal('sync-draft-order', async (req) => {
       result: draftOrder,
       rowsAffected: draftOrder.updated + draftOrder.staleDraftNumbersCleared,
     }
-  })
+  }, req)
   return Response.json({ ok: true, ...result })
 })
 

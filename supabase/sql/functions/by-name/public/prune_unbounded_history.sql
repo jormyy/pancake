@@ -22,6 +22,8 @@ BEGIN
    WHERE function_name = ANY(v_functions)
      AND status_code BETWEEN 200 AND 299
      AND error_message IS NULL
+     AND worker_status IS DISTINCT FROM 'failed'
+     AND (worker_started_at IS NULL OR worker_finished_at IS NOT NULL)
      AND reconciled_at < now() - interval '7 days';
   GET DIAGNOSTICS v_edge_invocations = ROW_COUNT;
 

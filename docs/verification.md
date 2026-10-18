@@ -163,3 +163,25 @@ The cases cover the spring clock change, the fall clock change, and New Year.
 The evening call creates no draft.
 The later call creates and completes the synthetic rookie draft.
 Both recipes run in `npm run test:db`.
+
+## Correlated scheduled work
+
+`npm run test:db:correlated-dispatch` checks canonical outcomes, bounded retries, stale claims, and actual client-role denials.
+`npm run test:db:correlated-worker` sends real local HTTP requests through the internal handler.
+It also queues a real pg_net request whose worker finishes after the 30-second transport timeout.
+Set `E2E_INVOCATION_WORKER_HOST=host.lima.internal` for a Lima stack.
+The default is `host.docker.internal`; the container must reach the test listener on the host.
+The worker test uses an ephemeral local port and removes only its own operational fixtures.
+
+Each scheduled request carries an opaque invocation key after internal authentication.
+The worker records one outcome, including completed rows when individual items fail.
+Transport errors remain diagnostic evidence; a completed worker determines success or failure.
+Reconciliation waits ten minutes for a worker, then marks its existing outcome failed if it never finishes.
+A late finish corrects that same outcome.
+
+Daily ET jobs check every fifteen minutes after their normal due time.
+A failed claim can retry after five minutes, with at most three attempts per period.
+Ranking checks run hourly and keep the existing weekly claim.
+Reconciliation waits for every request in a claim before releasing it.
+An older failed attempt cannot release a newer claim.
+No retry changes league history or settings.

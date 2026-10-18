@@ -34,7 +34,7 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
   const originalError = console.error
   const imports: string[][] = []
   const imported: string[] = []
-  const runs: { status: string; error?: string }[] = []
+  const runs: { status: string; error?: string; rows_affected?: number }[] = []
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)
     const url = new URL(request.url)
@@ -99,6 +99,7 @@ for (const source of ['espn', 'sleeper']) {
     assert.ok(result.imports.length <= 20, `${result.imports.length} RPCs exceed the bounded split workload`)
     assert.equal(result.response.status, 500)
     assert.equal(result.runs.at(-1)?.status, 'failed')
+    assert.equal(result.runs.at(-1)?.rows_affected, result.imported.length)
     assert.match(result.runs.at(-1)?.error ?? '', new RegExp(`provider ${providerId}.*${conflictPlayerId}`))
     assert.match(result.runs.at(-1)?.error ?? '', /sync-players had 1 failure\(s\)/)
     console.log(`${source}: ${result.imports.length} import RPCs, ${result.imported.length} healthy records imported, 1 conflict reported, run failed`)
@@ -110,6 +111,7 @@ for (const source of ['espn', 'sleeper']) {
     assert.equal(result.imported.length, 134)
     assert.equal(result.response.status, 500)
     assert.equal(result.runs.at(-1)?.status, 'failed')
+    assert.equal(result.runs.at(-1)?.rows_affected, result.imported.length)
     assert.match(result.runs.at(-1)?.error ?? '', /import chunk 0: Resolve .* players: Player metadata is invalid/)
   })
 
@@ -125,6 +127,7 @@ for (const source of ['espn', 'sleeper']) {
     assert.ok(result.imports.length <= 38, `${result.imports.length} RPCs exceed the bounded split workload`)
     assert.equal(result.response.status, 500)
     assert.equal(result.runs.at(-1)?.status, 'failed')
+    assert.equal(result.runs.at(-1)?.rows_affected, result.imported.length)
     assert.match(result.runs.at(-1)?.error ?? '', /sync-players had 2 failure\(s\)/)
   })
 
@@ -135,5 +138,6 @@ for (const source of ['espn', 'sleeper']) {
     assert.equal(new Set(result.imported).size, 634)
     assert.equal(result.response.status, 200)
     assert.equal(result.runs.at(-1)?.status, 'success')
+    assert.equal(result.runs.at(-1)?.rows_affected, 634)
   })
 }

@@ -22,7 +22,7 @@ serveInternal('sync-scores', async (req) => {
     await recordSyncRun('sync-scores', async () => {
       await syncScores(leagueId, date)
       return { result: undefined, rowsAffected: null }
-    })
+    }, req)
     return Response.json({ ok: true, date: body.date, leagueId: leagueId ?? null })
   }
 
@@ -42,7 +42,7 @@ serveInternal('sync-scores', async (req) => {
     await recordSyncRun('sync-scores', async () => {
       const statLines = await syncStatsThenScores(syncStatsForScoreCandidateDates, syncScores)
       return { result: undefined, rowsAffected: statLines }
-    })
+    }, req)
     return Response.json({ ok: true })
   } finally {
     const { error: releaseErr } = await supabase.rpc('release_live_poll_lease', {

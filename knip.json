@@ -20,6 +20,7 @@
     "supabase/tests/db/playoff-missing-stats.ts",
     "supabase/tests/db/season-boundary-pagination.ts",
     "supabase/tests/db/season-boundary-et.ts",
+    "supabase/tests/db/correlated-worker.ts",
     "supabase/tests/db/stats-provider-status.ts",
     "supabase/tests/db/playoff-pending-corrections.ts",
     "supabase/tests/db/rollover-standings.ts",

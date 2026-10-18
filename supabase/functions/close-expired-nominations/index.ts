@@ -8,11 +8,11 @@ const CLOSE_BATCH_LIMIT = 100
 type ClosedNominationRow = Database['public']['Functions']['close_expired_auction_nominations_atomic']['Returns'][number]
 type ExpiredSnakePickRow = Database['public']['Functions']['process_expired_snake_picks_atomic']['Returns'][number]
 
-serveInternal('close-expired-nominations', async () => {
+serveInternal('close-expired-nominations', async (req) => {
   const result = await recordSyncRun('close-expired-nominations', async () => {
     const result = await closeExpiredNominations()
     return { result, rowsAffected: result.checked - result.failed, failure: result.failure }
-  })
+  }, req)
   return Response.json({ ok: result.failed === 0, ...result }, { status: result.failed > 0 ? 500 : 200 })
 })
 

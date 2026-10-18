@@ -5,11 +5,11 @@ import { serveInternal } from '../_shared/serve.ts'
 import { buildScheduleSyncPlan, type ScheduleGameRow } from '../_shared/schedule.ts'
 
 
-serveInternal('sync-schedule', async () => {
+serveInternal('sync-schedule', async (req) => {
   const result = await recordSyncRun('sync-schedule', async () => {
     const result = await syncSchedule()
     return { result, rowsAffected: result.updated + result.inserted + result.weeks }
-  })
+  }, req)
   return Response.json({ ok: true, ...result })
 })
 

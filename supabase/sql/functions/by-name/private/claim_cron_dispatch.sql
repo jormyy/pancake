@@ -9,22 +9,21 @@ CREATE OR REPLACE FUNCTION private.claim_cron_dispatch(
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_claimed boolean := false;
 BEGIN
-  -- One dispatch per (job, period). The first tick at or after the target time
-  -- wins; every later tick in the same period is a no-op. A late tick still
-  -- fires, and where the schedule has a later tick in the period it catches a
-  -- missed one up without double-dispatching. The claim rides on the caller's
-  -- transaction: a synchronous raise in the invoke rolls it back.
   INSERT INTO public.cron_dispatch_state (job_key, period_key, dispatched_at)
-  VALUES (p_job_key, p_period_key, now())
+  VALUES (p_job_key, p_period_key, clock_timestamp())
   ON CONFLICT (job_key) DO UPDATE
      SET period_key = EXCLUDED.period_key,
-         dispatched_at = EXCLUDED.dispatched_at
-   WHERE public.cron_dispatch_state.period_key <> EXCLUDED.period_key
+         dispatched_at = EXCLUDED.dispatched_at,
+         attempts = CASE WHEN cron_dispatch_state.period_key = EXCLUDED.period_key
+           THEN cron_dispatch_state.attempts + 1 ELSE 1 END,
+         retry_after = NULL
+   WHERE cron_dispatch_state.period_key <> EXCLUDED.period_key
+      OR (cron_dispatch_state.retry_after <= clock_timestamp() AND cron_dispatch_state.attempts < 3)
   RETURNING true INTO v_claimed;
   RETURN COALESCE(v_claimed, false);
 END;

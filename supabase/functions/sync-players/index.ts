@@ -20,7 +20,7 @@ const CHUNK = 500
 // behind this flag (its commercial API moved behind negotiated licensing).
 const PLAYER_SYNC_SOURCE = Deno.env.get('PLAYER_SYNC_SOURCE') ?? 'espn'
 
-serveInternal('sync-players', async () => {
+serveInternal('sync-players', async (req) => {
   const result = await recordSyncRun('sync-players', async () => {
     const players = PLAYER_SYNC_SOURCE === 'sleeper'
       ? await syncPlayers()
@@ -29,9 +29,9 @@ serveInternal('sync-players', async () => {
     const news = await syncDynastyNews()
     const career = await syncCareerGames()
     const failures = [...players.failures, ...nbaIds.failures, ...news.failures, ...career.failures]
-    if (failures.length > 0) {
-      throw new Error(`sync-players had ${failures.length} failure(s): ${failures.join('; ')}`)
-    }
+    const failure = failures.length > 0
+      ? `sync-players had ${failures.length} failure(s): ${failures.join('; ')}`
+      : null
     return {
       result: {
         updated: players.updated,
@@ -42,11 +42,13 @@ serveInternal('sync-players', async () => {
         careerGamesUpdated: career.updated,
         newsUpserted: news.upserted,
         newsFailures: news.failures,
+        failure,
       },
       rowsAffected: players.updated + players.inserted + nbaIds.mapped + nbaIds.merged + news.upserted,
+      failure,
     }
-  })
-  return Response.json({ ok: true, ...result })
+  }, req)
+  return Response.json({ ok: !result.failure, ...result }, { status: result.failure ? 500 : 200 })
 })
 
 async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: number; ambiguousSkipped: number; failures: string[] }> {
