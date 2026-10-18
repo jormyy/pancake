@@ -7,9 +7,10 @@ import type { TableChangeWatch } from '@/lib/realtime-config'
 
 type Subscription = { watches: TableChangeWatch[]; onReconnect?: () => Promise<void> }
 const mocks = vi.hoisted(() => ({
-    context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
+    context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number }, online: true },
     lineup: { starters: [] as { slotType: string; player: null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
     subscriptions: [] as Subscription[], invalidate: vi.fn(),
+    readLineup: vi.fn(), hidden: false,
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v } }))
@@ -26,7 +27,7 @@ vi.mock('@/lib/lineup', () => ({
     getLineupContext: async (league: string) => ({ seasonId: `season-${league}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' }),
     getWeekDays: async () => [{ date: '2026-10-11', playingTeams: [] }, { date: '2026-10-12', playingTeams: [] }],
     invalidateCachedRoster: mocks.invalidate,
-    getWeeklyLineup: async () => mocks.lineup, getLineupMoveTargetState: () => null,
+    getWeeklyLineup: mocks.readLineup, getLineupMoveTargetState: () => null,
 }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
 vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn() }))
@@ -56,11 +57,15 @@ vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'Scree
 let screen: ReactTestRenderer
 beforeEach(() => {
     vi.clearAllMocks(); mocks.subscriptions.length = 0; vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
-    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
-    vi.stubGlobal('document', { visibilityState: 'visible', addEventListener: vi.fn(), removeEventListener: vi.fn() })
+    vi.stubGlobal('window', new EventTarget())
+    const page = new EventTarget()
+    Object.defineProperty(page, 'visibilityState', { get: () => mocks.hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', page)
+    mocks.hidden = false
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
     mocks.context.online = true
     mocks.lineup = { starters: [{ slotType: 'PG', player: null }], bench: [], benchSlots: 3 }
+    mocks.readLineup.mockReset().mockImplementation(async () => mocks.lineup)
 })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals() })
 const mount = async () => { await act(async () => { screen = create(React.createElement(LineupScreen)) }) }
@@ -85,6 +90,34 @@ it('uses the new day capacity after switching dates', async () => {
     mocks.lineup = { starters: [], bench: [], benchSlots: 2 }
     await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12'))
     expect(emptyRows()).toHaveLength(2)
+})
+
+it('keeps a fresh lineup on focus and rechecks stale or failed reads', async () => {
+    await mount()
+    const reads = mocks.readLineup.mock.calls.length
+    for (let cycle = 0; cycle < 3; cycle++) {
+        await act(async () => { window.dispatchEvent(new Event('focus')) })
+        mocks.hidden = true; await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+        mocks.hidden = false; await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    }
+    expect(mocks.readLineup).toHaveBeenCalledTimes(reads)
+    mocks.readLineup.mockRejectedValueOnce(new Error('503'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(300_000); window.dispatchEvent(new Event('focus')) })
+    expect(mocks.readLineup).toHaveBeenCalledTimes(reads + 1)
+    mocks.lineup.benchSlots = 2
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    expect(emptyRows()).toHaveLength(2)
+    expect(mocks.readLineup).toHaveBeenCalledTimes(reads + 2)
+})
+
+it('revalidates fresh lineup capacity after league settings change', async () => {
+    await mount()
+    const reads = mocks.readLineup.mock.calls.length
+    mocks.context.currentLeague = { id: 'league-a', roster_size: 21 }
+    mocks.lineup.benchSlots = 4
+    await act(async () => { screen.update(React.createElement(LineupScreen)) })
+    expect(mocks.readLineup).toHaveBeenCalledTimes(reads + 1)
+    expect(emptyRows()).toHaveLength(4)
 })
 
 it('catches up missed lineup changes and ignores a disposed owner', async () => {

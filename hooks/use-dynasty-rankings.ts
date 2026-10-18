@@ -455,7 +455,6 @@ export function useDynastyRankings({
         } else if (Date.now() - lastLoadedAtRef.current >= STALE_MS) void load()
         return () => {
             focusedRef.current = false
-            resumeNeededRef.current = true
         }
     }, [load]))
 
@@ -463,27 +462,24 @@ export function useDynastyRankings({
         if (typeof window === 'undefined' || typeof document === 'undefined') return
         const resume = () => {
             if (!focusedRef.current || document.visibilityState === 'hidden' || navigator.onLine === false) return
-            if (!resumeNeededRef.current && !failedRef.current) return
+            const force = resumeNeededRef.current || failedRef.current
             resumeNeededRef.current = false
-            void load(true)
+            if (force || Date.now() - lastLoadedAtRef.current >= STALE_MS) void load(force)
         }
         const online = () => { resumeNeededRef.current = true; resume() }
         const offline = () => {
             networkEpochRef.current += 1
             resumeNeededRef.current = true
         }
-        const blur = () => { resumeNeededRef.current = true }
-        const visibility = () => { resumeNeededRef.current = true; resume() }
+        const visibility = () => { resume() }
         window.addEventListener('online', online)
         window.addEventListener('offline', offline)
         window.addEventListener('focus', resume)
-        window.addEventListener('blur', blur)
         document.addEventListener('visibilitychange', visibility)
         return () => {
             window.removeEventListener('online', online)
             window.removeEventListener('offline', offline)
             window.removeEventListener('focus', resume)
-            window.removeEventListener('blur', blur)
             document.removeEventListener('visibilitychange', visibility)
         }
     }, [load])

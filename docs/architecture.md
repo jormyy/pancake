@@ -53,6 +53,10 @@ hooks. Membership and rookie draft event refreshes wait while hidden:
 | Trades screen | `hooks/use-trade-screen-realtime.ts` | Existing debounced feeds. |
 | Live box scores | `hooks/use-live-stats.ts` | 15 s while games are live, 60 s otherwise, none while hidden. |
 
+Rankings, memberships, the trade badge and Lineup reuse successful reads for five minutes on focus and visibility
+returns. Changes, reconnects and failed reads still require fresh data. Lineup also checks its owner, selected day,
+session and league settings before reusing a read.
+
 ## Scheduled jobs
 
 `pg_cron` schedules (see migrations) call `public.invoke_edge_function*`, which reads the Edge base URL and internal

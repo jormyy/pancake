@@ -131,10 +131,24 @@ describe('Dynasty focused source revalidation', () => {
             expect(log.mock.calls.filter(([cause]) => cause instanceof Error && cause.message === '503')).toHaveLength(1)
         } finally { log.mockRestore() }
     })
-    it('revalidates when window focus returns without a visibility event', async () => {
-        await mount(); await send('blur'); await send('focus')
-        expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledOnce()
-        expect(latest.players[0].displayName).toBe('Player new')
+    it('reuses fresh rankings through repeated focus and visibility cycles', async () => {
+        await mount()
+        for (let cycle = 0; cycle < 3; cycle++) { await send('blur'); await send('focus') }
+        for (let cycle = 0; cycle < 3; cycle++) { await visibility(true); await visibility(false) }
+        expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
+        expect(mocks.getUnmatchedRookieRankings).not.toHaveBeenCalled()
+        expect(latest.players[0].displayName).toBe('Player saved')
+    })
+    it('refreshes stale rankings when focus returns without a visibility event', async () => {
+        const now = Date.now()
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+        try {
+            await mount()
+            clock.mockReturnValue(now + 300_000)
+            await send('blur'); await send('focus')
+            expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledOnce()
+            expect(latest.players[0].displayName).toBe('Player new')
+        } finally { clock.mockRestore() }
     })
     it('removes listeners when the screen is unmounted', async () => {
         await mount(); await act(async () => { renderer?.unmount() }); renderer = undefined

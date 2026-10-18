@@ -28,7 +28,7 @@ vi.mock('@/lib/realtime', () => ({
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-afterEach(() => { vi.useRealTimers() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 const finishReconnectWindow = async () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(250) })
 }
@@ -93,6 +93,37 @@ describe('league refresh contract', () => {
         expect(latest.memberships).toEqual([])
         expect(latest.membershipValidated).toBe(true)
         expect(latest.membershipStatus).toBe('empty')
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('reuses verified memberships on focus and retries a stale failed read', async () => {
+        vi.useFakeTimers()
+        const browser = new EventTarget(), page = new EventTarget()
+        let hidden = false
+        Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+        vi.stubGlobal('window', browser); vi.stubGlobal('document', page)
+        vi.spyOn(console, 'error').mockImplementation(() => {})
+        const rows = [{ id: 'member', leagues: { id: 'league' } }]
+        mocks.fetchUserLeagues.mockResolvedValue(rows)
+        let latest!: ReturnType<typeof useLeagues>
+        const Probe = () => { latest = useLeagues(); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        for (let cycle = 0; cycle < 3; cycle++) {
+            await act(async () => { browser.dispatchEvent(new Event('focus')) })
+            hidden = true; await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+            hidden = false; await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+        }
+        await finishReconnectWindow()
+        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(1)
+        mocks.fetchUserLeagues.mockRejectedValueOnce(new Error('503')).mockResolvedValue([])
+        await act(async () => { await vi.advanceTimersByTimeAsync(300_000); browser.dispatchEvent(new Event('focus')) })
+        expect(latest.memberships).toEqual(rows)
+        expect(latest.error?.message).toBe('503')
+        await act(async () => { browser.dispatchEvent(new Event('focus')) })
+        expect(latest.memberships).toEqual([])
+        expect(latest.error).toBeNull()
+        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(3)
         await act(async () => { renderer.unmount() })
     })
 })

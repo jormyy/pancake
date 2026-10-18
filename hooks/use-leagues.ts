@@ -10,6 +10,7 @@ export type { LeagueMembership }
 
 const cacheKeyForUser = (userId: string) => `pancake:league-memberships:v1:${userId}`
 const MEMBERSHIP_REFRESH_WINDOW_MS = 250
+const MEMBERSHIP_STALE_MS = 300_000
 
 function reuseMemberships(previous: LeagueMembership[], rows: LeagueMembership[]): LeagueMembership[] {
     const byId = new Map(previous.map((row) => [row.id, row]))
@@ -47,6 +48,7 @@ export function useLeagues() {
         validated: false,
     })
     const requestIdRef = useRef(0)
+    const validatedAtRef = useRef<{ userId: string; at: number } | null>(null)
     const activeUserIdRef = useRef(userId)
     activeUserIdRef.current = userId
     const ownsUser = resource.userId === userId
@@ -62,6 +64,7 @@ export function useLeagues() {
         const requestId = ++requestIdRef.current
 
         if (!requestedUserId) {
+            validatedAtRef.current = null
             setResource({ userId: null, memberships: [], loading: false, error: null, validated: false })
             return
         }
@@ -90,11 +93,13 @@ export function useLeagues() {
                 && !current.loading && !current.error && current.validated
                 ? current : { userId: requestedUserId, memberships: rows, loading: false, error: null, validated: true })
             membershipsRef.current = { userId: requestedUserId, memberships: rows }
+            validatedAtRef.current = { userId: requestedUserId, at: Date.now() }
             if (rows.length > 0) writePersistentCache(cacheKey, rows)
             else removePersistentCache(cacheKey)
         } catch (e) {
             if (requestIdRef.current !== requestId || activeUserIdRef.current !== requestedUserId) return
             const nextError = e instanceof Error ? e : new Error(String(e))
+            validatedAtRef.current = null
             setResource((current) => current.userId === requestedUserId
                 ? { ...current, loading: false, error: nextError }
                 : current)
@@ -150,8 +155,15 @@ export function useLeagues() {
                 if (canRefresh()) void run()
             }, MEMBERSHIP_REFRESH_WINDOW_MS)
         }
+        const ensure = () => {
+            if (!isCurrent() || !canRefresh()) return Promise.resolve()
+            if (inFlight) return inFlight
+            const validated = validatedAtRef.current
+            if (!pending && validated?.userId === userId && Date.now() - validated.at < MEMBERSHIP_STALE_MS) return Promise.resolve()
+            return run()
+        }
         return {
-            run, trigger,
+            run, trigger, ensure,
             activate: () => { disposed = false },
             cancel: () => {
                 disposed = true
@@ -178,10 +190,11 @@ export function useLeagues() {
 
     useEffect(() => {
         if (!userId) return
-        const catchUp = () => { refreshQueue.trigger() }
+        const catchUp = () => { void refreshQueue.ensure() }
+        const reconnect = () => { refreshQueue.trigger() }
         if (typeof window !== 'undefined') {
             window.addEventListener('focus', catchUp)
-            window.addEventListener('online', catchUp)
+            window.addEventListener('online', reconnect)
         }
         const onVisibility = () => {
             if (document.visibilityState !== 'hidden') catchUp()
@@ -190,7 +203,7 @@ export function useLeagues() {
         return () => {
             if (typeof window !== 'undefined') {
                 window.removeEventListener('focus', catchUp)
-                window.removeEventListener('online', catchUp)
+                window.removeEventListener('online', reconnect)
             }
             if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility)
         }
