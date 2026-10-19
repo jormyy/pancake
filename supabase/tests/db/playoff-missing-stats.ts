@@ -525,7 +525,7 @@ try {
     restored.length === 8,
     'all eight synthetic provider stat lines persist',
   )
-  const { syncStatsGame } = await import('../../functions/_shared/syncStats.ts')
+  const { syncStatsGame, findNextStatsGame } = await import('../../functions/_shared/syncStats.ts')
   const storedGame = await query(
     supabase.from('nba_games').select('*').eq('id', games[0]).single(),
   )
@@ -574,6 +574,7 @@ try {
       finalized_at: null,
     }).eq('league_season_id', season).eq('matchup_type', 'playoff_semifinal'),
   )
+  const readsBeforeNonCdn = pendingProviderReads
   await syncScores(league)
   const bbref = await readSemis()
   console.log(
@@ -589,6 +590,14 @@ try {
   check(
     bbref.every((m: any) => !m.is_finalized),
     'non-CDN Final without verified completion remains unfinalized even when some stats exist',
+  )
+  check(
+    pendingProviderReads === readsBeforeNonCdn,
+    'non-CDN completion checks do not request CDN box scores',
+  )
+  check(
+    await findNextStatsGame(storedGame.game_date) === null,
+    'CDN ingestion excludes the incomplete non-CDN game',
   )
   reachedAssertions = true
   console.log(

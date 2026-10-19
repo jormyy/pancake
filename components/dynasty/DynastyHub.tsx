@@ -332,9 +332,10 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     const { data: decisionMembers } = useFocusAsyncData(
         () => currentLeague ? getLeagueMembers(currentLeague.id) : Promise.resolve([]),
         [currentLeague?.id],
-        { staleMs: 5 * 60_000 },
+        { staleMs: 5 * 60_000, enabled: section === 'rankings' },
     )
     const rankings = useDynastyRankings({
+        enabled: section === 'rankings',
         userId: user?.id ?? '',
         memberId: current?.id ?? '',
         leagueId: currentLeague?.id ?? '',
@@ -355,15 +356,14 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     const cachedNews = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id)) ?? undefined
     const { data: newsData, loading: newsLoading, error: newsError, refresh: refreshNews } = useFocusAsyncData(
         async () => {
-            const [news, myNews] = await Promise.all([
-                getDynastyNews(30),
-                current && currentLeague ? getMyDynastyNews(current.id, currentLeague.id, 30) : Promise.resolve(EMPTY_NEWS),
-            ])
-            const result = { news, myNews }
+            const previous = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id))
+            const result = feed === 'news'
+                ? { news: await getDynastyNews(30), myNews: previous?.myNews ?? EMPTY_NEWS }
+                : { news: previous?.news ?? EMPTY_NEWS, myNews: current && currentLeague ? await getMyDynastyNews(current.id, currentLeague.id, 30) : EMPTY_NEWS }
             return result
         },
-        [current?.id, currentLeague?.id, user?.id],
-        { staleMs: 5 * 60_000, initialData: cachedNews,
+        [current?.id, currentLeague?.id, user?.id, feed],
+        { staleMs: 5 * 60_000, initialData: cachedNews, enabled: section === 'news',
             onLoaded: (result) => writePersistentCache(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id), result),
         },
     )

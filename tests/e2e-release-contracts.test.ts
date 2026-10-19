@@ -40,7 +40,7 @@ const WORKER_TEMPLATE = [
 ].join('\n')
 
 const SHELL_HTML =
-  '<html><head><link rel="stylesheet" href="/_expo/static/css/app.css"></head><body>' +
+  '<html><head><meta name="pancake-release" content="pancake-build"><link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/_expo/static/css/app.css"></head><body><img src="/boot-logo.png">' +
   '<script src="/_expo/static/js/web/entry-abc.js" defer></script>' +
   // Must not reach the manifest: the worker only serves its own origin.
   '<script src="//cdn.example.com/off-origin.js" defer></script>' +
@@ -328,6 +328,7 @@ describe('release E2E contracts', () => {
       '_expo/static/css/app.css': 'body{margin:0}',
       'manifest.webmanifest': '{}',
       'pwa-192.png': 'fixture image',
+      'boot-logo.png': 'fixture boot image',
     })) {
       await mkdir(path.dirname(path.join(root, 'dist', file)), { recursive: true })
       await writeFile(path.join(root, 'dist', file), body)
@@ -357,19 +358,21 @@ describe('release E2E contracts', () => {
 
     const firstWorker = await readFile(path.join(root, 'dist', 'sw.js'), 'utf8')
     const publicAssets = JSON.parse(/const PUBLIC_ASSET_URLS = (\[[^\n]*\])/.exec(firstWorker)![1])
+    const addressed = (name: string, extension: string, body: string) =>
+      `/assets/pwa/${name}.${createHash('sha256').update(body).digest('hex').slice(0, 32)}.${extension}`
+    const bootLogo = addressed('boot-logo', 'png', 'fixture boot image')
+    const installIcon = addressed('pwa-192', 'png', 'fixture image')
+    const manifest = addressed('manifest', 'webmanifest', '{}')
+    const entry = addressed('entry-abc', 'js', 'console.log("boot")')
     expect(publicAssets).toEqual([
-      '/_expo/static/css/app.css',
-      '/_expo/static/js/web/entry-abc.js',
-      '/_expo/static/js/web/sign-in-abc.js',
-      '/assets/fonts/MaterialIcons.abc123.ttf',
-      '/assets/fonts/Outfit_900Black.def456.ttf',
-      '/manifest.webmanifest',
-      '/pwa-192.png',
-    ])
+      '/_expo/static/css/app.css', '/_expo/static/js/web/entry-abc.js', '/_expo/static/js/web/sign-in-abc.js',
+      '/assets/fonts/MaterialIcons.abc123.ttf', '/assets/fonts/Outfit_900Black.def456.ttf',
+      bootLogo, installIcon, manifest, entry, '/boot-logo.png', '/manifest.webmanifest', '/pwa-192.png',
+    ].sort())
     const publicHashes = JSON.parse(/const PUBLIC_ASSET_HASHES = (\{[^\n]*\})/.exec(firstWorker)![1])
     expect(Object.keys(publicHashes)).toEqual(['/', ...publicAssets])
     expect(Object.values(publicHashes)).toEqual(Array.from({ length: publicAssets.length + 1 }, () => expect.stringMatching(/^[a-f0-9]{64}$/)))
-    expect(publicHashes['/']).toBe(createHash('sha256').update(SHELL_HTML).digest('hex'))
+    expect(publicHashes['/']).toBe(createHash('sha256').update(await readFile(path.join(root, 'dist', 'index.html'))).digest('hex'))
     expect(publicAssets).not.toContain('/app.js')
     expect(firstWorker).toContain('const SHELL_ROUTES = ["/","/index.html","/sign-in","/sign-in.html"]')
 
@@ -378,16 +381,9 @@ describe('release E2E contracts', () => {
     // follows an update re-downloads the whole bundle over the network.
     expect(firstWorker).toContain(
       `const PRECACHE_URLS = ${JSON.stringify([
-        '/',
-        '/_expo/static/css/app.css',
-        '/_expo/static/js/web/entry-abc.js',
-        '/_expo/static/js/web/sign-in-abc.js',
-        // The bundle fetches the icon font, so the document never lists it; the
-        // real chrome renders empty boxes until it lands.
-        '/assets/fonts/MaterialIcons.abc123.ttf',
-        '/manifest.webmanifest',
-        '/pwa-192.png',
-      ])}`,
+        '/', '/_expo/static/css/app.css', '/_expo/static/js/web/sign-in-abc.js',
+        '/assets/fonts/MaterialIcons.abc123.ttf', bootLogo, manifest, entry,
+      ].sort())}`,
     )
     await writeFile(path.join(root, 'dist', 'app.js'), 'console.log("rebuilt release")\n')
     await writeFile(path.join(root, 'dist', 'sw.js'), WORKER_TEMPLATE)
@@ -405,6 +401,7 @@ describe('release E2E contracts', () => {
     await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(/Required boot asset is missing/)
     await writeFile(path.join(root, 'dist', '_expo/static/js/web/sign-in-abc.js'), 'console.log("public login")')
     await rm(path.join(root, 'dist', '_expo/static/js/web/entry-abc.js'))
+    await rm(path.join(root, 'dist', entry))
     await expect(stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).rejects.toThrow(/Required boot asset is missing/)
   })
 

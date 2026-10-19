@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProfileResource } from '@/hooks/use-profile-resource'
 
 const mocks = vi.hoisted(() => ({ getProfile: vi.fn(), getNotificationPreferences: vi.fn() }))
-vi.mock('@/lib/auth', () => ({ getProfile: mocks.getProfile }))
+vi.mock('@/lib/auth', () => ({ getProfile: mocks.getProfile, suspendProfileRead: vi.fn() }))
 vi.mock('@/lib/notification-preferences', () => ({ getNotificationPreferences: mocks.getNotificationPreferences }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -108,4 +108,32 @@ describe('useProfileResource', () => {
         expect(latest.profileError).toContain('profile offline')
         await act(async () => { renderer.unmount() })
     })
+})
+
+it.each(['hidden', 'offline'])('defers %s profile and preferences until one resume', async mode => {
+    const browser = new EventTarget(), page = new EventTarget()
+    let hidden = mode === 'hidden', online = mode !== 'offline'
+    Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('window', browser)
+    vi.stubGlobal('document', page)
+    vi.stubGlobal('navigator', { get onLine() { return online } })
+    mocks.getProfile.mockResolvedValue(profile('a'))
+    mocks.getNotificationPreferences.mockResolvedValue({ tradeEnabled: false, waiverEnabled: true, draftEnabled: true, activityEnabled: true })
+    let latest!: ReturnType<typeof useProfileResource>
+    const Probe = () => { latest = useProfileResource('a'); return null }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        expect(mocks.getProfile).not.toHaveBeenCalled()
+        expect(mocks.getNotificationPreferences).not.toHaveBeenCalled()
+        expect(latest.profileLoaded).toBe(false)
+        hidden = false; online = true
+        await act(async () => { page.dispatchEvent(new Event('visibilitychange')); browser.dispatchEvent(new Event('online')) })
+        expect(mocks.getProfile).toHaveBeenCalledOnce()
+        expect(mocks.getNotificationPreferences).toHaveBeenCalledOnce()
+        expect(latest.profileLoaded).toBe(true)
+    } finally {
+        await act(async () => { screen.unmount() })
+        vi.unstubAllGlobals()
+    }
 })

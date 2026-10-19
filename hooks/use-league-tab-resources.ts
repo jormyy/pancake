@@ -7,16 +7,19 @@ import { getAllLeaguePicks, type LeaguePickItem } from '@/lib/rookieDraft'
 import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
+import { useBrowserReadActivity, browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const ACTIVITY_LIMIT = 50
 const EMPTY_STANDINGS: StandingRow[] = []
-const EMPTY_TRANSACTIONS: TransactionRow[] = []
+type ActivityPage = { rows: TransactionRow[]; hasMore: boolean }
+const EMPTY_ACTIVITY: ActivityPage = { rows: [], hasMore: false }
 const EMPTY_WAIVER_ORDER: WaiverPriorityRow[] = []
 const EMPTY_PICKS: LeaguePickItem[] = []
 const EMPTY_MOCK_ROOMS: MockDraftRoom[] = []
-const PREFETCH_TABS: LeagueTab[] = ['results', 'history', 'settings', 'draftBoard', 'mockRooms']
+const RESOURCE_TABS: LeagueTab[] = ['results', 'history', 'settings', 'draftBoard', 'mockRooms']
 
 // Persistent per-tab cache: revisits render cached content instantly (no
 // blank flash) while the fresh fetch updates it in place.
@@ -28,7 +31,14 @@ function tabCache<Value>(tab: LeagueTab) {
     }
 }
 const STANDINGS_CACHE = tabCache<StandingRow[]>('results')
-const HISTORY_CACHE = tabCache<TransactionRow[]>('history')
+const HISTORY_ROWS_CACHE = tabCache<TransactionRow[]>('history')
+const HISTORY_CACHE = {
+    read: (key: string): ActivityPage | undefined => {
+        const rows = HISTORY_ROWS_CACHE.read(key)
+        return rows ? { rows, hasMore: rows.length > 0 && rows.length % ACTIVITY_LIMIT === 0 } : undefined
+    },
+    write: (key: string, page: ActivityPage) => HISTORY_ROWS_CACHE.write(key, page.rows),
+}
 const WAIVER_ORDER_CACHE = tabCache<WaiverPriorityRow[]>('settings')
 const PICKS_CACHE = tabCache<LeaguePickItem[]>('draftBoard')
 const MOCK_ROOMS_CACHE = tabCache<MockDraftRoom[]>('mockRooms')
@@ -37,41 +47,58 @@ export function useLeagueTabResources(
     leagueId: string | undefined,
     memberId: string | undefined,
     activeTab: LeagueTab,
+    authorized = true,
 ) {
     const isOnline = useOnlineStatus()
+    const activity = useBrowserReadActivity()
     const wasOnline = useRef(isOnline)
     const focused = useRef(false)
-    const leagueKey = leagueId ?? null
-    const memberKey = leagueId && memberId ? `${leagueId}:${memberId}` : null
+    const generation = sessionGeneration()
+    const leagueKey = leagueId && memberId ? JSON.stringify([sessionOwner(), generation, leagueId, memberId]) : null
+    const admission = () => focused.current && isOnline && authorized && sessionOwner() !== null
+        && sessionGeneration() === generation && activity.isCurrent(activity.revision)
+    const admissionRef = useRef(admission)
+    admissionRef.current = admission
+    const activeLeagueRef = useRef(leagueKey)
+    activeLeagueRef.current = leagueKey
+    const memberKey = leagueId && memberId ? leagueKey : null
     const standings = useKeyedResource(
         leagueKey,
         EMPTY_STANDINGS,
-        useCallback(() => leagueId ? getLeagueStandings(leagueId) : Promise.resolve([]), [leagueId]),
+        useCallback(() => leagueId ? getLeagueStandings(leagueId, admissionRef.current) : Promise.resolve([]), [leagueId]),
         STANDINGS_CACHE,
+        admission,
     )
     const history = useKeyedResource(
         leagueKey,
-        EMPTY_TRANSACTIONS,
-        useCallback(() => leagueId ? getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : Promise.resolve([]), [leagueId]),
+        EMPTY_ACTIVITY,
+        useCallback(async () => {
+            const rows = leagueId ? await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : []
+            return { rows, hasMore: rows.length === ACTIVITY_LIMIT }
+        }, [leagueId]),
         HISTORY_CACHE,
+        admission,
     )
     const waiverOrder = useKeyedResource(
         leagueKey,
         EMPTY_WAIVER_ORDER,
-        useCallback(() => leagueId ? getWaiverPriorityOrder(leagueId) : Promise.resolve([]), [leagueId]),
+        useCallback(() => leagueId ? getWaiverPriorityOrder(leagueId, admissionRef.current) : Promise.resolve([]), [leagueId]),
         WAIVER_ORDER_CACHE,
+        admission,
     )
     const picks = useKeyedResource(
         leagueKey,
         EMPTY_PICKS,
         useCallback(() => leagueId ? getAllLeaguePicks(leagueId) : Promise.resolve([]), [leagueId]),
         PICKS_CACHE,
+        admission,
     )
     const mockRooms = useKeyedResource(
         memberKey,
         EMPTY_MOCK_ROOMS,
         useCallback(() => leagueId && memberId ? getMockDraftRooms(leagueId, memberId) : Promise.resolve([]), [leagueId, memberId]),
         MOCK_ROOMS_CACHE,
+        admission,
     )
     const resources = useMemo(() => ({
         results: standings,
@@ -86,8 +113,6 @@ export function useLeagueTabResources(
     const activeResourceKey = activeTab === 'auctions'
         ? null
         : activeTab === 'mockRooms' ? memberKey : leagueKey
-    const [activityOffset, setActivityOffset] = useState(0)
-    const [activityHasMore, setActivityHasMore] = useState(false)
     const [activityLoadingMore, setActivityLoadingMore] = useState(false)
     const [activityLoadMoreError, setActivityLoadMoreError] = useState<string | null>(null)
     const activityRequest = useRef<symbol | null>(null)
@@ -96,8 +121,6 @@ export function useLeagueTabResources(
 
     const resetActivityPagination = useCallback(() => {
         activityRequest.current = null
-        setActivityOffset(0)
-        setActivityHasMore(false)
         setActivityLoadingMore(false)
         setActivityLoadMoreError(null)
     }, [])
@@ -106,64 +129,73 @@ export function useLeagueTabResources(
         resetActivityPagination()
     }, [leagueKey, resetActivityPagination])
 
-    useEffect(() => {
-        if (activityOffset === 0) setActivityHasMore(history.data.length === ACTIVITY_LIMIT)
-    }, [activityOffset, history.data.length])
+    const suspendActivityPagination = useCallback(() => {
+        activityRequest.current = null
+        setActivityLoadingMore(false)
+    }, [])
 
     const ensureTab = useCallback((tab: LeagueTab) => {
-        if (tab !== 'auctions') void resourcesRef.current[tab].ensure()
+        if (tab !== 'auctions' && admissionRef.current()) void resourcesRef.current[tab].ensure()
     }, [])
     const invalidateTab = useCallback((tab: LeagueTab) => {
         if (tab === 'history') resetActivityPagination()
-        if (tab !== 'auctions') resourcesRef.current[tab].invalidate(activeTabRef.current === tab)
+        if (tab !== 'auctions') resourcesRef.current[tab].invalidate(activeTabRef.current === tab && admissionRef.current())
     }, [resetActivityPagination])
     const refreshTab = useCallback((tab: LeagueTab) => {
         if (tab === 'history') resetActivityPagination()
-        return tab === 'auctions' ? Promise.resolve() : resourcesRef.current[tab].refresh()
+        if (tab === 'auctions') return Promise.resolve()
+        if (!admissionRef.current()) { resourcesRef.current[tab].invalidate(false); return Promise.resolve() }
+        return resourcesRef.current[tab].refresh()
     }, [resetActivityPagination])
 
     useFocusEffect(useCallback(() => {
         focused.current = true
-        return () => { focused.current = false }
-    }, []))
+        return () => {
+            focused.current = false
+            for (const resource of Object.values(resourcesRef.current)) resource.suspend()
+            suspendActivityPagination()
+        }
+    }, [suspendActivityPagination]))
 
     useEffect(() => {
         const reconnected = !wasOnline.current && isOnline
         wasOnline.current = isOnline
         if (!reconnected) return
         resetActivityPagination()
-        for (const tab of PREFETCH_TABS) {
+        for (const tab of RESOURCE_TABS) {
             if (tab === 'auctions') continue
-            resourcesRef.current[tab].invalidate(focused.current && activeTabRef.current === tab)
+            resourcesRef.current[tab].invalidate(false)
         }
     }, [isOnline, resetActivityPagination])
 
+    useEffect(() => {
+        if (!admissionRef.current()) {
+            for (const resource of Object.values(resourcesRef.current)) resource.suspend()
+            suspendActivityPagination()
+        } else if (activeResourceKey) ensureTab(activeTab)
+    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, suspendActivityPagination])
+
     useFocusEffect(useCallback(() => {
         if (activeResourceKey) ensureTab(activeTab)
-        // Prefetch the other tabs so switching to one shows content
-        // immediately instead of a blank panel while its first load runs.
-        if (!leagueKey) return
-        for (const tab of PREFETCH_TABS) {
-            if (tab === 'mockRooms' && !memberKey) continue
-            ensureTab(tab)
-        }
-    }, [activeResourceKey, activeTab, ensureTab, leagueKey, memberKey]))
+    }, [activeResourceKey, activeTab, ensureTab]))
 
     const loadMoreActivity = useCallback(async () => {
-        if (!leagueId || activityRequest.current) return
+        const resource = resourcesRef.current.history
+        if (!admissionRef.current() || !browserReadsAllowed() || !leagueId || activeLeagueRef.current !== leagueKey || activityRequest.current || resource.loading || !resource.loaded || !resource.data.hasMore) return
+        const permits = admissionRef.current
+        const snapshot = resource.data
         const request = Symbol('activity')
         activityRequest.current = request
         setActivityLoadingMore(true)
         try {
-            const nextOffset = activityOffset + ACTIVITY_LIMIT
-            const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, nextOffset)
-            if (activityRequest.current !== request) return
-            resourcesRef.current.history.setData((current) => [...current, ...data])
-            setActivityOffset(nextOffset)
-            setActivityHasMore(data.length === ACTIVITY_LIMIT)
+            const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, snapshot.rows.length)
+            if (activityRequest.current !== request || activeLeagueRef.current !== leagueKey || !permits()) return
+            resource.setData((current) => current === snapshot
+                ? { rows: [...current.rows, ...data], hasMore: data.length === ACTIVITY_LIMIT }
+                : current)
             setActivityLoadMoreError(null)
         } catch (error) {
-            if (activityRequest.current === request) {
+            if (activityRequest.current === request && permits()) {
                 setActivityLoadMoreError(error instanceof Error ? error.message : 'Could not load more activity')
             }
         } finally {
@@ -172,10 +204,12 @@ export function useLeagueTabResources(
                 setActivityLoadingMore(false)
             }
         }
-    }, [activityOffset, leagueId])
+    }, [leagueId, leagueKey])
+
+    const refreshMockRooms = useCallback(() => refreshTab('mockRooms'), [refreshTab])
 
     return {
-        activityHasMore,
+        activityHasMore: history.data.hasMore,
         activityLoadMoreError,
         activityLoadingMore,
         currentLeaguePicks: picks.data,
@@ -190,10 +224,10 @@ export function useLeagueTabResources(
         loadMoreActivity,
         mockRooms: mockRooms.data,
         refreshTab,
-        refreshMockRooms: mockRooms.refresh,
+        refreshMockRooms,
         standings: standings.data,
         tabError: activeResource?.error ?? undefined,
-        transactions: history.data,
+        transactions: history.data.rows,
         waiverOrder: waiverOrder.data,
     }
 }

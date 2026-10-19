@@ -1,3 +1,4 @@
+import { assertReadActive } from '@/lib/shared/read-admission'
 import { isIneligibleIR } from '@/lib/format'
 import {
     activateRosterPlayerWithOverflow,
@@ -41,12 +42,18 @@ export async function loadPickupState(
     playerId: string,
     memberId: string,
     leagueId: string,
+    canRead?: () => boolean,
 ): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean }> {
-    const status = await getPlayerRosterStatus(playerId, memberId, leagueId)
+    assertReadActive(canRead)
+    const status = await getPlayerRosterStatus(playerId, memberId, leagueId, canRead)
+    assertReadActive(canRead)
     const pickupPossible = status.status === 'free_agent' || status.status === 'on_waivers'
     const [transactionState, pendingIds] = await Promise.all([
         pickupPossible ? loadAddLimitState(memberId, leagueId) : Promise.resolve(null),
-        status.status === 'on_waivers' ? getCurrentSeasonId(leagueId).then((seasonId) => seasonId ? getPendingWaiverPlayerIdsForSeason(memberId, seasonId) : new Set<string>()) : Promise.resolve(new Set<string>()),
+        status.status === 'on_waivers' ? getCurrentSeasonId(leagueId).then((seasonId) => {
+            assertReadActive(canRead)
+            return seasonId ? getPendingWaiverPlayerIdsForSeason(memberId, seasonId) : new Set<string>()
+        }) : Promise.resolve(new Set<string>()),
     ])
     return { status, transactionState, claimPending: pendingIds.has(playerId) }
 }

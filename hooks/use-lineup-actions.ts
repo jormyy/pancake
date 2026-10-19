@@ -25,6 +25,16 @@ export type LineupActionContext = {
     seasonYear: number
 }
 
+async function reloadSavedLineup(reload: () => Promise<void>, isCurrent: () => boolean): Promise<boolean> {
+    try {
+        await reload()
+        return true
+    } catch {
+        if (isCurrent()) showAlert('Lineup saved', 'Your change is saved. Refresh to see the latest lineup.', 'info')
+        return false
+    }
+}
+
 export function useLineupActions({
     actionContext,
     actionOwner = actionContext,
@@ -160,7 +170,9 @@ export function useLineupActions({
                     plan.moves,
                 )
             }
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) await reloadLineup(selectedDate)
+            if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+                await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
+            }
         } catch (e) {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
         } finally {
@@ -207,7 +219,7 @@ export function useLineupActions({
             })
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             setActivationOverflowPending(null)
-            await reloadLineup(selectedDate)
+            await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
         } catch (e) {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
         } finally {
@@ -233,19 +245,19 @@ export function useLineupActions({
                 actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason, retryDates,
             )
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
-            await reloadLineup(selectedDate)
+            const refreshed = await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             if (restOfSeason && result?.failed) {
                 confirmAction(
                     'Lineup partly optimized',
-                    `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`,
+                    `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.${refreshed ? '' : ' Refresh to see saved changes.'}`,
                     () => { void doAutoSet(null, true, result.results.filter((entry) => entry.status === 'failed').map((entry) => entry.date)) },
                     'Retry failed dates',
                     false,
                 )
-            } else if (restOfSeason && result && result.dates === 0) {
+            } else if (refreshed && restOfSeason && result && result.dates === 0) {
                 showAlert('Season is over', 'There are no remaining dates this season to optimize.', 'info')
-            } else if (restOfSeason) {
+            } else if (refreshed && restOfSeason) {
                 showSuccess('Done', 'Lineup set for the rest of the season.')
             }
         } catch (e) {

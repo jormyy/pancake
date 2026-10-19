@@ -95,9 +95,9 @@ serveInternal('lineup-optimizer', async (req) => {
   if (body.mode === 'pre_tipoff') {
     const result = await recordSyncRun('lineup-optimizer', async () => {
       const outcome = await processPreTipoff(body)
-      return { result: outcome, rowsAffected: outcome.optimized, failure: outcome.failed ? `${outcome.failed} tipoff team(s) failed` : null }
-    })
-    return Response.json({ ok: true, ...result })
+      return { result: outcome, rowsAffected: outcome.optimized, failure: outcome.failed ? outcome.errors.join('\n') : null }
+    }, req)
+    return Response.json({ ok: result.failed === 0, ...result }, { status: result.failed ? 500 : 200 })
   }
   const manual = manualRequest(body)
   if (manual) {
@@ -116,7 +116,7 @@ serveInternal('lineup-optimizer', async (req) => {
         ? `${outcome.failed} of ${outcome.settings} enabled member(s) failed auto-set (see function logs)`
         : null,
     }
-  })
+  }, req)
   return Response.json({ ok: true, ...result })
 })
 

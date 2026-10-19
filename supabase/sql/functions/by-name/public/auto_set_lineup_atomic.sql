@@ -15,6 +15,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  PERFORM 1 FROM public.league_members
+  WHERE id = p_member_id AND league_id = p_league_id AND user_id = auth.uid()
+  FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Not authorized to modify this lineup.' USING ERRCODE = '42501';
+  END IF;
+
   IF p_assignments IS NULL OR jsonb_typeof(p_assignments) <> 'array' THEN
     RAISE EXCEPTION 'p_assignments must be a JSONB array.'
       USING ERRCODE = '22023';

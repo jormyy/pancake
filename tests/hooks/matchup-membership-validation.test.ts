@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,7 +7,7 @@ import { resolveHomeSurface } from '@/lib/home-surface'
 import type { Matchup } from '@/lib/scoring'
 
 const mocks = vi.hoisted(() => ({ getMyMatchup: vi.fn(), getWeekDays: vi.fn(), readPersistentCache: vi.fn(), writePersistentCache: vi.fn() }))
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/lib/scoring', () => ({ getMyMatchup: mocks.getMyMatchup, getLeagueWeekMatchups: vi.fn(async () => []) }))
 vi.mock('@/lib/lineup', () => ({ clampDateToWeek: (date: string) => date, getWeekDays: mocks.getWeekDays, getWeeklyLineup: vi.fn(async () => ({ starters: [], bench: [], ir: [], taxi: [] })) }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-14' }))
@@ -19,6 +20,7 @@ vi.mock('@/lib/realtime', () => ({ debounceRealtimeRefresh: () => ({ trigger: vi
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 beforeEach(() => {
+    clearSessionCaches()
     vi.clearAllMocks()
     mocks.readPersistentCache.mockReturnValue(undefined)
     mocks.getMyMatchup.mockResolvedValue(null)

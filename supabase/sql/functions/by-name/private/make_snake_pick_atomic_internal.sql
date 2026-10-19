@@ -19,7 +19,7 @@ DECLARE
   v_next_pick snake_draft_picks%ROWTYPE;
   v_on_roster_id uuid;
   v_already_picked_id uuid;
-  v_now timestamptz := now();
+  v_now timestamptz;
   v_remaining int;
   v_completed boolean := false;
   v_activated boolean := false;
@@ -68,13 +68,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF NOT p_allow_expired_timer
-     AND v_next_pick.timer_expires_at IS NOT NULL
-     AND v_next_pick.timer_expires_at <= v_now THEN
-    RAISE EXCEPTION 'Pick timer has expired'
-      USING ERRCODE = 'P0001';
-  END IF;
-
   IF NOT v_draft.is_mock AND v_next_pick.draft_pick_id IS NULL THEN
     RAISE EXCEPTION 'Draft slot is missing its draft-pick asset'
       USING ERRCODE = 'P0001';
@@ -115,6 +108,14 @@ BEGIN
   IF v_already_picked_id IS NOT NULL THEN
     RAISE EXCEPTION 'Player already picked in this draft'
       USING ERRCODE = '23505';
+  END IF;
+
+  v_now := clock_timestamp();
+  IF NOT p_allow_expired_timer
+     AND v_next_pick.timer_expires_at IS NOT NULL
+     AND v_next_pick.timer_expires_at <= v_now THEN
+    RAISE EXCEPTION 'Pick timer has expired'
+      USING ERRCODE = 'P0001';
   END IF;
 
   UPDATE snake_draft_picks

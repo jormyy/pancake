@@ -1,5 +1,9 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
+    AccessibilityInfo,
+    Animated,
+    Easing,
+    Platform,
     Pressable,
     StyleSheet,
     View,
@@ -7,21 +11,20 @@ import {
     type StyleProp,
     type ViewStyle,
 } from 'react-native'
-import Animated, {
-    Easing,
-    cancelAnimation,
-    interpolate,
-    useAnimatedStyle,
-    useReducedMotion,
-    useSharedValue,
-    withRepeat,
-    withSequence,
-    withSpring,
-    withTiming,
-} from 'react-native-reanimated'
-
-const PRESS_SPRING = { damping: 16, stiffness: 360, mass: 0.42 }
+const PRESS_SPRING = { damping: 16, stiffness: 360, mass: 0.42, useNativeDriver: Platform.OS !== 'web' }
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
+
+export function useReducedMotion() {
+    const [reduced, setReduced] = useState(() =>
+        typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+    useEffect(() => {
+        let active = true
+        void AccessibilityInfo.isReduceMotionEnabled().then(value => { if (active) setReduced(value) })
+        const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced)
+        return () => { active = false; subscription.remove() }
+    }, [])
+    return reduced
+}
 
 type MotionPreset = 'fade' | 'rise' | 'pop' | 'slide-left' | 'slide-right'
 
@@ -62,16 +65,24 @@ export function MotionPressable({
     ...props
 }: MotionPressableProps) {
     const reduceMotion = useReducedMotion()
-    const pressed = useSharedValue(0)
-    const hovered = useSharedValue(0)
+    const [pressed] = useState(() => new Animated.Value(0))
+    const [hovered] = useState(() => new Animated.Value(0))
 
-    const animatedStyle = useAnimatedStyle(() => ({
+    const animatedStyle = {
         opacity: disabled ? disabledOpacity : 1,
         transform: [
-            { translateY: -hovered.value * lift },
-            { scale: 1 - pressed.value * (1 - pressedScale) },
+            { translateY: hovered.interpolate({ inputRange: [0, 1], outputRange: [0, -lift] }) },
+            { scale: pressed.interpolate({ inputRange: [0, 1], outputRange: [1, pressedScale] }) },
         ],
-    }), [disabled, disabledOpacity, lift, pressedScale])
+    }
+
+    useEffect(() => {
+        if (!reduceMotion && !disabled) return
+        pressed.stopAnimation()
+        hovered.stopAnimation()
+        pressed.setValue(0)
+        hovered.setValue(0)
+    }, [reduceMotion, disabled, pressed, hovered])
 
     return (
         <AnimatedPressable
@@ -80,25 +91,25 @@ export function MotionPressable({
             style={[style, animatedStyle]}
             onHoverIn={(event) => {
                 if (!reduceMotion && !disabled) {
-                    hovered.value = withSpring(1, PRESS_SPRING)
+                    Animated.spring(hovered, { ...PRESS_SPRING, toValue: 1 }).start()
                 }
                 onHoverIn?.(event)
             }}
             onHoverOut={(event) => {
                 if (!reduceMotion) {
-                    hovered.value = withSpring(0, PRESS_SPRING)
+                    Animated.spring(hovered, { ...PRESS_SPRING, toValue: 0 }).start()
                 }
                 onHoverOut?.(event)
             }}
             onPressIn={(event) => {
                 if (!reduceMotion && !disabled) {
-                    pressed.value = withSpring(1, PRESS_SPRING)
+                    Animated.spring(pressed, { ...PRESS_SPRING, toValue: 1 }).start()
                 }
                 onPressIn?.(event)
             }}
             onPressOut={(event) => {
                 if (!reduceMotion) {
-                    pressed.value = withSpring(0, PRESS_SPRING)
+                    Animated.spring(pressed, { ...PRESS_SPRING, toValue: 0 }).start()
                 }
                 onPressOut?.(event)
             }}
@@ -118,28 +129,25 @@ export function LivePulse({
     style?: StyleProp<ViewStyle>
 }) {
     const reduceMotion = useReducedMotion()
-    const pulse = useSharedValue(0)
+    const [pulse] = useState(() => new Animated.Value(0))
 
     useEffect(() => {
         if (reduceMotion) {
-            pulse.value = 0
+            pulse.setValue(0)
             return
         }
-        pulse.value = withRepeat(
-            withSequence(
-                withTiming(1, { duration: 820, easing: Easing.out(Easing.quad) }),
-                withTiming(0, { duration: 820, easing: Easing.in(Easing.quad) }),
-            ),
-            -1,
-            false,
-        )
-        return () => cancelAnimation(pulse)
+        const animation = Animated.loop(Animated.sequence([
+            Animated.timing(pulse, { toValue: 1, duration: 820, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web', isInteraction: false }),
+            Animated.timing(pulse, { toValue: 0, duration: 820, easing: Easing.in(Easing.quad), useNativeDriver: Platform.OS !== 'web', isInteraction: false }),
+        ]))
+        animation.start()
+        return () => animation.stop()
     }, [pulse, reduceMotion])
 
-    const ringStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(pulse.value, [0, 1], [0.38, 0]),
-        transform: [{ scale: interpolate(pulse.value, [0, 1], [1, 2.5]) }],
-    }))
+    const ringStyle = {
+        opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.38, 0] }),
+        transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.5] }) }],
+    }
 
     return (
         <View

@@ -1,3 +1,4 @@
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 
 export type NotificationPreferences = {
@@ -13,7 +14,8 @@ export function createNotificationPreferenceWriter(
     let queue: Promise<void> = Promise.resolve()
     return {
         enqueue(preferences: NotificationPreferences): Promise<void> {
-            const task = queue.catch(() => undefined).then(() => write(preferences))
+            const previous = queue
+            const task = withPwaMutation('notification preferences', () => previous.catch(() => undefined).then(() => write(preferences)))
             queue = task
             return task
         },
@@ -55,15 +57,17 @@ export async function updateNotificationPreferences(
     userId: string,
     preferences: NotificationPreferences,
 ): Promise<void> {
-    const { error } = await supabase
-        .from('notification_preferences')
-        .upsert({
-            user_id: userId,
-            trade_enabled: preferences.tradeEnabled,
-            waiver_enabled: preferences.waiverEnabled,
-            draft_enabled: preferences.draftEnabled,
-            activity_enabled: preferences.activityEnabled,
-            updated_at: new Date().toISOString(),
-        })
-    if (error) throw error
+    return withPwaMutation('updateNotificationPreferences', async () => {
+        const { error } = await supabase
+            .from('notification_preferences')
+            .upsert({
+                user_id: userId,
+                trade_enabled: preferences.tradeEnabled,
+                waiver_enabled: preferences.waiverEnabled,
+                draft_enabled: preferences.draftEnabled,
+                activity_enabled: preferences.activityEnabled,
+                updated_at: new Date().toISOString(),
+            })
+        if (error) throw error
+    })
 }

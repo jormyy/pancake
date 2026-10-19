@@ -1,3 +1,4 @@
+import { assertReadActive } from '@/lib/shared/read-admission'
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/shared/season'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
@@ -246,8 +247,10 @@ export async function getLeagueWeekMatchups(
         })
 }
 
-export async function getLeagueStandings(leagueId: string): Promise<StandingRow[]> {
+export async function getLeagueStandings(leagueId: string, canRead?: () => boolean): Promise<StandingRow[]> {
+    assertReadActive(canRead)
     const season = await getCurrentSeason(leagueId)
+    assertReadActive(canRead)
     if (!season) {
         const { data: members, error } = await supabase
             .from('league_members')

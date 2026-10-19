@@ -1,3 +1,4 @@
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import type { RosterSlotType } from '@/types/database'
 import { SLOT_ELIGIBLE } from '@/constants/slots'
@@ -87,81 +88,83 @@ export async function autoSetLineup(
     restOfSeason?: boolean,
     retryDates?: string[],
 ): Promise<AutoSetSeasonResult | null> {
-    if (restOfSeason) {
-        return apiPost<AutoSetSeasonResult>('/league/lineup/auto-set-season', {
-            memberId,
-            leagueId,
-            leagueSeasonId: seasonId,
-            ...(retryDates ? { dates: retryDates } : {}),
-        })
-    }
-
-    const [{ data: roster, error: rosterErr }, { data: templates, error: templatesErr }] = await Promise.all([
-        supabase
-            .from('roster_players')
-            .select('id, player_id, players(position, eligible_positions, nba_team, injury_status)')
-            .eq('member_id', memberId)
-            .eq('league_id', leagueId)
-            .eq('league_season_id', seasonId)
-            .eq('is_on_ir', false)
-            .eq('is_on_taxi', false),
-        supabase
-            .from('lineup_slot_templates')
-            .select('slot_type, slot_count')
-            .eq('league_id', leagueId),
-    ])
-    if (rosterErr) throw rosterErr
-    if (templatesErr) throw templatesErr
-
-    const rosterRows = (roster ?? []) as RosterPlayerRow[]
-
-    const players = rosterRows.map((row) => {
-        const avoidInLineup = isIREligible(row.players?.injury_status ?? null)
-        return {
-            playerId: row.player_id,
-            eligiblePositions: getEligiblePositions(row.players ?? {}),
-            nbaTeam: row.players?.nba_team ?? null,
-            projected: 0,
-            projectionSource: null,
-            projectionSourceLabel: null,
-            projectionView: null,
-            avoidInLineup,
+    return withPwaMutation('autoSetLineup', async () => {
+        if (restOfSeason) {
+            return apiPost<AutoSetSeasonResult>('/league/lineup/auto-set-season', {
+                memberId,
+                leagueId,
+                leagueSeasonId: seasonId,
+                ...(retryDates ? { dates: retryDates } : {}),
+            })
         }
-    })
 
-    const starterTemplates = ((templates ?? []) as StarterTemplate[]).filter(
-        (template) => template.slot_type !== 'BE' && template.slot_type !== 'IR' && template.slot_type !== 'TX',
-    )
+        const [{ data: roster, error: rosterErr }, { data: templates, error: templatesErr }] = await Promise.all([
+            supabase
+                .from('roster_players')
+                .select('id, player_id, players(position, eligible_positions, nba_team, injury_status)')
+                .eq('member_id', memberId)
+                .eq('league_id', leagueId)
+                .eq('league_season_id', seasonId)
+                .eq('is_on_ir', false)
+                .eq('is_on_taxi', false),
+            supabase
+                .from('lineup_slot_templates')
+                .select('slot_type, slot_count')
+                .eq('league_id', leagueId),
+        ])
+        if (rosterErr) throw rosterErr
+        if (templatesErr) throw templatesErr
 
-    // Dates here feed into autoSetForDate where they're matched against
-    // nba_games.game_date / weekly_lineups.game_date (ET-keyed). Use todayET
-    // so the past-date filter aligns with the backend's ET boundary.
-    const today = todayET()
-    let datesToProcess: { date: string; weekNumber: number }[]
+        const rosterRows = (roster ?? []) as RosterPlayerRow[]
 
-    const allDates = gameDate
-        ? [gameDate]
-        : (await getWeekDays(weekNumber, seasonYear)).map((d) => d.date)
-    datesToProcess = allDates
-        .filter((d) => d >= today)
-        .map((d) => ({ date: d, weekNumber }))
+        const players = rosterRows.map((row) => {
+            const avoidInLineup = isIREligible(row.players?.injury_status ?? null)
+            return {
+                playerId: row.player_id,
+                eligiblePositions: getEligiblePositions(row.players ?? {}),
+                nbaTeam: row.players?.nba_team ?? null,
+                projected: 0,
+                projectionSource: null,
+                projectionSourceLabel: null,
+                projectionView: null,
+                avoidInLineup,
+            }
+        })
 
-    // Wait for every started write before releasing the UI to manual edits.
-    const CHUNK = 5
-    for (let i = 0; i < datesToProcess.length; i += CHUNK) {
-        const chunk = datesToProcess.slice(i, i + CHUNK)
-        const results = await Promise.allSettled(
-            chunk.map(({ date, weekNumber: wn }) =>
-                autoSetForDate(
-                    memberId, leagueId, seasonId, wn, seasonYear,
-                    date, players, starterTemplates,
-                ),
-            ),
+        const starterTemplates = ((templates ?? []) as StarterTemplate[]).filter(
+            (template) => template.slot_type !== 'BE' && template.slot_type !== 'IR' && template.slot_type !== 'TX',
         )
-        const failure = results.find((result) => result.status === 'rejected')
-        if (failure?.status === 'rejected') throw failure.reason
-    }
-    return null
+
+        // Dates here feed into autoSetForDate where they're matched against
+        // nba_games.game_date / weekly_lineups.game_date (ET-keyed). Use todayET
+        // so the past-date filter aligns with the backend's ET boundary.
+        const today = todayET()
+        let datesToProcess: { date: string; weekNumber: number }[]
+
+        const allDates = gameDate
+            ? [gameDate]
+            : (await getWeekDays(weekNumber, seasonYear)).map((d) => d.date)
+        datesToProcess = allDates
+            .filter((d) => d >= today)
+            .map((d) => ({ date: d, weekNumber }))
+
+        // Wait for every started write before releasing the UI to manual edits.
+        const CHUNK = 5
+        for (let i = 0; i < datesToProcess.length; i += CHUNK) {
+            const chunk = datesToProcess.slice(i, i + CHUNK)
+            const results = await Promise.allSettled(
+                chunk.map(({ date, weekNumber: wn }) =>
+                    autoSetForDate(
+                        memberId, leagueId, seasonId, wn, seasonYear,
+                        date, players, starterTemplates,
+                    ),
+                ),
+            )
+            const failure = results.find((result) => result.status === 'rejected')
+            if (failure?.status === 'rejected') throw failure.reason
+        }
+        return null
+    })
 }
 
 async function autoSetForDate(

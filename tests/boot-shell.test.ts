@@ -372,3 +372,98 @@ describe('boot shell', () => {
         expect(BOOT_SHELL_CSS).toContain(`#${BOOT_SHELL_ID}[data-visible="1"]{display:block;}`)
     })
 })
+
+describe('release reconciliation', () => {
+    async function updatePage({ held = false, loading = false, previous = null as string | null, documentVersion = 'old' } = {}) {
+        const { runInNewContext } = await import('node:vm')
+        const source = readFileSync('app/+html.tsx', 'utf8')
+        const script = source.split("const SW_REGISTER = process.env.NODE_ENV === 'production' ? `")[1].split('` : `')[0]
+        const windowEvents = new Map<string, () => void>()
+        const workerEvents = new Map<string, () => void>()
+        const ports: { onmessage: ((event: unknown) => void) | null; close: () => void }[] = []
+        const timers: { callback: () => void; delay: number }[] = []
+        const storage = new Map(previous ? [['pancake-sw-worker-version', previous]] : [])
+        const worker = { postMessage: vi.fn() }
+        const reload = vi.fn()
+        const holds = new Map(held ? [[1, 'pending bid']] : [])
+        const document = {
+            readyState: loading ? 'loading' : 'complete', visibilityState: 'visible',
+            querySelector: () => ({ content: documentVersion }), addEventListener: vi.fn(),
+            getElementById: () => null,
+            createElement: () => ({ setAttribute: vi.fn(), style: {}, appendChild: vi.fn(), addEventListener: vi.fn() }),
+            body: { appendChild: vi.fn() },
+        }
+        runInNewContext(script, {
+            window: { __pancakePwaHolds: holds, isSecureContext: true,
+                addEventListener: (name: string, callback: () => void) => windowEvents.set(name, callback),
+                location: { reload, pathname: '/players' } },
+            document,
+            navigator: { onLine: true, serviceWorker: { controller: worker,
+                register: async () => ({ active: worker, update: async () => {} }),
+                addEventListener: (name: string, callback: () => void) => workerEvents.set(name, callback) } },
+            sessionStorage: { getItem: (key: string) => storage.get(key) ?? null,
+                setItem: (key: string, value: string) => storage.set(key, value) },
+            MessageChannel: class { port1 = { onmessage: null, close: vi.fn() }; port2 = {}; constructor() { ports.push(this.port1) } },
+            setInterval: vi.fn(), clearTimeout: vi.fn(),
+            setTimeout: (callback: () => void, delay: number) => { timers.push({ callback, delay }); return timers.length },
+        })
+        return { reload, holds, timers, storage,
+            reply: (version: string) => { expect(ports.length).toBeGreaterThan(0); ports.at(-1)!.onmessage?.({ data: { version } }) },
+            load: async () => { document.readyState = 'complete'; windowEvents.get('load')?.(); await Promise.resolve() },
+            release: () => { holds.clear(); windowEvents.get('pancake-pwa-hold-change')?.() },
+            change: () => workerEvents.get('controllerchange')?.(),
+        }
+    }
+
+    it('reconciles a controller that replaces the document release before load without prior session storage', async () => {
+        const page = await updatePage({ loading: true })
+        page.change()
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        await page.load()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('lets a new online document reconcile its old controller before considering a reload', async () => {
+        const page = await updatePage({ loading: true, documentVersion: 'next' })
+        page.reply('old')
+        await page.load()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.change()
+        page.reply('next')
+        page.release()
+        expect(page.reload).not.toHaveBeenCalled()
+    })
+
+    it('holds an update through a pending bid and the notice deadline, then reloads after release', async () => {
+        const page = await updatePage({ held: true, previous: 'old' })
+        await page.load()
+        page.change()
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        for (const timer of page.timers.filter(timer => timer.delay === 60000)) timer.callback()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.release()
+        expect(page.reload).toHaveBeenCalledOnce()
+        page.release()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+})
+
+describe('PWA update holds', () => {
+    it('requires every holder to release and makes release idempotent', async () => {
+        const { holdPwaUpdate, isPwaUpdateHeld } = await import('@/lib/pwa-update-guard')
+        const target = new EventTarget()
+        vi.stubGlobal('window', target)
+        try {
+            const releaseBid = holdPwaUpdate('bid')
+            const releaseAuction = holdPwaUpdate('auction')
+            expect(isPwaUpdateHeld()).toBe(true)
+            releaseBid()
+            releaseBid()
+            expect(isPwaUpdateHeld()).toBe(true)
+            releaseAuction()
+            expect(isPwaUpdateHeld()).toBe(false)
+        } finally { vi.unstubAllGlobals() }
+    })
+})

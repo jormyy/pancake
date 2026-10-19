@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React, { memo, useMemo } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +22,7 @@ vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: boundary.cache, writePersistentCache: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({
     subscribeToTableChanges: vi.fn(() => ({})), disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(),
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
@@ -122,7 +123,11 @@ const Probe = ({ owner = OWNER }: { owner?: typeof OWNER }) => {
         metrics.fanouts += 1
         void refreshSilently()
     }, [refreshSilently])
-    live = useLiveStats(data.selectedDate, onSilentRefresh)
+    live = useLiveStats(data.selectedDate, {
+        scope: JSON.stringify(owner),
+        playerIds: [data.myLineup, data.oppLineup].flatMap(lineup => lineup ? rowList(lineup).flatMap(player => player ? [player.playerId] : []) : []),
+        onSilentRefresh,
+    })
     const rows = useMemo(() => {
         if (!data.myLineup || !data.oppLineup) return []
         metrics.builds += 1
@@ -172,6 +177,7 @@ const mount = async () => {
     resetMetrics()
 }
 beforeEach(async () => {
+    clearSessionCaches()
     vi.useFakeTimers(); vi.setSystemTime(START); vi.resetModules(); vi.clearAllMocks()
     boundary.online = true; boundary.hidden = false
     delay = 50; failStats = false; failGames = false; failLineups = false; renderer = null
@@ -218,7 +224,7 @@ beforeEach(async () => {
 afterEach(() => { act(() => renderer?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('live data reference workload', () => {
-    it('keeps equal lineups through eight identical 240-player snapshots without reducing reads', async () => {
+    it('keeps equal lineups through eight stat snapshots and two safety refreshes', async () => {
         await mount()
         const mine = matchup.myLineup
         const theirs = matchup.oppLineup
@@ -226,8 +232,8 @@ describe('live data reference workload', () => {
         report('eight identical live polls')
         expect(boundary.stats).toHaveBeenCalledTimes(8)
         expect(boundary.games).toHaveBeenCalledTimes(8)
-        expect(boundary.lineup).toHaveBeenCalledTimes(16)
-        expect(metrics.fanouts).toBe(8)
+        expect(boundary.lineup).toHaveBeenCalledTimes(4)
+        expect(metrics.fanouts).toBe(2)
         expect(matchup.myLineup).toBe(mine)
         expect(matchup.oppLineup).toBe(theirs)
         expect(metrics.builds).toBe(0)
@@ -253,7 +259,7 @@ describe('live data reference workload', () => {
         await poll(); await poll(); await poll()
         report('Scheduled to InProgress to Final, eight ticks')
         expect(boundary.stats).toHaveBeenCalledTimes(3)
-        expect(metrics.fanouts).toBe(2)
+        expect(metrics.fanouts).toBe(1)
     })
 
     it('applies DNP, downward corrections, row removal, and game metadata changes', async () => {
@@ -276,14 +282,14 @@ describe('live data reference workload', () => {
         expect(live.teamMatchups.get('BOS')?.isHome).toBe(false)
     })
 
-    it('refreshes lineup edits despite unchanged stats and keeps every empty slot', async () => {
+    it('catches missed lineup edits within a minute and keeps every empty slot', async () => {
         await mount()
         const opponent = matchup.oppLineup
         const mine = lineups.get('mine')!
         const moved = mine.starters[0].player!
         mine.starters[0].player = mine.bench[0]; mine.bench[0] = moved
         mine.ir.pop(); mine.taxi[0].injuryStatus = 'OUT'
-        await poll()
+        for (let tick = 0; tick < 4; tick += 1) await poll()
         report('lineup edit with equal stats')
         expect(matchup.myLineup?.starters[0].player?.playerId).toBe('p18')
         expect(matchup.myLineup?.bench[0].playerId).toBe('p0')
@@ -295,18 +301,21 @@ describe('live data reference workload', () => {
         expect(matchup.oppLineup).toBe(opponent)
     })
 
-    it.each([
-        ['rosterPlayerId', 'replacement-roster-id'], ['playerId', 'replacement-player-id'],
-        ['displayName', 'New name'], ['position', null], ['eligiblePositions', ['SF', 'F']],
-        ['nbaTeam', 'DEN'], ['injuryStatus', 'OUT'], ['nbaId', null],
-    ] satisfies [keyof LineupPlayer, string | string[] | null][])(
-        'keeps changed player %s in the refreshed lineup', async (field, value) => {
-            await mount()
-            Object.assign(lineups.get('mine')!.bench[0], { [field]: value })
-            await poll()
-            expect(matchup.myLineup?.bench[0][field]).toEqual(value)
-        },
-    )
+    it('refreshes a new roster assignment for the same player', async () => {
+        await mount()
+        lineups.get('mine')!.bench[0].rosterPlayerId = 'replacement-roster-id'
+        for (let tick = 0; tick < 4; tick += 1) await poll()
+        expect(matchup.myLineup?.bench[0].playerId).toBe('p18')
+        expect(matchup.myLineup?.bench[0].rosterPlayerId).toBe('replacement-roster-id')
+    })
+
+    it('refreshes player metadata without changing slots or ownership', async () => {
+        await mount()
+        const updated = { displayName: 'New name', position: 'SF', eligiblePositions: ['SF', 'F'], nbaTeam: 'DEN', injuryStatus: 'OUT', nbaId: null }
+        Object.assign(lineups.get('mine')!.bench[0], updated)
+        for (let tick = 0; tick < 4; tick += 1) await poll()
+        expect(matchup.myLineup?.bench[0]).toMatchObject({ ...updated, playerId: 'p18', rosterPlayerId: 'r18' })
+    })
 
     it('applies slot types, order, added players and confirmed empty reserves', async () => {
         await mount()
@@ -314,7 +323,7 @@ describe('live data reference workload', () => {
         mine.starters[0].slotType = 'PG'
         ;[mine.starters[0], mine.starters[1]] = [mine.starters[1], mine.starters[0]]
         mine.bench.push(makePlayer(999)); mine.ir = []; mine.taxi = []
-        await poll()
+        for (let tick = 0; tick < 4; tick += 1) await poll()
         expect(matchup.myLineup).toEqual(mine)
         expect(matchup.myLineup?.starters[1].slotType).toBe('PG')
         expect(matchup.myLineup?.bench.at(-1)?.playerId).toBe('p999')
@@ -324,6 +333,7 @@ describe('live data reference workload', () => {
     it('does not reuse equal lineups across a selected-date change or apply the old read', async () => {
         await mount()
         const original = matchup.myLineup
+        gamesByDate.get(TOMORROW)!.games.forEach(game => { game.status = 'Scheduled' })
         delay = 500
         lineups.get('mine')!.bench[0].displayName = 'Old date'
         await act(async () => { void matchup.refreshSilently() })
@@ -387,7 +397,8 @@ describe('live data reference workload', () => {
         lineups.get('mine')!.taxi.pop()
         await visible(false); await dispatch('focus'); await advance(50); await advance(50)
         report('hidden for 60 seconds then resume and focus')
-        expect(boundary.stats).toHaveBeenCalledTimes(1); expect(boundary.games).toHaveBeenCalledTimes(1)
+        expect(boundary.stats).toHaveBeenCalledTimes(2); expect(boundary.games).toHaveBeenCalledOnce()
+        expect(boundary.stats.mock.calls.at(-1)?.[1]).not.toContain('p119')
         expect(metrics.fanouts).toBe(1); expect(matchup.myLineup?.taxi).toHaveLength(5)
     })
 

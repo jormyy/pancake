@@ -1,4 +1,5 @@
 import { supabase } from './supabase.ts'
+import { toETDate } from './date.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
 import { fetchAllPages } from './scoreShared.ts'
@@ -92,7 +93,7 @@ async function runRookieDraftBackstop(
     .eq('week_number', 1)
     .maybeSingle()
   if (weekError) throw weekError
-  if (!weekOne || referenceDate.toISOString().slice(0, 10) < weekOne.week_start) return []
+  if (!weekOne || toETDate(referenceDate) < weekOne.week_start) return []
 
   const actions: string[] = []
   const { data: drafts, error: draftError } = await supabase

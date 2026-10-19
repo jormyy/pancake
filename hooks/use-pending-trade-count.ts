@@ -29,7 +29,10 @@ export function usePendingTradeCount(): number {
         let inFlight: Promise<void> | null = null
         let timer: ReturnType<typeof setTimeout> | null = null
         let retryTimer: ReturnType<typeof setTimeout> | null = null
+        let lastLoadedAt = 0
         const isCurrent = () => !disposed && activeKeyRef.current === key
+        const canRefresh = () => (typeof navigator === 'undefined' || navigator.onLine !== false)
+            && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
         const clearRetry = () => {
             if (retryTimer) clearTimeout(retryTimer)
             retryTimer = null
@@ -37,6 +40,7 @@ export function usePendingTradeCount(): number {
         const run = (attempt = 0): Promise<void> => {
             if (!isCurrent() || !memberId || !leagueId || !key) return Promise.resolve()
             pending = true
+            if (!canRefresh()) return Promise.resolve()
             clearRetry()
             if (inFlight) {
                 revision += 1
@@ -53,6 +57,7 @@ export function usePendingTradeCount(): number {
                         try {
                             const count = await getPendingIncomingTradeCount(memberId, leagueId)
                             if (isCurrent() && requestId === revision) {
+                                lastLoadedAt = Date.now()
                                 setState((previous) => {
                                     if (!isCurrent() || requestId !== revision) return previous
                                     return previous?.key === key && previous.count === count ? previous : { key, count }
@@ -60,6 +65,7 @@ export function usePendingTradeCount(): number {
                             }
                         } catch (error) {
                             if (isCurrent() && requestId === revision) {
+                                lastLoadedAt = 0
                                 console.error(error)
                                 // Keep the last count and retry a dropped authoritative read.
                                 if (nextAttempt < MAX_RETRIES) {
@@ -72,7 +78,7 @@ export function usePendingTradeCount(): number {
                             }
                         }
                         nextAttempt = 0
-                    } while (pending && isCurrent())
+                    } while (pending && isCurrent() && canRefresh())
                 } finally {
                     inFlight = null
                 }
@@ -88,12 +94,17 @@ export function usePendingTradeCount(): number {
                 revision += 1
                 return
             }
-            if (timer) return
+            if (!canRefresh() || timer) return
             // The first signal sets the deadline; later signals cannot extend it.
             timer = setTimeout(() => { timer = null; void run() }, REFRESH_WINDOW_MS)
         }
         return {
             run, trigger,
+            ensure: () => {
+                if (!isCurrent() || !canRefresh()) return Promise.resolve()
+                if (inFlight) return inFlight
+                return !pending && lastLoadedAt > 0 && Date.now() - lastLoadedAt < COUNT_STALE_MS ? Promise.resolve() : run()
+            },
             activate: () => { disposed = false },
             cancel: () => {
                 disposed = true
@@ -113,18 +124,28 @@ export function usePendingTradeCount(): number {
             return refreshQueue.cancel
         }
         const refresh = () => { refreshQueue.trigger() }
+        const ensure = () => { void refreshQueue.ensure() }
+        const visible = () => { if (document.visibilityState !== 'hidden') ensure() }
         const channel = subscribeToTableChanges(
             `pending-trade-count:${leagueId}:${memberId}`,
             { mode: 'fallback', watches: [
                 { table: 'trades', filter: `league_id=eq.${leagueId}` },
                 { table: 'trade_participants', filter: `league_id=eq.${leagueId}` },
-            ], onChange: refresh },
+            ], onChange: refresh, onReconnect: refreshQueue.run },
         )
-        if (typeof window !== 'undefined') window.addEventListener('focus', refresh)
+        if (typeof window !== 'undefined') {
+            window.addEventListener('focus', ensure)
+            window.addEventListener('online', refresh)
+        }
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', visible)
         void refreshQueue.run()
         return () => {
             refreshQueue.cancel()
-            if (typeof window !== 'undefined') window.removeEventListener('focus', refresh)
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('focus', ensure)
+                window.removeEventListener('online', refresh)
+            }
+            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', visible)
             reportRealtimeCleanup('pending trade count', unsubscribeFromTableChanges(channel))
         }
     }, [refreshQueue, memberId, leagueId])
@@ -142,3 +163,4 @@ export function usePendingTradeCount(): number {
 const MAX_RETRIES = 2
 const RETRY_DELAY_MS = 2000
 const REFRESH_WINDOW_MS = 250
+const COUNT_STALE_MS = 300_000

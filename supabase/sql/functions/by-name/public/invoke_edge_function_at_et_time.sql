@@ -24,6 +24,6 @@ BEGIN
   IF NOT private.claim_cron_dispatch('et-time:' || p_function_name, to_char(v_now, 'YYYY-MM-DD')) THEN
     RETURN;
   END IF;
-  PERFORM public.invoke_edge_function(p_function_name);
+  PERFORM private.invoke_claimed_edge_function('et-time:' || p_function_name, p_function_name);
 END;
 $$;

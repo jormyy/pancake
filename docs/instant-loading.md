@@ -124,7 +124,7 @@ Player search now uses a request-specific database plan. It keeps paging and pro
 
 ## Current Implementation Notes
 
-- The document paints a static app shell before any JavaScript runs. See
+- The document paints a static app shell before application JavaScript runs. See
   [pwa-live-data.md](./pwa-live-data.md#boot-shell).
 - The service worker precaches the boot bundle at install, so a deploy relaunches
   from disk instead of re-downloading.
@@ -143,3 +143,13 @@ Player search now uses a request-specific database plan. It keeps paging and pro
   targeted indexes in the 2026-07-02 instant-loading migrations.
 - Browser perf smoke measures live auction/matchup update pressure and fails on
   excessive heartbeat lag or slow mutation loops.
+
+## Smaller public delivery
+
+The release uses the same three Outfit faces in WOFF2 format. Each face uses `font-display: swap`. Text can paint with the existing fallback stack while fonts load. The icon subset contains names referenced by source. Metro rejects new names that are absent from the subset. Regeneration and licenses live in `assets/fonts/README.md`.
+
+Press feedback, the live pulse, and toast fades use React Native's existing animation API. Reduced-motion settings disable movement and remove toast transitions. The web bundle excludes the native URL polyfill because supported browsers provide URL and URLSearchParams.
+
+The boot mark is 128 pixels for its 42-pixel display size. Installation icons keep their original sizes. Release stamping gives the manifest, favicon, installation icons, and boot mark content-addressed URLs under `/assets/`. The worker serves its verified shell and public assets from cache without a background body download on every launch. Worker update checks remain.
+
+Measure new signed-out visits separately from returning chrome. A cached identity can paint the boot shell before JavaScript. That paint is not authentication, data freshness, or completed app readiness. WebKit cache measurements require persistent browser profiles. Record observed response encodings and bytes; do not estimate compression.

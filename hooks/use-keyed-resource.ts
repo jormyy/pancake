@@ -24,7 +24,10 @@ export function useKeyedResource<Value>(
     // consumers render content instantly (no blank flash) while the fresh
     // fetch still runs and updates in place.
     cache?: ResourceCache<Value>,
+    canRead?: () => boolean,
 ) {
+    const admission = useRef(canRead)
+    admission.current = canRead
     const activeKey = useRef(key)
     activeKey.current = key
     const cacheRef = useRef(cache)
@@ -57,24 +60,29 @@ export function useKeyedResource<Value>(
     const load = useCallback((force = false): Promise<void> => {
         if (!key) return Promise.resolve()
         if (force) loaded.current = false
+        if (admission.current?.() === false) {
+            setState(current => current.key === key ? { ...current, loading: false } : current)
+            return Promise.resolve()
+        }
         const existing = inFlight.current
         if (existing?.key === key) {
             if (force) invalidated.current = true
             return existing.promise
         }
         if (loaded.current) return Promise.resolve()
+        const permits = admission.current
         const requestGeneration = generation.current
         const request = { key, promise: Promise.resolve() }
         setState((current) => current.key === key ? { ...current, loading: true, error: null } : current)
         request.promise = fetchValue()
             .then((data) => {
-                if (activeKey.current !== key || generation.current !== requestGeneration) return
+                if (activeKey.current !== key || generation.current !== requestGeneration || permits?.() === false) return
                 loaded.current = true
                 cacheRef.current?.write(key, data)
                 setState({ key, data, loading: false, loaded: true, error: null })
             })
             .catch((error: unknown) => {
-                if (activeKey.current !== key || generation.current !== requestGeneration) return
+                if (activeKey.current !== key || generation.current !== requestGeneration || permits?.() === false) return
                 setState((current) => current.key === key ? {
                     ...current,
                     loading: false,
@@ -100,6 +108,16 @@ export function useKeyedResource<Value>(
         else if (reload) void load()
     }, [load])
 
+    const suspend = useCallback(() => {
+        if (inFlight.current || invalidated.current) {
+            generation.current += 1
+            loaded.current = false
+            invalidated.current = false
+            inFlight.current = null
+        }
+        setState(current => current.loading ? { ...current, loading: false } : current)
+    }, [])
+
     const ensure = useCallback(() => load(), [load])
     const refresh = useCallback(() => load(true), [load])
     const setData = useCallback((update: (current: Value) => Value) => {
@@ -117,5 +135,6 @@ export function useKeyedResource<Value>(
         refresh,
         invalidate,
         setData,
+        suspend,
     }
 }

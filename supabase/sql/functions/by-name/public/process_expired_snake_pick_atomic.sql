@@ -25,7 +25,7 @@ DECLARE
   v_result jsonb;
   v_remaining int;
   v_rows int;
-  v_now timestamptz := now();
+  v_now timestamptz;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_draft_id::text), 0);
 
@@ -44,6 +44,8 @@ BEGIN
      OR v_draft.status <> 'in_progress'::draft_status THEN
     RETURN;
   END IF;
+
+  v_now := clock_timestamp();
 
   SELECT pick.*
     INTO v_pick

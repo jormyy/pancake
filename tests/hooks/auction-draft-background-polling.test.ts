@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     revision: vi.fn<(...args: string[]) => Promise<string | null>>(async () => 'revision-1'),
     status: null as ((status: string) => void) | null,
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     AppState: {
         get currentState() { return mocks.appState },
@@ -35,6 +37,8 @@ vi.mock('@/lib/realtime', () => ({
     reportRealtimeCleanup: vi.fn(),
     debounceRealtimeRefresh: (change: () => void) => ({ trigger: change, cancel: vi.fn() }),
 }))
+setSessionOwner('draft-test-user')
+
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let renderer: ReactTestRenderer | undefined
 const Probe = ({ draftId = 'draft-1' }: { draftId?: string }) => {
@@ -81,11 +85,13 @@ describe('auction fallback polling across app visibility', () => {
         expect(mocks.revision).toHaveBeenCalledTimes(1)
         mocks.revision.mockResolvedValue('revision-2')
         await transition('active')
-        expect(mocks.revision).toHaveBeenCalledTimes(2)
+        expect(mocks.revision).toHaveBeenCalledTimes(1)
         expect(mocks.getDraftState).toHaveBeenCalledTimes(initialLoads + 1)
         await advance(5_000)
-        expect(mocks.revision).toHaveBeenCalledTimes(3)
-        expect(mocks.getDraftState).toHaveBeenCalledTimes(initialLoads + 1)
+        expect(mocks.revision).toHaveBeenCalledTimes(2)
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(initialLoads + 2)
+        await advance(5_000)
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(initialLoads + 2)
     })
     it('keeps the connected 60-second cadence and refreshes after an inactive return', async () => {
         await mount()
@@ -97,28 +103,34 @@ describe('auction fallback polling across app visibility', () => {
         await transition('inactive')
         await advance(120_000)
         expect(mocks.revision).toHaveBeenCalledTimes(1)
+        const loads = mocks.getDraftState.mock.calls.length
         await transition('active')
-        expect(mocks.revision).toHaveBeenCalledTimes(2)
+        expect(mocks.revision).toHaveBeenCalledTimes(1)
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(loads + 1)
     })
     it('does not poll when mounted in the background', async () => {
         mocks.appState = 'background'
         await mount()
         await advance(60_000)
         expect(mocks.revision).not.toHaveBeenCalled()
+        expect(mocks.getDraftState).not.toHaveBeenCalled()
         await transition('active')
-        expect(mocks.revision).toHaveBeenCalledTimes(1)
+        expect(mocks.revision).not.toHaveBeenCalled()
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(1)
     })
     it('queues one catch-up when foreground returns during an old probe', async () => {
         let resolve!: (revision: string) => void
         mocks.revision.mockReturnValueOnce(new Promise<string>(done => { resolve = done }))
         await mount()
         await advance(5_000)
+        const loads = mocks.getDraftState.mock.calls.length
         await transition('background')
         await transition('active')
         await transition('active')
         mocks.revision.mockResolvedValue('revision-2')
         await act(async () => { resolve('revision-1') })
-        expect(mocks.revision).toHaveBeenCalledTimes(2)
+        expect(mocks.revision).toHaveBeenCalledTimes(1)
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(loads + 1)
     })
     it('uses one catch-up after a queued resume returns to the background', async () => {
         let resolve!: (revision: string) => void
@@ -130,8 +142,10 @@ describe('auction fallback polling across app visibility', () => {
         await transition('background')
         await act(async () => { resolve('revision-1') })
         expect(mocks.revision).toHaveBeenCalledTimes(1)
+        const loads = mocks.getDraftState.mock.calls.length
         await transition('active')
-        expect(mocks.revision).toHaveBeenCalledTimes(2)
+        expect(mocks.revision).toHaveBeenCalledTimes(1)
+        expect(mocks.getDraftState).toHaveBeenCalledTimes(loads + 1)
     })
     it('discards a pending probe after the draft changes and removes listeners', async () => {
         let resolve!: (revision: string) => void

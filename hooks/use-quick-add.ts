@@ -51,6 +51,7 @@ export function useQuickAdd({
     const activeOwnerRef = useRef(ownerIdentity)
     const generationRef = useRef(0)
     const pendingAdds = useRef(new Map<string, symbol>())
+    const pendingDropAndAdd = useRef<symbol | null>(null)
     const [stateOwnerIdentity, setStateOwnerIdentity] = useState(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
     if (renderedOwnerRef.current !== ownerIdentity) {
@@ -70,12 +71,14 @@ export function useQuickAdd({
         setDropPickerPlayer(null)
         setMyRoster([])
         setDropping(null)
+        pendingDropAndAdd.current = null
         setIrModal(null)
         const reservations = pendingAdds.current
         return () => {
             generationRef.current += 1
             activeOwnerRef.current = null
             reservations.clear()
+            pendingDropAndAdd.current = null
         }
     }, [ownerIdentity])
 
@@ -177,7 +180,7 @@ export function useQuickAdd({
     }, [memberId, leagueId, checkIR, onClaimInstead])
 
     const handleDropAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
-        if (!memberId || !dropPickerPlayer || !leagueId) return
+        if (!memberId || !dropPickerPlayer || !leagueId || activeOwnerRef.current !== ownerIdentity || pendingDropAndAdd.current) return
         if (explainBlock()) {
             setDropPickerPlayer(null)
             return
@@ -185,10 +188,11 @@ export function useQuickAdd({
         const generation = generationRef.current
         const identity = ownerIdentity
 
-        if (!await checkIR(dropPickerPlayer, leagueId, 'add', rosterPlayer.id)) return
-
+        const token = Symbol('pending-drop-and-add')
+        pendingDropAndAdd.current = token
         setDropping(rosterPlayer.id)
         try {
+            if (!await checkIR(dropPickerPlayer, leagueId, 'add', rosterPlayer.id)) return
             await dropAndAddFreeAgent(rosterPlayer.id, memberId, leagueId, dropPickerPlayer.id)
             if (!isCurrent(generation, identity)) return
             setDropPickerPlayer(null)
@@ -196,6 +200,7 @@ export function useQuickAdd({
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, dropPickerPlayer)
         } finally {
+            if (pendingDropAndAdd.current === token) pendingDropAndAdd.current = null
             if (isCurrent(generation, identity)) setDropping(null)
         }
     }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, onChanged, isCurrent, explainBlock, report])

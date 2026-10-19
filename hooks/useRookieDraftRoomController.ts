@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, type AppStateStatus } from 'react-native'
+import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     activateRookieDraftLeague,
     commissionerSnakePick,
@@ -62,27 +62,35 @@ export function useRookieDraftRoomController({
     const [trimOverflow, setTrimOverflow] = useState<TrimOverflow | null>(null)
     const [trimmingId, setTrimmingId] = useState<string | null>(null)
 
+    const completionErrorRef = useRef(completionError)
+    completionErrorRef.current = completionError
     const draftEndCheckedRef = useRef(false)
     const completionEpochRef = useRef(0)
     const completionPhaseRef = useRef<string | null>(null)
-    const autoPickAttemptRef = useRef<string | null>(null)
+    const autoPickAttemptRef = useRef<{
+        key: string; attempts: number; nextAt: number; inFlight: boolean; completed: boolean
+    } | null>(null)
+    const roomSnapshotRef = useRef<RookieDraftState | null>(null)
+    const prospectsDirtyRef = useRef(true)
     const channelRef = useRef<ReturnType<typeof subscribeToRookieDraft> | null>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const queryRef = useRef('')
     const lastSearchQueryRef = useRef('')
-    const appStateRef = useRef<AppStateStatus>(AppState.currentState)
-    const readOwnerKey = `${draftId ?? ''}:${memberId ?? ''}:${leagueId ?? ''}`
+    const activity = useDraftActivity(draftId && memberId && leagueId ? `${draftId}:${memberId}:${leagueId}` : null)
+    const { epoch, capture, canRead: canRefresh, isCurrent: activityIsCurrent, canAct, markReady, blockActions } = activity
+    const readOwnerKey = activity.identity
+    const stateOwnerRef = useRef(readOwnerKey)
+    const renderedReadOwnerRef = useRef(readOwnerKey)
     const activeReadOwnerRef = useRef<string | null>(readOwnerKey)
     activeReadOwnerRef.current = readOwnerKey
     const loadSeqRef = useRef(0)
     const prospectsSeqRef = useRef(0)
-    const renderedDraftIdRef = useRef(draftId)
-    const stateDraftIdRef = useRef(draftId)
     const activeDraftIdRef = useRef(draftId)
     const pollRevisionRef = useRef<string | null>(null)
-    const seasonIdentity = stateDraftIdRef.current === draftId && state
+    const seasonIdentity = stateOwnerRef.current === readOwnerKey && state
         ? `${state.draft.leagueSeasonId}:${state.draft.isCurrentSeason}` : ''
-    const ownerIdentity = `${draftId ?? ''}:${memberId ?? ''}:${leagueId ?? ''}:${seasonIdentity}`
+    const ownerIdentity = `${readOwnerKey}:${seasonIdentity}`
+    const renderedActivityEpochRef = useRef(epoch)
     const renderedOwnerRef = useRef(ownerIdentity)
     const activeOwnerRef = useRef(ownerIdentity)
     const mutationGenerationRef = useRef(0)
@@ -96,12 +104,16 @@ export function useRookieDraftRoomController({
         draftEndCheckedRef.current = false
         autoPickAttemptRef.current = null
     }
+    if (renderedActivityEpochRef.current !== epoch) {
+        renderedActivityEpochRef.current = epoch
+        mutationGenerationRef.current += 1
+    }
     const ownsActionState = actionStateOwner === ownerIdentity
-    const mutationIsCurrent = (generation: number, identity: string) =>
-        mutationGenerationRef.current === generation && activeOwnerRef.current === identity
+    const mutationIsCurrent = useCallback((generation: number, identity: string) =>
+        canAct() && mutationGenerationRef.current === generation && activeOwnerRef.current === identity, [canAct])
 
-    if (renderedDraftIdRef.current !== draftId) {
-        renderedDraftIdRef.current = draftId
+    if (renderedReadOwnerRef.current !== readOwnerKey) {
+        renderedReadOwnerRef.current = readOwnerKey
         loadSeqRef.current += 1
         prospectsSeqRef.current += 1
         pollRevisionRef.current = null
@@ -109,7 +121,7 @@ export function useRookieDraftRoomController({
         autoPickAttemptRef.current = null
     }
     useEffect(() => { setDraftToTaxi(false) }, [draftId, memberId])
-    const ownsDraft = stateDraftIdRef.current === draftId
+    const ownsDraft = stateOwnerRef.current === readOwnerKey
     const visibleState = ownsDraft ? state : null
     const draftLeagueMatches = Boolean(leagueId && visibleState?.draft.leagueId === leagueId)
     const draftSeasonIsCurrent = Boolean(visibleState?.draft.leagueSeasonId && visibleState.draft.isCurrentSeason)
@@ -117,12 +129,14 @@ export function useRookieDraftRoomController({
     useEffect(() => {
         loadSeqRef.current += 1
         prospectsSeqRef.current += 1
-        stateDraftIdRef.current = draftId
+        stateOwnerRef.current = readOwnerKey
         pollRevisionRef.current = null
         draftEndCheckedRef.current = false
         autoPickAttemptRef.current = null
         queryRef.current = ''
         lastSearchQueryRef.current = ''
+        roomSnapshotRef.current = null
+        prospectsDirtyRef.current = true
         setState(null)
         setLoading(Boolean(draftId))
         setLoadError(null)
@@ -140,7 +154,7 @@ export function useRookieDraftRoomController({
         setResolvingOverflow(false)
         setTrimOverflow(null)
         setTrimmingId(null)
-    }, [draftId])
+    }, [draftId, readOwnerKey])
 
     useEffect(() => {
         mutationGenerationRef.current += 1
@@ -156,7 +170,8 @@ export function useRookieDraftRoomController({
     }, [ownerIdentity])
 
     const load = useCallback(async () => {
-        if (activeReadOwnerRef.current !== readOwnerKey) return false
+        if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
+        const readEpoch = capture()
         const requestedDraftId = draftId
         if (!requestedDraftId) {
             setLoading(false)
@@ -165,22 +180,30 @@ export function useRookieDraftRoomController({
         const seq = ++loadSeqRef.current
         try {
             const data = await getRookieDraftState(requestedDraftId)
-            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
+            if (!activityIsCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
+            const previous = roomSnapshotRef.current
+            const picked = new Set(data?.picks.flatMap(pick => pick.player ? [pick.player.id] : []) ?? [])
+            if (previous?.draft.leagueSeasonId !== data?.draft.leagueSeasonId
+                || previous?.picks.some(pick => pick.player && !picked.has(pick.player.id))) {
+                prospectsDirtyRef.current = true
+            }
+            roomSnapshotRef.current = data
             setState(data)
             setLoadError(null)
             return true
         } catch (e) {
-            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
+            if (!activityIsCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             console.error(e)
             setLoadError({ ownerKey: readOwnerKey, message: getErrorMessage(e) ?? 'Failed to refresh draft' })
             return false
         } finally {
-            if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setLoading(false)
+            if (activityIsCurrent(readEpoch) && seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setLoading(false)
         }
-    }, [draftId, readOwnerKey])
+    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent])
 
     const loadProspects = useCallback(async (q?: string) => {
-        if (activeReadOwnerRef.current !== readOwnerKey) return false
+        if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
+        const readEpoch = capture()
         const requestId = ++prospectsSeqRef.current
         const requestedDraftId = draftId
         const requestedQuery = q
@@ -192,34 +215,42 @@ export function useRookieDraftRoomController({
         setProspectsLoading(true)
         try {
             const data = await getRookiePlayers(requestedDraftId, requestedQuery)
-            if (prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
+            if (!activityIsCurrent(readEpoch) || prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
+            prospectsDirtyRef.current = false
+            lastSearchQueryRef.current = requestedQuery?.trim() ?? ''
             setProspects(data)
             setProspectsError(null)
             return true
         } catch (e) {
-            if (prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
+            if (!activityIsCurrent(readEpoch) || prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
+            prospectsDirtyRef.current = true
             console.error(e)
             setProspectsError({ ownerKey: readOwnerKey, query: requestedQuery?.trim() ?? '',
                 message: getErrorMessage(e) ?? 'Failed to load prospects' })
             return false
         } finally {
-            if (prospectsSeqRef.current === requestId && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setProspectsLoading(false)
+            if (activityIsCurrent(readEpoch) && prospectsSeqRef.current === requestId && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setProspectsLoading(false)
         }
-    }, [draftId, readOwnerKey])
-
-    const canRefresh = useCallback(() => appStateRef.current === 'active'
-        && (typeof document === 'undefined' || document.visibilityState !== 'hidden'), [])
+    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent])
 
     const reloadRoom = useMemo(() => {
         let disposed = false
         let pending = false
+        let poolPending = false
         let inFlight: Promise<boolean> | null = null
+        let inFlightEpoch = -1
         let timer: ReturnType<typeof setTimeout> | null = null
         const isCurrent = () => !disposed && activeReadOwnerRef.current === readOwnerKey
         const invalidate = () => { loadSeqRef.current += 1; prospectsSeqRef.current += 1 }
-        const run = (): Promise<boolean> => {
+        const run = (refreshProspects = false, catchUp = false): Promise<boolean> => {
             if (!isCurrent() || !draftId) return Promise.resolve(false)
+            if (catchUp && inFlight && inFlightEpoch === capture()) {
+                poolPending ||= refreshProspects
+                return inFlight
+            }
             pending = true
+            poolPending ||= refreshProspects
+            if (!canRefresh()) return Promise.resolve(false)
             if (inFlight) {
                 invalidate()
                 return inFlight
@@ -231,8 +262,15 @@ export function useRookieDraftRoomController({
                 try {
                     do {
                         pending = false
-                        const results = await Promise.all([load(), loadProspects(queryRef.current.trim() || undefined)])
-                        loaded = results.every(Boolean)
+                        const readEpoch = capture()
+                        inFlightEpoch = readEpoch
+                        const stateLoaded = await load()
+                        const refreshPool = poolPending
+                        poolPending = false
+                        const poolLoaded = (refreshPool || prospectsDirtyRef.current) && isCurrent() && canRefresh()
+                            ? await loadProspects(queryRef.current.trim() || undefined) : true
+                        loaded = stateLoaded && poolLoaded && activityIsCurrent(readEpoch)
+                        if (loaded) markReady(readEpoch)
                     } while (pending && isCurrent() && canRefresh())
                     return loaded && isCurrent()
                 } finally {
@@ -252,8 +290,15 @@ export function useRookieDraftRoomController({
         }
         return {
             run, trigger,
+            suspend: () => {
+                pending = true
+                invalidate()
+                if (timer) clearTimeout(timer)
+                timer = null
+            },
             activate: () => { disposed = false; activeReadOwnerRef.current = readOwnerKey },
             cancel: () => {
+                inFlightEpoch = -1
                 disposed = true
                 pending = false
                 if (timer) clearTimeout(timer)
@@ -262,11 +307,10 @@ export function useRookieDraftRoomController({
                 if (activeReadOwnerRef.current === readOwnerKey) activeReadOwnerRef.current = null
             },
         }
-    }, [canRefresh, draftId, load, loadProspects, readOwnerKey])
+    }, [canRefresh, draftId, load, loadProspects, readOwnerKey, capture, activityIsCurrent, markReady])
 
     useEffect(() => {
         reloadRoom.activate()
-        void reloadRoom.run()
         if (!draftId) return reloadRoom.cancel
         let active = true
         let eventRevision = 0
@@ -278,52 +322,34 @@ export function useRookieDraftRoomController({
             eventRevision += 1
             pollRevisionRef.current = null
             reloadRoom.trigger()
+        }, async () => {
+            if (!isCurrent()) return false
+            eventRevision += 1
+            pollRevisionRef.current = null
+            blockActions()
+            return reloadRoom.run(true, true)
         })
         channelRef.current = channel
         let polling = false
-        let resumePending = false
-        let visibilityEpoch = 0
-        let foreground = canRefresh()
         const pollRevision = async () => {
             if (!isCurrent() || !canRefresh() || polling) return
             polling = true
-            resumePending = false
-            const epoch = visibilityEpoch
+            const readEpoch = capture()
             const events = eventRevision
             try {
                 const revision = await getRookieDraftPollRevision(requestedDraftId)
-                if (!isCurrent() || !canRefresh() || epoch !== visibilityEpoch || events !== eventRevision) return
+                if (!isCurrent() || !canRefresh() || !activityIsCurrent(readEpoch) || events !== eventRevision) return
                 const previous = pollRevisionRef.current
-                if (revision === previous) return
+                if (revision === previous && !prospectsDirtyRef.current) return
                 const loaded = await reloadRoom.run()
-                if (loaded && isCurrent() && canRefresh() && epoch === visibilityEpoch && events === eventRevision) pollRevisionRef.current = revision
+                if (loaded && isCurrent() && canRefresh() && activityIsCurrent(readEpoch) && events === eventRevision) pollRevisionRef.current = revision
             } catch (error) {
                 if (isCurrent()) console.error(error)
             } finally {
                 polling = false
-                if (resumePending && isCurrent() && canRefresh()) {
-                    resumePending = false
-                    void pollRevision()
-                }
             }
         }
         const poll = setInterval(() => { void pollRevision() }, 15_000)
-        const onVisibility = () => {
-            if (!isCurrent()) return
-            const nextForeground = canRefresh()
-            if (nextForeground === foreground) return
-            foreground = nextForeground
-            visibilityEpoch += 1
-            if (!foreground) return
-            if (polling) resumePending = true
-            else void pollRevision()
-        }
-        const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-            if (!isCurrent()) return
-            appStateRef.current = nextState
-            onVisibility()
-        })
-        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility)
         return () => {
             active = false
             reloadRoom.cancel()
@@ -332,24 +358,39 @@ export function useRookieDraftRoomController({
                 channelRef.current = null
             }
             clearInterval(poll)
-            appStateSubscription.remove()
-            if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility)
         }
-    }, [canRefresh, draftId, readOwnerKey, reloadRoom])
+    }, [canRefresh, draftId, readOwnerKey, reloadRoom, capture, activityIsCurrent, blockActions])
+
+    useEffect(() => {
+        pollRevisionRef.current = null
+        if (canRefresh() && !canAct()) void reloadRoom.run(false, true)
+        else if (!canRefresh()) {
+            if (!completionErrorRef.current) {
+                draftEndCheckedRef.current = false
+                setTrimOverflow(null)
+            }
+            reloadRoom.suspend()
+        }
+    }, [epoch, canRefresh, canAct, reloadRoom])
 
     useEffect(() => {
         if (!ownsDraft) { queryRef.current = ''; lastSearchQueryRef.current = ''; return }
         queryRef.current = query
+        if (!canAct()) {
+            if (query.trim() !== lastSearchQueryRef.current) prospectsDirtyRef.current = true
+            return
+        }
         if (query === lastSearchQueryRef.current) return
         lastSearchQueryRef.current = query
         if (searchTimer.current) clearTimeout(searchTimer.current)
         searchTimer.current = setTimeout(() => {
-            loadProspects(query.trim() || undefined)
+            if (canAct()) void loadProspects(query.trim() || undefined)
+            else prospectsDirtyRef.current = true
         }, 300)
         return () => {
             if (searchTimer.current) clearTimeout(searchTimer.current)
         }
-    }, [query, loadProspects, ownsDraft])
+    }, [query, loadProspects, ownsDraft, canAct, activity.ready])
 
     const clockEnd = useMemo(() => {
         if (visibleState?.draft.status !== 'in_progress') return null
@@ -369,28 +410,50 @@ export function useRookieDraftRoomController({
     }, [clockEnd])
 
     useEffect(() => {
-        if (secondsLeft !== 0 || !draftId || !visibleState?.nextPick || picking) return
+        if (secondsLeft !== 0 || !draftId || !visibleState?.nextPick || picking
+            || visibleState.draft.status !== 'in_progress' || !draftSeasonIsCurrent) return
         if (visibleState.draft.timerExpiryBehavior !== 'auto_pick') return
         const stableMemberId = memberIdRef.current ?? memberId
         if (!stableMemberId || visibleState.nextPick.memberId !== stableMemberId) return
-
-        const attemptKey = `${draftId}:${visibleState.nextPick.overallPick}:${visibleState.nextPick.timerExpiresAt ?? ''}`
-        if (autoPickAttemptRef.current === attemptKey) return
-        autoPickAttemptRef.current = attemptKey
-
-        ;(async () => {
-            const generation = mutationGenerationRef.current
-            const identity = ownerIdentity
-            try {
-                await processExpiredSnakePick(draftId, stableMemberId)
-                if (mutationIsCurrent(generation, identity)) {
-                    await reloadRoom.run()
+        const key = `${draftId}:${visibleState.nextPick.overallPick}:${visibleState.nextPick.timerExpiresAt ?? ''}`
+        if (autoPickAttemptRef.current?.key !== key) {
+            autoPickAttemptRef.current = { key, attempts: 0, nextAt: 0, inFlight: false, completed: false }
+        }
+        const attempt = autoPickAttemptRef.current
+        let active = true
+        let retry: ReturnType<typeof setTimeout> | undefined
+        const generation = mutationGenerationRef.current
+        const identity = ownerIdentity
+        const isCurrent = () => active && mutationIsCurrent(generation, identity)
+            && autoPickAttemptRef.current === attempt
+        const run = async () => {
+            if (!isCurrent() || attempt.completed) return
+            if (!attempt.inFlight && canAct()
+                && performance.now() >= attempt.nextAt) {
+                attempt.inFlight = true
+                attempt.attempts += 1
+                attempt.nextAt = performance.now() + [2000, 5000, 10000, 30000][Math.min(attempt.attempts - 1, 3)]
+                try {
+                    const result = await processExpiredSnakePick(draftId, stableMemberId)
+                    if (isCurrent()) {
+                        attempt.completed = result?.processed === true
+                        setPickError(null)
+                        await reloadRoom.run()
+                    }
+                } catch (e) {
+                    if (isCurrent()) setPickError(getErrorMessage(e) ?? 'Auto-pick failed')
+                } finally {
+                    attempt.inFlight = false
                 }
-            } catch (e) {
-                if (mutationIsCurrent(generation, identity)) setPickError(getErrorMessage(e) ?? 'Auto-pick failed')
             }
-        })()
-    }, [draftId, reloadRoom, memberId, ownerIdentity, picking, secondsLeft, visibleState?.draft.timerExpiryBehavior, visibleState?.nextPick])
+            if (isCurrent() && !attempt.completed) {
+                retry = setTimeout(() => { void run() }, Math.max(500, attempt.nextAt - performance.now()))
+            }
+        }
+        void run()
+        return () => { active = false; if (retry) clearTimeout(retry) }
+    }, [canAct, draftId, draftSeasonIsCurrent, reloadRoom, memberId, ownerIdentity, picking, secondsLeft,
+        visibleState?.draft.status, visibleState?.draft.timerExpiryBehavior, visibleState?.nextPick, mutationIsCurrent, epoch, activity.ready])
 
     const draftCompleted = visibleState?.draft.status === 'completed'
     const completionPhase = draftCompleted && draftSeasonIsCurrent ? `${ownerIdentity}:${visibleState.draft.completedAt ?? ''}` : null
@@ -407,7 +470,7 @@ export function useRookieDraftRoomController({
     }, [draftCompleted, draftSeasonIsCurrent])
     useEffect(() => {
         const stableMemberId = memberIdRef.current ?? memberId
-        if (!draftCompleted || !draftSeasonIsCurrent || !draftLeagueMatches || visibleState?.draft.isMock || picking || !stableMemberId || !leagueId || draftEndCheckedRef.current) return
+        if (!canAct() || completionError || !draftCompleted || !draftSeasonIsCurrent || !draftLeagueMatches || visibleState?.draft.isMock || picking || !stableMemberId || !leagueId || draftEndCheckedRef.current) return
 
         draftEndCheckedRef.current = true
         setCompletionError(null)
@@ -436,10 +499,10 @@ export function useRookieDraftRoomController({
                 }
             }
         })()
-    }, [draftCompleted, draftSeasonIsCurrent, draftLeagueMatches, visibleState, picking, draftId, leagueId, rosterSize, memberId, load, ownerIdentity])
+    }, [draftCompleted, draftSeasonIsCurrent, draftLeagueMatches, visibleState, picking, draftId, leagueId, rosterSize, memberId, load, ownerIdentity, canAct, activity.ready, mutationIsCurrent, completionError])
 
     async function handleTrimDrop(rosterPlayerId: string) {
-        if (!trimOverflow || completionError || trimmingId || !draftCompleted || !draftSeasonIsCurrent || completionPhaseRef.current !== completionPhase || !visibleState || visibleState.draft.isMock || !draftLeagueMatches ||
+        if (!canAct() || !trimOverflow || completionError || trimmingId || !draftCompleted || !draftSeasonIsCurrent || completionPhaseRef.current !== completionPhase || !visibleState || visibleState.draft.isMock || !draftLeagueMatches ||
             !ownsActionState || activeOwnerRef.current !== ownerIdentity) return
         const generation = mutationGenerationRef.current
         const identity = ownerIdentity
@@ -477,13 +540,13 @@ export function useRookieDraftRoomController({
                 }
             }
         } finally {
-            if (mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch) setTrimmingId(null)
+            if (activeOwnerRef.current === identity && completionEpochRef.current === completionEpoch) setTrimmingId(null)
         }
     }
 
     async function handlePick(player: RookieProspect) {
         const stableMemberId = memberIdRef.current
-        if (!draftId || !stableMemberId || picking) return
+        if (!canAct() || !draftId || !stableMemberId || picking) return
         const generation = mutationGenerationRef.current
         const identity = ownerIdentity
 
@@ -534,13 +597,13 @@ export function useRookieDraftRoomController({
                 await reloadRoom.run()
             }
         } finally {
-            if (mutationIsCurrent(generation, identity)) setPicking(false)
+            if (activeOwnerRef.current === identity) setPicking(false)
         }
     }
 
     async function handleCommissionerPick(player: RookieProspect) {
         const targetMemberId = visibleState?.nextPick?.memberId
-        if (!draftId || !targetMemberId || picking) return
+        if (!canAct() || !draftId || !targetMemberId || picking) return
         const generation = mutationGenerationRef.current
         const identity = ownerIdentity
 
@@ -558,12 +621,12 @@ export function useRookieDraftRoomController({
                 await reloadRoom.run()
             }
         } finally {
-            if (mutationIsCurrent(generation, identity)) setPicking(false)
+            if (activeOwnerRef.current === identity) setPicking(false)
         }
     }
 
     async function resolveByDrop(rosterPlayerId: string) {
-        if (!rosterOverflow || resolvingOverflow || !draftSeasonIsCurrent || !visibleState || visibleState.draft.isMock || !draftLeagueMatches ||
+        if (!canAct() || !rosterOverflow || resolvingOverflow || !draftSeasonIsCurrent || !visibleState || visibleState.draft.isMock || !draftLeagueMatches ||
             !ownsActionState || activeOwnerRef.current !== ownerIdentity) return
         const generation = mutationGenerationRef.current
         const identity = ownerIdentity
@@ -583,13 +646,14 @@ export function useRookieDraftRoomController({
                 setPickError('Could not finish the roster check. Open Roster to confirm the drop and resolve any overflow.')
             }
         } finally {
-            if (mutationIsCurrent(generation, identity)) setResolvingOverflow(false)
+            if (activeOwnerRef.current === identity) setResolvingOverflow(false)
         }
     }
 
     const refresh = useCallback(async () => {
+        setCompletionError(null)
         draftEndCheckedRef.current = false
-        await reloadRoom.run()
+        await reloadRoom.run(true)
     }, [reloadRoom])
 
     const availableProspects = useMemo(() => {
@@ -599,6 +663,8 @@ export function useRookieDraftRoomController({
 
     return {
         state: visibleState,
+        actionsReady: activity.ready,
+        canAct,
         loading: ownsDraft ? loading : true,
         loadError: loadError?.ownerKey === readOwnerKey ? loadError.message : null,
         prospectsLoadError: prospectsError?.ownerKey === readOwnerKey && prospectsError.query === query.trim()

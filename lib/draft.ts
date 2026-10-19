@@ -1,8 +1,10 @@
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
-import { subscribeToTableChanges } from '@/lib/realtime'
+import { subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import type { RealtimeSubscriptionStatus } from '@/lib/realtime'
+import { assertReadActive } from '@/lib/shared/read-admission'
+import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 type DraftOrderEntry = {
     position: number
@@ -196,9 +198,12 @@ async function getActiveDraft(leagueId: string): Promise<Draft | null> {
 
 export async function getJoinableDraft(
     leagueId: string,
-    options: { includeCompletedRookie?: boolean } = {},
+    options: { includeCompletedRookie?: boolean; canRead?: () => boolean } = {},
 ): Promise<Draft | null> {
+    const { canRead } = options
+    assertReadActive(canRead)
     const activeDraft = await getActiveDraft(leagueId)
+    assertReadActive(canRead)
     if (activeDraft || !options.includeCompletedRookie) return activeDraft
 
     const { data: league, error: leagueError } = await supabase
@@ -206,6 +211,7 @@ export async function getJoinableDraft(
         .select('status')
         .eq('id', leagueId)
         .maybeSingle()
+    assertReadActive(canRead)
     if (leagueError) throw leagueError
     if (league?.status !== 'drafting') return null
 
@@ -220,11 +226,119 @@ export async function getJoinableDraft(
         .limit(1)
         .maybeSingle()
 
+    assertReadActive(canRead)
     if (error) throw error
     return data ? mapDraft(data) : null
 }
 
-export async function getDraftState(draftId: string): Promise<DraftState | null> {
+type PendingJoinableDraft = {
+    readers: Set<() => boolean>
+    promise: Promise<Draft | null>
+}
+
+const pendingJoinableDrafts = new Map<string, PendingJoinableDraft>()
+
+onSessionCachesCleared(() => {
+    for (const pending of pendingJoinableDrafts.values()) pending.readers.clear()
+    pendingJoinableDrafts.clear()
+})
+
+function hasJoinableDraftReaders(readers: Set<() => boolean>): boolean {
+    for (const canRead of readers) if (!canRead()) readers.delete(canRead)
+    return readers.size > 0
+}
+
+export function acquireJoinableDraft(
+    leagueId: string,
+    options: { memberId?: string; includeCompletedRookie?: boolean; canRead: () => boolean },
+): { promise: Promise<Draft | null>; release: () => void } {
+    const actor = sessionOwner()
+    const generation = sessionGeneration()
+    const { canRead, memberId, includeCompletedRookie = false } = options
+    const key = JSON.stringify([actor, generation, leagueId, memberId ?? null, includeCompletedRookie])
+    const admitted = () => actor != null && sessionOwner() === actor && sessionGeneration() === generation && canRead()
+    let pending = pendingJoinableDrafts.get(key)
+    if (pending && !hasJoinableDraftReaders(pending.readers)) {
+        pendingJoinableDrafts.delete(key)
+        pending = undefined
+    }
+    if (pending) {
+        pending.readers.add(admitted)
+    } else {
+        const readers = new Set([admitted])
+        pending = {
+            readers,
+            promise: getJoinableDraft(leagueId, { includeCompletedRookie, canRead: () => hasJoinableDraftReaders(readers) }),
+        }
+        pendingJoinableDrafts.set(key, pending)
+    }
+    const owned = pending
+    const evict = () => {
+        if (pendingJoinableDrafts.get(key) === owned) pendingJoinableDrafts.delete(key)
+    }
+    void owned.promise.then(evict, evict)
+    const release = () => {
+        owned.readers.delete(admitted)
+        if (!hasJoinableDraftReaders(owned.readers)) evict()
+    }
+    const promise = owned.promise.then(draft => {
+        assertReadActive(() => owned.readers.has(admitted) && admitted())
+        return draft
+    }).finally(release)
+    return { promise, release }
+}
+
+export async function getDraftState(draftId: string, previous?: DraftState | null): Promise<DraftState | null> {
+    if (previous?.draft.id === draftId && previous.openNomination) {
+        const [draftResult, nominationResult, budgetsResult] = await Promise.all([
+            supabase.from('drafts').select(DRAFT_SELECT).eq('id', draftId).maybeSingle(),
+            supabase.from('nominations')
+                .select('id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at')
+                .eq('draft_id', draftId).order('nomination_order', { ascending: false }).limit(1).maybeSingle(),
+            supabase.from('draft_budgets')
+                .select('member_id, remaining, initial_budget, league_members(team_name)').eq('draft_id', draftId),
+        ])
+        if (draftResult.error) throw draftResult.error
+        if (nominationResult.error) throw nominationResult.error
+        if (budgetsResult.error) throw budgetsResult.error
+        if (!draftResult.data) return null
+        const nomination = nominationResult.data
+        const currentDraft = mapDraft(draftResult.data)
+        if (nomination?.id === previous.openNomination.id && nomination.status === 'open'
+            && nomination.current_bid_amount >= previous.openNomination.currentBidAmount
+            && Object.entries(currentDraft).every(([key, value]) => Reflect.get(previous.draft, key) === value)) {
+            const openNomination: DraftNomination = {
+                ...previous.openNomination,
+                currentBidAmount: nomination.current_bid_amount,
+                currentBidderId: nomination.current_bidder_id,
+                currentBidToTaxi: nomination.current_bid_to_taxi,
+                countdownExpiresAt: nomination.countdown_expires_at,
+            }
+            let activeBids = previous.activeBids
+            const lastAmount = Math.max(0, ...activeBids.map(bid => bid.amount))
+            if (nomination.current_bid_amount > lastAmount) {
+                const { data, error } = await supabase.from('bids')
+                    .select('id, nomination_id, member_id, amount, placed_at, league_members(team_name)')
+                    .eq('nomination_id', nomination.id).gt('amount', lastAmount)
+                    .order('placed_at', { ascending: false }).limit(100)
+                if (error) throw error
+                const incoming = (data ?? []).map(bid => ({
+                    id: bid.id, nominationId: bid.nomination_id, memberId: bid.member_id,
+                    teamName: bid.league_members?.team_name ?? 'Unknown', amount: bid.amount, placedAt: bid.placed_at,
+                }))
+                const ids = new Set(incoming.map(bid => bid.id))
+                activeBids = [...incoming, ...activeBids.filter(bid => !ids.has(bid.id))].slice(0, 100)
+            }
+            return {
+                ...previous, draft: currentDraft, openNomination, activeBids,
+                nominations: previous.nominations.map(row => row.id === nomination.id ? openNomination : row),
+                budgets: (budgetsResult.data ?? []).map(row => ({
+                    memberId: row.member_id, teamName: row.league_members?.team_name ?? 'Unknown',
+                    remaining: row.remaining, initialBudget: row.initial_budget,
+                })),
+            }
+        }
+    }
     const [draftResult, ordersResult, budgetsResult, nominationsResult] =
         await Promise.all([
             supabase
@@ -556,6 +670,7 @@ export function subscribeToDraft(
     _leagueId: string | null | undefined,
     onChange: () => void,
     onStatus?: (status: RealtimeSubscriptionStatus) => void,
+    onReconnect?: () => Promise<boolean>,
 ): RealtimeChannel {
     return subscribeToTableChanges(`draft:${draftId}`, {
         mode: 'fallback',
@@ -566,9 +681,10 @@ export function subscribeToDraft(
         ],
         onChange,
         onStatus,
+        onReconnect,
     })
 }
 
 export async function unsubscribeFromDraft(channel: RealtimeChannel): Promise<void> {
-    await supabase.removeChannel(channel)
+    await unsubscribeFromTableChanges(channel)
 }

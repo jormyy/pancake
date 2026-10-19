@@ -200,3 +200,72 @@ describe('search lifecycle ownership', () => {
         await act(async () => { unmounted.resolve([player('unmounted')]); await unmounted.promise })
     })
 })
+
+it('revalidates the same search when the ET day changes and keeps the selected filters', async () => {
+    const { todayET } = await import('@/lib/shared/dates')
+    const owned = new Map()
+    const waivers = new Set<string>()
+    mocks.searchPlayers.mockResolvedValue([player('current')])
+    let latest!: ReturnType<typeof usePlayerSearch>
+    const Probe = ({ tick }: { tick: number }) => {
+        latest = usePlayerSearch('league', owned, waivers, 'member')
+        return React.createElement('div', { 'data-tick': tick })
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { tick: 0 })) })
+        await act(async () => { latest.position.setValue('G') })
+        const before = mocks.searchPlayers.mock.calls.length
+        vi.mocked(todayET).mockReturnValue('2026-10-21')
+        await act(async () => { renderer.update(React.createElement(Probe, { tick: 1 })) })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before + 1)
+        expect(latest.position.value).toBe('G')
+    } finally { await act(async () => { renderer.unmount() }); vi.mocked(todayET).mockReturnValue('2026-10-20') }
+})
+
+it('waits for current availability without discarding the prior search rows or filters', async () => {
+    const owned = new Map()
+    const waivers = new Set<string>()
+    mocks.searchPlayers.mockResolvedValue([player('current')])
+    let latest!: ReturnType<typeof usePlayerSearch>
+    const Probe = ({ admitted }: { admitted: boolean }) => { latest = usePlayerSearch('league', owned, waivers, 'member', { admitted }); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { admitted: false })) })
+        expect(mocks.searchPlayers).not.toHaveBeenCalled()
+        await act(async () => { renderer.update(React.createElement(Probe, { admitted: true })) })
+        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
+        await act(async () => { latest.position.setValue('G') })
+        const before = mocks.searchPlayers.mock.calls.length
+        await act(async () => { renderer.update(React.createElement(Probe, { admitted: false })) })
+        expect(latest.results.players.map(row => row.id)).toEqual(['current'])
+        expect(latest.results.isSnapshot).toBe(true)
+        await act(async () => { renderer.update(React.createElement(Probe, { admitted: true })) })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before)
+        expect(latest.position.value).toBe('G')
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('joins a covered source refresh and follows a changed source without certifying the held old result', async () => {
+    const { setLeagueChangesConnected, notifyLeagueChange } = await import('@/lib/league-changes')
+    setLeagueChangesConnected('league', true)
+    notifyLeagueChange('league', { topic: 'catchup', scopes: null })
+    const first = deferred<ReturnType<typeof player>[]>()
+    mocks.searchPlayers.mockReturnValueOnce(first.promise).mockResolvedValue([player('new')])
+    const owned = new Map(), waivers = new Set<string>()
+    let latest!: ReturnType<typeof usePlayerSearch>
+    const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { latest.results.refreshIfChanged() })
+        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
+        notifyLeagueChange('league', { topic: 'resources', scopes: null })
+        await act(async () => { first.resolve([player('old')]) })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
+        expect(latest.results.players.map(row => row.id)).toEqual(['new'])
+        expect(latest.results.isSnapshot).toBe(false)
+        await act(async () => { latest.results.refreshIfChanged(); latest.results.refreshIfChanged() })
+        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
+    } finally { await act(async () => { renderer.unmount() }); setLeagueChangesConnected('league', false) }
+})

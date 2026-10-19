@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
+
+import { dynastyDecisionCacheKey, dynastyDecisionLatestCacheKey } from '@/lib/dynasty-decisions'
 
 import {
     clearPersistentCaches,
@@ -63,4 +66,18 @@ describe('persistent cache bounds', () => {
         clearPersistentCaches()
         expect(readPersistentCache(selection)).toBeNull()
     })
+})
+
+it.each(['snapshot', 'latest'] as const)('bounds actual forecast %s keys without evicting another resource', (kind) => {
+    clearPersistentCaches()
+    const keys = Array.from({ length: kind === 'snapshot' ? 17 : 9 }, (_, index) => {
+        const scope = { userId: 'user', memberId: 'member', leagueId: `league-${index}`, seasonYear: 2027, scoringSignature: '{}' }
+        return kind === 'snapshot' ? dynastyDecisionCacheKey(scope) : dynastyDecisionLatestCacheKey(scope)
+    })
+    writePersistentCache('pancake:home-matchup:other', 'home')
+    for (const [index, key] of keys.entries()) writePersistentCache(key, index)
+    expect(readPersistentCache(keys[0])).toBeNull()
+    expect(readPersistentCache(keys[1])).toBe(1)
+    expect(readPersistentCache(keys.at(-1)!)).toBe(keys.length - 1)
+    expect(readPersistentCache('pancake:home-matchup:other')).toBe('home')
 })

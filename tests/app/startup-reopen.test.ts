@@ -28,6 +28,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('@react-navigation/native', () => ({ DefaultTheme: { colors: {} }, ThemeProvider: ({ children }: React.PropsWithChildren) => children }))
 vi.mock('@expo-google-fonts/outfit', () => ({ useFonts: () => [], Outfit_500Medium: {}, Outfit_600SemiBold: {}, Outfit_700Bold: {} }))
+vi.mock('expo-font', () => ({ useFonts: () => [], FontDisplay: { SWAP: 'swap' } }))
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }))
 vi.mock('expo-router', () => ({
     useRouter: () => ({ replace: mocks.replace }),

@@ -15,7 +15,7 @@ serveInternal('sync-rankings', async (req) => {
   const rows = await recordSyncRun('sync-rankings', async () => {
     const rows = await syncRankingView(requestedView)
     return { result: rows, rowsAffected: rows }
-  })
+  }, req)
   return Response.json({ ok: true, rows, view: requestedView.type })
 })
 

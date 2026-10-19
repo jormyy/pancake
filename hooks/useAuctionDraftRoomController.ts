@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState } from 'react-native'
+import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     closeExpiredNominations,
     getDraftPollRevision,
@@ -14,10 +14,10 @@ import {
     type DraftState,
     type NominationOrderMode,
 } from '@/lib/draft'
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import {
-    debounceRealtimeRefresh,
     reportRealtimeCleanup,
     type RealtimeSubscriptionStatus,
 } from '@/lib/realtime'
@@ -34,8 +34,13 @@ export function useAuctionDraftRoomController({
     draftId?: string
     memberId?: string
 }) {
+    const activity = useDraftActivity(draftId && memberId ? `${draftId}:${memberId}` : null)
+    const { identity, epoch, capture, canRead, isCurrent, canAct, markReady, blockActions } = activity
     const [state, setState] = useState<DraftState | null>(null)
-    const [stateDraftId, setStateDraftId] = useState(draftId)
+    const snapshotRef = useRef<DraftState | null>(null)
+    const [stateOwner, setStateOwner] = useState(identity)
+    const activeIdentityRef = useRef(identity)
+    activeIdentityRef.current = identity
     const [tab, setTab] = useState<DraftTab>('budgets')
     const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -45,6 +50,7 @@ export function useAuctionDraftRoomController({
     const [bidToTaxi, setBidToTaxi] = useState(false)
     useEffect(() => { setBidToTaxi(false) }, [draftId, memberId])
     const [bidding, setBidding] = useState(false)
+    const bidRequestRef = useRef<object | null>(null)
     const [withdrawing, setWithdrawing] = useState(false)
 
     const [realtimeStatus, setRealtimeStatus] =
@@ -69,8 +75,9 @@ export function useAuctionDraftRoomController({
     const lastNomIdRef = useRef<string | null>(null)
     // Mirror of bidText so load() can read the current value without a dep.
     const bidTextRef = useRef('1')
-    // Track which nomination has had its expiry close triggered so we only fire once per nomination.
-    const closeTriggeredForNomRef = useRef<string | null>(null)
+    const expiryAttemptRef = useRef<{
+        key: string; attempts: number; nextAt: number; inFlight: boolean; completed: boolean
+    } | null>(null)
     // The draft's nomination-order mode is stable; keep it in a ref so the search
     // effect can read it without re-running on every poll-driven state change.
     const nominationModeRef = useRef<NominationOrderMode>('user_nominated')
@@ -78,23 +85,28 @@ export function useAuctionDraftRoomController({
     // fire load() concurrently, so drop any result that a newer load supersedes.
     const loadSeqRef = useRef(0)
     const searchSeqRef = useRef(0)
+    const pendingRefreshRef = useRef(true)
+    const inFlightRef = useRef<{ epoch: number; identity: string; promise: Promise<boolean> } | null>(null)
     const pollRevisionRef = useRef<string | null | undefined>(undefined)
 
     // Keep bidTextRef in sync so load() can read current typed value without a dep.
     useEffect(() => { bidTextRef.current = bidText }, [bidText])
 
-    const visibleState = stateDraftId === draftId ? state : null
-    const countdownNomination = visibleState?.openNomination
-    const draftLeagueId = visibleState?.draft.leagueId ?? null
+    const visibleState = stateOwner === identity ? state : null
+    const countdownNomination = visibleState?.draft.status === 'in_progress' ? visibleState.openNomination : null
     activeDraftIdRef.current = draftId
 
+    useEffect(() => draftId ? holdPwaUpdate('auction room') : undefined, [draftId])
+
     useEffect(() => {
+        snapshotRef.current = null
         loadSeqRef.current += 1
         searchSeqRef.current += 1
         setState(null)
-        setStateDraftId(draftId)
+        setStateOwner(identity)
         setLoadError(null)
         setBidText('1')
+        bidRequestRef.current = null
         setBidding(false)
         setWithdrawing(false)
         setNominating(false)
@@ -106,77 +118,128 @@ export function useAuctionDraftRoomController({
         setTimeLeft(0)
         setRealtimeStatus('CONNECTING')
         lastNomIdRef.current = null
-        closeTriggeredForNomRef.current = null
+        expiryAttemptRef.current = null
         pollRevisionRef.current = undefined
         return () => {
             loadSeqRef.current += 1
             searchSeqRef.current += 1
         }
-    }, [draftId])
+    }, [draftId, identity])
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (incremental = false) => {
         if (!draftId) return false
+        pendingRefreshRef.current = true
+        if (!canRead()) return false
+        const readEpoch = capture()
+        if (inFlightRef.current?.identity === identity && inFlightRef.current.epoch === readEpoch) return inFlightRef.current.promise
+        pendingRefreshRef.current = false
         const requestedDraftId = draftId
         if (activeDraftIdRef.current !== requestedDraftId) return false
         const seq = ++loadSeqRef.current
-        try {
-            const s = await getDraftState(requestedDraftId)
-            // Ignore a stale, out-of-order result once a newer load has started.
-            if (seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
-            setLoadError(null)
-            // A successful empty read means the room is gone. Read failures throw
-            // and keep the last usable state in the catch path below.
-            if (s) {
-                setStateDraftId(requestedDraftId)
-                setState(s)
-                nominationModeRef.current = s.draft.nominationOrderMode
-                const nom = s.openNomination ?? null
-                if (nom?.countdownExpiresAt) {
-                    const diff = Math.max(
-                        0,
-                        Math.floor((new Date(nom.countdownExpiresAt).getTime() - Date.now()) / 1000),
-                    )
-                    setTimeLeft(diff)
+        const task = (async () => {
+            try {
+                const s = incremental && canAct()
+                    ? await getDraftState(requestedDraftId, snapshotRef.current)
+                    : await getDraftState(requestedDraftId)
+                // Ignore a stale, out-of-order result once a newer load has started.
+                if (!isCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
+                snapshotRef.current = s
+                setLoadError(null)
+                // A successful empty read means the room is gone. Read failures throw
+                // and keep the last usable state in the catch path below.
+                if (s) {
+                    setStateOwner(identity)
+                    setState(s)
+                    nominationModeRef.current = s.draft.nominationOrderMode
+                    const nom = s.openNomination ?? null
+                    if (nom?.countdownExpiresAt) {
+                        const diff = Math.max(
+                            0,
+                            Math.floor((new Date(nom.countdownExpiresAt).getTime() - Date.now()) / 1000),
+                        )
+                        setTimeLeft(diff)
+                    }
+                    // Seed the bid field when a new player comes on the block, or when
+                    // the current bid has advanced past what the user typed (their value
+                    // would be invalid, so bring it up to the new minimum automatically).
+                    const nomId = nom?.id ?? null
+                    const minBid = (nom?.currentBidAmount ?? 0) + 1
+                    const typedValue = parseInt(bidTextRef.current, 10)
+                    const typedIsStale = isNaN(typedValue) || typedValue < minBid
+                    if (nomId !== lastNomIdRef.current || (nom && typedIsStale)) {
+                        lastNomIdRef.current = nomId
+                        if (nom) setBidText(String(minBid))
+                    }
+                } else {
+                    setStateOwner(identity)
+                    setState(null)
+                    setTimeLeft(0)
+                    setNominating(false)
+                    lastNomIdRef.current = null
+                    expiryAttemptRef.current = null
                 }
-                // Seed the bid field when a new player comes on the block, or when
-                // the current bid has advanced past what the user typed (their value
-                // would be invalid, so bring it up to the new minimum automatically).
-                const nomId = nom?.id ?? null
-                const minBid = (nom?.currentBidAmount ?? 0) + 1
-                const typedValue = parseInt(bidTextRef.current, 10)
-                const typedIsStale = isNaN(typedValue) || typedValue < minBid
-                if (nomId !== lastNomIdRef.current || (nom && typedIsStale)) {
-                    lastNomIdRef.current = nomId
-                    if (nom) setBidText(String(minBid))
+                markReady(readEpoch)
+                return true
+            } catch (e) {
+                if (isCurrent(readEpoch) && seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) {
+                    pendingRefreshRef.current = true
+                    setLoadError(getErrorMessage(e))
                 }
-            } else {
-                setStateDraftId(requestedDraftId)
-                setState(null)
-                setTimeLeft(0)
-                setNominating(false)
-                lastNomIdRef.current = null
-                closeTriggeredForNomRef.current = null
+                return false
             }
-            return true
-        } catch (e) {
-            if (seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) {
-                setLoadError(getErrorMessage(e))
-            }
-            return false
-        }
-    }, [draftId])
+        })()
+        const request = { epoch: readEpoch, identity, promise: task }
+        inFlightRef.current = request
+        try { return await task }
+        finally { if (inFlightRef.current === request) inFlightRef.current = null }
+    }, [draftId, identity, capture, canRead, isCurrent, canAct, markReady])
+
+    useEffect(() => {
+        searchSeqRef.current += 1
+        if (!canRead()) {
+            pendingRefreshRef.current = true
+            loadSeqRef.current += 1
+        } else if (!canAct() || pendingRefreshRef.current) void load()
+    }, [epoch, canRead, canAct, load])
 
     // Load + subscribe. Mutations fail closed unless this channel is live.
     useEffect(() => {
         if (!draftId) return
         let active = true
-        load()
+        if (subscriptionEpoch > 0) void load()
         // A bidding war fires several inserts per second and every one of them
         // reloads the whole draft state; coalesce the burst into one reload.
-        const refresh = debounceRealtimeRefresh(() => { void load() })
+        let refreshTimer: ReturnType<typeof setTimeout> | null = null
+        let refreshing = false
+        let pending = false
+        const refresh = {
+            trigger: () => {
+                if (!active) return
+                pending = true
+                pendingRefreshRef.current = true
+                if (!canRead()) return
+                if (refreshing || refreshTimer) return
+                refreshTimer = setTimeout(async () => {
+                    refreshTimer = null
+                    refreshing = true
+                    pending = false
+                    try { await load(true) }
+                    finally {
+                        refreshing = false
+                        if (pending && active) refresh.trigger()
+                    }
+                }, 250)
+            },
+            cancel: () => {
+                if (refreshTimer) clearTimeout(refreshTimer)
+                refreshTimer = null
+                pending = false
+            },
+        }
         let rejoin: ReturnType<typeof setTimeout> | null = null
-        const channel = subscribeToDraft(draftId, draftLeagueId, refresh.trigger, (status) => {
+        const channel = subscribeToDraft(draftId, null, refresh.trigger, (status) => {
             if (!active) return
+            if (status !== 'SUBSCRIBED') blockActions()
             setRealtimeStatus(status)
             // CHANNEL_ERROR and TIMED_OUT rejoin inside the client; CLOSED is terminal, so subscribe again.
             if (status === 'CLOSED' && !rejoin) {
@@ -187,60 +250,44 @@ export function useAuctionDraftRoomController({
                     setSubscriptionEpoch((epoch) => epoch + 1)
                 }, AUCTION_REJOIN_DELAY_MS)
             }
-        })
+        }, load)
         return () => {
             active = false
             if (rejoin) clearTimeout(rejoin)
             refresh.cancel()
             reportRealtimeCleanup('auction draft', unsubscribeFromDraft(channel))
         }
-    }, [draftId, draftLeagueId, load, subscriptionEpoch])
+    }, [draftId, load, subscriptionEpoch, canRead, blockActions])
 
     // Realtime is primary. The fallback probes only current mutable rows and
     // reloads history/ages when their revision actually changes.
     useEffect(() => {
         if (!draftId) return
         let active = true
-        let appState = AppState.currentState
         let inFlight = false
-        let resumePending = false
         const pollRevision = async () => {
-            if (!active || appState !== 'active' || inFlight) return
+            if (!active || !canRead() || inFlight) return
+            if (pendingRefreshRef.current) { await load(); return }
             inFlight = true
-            resumePending = false
+            const readEpoch = capture()
             try {
                 const revision = await getDraftPollRevision(draftId)
-                if (!active || appState !== 'active' || activeDraftIdRef.current !== draftId) return
+                if (!active || !isCurrent(readEpoch) || activeDraftIdRef.current !== draftId) return
                 if (pollRevisionRef.current === revision) return
                 const loaded = await load()
-                if (loaded && active && activeDraftIdRef.current === draftId) pollRevisionRef.current = revision
+                if (loaded && active && isCurrent(readEpoch)) pollRevisionRef.current = revision
             } catch (error) {
-                if (active && activeDraftIdRef.current === draftId) {
-                    console.error('Could not poll the live draft revision.', error)
-                }
+                if (active && isCurrent(readEpoch)) console.error('Could not poll the live draft revision.', error)
             } finally {
                 inFlight = false
-                if (active && resumePending && appState === 'active') {
-                    resumePending = false
-                    void pollRevision()
-                }
             }
         }
         const poll = setInterval(() => { void pollRevision() }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
-        const subscription = AppState.addEventListener('change', (nextState) => {
-            const becameActive = appState !== 'active' && nextState === 'active'
-            appState = nextState
-            if (!becameActive) return
-            // A probe started before sleep may miss changes made while asleep.
-            if (inFlight) resumePending = true
-            else void pollRevision()
-        })
         return () => {
             active = false
             clearInterval(poll)
-            subscription.remove()
         }
-    }, [draftId, load, realtimeStatus])
+    }, [draftId, load, realtimeStatus, canRead, capture, isCurrent])
 
     // Countdown tick
     useEffect(() => {
@@ -252,24 +299,27 @@ export function useAuctionDraftRoomController({
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
             setTimeLeft(diff)
-            // When the clock hits zero, trigger server-side close once per nomination.
-            if (diff === 0 && draftId && closeTriggeredForNomRef.current !== countdownNomination.id) {
-                const requestedDraftId = draftId
-                closeTriggeredForNomRef.current = countdownNomination.id
-                closeExpiredNominations(requestedDraftId)
-                    .then(({ closed }) => {
-                        if (activeDraftIdRef.current !== requestedDraftId) return
-                        // If the server closed nothing (clock skew — client hit 0 before
-                        // the server expiry), reset so the next tick retries.
-                        if (closed === 0) closeTriggeredForNomRef.current = null
-                        else load()
-                    })
-                    .catch(() => {
-                        if (activeDraftIdRef.current !== requestedDraftId) return
-                        // Network/auth failure — reset so the next tick can retry.
-                        closeTriggeredForNomRef.current = null
-                    })
+            if (diff !== 0 || Date.now() < new Date(exp).getTime() + 1_000 || !draftId || !canAct()) return
+            const key = `${draftId}:${countdownNomination.id}:${exp}`
+            if (expiryAttemptRef.current?.key !== key) {
+                expiryAttemptRef.current = { key, attempts: 0, nextAt: 0, inFlight: false, completed: false }
             }
+            const attempt = expiryAttemptRef.current
+            if (attempt.completed || attempt.inFlight || attempt.attempts >= 5 || Date.now() < attempt.nextAt) return
+            const requestedDraftId = draftId
+            attempt.inFlight = true
+            attempt.attempts += 1
+            attempt.nextAt = Date.now() + [2_000, 5_000, 10_000, 30_000, 30_000][attempt.attempts - 1]
+            void closeExpiredNominations(requestedDraftId)
+                .then(async ({ closed }) => {
+                    if (activeDraftIdRef.current !== requestedDraftId || expiryAttemptRef.current !== attempt) return
+                    if (closed > 0) {
+                        attempt.completed = true
+                        await load()
+                    }
+                })
+                .catch(() => undefined)
+                .finally(() => { attempt.inFlight = false })
         }
         // Seed immediately so a fresh nomination doesn't render the urgent
         // (<=10s) styling for the first 500ms while timeLeft is still 0.
@@ -279,7 +329,7 @@ export function useAuctionDraftRoomController({
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
         }
-    }, [countdownNomination, draftId, load])
+    }, [countdownNomination, draftId, load, canAct])
 
     // Player search
     useEffect(() => {
@@ -289,35 +339,40 @@ export function useAuctionDraftRoomController({
             setSearchLoading(false)
             return
         }
+        if (!canAct()) return
+        const readEpoch = capture()
         const requestId = ++searchSeqRef.current
         const requestedQuery = searchQuery
         const requestedDraftId = draftId
         const requestedMode = nominationModeRef.current
         const timeout = setTimeout(async () => {
+            if (!isCurrent(readEpoch) || !canAct()) return
             setSearchLoading(true)
             setSearchError(null)
             try {
                 const results = await searchPlayers(requestedQuery, requestedDraftId, requestedMode)
-                if (searchSeqRef.current !== requestId) return
+                if (!isCurrent(readEpoch) || searchSeqRef.current !== requestId) return
                 setSearchResults(results)
             } catch (e) {
-                if (searchSeqRef.current !== requestId) return
+                if (!isCurrent(readEpoch) || searchSeqRef.current !== requestId) return
                 setSearchResults([])
                 setSearchError(getErrorMessage(e))
             } finally {
-                if (searchSeqRef.current === requestId) setSearchLoading(false)
+                if (isCurrent(readEpoch) && searchSeqRef.current === requestId) setSearchLoading(false)
             }
         }, 300)
         return () => clearTimeout(timeout)
-    }, [searchQuery, draftId, nominating])
+    }, [searchQuery, draftId, nominating, activity.ready, epoch, canAct, capture, isCurrent])
 
     async function handleBid() {
+        if (!canAct() || bidRequestRef.current) return
         if (!visibleState?.openNomination || !memberId || !draftId) return
         if (!realtimeConnected) {
             showAlert('Live connection unavailable', 'Reconnect to the live draft before bidding.')
             return
         }
         const requestedDraftId = draftId
+        const actionEpoch = capture()
         // Guard the typed bid only at submit time: must be a whole-dollar amount
         // at least the minimum and within remaining budget.
         const min = Math.max(1, (visibleState.openNomination.currentBidAmount ?? 0) + 1)
@@ -332,36 +387,44 @@ export function useAuctionDraftRoomController({
             showAlert('Over budget', `You only have $${remaining} left to spend.`)
             return
         }
+        const request = {}
+        bidRequestRef.current = request
         setBidding(true)
         try {
             await placeBid(draftId, memberId, visibleState.openNomination.id, amount, bidToTaxi)
-            if (activeDraftIdRef.current !== requestedDraftId) return
-            load()
+            if (!isCurrent(actionEpoch) || activeDraftIdRef.current !== requestedDraftId) return
+            await load(true)
         } catch (e) {
-            if (activeDraftIdRef.current === requestedDraftId) showAlert('Bid failed', getErrorMessage(e))
+            if (isCurrent(actionEpoch) && activeDraftIdRef.current === requestedDraftId) showAlert('Bid failed', getErrorMessage(e))
         } finally {
-            if (activeDraftIdRef.current === requestedDraftId) setBidding(false)
+            if (bidRequestRef.current === request) {
+                bidRequestRef.current = null
+                if (activeIdentityRef.current === identity) setBidding(false)
+            }
         }
     }
 
     async function handleWithdraw() {
         if (!visibleState?.openNomination || !memberId || !draftId) return
+        if (!canAct()) return
         const requestedDraftId = draftId
+        const actionEpoch = capture()
         setWithdrawing(true)
         try {
             await withdrawNomination(draftId, memberId, visibleState.openNomination.id)
-            if (activeDraftIdRef.current !== requestedDraftId) return
+            if (!isCurrent(actionEpoch) || activeDraftIdRef.current !== requestedDraftId) return
             load()
         } catch (e) {
-            if (activeDraftIdRef.current === requestedDraftId) showAlert('Could not withdraw', getErrorMessage(e))
+            if (isCurrent(actionEpoch) && activeDraftIdRef.current === requestedDraftId) showAlert('Could not withdraw', getErrorMessage(e))
         } finally {
-            if (activeDraftIdRef.current === requestedDraftId) setWithdrawing(false)
+            if (activeIdentityRef.current === identity) setWithdrawing(false)
         }
     }
 
     async function handleNominate(playerId: string) {
-        if (!memberId || !draftId) return
+        if (!memberId || !draftId || !canAct()) return
         const requestedDraftId = draftId
+        const actionEpoch = capture()
         if (!realtimeConnected) {
             showAlert('Live connection unavailable', 'Reconnect to the live draft before nominating a player.')
             return
@@ -369,16 +432,16 @@ export function useAuctionDraftRoomController({
         setSubmittingNom(true)
         try {
             await nominatePlayer(draftId, memberId, playerId)
-            if (activeDraftIdRef.current !== requestedDraftId) return
+            if (!isCurrent(actionEpoch) || activeDraftIdRef.current !== requestedDraftId) return
             setNominating(false)
             setSearchQuery('')
             setSearchResults([])
             searchSeqRef.current += 1
             load()
         } catch (e) {
-            if (activeDraftIdRef.current === requestedDraftId) showAlert('Nomination failed', getErrorMessage(e))
+            if (isCurrent(actionEpoch) && activeDraftIdRef.current === requestedDraftId) showAlert('Nomination failed', getErrorMessage(e))
         } finally {
-            if (activeDraftIdRef.current === requestedDraftId) setSubmittingNom(false)
+            if (activeIdentityRef.current === identity) setSubmittingNom(false)
         }
     }
 
@@ -389,7 +452,7 @@ export function useAuctionDraftRoomController({
         searchSeqRef.current += 1
     }
 
-    const realtimeConnected = realtimeStatus === 'SUBSCRIBED'
+    const realtimeConnected = realtimeStatus === 'SUBSCRIBED' && activity.ready
 
     // Memoize O(N) derivations from state so we don't recompute them every render
     // (poll fires every 5s; without memos every parent re-render rebuilds these arrays/maps).
@@ -418,6 +481,7 @@ export function useAuctionDraftRoomController({
         if (realtimeStatus === 'CLOSED') {
             setRealtimeStatus('CONNECTING')
             setSubscriptionEpoch((epoch) => epoch + 1)
+            return
         }
         await load()
     }, [load, realtimeStatus])
@@ -447,6 +511,8 @@ export function useAuctionDraftRoomController({
         budgetByMember,
         wonCountByMember,
         realtimeConnected,
+        actionsReady: activity.ready,
+        canAct,
         refresh,
         handleBid,
         handleWithdraw,

@@ -57,7 +57,7 @@ async function requireFencedTransition(
   if (data !== true) throw new StatsSyncClaimLostError(action)
 }
 
-async function runClaimedRangeJob(claim: StatsSyncClaim): Promise<Record<string, unknown>> {
+async function runClaimedRangeJob(claim: StatsSyncClaim, request: Request): Promise<Record<string, unknown>> {
   let currentMetadata: StatsSyncJobMetadata | null = null
   let currentCompletedItems = claim.completed_items
   let statLines = 0
@@ -119,7 +119,7 @@ async function runClaimedRangeJob(claim: StatsSyncClaim): Promise<Record<string,
         },
       })
       return { result: unit, rowsAffected: statLines }
-    })
+    }, request)
 
     if (!result.completed) await kickStatsDispatcher()
     return {
@@ -177,9 +177,9 @@ async function kickStatsDispatcher(): Promise<void> {
   if (error) console.warn('[sync-stats] immediate dispatcher kick failed; cron will retry', error)
 }
 
-async function runRangeJob(jobId?: string): Promise<Record<string, unknown>> {
+async function runRangeJob(request: Request, jobId?: string): Promise<Record<string, unknown>> {
   const claim = await claimRangeJob(jobId)
-  if (claim) return runClaimedRangeJob(claim)
+  if (claim) return runClaimedRangeJob(claim, request)
 
   if (jobId) {
     const { data: job, error } = await supabase
@@ -202,8 +202,8 @@ async function runRangeJob(jobId?: string): Promise<Record<string, unknown>> {
 
 serveInternal('sync-stats', async (req) => {
   const body: Record<string, unknown> = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
-  if (body.dispatch === true) return Response.json({ ok: true, ...await runRangeJob() })
-  if (typeof body.jobId === 'string') return Response.json({ ok: true, ...await runRangeJob(body.jobId) })
+  if (body.dispatch === true) return Response.json({ ok: true, ...await runRangeJob(req) })
+  if (typeof body.jobId === 'string') return Response.json({ ok: true, ...await runRangeJob(req, body.jobId) })
 
   // Accept both a bare ET day (YYYY-MM-DD) and a full ISO timestamp (the
   // e2e live-poll route forwards the latter).
@@ -217,6 +217,6 @@ serveInternal('sync-stats', async (req) => {
   const statLines = await recordSyncRun('sync-stats', async () => {
     const rows = await syncStatsByDate(date)
     return { result: rows, rowsAffected: rows }
-  })
+  }, req)
   return Response.json({ ok: true, date: dateStr, statLines })
 })

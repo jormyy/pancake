@@ -46,7 +46,7 @@ export const sourcePathForFunctionKey = (key, root = FUNCTION_SOURCES_DIR) => {
 
 /** @param {string} source */
 export const maskSqlNonCode = (source, { dollarQuotes = true } = {}) => {
-  const chars = [...source]
+  const chars = source.split('')
   /** @param {number} index */
   const mask = (index) => { if (chars[index] !== '\n') chars[index] = ' ' }
   let index = 0

@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
@@ -8,16 +9,20 @@ const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn(),
     getDraftPollRevision: vi.fn(async () => 'revision-1'),
     placeBid: vi.fn(),
+    closeExpiredNominations: vi.fn(),
+    appState: 'active',
+    reconnectCallback: null as null | (() => Promise<boolean>),
     statusCallback: null as ((status: 'SUBSCRIBED' | 'TIMED_OUT' | 'CLOSED' | 'CHANNEL_ERROR') => void) | null,
     unsubscribeFromDraft: vi.fn(async () => undefined),
 }))
 
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
-    AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) },
+    AppState: { get currentState() { return mocks.appState }, addEventListener: () => ({ remove: vi.fn() }) },
 }))
 
 vi.mock('@/lib/draft', () => ({
-    closeExpiredNominations: vi.fn(),
+    closeExpiredNominations: mocks.closeExpiredNominations,
     getDraftState: mocks.getDraftState,
     getDraftPollRevision: mocks.getDraftPollRevision,
     nominatePlayer: vi.fn(),
@@ -28,7 +33,9 @@ vi.mock('@/lib/draft', () => ({
         _leagueId: string | null,
         _onChange: () => void,
         onStatus: typeof mocks.statusCallback,
+        onReconnect: () => Promise<boolean>,
     ) => {
+        mocks.reconnectCallback = onReconnect
         mocks.statusCallback = onStatus
         return { topic: 'draft' }
     }),
@@ -43,6 +50,8 @@ vi.mock('@/lib/realtime', () => ({
     reportRealtimeCleanup: vi.fn(),
     debounceRealtimeRefresh: (onChange: () => void) => ({ trigger: onChange, cancel: () => {} }),
 }))
+
+setSessionOwner('draft-test-user')
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -99,10 +108,11 @@ afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
     mocks.statusCallback = null
+    mocks.appState = 'active'
 })
 
 describe('auction draft resource identity', () => {
-    it('fails closed on channel failure and recovers only after subscription', async () => {
+    it('fails closed until subscription and authoritative recovery both finish', async () => {
         mocks.getDraftState.mockResolvedValue(state('draft-a'))
         let latest!: ReturnType<typeof useAuctionDraftRoomController>
         const Probe = () => {
@@ -119,6 +129,8 @@ describe('auction draft resource identity', () => {
         await act(async () => {
             mocks.statusCallback?.('SUBSCRIBED')
         })
+        expect(latest.realtimeConnected).toBe(false)
+        await act(async () => { await mocks.reconnectCallback?.() })
         expect(latest.realtimeConnected).toBe(true)
         expect(latest.loadError).toBeNull()
         await act(async () => { renderer.unmount() })
@@ -243,6 +255,77 @@ describe('auction draft resource identity', () => {
         await act(async () => { mocks.statusCallback?.('TIMED_OUT') })
         expect(latest.realtimeConnected).toBe(false)
         expect(latest.loadError).toBe('Live draft connection lost. Tap to retry.')
+        await act(async () => { renderer.unmount() })
+    })
+})
+
+
+describe('auction settlement requests', () => {
+    it('holds a bid through its authoritative refresh and blocks same-render duplicate submissions', async () => {
+        let resolveRead!: (value: DraftState) => void
+        let hold = false
+        mocks.getDraftState.mockImplementation(async () => hold
+            ? new Promise<DraftState>(resolve => { resolveRead = resolve })
+            : liveState('draft-a'))
+        mocks.placeBid.mockResolvedValue(undefined)
+        let latest!: ReturnType<typeof useAuctionDraftRoomController>
+        const Probe = () => { latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' }); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { mocks.statusCallback?.('SUBSCRIBED'); latest.setBidText('2') })
+        hold = true
+        const submit = latest.handleBid
+        let first!: Promise<void>
+        await act(async () => { first = submit(); void submit() })
+        const busyDuringRead = latest.bidding
+        const writes = mocks.placeBid.mock.calls.length
+        const updated = liveState('draft-a')
+        updated.openNomination!.currentBidAmount = 2
+        await act(async () => { resolveRead(updated); await first })
+        expect(writes).toBe(1)
+        expect(busyDuringRead).toBe(true)
+        expect(latest.bidding).toBe(false)
+        expect(latest.state?.openNomination?.currentBidAmount).toBe(2)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('bounds failed expiry retries and stops while the app is hidden', async () => {
+        vi.useFakeTimers()
+        const live = liveState('draft-a')
+        live.openNomination!.countdownExpiresAt = new Date(Date.now() - 1000).toISOString()
+        mocks.getDraftState.mockResolvedValue(live)
+        mocks.closeExpiredNominations.mockRejectedValue(new Error('offline'))
+        const Probe = () => { useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' }); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
+        expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(1)
+        mocks.appState = 'background'
+        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+        expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(1)
+        mocks.appState = 'active'
+        await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
+        expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(5)
+        await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
+        expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(5)
+        await act(async () => { renderer.unmount() })
+    })
+
+    it('retries an early zero-close result and stops after the server closes the nomination', async () => {
+        vi.useFakeTimers()
+        const live = liveState('draft-a')
+        live.openNomination!.countdownExpiresAt = new Date(Date.now() - 1000).toISOString()
+        mocks.getDraftState.mockResolvedValue(live)
+        mocks.closeExpiredNominations.mockResolvedValueOnce({ closed: 0 }).mockResolvedValue({ closed: 1 })
+        const Probe = () => { useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' }); return null }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
+        expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(1)
+        await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
+        expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(2)
+        await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
+        expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(2)
         await act(async () => { renderer.unmount() })
     })
 })

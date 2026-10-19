@@ -152,19 +152,25 @@ export type Database = {
       }
       cron_dispatch_state: {
         Row: {
+          attempts: number
           dispatched_at: string
           job_key: string
           period_key: string
+          retry_after: string | null
         }
         Insert: {
+          attempts?: number
           dispatched_at?: string
           job_key: string
           period_key: string
+          retry_after?: string | null
         }
         Update: {
+          attempts?: number
           dispatched_at?: string
           job_key?: string
           period_key?: string
+          retry_after?: string | null
         }
         Relationships: []
       }
@@ -645,31 +651,55 @@ export type Database = {
       }
       edge_invocations: {
         Row: {
+          dispatch_claimed_at: string | null
+          dispatch_job_key: string | null
+          dispatch_period_key: string | null
           error_message: string | null
           function_name: string
           id: number
+          invocation_key: string | null
           queued_at: string
           reconciled_at: string | null
           request_id: number | null
           status_code: number | null
+          sync_run_id: string | null
+          worker_finished_at: string | null
+          worker_started_at: string | null
+          worker_status: string | null
         }
         Insert: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
           error_message?: string | null
           function_name: string
           id?: never
+          invocation_key?: string | null
           queued_at?: string
           reconciled_at?: string | null
           request_id?: number | null
           status_code?: number | null
+          sync_run_id?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
         }
         Update: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
           error_message?: string | null
           function_name?: string
           id?: never
+          invocation_key?: string | null
           queued_at?: string
           reconciled_at?: string | null
           request_id?: number | null
           status_code?: number | null
+          sync_run_id?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
         }
         Relationships: []
       }
@@ -1031,6 +1061,33 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
         ]
+      }
+      league_change_hints: {
+        Row: {
+          details: Json | null
+          league_id: string
+          revision: number
+          scopes: Json | null
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          details?: Json | null
+          league_id: string
+          revision: number
+          scopes?: Json | null
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          details?: Json | null
+          league_id?: string
+          revision?: number
+          scopes?: Json | null
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       league_member_taxi_exits: {
         Row: {
@@ -3820,6 +3877,10 @@ export type Database = {
         Args: { p_draft_id: string }
         Returns: boolean
       }
+      activate_rookie_draft_league_for_user_atomic: {
+        Args: { p_draft_id: string; p_user_id: string }
+        Returns: boolean
+      }
       activate_roster_player_with_lineup_atomic: {
         Args: {
           p_activate_roster_player_id: string
@@ -4327,6 +4388,15 @@ export type Database = {
         }
         Returns: Json
       }
+      finish_edge_invocation: {
+        Args: {
+          p_error?: string
+          p_invocation_key: string
+          p_rows_affected?: number
+          p_status: string
+        }
+        Returns: undefined
+      }
       finish_lineup_tipoff_dispatch: {
         Args: { p_error?: string; p_tipoff_at: string; p_token: string }
         Returns: undefined
@@ -4446,6 +4516,27 @@ export type Database = {
           projection_week_number: number
         }[]
       }
+      get_live_poll_work: {
+        Args: { p_now?: string }
+        Returns: {
+          away_score: number
+          away_team: string
+          game_date: string
+          game_status_text: string
+          game_time: string
+          home_score: number
+          home_team: string
+          id: string
+          nba_game_id: string
+          needs_scoreboard: boolean
+          needs_stats: boolean
+          season_year: number
+          started_at: string
+          stats_synced_at: string
+          status: string
+          week_number: number
+        }[]
+      }
       get_member_transaction_state: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: {
@@ -4461,6 +4552,19 @@ export type Database = {
           weekly_add_limit: number
         }[]
       }
+      get_pending_tipoff_members: {
+        Args: {
+          p_excluded_members?: string[]
+          p_limit?: number
+          p_tipoff_at: string
+          p_token: string
+        }
+        Returns: {
+          league_id: string
+          league_season_id: string
+          member_id: string
+        }[]
+      }
       get_pending_trade_count: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: number
@@ -4472,6 +4576,22 @@ export type Database = {
           p_member_id: string
         }
         Returns: Json
+      }
+      get_score_sync_games: {
+        Args: {
+          p_end_date: string
+          p_season_year?: number
+          p_start_date: string
+        }
+        Returns: {
+          game_date: string
+          id: string
+          nba_game_id: string
+          season_year: number
+          stats_synced_at: string
+          status: string
+          week_number: number
+        }[]
       }
       get_stale_score_weeks: {
         Args: { p_league_season_id: string; p_through_week: number }
@@ -4515,6 +4635,7 @@ export type Database = {
       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
       invoke_pre_tipoff_optimizer_if_due: { Args: never; Returns: undefined }
+      invoke_process_trades_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
       invoke_season_boundary_if_due: {
         Args: { p_now?: string }
@@ -4690,6 +4811,14 @@ export type Database = {
         Args: { p_season_year: number }
         Returns: number
       }
+      record_live_poll_attempts: {
+        Args: {
+          p_checked_ids?: string[]
+          p_holder: string
+          p_stats_ids?: string[]
+        }
+        Returns: undefined
+      }
       record_notification_outbox_ticket_atomic: {
         Args: {
           p_claim_token: string
@@ -4740,6 +4869,10 @@ export type Database = {
       remove_trade_block_item_atomic: {
         Args: { p_item_id: string; p_member_id: string; p_user_id?: string }
         Returns: undefined
+      }
+      renew_lineup_tipoff_dispatch: {
+        Args: { p_tipoff_at: string; p_token: string }
+        Returns: boolean
       }
       renew_live_poll_lease: {
         Args: {
@@ -4961,6 +5094,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      start_edge_invocation: {
+        Args: { p_function_name: string; p_invocation_key: string }
+        Returns: string
       }
       start_mock_draft_room_atomic: {
         Args: { p_draft_id: string; p_member_id: string; p_user_id: string }

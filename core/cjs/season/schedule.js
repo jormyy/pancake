@@ -117,6 +117,7 @@ function buildScheduleSyncPlan(raw, now = new Date()) {
         home_team: game.homeTeam,
         away_team: game.awayTeam,
         status: game.status,
+        ...(game.statusText == null ? {} : { game_status_text: game.statusText }),
         started_at: normalizedScheduleTimestamp(game.startedAt),
         game_time: normalizedScheduleTimestamp(game.startedAt),
         ended_at: null,

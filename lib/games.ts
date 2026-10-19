@@ -33,37 +33,41 @@ export type LiveStatLine = {
     didNotPlay: boolean
 }
 
-// Returns a map of playerId → live stats for all players with a game on the given date.
+// Returns a map of playerId → live stats for the requested players on the given date.
 // Covers both InProgress and Final games so stats persist after a game ends.
-export async function getLivePlayerStats(date: string): Promise<Map<string, LiveStatLine>> {
-    const { data, error } = await supabase
-        .from('player_game_stats')
-        .select('player_id, points, rebounds, assists, steals, blocks, turnovers, three_pointers_made, field_goals_made, field_goals_attempted, free_throws_made, free_throws_attempted, personal_fouls, double_double, triple_double, minutes_played, did_not_play, nba_games!inner(nba_game_id)')
-        .eq('game_date', date)
-        .like('nba_games.nba_game_id', '002%')
-
-    if (error) throw error
+export async function getLivePlayerStats(date: string, playerIds: readonly string[]): Promise<Map<string, LiveStatLine>> {
+    const ids = [...new Set(playerIds)].sort()
     const map = new Map<string, LiveStatLine>()
-    for (const row of data ?? []) {
-        const r = row as Record<string, unknown>
-        map.set(row.player_id, {
-            points: row.points ?? 0,
-            rebounds: row.rebounds ?? 0,
-            assists: row.assists ?? 0,
-            steals: row.steals ?? 0,
-            blocks: row.blocks ?? 0,
-            turnovers: row.turnovers ?? null,
-            threeMade: (r.three_pointers_made as number | null) ?? 0,
-            fgMade: (r.field_goals_made as number | null) ?? 0,
-            fgAttempted: (r.field_goals_attempted as number | null) ?? 0,
-            ftMade: (r.free_throws_made as number | null) ?? 0,
-            ftAttempted: (r.free_throws_attempted as number | null) ?? 0,
-            fouls: (r.personal_fouls as number | null) ?? 0,
-            doubleDouble: (r.double_double as boolean | null) ?? false,
-            tripleDouble: (r.triple_double as boolean | null) ?? false,
-            minutesPlayed: row.minutes_played != null ? Number(row.minutes_played) : null,
-            didNotPlay: row.did_not_play ?? false,
-        })
+    for (let offset = 0; offset < ids.length; offset += 100) {
+        const { data, error } = await supabase
+            .from('player_game_stats')
+            .select('player_id, points, rebounds, assists, steals, blocks, turnovers, three_pointers_made, field_goals_made, field_goals_attempted, free_throws_made, free_throws_attempted, personal_fouls, double_double, triple_double, minutes_played, did_not_play, nba_games!inner(nba_game_id)')
+            .eq('game_date', date)
+            .in('player_id', ids.slice(offset, offset + 100))
+            .like('nba_games.nba_game_id', '002%')
+
+        if (error) throw error
+        for (const row of data ?? []) {
+            const r = row as Record<string, unknown>
+            map.set(row.player_id, {
+                points: row.points ?? 0,
+                rebounds: row.rebounds ?? 0,
+                assists: row.assists ?? 0,
+                steals: row.steals ?? 0,
+                blocks: row.blocks ?? 0,
+                turnovers: row.turnovers ?? null,
+                threeMade: (r.three_pointers_made as number | null) ?? 0,
+                fgMade: (r.field_goals_made as number | null) ?? 0,
+                fgAttempted: (r.field_goals_attempted as number | null) ?? 0,
+                ftMade: (r.free_throws_made as number | null) ?? 0,
+                ftAttempted: (r.free_throws_attempted as number | null) ?? 0,
+                fouls: (r.personal_fouls as number | null) ?? 0,
+                doubleDouble: (r.double_double as boolean | null) ?? false,
+                tripleDouble: (r.triple_double as boolean | null) ?? false,
+                minutesPlayed: row.minutes_played != null ? Number(row.minutes_played) : null,
+                didNotPlay: row.did_not_play ?? false,
+            })
+        }
     }
     return map
 }

@@ -191,6 +191,27 @@ BEGIN
     INTO v_notifications
     FROM notification_rows;
 
+
+  INSERT INTO public.notification_outbox(dedupe_key,member_id,event_type,title,body,data,category)
+  SELECT 'matchup:'||result.id||':final:'||recipient.member_id,
+    recipient.member_id,'matchup_final',
+    CASE WHEN COALESCE(matchup.end_week_number,p_week_number)=p_week_number
+      THEN 'Week '||p_week_number ELSE 'Weeks '||p_week_number||'–'||matchup.end_week_number END||' Final',
+    CASE WHEN result.winner_member_id IS NULL THEN 'You tied '
+      WHEN result.winner_member_id=recipient.member_id THEN 'You won '
+      ELSE 'You lost ' END
+      ||round(COALESCE(recipient.points,0),2)::text||'–'||round(COALESCE(recipient.opponent_points,0),2)::text
+      ||CASE WHEN result.winner_member_id=recipient.member_id THEN '! 🏆' ELSE '.' END,
+    jsonb_build_object('type','matchup_final','leagueId',p_league_id,'leagueSeasonId',p_league_season_id,
+      'matchupId',result.id,'weekNumber',p_week_number,'endWeekNumber',COALESCE(matchup.end_week_number,p_week_number)),
+    'activity'
+  FROM jsonb_to_recordset(v_notifications) result(id uuid,home_member_id uuid,away_member_id uuid,
+    home_points numeric,away_points numeric,winner_member_id uuid)
+  JOIN public.matchups matchup ON matchup.id=result.id
+  CROSS JOIN LATERAL (VALUES(result.home_member_id,result.home_points,result.away_points),
+    (result.away_member_id,result.away_points,result.home_points)) recipient(member_id,points,opponent_points)
+  ON CONFLICT(dedupe_key) DO NOTHING;
+
   INSERT INTO public.standings (
     league_id,
     league_season_id,
@@ -248,6 +269,6 @@ BEGIN
     VALUES(p_league_season_id, p_week_number, private.score_input_token(p_league_season_id, p_week_number))
     ON CONFLICT(league_season_id, week_number) DO UPDATE SET input_token = EXCLUDED.input_token;
 
-  RETURN v_notifications;
+  RETURN '[]'::jsonb;
 END;
 $$;

@@ -29,7 +29,8 @@ import {
     TradeSectionRow,
 } from '@/components/trades/TradeListRow'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
+import { invalidateLeagueSnapshot } from '@/lib/league-changes'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
@@ -46,7 +47,7 @@ import {
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
-const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v1:'
+const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v2:'
 const picksCacheKey = (userId: string, memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${userId}:${leagueId}:${memberId}`
 const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
 
@@ -73,11 +74,12 @@ export default function TradesScreen() {
     const leagueId = currentLeague?.id ?? ''
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
+    const snapshotScope = tabSnapshotScope(user?.id, current?.id, leagueId, currentLeague)
     const cachedPicks = useMemo(
         () => user?.id && myMemberId && leagueId
-            ? readPersistentCache<TradePickItem[]>(picksCacheKey(user.id, myMemberId, leagueId))
+            ? readTabSnapshot<TradePickItem[]>(picksCacheKey(user.id, myMemberId, leagueId), snapshotScope, leagueId, 'picks')
             : null,
-        [leagueId, myMemberId, user?.id],
+        [leagueId, myMemberId, user?.id, snapshotScope],
     )
     const { padX, usableWidth } = usePageMetrics()
     const [tab, setTab] = useState<TradeTabKey>('offers')
@@ -106,7 +108,7 @@ export default function TradesScreen() {
         loadMoreError: offersLoadMoreError,
         refresh: load,
         loadMore: loadMoreOffers,
-    } = useTradesFeed(myMemberId, leagueId, online)
+    } = useTradesFeed(myMemberId, leagueId, online, { autoLoad: false })
     const {
         trades: historyTrades,
         loading: historyLoading,
@@ -135,7 +137,7 @@ export default function TradesScreen() {
         addPlayer: handleListPlayer,
         addPick: handleListPick,
         removeItem: handleRemoveBlockItem,
-    } = useTradeBlock(myMemberId, leagueId, online)
+    } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && (tab === 'block' || tab === 'leagueBlock') })
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])
@@ -145,10 +147,12 @@ export default function TradesScreen() {
     const { data: picks, loading: picksLoading, error: picksError, isSnapshot: picksSnapshot, refresh: refreshPicks } = useFocusAsyncData(async () => {
         if (!current || !leagueId) return [] as TradePickItem[]
         return getPicksForMember(current.id, leagueId)
-    }, [current?.id, leagueId, user?.id], {
-        initialData: cachedPicks ?? undefined, staleMs: 300_000,
-        onLoaded: (result) => {
-            if (user?.id && current?.id && leagueId) writePersistentCache(picksCacheKey(user.id, current.id, leagueId), result)
+    }, [current?.id, leagueId, user?.id, snapshotScope], {
+        initialData: cachedPicks?.data, initialFetchedAt: cachedPicks?.savedAt, staleMs: 300_000,
+        cacheRevision: () => tabSnapshotRevision(leagueId, 'picks'),
+        onFailed: () => invalidateLeagueSnapshot(leagueId),
+        onLoaded: (result, revision) => {
+            if (user?.id && current?.id && leagueId) writeTabSnapshot(picksCacheKey(user.id, current.id, leagueId), snapshotScope, revision, result)
         },
     })
 
@@ -162,11 +166,9 @@ export default function TradesScreen() {
         refreshHistory: refreshHistoryFeed,
         refreshTradeBlock: loadBlock,
         refreshDraftPicks: refreshPicks,
+        draftPicksFresh: !picksSnapshot,
+        initialTradesRead: true,
     })
-
-    useEffect(() => {
-        if (tab === 'block' || tab === 'leagueBlock') void loadBlock()
-    }, [loadBlock, tab])
 
     const picksList = useMemo(() => picks ?? [], [picks])
     const screenModel = useMemo(() => buildTradeScreenModel({

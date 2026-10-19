@@ -8,7 +8,8 @@ const TRADES_PAGE_SIZE = 40
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 type TradesResource = { key: string | null; trades: Trade[] }
 
-export function useTradesFeed(memberId: string, leagueId: string, online = true) {
+export function useTradesFeed(memberId: string, leagueId: string, online = true, options: { autoLoad?: boolean } = {}) {
+    const autoLoad = options.autoLoad ?? true
     const resourceKey = memberId && leagueId ? tradesCacheKey(memberId, leagueId) : null
     const cached = useMemo(
         () => memberId && leagueId ? readPersistentCache<Trade[]>(tradesCacheKey(memberId, leagueId)) : null,
@@ -47,6 +48,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true)
             return false
         }
         setError(null)
+        setLoading(true)
         try {
             const result = await getTradesForScreen(memberId, leagueId, TRADES_PAGE_SIZE)
             if (loadSequence.current !== requestId) return false
@@ -82,12 +84,13 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true)
     useEffect(() => {
         loadSequence.current += 1
         setValidatedKey(null)
+        if (!online) setLoading(false)
     }, [online])
 
     useEffect(() => {
-        void refresh()
+        if (autoLoad) void refresh()
         return () => { loadSequence.current += 1 }
-    }, [refresh])
+    }, [autoLoad, refresh])
 
     const loadMore = useCallback(async () => {
         if (!memberId || !leagueId || paginationRequest.current || !hasMore) return

@@ -174,7 +174,7 @@ export const BOOT_SHELL_HTML = `
   <nav class="pbs-side" aria-label="Primary">
     <div class="pbs-side-scroll">
       <div class="pbs-brand">
-        <img src="/pwa-192.png" alt="" />
+        <img src="/boot-logo.png" alt="" />
         <div class="pbs-brand-title">Pancake</div>
       </div>
       <div class="pbs-league">
@@ -204,7 +204,7 @@ export const BOOT_SHELL_HTML = `
     </div>
   </nav>
   <div class="pbs-topbar">
-    <img src="/pwa-192.png" alt="" />
+    <img src="/boot-logo.png" alt="" />
     <div class="pbs-topbar-league"><div class="pbs-crest" data-pbs="crest">P</div>
       <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">League unavailable</div></div>
       ${CHEVRON_ICON}</div>

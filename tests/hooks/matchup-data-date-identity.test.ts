@@ -1,12 +1,15 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
+import { useLineupActions } from '@/hooks/use-lineup-actions'
 import type { Matchup } from '@/lib/scoring'
+import type { LineupSlot } from '@/lib/lineup'
 
 const {
     getLeagueWeekMatchups, getMyMatchup, getWeekDays, getWeeklyLineup, readPersistentCache,
-    invalidateSeasonCache, invalidateWeekNumberCache, online,
+    invalidateSeasonCache, invalidateWeekNumberCache, online, write,
 } = vi.hoisted(() => ({
     getLeagueWeekMatchups: vi.fn(),
     getMyMatchup: vi.fn(),
@@ -16,15 +19,20 @@ const {
     invalidateSeasonCache: vi.fn(),
     invalidateWeekNumberCache: vi.fn(),
     online: { value: true },
+    write: vi.fn(),
 }))
 
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/lib/scoring', () => ({ getLeagueWeekMatchups, getMyMatchup }))
-vi.mock('@/lib/lineup', () => ({
-    clampDateToWeek: (_date: string, days: { date: string }[]) => days[0]?.date ?? '2026-07-09',
+vi.mock('@/lib/lineup', async () => ({
+    planLineupMove: (await import('@/lib/lineup/movePlan')).planLineupMove,
+    setPlayerSlotMoves: write, autoSetLineup: vi.fn(),
+    clampDateToWeek: (date: string, days: { date: string }[]) => days.some(day => day.date === date) ? date : days[0]?.date ?? '2026-07-09',
     getWeekDays,
     getWeeklyLineup,
 }))
+vi.mock('@/lib/roster', () => ({ activateRosterPlayerWithLineup: vi.fn(), toggleIR: vi.fn() }))
+vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), showSuccess: vi.fn(), confirmAction: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-07-09' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache }))
 vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache }))
@@ -41,8 +49,9 @@ vi.mock('@/lib/realtime', () => ({
 
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
-    const promise = new Promise<Value>((done) => { resolve = done })
-    return { promise, resolve }
+    let reject!: (reason: Error) => void
+    const promise = new Promise<Value>((done, fail) => { resolve = done; reject = fail })
+    return { promise, resolve, reject }
 }
 
 const matchup: Matchup = {
@@ -52,13 +61,14 @@ const matchup: Matchup = {
     iWon: null, myMemberId: 'member-a', opponentMemberId: 'member-b', seasonId: 'season', seasonYear: 2026,
 }
 const lineup = (id: string) => ({
-    starters: [], bench: [{
+    starters: [] as LineupSlot[], bench: [{
         rosterPlayerId: `roster-${id}`, playerId: id, displayName: id, position: 'PG',
         eligiblePositions: ['PG'], nbaTeam: 'LAL', injuryStatus: null, nbaId: null,
     }], benchSlots: 1, ir: [], taxi: [],
 })
 
 beforeEach(() => {
+    clearSessionCaches()
     vi.clearAllMocks()
     readPersistentCache.mockReturnValue(undefined)
     getLeagueWeekMatchups.mockResolvedValue([])
@@ -274,4 +284,65 @@ describe('useMatchupData date ownership', () => {
         })
         await act(async () => { renderer.unmount() })
     })
+})
+
+it('hides old-day players and blocks a move until the selected day arrives', async () => {
+    const oldLineup = { ...lineup('old-player'), starters: [{ slotType: 'PG', player: null }] }
+    readPersistentCache.mockReturnValue({ today: '2026-07-09', selectedDate: '2026-07-09', matchup,
+        weekDays: [], leagueMatchups: [], myLineup: oldLineup, oppLineup: oldLineup })
+    const read = deferred<ReturnType<typeof lineup>>()
+    getWeeklyLineup.mockReturnValue(read.promise)
+    let latest!: ReturnType<typeof useMatchupData>
+    let actions!: ReturnType<typeof useLineupActions>
+    const Probe = () => {
+        latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' })
+        actions = useLineupActions({
+            actionContext: { memberId: 'member-a', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
+            myLineup: latest.myLineup, selectedDate: latest.selectedDate, league: { roster_size: 20 },
+            startedTeams: new Set(), reloadLineup: async () => {},
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    let pending!: Promise<unknown>
+    try {
+        await act(async () => { latest.setSelectedDate('2026-07-10'); pending = latest.loadLineups(matchup, '2026-07-10') })
+        const visibleWhilePending = latest.myLineup
+        await act(async () => { await actions.handleTap({ kind: 'bench', index: 0 }) })
+        await act(async () => { await actions.handleTap({ kind: 'starter', index: 0 }) })
+        const writesWhilePending = write.mock.calls.length
+        await act(async () => { read.resolve({ ...lineup('new-player'), starters: [{ slotType: 'PG', player: null }] }); await pending })
+        expect(writesWhilePending).toBe(0)
+        expect(visibleWhilePending).toBeNull()
+        expect(latest.myLineup?.bench[0]?.playerId).toBe('new-player')
+        await act(async () => { await actions.handleTap({ kind: 'bench', index: 0 }) })
+        await act(async () => { await actions.handleTap({ kind: 'starter', index: 0 }) })
+        expect(write).toHaveBeenCalledWith(expect.objectContaining({ gameDate: '2026-07-10' }), [{ playerId: 'new-player', slotType: 'PG' }])
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it.each(['resolve', 'reject'] as const)('keeps the chosen day when the old refresh read finishes with %s', async (outcome) => {
+    readPersistentCache.mockReturnValue({ today: '2026-07-09', selectedDate: '2026-07-09', matchup,
+        weekDays: [], leagueMatchups: [], myLineup: lineup('old'), oppLineup: lineup('old') })
+    getMyMatchup.mockResolvedValue(matchup)
+    getWeekDays.mockResolvedValue([{ date: '2026-07-09' }, { date: '2026-07-10' }])
+    const read = deferred<ReturnType<typeof lineup>>()
+    getWeeklyLineup.mockImplementation((_member, _league, _season, _week, date) => date === '2026-07-09' ? read.promise : Promise.resolve(lineup('chosen-day')))
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    let pending!: Promise<void>
+    await act(async () => { pending = latest.refresh() })
+    await act(async () => { latest.setSelectedDate('2026-07-10'); await latest.loadLineups(matchup, '2026-07-10') })
+    await act(async () => {
+        if (outcome === 'resolve') read.resolve(lineup('refresh-old-day'))
+        else read.reject(new Error('Old day read failed'))
+        await pending
+    })
+    expect(latest.selectedDate).toBe('2026-07-10')
+    expect(latest.myLineup?.bench[0]?.playerId).toBe('chosen-day')
+    expect(latest.error).toBeNull()
+    await act(async () => { renderer.unmount() })
 })

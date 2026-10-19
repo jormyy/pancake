@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui'
 import { colors, spacing, textStyles } from '@/constants/tokens'
 import { showAlert } from '@/lib/alert'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { getErrorMessage } from '@/lib/shared/errors'
 import {
@@ -26,18 +27,20 @@ export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: 
     const [status, setStatus] = useState<WebPushStatus | null>(null)
     const [busy, setBusy] = useState(false)
     const lifetime = useRef(0)
+    const { active, revision, isCurrent } = useBrowserReadActivity()
 
     useEffect(() => {
+        if (!active) return
         const mounted = ++lifetime.current
         const generation = sessionGeneration()
-        const current = () => lifetime.current === mounted && sessionGeneration() === generation
+        const current = () => lifetime.current === mounted && sessionGeneration() === generation && isCurrent(revision)
         // Warm the VAPID key so the tap handler can prompt before any network wait.
         getWebPushPublicKey().catch(() => null)
         getWebPushStatus()
             .then((next) => { if (current()) setStatus(next) })
             .catch(() => { if (current()) setStatus('unavailable') })
         return () => { lifetime.current += 1 }
-    }, [])
+    }, [active, revision, isCurrent])
 
     useEffect(() => {
         if (status) onStatusChange?.(status)

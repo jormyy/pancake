@@ -128,3 +128,124 @@ Only the first round has byes. Every later round pairs neighboring winning branc
 Earlier rounds reuse the legacy quarterfinal phase value for compatibility; their explicit round numbers control advancement and scoring locks.
 Legacy null settings retain the original bracket and duration rules.
 Run `npm run test:db:general-brackets` for large brackets, every advancement, exact windows, odd leagues, and invalid plans.
+
+## History and operational retention
+
+`npm run test:db:retention` runs the real cleanup function inside a rollback transaction.
+Statement triggers reject any cleanup write to public tables except `sync_runs` and `edge_invocations`.
+They also reject changes to score-retirement markers.
+The fixture retains every season's lineups, standings, transactions, and projection source rows.
+
+Cleanup removes completed successful high-frequency operational records after seven days.
+It keeps failures, unfinished work, unknown jobs, and important daily or weekly outcomes.
+Removed cron jobs qualify only when their command matches a known operational worker or optimizer gate.
+The test covers the exact seven-day boundary and calls cleanup as anonymous, manager, and service roles.
+
+`npm run test:db:retention-scoring` checks that cleanup preserves historical scores and their replay inputs.
+It separately creates a new local fixture with missing legacy inputs to retain coverage of existing retirement guards.
+That fixture does not describe the current cleanup policy.
+Migration `20261018000001` replaces function bodies only and invokes no cleanup during deployment.
+
+
+## Draft job failures and Eastern season starts
+
+`npm run test:db:expired-draft-outcomes` uses local HTTP, real RPCs, and row-specific fault triggers.
+One auction closes while an auction and a snake pick fail.
+The endpoint returns `ok: false`, HTTP 500, and a finished failed `sync_runs` row.
+After trigger removal, two concurrent calls settle each remaining action once.
+A final retry does no work.
+A request without internal authentication cannot run the job.
+The recipe removes only its fixtures and triggers.
+
+`npm run test:db:season-boundary-et` calls the real boundary helper against local data.
+It checks the evening before Eastern midnight and the first minute after midnight.
+The cases cover the spring clock change, the fall clock change, and New Year.
+The evening call creates no draft.
+The later call creates and completes the synthetic rookie draft.
+Both recipes run in `npm run test:db`.
+
+## Correlated scheduled work
+
+`npm run test:db:correlated-dispatch` checks canonical outcomes, bounded retries, stale claims, and actual client-role denials.
+`npm run test:db:correlated-worker` sends real local HTTP requests through the internal handler.
+It also queues a real pg_net request whose worker finishes after the 30-second transport timeout.
+Set `E2E_INVOCATION_WORKER_HOST=host.lima.internal` for a Lima stack.
+The default is `host.docker.internal`; the container must reach the test listener on the host.
+The worker test uses an ephemeral local port and removes only its own operational fixtures.
+
+Each scheduled request carries an opaque invocation key after internal authentication.
+The worker records one outcome, including completed rows when individual items fail.
+Transport errors remain diagnostic evidence; a completed worker determines success or failure.
+Reconciliation waits ten minutes for a worker, then marks its existing outcome failed if it never finishes.
+A late finish corrects that same outcome.
+
+Daily ET jobs check every fifteen minutes after their normal due time.
+A failed claim can retry after five minutes, with at most three attempts per period.
+Ranking checks run hourly and keep the existing weekly claim.
+Reconciliation waits for every request in a claim before releasing it.
+An older failed attempt cannot release a newer claim.
+No retry changes league history or settings.
+
+## Bounded live ingestion
+
+`npm run test:db:live-ingestion-work` checks shared eligibility, retry boundaries, client-role denials, and stale-holder write fences.
+`npm run test:db:live-ingestion-clock` uses real HTTP, the local database, and real timers.
+It observes six ticks about twenty seconds apart, duplicate exclusion, a killed process, the natural ninety-second lease expiry, finalization, and provider backoff.
+The clock recipe takes several minutes and removes only its synthetic league, games, players and users.
+The default runs host Deno; `LIVE_POLL_USE_EDGE=1` targets the local Edge endpoint with an explicitly configured local provider.
+The latter mode needs `LIVE_POLL_PROVIDER_URL` and the matching `NBA_CDN_BASE_URL` in the local functions environment.
+
+The cron checks every two minutes, at every UTC hour.
+Live games and the two minutes before a scheduled tipoff start a bounded loop.
+Healthy loops start up to six ticks at twenty-second intervals.
+Each tick has an eighteen-second network budget; the invocation also has a hard work deadline.
+Every database write carries its lease identity and fails if that identity expires or changes.
+The database holds the lease lock through each write transaction, so a replacement waits for an admitted write to finish.
+A lost lease aborts outstanding network work.
+Bookkeeping has a separate five-second budget and can record failure after the work deadline.
+
+The scheduler and worker use the same final-completion marker and thirty-minute retry rule.
+One partial stat row cannot certify a final game.
+Retry timestamps stay in a private operational table.
+They do not emit client events or change game content, completion stamps, or score-input revisions.
+A completed final game does not wake an idle worker.
+During live activity, due completed games still receive correction checks.
+The broader historical recovery in normal score sync stays enabled; the live loop scores its already-ingested inputs once per tick.
+
+## Postponed games and scoring
+
+`npm run test:db:postponed-scoring` exercises real schedule parsing, two regular weeks, seeded playoffs, rescheduling, missing-final recovery and corrections.
+`npm run test:db:postponed-score-access` verifies internal read scope and actual client-role denials.
+Schedule imports retain provider status text.
+Scoring and ingestion use the existing game-availability rule for postponed, cancelled and suspended games.
+A rescheduled game keeps its identity and history, then contributes in its actual calendar week.
+Scheduled, live and incomplete final games still block finalization.
+
+## Pre-tipoff recovery
+
+`npm run test:db:pre-tipoff-resume` uses real local HTTP, PostgreSQL, timers and an actual local Edge invocation.
+Set `E2E_INVOCATION_WORKER_HOST=host.lima.internal` when the database runs inside Lima.
+A fifty-second context read retains its lease while the worker drains more than one hundred teams.
+Failed context reads retry separately, and failed completion records resume without repeating completed team reads.
+A killed worker recovers after its natural lease expiry and preserves completed lineups.
+The actual tipoff deadline cancels outstanding work and records an explicit failure.
+The recipe removes its own users, leagues, games, progress and listeners.
+
+## Durable final notifications
+
+`npm run test:db:matchup-final-outbox` checks committed results and private notification rows through actual local RPCs.
+It overlaps two finalizations at the league lock and verifies one notification per recipient.
+A later standings failure rolls back both the result and its queued notifications.
+Corrections preserve the original notification and do not send another final alert.
+The existing trade worker drains final alerts with activity preferences, retry leases and durable Expo receipts.
+The recipe uses its own local push server for an outage, recovery and concurrent delivery.
+No migration backfills alerts for existing finalized matchups.
+
+## Rookie activation actors
+
+`npm run test:db:rookie-activation-actor` calls the actual local Edge API with separately authenticated users.
+Commissioners and co-commissioners can activate a ready league; managers and outsiders cannot.
+The database repeats the actor check under locks after the API check.
+The recipe overlaps a role demotion with that transaction and verifies refusal without activation.
+It also checks anonymous access, forged actors, legacy commissioner calls and a stale season.
+Automatic draft completion continues through the existing private readiness helper.

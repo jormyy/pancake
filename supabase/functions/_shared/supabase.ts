@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from './database.ts'
+import { workFetch } from './workContext.ts'
 
 function defaultSecretKey(): string | undefined {
   const raw = Deno.env.get('SUPABASE_SECRET_KEYS')
@@ -26,5 +27,5 @@ export function requiredSecretKey(): string {
 export const supabase = createClient<Database>(
   Deno.env.get('SUPABASE_URL')!,
   requiredSecretKey(),
-  { auth: { autoRefreshToken: false, persistSession: false } },
+  { auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: workFetch } },
 )

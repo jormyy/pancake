@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
@@ -9,12 +10,17 @@ const mocks = vi.hoisted(() => ({
     showAlert: vi.fn(),
 }))
 
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
+vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) } }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
-vi.mock('@/lib/draft', () => ({ getJoinableDraft: mocks.getJoinableDraft }))
+vi.mock('@/lib/draft', () => ({ acquireJoinableDraft: (...args: unknown[]) => ({ promise: mocks.getJoinableDraft(...args), release: vi.fn() }) }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: null }) }))
 vi.mock('@/lib/alert', () => ({
     getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
     showAlert: mocks.showAlert,
 }))
+
+setSessionOwner('draft-test-user')
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -97,7 +103,7 @@ describe('resolved draft launcher', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
         await act(async () => { await latest.openDraftRoom({ fallbackOnMissing: false }) })
-        expect(mocks.getJoinableDraft).toHaveBeenCalledWith('league', { includeCompletedRookie: true })
+        expect(mocks.getJoinableDraft).toHaveBeenCalledWith('league', { includeCompletedRookie: true, memberId: undefined, canRead: expect.any(Function) })
         expect(mocks.push).not.toHaveBeenCalled()
         expect(latest.draft).toEqual(draft)
         expect(latest.draftChecked).toBe(true)
@@ -150,4 +156,15 @@ it('fences same-league membership changes and an unmounted launcher', async () =
     await act(async () => { renderer.unmount() })
     await act(async () => { pendingUnmount.resolve({ id: 'late-snake', draftType: 'snake' }); expect(await unmounted).toBe('stale') })
     expect(mocks.push).not.toHaveBeenCalled()
+})
+
+it('keeps the missing-league fallback without starting a draft read', async () => {
+    let latest!: ReturnType<typeof useDraftRoomLauncher>
+    const Probe = () => { latest = useDraftRoomLauncher(undefined); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { expect(await latest.openDraftRoom()).toBe('missing') })
+    expect(mocks.getJoinableDraft).not.toHaveBeenCalled()
+    expect(mocks.push).toHaveBeenCalledWith('/draft')
+    await act(async () => { renderer.unmount() })
 })

@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION private.weekly_add_limit_reached(p_used int, p_limit 
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
+SET search_path = ''
 AS $$
   SELECT p_limit IS NOT NULL AND COALESCE(p_used, 0) >= p_limit
 $$;

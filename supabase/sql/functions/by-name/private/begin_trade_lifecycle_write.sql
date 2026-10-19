@@ -5,6 +5,7 @@
 CREATE OR REPLACE FUNCTION private.begin_trade_lifecycle_write()
 RETURNS text
 LANGUAGE plpgsql
+SET search_path = ''
 AS $$
 DECLARE
   v_previous text := COALESCE(current_setting('app.trade_lifecycle_server_write', true), '');

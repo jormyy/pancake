@@ -1,3 +1,4 @@
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason, invalidateSeasonCache } from '@/lib/shared/season'
@@ -54,23 +55,6 @@ export function gameHasStarted(game: { status: string | null; game_time: string 
     return ['InProgress', 'Final'].includes(game.status ?? '')
         || (game.game_time != null && game.game_time <= now)
         || (game.started_at != null && game.started_at <= now)
-}
-
-export async function getStartedTeams(gameDate: string): Promise<Set<string>> {
-    const { data, error } = await supabase
-        .from('nba_games')
-        .select('home_team, away_team, status, game_time, started_at')
-        .eq('game_date', gameDate)
-    if (error) throw error
-
-    const teams = new Set<string>()
-    const now = new Date().toISOString()
-    for (const g of data ?? []) {
-        if (!gameHasStarted(g, now)) continue
-        if (g.home_team) teams.add(g.home_team)
-        if (g.away_team) teams.add(g.away_team)
-    }
-    return teams
 }
 
 export async function getLineupContext(
@@ -220,12 +204,13 @@ function ttlCached<T>(
     ttlMs: number,
     allowCached: boolean,
     fetcher: () => Promise<T>,
+    sharePending = allowCached,
 ): Promise<T> {
     const now = Date.now()
     const hit = cache.get(key)
     // A read still in flight is as fresh as a new one, so the two lineups of a
     // full matchup load share one slot-template request.
-    if (hit && (!hit.settled || (allowCached && now - hit.at < ttlMs))) return hit.promise
+    if (hit && ((!hit.settled && sharePending) || (hit.settled && allowCached && now - hit.at < ttlMs))) return hit.promise
     const entry: CachedRead<T> = { at: now, promise: fetcher(), settled: false }
     cache.set(key, entry)
     entry.promise.then(
@@ -254,7 +239,7 @@ export async function getWeeklyLineup(
 
     const [templates, roster, assignmentsResult] = await Promise.all([
         ttlCached(templateCache, leagueId, TEMPLATE_CACHE_TTL_MS, allowCached,
-            () => fetchSlotTemplates(leagueId)),
+            () => fetchSlotTemplates(leagueId), true),
         ttlCached(rosterCache, `${memberId}:${leagueId}:${seasonId}`, ROSTER_CACHE_TTL_MS, allowCached,
             () => fetchRosterPlayers(memberId, leagueId, seasonId)),
         supabase
@@ -444,17 +429,19 @@ export async function setPlayerSlotMoves(
     },
     moves: LineupSlotMove[],
 ): Promise<void> {
-    if (moves.length === 0) return
-    const { error } = await supabase.rpc('set_player_slot_moves_atomic', {
-        p_member_id: memberId,
-        p_league_id: leagueId,
-        p_league_season_id: seasonId,
-        p_game_date: gameDate,
-        p_week_number: weekNumber,
-        p_moves: moves.map((move) => ({
-            player_id: move.playerId,
-            slot_type: move.slotType as RosterSlotType,
-        })),
+    return withPwaMutation('setPlayerSlotMoves', async () => {
+        if (moves.length === 0) return
+        const { error } = await supabase.rpc('set_player_slot_moves_atomic', {
+            p_member_id: memberId,
+            p_league_id: leagueId,
+            p_league_season_id: seasonId,
+            p_game_date: gameDate,
+            p_week_number: weekNumber,
+            p_moves: moves.map((move) => ({
+                player_id: move.playerId,
+                slot_type: move.slotType as RosterSlotType,
+            })),
+        })
+        if (error) throw error
     })
-    if (error) throw error
 }

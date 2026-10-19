@@ -1,8 +1,11 @@
-import type { ReactNode } from 'react'
+import type { PropsWithChildren } from 'react'
+import { PanelActivityContext, usePanelActivity } from '@/contexts/panel-activity'
 import { Platform, StyleSheet, View } from 'react-native'
 
 // Keep list dimensions while hidden so browsers retain their scroll position.
-export function RetainedPanel({ active, children }: { active: boolean; children: ReactNode }) {
+export function RetainedPanel({ active, children }: PropsWithChildren<{ active: boolean }>) {
+    const parentActive = usePanelActivity()
+    const content = <PanelActivityContext.Provider value={parentActive && active}>{children}</PanelActivityContext.Provider>
     if (Platform.OS === 'web') {
         return (
             <div
@@ -10,7 +13,7 @@ export function RetainedPanel({ active, children }: { active: boolean; children:
                 aria-hidden={!active}
                 style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', visibility: active ? 'inherit' : 'hidden' }}
             >
-                {children}
+                {content}
             </div>
         )
     }
@@ -21,7 +24,7 @@ export function RetainedPanel({ active, children }: { active: boolean; children:
             accessibilityElementsHidden={!active}
             importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
         >
-            {children}
+            {content}
         </View>
     )
 }

@@ -1,3 +1,4 @@
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React, { useEffect } from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -15,7 +16,7 @@ const boundary = vi.hoisted(() => ({
 }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: boundary.owner ? boundary.users[boundary.owner] : null }) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
-vi.mock('@react-navigation/native', () => ({ useFocusEffect: (callback: () => void) => useEffect(callback, [callback]) }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: (callback: () => void) => useEffect(callback, [callback]) }))
 vi.mock('@/lib/league', () => ({ fetchUserLeagues: boundary.fetch }))
 vi.mock('@/lib/scoring', () => ({ getMyMatchup: boundary.matchup, getLeagueWeekMatchups: async () => [] }))
 vi.mock('@/lib/lineup', () => ({
@@ -93,8 +94,9 @@ const mount = async () => {
     snapshots = []
     start = Date.now()
 }
+const membershipSubscription = () => boundary.subscriptions.findLast(subscription => subscription.watches.some(watch => watch.table === 'league_members'))!
 const ownEvent = async () => {
-    const subscription = boundary.subscriptions.at(-1)!
+    const subscription = membershipSubscription()
     // One own-member UPDATE matches the user filter and its league's member filter.
     await act(async () => { subscription.onChange?.(); subscription.onChange?.() })
 }
@@ -114,6 +116,7 @@ const report = (workload: string, extra: Record<string, number | null> = {}) => 
 }
 
 beforeEach(() => {
+    clearSessionCaches()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-13T12:00:00Z'))
     boundary.owner = 'a'
@@ -275,7 +278,7 @@ it('reuses identical rows, then applies a role change, removal and confirmed emp
 
 it('fences account switch, sign-out and retained callbacks while reads are pending', async () => {
     await mount()
-    const oldCallback = boundary.subscriptions.at(-1)!.onChange!
+    const oldCallback = membershipSubscription().onChange!
     boundary.nextDelay = 500
     await act(async () => { void latest.refresh() })
     await advance(50)
@@ -291,7 +294,7 @@ it('fences account switch, sign-out and retained callbacks while reads are pendi
     const newOwner = latest.current?.id
     const newOwnerAt = snapshots.find((snapshot) => snapshot.at >= switchedAt && snapshot.current === 'b-1')?.at
     expect(firstOtherOwner.rows.every((row) => !row.id.startsWith('a'))).toBe(true)
-    const newCallback = boundary.subscriptions.at(-1)!.onChange!
+    const newCallback = membershipSubscription().onChange!
     boundary.nextDelay = 500
     await act(async () => { void latest.refresh() })
     await advance(50)
@@ -311,7 +314,7 @@ it('keeps cached rows and selection on a failed read, then retries successfully'
     try {
         await mount()
         boundary.failNext = true
-        await act(async () => { boundary.subscriptions.at(-1)!.onChange!() })
+        await act(async () => { membershipSubscription().onChange!() })
         await advance(500)
         const afterFailure = { id: latest.current?.id, error: latest.membershipError?.message, selection: boundary.cache.get(selectionKey('a')) }
         changeTeam(1)
@@ -357,7 +360,7 @@ it('fences a held read after unmount without writing it to the cache', async () 
 
 it('ignores a disposed league subscription even when its owner is unchanged', async () => {
     await mount()
-    const disposedCallback = boundary.subscriptions.at(-1)!.onChange!
+    const disposedCallback = membershipSubscription().onChange!
     boundary.server.set('a', [boundary.server.get('a')![0]])
     await ownEvent()
     await advance(500)
@@ -392,7 +395,7 @@ it('does not lose a callback that arrives as a read promise settles', async () =
     const response = new Promise<LeagueMembership[]>((resolve) => { release = resolve })
     boundary.fetch.mockReturnValueOnce(response)
     await act(async () => { void latest.refresh() })
-    const callback = boundary.subscriptions.at(-1)!.onChange!
+    const callback = membershipSubscription().onChange!
     changeTeam(1)
     void response.then(() => { queueMicrotask(callback) })
     await act(async () => { release(rowsFor('a')) })

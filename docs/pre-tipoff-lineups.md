@@ -47,6 +47,10 @@ An outage that lasts through tipoff cannot recover the missed chance to change l
 
 A dispatch has one unique tipoff timestamp and a claim token.
 A worker claims queued work once. Team transactions keep active work under a 45-second lease.
+The worker also renews every fifteen seconds during reads.
+It processes pending teams in bounded batches and skips completed receipts before loading context or projections.
+Each invocation has at most 110 seconds of work and stops five seconds before the late tipoff window closes.
+Lease loss or the work deadline cancels outstanding requests and records a failure.
 The next minute retries failed work and expired claims before tipoff.
 A new token fences the previous worker.
 Each team has one receipt per dispatch revision. The lineup write and receipt share one transaction.

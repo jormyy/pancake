@@ -1,3 +1,4 @@
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 
 export async function getLineupOptimizerEnabled(
@@ -23,20 +24,22 @@ export async function setLineupOptimizerEnabled(
     seasonId: string,
     enabled: boolean,
 ): Promise<void> {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        throw new Error('Connect to the internet to change Auto-set daily.')
-    }
-    const { error } = await supabase
-        .from('lineup_optimizer_settings')
-        .upsert({
-            member_id: memberId,
-            league_id: leagueId,
-            league_season_id: seasonId,
-            enabled,
-            enabled_at: enabled ? new Date().toISOString() : null,
-        }, {
-            onConflict: 'league_id,league_season_id,member_id',
-        })
+    return withPwaMutation('setLineupOptimizerEnabled', async () => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            throw new Error('Connect to the internet to change Auto-set daily.')
+        }
+        const { error } = await supabase
+            .from('lineup_optimizer_settings')
+            .upsert({
+                member_id: memberId,
+                league_id: leagueId,
+                league_season_id: seasonId,
+                enabled,
+                enabled_at: enabled ? new Date().toISOString() : null,
+            }, {
+                onConflict: 'league_id,league_season_id,member_id',
+            })
 
-    if (error) throw error
+        if (error) throw error
+    })
 }

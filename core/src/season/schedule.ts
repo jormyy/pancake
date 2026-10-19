@@ -6,6 +6,7 @@ export type ScheduleSourceGame = {
     homeTeam: string
     awayTeam: string
     status: string
+    statusText?: string | null
     startedAt: string | null
     weekNumber: number | null
     scheduleSeasonYear?: string | null
@@ -18,6 +19,7 @@ export type ScheduleGameRow = {
     home_team: string
     away_team: string
     status: string
+    game_status_text?: string | null
     started_at: string | null
     game_time: string | null
     ended_at: null
@@ -159,6 +161,7 @@ export function buildScheduleSyncPlan(raw: ScheduleSourceGame[], now = new Date(
             home_team: game.homeTeam,
             away_team: game.awayTeam,
             status: game.status,
+            ...(game.statusText == null ? {} : { game_status_text: game.statusText }),
             started_at: normalizedScheduleTimestamp(game.startedAt),
             game_time: normalizedScheduleTimestamp(game.startedAt),
             ended_at: null,

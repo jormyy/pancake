@@ -542,9 +542,10 @@ async function requireDraftLeagueMember(userId: string, draftId: string): Promis
 }
 
 async function activateRookieDraftLeague(draftId: string, userId: string): Promise<{ activated: boolean }> {
-  await requireDraftLeagueMember(userId, draftId)
-  const { data, error } = await supabase.rpc('activate_rookie_draft_league_atomic', {
+  await requireCommissionerForDraft(userId, draftId)
+  const { data, error } = await supabase.rpc('activate_rookie_draft_league_for_user_atomic', {
     p_draft_id: draftId,
+    p_user_id: userId,
   })
   if (error) throwDb(error)
   return { activated: Boolean(data) }

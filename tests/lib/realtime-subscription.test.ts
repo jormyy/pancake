@@ -37,9 +37,11 @@ import {
     unsubscribeFromTableChanges,
 } from '@/lib/realtime'
 
-afterEach(() => {
+afterEach(async () => {
+    await unsubscribeFromTableChanges(realtime.channel as never)
     vi.useRealTimers()
     vi.clearAllMocks()
+    vi.unstubAllGlobals()
     realtime.callbacks.length = 0
 })
 
@@ -88,6 +90,73 @@ describe('realtime subscriptions', () => {
         realtime.emitStatus('CHANNEL_ERROR')
 
         expect(onStatus.mock.calls).toEqual([['SUBSCRIBED'], ['CHANNEL_ERROR']])
+    })
+
+    it.each(['CHANNEL_ERROR', 'TIMED_OUT'] as const)('recovers missed changes after %s without fake row events', async (status) => {
+        const changed = vi.fn()
+        const reload = vi.fn()
+        subscribeToTableChanges('recover', { mode: 'fallback', watches: [], onChange: changed, onReconnect: reload })
+        realtime.emitStatus('SUBSCRIBED')
+        expect(reload).not.toHaveBeenCalled()
+        realtime.emitStatus(status)
+        realtime.emitStatus('SUBSCRIBED')
+        await Promise.resolve()
+        expect(reload).toHaveBeenCalledTimes(1)
+        realtime.emitStatus('SUBSCRIBED')
+        expect(reload).toHaveBeenCalledTimes(1)
+        expect(changed).not.toHaveBeenCalled()
+    })
+
+    it('recovers when the initial join fails and bounds failed reads to three attempts', async () => {
+        vi.useFakeTimers()
+        const reload = vi.fn(async () => false)
+        subscribeToTableChanges('failed-first-join', { mode: 'fallback', watches: [], onChange: vi.fn(), onReconnect: reload })
+        realtime.emitStatus('TIMED_OUT')
+        realtime.emitStatus('SUBSCRIBED')
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(reload).toHaveBeenCalledTimes(3)
+        realtime.emitStatus('SUBSCRIBED')
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(reload).toHaveBeenCalledTimes(3)
+        realtime.emitStatus('CHANNEL_ERROR')
+        realtime.emitStatus('SUBSCRIBED')
+        await Promise.resolve()
+        expect(reload).toHaveBeenCalledTimes(4)
+    })
+
+    it('queues one later recovery when the socket rejoins during a pending read', async () => {
+        vi.useFakeTimers()
+        let resolve!: () => void
+        const reload = vi.fn<() => Promise<void>>().mockReturnValueOnce(new Promise(done => { resolve = done }))
+        reload.mockResolvedValue(undefined)
+        subscribeToTableChanges('overlap', { mode: 'fallback', watches: [], onChange: vi.fn(), onReconnect: reload })
+        realtime.emitStatus('CHANNEL_ERROR')
+        realtime.emitStatus('SUBSCRIBED')
+        realtime.emitStatus('CHANNEL_ERROR')
+        realtime.emitStatus('SUBSCRIBED')
+        expect(reload).toHaveBeenCalledTimes(1)
+        resolve()
+        await vi.advanceTimersByTimeAsync(2_000)
+        expect(reload).toHaveBeenCalledTimes(2)
+    })
+
+    it('cancels recovery listeners and retries even when channel removal fails', async () => {
+        vi.useFakeTimers()
+        const browser = new EventTarget()
+        vi.stubGlobal('window', browser)
+        const removeListener = vi.spyOn(browser, 'removeEventListener')
+        const reload = vi.fn(async () => false)
+        const channel = subscribeToTableChanges('dispose-recovery', { mode: 'fallback', watches: [], onChange: vi.fn(), onReconnect: reload })
+        realtime.emitStatus('CHANNEL_ERROR')
+        realtime.emitStatus('SUBSCRIBED')
+        await Promise.resolve()
+        realtime.removeChannel.mockRejectedValueOnce(new Error('Socket gone'))
+        await expect(unsubscribeFromTableChanges(channel)).rejects.toThrow('Socket gone')
+        realtime.emitStatus('SUBSCRIBED')
+        browser.dispatchEvent(new Event('online'))
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(reload).toHaveBeenCalledTimes(1)
+        expect(removeListener).toHaveBeenCalledWith('online', expect.any(Function))
     })
 
     it('debounces refreshes and cancels pending work during disposal', async () => {

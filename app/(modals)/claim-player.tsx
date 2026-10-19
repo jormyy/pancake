@@ -1,3 +1,5 @@
+import { getLeagueMembers } from '@/lib/league'
+import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     View,
     Text,
@@ -48,9 +50,9 @@ export default function ClaimPlayerScreen() {
     const [bidInput, setBidInput] = useState('0')
     const [loading, setLoading] = useState(true)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
-    const [submitting, setSubmitting] = useState(false)
+    const [submittingOwner, setSubmittingOwner] = useState<{ key: string } | null>(null)
     const claimLoadSeqRef = useRef(0)
-    const submittingRef = useRef(false)
+    const submittingRef = useRef<{ key: string } | null>(null)
     const { width, height } = useWindowDimensions()
     const [webViewport, setWebViewport] = useState({ width, height })
     useEffect(() => {
@@ -69,9 +71,15 @@ export default function ClaimPlayerScreen() {
     const leagueId = currentLeague?.id
     const memberId = current?.id
     const userId = user?.id
+    const ownerKey = JSON.stringify([userId, memberId, leagueId, playerId])
+    const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch } = useModalActivity(userId && memberId && leagueId && playerId ? ownerKey : null)
+    const [loadAttempt, setLoadAttempt] = useState(0)
+    const ownerRef = useRef({ key: ownerKey })
+    if (ownerRef.current.key !== ownerKey) ownerRef.current = { key: ownerKey }
+    const submitting = submittingOwner === ownerRef.current
+    useEffect(() => () => { ownerRef.current = { key: ownerRef.current.key } }, [])
 
     useEffect(() => {
-        const requestId = ++claimLoadSeqRef.current
         setLoading(true)
         setPlayer(null)
         setMyRoster([])
@@ -80,41 +88,55 @@ export default function ClaimPlayerScreen() {
         setClearsAt(null)
         setSelectedDrop(null)
         setBidInput('0')
+    }, [ownerKey])
+
+    useEffect(() => {
+        if (!canRead()) return
+        const requestId = ++claimLoadSeqRef.current
+        const owner = ownerRef.current
+        const generation = capture()
+        setLoading(true)
+        blockActions()
         async function load() {
             if (!memberId || !userId || !playerId || !leagueId) {
-                if (claimLoadSeqRef.current === requestId) setLoading(false)
+                if (claimLoadSeqRef.current === requestId && ownerRef.current === owner && isCurrent(generation)) setLoading(false)
                 return
             }
             const requestedPlayerId = playerId
             const requestedLeagueId = leagueId
             try {
-                const [p, roster, prio, txState, waiverEnds] = await Promise.all([
+                const [p, roster, prio, txState, waiverEnds, members] = await Promise.all([
                     getPlayer(requestedPlayerId),
                     getRoster(memberId, requestedLeagueId),
                     getMyWaiverPriority(memberId, requestedLeagueId),
                     loadAddLimitState(memberId, requestedLeagueId),
                     getWaiverClearsAt(requestedLeagueId, requestedPlayerId),
+                    getLeagueMembers(requestedLeagueId),
                 ])
-                if (claimLoadSeqRef.current !== requestId) return
+                if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
+                if (!members.some(member => member.id === memberId && member.user_id === userId)) return
                 setPlayer(p)
                 setClearsAt(waiverEnds)
                 setMyRoster(roster)
                 setPriority(prio)
                 setTransactionState(txState)
+                setSelectedDrop(previous => previous ? roster.find(row => row.id === previous.id) ?? null : null)
+                markReady(generation)
             } catch (e) {
-                if (claimLoadSeqRef.current !== requestId) return
+                if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
                 console.error(e)
             } finally {
-                if (claimLoadSeqRef.current === requestId) setLoading(false)
+                if (claimLoadSeqRef.current === requestId && ownerRef.current === owner && isCurrent(generation)) setLoading(false)
             }
         }
-        load()
-    }, [leagueId, memberId, playerId, userId])
+        void load()
+        return () => { claimLoadSeqRef.current += 1 }
+    }, [leagueId, memberId, playerId, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt])
 
-    const refreshTransactionState = useCallback(async () => {
-        if (!memberId || !leagueId) return
-        setTransactionState(await loadAddLimitState(memberId, leagueId))
-    }, [memberId, leagueId])
+    const refreshTransactionState = useCallback(() => {
+        blockActions()
+        setLoadAttempt(value => value + 1)
+    }, [blockActions])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
@@ -123,7 +145,7 @@ export default function ClaimPlayerScreen() {
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
-        if (submittingRef.current) return
+        if (!canAct() || submittingRef.current === ownerRef.current) return
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
         if (explainBlock()) return
@@ -137,9 +159,18 @@ export default function ClaimPlayerScreen() {
             return
         }
 
-        submittingRef.current = true
-        setSubmitting(true)
+        const owner = ownerRef.current
+        const generation = capture()
+        submittingRef.current = owner
+        setSubmittingOwner(owner)
         try {
+            const members = await getLeagueMembers(currentLeague.id)
+            if (!isCurrent(generation) || ownerRef.current !== owner) return
+            if (!members.some(member => member.id === current.id && member.user_id === user.id)) {
+                blockActions()
+                showAlert('Access changed', 'You no longer belong to this league.')
+                return
+            }
             await submitWaiverClaim(
                 current.id,
                 currentLeague.id,
@@ -147,21 +178,22 @@ export default function ClaimPlayerScreen() {
                 selectedDrop?.players.id,
                 { bidAmount },
             )
+            if (ownerRef.current !== owner) return
             showSuccess(
                 'Claim Submitted',
                 `Your claim processes ${claimProcessTimeLabel(clearsAt)}.`,
             )
             goBack()
         } catch (e) {
-            reportPickupError(e, { refresh: refreshTransactionState })
+            if (ownerRef.current === owner) reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
-            submittingRef.current = false
-            setSubmitting(false)
+            if (submittingRef.current === owner) submittingRef.current = null
+            if (ownerRef.current === owner) setSubmittingOwner(null)
         }
     }
 
     const processDateStr = claimProcessDateLabel(clearsAt)
-    const claimReady = !loading && !!player
+    const claimReady = canAct() && !loading && !!player
     const submitDisabled = !online || submitting || !claimReady || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
     const faab = transactionState?.waiverMode === 'faab'

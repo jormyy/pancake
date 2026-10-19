@@ -54,6 +54,17 @@ describe('canonical database function sources', () => {
         expect(checkFunctionSourceText('public.repeated(text)', definitions.get('public.repeated(text)')!, textDefinition)).toEqual([])
     })
 
+    it('keeps declaration offsets after non-BMP text in SQL bodies and comments', async () => {
+        const { functionLifecycleEventsInSource } = await import('../scripts/check-db-function-sources.mjs')
+        const first = "CREATE FUNCTION public.alert_body() RETURNS text AS $$ SELECT '🏆' $$ LANGUAGE sql;"
+        const second = 'CREATE FUNCTION public.next_worker(p_limit int DEFAULT 100,p_seconds int DEFAULT 60) RETURNS int AS $$ SELECT p_limit $$ LANGUAGE sql;'
+        const source = `${first}\n-- 🥞 CREATE FUNCTION public.ignored()\n${second}`
+        const events = functionLifecycleEventsInSource(source)
+        expect(events.map(event => event.identityKey)).toEqual(['public.alert_body()', 'public.next_worker(integer,integer)'])
+        expect(events.map(event => source.slice(event.start, event.end))).toEqual([first, second])
+        expect(events.map(event => event.type === 'create' ? event.definition : '')).toEqual([first, second])
+    })
+
     it('moves canonical ownership through ALTER FUNCTION rename chains', async () => {
         const { latestFunctionDefinitionsInSource } = await import('../scripts/check-db-function-sources.mjs')
         const definitions = latestFunctionDefinitionsInSource(`

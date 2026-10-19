@@ -32,7 +32,7 @@ export default function CommissionerSettingsScreen() {
     const compactMobile = width <= 400
     const { padX } = usePageMetrics()
     const {
-        adjustSlot, busyAction, draft, handleAddCountOverride, handleDeleteLeague,
+        adjustSlot, authorityReady, busyAction, draft, handleAddCountOverride, handleDeleteLeague,
         handleFaabOverride, isCommissioner, lifecycle, loadError, loadState, lowerPriorityActions,
         members, playoffCalendar, playoffRoundsNeedReview, navigateBack, overrideAdds, overrideFaab, overrideMemberId,
         overrideSaving, retryLoad, save, saving, setOverrideAdds, setOverrideFaab,
@@ -47,14 +47,14 @@ export default function CommissionerSettingsScreen() {
     // Save stays in reach at the top while the long form scrolls under it.
     const saveAction = loadState === 'ready' || loadState === 'loading' ? (
                 <Pressable
-                    style={[styles.headerSave, (saving || loadState !== 'ready') && styles.headerSaveDisabled]}
+                    style={[styles.headerSave, (saving || !authorityReady || loadState !== 'ready') && styles.headerSaveDisabled]}
                     onPress={save}
-                    disabled={saving || loadState !== 'ready'}
+                    disabled={saving || !authorityReady || loadState !== 'ready'}
                     role="button"
                     aria-label="Save league settings"
                     accessibilityRole="button"
                     accessibilityLabel="Save league settings"
-                    accessibilityState={{ disabled: saving || loadState !== 'ready', busy: saving }}
+                    accessibilityState={{ disabled: saving || !authorityReady || loadState !== 'ready', busy: saving }}
                 >
                     <Text style={styles.headerSaveText}>{saving ? 'Saving…' : 'Save'}</Text>
                 </Pressable>
@@ -91,10 +91,10 @@ export default function CommissionerSettingsScreen() {
                 key={`${action.id}:${action.label}`}
                 style={[styles.actionButton, grid && !action.description && styles.actionButtonGrid, { borderColor: color }]}
                 onPress={action.onPress}
-                disabled={busyAction !== null}
+                disabled={busyAction !== null || !authorityReady}
                 role="button"
                 aria-label={accessibilityLabel}
-                aria-disabled={busyAction !== null}
+                aria-disabled={busyAction !== null || !authorityReady}
                 accessibilityRole="button"
                 accessibilityLabel={accessibilityLabel}
                 accessibilityState={{ disabled: busyAction !== null }}
@@ -408,7 +408,7 @@ export default function CommissionerSettingsScreen() {
                                 placeholder="FAAB balance"
                                 placeholderTextColor={colors.inputPlaceholder}
                             />
-                            <Pressable style={styles.overrideButton} onPress={handleFaabOverride} disabled={overrideSaving}>
+                            <Pressable style={styles.overrideButton} onPress={handleFaabOverride} disabled={overrideSaving || !authorityReady}>
                                 <Text style={styles.overrideButtonText}>Set FAAB</Text>
                             </Pressable>
                         </View>
@@ -421,7 +421,7 @@ export default function CommissionerSettingsScreen() {
                                 placeholder="Weekly adds used"
                                 placeholderTextColor={colors.inputPlaceholder}
                             />
-                            <Pressable style={styles.overrideButton} onPress={handleAddCountOverride} disabled={overrideSaving}>
+                            <Pressable style={styles.overrideButton} onPress={handleAddCountOverride} disabled={overrideSaving || !authorityReady}>
                                 <Text style={styles.overrideButtonText}>Set Adds</Text>
                             </Pressable>
                         </View>

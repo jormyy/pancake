@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getProfile } from '@/lib/auth'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { listenForProfileUpdates } from '@/lib/profile-updates'
+import { getProfile, suspendProfileRead } from '@/lib/auth'
 import {
     getNotificationPreferences,
     type NotificationPreferences,
@@ -26,6 +28,7 @@ function errorMessage(reason: unknown, fallback: string): string {
 }
 
 export function useProfileResource(userId: string | undefined) {
+    const { active, revision, isCurrent } = useBrowserReadActivity()
     const activeOwnerRef = useRef(userId)
     activeOwnerRef.current = userId
     const [resource, setResource] = useState<ResourceState>({
@@ -37,7 +40,7 @@ export function useProfileResource(userId: string | undefined) {
     })
     const requestRef = useRef(0)
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (options: { force?: boolean } = {}) => {
         const requestId = ++requestRef.current
         if (!userId) {
             setResource({
@@ -50,9 +53,10 @@ export function useProfileResource(userId: string | undefined) {
             return
         }
 
+        if (!isCurrent(revision)) return
         const ownerId = userId
         setResource((current) => current.ownerId === ownerId
-            ? { ...current, loaded: false, error: null }
+            ? { ...current, error: null }
             : {
                 ownerId,
                 profile: null,
@@ -61,10 +65,10 @@ export function useProfileResource(userId: string | undefined) {
                 error: null,
             })
         const [profileResult, preferencesResult] = await Promise.allSettled([
-            getProfile(ownerId),
+            getProfile(ownerId, options),
             getNotificationPreferences(ownerId),
         ])
-        if (requestRef.current !== requestId || activeOwnerRef.current !== ownerId) return
+        if (requestRef.current !== requestId || activeOwnerRef.current !== ownerId || !isCurrent(revision)) return
 
         const errors = [
             profileResult.status === 'rejected'
@@ -83,13 +87,23 @@ export function useProfileResource(userId: string | undefined) {
             loaded: errors.length === 0,
             error: errors.length > 0 ? errors.join(' ') : null,
         } : current)
-    }, [userId])
+    }, [userId, revision, isCurrent])
 
     useEffect(() => {
-        void load()
+        if (active) void load({ force: revision > 0 })
+        else if (userId) suspendProfileRead(userId)
         return () => { requestRef.current += 1 }
-    }, [load])
+    }, [load, userId, active, revision])
 
+    useEffect(() => {
+        if (!userId) return
+        return listenForProfileUpdates(userId, patch => {
+            setResource(current => current.ownerId === userId && current.profile
+                ? { ...current, profile: { ...current.profile, ...patch } } : current)
+        })
+    }, [userId])
+
+    const retryProfile = useCallback(() => load({ force: true }), [load])
     const ownsResource = resource.ownerId === userId
     const setProfile = useCallback((updater: React.SetStateAction<Profile | null>) => {
         setResource((current) => {
@@ -111,7 +125,7 @@ export function useProfileResource(userId: string | undefined) {
         preferences: ownsResource ? resource.preferences : DEFAULT_NOTIFICATION_PREFERENCES,
         profileLoaded: ownsResource ? resource.loaded : false,
         profileError: ownsResource ? resource.error : null,
-        retryProfile: load,
+        retryProfile,
         setProfile,
         setPreferences,
     }

@@ -3,6 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RosterScreen from '@/app/(tabs)/roster'
 import type { RosterPlayer } from '@/lib/roster'
+import { subscribeToTableChanges } from '@/lib/realtime'
+import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 
 type ListProps = {
     data: unknown[]
@@ -68,7 +70,7 @@ vi.mock('@/lib/realtime', () => ({
     reportRealtimeCleanup: vi.fn(), subscribeToTableChanges: vi.fn(), unsubscribeFromTableChanges: vi.fn(),
 }))
 vi.mock('@/lib/lineup', () => ({ autoSetLineup: vi.fn(), getLineupContext: vi.fn(), getRosterSlotPlan: vi.fn() }))
-vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: vi.fn() }))
+vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: vi.fn(), invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-17' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false }))
 vi.mock('@/lib/format', () => ({
@@ -118,6 +120,7 @@ describe('roster empty slots', () => {
     let screen: ReactTestRenderer
 
     beforeEach(() => {
+        mocks.focusData.refresh.mockReset()
         mocks.league.roster_size = 20
         mocks.league.ir_slots = 2
         mocks.league.taxi_slots = 2
@@ -127,6 +130,8 @@ describe('roster empty slots', () => {
 
     afterEach(() => {
         act(() => screen.unmount())
+        setLeagueChangesConnected('league-a', false)
+        vi.useRealTimers()
     })
 
     it('keeps every active, IR and taxi slot visible when the roster is completely empty', () => {
@@ -177,4 +182,49 @@ describe('roster empty slots', () => {
         expect(emptySlotCounts(screen)).toEqual({})
         expect(screen.root.findAllByType('RosterSectionBand' as React.ElementType).filter((node) => ['Starters', 'Bench', 'Injured reserve', 'Taxi squad'].includes(node.props.label))).toHaveLength(0)
     })
+    it('refreshes an old owner from compact roster hints without repeating initial or unrelated reads', async () => {
+        vi.useFakeTimers()
+        mocks.focusData.refresh.mockResolvedValue(true)
+        setLeagueChangesConnected('league-a', true)
+        act(() => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+        expect(mocks.focusData.refresh).not.toHaveBeenCalled()
+        act(() => {
+            notifyLeagueChange('other-league', { topic: 'roster', scopes: null })
+            notifyLeagueChange('league-a', { topic: 'stat', scopes: null })
+            notifyLeagueChange('league-a', { topic: 'roster', scopes: [{ season_id: 'season', member_id: 'other-member' }] })
+        })
+        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+        expect(mocks.focusData.refresh).not.toHaveBeenCalled()
+        act(() => {
+            const subscription = vi.mocked(subscribeToTableChanges).mock.calls.at(-1)![1]
+            if (subscription.mode === 'fallback') subscription.onChange()
+            subscription.onReconnect?.()
+            notifyLeagueChange('league-a', { topic: 'roster', scopes: [
+                { season_id: 'season', member_id: 'other-member' }, { season_id: 'season', member_id: 'member-a' },
+            ] })
+            notifyLeagueChange('league-a', { topic: 'inventory', scopes: null })
+        })
+        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(1)
+        act(() => { notifyLeagueChange('league-a', { topic: 'catchup', scopes: null }) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(2)
+    })
+
+    it('retries a failed hint read and cancels queued work after leaving the roster', async () => {
+        vi.useFakeTimers()
+        mocks.focusData.refresh.mockResolvedValueOnce(false).mockResolvedValue(true)
+        act(() => { screen = create(React.createElement(RosterScreen)) })
+        act(() => { notifyLeagueChange('league-a', { topic: 'roster', scopes: null }) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(1)
+        await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(2)
+        act(() => { notifyLeagueChange('league-a', { topic: 'inventory', scopes: null }) })
+        act(() => { screen.update(React.createElement(React.Fragment)) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(2)
+    })
+
 })

@@ -1,3 +1,4 @@
+import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     View,
     Text,
@@ -8,6 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
+import { listenForLeagueChanges } from '@/lib/league-changes'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
@@ -42,6 +44,8 @@ export default function TeamRosterScreen() {
     const { memberId, teamName } = useLocalSearchParams<{ memberId: string; teamName: string }>()
     const { current, currentLeague, membershipStatus, refresh } = useLeagueContext()
     const scope = memberId && current && currentLeague ? `${current.id}:${currentLeague.id}:${memberId}` : null
+    const leagueId = currentLeague?.id
+    const { canRead, capture, isCurrent, epoch } = useModalActivity(scope)
     const [resource, setResource] = useState<{ scope: string; roster: RosterPlayer[]; stats: RosterStatsMaps } | null>(null)
     const [loading, setLoading] = useState(true)
     const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null)
@@ -53,41 +57,52 @@ export default function TeamRosterScreen() {
     const canProposeTrade = !!scope && memberId !== current?.id && !isTradingClosed(currentLeague)
 
     useEffect(() => {
-        if (!memberId || !currentLeague || !scope) {
+        if (!leagueId || !memberId || !scope) return
+        return listenForLeagueChanges(leagueId, change => {
+            if (change.topic !== 'roster' && change.topic !== 'inventory') return
+            if (change.scopes && !change.scopes.some(row => !row.member_id || row.member_id === memberId)) return
+            setAttempt(value => value + 1)
+        })
+    }, [leagueId, memberId, scope])
+
+    useEffect(() => {
+        if (!memberId || !leagueId || !scope) {
             setLoading(false)
             return
         }
+        if (!canRead()) return
+        const generation = capture()
         let cancelled = false
         setFailure(null)
         setLoading(true)
         let rosterLoaded = false
 
         void (async () => {
-            const nextRoster = await getRoster(memberId, currentLeague.id)
-            if (cancelled) return
+            const nextRoster = await getRoster(memberId, leagueId)
+            if (cancelled || !isCurrent(generation)) return
             rosterLoaded = true
             setResource((previous) => ({
                 scope, roster: nextRoster,
                 stats: previous?.scope === scope ? previous.stats : { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP },
             }))
-            const stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), currentLeague.id)
-            if (cancelled) return
+            const stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), leagueId)
+            if (cancelled || !isCurrent(generation)) return
             setResource((previous) => previous?.scope === scope ? { ...previous, stats } : previous)
         })()
             .catch((error) => {
                 console.error(error)
-                if (!cancelled) setFailure({ scope, message: rosterLoaded
+                if (!cancelled && isCurrent(generation)) setFailure({ scope, message: rosterLoaded
                     ? 'Failed to load player averages. Tap to retry.'
                     : 'Failed to load roster. Tap to retry.' })
             })
             .finally(() => {
-                if (!cancelled) setLoading(false)
+                if (!cancelled && isCurrent(generation)) setLoading(false)
             })
 
         return () => {
             cancelled = true
         }
-    }, [memberId, currentLeague, scope, attempt])
+    }, [memberId, leagueId, scope, attempt, canRead, capture, isCurrent, epoch])
 
     const active = useMemo(
         () => roster.filter((r) => !r.is_on_ir && !r.is_on_taxi).sort(compareRosterBySlot),

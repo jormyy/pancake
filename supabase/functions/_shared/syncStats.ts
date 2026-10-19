@@ -4,10 +4,11 @@ import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
 import {
   loadCdnPlayerResolver,
-  resolveCdnPlayer,
+  resolveCdnPlayers,
   type CdnPlayerResolver,
 } from './playerResolver.ts'
 import { dateFromETDate } from './scoreShared.ts'
+import { runBounded } from './runBounded.ts'
 import type { Database } from './database.ts'
 
 export type StatsSyncGame = Pick<
@@ -111,9 +112,8 @@ export async function syncStatsGame(game: StatsSyncGame): Promise<number> {
 async function statsGamesForDate(dateStr: string, afterGameId?: string, limit?: number): Promise<StatsSyncGame[]> {
   const isPast = dateStr < toETDate(new Date())
   let query = supabase
-    .from('nba_games')
+    .rpc('get_score_sync_games', { p_start_date: dateStr, p_end_date: dateStr })
     .select('id, nba_game_id, week_number, season_year, status')
-    .eq('game_date', dateStr)
     .like('nba_game_id', '002%')
     .order('id', { ascending: true })
   if (!isPast) query = query.neq('status', 'Scheduled')
@@ -180,8 +180,11 @@ export async function resolveBoxScorePlayers(
 ): Promise<Array<{ player: NBABoxScorePlayer; playerId: string }>> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
   const resolved: Array<{ player: NBABoxScorePlayer; playerId: string }> = []
-  for (const player of allPlayers) {
-    const playerId = await resolveCdnPlayer(resolver, String(player.personId), player.name ?? '')
+  const playerIds = await resolveCdnPlayers(resolver, allPlayers.map(player => ({
+    personId: String(player.personId), displayName: player.name ?? '',
+  })))
+  for (const [index, player] of allPlayers.entries()) {
+    const playerId = playerIds[index]
     if (playerId && player.statistics) resolved.push({ player, playerId })
   }
   if (boxScore.gameStatus === 3 && resolved.length !== allPlayers.length) {
@@ -259,4 +262,19 @@ export function buildStatRow(
     did_not_play: dnp,
     updated_at: new Date().toISOString(),
   }
+}
+
+export async function syncLiveStatsGames(games: StatsSyncGame[]): Promise<{ statLines: number; failures: unknown[] }> {
+  let statLines = 0
+  const failures: unknown[] = []
+  const resolver: CdnPlayerResolver = { byNbaId: new Map(), byExactName: new Map(), byName: new Map() }
+  await runBounded(games.map(game => async () => {
+    try {
+      const lines = await syncStatsGameWithResolver(game, resolver, true)
+      statLines += lines
+    } catch (error) {
+      failures.push(error)
+    }
+  }), 4)
+  return { statLines, failures }
 }

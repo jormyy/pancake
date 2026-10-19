@@ -1,4 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useFocusEffect } from '@react-navigation/native'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { releaseLeagueDailyPending } from '@/lib/league-daily-cache'
+import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import {
     getPlayer,
     getAvailableSeasons,
@@ -55,8 +60,8 @@ function seasonCacheKey(playerId: string, leagueId: string | null, season: numbe
     return `${playerId}:${leagueId ?? 'no-league'}:${season}`
 }
 
-function playerScreenCacheKey(playerId: string, leagueId: string | null) {
-    return `${PLAYER_SCREEN_CACHE_PREFIX}${leagueId ?? 'no-league'}:${playerId}`
+function playerScreenCacheKey(playerId: string, leagueId: string | null, owner: string) {
+    return `${PLAYER_SCREEN_CACHE_PREFIX}${owner}:${leagueId ?? 'no-league'}:${playerId}`
 }
 
 function toPersistedSeasonEntry(entry: SeasonCacheEntry): PersistedSeasonCacheEntry {
@@ -81,17 +86,69 @@ function seasonCacheEntries(cache: PlayerScreenCache | undefined): [string, Seas
     return (cache?.seasons ?? []).map(([key, entry]) => [key, fromPersistedSeasonEntry(entry)])
 }
 
-function readPlayerScreenCache(playerId: string, leagueId: string | null): PlayerScreenCache | undefined {
-    const cached = readPersistentCache<PlayerScreenCache>(playerScreenCacheKey(playerId, leagueId))
+function readPlayerScreenCache(playerId: string, leagueId: string | null, owner: string): PlayerScreenCache | undefined {
+    const cached = readPersistentCache<PlayerScreenCache>(playerScreenCacheKey(playerId, leagueId, owner))
     if (!cached || cached.today !== todayET()) return undefined
     return cached
 }
 
-export function usePlayerScreenData(playerId: string, leagueId: string | null) {
-    const resourceKey = `${leagueId ?? 'no-league'}:${playerId}`
+export function usePlayerScreenData(playerId: string, leagueId: string | null, options: { ownerKey?: string; authorized?: boolean } = {}) {
+    const activity = useBrowserReadActivity()
+    const [sourceEpoch, setSourceEpoch] = useState(0)
+    const [focused, setFocused] = useState(false)
+    useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false) }, []))
+    const owner = options.ownerKey ?? sessionOwner() ?? 'anonymous'
+    const generation = sessionGeneration()
+    const resourceKey = JSON.stringify([owner, generation, leagueId, playerId])
+    const activeKey = useRef(resourceKey)
+    activeKey.current = resourceKey
+    const authorized = options.authorized !== false
+    const lifecycleEpoch = JSON.stringify([resourceKey, focused, activity.revision, authorized])
+    const lifecycleRef = useRef(lifecycleEpoch)
+    lifecycleRef.current = lifecycleEpoch
+    const admittedRef = useRef<string | null>(null)
+    const [admitted, setAdmitted] = useState<string | null>(null)
+    const readEpoch = JSON.stringify([lifecycleEpoch, sourceEpoch, admitted === lifecycleEpoch])
+    const lifecycleAdmission = useRef<() => boolean>(() => false)
+    lifecycleAdmission.current = () => focused && authorized && activeKey.current === resourceKey
+        && sessionGeneration() === generation && activity.isCurrent(activity.revision)
+    const permits = () => lifecycleAdmission.current() && admittedRef.current === lifecycleEpoch
+    const admission = useRef(permits)
+    admission.current = permits
+    const epochRef = useRef(readEpoch)
+    epochRef.current = readEpoch
+    const canRead = useCallback(() => admission.current(), [])
+    const isCurrentRead = useCallback((epoch: string) => epochRef.current === epoch && admission.current(), [])
+    useEffect(() => {
+        admittedRef.current = null
+        const current = lifecycleAdmission.current
+        if (!current()) { setAdmitted(null); return }
+        let disposed = false
+        void (leagueId ? waitForLeagueChanges(leagueId) : Promise.resolve()).then(() => {
+            if (disposed || !current() || lifecycleRef.current !== lifecycleEpoch) return
+            admittedRef.current = lifecycleEpoch
+            setAdmitted(lifecycleEpoch)
+        })
+        return () => {
+            disposed = true
+            if (admittedRef.current === lifecycleEpoch) admittedRef.current = null
+        }
+    }, [lifecycleEpoch, leagueId])
+    useEffect(() => {
+        if (!leagueId || !authorized) return
+        const refresh = deferLeagueRefresh(() => { setSourceEpoch(epoch => epoch + 1) })
+        let registering = true
+        const stop = listenForLeagueChanges(leagueId, change => {
+            if ((registering && change.topic === 'catchup') || !admission.current()) return
+            if (leagueResourceAffects(change, ['averages', 'projections', 'scoring', 'season'])) refresh.trigger()
+        })
+        registering = false
+        return () => { stop(); refresh.cancel() }
+    }, [leagueId, resourceKey, authorized])
+    useEffect(() => () => { if (leagueId) releaseLeagueDailyPending(leagueId) }, [leagueId, readEpoch])
     const initialCacheRef = useRef<{ loaded: boolean; value?: PlayerScreenCache }>({ loaded: false })
     if (!initialCacheRef.current.loaded) {
-        initialCacheRef.current = { loaded: true, value: readPlayerScreenCache(playerId, leagueId) }
+        initialCacheRef.current = { loaded: true, value: readPlayerScreenCache(playerId, leagueId, owner) }
     }
     const initialCache = initialCacheRef.current.value
     const initialSelectedSeason = initialCache?.selectedSeason ?? currentSeasonYear()
@@ -144,7 +201,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     const transactionRequestRef = useRef(0)
 
     const persistScreenCache = useCallback(() => {
-        writePersistentCache<PlayerScreenCache>(playerScreenCacheKey(playerId, leagueId), {
+        writePersistentCache<PlayerScreenCache>(playerScreenCacheKey(playerId, leagueId, owner), {
             today: todayET(),
             ...cacheStateRef.current,
             seasons: Array.from(seasonCacheRef.current.entries()).map(([key, entry]) => [
@@ -152,7 +209,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 toPersistedSeasonEntry(entry),
             ]),
         })
-    }, [playerId, leagueId])
+    }, [playerId, leagueId, owner])
 
     const applyScreenCache = useCallback((cache: PlayerScreenCache | undefined) => {
         seasonCacheRef.current = new Map(seasonCacheEntries(cache))
@@ -191,14 +248,15 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     }, [playerId, leagueId])
 
     useEffect(() => {
-        const requestId = ++playerRequestRef.current
-        seasonRequestRef.current += 1
-        gameLogRequestRef.current += 1
-        const cached = readPlayerScreenCache(playerId, leagueId)
-        applyScreenCache(cached)
+        applyScreenCache(readPlayerScreenCache(playerId, leagueId, owner))
         setDataOwnerKey(resourceKey)
-        const hasVisiblePlayer = cached?.player != null
-        setLoading(!hasVisiblePlayer)
+    }, [resourceKey, playerId, leagueId, owner, applyScreenCache])
+
+    useEffect(() => {
+        const requestId = ++playerRequestRef.current
+        const current = admission.current
+        if (!current()) return
+        setLoading(!cacheStateRef.current.player)
         async function load() {
             try {
                 const [p, seasons, todayStats] = await Promise.all([
@@ -213,7 +271,8 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                         .eq('game_date', todayET())
                         .maybeSingle(),
                 ])
-                if (playerRequestRef.current !== requestId) return
+                if (playerRequestRef.current !== requestId || !current()) return
+                if (todayStats.error) throw todayStats.error
                 const didPlayToday = todayStats.data != null && todayStats.data.did_not_play === false
                 setPlayedToday(didPlayToday)
                 setPlayer(p)
@@ -244,14 +303,15 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 persistScreenCache()
                 setPlayerError(null)
             } catch (e) {
-                if (playerRequestRef.current !== requestId) return
+                if (playerRequestRef.current !== requestId || !current()) return
                 setPlayerError(errorMessage(e))
             } finally {
-                if (playerRequestRef.current === requestId) setLoading(false)
+                if (playerRequestRef.current === requestId && current()) setLoading(false)
             }
         }
-        load()
-    }, [playerId, leagueId, applyScreenCache, persistScreenCache, resourceKey])
+        void load()
+        return () => { playerRequestRef.current += 1 }
+    }, [playerId, leagueId, persistScreenCache, resourceKey, readEpoch])
 
     const ownsResource = dataOwnerKey === resourceKey
 
@@ -259,7 +319,8 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     const playerTeam = player?.nba_team ?? null
 
     useEffect(() => {
-        if (loadedPlayerId !== playerId) return
+        const current = admission.current
+        if (!current() || dataOwnerKey !== resourceKey || loadedPlayerId !== playerId) return
         const key = seasonCacheKey(playerId, leagueId, selectedSeason)
         const requestId = ++seasonRequestRef.current
         gameLogRequestRef.current += 1
@@ -290,7 +351,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                     getPlayerGameLog(playerId, playerTeam, selectedSeason, GAME_LOG_PAGE, 0),
                     leagueId ? getPlayerFantasyPoints(playerId, leagueId, selectedSeason) : Promise.resolve(null),
                 ])
-                if (seasonRequestRef.current !== requestId) return
+                if (seasonRequestRef.current !== requestId || !current()) return
                 const fpMap = fantasyPoints ? new Map(fantasyPoints.map((p) => [p.gameId, p.fantasyPoints])) : null
                 const avgFantasy = fantasyPoints && fantasyPoints.length > 0
                     ? fantasyPoints.reduce((sum, p) => sum + p.fantasyPoints, 0) / fantasyPoints.length
@@ -313,17 +374,20 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 setAvgFantasyPoints(avgFantasy)
                 setSeasonError(null)
             } catch (e) {
-                if (seasonRequestRef.current === requestId) setSeasonError(errorMessage(e))
+                if (seasonRequestRef.current === requestId && current()) setSeasonError(errorMessage(e))
             } finally {
-                if (seasonRequestRef.current === requestId) setSeasonLoading(false)
+                if (seasonRequestRef.current === requestId && current()) setSeasonLoading(false)
             }
         }
-        loadSeasonData()
-    }, [playerId, leagueId, selectedSeason, loadedPlayerId, playerTeam, persistScreenCache])
+        void loadSeasonData()
+        return () => { seasonRequestRef.current += 1; gameLogRequestRef.current += 1 }
+    }, [playerId, leagueId, selectedSeason, loadedPlayerId, playerTeam, persistScreenCache, dataOwnerKey, resourceKey, readEpoch])
 
     // Load transaction history
     useEffect(() => {
         const requestId = ++transactionRequestRef.current
+        const current = admission.current
+        if (!current()) return
         if (!leagueId) {
             setTransactions([])
             setTransactionsError(null)
@@ -334,23 +398,26 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
         async function loadTransactions() {
             try {
                 const tx = await getPlayerTransactionHistory(playerId, leagueId!)
-                if (transactionRequestRef.current !== requestId) return
+                if (transactionRequestRef.current !== requestId || !current()) return
                 setTransactions(tx)
                 cacheStateRef.current = { ...cacheStateRef.current, transactions: tx }
                 persistScreenCache()
                 setTransactionsError(null)
             } catch (e) {
-                if (transactionRequestRef.current !== requestId) return
+                if (transactionRequestRef.current !== requestId || !current()) return
                 setTransactionsError(errorMessage(e))
             } finally {
-                if (transactionRequestRef.current === requestId) setTransactionsSettled(true)
+                if (transactionRequestRef.current === requestId && current()) setTransactionsSettled(true)
             }
         }
-        loadTransactions()
-    }, [playerId, leagueId, persistScreenCache])
+        void loadTransactions()
+        return () => { transactionRequestRef.current += 1 }
+    }, [playerId, leagueId, persistScreenCache, readEpoch])
 
     useEffect(() => {
         let cancelled = false
+        const current = admission.current
+        if (!current()) return
         if (!cacheStateRef.current.nextProjection || cacheStateRef.current.nextProjection.player_id !== playerId) {
             setNextProjection(null)
         }
@@ -362,7 +429,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
 
         getPlayerProjection(playerId, leagueId)
             .then((projection) => {
-                if (!cancelled) {
+                if (!cancelled && current()) {
                     setNextProjection(projection)
                     cacheStateRef.current = { ...cacheStateRef.current, nextProjection: projection }
                     persistScreenCache()
@@ -370,17 +437,18 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 }
             })
             .catch((error) => {
-                if (!cancelled) setProjectionError(errorMessage(error))
+                if (!cancelled && current()) setProjectionError(errorMessage(error))
             })
             .finally(() => {
-                if (!cancelled) setProjectionSettled(true)
+                if (!cancelled && current()) setProjectionSettled(true)
             })
 
         return () => { cancelled = true }
-    }, [playerId, leagueId, persistScreenCache])
+    }, [playerId, leagueId, persistScreenCache, readEpoch])
 
     const loadMoreGames = useCallback(async () => {
-        if (!ownsResource || gameLogLoading || !hasMoreGames || !player) return
+        if (!admission.current() || !ownsResource || gameLogLoading || !hasMoreGames || !player) return
+        const current = admission.current
         const requestId = ++gameLogRequestRef.current
         setGameLogLoading(true)
         try {
@@ -391,7 +459,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
                 GAME_LOG_PAGE,
                 gameLogOffset,
             )
-            if (gameLogRequestRef.current !== requestId) return
+            if (gameLogRequestRef.current !== requestId || !current()) return
             setGameLog((prev) => {
                 const merged = [...prev, ...result.games]
                 const key = seasonCacheKey(playerId, leagueId, selectedSeason)
@@ -411,9 +479,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
             setHasMoreGames(result.hasMore)
             setGameLogError(null)
         } catch (e) {
-            if (gameLogRequestRef.current === requestId) setGameLogError(errorMessage(e))
+            if (gameLogRequestRef.current === requestId && current()) setGameLogError(errorMessage(e))
         } finally {
-            if (gameLogRequestRef.current === requestId) setGameLogLoading(false)
+            if (gameLogRequestRef.current === requestId && current()) setGameLogLoading(false)
         }
     }, [playerId, leagueId, player, selectedSeason, gameLogOffset, gameLogLoading, hasMoreGames, ownsResource, persistScreenCache])
 
@@ -427,6 +495,9 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null) {
     }
 
     return {
+        canRead,
+        readEpoch,
+        isCurrentRead,
         player: ownsResource ? player : null,
         loading: ownsResource ? loading : true,
         playedToday: ownsResource ? playedToday : false,

@@ -49,6 +49,7 @@ type NBAScheduleGamePayload = {
   gameEt?: unknown
   gameDateTimeUTC?: unknown
   gameStatus?: unknown
+  gameStatusText?: unknown
   weekNumber?: unknown
   homeTeam?: { teamTricode?: unknown }
   awayTeam?: { teamTricode?: unknown }
@@ -128,6 +129,7 @@ function parseNBAScheduleGame(g: NBAScheduleGamePayload, scheduleSeasonYear: str
     homeTeam: firstString(g.homeTeam?.teamTricode) ?? '',
     awayTeam: firstString(g.awayTeam?.teamTricode) ?? '',
     status: typeof g.gameStatus === 'number' ? mapGameStatus(g.gameStatus) : 'Scheduled',
+    statusText: firstString(g.gameStatusText),
     startedAt: firstString(g.gameDateTimeUTC, g.gameDateTimeEst, g.gameEt),
     weekNumber: typeof g.weekNumber === 'number' ? g.weekNumber : null,
     scheduleSeasonYear,
@@ -155,6 +157,7 @@ export interface NBAScheduledGame {
   homeTeam: string
   awayTeam: string
   status: string
+  statusText: string | null
   startedAt: string | null
   weekNumber: number | null
   scheduleSeasonYear: string | null

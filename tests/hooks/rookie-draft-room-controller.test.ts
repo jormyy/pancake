@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     subscribe: vi.fn(),
     unsubscribe: vi.fn(),
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     Alert: { alert: vi.fn() },
     AppState: {
@@ -41,6 +43,8 @@ vi.mock('@/lib/roster', () => ({ dropPlayer: mocks.drop, getRoster: mocks.getRos
 vi.mock('@/lib/roster-locks', () => ({ getRosterStatusChangeLockMessage: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ getErrorMessage: (error: unknown) => error instanceof Error ? error.message : String(error) }))
+
+setSessionOwner('draft-test-user')
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -277,7 +281,7 @@ describe('useRookieDraftRoomController', () => {
         expect(mocks.activate).toHaveBeenCalledWith('draft')
         await act(async () => { renderer.unmount() })
     })
-    it('refreshes filtered prospects on a changed HTTP revision and retries failed reads', async () => {
+    it('filters changed picks locally and retries a failed explicit pool refresh', async () => {
         vi.useFakeTimers()
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
         const players = ['a', 'b'].map((id) => ({ id, display_name: id, nba_team: null, position: 'PG', nba_id: null, nba_draft_number: 1 }))
@@ -301,8 +305,10 @@ describe('useRookieDraftRoomController', () => {
             mocks.getRevision.mockResolvedValue('picked-a')
             mocks.getPlayers.mockRejectedValueOnce(new Error('Prospects unavailable')).mockResolvedValue([players[1]])
             await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
-            expect(mocks.getPlayers.mock.calls.length).toBe(before + 1)
+            expect(mocks.getPlayers.mock.calls.length).toBe(before)
             expect(latest.prospects.map(p => p.id)).toEqual(['b'])
+            await act(async () => { await latest.refresh() })
+            expect(mocks.getPlayers.mock.calls.length).toBe(before + 1)
             await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
             expect(mocks.getPlayers.mock.calls.length).toBe(before + 2)
             expect(mocks.getPlayers).toHaveBeenLastCalledWith('draft', 'Rookie')
@@ -563,4 +569,23 @@ describe('annual draft roster read recovery', () => {
         await act(async () => { renderer.unmount() })
         consoleError.mockRestore()
     })
+})
+
+it('restarts a completion check discarded while the app is hidden', async () => {
+    const first = deferred<any[]>()
+    mocks.getState.mockImplementation(() => Promise.resolve(draftState('draft', 'completed')))
+    mocks.getRoster.mockReturnValueOnce(first.promise).mockResolvedValue([])
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(() => {
+        useRookieDraftRoomController({ draftId: 'draft', memberId: 'member', leagueId: 'league', rosterSize: 2 })
+        return null
+    })) })
+    expect(mocks.getRoster).toHaveBeenCalledTimes(1)
+    await act(async () => { mocks.appStateListener('background') })
+    await act(async () => { first.resolve([]); await first.promise })
+    expect(mocks.activate).not.toHaveBeenCalled()
+    await act(async () => { mocks.appStateListener('active') })
+    expect(mocks.getRoster).toHaveBeenCalledTimes(2)
+    expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('draft')
+    await act(async () => { renderer.unmount() })
 })

@@ -1,13 +1,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
-import { ComponentProps, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ComponentProps, type PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { createPortal } from 'react-dom'
 import { Link, Navigator, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
-import { getProfile } from '@/lib/auth'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { getProfile, suspendProfileRead } from '@/lib/auth'
+import { listenForProfileUpdates } from '@/lib/profile-updates'
 import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
@@ -379,25 +381,35 @@ function WebSidebar() {
     const { user } = useAuth()
     const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
     const pendingTradeCount = usePendingTradeCount()
-    const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    const [avatar, setAvatar] = useState<{ owner: string; uri: string | null } | null>(null)
+    const avatarUrl = avatar?.owner === user?.id ? avatar?.uri ?? null : null
 
     // Keyed on the id: sign-in and token refreshes replace the user object
     // several times, and each replacement re-read the same profile.
     const userId = user?.id
+    const profileActivity = useBrowserReadActivity()
     useEffect(() => {
         if (!userId) return
+        if (!profileActivity.active) suspendProfileRead(userId)
         let cancelled = false
-        getProfile(userId)
+        let updated = false
+        const stop = listenForProfileUpdates(userId, update => {
+            if (update.avatar_url === undefined) return
+            updated = true
+            setAvatar({ owner: userId, uri: update.avatar_url })
+        })
+        if (profileActivity.active) getProfile(userId, { force: profileActivity.revision > 0 })
             .then((profile) => {
-                if (!cancelled) setAvatarUrl(profile.avatar_url ?? null)
+                if (!cancelled && !updated) setAvatar({ owner: userId, uri: profile.avatar_url ?? null })
             })
             .catch((error) => {
                 if (!cancelled) console.error('Could not load sidebar profile', error)
             })
         return () => {
             cancelled = true
+            stop()
         }
-    }, [userId])
+    }, [userId, profileActivity.active, profileActivity.revision])
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">
@@ -598,7 +610,7 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
  * during the draft, lineup, trades, and on player detail. Former full-screen
  * `(modals)` takeovers now render as pages inside this content area.
  */
-export function WebAppShell({ children, chrome = true }: { children: ReactNode; chrome?: boolean }) {
+export function WebAppShell({ children, chrome = true }: PropsWithChildren<{ chrome?: boolean }>) {
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
     usePancakeWebTheme()
@@ -610,13 +622,11 @@ export function WebAppShell({ children, chrome = true }: { children: ReactNode; 
     // Keep the shell mounted for ALL web routes (stable element type) so toggling
     // chrome on auth state change never remounts the route tree. Auth/loading
     // routes render chrome-less.
-    if (!chrome) return <>{children}</>
-
     return (
-        <View style={[styles.root, compact ? styles.rootCompact : styles.rootDesktop]}>
-            {compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />}
-            <View style={[styles.content, compact && styles.contentCompact]} role="main">{children}</View>
-            {compact ? (
+        <View style={chrome ? [styles.root, compact ? styles.rootCompact : styles.rootDesktop] : styles.flex1}>
+            {chrome ? (compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />) : null}
+            <View key="route-content" style={chrome ? [styles.content, compact && styles.contentCompact] : styles.flex1} role={chrome ? 'main' : undefined}>{children}</View>
+            {chrome && compact ? (
                 <>
                     <MobileBottomNav />
                     <MobileMenuSheet visible={menuOpen} onClose={() => setMenuOpen(false)} />

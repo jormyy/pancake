@@ -16,7 +16,7 @@ const silent = vi.fn()
 const flush = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(0) }) }
 const dispatch = async (name: string) => { await act(async () => { events.dispatchEvent(new Event(name)); await vi.advanceTimersByTimeAsync(0) }) }
 const visible = async (hidden: boolean) => { state.hidden = hidden; await act(async () => { doc.dispatchEvent(new Event('visibilitychange')); await vi.advanceTimersByTimeAsync(0) }) }
-const mount = async () => { await act(async () => { renderer = create(React.createElement(() => { latest = useLiveStats('2026-10-07', silent); return null })) }); await flush() }
+const mount = async () => { await act(async () => { renderer = create(React.createElement(() => { latest = useLiveStats('2026-10-07', { scope: 'owner', playerIds: ['player'], onSilentRefresh: silent }); return null })) }); await flush() }
 beforeEach(async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-07T12:00:00Z')); vi.resetModules(); vi.clearAllMocks()
     Object.assign(state, { online: true, hidden: false, revision: 0, failed: false, gate: null })

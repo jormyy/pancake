@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 // live-poll-gate-and-lease.sql and _shared/leaseHeartbeat.test.ts.
 describe('scheduling wiring', () => {
     it('live-poll renews its lease with the shared heartbeat and stops it on exit', async () => {
-        const source = await readFile('supabase/functions/live-poll/index.ts', 'utf8')
+        const source = await readFile('supabase/functions/live-poll/runner.ts', 'utf8')
         expect(source).toContain("supabase.rpc('renew_live_poll_lease'")
         expect(source).toMatch(/startLeaseHeartbeat\(/)
         expect(source.indexOf('heartbeat.stop()')).toBeGreaterThan(source.indexOf('} finally {'))

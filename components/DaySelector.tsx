@@ -32,12 +32,14 @@ export function DaySelector({
     compact?: boolean
     disabled?: boolean
 }) {
+    const today = todayET()
     return (
         <View style={[styles.row, styles.content, compact && styles.contentCompact]}>
             {days.map((day) => {
                 const isSelected = day.date === selectedDate
-                const isPast = day.date < todayET()
-                const isFuture = !day.isToday && !isPast
+                const isToday = day.date === today
+                const isPast = day.date < today
+                const isFuture = !isToday && !isPast
                 return (
                     <MotionPressable
                         key={day.date}
@@ -45,7 +47,7 @@ export function DaySelector({
                             styles.cell,
                             compact && styles.cellCompact,
                             isSelected && styles.cellSelected,
-                            day.isToday && !isSelected && styles.cellToday,
+                            isToday && !isSelected && styles.cellToday,
                             !day.hasGames && styles.cellNoGames,
                         ]}
                         onPress={() => onSelect(day.date)}
@@ -63,7 +65,7 @@ export function DaySelector({
                         <Text style={[styles.num, compact && styles.numCompact, isSelected && styles.numSelected, !day.hasGames && styles.numFaint]}>
                             {day.dateNum}
                         </Text>
-                        {day.hasGames && day.isToday && (
+                        {day.hasGames && isToday && (
                             <View style={[styles.dot, isSelected && styles.dotSelected]} />
                         )}
                         {day.hasGames && isPast && (

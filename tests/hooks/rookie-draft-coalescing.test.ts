@@ -1,4 +1,5 @@
 import React from 'react'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
@@ -12,6 +13,7 @@ const boundary = vi.hoisted(() => ({
     stateDelay: 50, prospectDelay: 50, revisionDelay: 50, failState: false, failProspects: false,
     activeState: 0, activeProspects: 0, activeRevision: 0, maxState: 0, maxProspects: 0, maxRevision: 0,
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     AppState: {
         get currentState() { return boundary.appState },
@@ -29,6 +31,8 @@ vi.mock('@/lib/rookieDraft', () => ({
 }))
 vi.mock('@/lib/roster', () => ({ getRoster: async () => [], dropPlayer: vi.fn() }))
 vi.mock('@/lib/realtime', () => ({ reportRealtimeCleanup: vi.fn() }))
+setSessionOwner('draft-test-user')
+
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const players: RookieProspect[] = ['a', 'b'].map((id, index) => ({
@@ -182,8 +186,27 @@ it('coalesces one pick transaction across both watched tables', async () => {
     const measured = report('one-pick/two-tables', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(measured.stateReads).toBe(1)
-    expect(measured.prospectReads).toBe(1)
+    expect(measured.prospectReads).toBe(0)
     expect(measured.visibleMs).toBeLessThanOrEqual(300)
+})
+
+it('catches up a missed pick and prospect removal after rejoin', async () => {
+    await mount()
+    pickFirst()
+    let recovered!: Promise<boolean>
+    const reconnect = boundary.subscribe.mock.calls.at(-1)![2] as () => Promise<boolean>
+    await act(async () => { recovered = reconnect() })
+    await advance(100)
+    expect(await recovered).toBe(true)
+    expect(latest.state?.nextPick?.overallPick).toBe(2)
+    expect(latest.prospects.map(player => player.id)).toEqual(['b'])
+    expect(boundary.state).toHaveBeenCalledTimes(1)
+    expect(boundary.prospects).toHaveBeenCalledTimes(1)
+    expect(boundary.revision).not.toHaveBeenCalled()
+    await act(async () => { renderer?.unmount() })
+    const reads = boundary.state.mock.calls.length
+    expect(await reconnect()).toBe(false)
+    expect(boundary.state).toHaveBeenCalledTimes(reads)
 })
 
 it('coalesces repeated notifications of the same pick', async () => {
@@ -195,7 +218,7 @@ it('coalesces repeated notifications of the same pick', async () => {
     const measured = report('repeated-pick/20-notifications', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(measured.stateReads).toBe(1)
-    expect(measured.prospectReads).toBe(1)
+    expect(measured.prospectReads).toBe(0)
 })
 
 it('coalesces a 20-event reset and returns picked players to prospects', async () => {
@@ -225,10 +248,10 @@ it('queues one follow-up when a slow room read overlaps the 15-second poll', asy
     const measured = report('500ms-room-read/poll-overlap', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(measured.stateReads).toBe(2)
-    expect(measured.prospectReads).toBe(2)
+    expect(measured.prospectReads).toBe(0)
     expect(measured.revisionProbes).toBe(1)
     expect(measured.maxState).toBe(1)
-    expect(measured.maxProspects).toBe(1)
+    expect(measured.maxProspects).toBe(0)
 })
 
 it('gates a 20-second revision probe while realtime still processes a pick', async () => {
@@ -245,7 +268,7 @@ it('gates a 20-second revision probe while realtime still processes a pick', asy
     expect(measured.revisionProbes).toBe(1)
     expect(measured.maxRevision).toBe(1)
     expect(measured.stateReads).toBe(1)
-    expect(measured.prospectReads).toBe(1)
+    expect(measured.prospectReads).toBe(0)
 })
 
 it('defers hidden notifications and catches up once on resume', async () => {
@@ -263,14 +286,14 @@ it('defers hidden notifications and catches up once on resume', async () => {
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(hiddenReads).toBe(0)
     expect(measured.stateReads).toBe(1)
-    expect(measured.prospectReads).toBe(1)
-    expect(measured.revisionProbes).toBe(1)
+    expect(measured.prospectReads).toBe(0)
+    expect(measured.revisionProbes).toBe(0)
 })
 
-it('keeps failed reads due so the next poll recovers the board and prospects', async () => {
+it('keeps failed board reads due without reloading unchanged prospects', async () => {
     await mount()
     pickFirst()
-    boundary.failState = true; boundary.failProspects = true
+    boundary.failState = true
     const signalAt = Date.now()
     await event()
     await advance(500)
@@ -279,7 +302,7 @@ it('keeps failed reads due so the next poll recovers the board and prospects', a
     const measured = report('failed-pair/next-poll-recovery', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(measured.stateReads).toBe(2)
-    expect(measured.prospectReads).toBe(2)
+    expect(measured.prospectReads).toBe(0)
     expect(measured.revisionProbes).toBe(1)
 })
 
@@ -328,7 +351,7 @@ it('keeps taxi selection and merges mutation replies with realtime notifications
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(latest.picking).toBe(false)
     expect(measured.stateReads).toBe(1)
-    expect(measured.prospectReads).toBe(1)
+    expect(measured.prospectReads).toBe(0)
 })
 
 it('preserves search debounce and resets the search on a new draft without a duplicate load', async () => {
@@ -368,13 +391,13 @@ it('does not starve removal under continuous notifications every 100 ms for five
     await advance(500)
     const measured = report('continuous-100-notifications/5s', signalAt)
     expect(measured.stateReads).toBeLessThanOrEqual(20)
-    expect(measured.prospectReads).toBeLessThanOrEqual(20)
+    expect(measured.prospectReads).toBe(0)
     expect(measured.visibleMs).toBeLessThanOrEqual(300)
     expect(measured.maxState).toBe(1)
-    expect(measured.maxProspects).toBe(1)
+    expect(measured.maxProspects).toBe(0)
 })
 
-it('reprobes once after resume during an old pending revision probe', async () => {
+it('reads current state once after resume during an old pending revision probe', async () => {
     await mount()
     boundary.revisionDelay = 500
     await advance(14500)
@@ -387,10 +410,10 @@ it('reprobes once after resume during an old pending revision probe', async () =
     await advance(700)
     const measured = report('resume/during-500ms-revision-probe', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
-    expect(measured.revisionProbes).toBe(2)
+    expect(measured.revisionProbes).toBe(1)
     expect(measured.maxRevision).toBe(1)
     expect(measured.stateReads).toBe(1)
-    expect(measured.prospectReads).toBe(1)
+    expect(measured.prospectReads).toBe(0)
 })
 
 it('keeps expiry auto-picks and their mutation arguments', async () => {
@@ -407,7 +430,7 @@ it('keeps expiry auto-picks and their mutation arguments', async () => {
     expect(boundary.expire).toHaveBeenCalledExactlyOnceWith('draft', 'member')
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(boundary.state).toHaveBeenCalledTimes(1)
-    expect(boundary.prospects).toHaveBeenCalledTimes(1)
+    expect(boundary.prospects).not.toHaveBeenCalled()
 })
 
 it('restores after effect replay and rejects the disposed subscription', async () => {
@@ -432,4 +455,54 @@ it('ignores a retained lifecycle callback from the previous room', async () => {
     await advance(500)
     expect(latest.state?.draft.id).toBe('other')
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
+})
+
+
+it('keeps the prospect pool across ordinary clock and pick events', async () => {
+    await mount()
+    await event('drafts')
+    await advance(500)
+    expect(boundary.prospects).not.toHaveBeenCalled()
+    pickFirst()
+    await transaction()
+    await advance(500)
+    expect(latest.prospects.map(player => player.id)).toEqual(['b'])
+    expect(boundary.prospects).not.toHaveBeenCalled()
+})
+
+it.each(['no-op', 'error'])('retries an early expiry %s until the server accepts the same deadline', async (response) => {
+    boundary.board!.draft.timerExpiryBehavior = 'auto_pick'
+    boundary.board!.picks[0].timerExpiresAt = new Date(Date.now() - 1000).toISOString()
+    boundary.board!.picks[1].memberId = 'other'
+    const serverReadyAt = Date.now() + 6000
+    boundary.expire.mockImplementation(async () => {
+        if (Date.now() < serverReadyAt) {
+            if (response === 'error') throw new Error('Pick timer has not expired')
+            return { processed: false, picked: false }
+        }
+        pickFirst()
+    })
+    await mount()
+    await advance(11000)
+    expect(boundary.expire.mock.calls.length).toBeGreaterThan(1)
+    expect(boundary.expire.mock.calls.length).toBeLessThanOrEqual(5)
+    expect(latest.state?.nextPick?.overallPick).toBe(2)
+    expect(latest.prospects.map(player => player.id)).toEqual(['b'])
+})
+
+it('caps retry frequency without permanently latching a very fast device clock', async () => {
+    boundary.board!.draft.timerExpiryBehavior = 'auto_pick'
+    boundary.board!.picks[0].timerExpiresAt = new Date(Date.now() - 1000).toISOString()
+    boundary.board!.picks[1].memberId = 'other'
+    const serverReadyAt = Date.now() + 80000
+    boundary.expire.mockImplementation(async () => {
+        if (Date.now() < serverReadyAt) return { processed: false, picked: false }
+        pickFirst()
+        return { processed: true, picked: true }
+    })
+    await mount()
+    await advance(110000)
+    expect(boundary.expire.mock.calls.length).toBeGreaterThan(5)
+    expect(boundary.expire.mock.calls.length).toBeLessThanOrEqual(7)
+    expect(latest.state?.nextPick?.overallPick).toBe(2)
 })

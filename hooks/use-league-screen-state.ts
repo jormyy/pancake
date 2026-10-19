@@ -19,11 +19,11 @@ export function useLeagueScreenState() {
     const router = useRouter()
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
-    const { current, currentLeague, isCommissioner, loading: leagueLoading } = useLeagueContext()
+    const { current, currentLeague, isCommissioner, loading: leagueLoading, membershipValidated } = useLeagueContext()
     const [tab, setTab] = useState<LeagueTab>(() => parseLeagueTab(params.tab))
     const [sharing, setSharing] = useState(false)
-    const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab)
-    const draft = useLeagueDraftController(currentLeague?.id)
+    const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab, membershipValidated)
+    const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated })
     const mockRooms = useMockRoomsController({
         leagueId: currentLeague?.id,
         memberId: current?.id,
@@ -73,6 +73,10 @@ export function useLeagueScreenState() {
         const channel = subscribeToTableChanges(`league-screen:${lid}`, {
             mode: 'per-watch',
             watches: leagueWatches,
+            onReconnect: () => {
+                for (const target of ['results', 'history', 'settings', 'draftBoard', 'mockRooms'] as const) invalidateTab(target)
+                return fetchActiveDraft(lid)
+            },
         })
         return () => reportRealtimeCleanup(
             'league screen',
@@ -107,6 +111,11 @@ export function useLeagueScreenState() {
         const channel = subscribeToTableChanges(`league-screen-drafts:${lid}:${currentDraftKey}`, {
             mode: 'per-watch',
             watches: draftWatches,
+            onReconnect: () => {
+                invalidateTab('draftBoard')
+                invalidateTab('mockRooms')
+                return fetchActiveDraft(lid)
+            },
         })
         return () => reportRealtimeCleanup(
             'league screen drafts',

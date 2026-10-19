@@ -33,6 +33,7 @@ const deferred = <Value,>() => {
 beforeEach(() => {
     vi.clearAllMocks()
     getLeagueTransactions.mockResolvedValue([])
+    getMockDraftRooms.mockResolvedValue([])
 })
 
 describe('league resource identity', () => {
@@ -109,4 +110,75 @@ describe('league resource identity', () => {
         ])
         await act(async () => { renderer.unmount() })
     })
+})
+
+it('keeps pagination aligned when a first-page refresh overlaps load-more', async () => {
+    const page = (start: number) => Array.from({ length: 50 }, (_, index) => ({ id: `row-${start + index}` }))
+    const firstPage = deferred<{ id: string }[]>()
+    let firstReads = 0
+    getLeagueTransactions.mockImplementation((_league, _limit, offset) => offset === 0 && ++firstReads > 1
+        ? firstPage.promise : Promise.resolve(page(offset)))
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(latest.transactions.map(row => row.id)).toEqual(page(0).concat(page(50)).map(row => row.id))
+        let refresh!: Promise<void>
+        await act(async () => { refresh = latest.refreshTab('history') })
+        await act(async () => { await latest.loadMoreActivity() })
+        await act(async () => { firstPage.resolve(page(0)); await refresh })
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 50, 50)
+        expect(latest.transactions.map(row => row.id)).toEqual(page(0).concat(page(50)).map(row => row.id))
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('stops offering another page when the backend returns an empty final page', async () => {
+    const page = Array.from({ length: 50 }, (_, index) => ({ id: `row-${index}` }))
+    getLeagueTransactions.mockResolvedValueOnce(page).mockResolvedValueOnce([])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.activityHasMore).toBe(true)
+    await act(async () => { await latest.loadMoreActivity() })
+    expect(latest.activityHasMore).toBe(false)
+    expect(latest.transactions.map(row => row.id)).toEqual(page.map(row => row.id))
+    await act(async () => { renderer.unmount() })
+})
+
+it('keeps the failed history offset across suspension and fences a removed member', async () => {
+    const doc = new EventTarget()
+    let hidden = false
+    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', doc)
+    const page = Array.from({ length: 50 }, (_, index) => ({ id: `row-${index}` }))
+    getLeagueTransactions.mockResolvedValueOnce(page).mockRejectedValueOnce(new Error('page unavailable'))
+        .mockResolvedValueOnce([{ id: 'last' }])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = ({ member = 'member', authorized = true }: { member?: string; authorized?: boolean }) => {
+        latest = useLeagueTabResources('league', member || undefined, 'history', authorized)
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(latest.activityLoadMoreError).toBe('page unavailable')
+        hidden = true
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')); await latest.loadMoreActivity() })
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(2)
+        expect(latest.activityLoadMoreError).toBe('page unavailable')
+        hidden = false
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 50, 50)
+        expect(latest.transactions.at(-1)?.id).toBe('last')
+        await act(async () => { renderer.update(React.createElement(Probe, { member: '', authorized: false })) })
+        await act(async () => { await latest.refreshTab('history'); await latest.loadMoreActivity() })
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(3)
+        expect(latest.transactions).toEqual([])
+    } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
 })

@@ -25,6 +25,8 @@ import {
 } from '@/lib/player-search-state'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { AppState, type AppStateStatus } from 'react-native'
+import { leagueSnapshotRevision } from '@/lib/league-changes'
+import { usePanelActivity } from '@/contexts/panel-activity'
 
 export type SortMode = PlayerSearchSortMode
 type SortDir = PlayerSearchSortDir
@@ -47,7 +49,7 @@ const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
 
-export function useWeeklyAvailability(enabled: boolean) {
+export function useWeeklyAvailability(enabled: boolean, active = true) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
 
     useEffect(() => {
@@ -55,11 +57,14 @@ export function useWeeklyAvailability(enabled: boolean) {
             setWeekDays([])
             return
         }
+        if (!active) return
         let cancelled = false
         let appState: AppStateStatus = AppState.currentState
         let loadedDate: string | null = null
         let requestSequence = 0
         const load = async (includeSchedule: boolean) => {
+            if ((typeof navigator !== 'undefined' && navigator.onLine === false)
+                || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
             const requestId = ++requestSequence
             const seasonYear = currentSeasonYear()
             const today = todayET()
@@ -89,7 +94,7 @@ export function useWeeklyAvailability(enabled: boolean) {
             clearInterval(poll)
             subscription.remove()
         }
-    }, [enabled])
+    }, [enabled, active])
 
     return { weekDays }
 }
@@ -99,12 +104,14 @@ export function usePlayerSearch(
     ownedMap: Map<string, OwnedEntry>,
     waiverIds: Set<string>,
     currentMemberId?: string,
-    options: { enabled?: boolean; online?: boolean; focused?: boolean; ownerId?: string } = {},
+    options: { enabled?: boolean; online?: boolean; focused?: boolean; ownerId?: string; admitted?: boolean } = {},
 ) {
     const enabled = options.enabled ?? true
+    const admitted = options.admitted ?? true
     const online = options.online ?? true
-    const focused = options.focused ?? true
-    const [visible, setVisible] = useState(true)
+    const panelActive = usePanelActivity()
+    const focused = (options.focused ?? true) && panelActive
+    const [visible, setVisible] = useState(() => typeof document === 'undefined' || document.visibilityState !== 'hidden')
     useEffect(() => {
         if (typeof document === 'undefined') return
         const update = () => setVisible(document.visibilityState !== 'hidden')
@@ -131,6 +138,13 @@ export function usePlayerSearch(
     const [hasMore, setHasMore] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [retryToken, setRetryToken] = useState(0)
+    const pendingSource = useRef<{ key: string; revision: string | null; requestId: number; activity: number; retry: number } | null>(null)
+    const validatedSource = useRef<{ key: string; revision: string | null; activity: number; retry: number } | null>(null)
+    const settledSource = useRef<{ key: string; revision: string | null; activity: number; retry: number; savedAt: number; valid: boolean } | null>(null)
+    const activityEpoch = useRef(0)
+    const lastActivity = useRef<boolean | null>(null)
+    const retryRef = useRef(retryToken)
+    retryRef.current = retryToken
     const searchParamsRef = useRef<PlayerSearchParams>(DEFAULT_PLAYER_SEARCH_PARAMS)
     const offsetRef = useRef(0)
     const listRef = useRef<FlashListRef<PlayerRow>>(null)
@@ -152,7 +166,7 @@ export function usePlayerSearch(
         }
     }, [])
 
-    const weeklyAvailability = useWeeklyAvailability(enabled)
+    const weeklyAvailability = useWeeklyAvailability(enabled, focused && online && visible)
     const todayTeams = useMemo(() => {
         const today = todayET()
         const todayRow = weeklyAvailability.weekDays.find((day) => day.date === today)
@@ -200,7 +214,7 @@ export function usePlayerSearch(
         sortDir,
         seasonYear,
     ])
-    const searchParamsKey = JSON.stringify([options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate)])
+    const searchParamsKey = JSON.stringify([todayET(), options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate)])
     // Support refreshes can replace Maps without changing the actual search.
     // Only semantic query or identity changes start a different request.
     const stableParamsRef = useRef({ key: searchParamsKey, params: paramsCandidate })
@@ -211,7 +225,9 @@ export function usePlayerSearch(
     const renderedKeyRef = useRef(searchParamsKey)
     renderedKeyRef.current = searchParamsKey
     const activeRef = useRef(false)
-    activeRef.current = enabled && online && focused && visible
+    const readActivity = enabled && online && focused && visible
+    if (lastActivity.current !== readActivity) { lastActivity.current = readActivity; activityEpoch.current += 1 }
+    activeRef.current = admitted && readActivity
 
     const fetchPage = useCallback((params: PlayerSearchParams, offset: number) =>
         searchPlayers(
@@ -231,8 +247,9 @@ export function usePlayerSearch(
             { sortMode: params.sortBy, sortDir: params.sortDir, seasonYear: params.seasonYear },
         ), [])
 
-    const fetchCompleteResults = useCallback(async (params: PlayerSearchParams) => {
+    const fetchCompleteResults = useCallback(async (params: PlayerSearchParams, canRead: () => boolean) => {
         const firstPage = await fetchPage(params, 0)
+        if (!canRead()) throw new Error('Search read is no longer active')
         if (!params.rookiesOnly || firstPage.length < PLAYER_SEARCH_PAGE_SIZE) return firstPage
 
         // Fetch remaining pages in parallel batches instead of one-by-one —
@@ -242,9 +259,11 @@ export function usePlayerSearch(
         const BATCH_SIZE = 4
         let page = 1
         while (page < ROOKIE_SEARCH_MAX_PAGES) {
+            if (!canRead()) throw new Error('Search read is no longer active')
             const batchPages = Math.min(BATCH_SIZE, ROOKIE_SEARCH_MAX_PAGES - page)
             const batch = await Promise.all(Array.from({ length: batchPages }, (_, i) =>
                 fetchPage(params, (page + i) * PLAYER_SEARCH_PAGE_SIZE)))
+            if (!canRead()) throw new Error('Search read is no longer active')
             let done = false
             for (const nextPage of batch) {
                 players.push(...nextPage)
@@ -283,10 +302,13 @@ export function usePlayerSearch(
         setLoadingMore(false)
         setValidatedKey(null)
         const cancel = () => {
+            if (pendingSource.current?.requestId === requestId) pendingSource.current = null
             requestSeqRef.current += 1
             loadMoreSeqRef.current += 1
         }
         if (!enabled) {
+            validatedSource.current = null
+            settledSource.current = null
             pageCacheRef.current.clear()
             playersRef.current = []
             setPlayers([])
@@ -310,7 +332,16 @@ export function usePlayerSearch(
             setHasMore(cached?.hasMore ?? false)
             offsetRef.current = cached?.offset ?? 0
         }
-        if (!online || !focused || !visible) {
+        if (!admitted || !online || !focused || !visible) {
+            setLoading(false)
+            setRefreshing(false)
+            return cancel
+        }
+        const revision = leagueId ? leagueSnapshotRevision(leagueId, 'daily') : null
+        const prior = settledSource.current
+        if (!changedQuery && prior?.key === searchParamsKey && prior.revision === revision
+            && prior.activity === activityEpoch.current && prior.retry === retryToken && Date.now() - prior.savedAt < 300_000) {
+            setValidatedKey(prior.valid ? searchParamsKey : null)
             setLoading(false)
             setRefreshing(false)
             return cancel
@@ -321,7 +352,10 @@ export function usePlayerSearch(
         // A same-query failure stays visible through retries and support reads.
         const ownsRequest = () => requestSeqRef.current === requestId
             && renderedKeyRef.current === searchParamsKey && activeRef.current
-        fetchCompleteResults(searchParams)
+        const source = { key: searchParamsKey, revision, requestId, activity: activityEpoch.current, retry: retryToken }
+        validatedSource.current = null
+        pendingSource.current = source
+        fetchCompleteResults(searchParams, ownsRequest)
             .then((results) => {
                 if (!ownsRequest()) return
                 const hasNext = !searchParams.rookiesOnly && results.length === PLAYER_SEARCH_PAGE_SIZE
@@ -334,24 +368,30 @@ export function usePlayerSearch(
                 setPlayers(results)
                 setHasMore(hasNext)
                 setError(null)
-                setValidatedKey(searchParamsKey)
+                const unchangedSource = source.revision === (leagueId ? leagueSnapshotRevision(leagueId, 'daily') : null)
+                validatedSource.current = unchangedSource ? source : null
+                settledSource.current = { ...source, valid: unchangedSource, savedAt: Date.now() }
+                setValidatedKey(unchangedSource ? searchParamsKey : null)
+                if (!unchangedSource) setRetryToken(token => token + 1)
             })
             .catch((cause) => {
                 if (!ownsRequest()) return
+                settledSource.current = { ...source, valid: false, savedAt: Date.now() }
                 const nextError = cause instanceof Error ? cause : new Error(String(cause))
                 setError(nextError)
                 console.error(nextError)
             })
             .finally(() => {
+                if (pendingSource.current === source) pendingSource.current = null
                 if (!ownsRequest()) return
                 setLoading(false)
                 setRefreshing(false)
             })
         return cancel
-    }, [cachePage, enabled, online, focused, visible, retryToken, searchParams, searchParamsKey, fetchCompleteResults])
+    }, [cachePage, enabled, admitted, online, focused, visible, retryToken, searchParams, searchParamsKey, fetchCompleteResults, leagueId])
 
     const loadMore = useCallback(async () => {
-        if (!enabled || !online || !focused || !visible || refreshing || loadingMore || !hasMore) return
+        if (!enabled || !admitted || !online || !focused || !visible || refreshing || loadingMore || !hasMore) return
         const params = searchParamsRef.current
         const paramsKey = currentKeyRef.current
         const nextOffset = offsetRef.current + PLAYER_SEARCH_PAGE_SIZE
@@ -382,9 +422,15 @@ export function usePlayerSearch(
                 setLoadingMore(false)
             }
         }
-    }, [cachePage, enabled, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
+    }, [cachePage, enabled, admitted, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
 
     const retry = useCallback(() => setRetryToken((token) => token + 1), [])
+    const refreshIfChanged = useCallback(() => {
+        const revision = leagueId ? leagueSnapshotRevision(leagueId, 'daily') : null
+        const key = renderedKeyRef.current
+        if (revision && [pendingSource.current, validatedSource.current].some(source => source?.key === key && source.revision === revision && source.activity === activityEpoch.current && source.retry === retryRef.current)) return
+        setRetryToken(token => token + 1)
+    }, [leagueId])
 
     const clearAllFilters = useCallback(() => {
         setQuery('')
@@ -427,7 +473,7 @@ export function usePlayerSearch(
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
         season: { value: seasonYear, setValue: setSeasonYear },
-        results: { players: enabled && dataKey === searchParamsKey ? players : [], loading, refreshing, loadingMore, error, listRef, loadMore, retry, isSnapshot: !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
+        results: { players: enabled && dataKey === searchParamsKey ? players : [], loading, refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: !admitted || !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
         activeFilterCount,
         clearAllFilters,
     }

@@ -96,7 +96,20 @@ export default function HomeScreen() {
     } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
     const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })
 
-    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, refreshSilently)
+    const livePlayerIds = useMemo(() => [myLineup, oppLineup].flatMap(lineup => lineup ? [
+        ...lineup.starters.flatMap(slot => slot.player ? [slot.player.playerId] : []),
+        ...lineup.bench.map(player => player.playerId),
+        ...lineup.ir.map(player => player.playerId),
+        ...lineup.taxi.map(player => player.playerId),
+    ] : []), [myLineup, oppLineup])
+    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, {
+        enabled: Boolean(matchup && league?.id),
+        scope: JSON.stringify([user?.id, league?.id, current?.id, matchup?.seasonId, matchup?.id]),
+        playerIds: livePlayerIds,
+        leagueId: league?.id,
+        seasonId: matchup?.seasonId,
+        onSilentRefresh: refreshSilently,
+    })
     const actionContext = useMemo(() => matchup && league ? {
         memberId: matchup.myMemberId,
         leagueId: league.id,

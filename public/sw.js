@@ -17,7 +17,7 @@ const BOOT_TIMEOUT_MS = 30000
 const CARRY_BYTES_LIMIT = 64 * 1024 * 1024
 const CARRY_GENERATION_LIMIT = 8
 const PUBLIC_ASSETS = new Set(PUBLIC_ASSET_URLS)
-const IMMUTABLE = /^\/(?:_expo\/static|assets)\//
+const RELEASE_SCRIPT = /^\/_expo\/static\/js\/web\/[^/]+\.js$/
 const PRIVATE_DIRECTIVES = /(?:^|,)\s*(?:private|no-store|no-cache)\b/i
 
 function cacheable(response, { allowDocument = false } = {}) {
@@ -46,9 +46,6 @@ function shellRoute(pathname) {
   })
 }
 
-// Strip identity and bypass the HTTP cache: a legacy authenticated response
-// can live there even after the old worker's Cache Storage is removed.
-// Only this worker's validated public cache may supply a shared hit.
 const publicFetch = (url, signal) =>
   fetch(new Request(url, { credentials: 'omit', redirect: 'error', cache: 'no-store', signal }))
 
@@ -64,35 +61,44 @@ async function matchesDigest(bytes, digest) {
   return actual === digest
 }
 
-async function publicAssetFetch(url) {
+async function cachedBuildAsset(url, signal) {
+  const digest = PUBLIC_ASSET_HASHES[new URL(url, self.location.origin).pathname]
+  if (!digest) return undefined
   try {
-    return await publicFetch(url)
-  } catch (error) {
-    // A first visit can load a lazy chunk before the worker takes control.
-    // Keep those public HTTP-cache bytes usable offline, but never trust a
-    // legacy response merely because its URL or headers look public.
-    const digest = PUBLIC_ASSET_HASHES[new URL(url, self.location.origin).pathname]
-    if (!digest) throw error
     const response = await fetch(new Request(url, {
-      credentials: 'omit', redirect: 'error', mode: 'same-origin', cache: 'only-if-cached',
+      credentials: 'omit', redirect: 'error', mode: 'same-origin', cache: 'force-cache', signal,
     }))
-    if (!cacheable(response)) throw error
-    if (!(await matchesBuild(response, digest))) throw error
-    return response
+    if (cacheable(response) && await matchesBuild(response, digest)) return response
+  } catch {}
+  return undefined
+}
+
+async function publicAssetFetch(url) {
+  const cached = await cachedBuildAsset(url)
+  if (cached) return cached
+  const response = await publicFetch(url)
+  const digest = PUBLIC_ASSET_HASHES[new URL(url, self.location.origin).pathname]
+  if (digest && cacheable(response) && !(await matchesBuild(response, digest))) {
+    return new Response('Release asset unavailable', { status: 502 })
   }
+  return response
 }
 
 async function safeMatch(cache, key, options) {
   const response = await cache.match(key)
   if (!response) return undefined
-  if (cacheable(response, options)) return response
+  const url = typeof key === 'string' ? key : key.url
+  const digest = PUBLIC_ASSET_HASHES[new URL(url, self.location.origin).pathname]
+  if (cacheable(response, options) && (!digest || await matchesBuild(response, digest))) return response
   await cache.delete(key)
   return undefined
 }
 
 async function bootResponse(url, signal) {
-  const response = await publicFetch(url, signal)
   const shell = url === SHELL_URL
+  const cached = !shell && await cachedBuildAsset(url, signal)
+  if (cached) return cached
+  const response = await publicFetch(url, signal)
   if (!cacheable(response, { allowDocument: shell }) ||
       (shell && !/text\/html/i.test(response.headers.get('content-type') || '')) ||
       !(await matchesBuild(response, PUBLIC_ASSET_HASHES[url]))) {
@@ -170,8 +176,10 @@ self.addEventListener('install', (event) => {
       // entire verified set on retry; activation, not cache existence, commits it.
       await Promise.race([
         (async () => {
-          await Promise.all(PRECACHE_URLS.map((url, index) =>
-            (url === SHELL_URL ? shell : assets).put(url, responses[index])))
+          for (let index = 0; index < PRECACHE_URLS.length; index++) {
+            const url = PRECACHE_URLS[index]
+            await (url === SHELL_URL ? shell : assets).put(url, responses[index])
+          }
           await carryPublicAssets(assets)
         })(),
         deadline,
@@ -211,28 +219,44 @@ self.addEventListener('message', (event) => {
   }))
 })
 
-async function assetResponse(request, event, immutable) {
+async function notifyClient(event, type) {
+  const client = event.clientId && await self.clients.get(event.clientId)
+  if (client) client.postMessage({ type })
+}
+
+async function assetResponse(request, event) {
   const cache = await caches.open(ASSET_CACHE)
   const cached = await safeMatch(cache, request)
-  if (cached && immutable) return cached
-  const network = publicAssetFetch(request.url).then(async (response) => {
-    if (cacheable(response)) await cache.put(request, response.clone()).catch(() => {})
-    else if (response && response.ok) await cache.delete(request).catch(() => {})
-    return response
-  })
-  event.waitUntil(network.catch(() => undefined))
-  return cached || network
+  if (cached) return cached
+  const response = await publicAssetFetch(request.url)
+  if (cacheable(response)) await cache.put(request, response.clone()).catch(() => {})
+  else if (RELEASE_SCRIPT.test(new URL(request.url).pathname)) {
+    event.waitUntil(notifyClient(event, 'PANCAKE_ASSET_MISS'))
+  }
+  return response
+}
+
+async function onlineShell(event) {
+  const response = await publicFetch(event.request.url)
+  if (!cacheable(response, { allowDocument: true }) ||
+      !/text\/html/i.test(response.headers.get('content-type') || '')) {
+    throw new Error('Public online shell unavailable')
+  }
+  if (self.registration) event.waitUntil(self.registration.update().catch(() => {}))
+  return response
 }
 
 async function shellResponse(event) {
   const cache = await caches.open(SHELL_CACHE)
   const cached = await safeMatch(cache, SHELL_URL, { allowDocument: true })
-  const network = bootResponse(SHELL_URL).then(async (response) => {
+  if (cached) return cached
+  try {
+    const response = await bootResponse(SHELL_URL)
     await cache.put(SHELL_URL, response.clone()).catch(() => {})
     return response
-  })
-  event.waitUntil(network.catch(() => undefined))
-  return cached || network
+  } catch {
+    return onlineShell(event)
+  }
 }
 
 self.addEventListener('fetch', (event) => {
@@ -242,10 +266,15 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
   if (request.mode === 'navigate') {
     if (!shellRoute(url.pathname)) return
-    event.respondWith(shellResponse(event).catch(() => bootResponse(SHELL_URL)))
+    event.respondWith(shellResponse(event).catch(() => onlineShell(event)))
   } else if (!url.search && PUBLIC_ASSETS.has(url.pathname)) {
-    event.respondWith(assetResponse(request, event, IMMUTABLE.test(url.pathname))
-      .catch(() => publicFetch(request.url)))
+    event.respondWith(assetResponse(request, event)
+      .catch(() => publicAssetFetch(request.url)))
+  } else if (!url.search && RELEASE_SCRIPT.test(url.pathname)) {
+    event.respondWith(publicFetch(request.url).then((response) => {
+      if (!cacheable(response)) event.waitUntil(notifyClient(event, 'PANCAKE_ASSET_MISS'))
+      return response
+    }))
   }
 })
 
@@ -281,4 +310,15 @@ self.addEventListener('notificationclick', (event) => {
       await self.clients.openWindow(path)
     })(),
   )
+})
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    for (const client of windows) {
+      if (new URL(client.url).origin === self.location.origin) {
+        client.postMessage({ type: 'PANCAKE_PUSH_SUBSCRIPTION_CHANGED' })
+      }
+    }
+  })())
 })

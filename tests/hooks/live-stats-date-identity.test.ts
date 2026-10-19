@@ -15,7 +15,7 @@ vi.mock('@/lib/games', () => ({
     getGameDay: vi.fn(async (date: string) => ({
         startedTeams: await mocks.getStartedTeams(date),
         teamMatchups: await mocks.getTeamMatchups(date),
-        games: [{ status: 'InProgress', home_team: 'LAL', away_team: 'BOS' }],
+        games: [{ status: date === 'historical' ? 'Final' : 'InProgress', home_team: 'LAL', away_team: 'BOS' }],
     })),
     getLivePlayerStats: mocks.getLivePlayerStats,
 }))
@@ -62,7 +62,7 @@ describe('useLiveStats date identity', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('notifies silent refresh listeners only for today', async () => {
+    it('notifies silent refresh listeners only for live dates', async () => {
         vi.useFakeTimers()
         mocks.getLivePlayerStats.mockResolvedValue(new Map())
         mocks.getTeamMatchups.mockResolvedValue(new Map())
@@ -70,13 +70,13 @@ describe('useLiveStats date identity', () => {
         const todayRefresh = vi.fn()
         const historicalRefresh = vi.fn()
         const Probe = () => {
-            useLiveStats('today', todayRefresh)
-            useLiveStats('historical', historicalRefresh)
+            useLiveStats('today', { scope: 'owner', playerIds: [], onSilentRefresh: todayRefresh })
+            useLiveStats('historical', { scope: 'owner', playerIds: [], onSilentRefresh: historicalRefresh })
             return null
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
         expect(todayRefresh).toHaveBeenCalledOnce()
         expect(historicalRefresh).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount(); await vi.advanceTimersByTimeAsync(15_000) })

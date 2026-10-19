@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagueDraftController } from '@/hooks/use-league-draft-controller'
 import type { Draft } from '@/lib/draft'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const mocks = vi.hoisted(() => ({
     confirmAction: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@/lib/alert', () => ({ confirmAction: mocks.confirmAction, showAlert: vi.fn() }))
 vi.mock('@/components/league/DraftChips', () => ({ normalizeDraftTimerSeconds: (value: number) => value }))
 vi.mock('@/lib/draft', () => ({
-    getJoinableDraft: mocks.getJoinableDraft,
+    acquireJoinableDraft: (leagueId: string, options: unknown) => ({ promise: mocks.getJoinableDraft(leagueId, options), release: vi.fn() }),
     NOMINATION_ORDER_MODE_LABELS: { user_nominated: "Manager's choice", by_projection: 'By projection rank', alphabetical: 'Alphabetical' },
     ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS: { auto_pick: 'Auto-pick', skip_pick: 'Skip', pause_draft: 'Pause', commissioner_pick: 'Commish pick' },
     startDraft: mocks.startDraft,
@@ -54,6 +55,7 @@ const deferred = <Value,>() => {
 
 beforeEach(() => {
     vi.clearAllMocks()
+    setSessionOwner('actor')
 })
 
 describe('useLeagueDraftController', () => {
@@ -147,4 +149,45 @@ describe('useLeagueDraftController', () => {
         expect(mocks.reseedRookieDraftPicks).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
+})
+
+it('defers hidden draft status and retry, then joins one current read on return', async () => {
+    const doc = new EventTarget()
+    let hidden = true
+    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', doc)
+    mocks.getJoinableDraft.mockResolvedValue(draft('fresh'))
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = () => { latest = useLeagueDraftController('league'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.retryActiveDraft() })
+        expect(mocks.getJoinableDraft).not.toHaveBeenCalled()
+        hidden = false
+        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
+        expect(mocks.getJoinableDraft).toHaveBeenCalledTimes(1)
+        expect(latest.activeDraft?.id).toBe('fresh')
+    } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
+})
+
+it('fences same-league member changes and refuses unvalidated draft actions', async () => {
+    const pending = deferred<Draft>()
+    mocks.getJoinableDraft.mockReturnValueOnce(pending.promise).mockResolvedValue(draft('current'))
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = ({ member, authorized = true }: { member: string; authorized?: boolean }) => {
+        latest = useLeagueDraftController('league', { memberId: member, authorized })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { member: 'first' })) })
+        await act(async () => { renderer.update(React.createElement(Probe, { member: 'second' })) })
+        await act(async () => { pending.resolve(draft('stale')) })
+        expect(latest.activeDraft?.id).toBe('current')
+        await act(async () => { renderer.update(React.createElement(Probe, { member: 'second', authorized: false })) })
+        await act(async () => { await latest.handleJoinDraftRoom(); await latest.handleStartDraft() })
+        expect(mocks.push).not.toHaveBeenCalled()
+        expect(mocks.confirmAction).not.toHaveBeenCalled()
+    } finally { await act(async () => { renderer.unmount() }) }
 })

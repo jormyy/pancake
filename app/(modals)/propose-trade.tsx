@@ -1,3 +1,4 @@
+import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
@@ -88,6 +89,11 @@ export default function ProposeTradeScreen() {
     // The sender tab outlives the editor so Review and back lands on the same side.
     const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
     const ownerIdentity = user?.id && myMemberId && leagueId ? `${user.id}:${leagueId}:${myMemberId}` : null
+    const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch, ready } = useModalActivity(ownerIdentity)
+    const formOwnerRef = useRef(ownerIdentity)
+    const writeEpoch = useRef(0)
+    const tradePrefillKey = useRef<string | null>(null)
+    const [membersAttempt, setMembersAttempt] = useState(0)
     const activeOwnerRef = useRef(ownerIdentity)
     activeOwnerRef.current = ownerIdentity
     const mountedRef = useRef(false)
@@ -104,7 +110,7 @@ export default function ProposeTradeScreen() {
     const canUseMultiTeamMode = mode === 'propose'
     const faabEnabled = currentLeague?.waiver_mode === 'faab'
     const composer = useMultiTeamTradeComposer({
-        enabled: Boolean(myMemberId && leagueId && (multiTeamMode || selectedRecipientId)),
+        enabled: ready && Boolean(myMemberId && leagueId && (multiTeamMode || selectedRecipientId)),
         myMemberId,
         leagueId,
         myTeamName: current?.team_name ?? 'Your team',
@@ -134,6 +140,16 @@ export default function ProposeTradeScreen() {
     ), [])
 
     useEffect(() => {
+        if (formOwnerRef.current !== ownerIdentity) {
+            formOwnerRef.current = ownerIdentity
+            setNotes('')
+            setExpirationDays('3')
+            setRosterPlan({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
+            setSenderTab(undefined)
+            setMembers([])
+            setMembersError(null)
+            restoredDraftRef.current = false
+        }
         submissionRef.current = null
         retainedAttemptRef.current = null
         setSubmitting(false)
@@ -148,25 +164,33 @@ export default function ProposeTradeScreen() {
             setLoading(false)
             return
         }
+        if (!canRead()) return
+        const generation = capture()
+        blockActions()
         setLoading(true)
         setMembersError(null)
         try {
             const all = await getLeagueMembers(leagueId)
-            if (membersRequestRef.current !== requestId) return
+            if (membersRequestRef.current !== requestId || !isCurrent(generation)) return
+            if (!all.some(member => member.id === myMemberId && member.user_id === user?.id)) {
+                setMembersError('You no longer belong to this league.')
+                return
+            }
+            markReady(generation)
             setMembers(all.filter((member) => member.id !== myMemberId))
         } catch (error) {
-            if (membersRequestRef.current !== requestId) return
+            if (membersRequestRef.current !== requestId || !isCurrent(generation)) return
             setMembers([])
             setMembersError(getErrorMessage(error) ?? 'Could not load league members.')
         } finally {
-            if (membersRequestRef.current === requestId) setLoading(false)
+            if (membersRequestRef.current === requestId && isCurrent(generation)) setLoading(false)
         }
-    }, [leagueId, myMemberId])
+    }, [leagueId, myMemberId, user?.id, canRead, capture, isCurrent, blockActions, markReady])
 
     useEffect(() => {
         void loadMembers()
         return () => { membersRequestRef.current += 1 }
-    }, [loadMembers])
+    }, [loadMembers, epoch, membersAttempt])
 
     useEffect(() => {
         if (multiTeamMode || !selectedRecipientId || !myMemberId) return
@@ -213,12 +237,15 @@ export default function ProposeTradeScreen() {
     useEffect(() => clearTradeComposerDraft, [])
 
     useEffect(() => {
+        if (!canRead() || tradePrefillKey.current === `${ownerIdentity}:${sourceTradeId}`) return
+        const generation = capture()
         if (!sourceTradeId || !myMemberId) return
         const capturedOwner = ownerIdentity
         let cancelled = false
         getTradeById(sourceTradeId, myMemberId)
             .then((trade) => {
-                if (cancelled || !ownsOwner(capturedOwner) || !trade || restoredDraftRef.current) return
+                if (cancelled || !isCurrent(generation) || !ownsOwner(capturedOwner) || !trade || restoredDraftRef.current) return
+                tradePrefillKey.current = `${ownerIdentity}:${sourceTradeId}`
                 const prefill = prefillTradeComposerFromTrade(mode, trade)
                 setMultiTeamMode(trade.isMultiTeam)
                 setSelectedRecipientId(trade.isMultiTeam ? null : prefill.selectedRecipientId)
@@ -227,14 +254,14 @@ export default function ProposeTradeScreen() {
                 prefillFromTrade(trade, myMemberId)
             })
             .catch((error) => {
-                if (!cancelled && ownsOwner(capturedOwner)) {
+                if (!cancelled && ownsOwner(capturedOwner) && isCurrent(generation)) {
                     showAlert('Error', getErrorMessage(error) ?? 'Could not load trade.')
                 }
             })
         return () => {
             cancelled = true
         }
-    }, [mode, myMemberId, ownerIdentity, ownsOwner, prefillFromTrade, sourceTradeId])
+    }, [mode, myMemberId, ownerIdentity, ownsOwner, prefillFromTrade, sourceTradeId, canRead, capture, isCurrent, epoch])
 
     useEffect(() => {
         if (multiTeamMode || !selectedRecipientId || loadedParticipantKey !== participantIds.join(',')) return
@@ -280,7 +307,7 @@ export default function ProposeTradeScreen() {
         else confirmAction('Discard this trade?', 'The players and picks you picked will be cleared.', back, 'Discard')
     }
     const tradeAnalysis = useDynastyTradeAnalysis({
-        enabled: composer.assetsReady,
+        enabled: ready && composer.assetsReady,
         leagueId,
         memberId: myMemberId,
         scoringSettings: currentLeague?.scoring_settings,
@@ -333,14 +360,23 @@ export default function ProposeTradeScreen() {
             ? isMultiTeamTradeSubmittable(participantIds, items)
             : Boolean(selectedRecipientId && twoTeamDraft?.hasOffer && twoTeamDraft.hasRequest && !twoTeamDraft.faabError)
     )
-    const canSubmit = online && !submitting && Boolean(retainedAttempt || canSubmitNew)
+    const canSubmit = canAct() && online && !submitting && Boolean(retainedAttempt || canSubmitNew)
 
     const handleSubmit = useCallback(async () => {
-        if (!ownerIdentity || !ownsOwner(ownerIdentity) || submissionRef.current || !canSubmit) return
+        if (!canAct() || !ownerIdentity || !ownsOwner(ownerIdentity) || submissionRef.current || !canSubmit) return
         const submission = { ownerIdentity, token: Symbol('trade-submission') }
         submissionRef.current = submission
         setSubmitting(true)
         try {
+            const generation = capture()
+            const members = await getLeagueMembers(leagueId)
+            if (!isCurrent(generation) || !ownsOwner(ownerIdentity)) return
+            if (!members.some(member => member.id === myMemberId && member.user_id === user?.id)) {
+                blockActions()
+                setMembersError('You no longer belong to this league.')
+                return
+            }
+            writeEpoch.current = generation
             let attempt = retainedAttemptRef.current
             if (attempt?.ownerIdentity !== ownerIdentity || attempt.intent !== intent) attempt = null
             if (!attempt) {
@@ -349,6 +385,10 @@ export default function ProposeTradeScreen() {
                 const resolvedSeason = async () => {
                     if (!seasonId) seasonId = await getCurrentSeasonId(leagueId)
                     return seasonId
+                }
+                const guarded = <Args extends unknown[], Result>(write: (...args: Args) => Promise<Result>) => async (...args: Args) => {
+                    if (!isCurrent(writeEpoch.current) || !canAct()) throw new Error('Return to this trade and try again.')
+                    return write(...args)
                 }
                 let send: () => Promise<void>
                 if (multiTeamMode) {
@@ -369,7 +409,7 @@ export default function ProposeTradeScreen() {
                         tradeDeadline: currentLeague?.trade_deadline,
                     }
                     send = () => submitMultiTeamTradeComposer(input,
-                        { getCurrentSeasonId: resolvedSeason, proposeMultiTeamTrade, counterMultiTeamTrade, editMultiTeamTrade })
+                        { getCurrentSeasonId: resolvedSeason, proposeMultiTeamTrade: guarded(proposeMultiTeamTrade), counterMultiTeamTrade: guarded(counterMultiTeamTrade), editMultiTeamTrade: guarded(editMultiTeamTrade) })
                 } else {
                     if (!selectedRecipientId || !twoTeamDraft) return
                     const payload = twoTeamDraft.payload
@@ -385,7 +425,7 @@ export default function ProposeTradeScreen() {
                             offerPickIds: [...payload.offerPickIds], requestPickIds: [...payload.requestPickIds] },
                     }
                     send = () => submitTradeComposer(input,
-                        { getCurrentSeasonId: resolvedSeason, proposeTrade, counterTrade, editTrade })
+                        { getCurrentSeasonId: resolvedSeason, proposeTrade: guarded(proposeTrade), counterTrade: guarded(counterTrade), editTrade: guarded(editTrade) })
                 }
                 attempt = { ownerIdentity, intent, send }
                 retainedAttemptRef.current = attempt
@@ -415,6 +455,7 @@ export default function ProposeTradeScreen() {
             }
         }
     }, [
+        capture, isCurrent, canAct, blockActions, user?.id,
         rosterPlan,
         currentLeague?.allow_inactive_trades,
         back,
@@ -611,7 +652,7 @@ export default function ProposeTradeScreen() {
                 </View>
                 {membersError ? (
                     <>
-                        <ErrorBanner message={membersError} onRetry={() => { void loadMembers() }} />
+                        <ErrorBanner message={membersError} onRetry={() => setMembersAttempt(value => value + 1)} />
                         <EmptyState icon="error-outline" message="Teams unavailable"
                             description="Retry to load the league members available for this trade."
                             fullScreen={false} framed />

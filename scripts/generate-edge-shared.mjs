@@ -115,7 +115,6 @@ async function syncScores() {
   const source = rewriteImportDeclarations(await read('supabase/shared-src/sync/scores.ts'), 'syncScores', {
     '../lib/supabase': './supabase.ts',
     '../lib/scoring': './scoring.ts',
-    '../lib/notifications': './notifications.ts',
     '../lib/nba': './nba.ts',
     '../lib/runBounded': './runBounded.ts',
     '../lib/utils/date': './date.ts',

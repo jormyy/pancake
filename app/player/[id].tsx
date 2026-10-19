@@ -1,4 +1,3 @@
-import { useFocusEffect } from '@react-navigation/native'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
@@ -13,6 +12,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
 import { loadPickupState } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction } from '@/lib/alert'
@@ -35,7 +35,7 @@ const SIDE_COLUMN_WIDTH = 400
 
 export default function PlayerDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>()
-    const { current, currentLeague } = useLeagueContext()
+    const { current, currentLeague, membershipValidated } = useLeagueContext()
     const online = useOnlineStatus()
     const router = useRouter()
     const { push } = router
@@ -43,8 +43,9 @@ export default function PlayerDetailScreen() {
     const twoColumn = usableWidth >= TWO_COLUMN_MIN
     const goBack = useGoBack('/players')
 
+    const memberId = current?.id
     const leagueId = currentLeague?.id ?? null
-    const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}:${id}` : null
+    const ownerIdentity = current?.id && leagueId ? JSON.stringify([sessionOwner(), sessionGeneration(), current.id, leagueId, id]) : null
     const renderedOwnerRef = useRef(ownerIdentity)
     const activeOwnerRef = useRef(ownerIdentity)
     const generationRef = useRef(0)
@@ -53,11 +54,10 @@ export default function PlayerDetailScreen() {
         renderedOwnerRef.current = ownerIdentity
         generationRef.current += 1
     }
-    const isCurrent = (generation: number, identity: string | null) =>
-        generationRef.current === generation && activeOwnerRef.current === identity
+
 
     const {
-        player, loading, playedToday,
+        player, loading, playedToday, canRead, readEpoch, isCurrentRead,
         playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages, seasonLoading, seasonError,
@@ -65,7 +65,10 @@ export default function PlayerDetailScreen() {
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError, projectionSettled,
         transactions, transactionsError, transactionsSettled,
-    } = usePlayerScreenData(id, leagueId)
+    } = usePlayerScreenData(id, leagueId, { ownerKey: ownerIdentity ?? undefined, authorized: membershipValidated })
+
+    const isCurrent = useCallback((generation: number, identity: string | null) =>
+        generationRef.current === generation && activeOwnerRef.current === identity && isCurrentRead(readEpoch), [isCurrentRead, readEpoch])
 
     // Roster status
     const [rosterStatusResource, setRosterStatusResource] = useState<{
@@ -91,25 +94,32 @@ export default function PlayerDetailScreen() {
         setDropping(false)
     }, [ownerIdentity])
 
+    const [statusEpoch, setStatusEpoch] = useState<string | null>(null)
     const loadRosterStatus = useCallback(async () => {
+        if (!canRead()) return
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
-        setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: null })
-        if (!current || !leagueId || !requestedOwner) return
+        setStatusEpoch(null)
+        if (!memberId || !leagueId || !requestedOwner) return
         try {
-            const { status, transactionState, claimPending } = await loadPickupState(id, current.id, leagueId)
+            const { status, transactionState, claimPending } = await loadPickupState(id, memberId, leagueId, () => isCurrent(generation, requestedOwner))
             if (isCurrent(generation, requestedOwner)) {
                 setRosterStatusResource({ ownerIdentity: requestedOwner, status, claimPending, error: null })
                 setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
+                setStatusEpoch(readEpoch)
             }
         } catch (e) {
             if (isCurrent(generation, requestedOwner)) {
                 setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(e) })
             }
         }
-    }, [current, id, leagueId, ownerIdentity])
+    }, [memberId, id, leagueId, ownerIdentity, canRead, readEpoch, isCurrent])
 
-    useFocusEffect(useCallback(() => { void loadRosterStatus() }, [loadRosterStatus]))
+    useEffect(() => {
+        void loadRosterStatus()
+        return () => { generationRef.current += 1 }
+    }, [loadRosterStatus])
+    const actionsReady = membershipValidated && online && statusEpoch === readEpoch && canRead()
 
     const openClaim = useCallback(() => push(`/(modals)/claim-player?playerId=${id}`), [push, id])
     const quickAdd = useQuickAdd({
@@ -121,7 +131,7 @@ export default function PlayerDetailScreen() {
     })
 
     function handleDrop() {
-        if (rosterStatus?.status !== 'mine') return
+        if (!actionsReady || rosterStatus?.status !== 'mine') return
         const rosterPlayerId = rosterStatus.rosterPlayerId
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
@@ -226,15 +236,15 @@ export default function PlayerDetailScreen() {
                         player={player}
                         rosterStatus={rosterStatus}
                         claimPending={ownsRosterStatus && !!rosterStatusResource.claimPending}
-                        leagueActive={!!current}
+                        leagueActive={!!current && actionsReady}
                         actionLoading={dropping || quickAdd.adding === id}
-                        dropDisabled={!online}
+                        dropDisabled={!actionsReady}
                         playedToday={playedToday}
-                        addBlockedReason={quickAdd.addBlockedReason}
+                        addBlockedReason={actionsReady ? quickAdd.addBlockedReason : 'Refreshing roster status.'}
                         addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}
-                        onAdd={() => quickAdd.handleAdd({ id, display_name: player.display_name })}
+                        onAdd={() => actionsReady && quickAdd.handleAdd({ id, display_name: player.display_name })}
                         onDrop={handleDrop}
-                        onClaim={() => rosterStatusResource.claimPending ? push('/roster?claims=1') : quickAdd.handleClaim({ id, display_name: player.display_name })}
+                        onClaim={() => actionsReady && (rosterStatusResource.claimPending ? push('/roster?claims=1') : quickAdd.handleClaim({ id, display_name: player.display_name }))}
                         onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
                         compact={usableWidth < 600}
                     />

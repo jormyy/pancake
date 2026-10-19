@@ -40,6 +40,8 @@ export default function RookieDraftRoomScreen() {
 
     const {
         state,
+        actionsReady,
+        canAct,
         loading,
         loadError,
         prospectsLoadError,
@@ -74,6 +76,7 @@ export default function RookieDraftRoomScreen() {
 
     const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =
         useDraftAdminControls({
+            canAct,
             draftId,
             refresh,
             onStopped: () => navigateBackToDraftList(state?.draft.isMock),
@@ -161,7 +164,7 @@ export default function RookieDraftRoomScreen() {
                                             key={rp.id}
                                             style={styles.overflowDropRow}
                                             onPress={() => resolveByDrop(rp.id)}
-                                            disabled={resolvingOverflow}
+                                            disabled={resolvingOverflow || !actionsReady}
                                             pressedScale={0.975}
                                         >
                                             <Avatar
@@ -210,7 +213,7 @@ export default function RookieDraftRoomScreen() {
                                     key={rp.id}
                                     style={styles.overflowDropRow}
                                     onPress={() => handleTrimDrop(rp.id)}
-                                    disabled={!!trimmingId}
+                                    disabled={!!trimmingId || !actionsReady}
                                     pressedScale={0.975}
                                 >
                                     <Avatar
@@ -239,7 +242,7 @@ export default function RookieDraftRoomScreen() {
                 <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
                     {isCommissioner && !isDone && isDesktop ? (
                         <DraftAdminBar
-                            disabled={adminBusy}
+                            disabled={adminBusy || !actionsReady}
                             inline
                             showLabel={false}
                             isPaused={isPaused}
@@ -253,7 +256,7 @@ export default function RookieDraftRoomScreen() {
                 </DraftScreenHeader>
                 {loadError ? <ErrorBanner message="Draft updates are unavailable. Tap to retry." onRetry={() => { void refresh() }} /> : null}
                 {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? <TaxiAcquisitionChoice
-                    value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking}
+                    value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking || !actionsReady}
                     label="Draft this pick directly into taxi" /> : null}
                 <KeyboardAvoidingView
                     style={[styles.body, isDesktop && styles.bodyDesktop]}
@@ -325,7 +328,7 @@ export default function RookieDraftRoomScreen() {
 
                         {isCommissioner && !isDone && !isDesktop ? (
                             <DraftAdminBar
-                                disabled={adminBusy}
+                                disabled={adminBusy || !actionsReady}
                                 isPaused={isPaused}
                                 showPause={canUsePauseControl}
                                 showLabel={!compactLandscape}
@@ -409,7 +412,7 @@ export default function RookieDraftRoomScreen() {
                                     <ProspectRow
                                         player={item}
                                         isDone={isDone || isPending || pickTimerExpired || (isPaused && !canCommissionerPick)}
-                                        picking={picking}
+                                        picking={picking || !actionsReady}
                                         onPick={canCommissionerPick ? handleCommissionerPick : handlePick}
                                         actionLabel={canCommissionerPick ? 'Commish Pick' : 'Pick'}
                                     />

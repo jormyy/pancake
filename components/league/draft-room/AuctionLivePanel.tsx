@@ -111,7 +111,7 @@ export function AuctionLivePanel({
             </View>
             {nomination.nominatingMemberId === memberId && !paused && nomination.currentBidderId == null ?
                 <MotionPressable style={styles.withdrawButton} onPress={controller.handleWithdraw}
-                    disabled={controller.withdrawing} accessibilityRole="button" accessibilityLabel="Withdraw nomination" pressedScale={0.96}>
+                    disabled={controller.withdrawing || !controller.actionsReady} accessibilityRole="button" accessibilityLabel="Withdraw nomination" pressedScale={0.96}>
                     <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
                 </MotionPressable> : null}
         </View>

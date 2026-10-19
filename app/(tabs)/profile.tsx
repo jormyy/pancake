@@ -96,8 +96,12 @@ export default function ProfileScreen() {
 
     useEffect(() => {
         setEditing(false)
-        setDisplayName(profileLoaded ? profile?.display_name ?? '' : '')
-    }, [preferenceUserId, profile?.display_name, profileLoaded])
+        setDisplayName('')
+    }, [preferenceUserId])
+
+    useEffect(() => {
+        if (!editing) setDisplayName(profileLoaded ? profile?.display_name ?? '' : '')
+    }, [editing, profile?.display_name, profileLoaded])
 
     // Sync team name from context whenever it changes
     useEffect(() => {
@@ -122,8 +126,13 @@ export default function ProfileScreen() {
             if (current && trimmedTeam) {
                 saves.push(updateTeamName(current.id, trimmedTeam))
             }
-            await Promise.all(saves)
+            const results = await Promise.allSettled(saves)
             if (activeUserIdRef.current !== ownerId) return
+            const failure = results.find((result) => result.status === 'rejected')
+            if (failure) {
+                await Promise.allSettled([retryProfile(), refresh()])
+                throw failure.reason
+            }
             setProfile((prev) => prev ? { ...prev, display_name: trimmedDisplay } : prev)
             setEditing(false)
             if (current && trimmedTeam !== current.team_name) {
@@ -219,8 +228,7 @@ export default function ProfileScreen() {
             await task
         } catch (e) {
             if (preferenceSessionRef.current === session && preferencesRef.current === next) {
-                preferencesRef.current = previous
-                setPreferences(previous)
+                await retryProfile()
             }
             if (preferenceSessionRef.current === session) showAlert('Error', getErrorMessage(e))
         }
@@ -245,7 +253,11 @@ export default function ProfileScreen() {
                         <Button title="Save" size="sm" onPress={handleSave} loading={saving} />
                     </>
                 ) : (
-                    <Button title="Edit" variant="outline" size="sm" icon="edit" disabled={!profileLoaded || !user} onPress={() => setEditing(true)} />
+                    <Button title="Edit" variant="outline" size="sm" icon="edit" disabled={!profileLoaded || !user} onPress={() => {
+                        setDisplayName(profile?.display_name ?? '')
+                        setTeamName(current?.team_name ?? '')
+                        setEditing(true)
+                    }} />
                 )}
             />
             {profileError ? (

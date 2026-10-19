@@ -1,7 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { runBounded } from '../lib/runBounded'
 import { getWeekNumberForDate, roundFantasyPoints } from '../lib/scoring'
-import { notifyMember } from '../lib/notifications'
 import { isRegularSeasonGameId } from '../lib/nba'
 import { syncStatsForDates } from './stats'
 import { toETDate } from '../lib/utils/date'
@@ -99,15 +98,6 @@ type MatchupResult = MatchupForFinalization & {
     winnerId: string | null
     homeMaxPossiblePoints: number
     awayMaxPossiblePoints: number
-}
-
-type FinalizedMatchupNotification = {
-    id: string
-    home_member_id: string
-    away_member_id: string
-    home_points: number | string | null
-    away_points: number | string | null
-    winner_member_id: string | null
 }
 
 type MatchupWinnerInput = {
@@ -366,36 +356,6 @@ async function buildStandingsSnapshotRows(
         }))
 }
 
-function finalizedMatchupNotifications(value: Json | undefined): FinalizedMatchupNotification[] {
-    if (!Array.isArray(value)) return []
-
-    return value.flatMap((row) => {
-        if (row == null || typeof row !== 'object' || Array.isArray(row)) return []
-        const record = row as Record<string, Json | undefined>
-        const id = record.id
-        const homeMemberId = record.home_member_id
-        const awayMemberId = record.away_member_id
-        const winnerMemberId = record.winner_member_id
-        if (
-            typeof id !== 'string' ||
-            typeof homeMemberId !== 'string' ||
-            typeof awayMemberId !== 'string' ||
-            (winnerMemberId != null && typeof winnerMemberId !== 'string')
-        ) {
-            return []
-        }
-
-        return [{
-            id,
-            home_member_id: homeMemberId,
-            away_member_id: awayMemberId,
-            home_points: typeof record.home_points === 'number' || typeof record.home_points === 'string' ? record.home_points : null,
-            away_points: typeof record.away_points === 'number' || typeof record.away_points === 'string' ? record.away_points : null,
-            winner_member_id: winnerMemberId ?? null,
-        }]
-    })
-}
-
 type ScoringWeek = { week_number: number; week_start: string; week_end: string }
 
 async function loadMatchupWeeks(seasonYear: number, first: number, last: number): Promise<ScoringWeek[]> {
@@ -411,32 +371,6 @@ async function loadMatchupWeeks(seasonYear: number, first: number, last: number)
 
 function addMemberPoints(total: Map<string, number>, week: Map<string, number>) {
     for (const [memberId, points] of week) total.set(memberId, roundFantasyPoints((total.get(memberId) ?? 0) + points))
-}
-
-async function notifyFinalizedMatchups(weekLabel: string, rows: FinalizedMatchupNotification[]): Promise<void> {
-    await Promise.all(
-        rows.map(async (m) => {
-            const homePoints = Number(m.home_points ?? 0)
-            const awayPoints = Number(m.away_points ?? 0)
-
-            if (m.winner_member_id === null) {
-                const tiePts = homePoints.toFixed(2)
-                await Promise.all([
-                    notifyMember(m.home_member_id, `${weekLabel} Final`, `You tied ${tiePts}–${tiePts}.`),
-                    notifyMember(m.away_member_id, `${weekLabel} Final`, `You tied ${tiePts}–${tiePts}.`),
-                ]).catch(console.error)
-                return
-            }
-
-            const loserId = m.winner_member_id === m.home_member_id ? m.away_member_id : m.home_member_id
-            const winnerPts = Math.max(homePoints, awayPoints).toFixed(2)
-            const loserPts = Math.min(homePoints, awayPoints).toFixed(2)
-            await Promise.all([
-                notifyMember(m.winner_member_id, `${weekLabel} Final`, `You won ${winnerPts}–${loserPts}! 🏆`),
-                notifyMember(loserId, `${weekLabel} Final`, `You lost ${loserPts}–${winnerPts}.`),
-            ]).catch(console.error)
-        }),
-    )
 }
 
 // If all games in a week are finished, mark matchups as finalized. Already
@@ -493,11 +427,8 @@ async function finalizeWeekIfComplete(
     if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
     if (matchups.some((matchup) => isPlayoffMatchupType(matchup.matchup_type)) && toETDate(referenceDate) <= endDate) return
     const { data: pendingGames, error: pendingGamesError } = await supabase
-        .from('nba_games')
+        .rpc('get_score_sync_games', { p_start_date: weekData.week_start, p_end_date: endDate, p_season_year: seasonYear })
         .select('id, nba_game_id')
-        .eq('season_year', seasonYear)
-        .gte('game_date', weekData.week_start)
-        .lte('game_date', endDate)
         // Final status alone does not prove that a complete box score exists.
         .or('status.in.(Scheduled,InProgress),and(status.eq.Final,stats_synced_at.is.null)')
     if (pendingGamesError) throw pendingGamesError
@@ -564,7 +495,7 @@ async function finalizeWeekIfComplete(
     // restarts the playoff grace period.
     const reconciliationTimestamp = new Date().toISOString()
     const finalizedTimestamp = new Date().toISOString()
-    const { data: notificationData, error: finalizeErr } = await supabase.rpc('finalize_score_week_atomic', {
+    const { error: finalizeErr } = await supabase.rpc('finalize_score_week_atomic', {
         p_league_id: leagueId,
         p_league_season_id: leagueSeasonId,
         p_week_number: weekNumber,
@@ -593,8 +524,6 @@ async function finalizeWeekIfComplete(
         p_reconciliation_at: reconciliationTimestamp,
     })
     if (finalizeErr) throw finalizeErr
-
-    await notifyFinalizedMatchups(endWeek === weekNumber ? `Week ${weekNumber}` : `Weeks ${weekNumber}–${endWeek}`, finalizedMatchupNotifications(notificationData))
 
     console.log(`[scores] Finalized/reconciled week ${weekNumber} for league ${leagueId}`)
 }
@@ -823,11 +752,8 @@ async function syncStatsForCompletedWeeks(
 
     const today = toETDate(referenceDate)
     const games = await fetchAllPages<GameDateForRefresh>((from, to) => supabase
-        .from('nba_games')
+        .rpc('get_score_sync_games', { p_start_date: firstWeekStart, p_end_date: lastWeekEnd, p_season_year: seasonYear })
         .select('game_date, nba_game_id, status, stats_synced_at')
-        .eq('season_year', seasonYear)
-        .gte('game_date', firstWeekStart)
-        .lte('game_date', lastWeekEnd)
         .order('game_date')
         .order('nba_game_id')
         .range(from, to))
@@ -857,7 +783,7 @@ async function syncStatsForCompletedWeeks(
 }
 
 // Update current matchups and replay corrected historical seasons.
-export async function syncScores(leagueId?: string, referenceDate = new Date()) {
+export async function syncScores(leagueId?: string, referenceDate = new Date(), options: { recoverStats?: boolean } = {}) {
     const seasons = await fetchAllPages<{
         id: string
         league_id: string
@@ -886,8 +812,14 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     }
     const plans: SeasonPlan[] = []
     const planFailures: string[] = []
+    const weekBySeasonYear = new Map<number, Promise<number | null>>()
     await runBounded(seasons.map((season) => async () => {
-        const weekNumber = await getWeekNumberForDate(referenceDate, season.season_year)
+        let currentWeek = weekBySeasonYear.get(season.season_year)
+        if (!currentWeek) {
+            currentWeek = getWeekNumberForDate(referenceDate, season.season_year)
+            weekBySeasonYear.set(season.season_year, currentWeek)
+        }
+        const weekNumber = await currentWeek
         if (!weekNumber) {
             console.log(`[scores] No current week for season ${season.season_year}`)
             return
@@ -918,7 +850,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date()) 
     const recoveryFailures: Error[] = []
     const failedRecoveryYears = new Set<number>()
     const failedRecoveryDates = new Map<number, Set<string>>()
-    for (const [seasonYear, weeks] of weeksBySeasonYear) {
+    for (const [seasonYear, weeks] of options.recoverStats !== false ? weeksBySeasonYear : []) {
         const failedDates = new Set<string>()
         failedRecoveryDates.set(seasonYear, failedDates)
         try {

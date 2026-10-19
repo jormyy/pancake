@@ -77,3 +77,11 @@ the exact deployment inputs. Missing, extra, or altered files must fail.
 Public boot files alone do not establish this match. Until a complete match
 is available, keep the existing workflow gate blocked. Do not mark runtime
 compatibility or the full release acceptance as passed.
+
+## Document and public-file identity
+
+Stamping first emits content-addressed public-file copies and rewrites exported HTML references. Manifest icon references use the same copies. The manifest keeps its root ID, scope, and start URL.
+
+The stamper normalizes the document release marker and worker version before computing identity. It then stamps both, rebuilds shell digests, and records the final artifact digest. Repeated stamping of unchanged inputs produces the same release digest. Public copies and document markers belong to the artifact manifest. Do not modify them after stamping.
+
+Metro can change the entry script's lazy-route map without changing its filename. The stamper also gives that boot entry a digest-based URL. A returning browser cannot reuse an older route map under that unchanged Metro name.

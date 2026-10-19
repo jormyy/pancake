@@ -523,12 +523,13 @@ export const openAutoSetOptions = async (session, label) => {
   return click
 }
 
-export const checkAutoSetRefreshReadiness = async (session, record) => {
+export const checkAutoSetRefreshReadiness = async (session, record, refresh) => {
   await waitForAutoSetOptions(session)
   await browser(session, ['eval', `(() => {
     const original = window.fetch;
     const pending = [];
     let held = true;
+    window.__pancakeAutoSetRefreshPending = () => pending.length;
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
       if (held && url.pathname.endsWith('/league_members')) await new Promise((resolve) => pending.push(resolve));
@@ -538,13 +539,15 @@ export const checkAutoSetRefreshReadiness = async (session, record) => {
       held = false;
       window.fetch = original;
       pending.splice(0).forEach((resolve) => resolve());
+      delete window.__pancakeAutoSetRefreshPending;
       delete window.__pancakeReleaseAutoSetRefresh;
     };
     window.dispatchEvent(new Event('focus'));
   })()`])
   let state
   try {
-    await browser(session, ['wait', '--fn', `document.querySelector('[aria-label="Open auto-set lineup options"]')?.getAttribute('aria-disabled') === 'true'`])
+    record({ refreshTrigger: await refresh() })
+    await browser(session, ['wait', '--fn', `window.__pancakeAutoSetRefreshPending?.() > 0 && document.querySelector('[aria-label="Open auto-set lineup options"]')?.getAttribute('aria-disabled') === 'true'`])
     state = parseEvalJson(await browser(session, ['eval', `(() => {
       const labels = ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season'];
       const choices = labels.map((label) => {
@@ -1015,7 +1018,18 @@ export async function runBrowserLineupAutoSetScenario({
     const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
     const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
     const openWeekClick = await openAutoSetOptions(session, 'auto-set button for whole week')
-    const refreshReadiness = await checkAutoSetRefreshReadiness(session, record)
+    const refreshReadiness = await checkAutoSetRefreshReadiness(session, record, async () => {
+      const { data, error } = await fixture.admin.from('weekly_lineups')
+        .update({ is_auto_set: false })
+        .eq('league_id', fixture.league.id)
+        .eq('member_id', fixture.member.id)
+        .eq('player_id', fixture.player.id)
+        .eq('game_date', todayDateString())
+        .select('id, is_auto_set')
+      if (error) throw new Error(`Concurrent lineup edit failed: ${error.message}`)
+      if (data?.length !== 1 || data[0].is_auto_set !== false) throw new Error('Concurrent lineup edit did not change the saved lineup')
+      return { lineupId: data[0].id, isAutoSet: data[0].is_auto_set }
+    })
     const weekClick = await clickButton(session, 'Auto-set whole week', 'auto-set whole week button')
     const weekDates = [todayDateString(), ...fixture.remainingSeasonDates.filter((date) => date <= fixture.week.week_end)]
     const weekCheck = await waitForRemainingSeasonLineups({ ...fixture, remainingSeasonDates: weekDates })
