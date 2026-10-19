@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
+import { resolveHomeSurface } from '@/lib/home-surface'
 
 const boundary = vi.hoisted(() => ({ focused: true, online: true, matchup: vi.fn(), lineup: vi.fn(), cache: new Map<string, unknown>() }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => boundary.focused, useFocusEffect: (callback: () => void | (() => void)) => {
@@ -54,6 +55,8 @@ afterEach(async () => {
 it.each(['hidden', 'offline'])('defers %s initial matchup reads and catches up once', async mode => {
     hidden = mode === 'hidden'; boundary.online = mode !== 'offline'
     await mount()
+    expect(resolveHomeSurface({ leagueStatus: 'active', hasMatchup: Boolean(latest.matchup),
+        loading: latest.matchupLoading, error: latest.error, emptyConfirmed: latest.emptyConfirmed })).toBe(mode === 'offline' ? 'error' : 'loading')
     expect(boundary.matchup).not.toHaveBeenCalled()
     expect(boundary.lineup).not.toHaveBeenCalled()
     hidden = false; boundary.online = true
@@ -61,6 +64,38 @@ it.each(['hidden', 'offline'])('defers %s initial matchup reads and catches up o
     await act(async () => { page.dispatchEvent(new Event('visibilitychange')); browser.dispatchEvent(new Event('focus')) })
     expect(boundary.matchup).toHaveBeenCalledOnce()
     expect(latest.matchup?.myPoints).toBe(4)
+})
+
+it('rejects a legacy offline matchup cache and recovers after reconnect', async () => {
+    boundary.online = false
+    boundary.cache.set('pancake:home-matchup:v1:league:member', {
+        today: '2026-10-18', selectedDate: '2026-10-18', matchup,
+        myLineup: { starters: [], bench: [], ir: [], taxi: [] },
+        oppLineup: { starters: [], bench: [], ir: [], taxi: [] },
+    })
+    await mount()
+    expect(resolveHomeSurface({ leagueStatus: 'active', hasMatchup: Boolean(latest.matchup),
+        loading: latest.matchupLoading, error: latest.error, emptyConfirmed: latest.emptyConfirmed })).toBe('error')
+    expect(boundary.matchup).not.toHaveBeenCalled()
+    expect(boundary.lineup).not.toHaveBeenCalled()
+    boundary.online = true
+    await update()
+    expect(latest.error).toBeNull()
+    expect(latest.matchup?.myPoints).toBe(4)
+    expect(boundary.matchup).toHaveBeenCalledOnce()
+})
+
+it('retains a valid offline matchup without starting reads', async () => {
+    await mount()
+    await act(async () => { screen.unmount() })
+    boundary.online = false
+    boundary.matchup.mockClear(); boundary.lineup.mockClear()
+    await mount()
+    expect(latest.matchup?.myPoints).toBe(4)
+    expect(latest.myLineup?.benchSlots).toBe(10)
+    expect(latest.error).toBeNull()
+    expect(boundary.matchup).not.toHaveBeenCalled()
+    expect(boundary.lineup).not.toHaveBeenCalled()
 })
 
 it('reuses a fresh route return but catches up a hidden lineup change', async () => {
