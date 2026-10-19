@@ -9,7 +9,7 @@ DECLARE
   v_edge_invocations bigint := 0;
   v_cron_runs bigint := 0;
   v_functions text[] := ARRAY['live-poll','sync-stats','sync-scores','close-expired-nominations','process-trades','source:nba-cdn-scoreboard'];
-  v_cron_jobs text[] := ARRAY['nba-live-poll','nba-sync-stats','nba-sync-scores','nba-close-expired-nominations','nba-process-trades','nba-dispatch-stats-sync-jobs','edge-invocation-reconcile','pg-net-response-vacuum'];
+  v_cron_jobs text[] := ARRAY['nba-live-poll','nba-sync-stats','nba-sync-scores','nba-close-expired-nominations','nba-process-trades','nba-dispatch-stats-sync-jobs','edge-invocation-reconcile','pg-net-response-vacuum','league-inventory-hint-drain'];
 BEGIN
   DELETE FROM public.sync_runs
    WHERE function_name = ANY(v_functions)

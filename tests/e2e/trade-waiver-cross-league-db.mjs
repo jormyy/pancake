@@ -398,3 +398,5 @@ try {
   await clean(()=>cleaner.close()); if(cleaner!==root) await clean(()=>root.close())
   print('cleanup-errors',{errors}); if(errors.length) throw new Error(errors.join('; '))
 }
+
+await import('../db/league-hint-contention.mjs')
