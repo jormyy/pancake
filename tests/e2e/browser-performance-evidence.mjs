@@ -349,12 +349,12 @@ const clickUnmeasured = (browser, session, selector) => browser(session, ['click
 export const measureWorkflowFeedback = async (browser, session, { workflowId, label = '' }) => {
   if (!WORKFLOW_FEEDBACK_IDS.includes(workflowId)) throw new Error(`No workflow feedback probe for ${workflowId}`)
   if (workflowId === 'home-live-lineup' || workflowId === 'lineup-day-change') {
-    await markDynamicTarget(browser, session,
+    const label = await markDynamicTarget(browser, session,
       `document.querySelector('[aria-current="date"]')?.parentElement?.querySelector(':scope > button[aria-label]:not([aria-current])')`,
       'data-e2e-feedback-target')
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
-      expected: `document.querySelector('[data-e2e-feedback-target="true"]')?.getAttribute('aria-current') === 'date'`,
+      expected: `document.querySelector('[aria-current="date"]')?.getAttribute('aria-label') === ${JSON.stringify(label)}`,
       interaction: 'lineup-day-select', target: workflowId,
     })
     return result

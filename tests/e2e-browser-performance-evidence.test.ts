@@ -1,3 +1,4 @@
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -246,25 +247,39 @@ describe('browser performance evidence', () => {
     expect(browser).toHaveBeenCalledWith('session', ['fill', '[aria-label="FAAB bid amount"]', '0'])
   })
 
-  it('keeps the lineup feedback target inside the selected day row', async () => {
-    let targetSource = ''
+  it('observes the selected date after Home replaces its day controls', async () => {
+    const targetLabel = 'Monday, July 6, no games'
+    let selectedLabel = 'Sunday, July 12'
+    let targetMounted = true
+    let expected!: () => boolean
     const browser = vi.fn(async (_session: string, args: string[]) => {
-      if (args[0] === 'click') return ''
-      const source = args[1]
-      if (source.includes('target.setAttribute')) {
-        targetSource = source
-        return JSON.stringify({ ok: true, label: 'Monday, July 6, no games' })
+      if (args[0] === 'click') {
+        targetMounted = false
+        selectedLabel = targetLabel
+        expect(expected()).toBe(true)
+        selectedLabel = 'Tuesday, July 7'
+        expect(expected()).toBe(false)
+        selectedLabel = targetLabel
+        return ''
       }
-      if (source.includes('expectedBeforeAction')) return JSON.stringify({ ok: true, expectedBeforeAction: false })
-      if (source.includes('const deadline')) return JSON.stringify({ feedbackMs: 12.4, observed: true })
+      const source = args[1]
+      if (source.includes('target.setAttribute')) return JSON.stringify({ ok: true, label: targetLabel })
+      if (source.includes('expectedBeforeAction')) {
+        const declaration = source.match(/const expected = \(\) => Boolean\(.*\);/)?.[0]
+        expect(declaration).toBeDefined()
+        expected = runInNewContext(`${declaration} expected`, { document: {
+          querySelector: (selector: string) => selector === '[aria-current="date"]'
+            ? { getAttribute: () => selectedLabel }
+            : targetMounted ? { getAttribute: () => null } : null,
+        } })
+        return JSON.stringify({ expectedBeforeAction: expected() })
+      }
+      if (source.includes('const deadline')) return JSON.stringify({ feedbackMs: 12.4, observed: expected() })
       throw new Error(`Unexpected browser command: ${args.join(' ')}`)
     })
 
     await expect(measureWorkflowFeedback(browser, 'session', { workflowId: 'home-live-lineup', label: 'home' }))
       .resolves.toMatchObject({ feedbackMs: 12.4, observed: true, interaction: 'lineup-day-select' })
-    expect(targetSource).toContain(".parentElement?.querySelector(':scope > button[aria-label]:not([aria-current])')")
-    expect(targetSource).not.toContain('.parentElement?.parentElement')
-    expect(targetSource).not.toContain('Open auto-set lineup options')
     expect(browser).toHaveBeenCalledWith('session', ['click', '[data-e2e-feedback-target="true"]'])
   })
 })

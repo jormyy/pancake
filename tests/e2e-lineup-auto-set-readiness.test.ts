@@ -52,8 +52,9 @@ it('confirms the sheet opens before holding its next refresh', async () => {
         return ''
     })
     const record = vi.fn()
-    await checkAutoSetRefreshReadiness('lineup', record)
+    await checkAutoSetRefreshReadiness('lineup', record, async () => ({ source: 'lineup-change' }))
     expect(events.slice(0, 3)).toEqual(['sheet-ready', 'hold-refresh', 'release-refresh'])
+    expect(record).toHaveBeenCalledWith({ refreshTrigger: { source: 'lineup-change' } })
     expect(record).toHaveBeenCalledWith({ refreshReadiness: {
         choices: choices.map((label) => ({ label, visible: true, disabled: true })), cancelAvailable: true,
     } })
@@ -65,7 +66,7 @@ it('fails a missing sheet before it can freeze a refresh', async () => {
         if (args[0] === 'wait') throw missing
         throw new Error('Refresh started before the sheet opened')
     })
-    await expect(checkAutoSetRefreshReadiness('lineup', vi.fn())).rejects.toBe(missing)
+    await expect(checkAutoSetRefreshReadiness('lineup', vi.fn(), async () => undefined)).rejects.toBe(missing)
     expect(mocks.browser).toHaveBeenCalledTimes(1)
 })
 
@@ -81,4 +82,19 @@ it('settles the preceding save reads before checking and tapping its opener', as
     expect(commands[1][2]).toContain('Open auto-set lineup options')
     expect(commands[2]).toEqual(['find', 'role', 'button', 'click', '--name', 'Open auto-set lineup options'])
     expect(commands[3][2]).toContain('Auto-set whole week')
+})
+
+it('releases held reads if the concurrent edit fails', async () => {
+    let held = false
+    mocks.browser.mockImplementation(async (_session: string, args: string[]) => {
+        if (args[0] === 'eval' && args[1].includes('const original = window.fetch;')) held = true
+        if (args[0] === 'eval' && args[1].includes('window.__pancakeReleaseAutoSetRefresh?.()')) held = false
+        return ''
+    })
+    const failure = new Error('Concurrent edit rejected')
+    await expect(checkAutoSetRefreshReadiness('lineup', vi.fn(), async () => {
+        expect(held).toBe(true)
+        throw failure
+    })).rejects.toBe(failure)
+    expect(held).toBe(false)
 })
