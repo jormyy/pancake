@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 const require = createRequire(import.meta.url)
@@ -63,6 +64,56 @@ describe('web module ID isolation', () => {
       }
     } finally {
       vi.unstubAllEnvs()
+      delete require.cache[configPath]
+    }
+  })
+})
+
+describe('web icon subset validation', () => {
+  const configPath = require.resolve('../metro.config.js')
+  const iconRoot = path.join(path.dirname(require.resolve('@expo/vector-icons/package.json')), 'build/vendor/react-native-vector-icons')
+  const fontPath = path.join(iconRoot, 'Fonts/MaterialIcons.ttf')
+  const glyphPath = path.join(iconRoot, 'glyphmaps/MaterialIcons.json')
+  const shippedGlyphs = require('../assets/fonts/MaterialIcons.glyphs.json')
+  const collector = require('../assets/fonts/collect-icons.js')
+  const context = {
+    resolveRequest: (_context: unknown, filePath: string) => ({ type: 'sourceFile', filePath }),
+  }
+
+  it('defers the source scan until web icons resolve and reuses successful validation', () => {
+    const scan = vi.spyOn(collector, 'collectMaterialIconNames').mockReturnValue({ menu: shippedGlyphs.menu })
+    delete require.cache[configPath]
+    try {
+      const resolve = require(configPath).resolver.resolveRequest
+      expect(scan).not.toHaveBeenCalled()
+      expect(resolve(context, fontPath, 'ios')).toEqual({ type: 'sourceFile', filePath: fontPath })
+      expect(resolve(context, glyphPath, 'android')).toEqual({ type: 'sourceFile', filePath: glyphPath })
+      expect(resolve(context, '/ordinary.js', 'web')).toEqual({ type: 'sourceFile', filePath: '/ordinary.js' })
+      expect(scan).not.toHaveBeenCalled()
+      expect(resolve(context, fontPath, 'web')).toEqual({
+        type: 'assetFiles', filePaths: [path.resolve('assets/fonts/MaterialIcons.woff2')],
+      })
+      expect(resolve(context, glyphPath, 'web')).toEqual({
+        type: 'sourceFile', filePath: path.resolve('assets/fonts/MaterialIcons.glyphs.json'),
+      })
+      expect(scan).toHaveBeenCalledExactlyOnceWith(process.cwd())
+    } finally {
+      scan.mockRestore()
+      delete require.cache[configPath]
+    }
+  })
+
+  it.each([fontPath, glyphPath])('rejects an incomplete subset before substituting %s', (filePath) => {
+    const scan = vi.spyOn(collector, 'collectMaterialIconNames').mockReturnValue({ menu: shippedGlyphs.menu + 1 })
+    delete require.cache[configPath]
+    try {
+      const resolve = require(configPath).resolver.resolveRequest
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        expect(() => resolve(context, filePath, 'web')).toThrow('MaterialIcons subset is missing menu.')
+      }
+      expect(scan).toHaveBeenCalledTimes(2)
+    } finally {
+      scan.mockRestore()
       delete require.cache[configPath]
     }
   })
