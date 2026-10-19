@@ -5,6 +5,6 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   FROM public.nba_games game
   WHERE game.game_date BETWEEN p_start_date AND p_end_date
     AND (p_season_year IS NULL OR game.season_year=p_season_year)
-    AND game.nba_game_id LIKE '002%'
+    AND public.is_regular_season_game_id(game.nba_game_id)
     AND private.lineup_game_available(game.status,game.game_status_text);
 $$;

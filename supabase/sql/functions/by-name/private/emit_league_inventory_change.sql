@@ -43,10 +43,7 @@ BEGIN
         THEN jsonb_agg(detail ORDER BY detail::text) END AS details
       FROM distinct_details GROUP BY league_id ORDER BY league_id
   $query$,v_rows,v_details) LOOP
-    INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes,details)
-      VALUES(v_change.league_id,'inventory',1,NULL,v_change.details)
-    ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,
-      scopes=NULL,details=EXCLUDED.details,updated_at=clock_timestamp();
+    PERFORM private.publish_league_inventory_hint(v_change.league_id,v_change.details);
   END LOOP;
   RETURN NULL;
 END;
