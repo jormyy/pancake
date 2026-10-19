@@ -90,7 +90,7 @@ async function withoutHintWait(statement, label) {
   assert(finished, `${label}: independent writer must finish while the first transaction stays open`)
   const result = await pending
   pending = null
-  if (result.error) throw result.error
+  if ('error' in result) throw result.error
   checks++
 }
 try {
