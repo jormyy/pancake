@@ -1,0 +1,460 @@
+[
+  {
+    "id": "L01",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
+    "line": 20,
+    "symbol": "public.save_live_game_stats_atomic(uuid,text,jsonb,numeric)",
+    "operator": "condition",
+    "original": "v_game.live_stats_elapsed_seconds>p_elapsed_seconds",
+    "mutated": "v_game.live_stats_elapsed_seconds<p_elapsed_seconds",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql"
+    ]
+  },
+  {
+    "id": "L02",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
+    "line": 20,
+    "symbol": "public.save_live_game_stats_atomic(uuid,text,jsonb,numeric)",
+    "operator": "condition",
+    "original": "v_game.status='Final' OR ",
+    "mutated": "",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql"
+    ]
+  },
+  {
+    "id": "L03",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
+    "line": 20,
+    "symbol": "public.save_live_game_stats_atomic(uuid,text,jsonb,numeric)",
+    "operator": "condition",
+    "original": "v_game.live_stats_elapsed_seconds>p_elapsed_seconds",
+    "mutated": "v_game.live_stats_elapsed_seconds>=p_elapsed_seconds",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql"
+    ]
+  },
+  {
+    "id": "L04",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
+    "line": 49,
+    "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
+    "operator": "condition",
+    "original": "v_game.live_scoreboard_elapsed_seconds>p_elapsed_seconds",
+    "mutated": "v_game.live_scoreboard_elapsed_seconds<p_elapsed_seconds",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql"
+    ]
+  },
+  {
+    "id": "L05",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
+    "line": 49,
+    "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
+    "operator": "condition",
+    "original": "v_game.status='Final' OR ",
+    "mutated": "",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql"
+    ]
+  },
+  {
+    "id": "L06",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
+    "line": 51,
+    "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
+    "operator": "condition",
+    "original": "home_score=p_home_score,away_score=p_away_score",
+    "mutated": "home_score=p_away_score,away_score=p_home_score",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql"
+    ]
+  },
+  {
+    "id": "L07",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261011000062_fail_fast_on_changed_game_and_score_inputs.sql",
+    "line": 88,
+    "symbol": "public.save_game_stats_atomic(uuid,text,jsonb,boolean)",
+    "operator": "condition",
+    "original": "points = EXCLUDED.points",
+    "mutated": "points = stored.points",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/game-stats-completion.sql"
+    ]
+  },
+  {
+    "id": "L08",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261011000062_fail_fast_on_changed_game_and_score_inputs.sql",
+    "line": 50,
+    "symbol": "public.save_game_stats_atomic(uuid,text,jsonb,boolean)",
+    "operator": "condition",
+    "original": "v_game.nba_game_id IS DISTINCT FROM p_provider_game_id",
+    "mutated": "false",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/game-stats-completion.sql"
+    ]
+  },
+  {
+    "id": "L09",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261011000062_fail_fast_on_changed_game_and_score_inputs.sql",
+    "line": 65,
+    "symbol": "public.save_game_stats_atomic(uuid,text,jsonb,boolean)",
+    "operator": "condition",
+    "original": "row.game_id IS DISTINCT FROM p_game_id",
+    "mutated": "false",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/game-stats-completion.sql"
+    ]
+  },
+  {
+    "id": "L10",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261011000062_fail_fast_on_changed_game_and_score_inputs.sql",
+    "line": 109,
+    "symbol": "public.save_game_stats_atomic(uuid,text,jsonb,boolean)",
+    "operator": "condition",
+    "original": "IS DISTINCT FROM ROW(EXCLUDED.player_id",
+    "mutated": "IS NOT DISTINCT FROM ROW(EXCLUDED.player_id",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/game-stats-completion.sql"
+    ]
+  },
+  {
+    "id": "L11",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
+    "line": 42,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "condition",
+    "original": "p_now+interval '2 minutes'",
+    "mutated": "p_now+interval '1 minute'",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-ingestion-work.sql"
+    ]
+  },
+  {
+    "id": "L12",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
+    "line": 53,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "condition",
+    "original": "attempt.stats_attempted_at <= p_now-interval '30 minutes'",
+    "mutated": "attempt.stats_attempted_at < p_now-interval '30 minutes'",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-ingestion-work.sql"
+    ]
+  },
+  {
+    "id": "L13",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
+    "line": 58,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "condition",
+    "original": "AND private.lineup_game_available(game.status,game.game_status_text)",
+    "mutated": "",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-ingestion-work.sql"
+    ]
+  },
+  {
+    "id": "L14",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
+    "line": 56,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "condition",
+    "original": "(p_now AT TIME ZONE 'America/New_York')::date-1",
+    "mutated": "(p_now AT TIME ZONE 'America/New_York')::date-2",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-ingestion-work.sql"
+    ]
+  },
+  {
+    "id": "L15",
+    "area": "live-streams",
+    "file": "supabase/functions/_shared/gameProgress.ts",
+    "line": 7,
+    "symbol": "supabase/functions/_shared/gameProgress.ts",
+    "operator": "condition",
+    "original": "period <= 4 ? 720 : 300",
+    "mutated": "period <= 5 ? 720 : 300",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/gameProgress.test.ts"
+    ]
+  },
+  {
+    "id": "L16",
+    "area": "live-streams",
+    "file": "supabase/functions/_shared/gameProgress.ts",
+    "line": 9,
+    "symbol": "supabase/functions/_shared/gameProgress.ts",
+    "operator": "condition",
+    "original": "length - remaining",
+    "mutated": "length + remaining",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/gameProgress.test.ts"
+    ]
+  },
+  {
+    "id": "L17",
+    "area": "live-streams",
+    "file": "hooks/use-matchup-data.ts",
+    "line": 566,
+    "symbol": "hooks/use-matchup-data.ts",
+    "operator": "condition",
+    "original": "eventTime < (eventTimes.get(row.id) ?? -Infinity)",
+    "mutated": "eventTime > (eventTimes.get(row.id) ?? -Infinity)",
+    "oracles": [
+      "npx vitest run tests/hooks/matchup-realtime-boundary.test.ts"
+    ]
+  },
+  {
+    "id": "W01",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261018000012_harden_function_paths_and_lineup_actor_checks.sql",
+    "line": 24,
+    "symbol": "public.compute_fantasy_points(uuid,uuid)",
+    "operator": "condition",
+    "original": "v_stats.did_not_play",
+    "mutated": "NOT v_stats.did_not_play",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-corrections.ts",
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/weekly-formula-boundaries.sql"
+    ]
+  },
+  {
+    "id": "W02",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261018000012_harden_function_paths_and_lineup_actor_checks.sql",
+    "line": 29,
+    "symbol": "public.compute_fantasy_points(uuid,uuid)",
+    "operator": "condition",
+    "original": "v_stats.points,                  0) *",
+    "mutated": "v_stats.points,                  0) +",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-corrections.ts",
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/weekly-formula-boundaries.sql"
+    ]
+  },
+  {
+    "id": "W03",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261018000012_harden_function_paths_and_lineup_actor_checks.sql",
+    "line": 34,
+    "symbol": "public.compute_fantasy_points(uuid,uuid)",
+    "operator": "condition",
+    "original": "v_stats.turnovers,               0) *",
+    "mutated": "v_stats.turnovers,               0) +",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-corrections.ts",
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/weekly-formula-boundaries.sql"
+    ]
+  },
+  {
+    "id": "W04",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261019120001_preserve_rebuilt_standings_certificates.sql",
+    "line": 7,
+    "symbol": "private.rebuild_regular_standings(uuid,uuid)",
+    "operator": "condition",
+    "original": "result.winner_member_id = member.id",
+    "mutated": "result.winner_member_id <> member.id",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql"
+    ]
+  },
+  {
+    "id": "W05",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261019120001_preserve_rebuilt_standings_certificates.sql",
+    "line": 9,
+    "symbol": "private.rebuild_regular_standings(uuid,uuid)",
+    "operator": "condition",
+    "original": "result.winner_member_id IS NULL",
+    "mutated": "result.winner_member_id IS NOT NULL",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql"
+    ]
+  },
+  {
+    "id": "W06",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261019120001_preserve_rebuilt_standings_certificates.sql",
+    "line": 20,
+    "symbol": "private.rebuild_regular_standings(uuid,uuid)",
+    "operator": "condition",
+    "original": "result.week_number <= weeks.week_number",
+    "mutated": "result.week_number < weeks.week_number",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql"
+    ]
+  },
+  {
+    "id": "W07",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261019120001_preserve_rebuilt_standings_certificates.sql",
+    "line": 11,
+    "symbol": "private.rebuild_regular_standings(uuid,uuid)",
+    "operator": "condition",
+    "original": "THEN result.away_points ELSE result.home_points END",
+    "mutated": "THEN result.home_points ELSE result.away_points END",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql"
+    ]
+  },
+  {
+    "id": "W08",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 204,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "condition",
+    "original": "if (homePoints > awayPoints) return matchup.home_member_id",
+    "mutated": "if (homePoints < awayPoints) return matchup.home_member_id",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts supabase/functions/_shared/finalizationWrite.test.ts"
+    ]
+  },
+  {
+    "id": "W09",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 205,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "condition",
+    "original": "if (awayPoints > homePoints) return matchup.away_member_id",
+    "mutated": "if (awayPoints < homePoints) return matchup.away_member_id",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts supabase/functions/_shared/finalizationWrite.test.ts"
+    ]
+  },
+  {
+    "id": "W10",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 474,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "condition",
+    "original": "toETDate(referenceDate) > endDate",
+    "mutated": "toETDate(referenceDate) < endDate",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts supabase/functions/_shared/finalizationWrite.test.ts"
+    ]
+  },
+  {
+    "id": "W11",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 477,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "condition",
+    "original": "const maxPossiblePointsByMember = certifiedMaxPossiblePoints ?? new Map<string, number>()",
+    "mutated": "const maxPossiblePointsByMember = new Map<string, number>()",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts supabase/functions/_shared/finalizationWrite.test.ts"
+    ]
+  },
+  {
+    "id": "W12",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/scoreLineups.ts",
+    "line": 322,
+    "symbol": "supabase/functions/_shared/scoreLineups.ts",
+    "operator": "condition",
+    "original": ".neq('slot_type', 'BE')",
+    "mutated": ".neq('slot_type', 'UTIL')",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreLineupsBatch.test.ts supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "W13",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/scoreLineups.ts",
+    "line": 277,
+    "symbol": "supabase/functions/_shared/scoreLineups.ts",
+    "operator": "condition",
+    "original": "b.candidate.points - a.candidate.points",
+    "mutated": "a.candidate.points - b.candidate.points",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreLineupsBatch.test.ts supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "W14",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/scoreLineups.ts",
+    "line": 498,
+    "symbol": "supabase/functions/_shared/scoreLineups.ts",
+    "operator": "condition",
+    "original": "(pointsByMember.get(row.member_id) ?? 0) +",
+    "mutated": "(pointsByMember.get(row.member_id) ?? 0) -",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreLineupsBatch.test.ts supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "W15",
+    "area": "weekly-scoring",
+    "file": "supabase/functions/_shared/scoreLineups.ts",
+    "line": 301,
+    "symbol": "supabase/functions/_shared/scoreLineups.ts",
+    "operator": "condition",
+    "original": "best = Math.max(best, candidate.points +",
+    "mutated": "best = Math.min(best, candidate.points +",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreLineupsBatch.test.ts supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "W16",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261018000006_queue_matchup_final_notifications.sql",
+    "line": 69,
+    "symbol": "public.finalize_score_week_atomic(uuid,uuid,integer,jsonb,jsonb,timestamp with time zone,timestamp with time zone)",
+    "operator": "condition",
+    "original": "OR NOT private.lock_current_score_inputs",
+    "mutated": "OR private.lock_current_score_inputs",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql"
+    ]
+  },
+  {
+    "id": "W17",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261018000006_queue_matchup_final_notifications.sql",
+    "line": 151,
+    "symbol": "public.finalize_score_week_atomic(uuid,uuid,integer,jsonb,jsonb,timestamp with time zone,timestamp with time zone)",
+    "operator": "condition",
+    "original": "is_finalized = true",
+    "mutated": "is_finalized = false",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql"
+    ]
+  },
+  {
+    "id": "W18",
+    "area": "weekly-scoring",
+    "file": "supabase/migrations/20261020000030_schedule_idle_score_recovery.sql",
+    "line": 34,
+    "symbol": "public.invoke_live_poll_if_due()",
+    "operator": "condition",
+    "original": "PERFORM public.invoke_edge_function('sync-scores');",
+    "mutated": "RETURN;",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/weekly-idle-dispatch.sql"
+    ]
+  }
+]

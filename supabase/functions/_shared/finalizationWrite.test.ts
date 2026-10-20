@@ -3,7 +3,7 @@
 Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:1')
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 
-const { finalizationWriteNeeded } = await import('./syncScores.ts')
+const { finalizationWriteNeeded, resolveMatchupWinnerForScore } = await import('./syncScores.ts')
 
 const HOME = '00000000-0000-4000-8000-00000000000a'
 const AWAY = '00000000-0000-4000-8000-00000000000b'
@@ -49,4 +49,21 @@ Deno.test('an in-window correction that flips the winner is written', () => {
 Deno.test('a change in max-possible points is written', () => {
   assert(finalizationWriteNeeded(candidate({ homeMaxPossiblePoints: 121 })), 'home max change must write')
   assert(finalizationWriteNeeded(candidate({ away_max_possible_points: null })), 'missing stored max must write')
+})
+
+Deno.test('regular scores select either winner and preserve ties regardless of maxima', () => {
+  const matchup = { matchup_type: 'regular_season', home_member_id: HOME, away_member_id: AWAY }
+  assert(resolveMatchupWinnerForScore(matchup, 12, 8, 1, 100) === HOME, 'home win')
+  assert(resolveMatchupWinnerForScore(matchup, 8, 12, 100, 1) === AWAY, 'away win')
+  assert(resolveMatchupWinnerForScore(matchup, 12, 12, 100, 1) === null, 'regular tie')
+  assert(resolveMatchupWinnerForScore(matchup, -1, -2, 0, 0) === HOME, 'negative scores')
+})
+
+Deno.test('playoff ties use maxima and then the home seed', () => {
+  for (const matchup_type of ['playoff_quarterfinal', 'playoff_semifinal', 'playoff_final']) {
+    const matchup = { matchup_type, home_member_id: HOME, away_member_id: AWAY }
+    assert(resolveMatchupWinnerForScore(matchup, 12, 12, 100, 99) === HOME, 'home max wins')
+    assert(resolveMatchupWinnerForScore(matchup, 12, 12, 99, 100) === AWAY, 'away max wins')
+    assert(resolveMatchupWinnerForScore(matchup, 12, 12, 100, 100) === HOME, 'home seed wins complete tie')
+  }
 })
