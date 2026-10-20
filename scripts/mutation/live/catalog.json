@@ -591,7 +591,7 @@
     "id": "L28",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 649,
+    "line": 650,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "STMT-DEL",
     "original": "input_token: liveInputToken,",
@@ -767,6 +767,45 @@
     "mutated": "NEW.week_number <> ALL(skipped_weeks)",
     "oracles": [
       "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-skip-first-week.ts"
+    ]
+  },
+  {
+    "id": "L29",
+    "area": "live-streams",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 664,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "NEG",
+    "original": "updateErr.code === 'PT409'",
+    "mutated": "updateErr.code !== 'PT409'",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "L30",
+    "area": "live-streams",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 664,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "LCR",
+    "original": "updateErr.code === 'PT409' &&",
+    "mutated": "updateErr.code === 'PT409' ||",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "L31",
+    "area": "live-streams",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 667,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "STMT-DEL",
+    "original": "onPublicationRetry()",
+    "mutated": "",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
     ]
   }
 ]

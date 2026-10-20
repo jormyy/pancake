@@ -38,12 +38,12 @@ def sql(area, name, signature, changes, oracles, operator='condition'):
         add(area, str(path), source.count('\n', 0, source.index(original, start)) + 1, name + signature, original, mutated, oracles, operator)
 
 
-def ts(area, file, changes, oracles):
+def ts(area, file, changes, oracles, operator='condition'):
     source = Path(file).read_text()
     for original, mutated in changes:
         if source.count(original) != 1:
             raise ValueError((file, original))
-        add(area, file, source.count('\n', 0, source.index(original)) + 1, file, original, mutated, oracles)
+        add(area, file, source.count('\n', 0, source.index(original)) + 1, file, original, mutated, oracles, operator)
 
 
 sql(LIVE, 'public.save_live_game_stats_atomic', '(uuid,text,jsonb,numeric)', [
@@ -161,6 +161,15 @@ sql('skipped-week', 'private.rebuild_regular_standings', '(uuid,uuid)', [
 sql('skipped-week', 'private.enforce_skipped_matchup', '()', [
     ('NEW.week_number = ANY(skipped_weeks)', 'NEW.week_number <> ALL(skipped_weeks)'),
 ], [db('scoring-skip-first-week')], 'NEG')
+ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
+    ("updateErr.code === 'PT409'", "updateErr.code !== 'PT409'"),
+], [unit('scoreCertifiedMax')], 'NEG')
+ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
+    ("updateErr.code === 'PT409' &&", "updateErr.code === 'PT409' ||"),
+], [unit('scoreCertifiedMax')], 'LCR')
+ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
+    ('onPublicationRetry()', ''),
+], [unit('scoreCertifiedMax')], 'STMT-DEL')
 legacy_operators = {
     'L': ['ROR', 'STMT-DEL', 'ROR', 'ROR', 'STMT-DEL', 'ARG-SWAP', 'ARG-SWAP', 'CONST', 'CONST', 'NEG',
           'CONST', 'ROR', 'STMT-DEL', 'CONST', 'CONST', 'AOR', 'ROR', 'STMT-DEL', 'STMT-DEL', 'STMT-DEL',
