@@ -7,7 +7,7 @@ import { replay } from './replay.mjs'
 export async function runSegment(name, options = {}) {
   if (!segmentNames.includes(name)) throw new Error(`Unknown segment: ${name}`)
   const started = Date.now()
-  const proof = { name, sourceSnapshot: path.join(snapshotRoot, name), startedAt: new Date().toISOString(), passed: false }
+  const proof = { name, sourceSnapshot: path.join(snapshotRoot(), name), startedAt: new Date().toISOString(), passed: false }
   try {
     const snapshot = await restoreSnapshot(name)
     let interruptions = []
