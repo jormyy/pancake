@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { remapGame } from './next-season.mjs'
+import { nextSeasonMorning, remapGame } from './next-season.mjs'
+
+test('next-season mornings preserve worker time advanced by snapshot preparation', async () => {
+  let clock = Date.parse('2026-10-20T14:00:11Z')
+  const move = async at => {
+    assert.ok(at >= clock, 'Snapshot preparation must not cause a later morning rewind')
+    clock = at
+  }
+  await nextSeasonMorning('2026-10-20', move, async () => clock)
+  assert.equal(clock, Date.parse('2026-10-20T14:00:11Z'))
+  await nextSeasonMorning('2026-10-21', move, async () => clock)
+  assert.equal(clock, Date.parse('2026-10-21T14:00:00Z'))
+})
 
 test('next-season synthetic mapping changes game identity and times without changing player lines', () => {
   const box = { game: { gameId: 'old', homeTeam: { players: [{ personId: 1, statistics: { points: 22 } }] } } }

@@ -108,6 +108,15 @@ node scripts/season-sim/index.mjs --segment live-week \
 
 The generated restore and segment proofs record function hashes and overlay hashes.
 A missing snapshot or failed baseline cannot serve as a mutation oracle.
+Every replay snapshot waits for pending dispatch, active handlers, and in-flight fetches.
+Preparation steps sleeping worker deadlines through the normal cadence driver.
+The clock stays paused during I/O, and every intervening cron minute still runs.
+Preparation fails after two real minutes or two business minutes of worker deadlines.
+The writer checks for quiescence again before dumping data.
+An offline retained-state dump requires a refused runtime connection and no unfinished dispatch.
+Snapshot metadata records the final wait; the replay records preparation time and business-clock steps.
+This applies to waiver-week, live-week, pre-deadline, pre-playoffs, pre-rollover, post-rollover, pre-draft, and next-season-start.
+The pre-rollover snapshot follows the champion; post-rollover follows season advancement.
 The current integrated late-season diagnostic is incomplete.
 The base comparison, Tier 2 segment baselines, and pre-deadline segment proof are dropped from this card.
 
@@ -235,21 +244,28 @@ Success requires one complete date, live comparisons, an empty initial database,
 It writes `first-date-check.json`, restores native clocks, stops its project, and removes only its inspected backup volume.
 The real fresh replay omits this flag and still refuses a harness overlay.
 
+Use `--check-through 2025-10-27` instead to check all seven opening dates.
+This bounded mode requires both waiver-week and live-week snapshots.
+It writes `launcher-check.json` and performs the same clock, stack, and inspected-volume cleanup.
+It permits a recorded harness overlay and never counts as a fresh full replay.
+Dates after October 27 and conflicting check flags fail before stack startup.
+
 ## Delayed-tipoff reproduction
 
-The retained March 26 diagnostic misses quarter one of game `0022501063`.
+The retained March 26 diagnostic on `21f5a3bb` misses quarter one of game `0022501063`.
 The pinned play-by-play starts at 23:11:00.200 UTC and ends quarter one at 23:39:12.800 UTC.
 The game is scheduled for 23:00 UTC.
 The last pre-tipoff worker finishes at 23:10:20 UTC.
 No live worker runs during quarter one.
 The next worker starts at 23:40 UTC, when the first stored stat rows appear.
 
-`get_live_poll_work` stops frequent checks ten minutes after the scheduled tipoff.
+The old `get_live_poll_work` stops frequent checks ten minutes after the scheduled tipoff.
 Its late-game branch waits thirty minutes after the previous check.
 This leaves the entire first quarter without work for this game.
-The definition is in `supabase/migrations/20261018000003_bound_live_ingestion.sql`, lines 42–47.
-The worker also uses a ten-minute scheduled-start window in `supabase/functions/live-poll/runner.ts`.
-This is an application candidate; the simulator keeps every required quarter.
+The original definition is in `supabase/migrations/20261018000003_bound_live_ingestion.sql`, lines 42–47.
+Migration `20261020000033_poll_delayed_tipoffs.sql` extends frequent checks through 45 minutes after the scheduled tipoff.
+The worker now follows `needs_scoreboard` through `supabase/functions/live-poll/policy.ts`.
+The simulator keeps every required quarter.
 
 Run this probe on a stopped-worker diagnostic database that already contains this scheduled game:
 
@@ -265,14 +281,18 @@ Its synthetic probe state is separate from its real-derived fixture snapshots.
 The report is `evidence/delayed-tipoff-probe.json`.
 It exits nonzero when every first-quarter cron tick has no work.
 It checks that the retained game and attempt rows remain unchanged.
-The current integration returns no work at all fourteen ticks from 23:12 through 23:38 UTC.
+The `cb74d8f7` integration returns no work at all fourteen ticks from 23:12 through 23:38 UTC.
+The unchanged probe on `658dd95c` returns work at all fourteen ticks and exits zero.
+The fixture and oracle hashes match across that red/green pair.
 
 The retained diagnostic completes March 23–25 and stops at the March 26 coverage check.
 It creates two semifinal rows automatically on March 25.
 It does not reach a finalized semifinal, final, champion, rollover, or rookie draft.
 Champion-dependent trading, offseason picks, rolling waivers, next-season limits, and skipped-week/DST flows remain unmeasured.
-The missing first-quarter application behavior blocks their integrated diagnostic proof.
-The nearest retained snapshot is `pre-playoffs`; no later snapshot exists yet.
+The corrected diagnostic resumes from `pre-playoffs` and continues through those paths.
+Their measured results still require its generated evidence.
+Next-season morning steps preserve any worker time advanced during snapshot preparation.
+Rookie expiry waits for the first cron minute strictly after the recorded pick expiry.
 
 Measured game-date times are 259.369 seconds for October 21 and 416.999–509.463 seconds for March 23–25.
 These measurements use earlier retained source copies, rather than the running fresh replay.
