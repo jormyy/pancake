@@ -10,6 +10,7 @@ export type SegmentOption<T extends string> = {
     label: string
     value: T
     badge?: number
+    reserveBadge?: boolean
     accessibilityLabel?: string
 }
 
@@ -147,8 +148,8 @@ export function SegmentedControl<T extends string>({
                 <Text style={tabs ? [styles.tabLabel, active && styles.tabLabelActive] : [styles.label, active && styles.labelActive]} numberOfLines={1}>
                     {opt.label}
                 </Text>
-                {typeof opt.badge === 'number' && opt.badge > 0 ? (
-                    <View style={tabs ? styles.tabBadge : [styles.badge, active && styles.badgeActive]}>
+                {opt.reserveBadge || typeof opt.badge === 'number' && opt.badge > 0 ? (
+                    <View style={[tabs ? styles.tabBadge : [styles.badge, active && styles.badgeActive], opt.reserveBadge && { width: 32 }, opt.reserveBadge && !opt.badge && { opacity: 0 }]}>
                         <Text style={tabs ? styles.tabBadgeText : [styles.badgeText, active && styles.badgeTextActive]}>{opt.badge}</Text>
                     </View>
                 ) : null}

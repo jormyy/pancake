@@ -1,4 +1,5 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native'
+import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
+import { View, Text, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { LeaguePickItem } from '@/lib/rookieDraft'
 import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
@@ -181,7 +182,7 @@ function PicksLedgerHeader({
                 : option.value === 'traded'
                   ? `Show traded draft picks, ${pickCountState(tradedCount)}`
                   : `Show all draft picks, ${pickCountState(totalCount)}`
-        return { ...option, badge, accessibilityLabel }
+        return { ...option, badge: loading ? undefined : badge, reserveBadge: true, accessibilityLabel }
     })
 
     // The filter counts already say how many picks there are, so the header is
@@ -348,8 +349,8 @@ export function PicksBankList({
         : pickListAccessibilityLabel(activeFilter, visiblePicks.length)
     const empty = loading
         ? {
-              message: 'Loading draft assets...',
-              description: 'Fetching future picks and traded ownership.',
+              message: '',
+              description: '',
           }
         : pickEmptyCopy(activeFilter, picks.length > 0)
     const panelAccessibilityLabel = pickPanelAccessibilityLabel({
@@ -429,7 +430,7 @@ export function PicksBankList({
                         accessibilityState={{ busy: loading }}
                         accessibilityLiveRegion="polite"
                     >
-                        <EmptyState message={empty.message} description={empty.description} fullScreen={false} />
+                        <View style={{ minHeight: 320 }}>{!loading ? <EmptyState message={empty.message} description={empty.description} fullScreen={false} /> : null}</View>
                     </View>
                 )}
             </View>

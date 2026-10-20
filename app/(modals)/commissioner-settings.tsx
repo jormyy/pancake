@@ -32,7 +32,7 @@ export default function CommissionerSettingsScreen() {
     const compactMobile = width <= 400
     const { padX } = usePageMetrics()
     const {
-        adjustSlot, authorityReady, busyAction, draft, handleAddCountOverride, handleDeleteLeague,
+        adjustSlot, authorityReady, busyAction, draft, hasDraft, handleAddCountOverride, handleDeleteLeague,
         handleFaabOverride, isCommissioner, lifecycle, loadError, loadState, lowerPriorityActions,
         members, playoffCalendar, playoffRoundsNeedReview, navigateBack, overrideAdds, overrideFaab, overrideMemberId,
         overrideSaving, retryLoad, save, saving, setOverrideAdds, setOverrideFaab,
@@ -65,7 +65,7 @@ export default function CommissionerSettingsScreen() {
         </ModalScreen>
     )
 
-    if (loadState !== 'ready') {
+    if ((!hasDraft && loadState !== 'ready') || loadState === 'unauthorized') {
         // While loading, only the header (identical to the loaded chrome)
         // renders — no placeholder card that would swap for the settings form.
         return <>
@@ -116,9 +116,12 @@ export default function CommissionerSettingsScreen() {
             <Stack.Screen options={{ title: 'League Settings', presentation: 'modal', headerShown: false }} />
             {frame(
                 <ScrollView
+                    aria-busy={!authorityReady}
+                    accessibilityState={{ busy: !authorityReady }}
                     contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }, compactLandscape && styles.scrollCompact]}
                     keyboardShouldPersistTaps="handled"
                 >
+                    {loadState === 'error' ? <ErrorBanner message={`${loadError ?? 'Could not load league settings.'} Tap to retry.`} onRetry={retryLoad} /> : null}
                     <View style={[styles.lifecycleCard, compactLandscape && styles.lifecycleCardCompact]}>
                         <View style={styles.lifecycleCopy}>
                             <Text style={styles.lifecycleTitle}>{lifecycle.label}</Text>

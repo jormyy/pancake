@@ -1,3 +1,5 @@
+import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import { AutoSetModal } from '@/components/AutoSetModal'
 import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
@@ -36,7 +38,6 @@ import { showAlert } from '@/lib/alert'
 import { useLocalSearchParams } from 'expo-router'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-    ScrollView,
     Switch,
     StyleSheet,
     Text,
@@ -198,7 +199,7 @@ const BenchRow = memo(function BenchRow({
     )
 })
 
-export default function LineupScreen() {
+function LineupScreen() {
     const back = useGoBack('/roster')
     const { padX, usableWidth, compact: compactDays } = usePageMetrics()
     // Wide screens set starters and bench side by side, so a move never needs a scroll.
@@ -206,7 +207,7 @@ export default function LineupScreen() {
     const { playerId: playerIdParam } = useLocalSearchParams<{ playerId?: string | string[] }>()
     const requestedPlayerId = Array.isArray(playerIdParam) ? playerIdParam[0] : playerIdParam
     const { user } = useAuth()
-    const { current, currentLeague, online } = useLeagueContext()
+    const { current, currentLeague, online, membershipValidated, membershipError, refresh: refreshLeague } = useLeagueContext()
     const userId = user?.id
     const memberId = current?.id
     const leagueId = currentLeague?.id
@@ -290,10 +291,14 @@ export default function LineupScreen() {
         setLineupError(getErrorMessage(error) ?? 'Could not load lineup.')
     }, [snapshotScope])
 
+    const missingContextPending = !snapshotScope && !membershipValidated && !membershipError
+    const missingContextError = snapshotScope ? null : membershipError?.message ?? null
     const lastReadRef = useRef<{ ownerKey: string; generation: number; date: string; at: number; leagueRevision: string; streamRevision: string | null } | null>(null)
     const load = useCallback((requestedDate?: string): Promise<boolean> => {
         if (!snapshotScope || !ownerKey) {
-            setCtx(null); setStarters([]); setBench([]); setWeekDays([]); setLineupLoading(false)
+            setCtx(null); setStarters([]); setBench([]); setWeekDays([])
+            setLineupLoading(missingContextPending)
+            setLineupError(missingContextError)
             return Promise.resolve(false)
         }
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return Promise.resolve(false)
@@ -375,7 +380,7 @@ export default function LineupScreen() {
                 && requestIsCurrent(requestId, generation)) void load(selectedDateRef.current)
         })
         return task
-    }, [snapshotScope, ownerKey, online, dataOwnerKey, currentDay, applySnapshot, requestIsCurrent, failedLoad, leagueRevision])
+    }, [snapshotScope, ownerKey, online, dataOwnerKey, currentDay, applySnapshot, requestIsCurrent, failedLoad, leagueRevision, missingContextPending, missingContextError])
 
     const previousOnlineRef = useRef(online)
     const contextDayRef = useRef(currentDay)
@@ -618,19 +623,21 @@ export default function LineupScreen() {
 
     if (!visibleCtx) {
         const emptyMessage = lineupLoading
-            ? 'Loading lineup...'
+            ? ''
             : lineupError
               ? 'Could not load lineup.'
-              : 'No active lineup yet.'
+              : !snapshotScope && membershipValidated ? 'No active league.' : 'No active lineup yet.'
         return (
+            <DeferredContent ready={!lineupLoading} fallback={<Page title="Lineup"><PageHeader title="Lineup" onBack={() => back()} backLabel="Close lineup" /></Page>}>
             <Page title="Lineup">
-                <View style={styles.empty}>
+                <PageHeader title="Lineup" onBack={() => back()} backLabel="Close lineup" />
+                <View style={[styles.empty, { minHeight: 320 }]} aria-busy={lineupLoading} accessibilityState={{ busy: lineupLoading }}>
                     <Text style={styles.emptyText}>{emptyMessage}</Text>
                     {lineupError ? <Text style={styles.emptySubtext}>{lineupError}</Text> : null}
                     {lineupError ? (
                         <MotionPressable
                             style={styles.retryButton}
-                            onPress={() => { void load() }}
+                            onPress={() => { if (!snapshotScope) void refreshLeague(); else void load() }}
                             accessibilityRole="button"
                             accessibilityLabel="Retry lineup load"
                             pressedScale={0.96}
@@ -640,12 +647,14 @@ export default function LineupScreen() {
                     ) : null}
                 </View>
             </Page>
+            </DeferredContent>
         )
     }
 
     const rosterEmpty = visibleStarters.every((s) => !s.player) && visibleBench.length === 0
 
     return (
+        <DeferredContent ready={(!lineupLoading && matchingDay) || Boolean(lineupError)}>
         <Page title="Lineup">
             <PageHeader
                 title={`Week ${visibleCtx.weekNumber} lineup`}
@@ -677,12 +686,6 @@ export default function LineupScreen() {
             {weekDays.length > 0 && (
                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
             )}
-
-            {readOnly && (!matchingDay || !online || lineupError) ? (
-                <View style={styles.statusBanner}>
-                    <Text style={styles.statusBannerText}>{!matchingDay ? 'Lineup unavailable for this day' : !online ? 'Saved lineup · Offline · Read only' : 'Saved lineup · Refresh failed · Read only'}</Text>
-                </View>
-            ) : null}
 
             {lineupError && online ? (
                 <View style={styles.errorBanner}>
@@ -804,6 +807,13 @@ export default function LineupScreen() {
                 ) : null}
                 </View>
             </ScrollView>
+            <ScreenStatusOverlay>
+                {readOnly && ((!matchingDay && !lineupLoading) || !online || lineupError) ? (
+                    <View style={styles.statusBanner}>
+                        <Text style={styles.statusBannerText}>{!matchingDay ? 'Lineup unavailable for this day' : !online ? 'Saved lineup · Offline · Read only' : 'Saved lineup · Refresh failed · Read only'}</Text>
+                    </View>
+                ) : null}
+            </ScreenStatusOverlay>
 
             <AutoSetModal
                 visible={autoSetModalVisible}
@@ -814,6 +824,7 @@ export default function LineupScreen() {
                 onRestOfSeason={() => { void doAutoSet(null, true) }}
             />
         </Page>
+        </DeferredContent>
     )
 }
 
@@ -962,3 +973,7 @@ const styles = StyleSheet.create({
     },
     retryButtonText: { fontSize: fontSize.sm, color: colors.textWhite, fontWeight: fontWeight.bold },
 })
+
+export default function LineupScreenWithStatus() {
+    return <ScreenStatusProvider><LineupScreen /></ScreenStatusProvider>
+}

@@ -1,3 +1,4 @@
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
@@ -17,9 +18,9 @@ vi.mock('@/lib/bracket', () => ({ getPlayoffBracket: state.getBracket }))
 vi.mock('@/lib/format', () => ({ formatPoints: String }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/ui/ModalScreen', () => ({ ModalScreen: 'ModalScreen' }))
-vi.mock('@/components/ui', () => ({ LoadingState: 'LoadingState', usePageMetrics: () => ({ padX: 16, usableWidth: 1200 }) }))
+vi.mock('@/components/ui', () => ({ ErrorBanner: 'ErrorBanner', LoadingState: 'LoadingState', usePageMetrics: () => ({ padX: 16, usableWidth: 1200 }) }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-beforeEach(() => { vi.clearAllMocks(); state.active = true; state.epoch = 0; state.getBracket.mockResolvedValue(null) })
+beforeEach(() => { clearPersistentCaches(); vi.clearAllMocks(); state.active = true; state.epoch = 0; state.getBracket.mockResolvedValue(null) })
 it('defers bracket reads until the visible connected route returns', async () => {
     state.active = false
     let view!: ReactTestRenderer
@@ -43,5 +44,36 @@ it('discards a bracket reply after suspension and replays one refresh', async ()
     await act(async () => view.update(React.createElement(BracketScreen)))
     expect(state.getBracket).toHaveBeenCalledTimes(2)
     expect(view.root.findAllByType('EmptyState' as React.ElementType)).toHaveLength(1)
+    await act(async () => view.unmount())
+})
+it('keeps settled empty content visible through revalidation and a failed refresh', async () => {
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(BracketScreen)) })
+    let fail!: (error: Error) => void
+    state.getBracket.mockReturnValueOnce(new Promise((_, reject) => { fail = reject }))
+    state.epoch += 1
+    await act(async () => view.update(React.createElement(BracketScreen)))
+    expect(view.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
+    expect(view.root.findAllByType('EmptyState' as React.ElementType)[0].props.message).toBe('No playoff bracket yet')
+    expect(view.root.findAll(node => node.props['aria-busy'] === true)).toHaveLength(1)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await act(async () => fail(new Error('offline')))
+    expect(view.root.findAllByType('EmptyState' as React.ElementType)[0].props.message).toBe('No playoff bracket yet')
+    const banner = view.root.findByType('ErrorBanner' as React.ElementType)
+    expect(banner.props.message).toBe('Could not refresh the bracket.')
+    state.getBracket.mockResolvedValue(null)
+    await act(async () => banner.props.onRetry())
+    expect(view.root.findAllByType('ErrorBanner' as React.ElementType)).toHaveLength(0)
+    await act(async () => view.unmount())
+    error.mockRestore()
+})
+it('paints a saved bracket answer immediately on remount while the next read is pending', async () => {
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(BracketScreen)) })
+    await act(async () => view.unmount())
+    state.getBracket.mockReturnValue(new Promise(() => {}))
+    await act(async () => { view = create(React.createElement(BracketScreen)) })
+    expect(view.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
+    expect(view.root.findAllByType('EmptyState' as React.ElementType)[0].props.message).toBe('No playoff bracket yet')
     await act(async () => view.unmount())
 })

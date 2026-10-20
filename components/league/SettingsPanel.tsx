@@ -1,5 +1,6 @@
+import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { useEffect, useRef, useState } from 'react'
-import { Platform, View, Text, StyleSheet, ScrollView } from 'react-native'
+import { Platform, View, Text, StyleSheet } from 'react-native'
 import type { WaiverPriorityRow } from '@/lib/waivers'
 import { colors, fontSize, fontWeight, spacing, table, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'

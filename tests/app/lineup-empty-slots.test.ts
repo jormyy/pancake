@@ -6,13 +6,13 @@ import LineupScreen from '@/app/(modals)/lineup'
 import type { LineupPlayer } from '@/lib/lineup'
 
 const mocks = vi.hoisted(() => ({
-    context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number }, online: true },
+    context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
     lineup: { starters: [] as { slotType: string; player: null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
     invalidate: vi.fn(),
     readLineup: vi.fn(), readContext: vi.fn(), hidden: false,
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
-vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v } }))
+vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
@@ -57,6 +57,7 @@ beforeEach(() => {
     vi.stubGlobal('document', page)
     mocks.hidden = false
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
+    mocks.context.membershipValidated = false; mocks.context.membershipError = null
     mocks.context.online = true
     mocks.lineup = { starters: [{ slotType: 'PG', player: null }], bench: [], benchSlots: 3 }
     mocks.readContext.mockReset().mockImplementation(async (league: string) => ({ seasonId: `season-${league}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' }))
@@ -236,4 +237,34 @@ it('releases a held initial read on suspension and ignores its late result', asy
     await act(async () => { release({ starters: [], bench: [], benchSlots: 2 }) })
     expect(emptyRows()).toHaveLength(6)
     expect(mocks.readLineup).toHaveBeenCalledTimes(2)
+})
+
+
+it('waits for league identity before deciding that the lineup is empty', async () => {
+    mocks.context.current = null as unknown as typeof mocks.context.current
+    mocks.context.currentLeague = null as unknown as typeof mocks.context.currentLeague
+    await mount()
+    expect(JSON.stringify(screen.toJSON())).not.toContain('No active lineup yet.')
+    mocks.context.current = { id: 'member-a' }
+    mocks.context.currentLeague = { id: 'league-a' }
+    await act(async () => screen.update(React.createElement(LineupScreen)))
+    expect(emptyRows()).toHaveLength(3)
+})
+
+
+it('shows a settled missing league without calling it an empty lineup', async () => {
+    mocks.context.current = null as unknown as typeof mocks.context.current
+    mocks.context.currentLeague = null as unknown as typeof mocks.context.currentLeague
+    mocks.context.membershipValidated = true
+    await mount()
+    expect(JSON.stringify(screen.toJSON())).toContain('No active league.')
+    expect(JSON.stringify(screen.toJSON())).not.toContain('No active lineup yet.')
+})
+
+it('keeps a loaded lineup when membership validation alone changes', async () => {
+    await mount()
+    const reads = mocks.readLineup.mock.calls.length
+    mocks.context.membershipValidated = true
+    await act(async () => screen.update(React.createElement(LineupScreen)))
+    expect(mocks.readLineup).toHaveBeenCalledTimes(reads)
 })

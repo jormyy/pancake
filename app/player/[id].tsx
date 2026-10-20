@@ -1,3 +1,4 @@
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
@@ -110,7 +111,9 @@ export default function PlayerDetailScreen() {
             }
         } catch (e) {
             if (isCurrent(generation, requestedOwner)) {
-                setRosterStatusResource({ ownerIdentity: requestedOwner, status: null, error: getErrorMessage(e) })
+                setRosterStatusResource(previous => previous.ownerIdentity === requestedOwner
+                    ? { ...previous, error: getErrorMessage(e) }
+                    : { ownerIdentity: requestedOwner, status: null, error: getErrorMessage(e) })
             }
         }
     }, [memberId, id, leagueId, ownerIdentity, canRead, readEpoch, isCurrent])
@@ -171,7 +174,7 @@ export default function PlayerDetailScreen() {
     const showTransactions = leagueId != null && transactions.length > 0
     // Hold the body until every card's presence is known, so the page appears
     // fully formed instead of cards popping in one by one and shifting layout.
-    const contentReady = !loading && !seasonLoading && projectionSettled && transactionsSettled
+    const contentBusy = loading || seasonLoading || !projectionSettled || !transactionsSettled
     const dataWarnings = [
         playerError ? 'Player details could not refresh.' : null,
         rosterStatusError ? 'Roster status could not refresh.' : null,
@@ -236,7 +239,8 @@ export default function PlayerDetailScreen() {
                         player={player}
                         rosterStatus={rosterStatus}
                         claimPending={ownsRosterStatus && !!rosterStatusResource.claimPending}
-                        leagueActive={!!current && actionsReady}
+                        leagueActive={!!current || !membershipValidated}
+                        actionsReady={actionsReady}
                         actionLoading={dropping || quickAdd.adding === id}
                         dropDisabled={!actionsReady}
                         playedToday={playedToday}
@@ -251,8 +255,7 @@ export default function PlayerDetailScreen() {
                     </View>
                     </View>
 
-                    {contentReady ? (
-                        <>
+                    <DeferredContent ready={!contentBusy}>
                             {dataWarnings.map((message) => (
                                 <View key={message} style={styles.warningBanner}>
                                     <Text style={styles.warningText}>{message}</Text>
@@ -274,8 +277,7 @@ export default function PlayerDetailScreen() {
                                     {historySection}
                                 </>
                             )}
-                        </>
-                    ) : null}
+                    </DeferredContent>
                 </ScrollView>
             </Page>
 

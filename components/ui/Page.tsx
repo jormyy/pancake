@@ -82,6 +82,7 @@ export function BackButton({ onPress, label = 'Back' }: { onPress: () => void; l
 export function PageHeader({
     title,
     meta,
+    reserveMeta = false,
     tabs,
     actions,
     onBack,
@@ -90,6 +91,7 @@ export function PageHeader({
 }: {
     title?: string
     meta?: string
+    reserveMeta?: boolean
     tabs?: ReactNode
     actions?: ReactNode
     onBack?: () => void
@@ -108,7 +110,7 @@ export function PageHeader({
                 {tabs ?? (title ? (
                     <>
                         <Text style={textStyles.pageTitle} numberOfLines={1} {...headingProps}>{title}</Text>
-                        {meta ? <Text style={textStyles.meta} numberOfLines={1}>{meta}</Text> : null}
+                        {meta || reserveMeta ? <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]} numberOfLines={1}>{meta ?? ''}</Text> : null}
                     </>
                 ) : null)}
             </View>

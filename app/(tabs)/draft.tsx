@@ -2,7 +2,7 @@ import DraftRoomScreen from '@/app/(modals)/draft-room'
 import { useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { EmptyState } from '@/components/EmptyState'
-import { Page, PageHeader } from '@/components/ui'
+import { ErrorBanner, LoadingState, Page, PageHeader } from '@/components/ui'
 import { useGoBack } from '@/components/ui/useGoBack'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
@@ -19,15 +19,18 @@ export default function DraftRoomTab() {
         }, [openDraftRoom]),
     )
 
-    const checking = (currentLeague?.id && !draftChecked) || draftLoading || draft?.draftType === 'snake'
+    const checking = (currentLeague?.id && !draftChecked) || (draftLoading && !draftChecked) || draft?.draftType === 'snake'
 
-    if (draft && !checking) return <DraftRoomScreen key={draft.id} resolvedDraftId={draft.id} />
+    if (draft && !checking) return <>
+        {draftError ? <ErrorBanner message={draftError} onRetry={() => { void openDraftRoom({ fallbackOnMissing: false }) }} /> : null}
+        <DraftRoomScreen key={draft.id} resolvedDraftId={draft.id} />
+    </>
 
     return (
         <Page title="Draft Room">
             <PageHeader title="Draft Room" onBack={goBack} />
             {checking ? (
-                <EmptyState icon="flash-on" message="Checking for a live draft" />
+                <LoadingState />
             ) : draftError ? (
                 <EmptyState
                     icon="error-outline"

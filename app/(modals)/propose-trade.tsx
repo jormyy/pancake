@@ -1,3 +1,4 @@
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
 import { invalidateSeasonCache } from '@/lib/shared/season'
@@ -106,6 +107,7 @@ export default function ProposeTradeScreen() {
     const draftOwnerRef = useRef<string | null>(null)
     const restoredDraftRef = useRef(false)
     const [draftReady, setDraftReady] = useState(false)
+    const [prefillSettledKey, setPrefillSettledKey] = useState<string | null>(null)
     const { mode, editTradeId, counterTradeId, sourceTradeId } = getTradeComposerMode(params)
     const canUseMultiTeamMode = mode === 'propose'
     const faabEnabled = currentLeague?.waiver_mode === 'faab'
@@ -180,7 +182,6 @@ export default function ProposeTradeScreen() {
             setMembers(all.filter((member) => member.id !== myMemberId))
         } catch (error) {
             if (membersRequestRef.current !== requestId || !isCurrent(generation)) return
-            setMembers([])
             setMembersError(getErrorMessage(error) ?? 'Could not load league members.')
         } finally {
             if (membersRequestRef.current === requestId && isCurrent(generation)) setLoading(false)
@@ -213,8 +214,11 @@ export default function ProposeTradeScreen() {
     useEffect(() => {
         if (draftOwnerRef.current !== null) {
             const sameOwner = draftOwnerRef.current === ownerIdentity
-            if (!sameOwner) clearTradeComposerDraft()
-            setDraftReady(sameOwner)
+            if (!sameOwner) {
+                clearTradeComposerDraft()
+                draftOwnerRef.current = ownerIdentity
+            }
+            setDraftReady(Boolean(ownerIdentity))
             return
         }
         if (!ownerIdentity) return
@@ -244,6 +248,7 @@ export default function ProposeTradeScreen() {
         let cancelled = false
         getTradeById(sourceTradeId, myMemberId)
             .then((trade) => {
+                if (!cancelled && isCurrent(generation)) setPrefillSettledKey(`${ownerIdentity}:${sourceTradeId}`)
                 if (cancelled || !isCurrent(generation) || !ownsOwner(capturedOwner) || !trade || restoredDraftRef.current) return
                 tradePrefillKey.current = `${ownerIdentity}:${sourceTradeId}`
                 const prefill = prefillTradeComposerFromTrade(mode, trade)
@@ -255,6 +260,7 @@ export default function ProposeTradeScreen() {
             })
             .catch((error) => {
                 if (!cancelled && ownsOwner(capturedOwner) && isCurrent(generation)) {
+                    setPrefillSettledKey(`${ownerIdentity}:${sourceTradeId}`)
                     showAlert('Error', getErrorMessage(error) ?? 'Could not load trade.')
                 }
             })
@@ -492,7 +498,7 @@ export default function ProposeTradeScreen() {
         expirationDays,
         expirationError,
         rosterError: composer.rosterError,
-        rosterLoading: composer.rosterLoading,
+        rosterLoading: !composer.assetsLoaded && !composer.rosterError,
         avgMap: composer.avgMap,
         avgStatsMap: composer.avgStatsMap,
         participantName: composer.participantName,
@@ -516,6 +522,11 @@ export default function ProposeTradeScreen() {
         )
     }
 
+    const recipientReady = !selectedRecipientId || participantIds.includes(selectedRecipientId) ||
+        (!loading && !members.some(member => member.id === selectedRecipientId))
+    const prefillReady = !sourceTradeId || restoredDraftRef.current || prefillSettledKey === `${ownerIdentity}:${sourceTradeId}`
+    const editorReady = Boolean(membersError || (draftReady && !loading && prefillReady && recipientReady &&
+        (participantIds.length < 2 || composer.assetsLoaded || composer.rosterError)))
     const verdict = (
         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
             loading={tradeAnalysis.loading} inset={!sideBySide} />
@@ -589,6 +600,7 @@ export default function ProposeTradeScreen() {
                     </Pressable>
                 )}
             />
+            <DeferredContent ready={editorReady} key={ownerIdentity}>
             <ScrollView key="editor" style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
               <View style={[styles.main, sideBySide && styles.mainWide]}>
                 {tradingClosed ? (
@@ -623,7 +635,7 @@ export default function ProposeTradeScreen() {
                         <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />
                     </View>
                 ) : null}
-                <View style={styles.teamChips}>
+                <View style={[styles.teamChips, { minHeight: 44 }]} aria-busy={loading} accessibilityState={{ busy: loading }}>
                     {members.map((member) => {
                         const active = multiTeamMode
                             ? composer.selectedParticipantIds.has(member.id)
@@ -676,6 +688,7 @@ export default function ProposeTradeScreen() {
               </View>
               {sideBySide ? <View style={styles.rail}>{verdict}</View> : null}
             </ScrollView>
+            </DeferredContent>
         </PageFrame>
     )
 }

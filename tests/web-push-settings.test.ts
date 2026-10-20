@@ -5,7 +5,7 @@ import { WebPushSettings } from '@/components/WebPushSettings'
 import { Button } from '@/components/ui'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 import { showAlert } from '@/lib/alert'
-import { disableWebPush, enableWebPush, getWebPushStatus, sendTestWebPush } from '@/lib/web-push'
+import { disableWebPush, enableWebPush, getWebPushStatus, getWebPushPublicKey, sendTestWebPush } from '@/lib/web-push'
 
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' },
@@ -114,14 +114,30 @@ it.each(['hidden', 'offline'])('does not warm push configuration during %s entry
     const view = await mount('off')
     try {
         expect(getWebPushStatus).not.toHaveBeenCalled()
-        const { getWebPushPublicKey } = await import('@/lib/web-push')
         expect(getWebPushPublicKey).not.toHaveBeenCalled()
         hidden = false; online = true
         await act(async () => { page.dispatchEvent(new Event('visibilitychange')); browser.dispatchEvent(new Event('online')) })
         expect(getWebPushStatus).toHaveBeenCalledOnce()
-        expect(getWebPushPublicKey).toHaveBeenCalledOnce()
+        expect(getWebPushPublicKey).not.toHaveBeenCalled()
     } finally {
         await act(async () => { view.renderer.unmount() })
         vi.unstubAllGlobals()
+    }
+})
+
+it.each(['needs-install', 'unsupported', 'denied'] as const)('does not read push configuration for %s browsers', async status => {
+    vi.mocked(getWebPushStatus).mockResolvedValue(status)
+    const onStatusChange = vi.fn()
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(WebPushSettings, { onStatusChange })) })
+        for (let i = 0; i < 10; i += 1) {
+            await act(async () => { renderer.update(React.createElement(WebPushSettings, { onStatusChange })) })
+        }
+        expect(getWebPushStatus).toHaveBeenCalledOnce()
+        expect(getWebPushPublicKey).not.toHaveBeenCalled()
+        expect(onStatusChange).toHaveBeenCalledExactlyOnceWith(status)
+    } finally {
+        await act(async () => { renderer.unmount() })
     }
 })

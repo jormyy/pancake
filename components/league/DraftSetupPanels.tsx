@@ -1,4 +1,5 @@
-import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from 'react-native'
+import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import {
     NOMINATION_ORDER_MODE_LABELS,
     ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS,

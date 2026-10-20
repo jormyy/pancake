@@ -1,3 +1,4 @@
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import {
     Platform,
     View,
@@ -90,7 +91,7 @@ export default function HomeScreen() {
 
     const {
         matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate,
-        myLineup, oppLineup, matchupLoading, lineupLoading, lineupError,
+        myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError,
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh, emptyConfirmed,
     } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
@@ -254,6 +255,8 @@ export default function HomeScreen() {
             {/* The error card owns the retry when there is no matchup to show; the banner covers a failed refresh over live data. */}
             {error && homeSurface !== 'error' && <ErrorBanner onRetry={refresh} />}
 
+            {lineupError ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
+            <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || Boolean(myLineup && oppLineup))} busy={matchupRefreshing || lineupLoading}>
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
                     <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>
@@ -379,6 +382,8 @@ export default function HomeScreen() {
                     <WeekOffNotice leagueId={league?.id} onBrowse={() => router.push('/players')} />
                 </View>
             )}
+
+            </DeferredContent>
 
             <ActivationOverflowModal
                 pending={activationOverflowPending}

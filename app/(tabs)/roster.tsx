@@ -1,3 +1,4 @@
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import {
     View,
@@ -325,7 +326,7 @@ export default function RosterScreen() {
         setStateOwnerIdentity(ownerIdentity)
     }, [ownerIdentity])
 
-    const { data, loading, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
+    const { data, loading, refreshing, error, refresh } = useFocusAsyncData<RosterScreenData | null>(async () => {
         if (!current || !user) return null
         if (!leagueId) return null
         const seasonId = await getActiveSeasonId(leagueId)
@@ -935,8 +936,8 @@ export default function RosterScreen() {
             <PageHeader
                 tabs={(
                     <View style={styles.summary}>
-                        <Text style={styles.summaryText}>
-                            {active.length}/{rosterSize} active · {ir.length}/{irSlots} IR · {taxi.length}/{taxiSlots} taxi
+                        <Text style={[styles.summaryText, { minWidth: 240, minHeight: 20, opacity: !data ? 0 : 1 }]} aria-busy={!data} accessibilityState={{ busy: !data }}>
+                            {data ? `${active.length}/${rosterSize} active · ${ir.length}/${irSlots} IR · ${taxi.length}/${taxiSlots} taxi` : ''}
                         </Text>
                         {pendingClaimCount > 0 && !twoPane ? (
                             <Pressable
@@ -978,7 +979,8 @@ export default function RosterScreen() {
                 onMoveToIR={(player) => { void handleToggleIR(player) }}
             />
 
-            {roster.length === 0 && loading ? null : (
+            <DeferredContent ready={data != null} busy={loading || refreshing}>
+            {roster.length === 0 && loading ? <View style={{ flex: 1, minHeight: 320 }} aria-busy accessibilityState={{ busy: true }} /> : (
                 <View style={[styles.body, twoPane && styles.bodyTwoPane, { paddingHorizontal: twoPane ? padX : 0 }]}>
                     <View style={styles.main}>
                         <FlashList
@@ -1017,6 +1019,8 @@ export default function RosterScreen() {
                     ) : null}
                 </View>
             )}
+
+            </DeferredContent>
 
             <RosterPlayerSheet
                 player={sheetPlayer}

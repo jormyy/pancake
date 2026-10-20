@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 import type { DraftState } from '@/lib/draft'
 import type { RealtimeSubscriptionStatus } from '@/lib/realtime'
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn<() => Promise<DraftState | null>>(),

@@ -7,7 +7,13 @@ import { colors, shadows } from '@/constants/tokens'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }))
+vi.mock('expo-router', () => ({ usePathname: () => '/' }))
+vi.mock('@/components/auth/AuthDocumentForm', () => ({ AuthDocumentForm: () => null }))
 vi.mock('expo-router/html', () => ({ ScrollViewStyleReset: () => null }))
+vi.mock('expo-asset', () => ({ Asset: { fromModule: (uri: string) => ({ uri }) } }))
+vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: { font: { material: '/icons.woff2' } } }))
+vi.mock('@expo-google-fonts/outfit', () => ({ Outfit_500Medium: '/medium.woff2', Outfit_600SemiBold: '/semibold.woff2', Outfit_700Bold: '/bold.woff2' }))
+vi.mock('expo-font', () => ({ useFonts: () => [true], FontDisplay: { OPTIONAL: 'optional', SWAP: 'swap', BLOCK: 'block' } }))
 
 const read = (path: string) => readFile(path, 'utf8')
 

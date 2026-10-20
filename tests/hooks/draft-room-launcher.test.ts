@@ -1,5 +1,5 @@
 import React from 'react'
-import { setSessionOwner } from '@/lib/session-cache-registry'
+import { clearSessionCaches, setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
@@ -31,6 +31,7 @@ const deferred = <Value,>() => {
 }
 
 beforeEach(() => {
+    clearSessionCaches()
     vi.clearAllMocks()
 })
 
@@ -130,7 +131,7 @@ describe('resolved draft launcher', () => {
         expect(mocks.push).toHaveBeenCalledWith({ pathname: '/(modals)/rookie-draft-room', params: { draftId: 'new' } })
         mocks.getJoinableDraft.mockRejectedValueOnce(new Error('offline'))
         await act(async () => { await latest.openDraftRoom() })
-        expect(latest.draft).toBeNull()
+        expect(latest.draft).toEqual({ id: 'new', draftType: 'snake' })
         expect(latest.draftError).toBe('offline')
         await act(async () => { renderer.unmount() })
     })
@@ -167,4 +168,23 @@ it('keeps the missing-league fallback without starting a draft read', async () =
     expect(mocks.getJoinableDraft).not.toHaveBeenCalled()
     expect(mocks.push).toHaveBeenCalledWith('/draft')
     await act(async () => { renderer.unmount() })
+})
+
+it.each([null, { id: 'live', draftType: 'auction' as const }])('keeps a checked draft answer during another lookup and remount (%s)', async answer => {
+    mocks.getJoinableDraft.mockResolvedValue(answer)
+    let latest!: ReturnType<typeof useDraftRoomLauncher>
+    const Probe = () => { latest = useDraftRoomLauncher('stable', { renderAuctionInline: true }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { await latest.openDraftRoom({ fallbackOnMissing: false }) })
+    expect(latest.draftChecked).toBe(true)
+    mocks.getJoinableDraft.mockReturnValue(new Promise(() => {}))
+    await act(async () => { void latest.openDraftRoom({ fallbackOnMissing: false }) })
+    expect(latest.draftChecked).toBe(true)
+    expect(latest.draft).toEqual(answer)
+    await act(async () => renderer.unmount())
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.draftChecked).toBe(true)
+    expect(latest.draft).toEqual(answer)
+    await act(async () => renderer.unmount())
 })

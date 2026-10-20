@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui'
-import { colors, spacing, textStyles } from '@/constants/tokens'
+import { spacing, textStyles } from '@/constants/tokens'
 import { showAlert } from '@/lib/alert'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { sessionGeneration } from '@/lib/session-cache-registry'
@@ -10,7 +10,6 @@ import {
     disableWebPush,
     enableWebPush,
     getWebPushStatus,
-    getWebPushPublicKey,
     sendTestWebPush,
     type WebPushStatus,
 } from '@/lib/web-push'
@@ -34,8 +33,6 @@ export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: 
         const mounted = ++lifetime.current
         const generation = sessionGeneration()
         const current = () => lifetime.current === mounted && sessionGeneration() === generation && isCurrent(revision)
-        // Warm the VAPID key so the tap handler can prompt before any network wait.
-        getWebPushPublicKey().catch(() => null)
         getWebPushStatus()
             .then((next) => { if (current()) setStatus(next) })
             .catch(() => { if (current()) setStatus('unavailable') })
@@ -94,9 +91,9 @@ export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: 
 
     if (!status) {
         return (
-            <View style={styles.row}>
+            <View style={styles.row} aria-busy accessibilityState={{ busy: true }}>
                 <Text style={styles.label}>This device</Text>
-                <ActivityIndicator color={colors.primary} />
+                <View style={{ minHeight: 44, minWidth: 80 }} />
             </View>
         )
     }
@@ -126,7 +123,7 @@ export function WebPushSettings({ onStatusChange }: { onStatusChange?: (status: 
 // Same row rhythm as SettingsRow so it sits in a SettingsGroup without a seam.
 const styles = StyleSheet.create({
     row: {
-        minHeight: 48,
+        minHeight: 60,
         flexDirection: 'row',
         alignItems: 'center',
         flexWrap: 'wrap',

@@ -180,6 +180,15 @@ describe('web push client', () => {
         await expect(getWebPushStatus()).resolves.toBe('unavailable')
     })
 
+    it('warms the key during supported status reads and reuses it when enabling', async () => {
+        const { getWebPushStatus, enableWebPush } = await load()
+        await expect(getWebPushStatus()).resolves.toBe('off')
+        await expect(getWebPushStatus()).resolves.toBe('off')
+        expect(calls).toEqual(['/profile/web-push/config'])
+        await expect(enableWebPush()).resolves.toBe('on')
+        expect(calls).toEqual(['/profile/web-push/config', 'requestPermission', 'subscribe', '/profile/web-push/subscribe'])
+    })
+
     it('tells iPhone Safari tabs to install the app first', async () => {
         installBrowser({ push: false, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' })
         const { getWebPushStatus, enableWebPush } = await load()

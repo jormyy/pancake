@@ -460,6 +460,10 @@ export function usePlayerSearch(
         [query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear],
     )
 
+    const returningPage = enabled && dataKey !== searchParamsKey
+        ? pageCacheRef.current.get(searchParamsKey) ?? readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
+        : undefined
+
     return {
         search: { query, setQuery },
         position: { value: position, setValue: setPosition },
@@ -473,7 +477,7 @@ export function usePlayerSearch(
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
         season: { value: seasonYear, setValue: setSeasonYear },
-        results: { players: enabled && dataKey === searchParamsKey ? players : [], loading, refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: !admitted || !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
+        results: { players: enabled ? dataKey === searchParamsKey ? players : returningPage?.players ?? [] : [], loading: loading || Boolean(enabled && dataKey !== searchParamsKey && !returningPage), refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: !admitted || !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
         activeFilterCount,
         clearAllFilters,
     }

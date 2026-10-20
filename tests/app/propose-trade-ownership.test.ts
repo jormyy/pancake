@@ -13,6 +13,7 @@ type MockTradeItem =
 const mocks = vi.hoisted(() => ({
     userId: 'user-a',
     selectedAssetsAvailable: true,
+    assetsLoaded: true,
     tradingClosed: false,
     getCurrentSeasonId: vi.fn(),
     invalidateSeasonCache: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock('@/contexts/league-context', () => ({
 vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
     useMultiTeamTradeComposer: () => ({
         assetsReady: true,
+        assetsLoaded: mocks.assetsLoaded,
         selectedAssetsAvailable: mocks.selectedAssetsAvailable,
         avgMap: new Map(),
         avgStatsMap: new Map(),
@@ -165,6 +167,7 @@ const deferred = <Value,>() => {
 }
 
 beforeEach(() => {
+    mocks.assetsLoaded = true
     vi.clearAllMocks()
     mocks.userId = 'user-a'
     mocks.selectedAssetsAvailable = true
@@ -711,4 +714,18 @@ it('clears the former actor notes when the mounted composer changes owners', asy
     await act(async () => view.update(React.createElement(ProposeTradeScreen)))
     expect(builder().props.notes).toBe('')
     await act(async () => view.unmount())
+})
+
+
+it('reveals the editor only after selected participant assets settle', async () => {
+    let screen!: ReactTestRenderer
+    mocks.assetsLoaded = false
+    mocks.params = { recipientMemberId: 'member-b' }
+    await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
+    expect(screen.root.findAllByType('MultiTeamTradeBuilder' as React.ElementType)).toHaveLength(0)
+    expect(JSON.stringify(screen.toJSON())).not.toContain('Pick a team to trade with')
+    mocks.assetsLoaded = true
+    await act(async () => screen.update(React.createElement(ProposeTradeScreen)))
+    expect(screen.root.findAllByType('MultiTeamTradeBuilder' as React.ElementType)).toHaveLength(1)
+    await act(async () => screen.unmount())
 })
