@@ -21,10 +21,11 @@ type Props = {
     fullScreen?: boolean
     /** Render the content inside a deliberate card even when not full-screen. */
     framed?: boolean
+    reserveCopy?: { message: string; description: string }
 }
 
 /** Centered empty state for empty lists / missing-data guards. Teaches + offers a CTA. */
-export function EmptyState({ message, description, icon, actionLabel, onAction, fullScreen = true, framed }: Props) {
+export function EmptyState({ message, description, icon, actionLabel, onAction, fullScreen = true, framed, reserveCopy }: Props) {
     return (
         <PromptFrame fullScreen={fullScreen} framed={framed}>
             {icon ? (
@@ -32,8 +33,18 @@ export function EmptyState({ message, description, icon, actionLabel, onAction, 
                     <MaterialIcons name={icon} size={28} color={colors.primary} />
                 </View>
             ) : null}
-            <Text style={styles.title}>{message}</Text>
-            {description ? <Text style={styles.description}>{description}</Text> : null}
+            {reserveCopy ? (
+                <View style={styles.reservedTitle}>
+                    <Text style={[styles.title, styles.copyMeasure]} aria-hidden accessibilityElementsHidden>{reserveCopy.message}</Text>
+                    <Text style={[styles.title, styles.copyOverlay]}>{message}</Text>
+                </View>
+            ) : <Text style={styles.title}>{message}</Text>}
+            {description ? reserveCopy ? (
+                <View style={styles.reservedDescription}>
+                    <Text style={[styles.description, styles.copyMeasure]} aria-hidden accessibilityElementsHidden>{reserveCopy.description}</Text>
+                    <Text style={[styles.description, styles.copyOverlay]}>{description}</Text>
+                </View>
+            ) : <Text style={styles.description}>{description}</Text> : null}
             {actionLabel && onAction ? (
                 <Button title={actionLabel} variant="outline" onPress={onAction} style={styles.action} />
             ) : null}
@@ -65,5 +76,9 @@ const styles = StyleSheet.create({
         lineHeight: 20,
         maxWidth: 320,
     },
+    reservedTitle: { width: '100%' },
+    reservedDescription: { width: '100%', maxWidth: 320 },
+    copyMeasure: { opacity: 0 },
+    copyOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
     action: { marginTop: spacing.sm },
 })

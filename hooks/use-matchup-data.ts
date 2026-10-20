@@ -33,6 +33,7 @@ type MatchupScreenCache = {
     today: string
     selectedDate: string
     matchup: Matchup | null
+    emptyConfirmed?: boolean
     weekDays: WeekDay[]
     leagueMatchups: LeagueWeekMatchup[]
     myLineup: LineupData | null
@@ -126,7 +127,7 @@ export function useMatchupData(
         initialCacheRef.current = { loaded: true, value: readMatchupCache(current?.id, leagueId) }
     }
     const initialCache = initialCacheRef.current.value
-    const [matchup, setMatchup] = useState<Matchup | null | undefined>(initialCache?.matchup ?? undefined)
+    const [matchup, setMatchup] = useState<Matchup | null | undefined>(initialCache ? initialCache.matchup : undefined)
     const [weekDays, setWeekDays] = useState<WeekDay[]>(initialCache?.weekDays ?? [])
     // selectedDate flows into getWeeklyLineup queries that compare against
     // weekly_lineups.game_date (ET-keyed). Use todayET so non-ET clients
@@ -143,11 +144,12 @@ export function useMatchupData(
     const [myLineupScope, setMyLineupScope] = useState(() => lineupScope(initialCache?.matchup, selectedDate))
     const [oppLineupScope, setOppLineupScope] = useState(() => lineupScope(initialCache?.matchup, selectedDate))
     const [matchupLoading, setMatchupLoading] = useState(!initialCache)
+    const [matchupRefreshing, setMatchupRefreshing] = useState(false)
     const [lineupLoading, setLineupLoading] = useState(false)
     // A picked day whose lineup failed to load shows a retry, never the day before.
     const [lineupError, setLineupError] = useState(false)
-    const [emptyConfirmed, setEmptyConfirmed] = useState(false)
-    const confirmedEmptyKeyRef = useRef<string | null>(null)
+    const [emptyConfirmed, setEmptyConfirmed] = useState(initialCache?.emptyConfirmed === true)
+    const confirmedEmptyKeyRef = useRef<string | null>(initialCache?.emptyConfirmed ? resourceKey : null)
     const pendingNullKeyRef = useRef<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [dataOwnerKey, setDataOwnerKey] = useState(resourceKey)
@@ -166,7 +168,7 @@ export function useMatchupData(
         loadSeqRef.current += 1
         lineupSeqRef.current += 1
         const cached = readMatchupCache(current?.id, leagueId)
-        setMatchup(cached?.matchup ?? undefined)
+        setMatchup(cached ? cached.matchup : undefined)
         setWeekDays(cached?.weekDays ?? [])
         setLeagueMatchups(cached?.leagueMatchups ?? [])
         setMyLineup(cached?.myLineup ?? null)
@@ -175,11 +177,12 @@ export function useMatchupData(
         setOppLineupScope(lineupScope(cached?.matchup, cached?.selectedDate ?? todayET()))
         setSelectedDate(cached?.selectedDate ?? todayET())
         setMatchupLoading(!cached)
+        setMatchupRefreshing(false)
         setLineupLoading(false)
         setLineupError(false)
         setError(null)
-        setEmptyConfirmed(false)
-        confirmedEmptyKeyRef.current = null
+        setEmptyConfirmed(cached?.emptyConfirmed === true)
+        confirmedEmptyKeyRef.current = cached?.emptyConfirmed ? resourceKey : null
         pendingNullKeyRef.current = null
         matchupRef.current = cached?.matchup ?? null
         setDataOwnerKey(resourceKey)
@@ -206,7 +209,7 @@ export function useMatchupData(
         setOppLineup(null)
         setSelectedDate(todayET())
         writeMatchupCache(current.id, leagueId, {
-            selectedDate: todayET(), matchup: null, weekDays: [], leagueMatchups: [],
+            selectedDate: todayET(), matchup: null, emptyConfirmed: true, weekDays: [], leagueMatchups: [],
             myLineup: null, oppLineup: null,
         })
     }, [current, leagueId, resourceKey, setSelectedDate])
@@ -321,6 +324,7 @@ export function useMatchupData(
         const seq = ++loadSeqRef.current
         lineupSeqRef.current += 1
         const hasVisibleMatchup = matchupRef.current != null
+        setMatchupRefreshing(true)
         setMatchupLoading(!hasVisibleMatchup && confirmedEmptyKeyRef.current !== capturedResourceKey)
         pendingNullKeyRef.current = null
         if (!hasVisibleMatchup) {
@@ -398,6 +402,7 @@ export function useMatchupData(
         } finally {
             if (seq === loadSeqRef.current && generation === sessionGeneration() && activeResourceKeyRef.current === capturedResourceKey) {
                 setMatchupLoading(false)
+                setMatchupRefreshing(false)
             }
         }
     }, [canRead, current, user, leagueId, fetchLineups, resourceKey, setSelectedDate, confirmEmpty])
@@ -412,6 +417,7 @@ export function useMatchupData(
         lineupSeqRef.current += 1
         fullReadRef.current = null
         setMatchupLoading(false)
+        setMatchupRefreshing(false)
         setLineupLoading(false)
     }, [])
 
@@ -613,8 +619,10 @@ export function useMatchupData(
         if (ownsResource && activeResourceKeyRef.current === resourceKey) setSelectedDate(date)
     }, [ownsResource, resourceKey, setSelectedDate])
 
+    const returningCache = !ownsResource ? readMatchupCache(current?.id, leagueId) : undefined
+
     return {
-        emptyConfirmed: ownsResource && membershipValidated && emptyConfirmed,
+        emptyConfirmed: ownsResource ? emptyConfirmed : returningCache?.emptyConfirmed === true,
         matchup: ownsResource ? matchup : undefined,
         leagueMatchups: ownsResource ? leagueMatchups : [],
         weekDays: ownsResource ? weekDays : [],
@@ -623,7 +631,8 @@ export function useMatchupData(
         myLineup: ownsResource && myLineupScope === lineupScope(matchup, selectedDate) ? myLineup : null,
         setMyLineup,
         oppLineup: ownsResource && oppLineupScope === lineupScope(matchup, selectedDate) ? oppLineup : null,
-        matchupLoading: ownsResource ? matchupLoading && online : true,
+        matchupLoading: ownsResource ? matchupLoading && online : !returningCache,
+        matchupRefreshing: ownsResource && matchupRefreshing,
         lineupLoading: ownsResource ? lineupLoading : false,
         lineupError: ownsResource ? lineupError : false,
         error: ownsResource ? error ?? (!online && !matchup && !emptyConfirmed ? 'Failed to load matchup' : null) : null,
