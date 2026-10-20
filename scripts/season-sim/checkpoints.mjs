@@ -8,14 +8,17 @@ import { config, miniRoot, sha256, writeJson } from './common.mjs'
 import { databaseEnvironment, localKeys, sql, sqlJson } from './local-stack.mjs'
 
 export const segmentNames = ['live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'pre-draft', 'next-season-start', 'waiver-week']
-export const snapshotRoot = process.env.SEASON_SIM_SNAPSHOT_ROOT ?? path.resolve(miniRoot, '../../shared/sim/snapshots')
+export function snapshotRoot() {
+  return process.env.SEASON_SIM_SNAPSHOT_ROOT ?? path.resolve(miniRoot, '../../shared/sim/snapshots')
+}
 
 async function snapshotDirectory(name) {
   assert.ok(segmentNames.includes(name), 'Unknown snapshot segment')
-  assert.ok(path.isAbsolute(snapshotRoot) && !snapshotRoot.startsWith(`${process.cwd()}/`), 'Snapshots must stay outside the repository')
-  await mkdir(snapshotRoot, { recursive: true, mode: 0o700 })
-  assert.equal(await realpath(snapshotRoot), path.resolve(snapshotRoot), 'Snapshot root cannot contain symlinks')
-  return path.join(snapshotRoot, name)
+  const root = snapshotRoot()
+  assert.ok(path.isAbsolute(root) && !root.startsWith(`${process.cwd()}/`), 'Snapshots must stay outside the repository')
+  await mkdir(root, { recursive: true, mode: 0o700 })
+  assert.equal(await realpath(root), path.resolve(root), 'Snapshot root cannot contain symlinks')
+  return path.join(root, name)
 }
 
 export async function saveSnapshot(name, cursor) {

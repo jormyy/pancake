@@ -18,7 +18,7 @@ const { values } = parseArgs({ options: { date: { type: 'string' }, 'save-pre-pl
 assert.match(values.date ?? '', /^\d{4}-\d{2}-\d{2}$/)
 const date = values.date
 const retained = JSON.parse(await readFile(path.join(miniRoot, 'evidence/replay-checkpoint.json'), 'utf8'))
-const snapshot = JSON.parse(await readFile(path.join(snapshotRoot, 'live-week/snapshot.json'), 'utf8'))
+const snapshot = JSON.parse(await readFile(path.join(snapshotRoot(), 'live-week/snapshot.json'), 'utf8'))
 const keys = localKeys()
 process.env.SUPABASE_DB_URL = keys.DB_URL
 process.env.SUPABASE_URL = keys.API_URL

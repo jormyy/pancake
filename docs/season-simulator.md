@@ -207,3 +207,27 @@ It includes all production minute calls and worker wakeups.
 Normal date results also include full day wall time and assertion costs.
 A current projection still requires measured game, playoff, and offseason days.
 Do not substitute an earlier card's duration.
+
+## First-date launcher check
+
+Snapshot save and restore resolve `SEASON_SIM_SNAPSHOT_ROOT` when called.
+A launcher can set its unique run directory after module imports.
+The root, project, ports, and Docker socket must still be set before Node starts.
+The replay reads production-only flags when used; its Edge child starts after the clock flag is set.
+
+A bounded launcher check exercises the first replay date and its snapshot:
+
+```sh
+. ~/pancake-t_4ba51e0d/env.sh
+cd "$TASK/lanes/fresh-check/repo"
+SEASON_SIM_ROOT="$TASK/lanes/fresh-check" \
+SEASON_SIM_PROJECT=pt4bafreshchk SEASON_SIM_PORT_PREFIX=575 \
+node scripts/season-sim/fresh-run.mjs --source-sha "$SHA" --check-first-date
+```
+
+Use the assigned scratch stack only after the other 575xx stack stops.
+This mode permits a recorded harness overlay for a committed application archive.
+It always reports full acceptance as false.
+Success requires one complete date, live comparisons, an empty initial database, and a populated snapshot in the run directory.
+It writes `first-date-check.json`, restores native clocks, stops its project, and removes only its inspected backup volume.
+The real fresh replay omits this flag and still refuses a harness overlay.
