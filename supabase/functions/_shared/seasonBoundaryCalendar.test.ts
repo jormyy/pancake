@@ -33,9 +33,9 @@ Deno.test('offseason retries generation after publication and retains errors for
   let invalid = false
   globalThis.fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input)
-    if (url.pathname.endsWith('/league_seasons')) return Promise.resolve(Response.json(url.searchParams.get('select') === 'season_year' ? { season_year: 2027 } : [{ id: 'new-season', league_id: 'league', leagues: { status: 'offseason', playoff_start_week: 23 } }]))
+    if (url.pathname.endsWith('/league_seasons')) return Promise.resolve(Response.json(url.searchParams.get('select')?.startsWith('season_year') ? { season_year: 2027, skipped_weeks: [] } : [{ id: 'new-season', league_id: 'league', leagues: { status: 'offseason', playoff_start_week: 23 } }]))
     if (url.pathname.endsWith('/matchups') && init?.method === 'HEAD') return Promise.resolve(new Response(null, { headers: { 'content-range': '*/0' } }))
-    if (url.pathname.endsWith('/season_weeks')) return Promise.resolve(Response.json(url.searchParams.get('select') === 'week_start' ? { week_start: '2026-10-20' } : [{ week_number: 1 }]))
+    if (url.pathname.endsWith('/season_weeks')) return Promise.resolve(Response.json([{ week_number: 1, week_start: '2026-10-20' }]))
     if (url.pathname.endsWith('/league_members')) return Promise.resolve(Response.json([{ id: 'a' }, { id: 'b' }]))
     if (url.pathname.endsWith('/replace_regular_season_matchups_atomic')) return Promise.resolve(invalid ? Response.json({ code: '22023', message: 'Published calendar has a missing week' }, { status: 400 }) : Response.json({ inserted: 22 }))
     throw new Error(`Unexpected request: ${url.pathname}`)

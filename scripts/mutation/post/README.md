@@ -68,7 +68,7 @@ node scripts/mutation/post/report.mjs /absolute/path/to/evidence
 ```
 
 Pass later JSONL files after the evidence path to merge updated verdicts.
-The report combines the initial run, final run, and final rookie recheck.
+The report keeps the current verdicts and applies only the later result files you pass.
 It verifies catalog coverage, row schemas, source locations, and restore evidence.
 It writes `results.jsonl`, `scores.md`, and `survivors.md` outside the repository.
 
@@ -95,3 +95,26 @@ The fixture SHA-256 stays identical across red and green.
 The unused-round recipe records current behavior through real offer, acceptance, and settlement RPCs.
 Its assertions describe an unresolved expiry policy.
 Keep it as an audit recipe until that policy is decided.
+
+## Skipped opening week
+
+```sh
+node scripts/mutation/post/check.mjs supabase/tests/db/rookie-skipped-week.ts
+node scripts/mutation/post/verify-skipped-week.mjs
+POST_EVIDENCE="$TASK/lanes/post/evidence/review3/mutations" node scripts/mutation/post/run.mjs skipped-week
+```
+
+The fixture uses SYNTHETIC managers, rookies, scores, and a 2026–27 shaped calendar.
+Week one spans October 20–25. Week two starts October 26.
+It changes skipped weeks through the commissioner settings RPC as the authenticated role.
+It checks skipped weeks before generation and after week-one results exist.
+Four teams play each pair twice over the six remaining regular weeks.
+The saved playoff start stays at week eight, with two-week rounds.
+Automatic transitions use real score input certificates and the 48-hour grace.
+The next season starts with no skipped weeks and preserves the previous champion.
+
+The proof needs the pre-fix boundary source at `evidence/review3/seasonBoundary-before.ts` outside the repository.
+Capture it from the review-start commit before testing.
+The helper runs the final fixture against that source and the fixed source.
+It verifies both the restored application hash and the unchanged fixture hash.
+The `post-sw-NN` catalog entries use classic mutation operators.

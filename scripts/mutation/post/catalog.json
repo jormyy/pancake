@@ -1358,8 +1358,8 @@
     "line": 104,
     "symbol": "runSeasonBoundary",
     "operator": "ET-day-boundary",
-    "original": "toETDate(referenceDate) < weekOne.week_start",
-    "mutated": "toETDate(referenceDate) <= weekOne.week_start",
+    "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+    "mutated": "toETDate(referenceDate) <= firstEligibleWeek.week_start",
     "oracles": [
       {
         "name": "rookie-backstop",
@@ -1518,8 +1518,8 @@
     "line": 104,
     "symbol": "runSeasonBoundary",
     "operator": "premature-commissioner-resume",
-    "original": "toETDate(referenceDate) < weekOne.week_start",
-    "mutated": "toETDate(referenceDate) > weekOne.week_start",
+    "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+    "mutated": "toETDate(referenceDate) > firstEligibleWeek.week_start",
     "oracles": [
       {
         "name": "rookie-commissioner-early",
@@ -1540,6 +1540,166 @@
       {
         "name": "rookie-drafting-gate",
         "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-01",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1769,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "NEG",
+    "original": "AND v_week=ANY(skipped_weeks)",
+    "mutated": "AND NOT v_week=ANY(skipped_weeks)",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-02",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1771,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "STMT-DEL",
+    "original": "v_played := v_played + 1;",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-03",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 25,
+    "symbol": "private.enforce_skipped_matchup()",
+    "operator": "CONST",
+    "original": "NEW.is_voided := true;",
+    "mutated": "NEW.is_voided := false;",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-04",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 27,
+    "symbol": "private.enforce_skipped_matchup()",
+    "operator": "STMT-DEL",
+    "original": "NEW.winner_member_id := NULL;",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-05",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4503,
+    "symbol": "public.update_league_settings_atomic(uuid,jsonb)",
+    "operator": "ROR",
+    "original": "week>=COALESCE(v_playoff_start_week,v_league.playoff_start_week)",
+    "mutated": "week>COALESCE(v_playoff_start_week,v_league.playoff_start_week)",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-06",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4511,
+    "symbol": "public.update_league_settings_atomic(uuid,jsonb)",
+    "operator": "STMT-DEL",
+    "original": "UPDATE public.matchups SET is_voided=true WHERE league_season_id=v_current.id AND week_number=ANY(v_skip);",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-07",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 74,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_start:=v_season.playoff_start_week+COALESCE",
+    "mutated": "v_start:=v_season.playoff_start_week+1+COALESCE",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-08",
+    "area": "skipped-week",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 103,
+    "symbol": "runSeasonBoundary",
+    "operator": "NEG",
+    "original": "!season.skipped_weeks.includes(week.week_number)",
+    "mutated": "season.skipped_weeks.includes(week.week_number)",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-09",
+    "area": "skipped-week",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 104,
+    "symbol": "runSeasonBoundary",
+    "operator": "ROR",
+    "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+    "mutated": "toETDate(referenceDate) <= firstEligibleWeek.week_start",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-10",
+    "area": "skipped-week",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 101,
+    "symbol": "runSeasonBoundary",
+    "operator": "ORDER",
+    "original": ".order('week_number')",
+    "mutated": ".order('week_number', { ascending: false })",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
       }
     ]
   }

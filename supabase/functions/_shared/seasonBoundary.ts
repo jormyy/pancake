@@ -74,7 +74,7 @@ async function ensureSeasonMatchups(
   return ['matchups-generated']
 }
 
-// Rookie-draft backstop: if the new NBA season's week 1 has begun and the
+// Rookie-draft backstop: if the league's first eligible week has begun and the
 // league's rookie draft still has not run, start it and complete every pick
 // best-available (auto_pick uses nba_draft_number order). Completing the last
 // pick activates the league, so the season-boundary loop resumes normally.
@@ -89,19 +89,19 @@ async function runRookieDraftBackstop(
 ): Promise<string[]> {
   const { data: season, error: seasonError } = await supabase
     .from('league_seasons')
-    .select('season_year')
+    .select('season_year, skipped_weeks')
     .eq('id', leagueSeasonId)
     .single()
   if (seasonError) throw seasonError
 
-  const { data: weekOne, error: weekError } = await supabase
+  const { data: weeks, error: weekError } = await supabase
     .from('season_weeks')
-    .select('week_start')
+    .select('week_number, week_start')
     .eq('season_year', season.season_year)
-    .eq('week_number', 1)
-    .maybeSingle()
+    .order('week_number')
   if (weekError) throw weekError
-  if (!weekOne || toETDate(referenceDate) < weekOne.week_start) return []
+  const firstEligibleWeek = weeks?.find((week) => !season.skipped_weeks.includes(week.week_number))
+  if (!firstEligibleWeek || toETDate(referenceDate) < firstEligibleWeek.week_start) return []
 
   const actions: string[] = []
   const { data: drafts, error: draftError } = await supabase

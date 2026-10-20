@@ -108,7 +108,7 @@ def add_ts(original, mutated, operator):
 
 add_ts("['active', 'playoffs', 'offseason', 'drafting']", "['active', 'playoffs', 'offseason']", 'drafting-query-exclusion')
 add_ts("['in_progress', 'paused'].includes(draft.status)", "['in_progress'].includes(draft.status)", 'paused-exclusion')
-add_ts('toETDate(referenceDate) < weekOne.week_start', 'toETDate(referenceDate) <= weekOne.week_start', 'ET-day-boundary')
+add_ts('toETDate(referenceDate) < firstEligibleWeek.week_start', 'toETDate(referenceDate) <= firstEligibleWeek.week_start', 'ET-day-boundary')
 add_ts('const MAX_BACKSTOP_PICKS = 200', 'const MAX_BACKSTOP_PICKS = 1', 'pick-limit')
 add_ts("p_reason: 'season_boundary_backstop'", "p_reason: 'manual'", 'expired-timer-authorization')
 add('rookie-draft','public.auto_pick_snake_pick_atomic','uuid,uuid,text,boolean',"v_draft.status = 'paused'", "v_draft.status = 'in_progress'", 'resume-status')
@@ -123,9 +123,32 @@ add_ts("status !== 'offseason' && status !== 'drafting'", "status !== 'offseason
 add('rookie-draft','public.auto_pick_snake_pick_atomic','uuid,uuid,text,boolean',"AND NOT v_draft.is_mock AND v_draft.status = 'paused'", "AND v_draft.status = 'paused'", 'mock-resume-guard')
 catalog[-1]['oracles'] = catalog[-2]['oracles']
 add_ts('runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)', 'runRookieDraftBackstop(season.league_id, season.id, referenceDate, true)', 'startup-auction-guard')
-add_ts('toETDate(referenceDate) < weekOne.week_start', 'toETDate(referenceDate) > weekOne.week_start', 'premature-commissioner-resume')
+add_ts('toETDate(referenceDate) < firstEligibleWeek.week_start', 'toETDate(referenceDate) > firstEligibleWeek.week_start', 'premature-commissioner-resume')
 catalog[-1]['oracles'] = [{'name': 'rookie-commissioner-early', 'command': 'POST_ROOKIE_CASE=commissioner_early deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts'}]
 add('rookie-draft','public.invoke_season_boundary_if_due','timestamp with time zone',"IF NOT private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD')) THEN\n    RETURN;\n  END IF;", "PERFORM private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD'));", 'daily-dispatch-guard')
 catalog[-1]['oracles'] = [oracle('rookie-drafting-gate')]
+skip_oracle = {'name': 'rookie-skipped-week', 'command': 'deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts'}
+areas['skipped-week'] = []
+def add_skip(symbol, signature, original, mutated, operator):
+    add('skipped-week', symbol, signature, original, mutated, operator)
+    catalog[-1]['id'] = f"post-sw-{sum(x['area'] == 'skipped-week' for x in catalog):02}"
+    catalog[-1]['oracles'] = [skip_oracle]
+
+def add_skip_ts(original, mutated, operator):
+    add_ts(original, mutated, operator)
+    catalog[-1]['area'] = 'skipped-week'
+    catalog[-1]['id'] = f"post-sw-{sum(x['area'] == 'skipped-week' for x in catalog):02}"
+    catalog[-1]['oracles'] = [skip_oracle]
+
+add_skip('private.regular_season_matchup_payload','uuid,uuid,integer','AND v_week=ANY(skipped_weeks)','AND NOT v_week=ANY(skipped_weeks)','NEG')
+add_skip('private.regular_season_matchup_payload','uuid,uuid,integer','v_played := v_played + 1;','','STMT-DEL')
+add_skip('private.enforce_skipped_matchup','','NEW.is_voided := true;','NEW.is_voided := false;','CONST')
+add_skip('private.enforce_skipped_matchup','','NEW.winner_member_id := NULL;','','STMT-DEL')
+add_skip('public.update_league_settings_atomic','uuid,jsonb','week>=COALESCE(v_playoff_start_week,v_league.playoff_start_week)','week>COALESCE(v_playoff_start_week,v_league.playoff_start_week)','ROR')
+add_skip('public.update_league_settings_atomic','uuid,jsonb','UPDATE public.matchups SET is_voided=true WHERE league_season_id=v_current.id AND week_number=ANY(v_skip);','','STMT-DEL')
+add_skip('private.generate_playoff_round','uuid,uuid,integer','v_start:=v_season.playoff_start_week+COALESCE','v_start:=v_season.playoff_start_week+1+COALESCE','CONST')
+add_skip_ts('!season.skipped_weeks.includes(week.week_number)','season.skipped_weeks.includes(week.week_number)','NEG')
+add_skip_ts('toETDate(referenceDate) < firstEligibleWeek.week_start','toETDate(referenceDate) <= firstEligibleWeek.week_start','ROR')
+add_skip_ts('.order(\'week_number\')', '.order(\'week_number\', { ascending: false })', 'ORDER')
 Path('scripts/mutation/post/catalog.json').write_text(json.dumps(catalog, indent=2) + '\n')
 print(len(catalog), 'mutants')
