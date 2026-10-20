@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { appendFile, readFile } from 'node:fs/promises'
-import { etDate, miniRoot, sha256, writeGzip, writeJson } from './common.mjs'
+import { dates, etDate, miniRoot, sha256, writeGzip, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { planDay } from './planner.mjs'
 import { prepareLineups, checkLineups } from './lineups.mjs'
 import { assertFinals, assertLeaguePoints } from './assertions.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
+import { beginWaivers, verifyWaivers, assertWaiverReset } from './waiver-scenarios.mjs'
+import { assertSkippedWeek, checkNextSchedule } from './skipped-week.mjs'
 
 export function remapGame(box, pbp, source, target) {
   const shift = Date.parse(target.time) - Date.parse(source.time)
@@ -15,7 +17,9 @@ export function remapGame(box, pbp, source, target) {
   const mappedBox = structuredClone(box), mappedPbp = structuredClone(pbp)
   mappedBox.game.gameId = target.id
   mappedBox.game.gameTimeUTC = target.time
-  mappedBox.game.gameEt = `${target.date}T12:00:00-04:00`
+  const offset = new Intl.DateTimeFormat('en', { timeZone: 'America/New_York', timeZoneName: 'longOffset' }).formatToParts(new Date(target.time)).find(part => part.type === 'timeZoneName').value.replace('GMT', '')
+  const localTime = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(target.time)).replace(' ', 'T')
+  mappedBox.game.gameEt = `${localTime}${offset}`
   mappedBox.game.gameCode = `${target.date.replaceAll('-', '')}/${target.away}${target.home}`
   for (const action of mappedPbp.game.actions) action.timeActual = new Date(Date.parse(action.timeActual) + shift).toISOString()
   mappedPbp.game.gameId = target.id
@@ -35,7 +39,7 @@ export async function prepareNextFixtures() {
   const first = published[0].date
   const monday = new Date(`${first}T12:00:00Z`)
   monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7)
-  const end = new Date(monday.getTime() + 13 * 86400000).toISOString().slice(0, 10)
+  const end = new Date(monday.getTime() + 20 * 86400000).toISOString().slice(0, 10)
   const selected = published.filter(game => game.date <= end)
   const store = await fixtureStore(directory)
   const original = JSON.parse(await readFile(path.join(directory, 'games.json'), 'utf8'))
@@ -67,37 +71,62 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot) {
   c.seasonYear = 2027
   const existing = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${c.leagueSeasonId}`)
   assert.ok(existing.every(row => row.wins === 0 && row.losses === 0 && row.ties === 0 && Number(row.points_for) === 0), 'Next-season standings start fresh')
+  if (!c.skippedWeeks?.includes(1)) {
+    await move('2026-07-01T10:06:00Z')
+    assert.equal(await sql("SELECT count(*) FROM season_weeks WHERE season_year=2027 AND week_number=1"), '1', 'Published next-season calendar is available before commissioner changes')
+    await c.rpc(c.users[0], 'update_league_configuration_atomic', { p_league_id: c.leagueId, p_settings: { skipped_weeks: [1] } })
+    c.skippedWeeks = [1]
+    report.skippedWeekSettings = { route: '/rest/v1/rpc/update_league_configuration_atomic', at: '2026-07-01T10:06:00Z', weeks: [1] }
+  }
+  c.firstDate = mapping.first
+  const playoffStart = await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`)
+  assert.equal(playoffStart, '23', 'Skipping week one does not change the configured calendar playoff week')
   await move(`${mapping.first}T14:00:00Z`)
-  await snapshot('next-season-start', mapping.first, 2)
-  const rows = await sqlJson(`SELECT coalesce(json_agg(w ORDER BY week_number),'[]') FROM season_weeks w WHERE season_year=2027 AND week_number IN (1,2)`, 'Next-season calendar')
-  assert.equal(rows.length, 2, 'Production schedule ingestion creates both fantasy weeks')
-  const matchups = await c.rest(c.users[0], `matchups?select=*&league_season_id=eq.${c.leagueSeasonId}&matchup_type=eq.regular_season&week_number=lte.2`)
-  assert.equal(matchups.length, c.users.length, 'Production boundary generates next-season matchups')
+  await snapshot('next-season-start', mapping.first, 21)
+  const rows = await sqlJson(`SELECT coalesce(json_agg(w ORDER BY week_number),'[]') FROM season_weeks w WHERE season_year=2027 AND week_number IN (1,2,3)`, 'Next-season calendar')
+  assert.equal(rows.length, 3, 'Production schedule ingestion creates three calendar weeks')
+  const matchups = await c.rest(c.users[0], `matchups?select=*&league_season_id=eq.${c.leagueSeasonId}`)
+  report.nextSeasonSchedule = checkNextSchedule(matchups, c.users.map(user => user.memberId), Number(playoffStart), [1])
+  await assertSkippedWeek(c, 1)
   const checked = [], store = await fixtureStore(path.join(miniRoot, 'fixtures'))
   const { games } = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/games.json'), 'utf8'))
   let previous = {}
   const days = []
-  for (const date of [...new Set(games.filter(game => game.id.startsWith('00226')).map(game => game.date))].sort()) {
+  for (const date of dates(mapping.first, mapping.end)) {
     await move(`${date}T14:00:00Z`)
     const today = games.filter(game => game.date === date), day = { date, provenance: 'SYNTHETIC' }
-    await prepareLineups(c, date, day)
+    const week = rows.find(row => date >= row.week_start && date <= row.week_end)?.week_number
+    assert.ok(week, 'Every next-season date belongs to a published calendar week')
+    await verifyWaivers(c, report)
+    if (date === mapping.first) await beginWaivers(c, 'skipped-week-rolling', report)
+    if (date === rows.find(row => row.week_number === 2).week_start) {
+      await assertWaiverReset(c)
+      await beginWaivers(c, 'eligible-week-rolling', report)
+    }
+    if (week !== 1) await prepareLineups(c, date, day)
     const plan = await planDay(today, store, date)
     for (const event of plan.events) {
       await move(event.at)
-      await checkLineups(c, date, day)
-      const live = await assertClientScores(c, { week: day.lineups.week, previous })
-      previous = { ...previous, ...live.observations }
+      if (week === 1) day.skipped = await assertSkippedWeek(c, 1)
+      else {
+        await checkLineups(c, date, day)
+        const live = await assertClientScores(c, { week, previous, expectedCount: c.users.length / 2 })
+        previous = { ...previous, ...live.observations }
+      }
     }
     const next = new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
     await move(`${next}T09:00:00Z`)
-    day.finals = await assertFinals(date)
-    day.points = await assertLeaguePoints({ ...c, date, plannedEmptyWeek: 2 })
+    day.finals = today.length ? await assertFinals(date) : { games: 0 }
+    day.points = week === 1 ? await assertSkippedWeek(c, 1) : today.length ? await assertLeaguePoints({ ...c, date }) : null
+    if (week !== 1) await assertClientScores(c, { week, previous, expectedCount: c.users.length / 2 })
+    await verifyWaivers(c, report)
     day.weekly = await assertClosedWeeks(c, next, checked)
-    for (const pick of [...report.actions.tradeDeadline.transferredPicks, { id: report.offseasonTrade.pickId, owner: report.offseasonTrade.owner }]) assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick.id}'`), pick.owner, 'Future pick ownership survives next-season scoring')
+    for (const pick of [...report.actions.tradeDeadline.transferredPicks, { id: report.offseasonTrade.pickId, owner: report.offseasonTrade.owner }, ...(report.offseasonTrade.counterPickId ? [{ id: report.offseasonTrade.counterPickId, owner: report.offseasonTrade.counterOwner }] : [])]) assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick.id}'`), pick.owner, 'Future pick ownership survives next-season scoring')
     assert.equal(await historyDigest(c, oldSeason), history, 'Season-one stats, matchups, standings and used picks stay unchanged')
     days.push(day)
   }
-  assert.deepEqual(checked, [1, 2], 'Both next-season fantasy weeks close and pass')
-  report.nextSeason = { passed: true, days, historyPreserved: true, provenance: 'Published REAL-RAW schedule; SYNTHETIC game data' }
+  assert.deepEqual(checked, [2, 3], 'Both eligible next-season weeks close and pass')
+  assert.equal(await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`), playoffStart, 'Skipped weeks preserve the calendar playoff boundary')
+  report.nextSeason = { passed: true, days, checked, skippedWeeks: [1], playoffRule: 'Configured calendar week 23 remains week 23; skipped regular weeks are omitted, never renumbered.', historyPreserved: true, provenance: 'Published REAL-RAW schedule; SYNTHETIC game data' }
   return report.nextSeason
 }

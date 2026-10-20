@@ -63,6 +63,8 @@ node scripts/season-sim/report.mjs
 ```
 
 The replay calls every intervening minute of the recorded business cron schedule.
+It pauses business time during I/O and wakes worker timers at their business deadlines.
+Internal live-work reads and worker completion trigger authenticated score probes.
 The morning and season-end paths contain no direct score or stat sync calls.
 An authenticated commissioner can request matchup generation during league setup.
 Direct stat or score dispatch fails while the production-only guard is active.
@@ -86,7 +88,8 @@ It writes only to the configured local stack.
 ```sh
 SEASON_SIM_ROOT="$TASK/lanes/live" \
 SEASON_SIM_PROJECT=pt4balive SEASON_SIM_PORT_PREFIX=573 \
-node scripts/season-sim/index.mjs --segment live-week
+node scripts/season-sim/index.mjs --segment live-week \
+  --after-restore-sql /absolute/path/to/mutant.sql
 ```
 
 | Segment | Intended coverage | Measured duration |
@@ -96,7 +99,8 @@ node scripts/season-sim/index.mjs --segment live-week
 | `pre-playoffs` | Automatic seeding and bracket creation | Not measured |
 | `pre-rollover` | Champion, grace, rollover | Not measured |
 | `pre-draft` | Rookie order, traded owner, expiry | Not measured |
-| `next-season-start` | New schedule, two weeks, retained history | Not measured |
+| `next-season-start` | Skipped week 1, eligible weeks 2–3, DST, retained history | Not measured |
+| `waiver-week` | FAAB claims, roster failure, priority, budgets and add counts | Not measured |
 
 The CLI exists; restored segment proofs remain required.
 Postseason cursor routing and next-season segment boundaries still require integration verification.
@@ -110,10 +114,11 @@ npm run typecheck:e2e
 ```
 
 The generated report records acceptance gaps explicitly.
-Current gaps include restored segment proofs, a fresh committed-source replay, and checks at every internal live-poll tick.
+Current gaps include restored segment proofs and a fresh committed-source replay.
 Ranking and projection inputs are outside the collected historical fixture set.
 Their failed production dispatches stay recorded and prevent trigger-fidelity acceptance.
-The driver samples after each live-poll gate; internal worker ticks need finer sampling for dense-day acceptance.
+The driver probes every internal live-work read, worker completion, and live gate.
+The current diagnostic measures this path; complete season-end evidence remains pending.
 A full report must establish the five-hour budget from measured execution time.
 Do not infer it from earlier cards.
 
@@ -125,3 +130,24 @@ Restore native clocks before stopping only the configured project.
 node --input-type=module -e 'import {readFile} from "node:fs/promises"; import {sql} from "./scripts/season-sim/local-stack.mjs"; const s=await readFile("scripts/season-sim/restore-clock.sql","utf8"); await sql(s.slice(s.indexOf("BEGIN;")))'
 supabase-go stop --project-id "${SEASON_SIM_PROJECT:-pt4basim}"
 ```
+
+## Mutation overlay order
+
+The CLI restores data, starts the runtime, and then applies `--after-restore-sql`.
+It compares application function fingerprints before and after the data restore and runtime startup.
+The overlay hash and resulting function fingerprint appear in the segment proof.
+The data dump never supplies application DDL.
+A baseline must pass before a mutation verdict counts.
+
+## Source evidence
+
+Build application code from the supplied integration archive.
+Exclude `.env*`, `.git`, `node_modules`, `dist`, and `.expo` during source copies.
+Place its commit, archive SHA-256, and archive harness hash in the lane's `application-source.json`.
+Each new driver records the current harness file hashes before business actions.
+A working overlay is not a committed-source full replay.
+
+The maximum-score oracle rebuilds roster eligibility from acquisition, drop, IR and taxi transactions at game tipoff.
+It includes past bench players even when a later drop removes their lineup rows.
+`retained-check.mjs --date YYYY-MM-DD` checks retained finals, scores, standings and delivery coverage.
+It does not dispatch maintenance or change application outcomes.

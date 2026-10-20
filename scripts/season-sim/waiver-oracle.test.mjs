@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { waiverOutcomes, checkWaiverResult, checkWaiverTiming, rolloverPriorities } from './waiver-oracle.mjs'
+
+const input = { mode: 'faab', priorities: { a: 1, b: 2, c: 3 }, budgets: { a: 100, b: 20, c: 100 }, rosterCounts: { a: 3, b: 3, c: 3 }, weeklyCounts: { a: 0, b: 0, c: 0 }, limit: 1, rosterSize: 3,
+  claims: [
+    { id: 'full', player: 'p', member: 'a', bid: 90, order: 1, submitted: 'now' },
+    { id: 'poor', player: 'p', member: 'b', bid: 30, drop: 'b1', order: 1, submitted: 'now' },
+    { id: 'winner', player: 'p', member: 'c', bid: 20, drop: 'c1', order: 1, submitted: 'now' },
+    { id: 'limited', player: 'q', member: 'c', bid: 10, drop: 'c2', order: 2, submitted: 'now' },
+    { id: 'tie-a', player: 'r', member: 'a', bid: 5, drop: 'a1', order: 2, submitted: 'now' },
+    { id: 'tie-b', player: 'r', member: 'b', bid: 5, drop: 'b2', order: 2, submitted: 'now' },
+  ] }
+
+test('FAAB resolves price, current priority, budget, roster room and the add limit independently', () => {
+  const expected = waiverOutcomes(input)
+  assert.deepEqual(expected.claims, { full: 'failed_roster', poor: 'failed_priority', winner: 'succeeded', limited: 'failed_roster', 'tie-a': 'succeeded', 'tie-b': 'failed_priority' })
+  assert.deepEqual(expected.budgets, { a: 95, b: 20, c: 80 })
+  assert.deepEqual(expected.priorities, { a: 5, b: 2, c: 4 })
+  const observed = { claims: Object.entries(expected.claims).map(([id, status]) => ({ id, status })), priorities: Object.entries(expected.priorities).map(([member_id, priority]) => ({ member_id, priority })), states: Object.fromEntries(Object.keys(expected.priorities).map(member => [member, { faab_balance: expected.budgets[member], weekly_add_count: expected.weeklyCounts[member] }])), rosterCounts: expected.rosterCounts }
+  assert.ok(checkWaiverResult(expected, observed).passed)
+  const corruptions = [
+    data => { data.claims[0].status = 'succeeded' },
+    data => { data.priorities[0].priority++ },
+    data => { data.states.a.faab_balance++ },
+    data => { data.states.a.weekly_add_count++ },
+    data => { data.rosterCounts.a++ },
+  ]
+  for (const corrupt of corruptions) {
+    const data = structuredClone(observed)
+    corrupt(data)
+    assert.throws(() => checkWaiverResult(expected, data), /Waiver|FAAB|Weekly/)
+  }
+})
+test('rolling ignores bid amounts and rollover uses reverse standings with documented secondary ties', () => {
+  const expected = waiverOutcomes({ ...input, mode: 'rolling', claims: input.claims.filter(row => ['winner', 'tie-a', 'tie-b'].includes(row.id)) })
+  assert.equal(expected.claims['tie-a'], 'succeeded')
+  assert.deepEqual(expected.budgets, input.budgets)
+  assert.deepEqual(rolloverPriorities(['a', 'b', 'c'], [{ member_id: 'a', wins: 1, points_for: 10, losses: 2, points_against: 30, week_number: 22 }, { member_id: 'b', wins: 1, points_for: 10, losses: 3, points_against: 20, week_number: 22 }]), { c: 1, b: 2, a: 3 })
+})
+
+test('waiver processing remains at 03:00 Eastern across the DST change', async () => {
+  const { nextWaiverRun } = await import('./waiver-scenarios.mjs')
+  assert.equal(new Date(nextWaiverRun(Date.parse('2026-10-31T14:00:00Z'))).toISOString(), '2026-11-01T08:00:00.000Z')
+  assert.equal(new Date(nextWaiverRun(Date.parse('2026-10-30T14:00:00Z'))).toISOString(), '2026-10-31T07:00:00.000Z')
+})
+
+test('waiver timing rejects both early and late observed processing', () => {
+  const expected = Date.parse('2026-03-19T07:00:00Z')
+  assert.ok(checkWaiverTiming('2026-03-19T07:00:00Z', expected))
+  for (const observed of ['2026-03-19T06:59:00Z', '2026-03-19T07:15:00Z']) assert.throws(() => checkWaiverTiming(observed, expected), /03:00 Eastern/)
+})

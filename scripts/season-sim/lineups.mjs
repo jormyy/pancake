@@ -11,6 +11,7 @@ export async function prepareLineups(c, date, report) {
   }
   const matchups = JSON.parse(await sql(`SELECT coalesce(json_agg(m ORDER BY id),'[]') FROM matchups m WHERE league_season_id='${c.leagueSeasonId}' AND week_number=${week}`))
   const tieMembers = (c.seasonYear ?? 2026) === 2026 && week === 2 && matchups[0] ? [matchups[0].home_member_id, matchups[0].away_member_id] : []
+  if (tieMembers.length) c.plannedEmptyWeekMembers = tieMembers
   const manualMembers = new Set(tieMembers)
   for (const user of c.users) {
     const enabled = !manualMembers.has(user.memberId)

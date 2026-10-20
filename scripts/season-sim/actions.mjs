@@ -59,7 +59,8 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   const league = await rpc(users[0], 'create_league', { p_name: `Historical replay ${run}`, p_team_name: 'Synthetic home', p_auction_budget: 20 })
   for (const [index, user] of users.slice(1).entries()) await rpc(user, 'join_league_by_invite_code', { p_invite_code: league.invite_code, p_team_name: `Synthetic away ${index + 1}` })
   const leagueId = league.id
-  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, taxi_rule: 'rookies_or_64_games', playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.playoffStartWeek ?? (options.integrated ? 23 : 20), playoff_round_lengths: options.roundLengths ?? (options.integrated ? [1, 2] : [1]) }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
+  const skipped = options.skipPastWeeks ? JSON.parse(await sql(`SELECT coalesce(json_agg(week_number ORDER BY week_number),'[]') FROM season_weeks WHERE season_year=2026 AND week_end<'${date}'`)) : null
+  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { ...(skipped ? { skipped_weeks: skipped } : {}), ...(options.integrated ? { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1 } : {}), roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, taxi_rule: 'rookies_or_64_games', playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.playoffStartWeek ?? (options.integrated ? 23 : 20), playoff_round_lengths: options.roundLengths ?? (options.integrated ? [1, 2] : [1]) }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
   const configuredSlots = await rest(users[0], `lineup_slot_templates?select=slot_type,slot_count&league_id=eq.${leagueId}`)
   for (const row of configuredSlots) assert.equal(row.slot_count, row.slot_type === 'UTIL' ? 2 : row.slot_type === 'BE' ? 1 : row.slot_type === 'IR' ? 2 : 0, 'Commissioner slot configuration must match the declared scenario')
   const members = JSON.parse(await sql(`SELECT json_agg(t) FROM (SELECT id,user_id FROM league_members WHERE league_id='${leagueId}') t`))
@@ -89,7 +90,7 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   assert.equal(await sql(`SELECT status FROM drafts WHERE id='${draft.id}'`), 'completed')
   await api(users[0], '/sync/matchups', { leagueId })
   for (const user of users) await api(user, '/league/lineup/auto-set-season', { memberId: user.memberId, leagueId, leagueSeasonId, dates: [date] })
-  const context = { leagueId, leagueSeasonId, seasonYear: 2026, firstDate: date, draftId: draft.id, members, date }
+  const context = { leagueId, leagueSeasonId, seasonYear: 2026, firstDate: date, diagnosticSkippedWeeks: skipped, draftId: draft.id, members, date }
   await writeJson(path.join(miniRoot, 'state/league.json'), context)
   return { ...context, users, rpc, api, rest, restWrite }
 }

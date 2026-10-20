@@ -4,9 +4,12 @@ import http from 'node:http'
 import { readFile, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { assertTarget, config, databaseUrl, miniRoot } from './common.mjs'
+import { mergeCronCatalog } from './cron.mjs'
+import { createSqlSession } from './sql-session.mjs'
 
 const { cli, container } = config
 let checkedNativeTarget = false
+let nativeSession
 
 async function docker(method, resource, body) {
   assert.ok(resource === `/containers/${container}/json` || resource === `/containers/${container}/exec` || /^\/exec\/[a-f0-9]+\/(start|json)$/.test(resource))
@@ -54,7 +57,8 @@ export async function sql(statement) {
   }
   if (process.env.SUPABASE_DB_URL) {
     const target = assertTarget(process.env.SUPABASE_DB_URL, 'db')
-    return execFileSync(path.resolve(miniRoot, '../../tools/pg/bin/psql'), ['-XqAt', '--set', 'ON_ERROR_STOP=1'], { input: statement, env: databaseEnvironment(target), encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+    nativeSession ??= createSqlSession(path.resolve(miniRoot, '../../tools/pg/bin/psql'), databaseEnvironment(target))
+    return nativeSession.query(statement)
   }
   const command = statement.length > 32000
     ? ['sh', '-c', 'printf %s "$@" | base64 -d | psql -XqAt -U supabase_admin -d postgres --set ON_ERROR_STOP=1', 'season-sim-sql', ...Buffer.from(statement).toString('base64').match(/.{1,60000}/g)]
@@ -102,7 +106,12 @@ export async function setupStack() {
   await sql('SELECT pg_reload_conf()')
   await writeFile(configFile, contents.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1true'))
   execFileSync(cli, ['migration', 'up', '--local'], { stdio: 'inherit' })
-  await writeFile(path.join(miniRoot, 'cron-jobs.json'), await sql("SELECT coalesce(json_agg(r ORDER BY jobname),'[]') FROM (SELECT jobname,schedule,command FROM cron.job) r"))
+  const catalogFile = path.join(miniRoot, 'cron-jobs.json')
+  const installed = JSON.parse(await sql("SELECT coalesce(json_agg(r ORDER BY jobname),'[]') FROM (SELECT jobname,schedule,command FROM cron.job) r"))
+  let retained = []
+  try { retained = JSON.parse(await readFile(catalogFile, 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+  await writeFile(catalogFile, JSON.stringify(mergeCronCatalog(installed, retained)))
+  await writeFile(path.join(miniRoot, 'cron-catalog-evidence.json'), JSON.stringify({ capturedAt: new Date().toISOString(), installedRows: installed.length, retainedRows: retained.filter(row => !installed.some(job => job.jobname === row.jobname)).length, scope: 'Installed migration cron rows override the earlier captured catalog; disabled jobs are retained as pinned catalog evidence.' }))
   await sql('SELECT cron.unschedule(jobid) FROM cron.job')
   console.log(JSON.stringify({ event: 'stack-ready', project: config.project, cronJobs: Number(await sql('SELECT count(*) FROM cron.job')) }))
 }

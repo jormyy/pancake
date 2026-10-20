@@ -4,7 +4,7 @@ import path from 'node:path'
 import { delay, miniRoot } from './common.mjs'
 import { sql } from './local-stack.mjs'
 
-export async function dispatch(statement, { optional = false, allowFailure = false } = {}) {
+export async function dispatch(statement, { optional = false, allowFailure = false, defer = false } = {}) {
   if (process.env.SEASON_SIM_PRODUCTION_ONLY === '1') {
     for (const query of Array.isArray(statement) ? statement : [statement]) assert.ok(!/invoke_edge_function\s*\(\s*'(?:sync-stats|sync-scores|sync-players|sync-schedule)'/i.test(query), 'Replay forbids direct business maintenance invocations; use production gates')
   }
@@ -13,6 +13,7 @@ export async function dispatch(statement, { optional = false, allowFailure = fal
   else await sql(statement)
   const ids = JSON.parse(await sql(`SELECT coalesce(json_agg(id),'[]') FROM public.edge_invocations WHERE id>${before}`))
   assert.ok(optional || ids.length > 0, `Dispatcher produced no invocation: ${statement}`)
+  if (defer) return ids.map(id => ({ id, statement }))
   const outcomes = []
   for (const id of ids) {
     let result

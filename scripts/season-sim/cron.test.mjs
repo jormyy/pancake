@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { advanceCron, cronCommands, cronMatches, productionJobs, verifyCronCatalog } from './cron.mjs'
+import { advanceCron, cronCommands, cronMatches, productionJobs, verifyCronCatalog, mergeCronCatalog } from './cron.mjs'
 
 test('production gates and annual UTC draft window match the migration catalog', () => {
   assert.ok(verifyCronCatalog(productionJobs))
@@ -23,4 +23,24 @@ test('clock jumps execute every intervening minute with no missing gate ticks', 
   assert.equal(statements.length, 6)
   assert.equal(moves.at(-1), from + 6 * 60000)
   await assert.rejects(advanceCron({ from: 1, to: 0, move: async () => {}, invoke: async () => {} }), /backwards/)
+})
+
+test('discrete cron preserves minute gates while waking internal ticks between them', async () => {
+  const from = Date.parse('2026-04-12T23:59:00Z'), to = from + 180000
+  const counts = {}, moves = [], wakes = [from + 80000, from + 90000, from + 100000]
+  await advanceCron({ from, to, counts,
+    move: async at => { moves.push(at) }, invoke: async () => {},
+    settle: async at => ({ nextAt: wakes.find(wake => wake > at) ?? null }),
+  })
+  assert.equal(counts['nba-live-poll'], 2)
+  assert.equal(counts['nba-close-expired-nominations'], 3)
+  assert.ok(wakes.every(wake => moves.includes(wake)))
+  assert.equal(moves.at(-1), to)
+  await assert.rejects(advanceCron({ from, to, move: async () => {}, invoke: async () => {}, settle: async () => ({ nextAt: from }) }), /timer must settle/)
+})
+
+test('reusing a stack preserves its captured cron catalog and detects changed migration jobs', () => {
+  assert.deepEqual(mergeCronCatalog([], productionJobs), [...productionJobs].sort((a, b) => a.jobname.localeCompare(b.jobname)))
+  assert.throws(() => mergeCronCatalog([]), /Missing production cron/)
+  assert.throws(() => mergeCronCatalog([{ ...productionJobs[0], schedule: '* * * * *' }], productionJobs), /Changed production cadence/)
 })

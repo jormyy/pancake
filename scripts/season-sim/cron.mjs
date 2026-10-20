@@ -48,8 +48,28 @@ export function cronCommands(instant) {
   return productionJobs.filter(job => cronMatches(job.schedule, instant))
 }
 
-export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {} }) {
+export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null }) {
   assert.ok(Number.isFinite(from) && Number.isFinite(to) && to >= from, 'Cron time cannot move backwards')
+  if (settle) {
+    let at = from
+    let state = await settle(at)
+    while (at < to) {
+      const minute = (Math.floor(at / 60000) + 1) * 60000
+      const wake = state.nextAt == null ? Infinity : state.nextAt
+      assert.ok(wake > at, 'Worker timer must settle before advancing the clock')
+      at = Math.min(to, minute, wake)
+      await move(at, at)
+      const jobs = at % 60000 === 0 ? cronCommands(at) : []
+      if (jobs.length) {
+        await invoke(jobs.map(job => job.command).join('; '), { optional: true, defer: true })
+        for (const job of jobs) counts[job.jobname] = (counts[job.jobname] ?? 0) + 1
+      }
+      state = await settle(at)
+      if (jobs.length) await sample(at, jobs)
+    }
+    await move(to, to)
+    return counts
+  }
   for (let at = (Math.floor(from / 60000) + 1) * 60000; at <= to; at += 60000) {
     await move(at, Math.min(to, at + 60000))
     const jobs = cronCommands(at)
@@ -59,4 +79,10 @@ export async function advanceCron({ from, to, move, invoke, sample = async (..._
   }
   await move(to, to)
   return counts
+}
+
+export function mergeCronCatalog(installed, retained = []) {
+  const rows = [...new Map([...retained, ...installed].map(row => [row.jobname, row])).values()].sort((a, b) => a.jobname.localeCompare(b.jobname))
+  verifyCronCatalog(rows)
+  return rows
 }

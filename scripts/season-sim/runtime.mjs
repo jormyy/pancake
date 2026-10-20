@@ -25,8 +25,8 @@ export async function startRuntime(at, { resume = false } = {}) {
   assert.equal(Number(await sql('SELECT extract(epoch FROM now())*1000')), Date.parse(at), 'Database clock must match Edge clock')
   assert.equal(await sql("SELECT current_setting('cron.launch_active_jobs')"), 'off')
   assert.equal(await sql('SELECT count(*) FROM cron.job'), '0')
-  await sql(`ALTER DATABASE postgres SET app.supabase_url = 'http://host.lima.internal:${config.ports.edge}'; ALTER DATABASE postgres SET app.edge_internal_token = '${token}'`)
-  const origin = await startOrigin({ resume })
+  await sql(`ALTER DATABASE postgres SET app.supabase_url = 'http://host.lima.internal:${config.ports.edge}'; ALTER DATABASE postgres SET app.edge_internal_token = '${token}'; SET app.supabase_url = 'http://host.lima.internal:${config.ports.edge}'; SET app.edge_internal_token = '${token}'`)
+  const origin = await startOrigin({ resume, probeToken: token })
   const log = await open(path.join(evidence, 'edge.log'), 'a')
   let child
   const stopEdge = async () => { if (child && child.exitCode == null && child.signalCode == null) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited } }
