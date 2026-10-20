@@ -34,8 +34,9 @@ const runOracle = (oracle, prefix) => {
   const log = `${evidence}/${prefix}-${oracle.name}.log`
   const started = performance.now()
   const result = spawnSync('/bin/sh', ['-c', oracle.command], { env, encoding: 'utf8', timeout: oracle.timeout ?? 120_000, maxBuffer: 8 * 1024 * 1024 })
-  writeFileSync(log, `${oracle.command}\n${result.stdout ?? ''}${result.stderr ?? ''}\nexit=${result.status} signal=${result.signal} error=${result.error?.code ?? ''}\n`)
-  return { name: oracle.name, command: oracle.command, exit: result.error?.code === 'ETIMEDOUT' ? 124 : result.status ?? 125, seconds: Math.round((performance.now() - started) / 10) / 100, log }
+  const errorCode = result.error && 'code' in result.error ? result.error.code : ''
+  writeFileSync(log, `${oracle.command}\n${result.stdout ?? ''}${result.stderr ?? ''}\nexit=${result.status} signal=${result.signal} error=${errorCode}\n`)
+  return { name: oracle.name, command: oracle.command, exit: errorCode === 'ETIMEDOUT' ? 124 : result.status ?? 125, seconds: Math.round((performance.now() - started) / 10) / 100, log }
 }
 const unique = [...new Map(selected.flatMap(item => item.oracles).map(oracle => [oracle.command, oracle])).values()]
 const baseline = unique.map(oracle => runOracle(oracle, 'baseline'))
