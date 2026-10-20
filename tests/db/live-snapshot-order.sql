@@ -2,7 +2,7 @@ BEGIN;
 DO $$
 DECLARE
   v_game uuid := gen_random_uuid(); v_player uuid := gen_random_uuid(); v_provider text;
-  v_stats jsonb; v_before jsonb;
+  v_stats jsonb; v_before jsonb; v_accepted boolean;
 BEGIN
   v_provider := '002-synthetic-order-' || v_game;
   INSERT INTO public.players(id,first_name,last_name) VALUES(v_player,'Synthetic',v_player::text);
@@ -11,6 +11,29 @@ BEGIN
   v_stats := jsonb_build_array(jsonb_build_object('player_id',v_player,'game_id',v_game,'points',20,'did_not_play',false));
   PERFORM public.save_live_scoreboard_atomic(v_game,v_provider,'InProgress',57,46,'Q2',1200);
   PERFORM public.save_live_game_stats_atomic(v_game,v_provider,v_stats,1200);
+  IF public.save_live_scoreboard_atomic(v_game,v_provider,'Scheduled',0,0,'Scheduled',1200) THEN
+    RAISE EXCEPTION 'Scheduled snapshot regresses an in-progress game';
+  END IF;
+  BEGIN
+    PERFORM public.save_live_scoreboard_atomic(v_game,v_provider || '-stale','InProgress',99,98,'Q2',1200);
+    RAISE EXCEPTION 'Scoreboard accepts a stale provider identity';
+  EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.save_live_game_stats_atomic(v_game,v_provider || '-stale',v_stats,1200);
+    RAISE EXCEPTION 'Live stats accept a stale provider identity';
+  EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.save_live_game_stats_atomic(v_game,v_provider || '-stale',v_stats,0);
+    RAISE EXCEPTION 'Older live stats bypass the provider identity check';
+  EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+  END;
+  v_accepted := public.save_live_scoreboard_atomic(v_game,v_provider,'InProgress',56,46,'Q2',1200);
+  IF NOT v_accepted OR (SELECT home_score FROM nba_games WHERE id = v_game) <> 56 THEN
+    RAISE EXCEPTION 'Same-clock scoreboard correction is lost';
+  END IF;
+  PERFORM public.save_live_scoreboard_atomic(v_game,v_provider,'InProgress',57,46,'Q2',1200);
   PERFORM public.save_live_scoreboard_atomic(v_game,v_provider,'InProgress',14,10,'Q1',300);
   PERFORM public.save_live_game_stats_atomic(v_game,v_provider,jsonb_set(v_stats,'{0,points}','5'),300);
   IF (SELECT home_score<>57 OR away_score<>46 FROM nba_games WHERE id=v_game)

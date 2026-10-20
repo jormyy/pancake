@@ -583,6 +583,12 @@ async function updateWeekPoints(
         return
     }
 
+    const { data: liveInputToken, error: liveTokenError } = await supabase.rpc('capture_score_inputs', {
+        p_league_season_id: seasonId,
+        p_week_number: weekNumber,
+    })
+    if (liveTokenError) throw liveTokenError
+
     const allMatchups = await fetchAllPages<MatchupForScore>((from, to) => supabase
         .from('matchups')
         .select('id, league_id, league_season_id, week_number, end_week_number, matchup_type, is_finalized, home_member_id, away_member_id, home_points, away_points')
@@ -638,6 +644,7 @@ async function updateWeekPoints(
             away_member_id: matchup.away_member_id,
             home_points: homePoints,
             away_points: awayPoints,
+            input_token: liveInputToken,
         }]
     })
 

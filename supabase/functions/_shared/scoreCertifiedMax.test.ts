@@ -49,6 +49,10 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
   } else if (table === 'capture_score_inputs') {
     if (staleAfterCapture) stale = true
     body = { 'season:fixture': '1' }
+  } else if (table === 'update_score_points_atomic') {
+    const payload = await request.json()
+    assert.ok(payload.p_matchups.every((row: { input_token: unknown }) =>
+      JSON.stringify(row.input_token) === JSON.stringify({ 'season:fixture': '1' })))
   } else if (table === 'get_stale_score_weeks') {
     certificateReads++
     body = stale ? [{ week_number: 1 }] : []

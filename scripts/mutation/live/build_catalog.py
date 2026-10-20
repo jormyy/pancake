@@ -104,5 +104,34 @@ sql(WEEKLY, 'public.finalize_score_week_atomic', '(uuid,uuid,integer,jsonb,jsonb
 sql(WEEKLY, 'public.invoke_live_poll_if_due', '()', [
     ("PERFORM public.invoke_edge_function('sync-scores');", 'RETURN;'),
 ], [recipe('weekly-idle-dispatch')])
+sql(LIVE, 'public.update_score_points_atomic', '(uuid,uuid,integer,jsonb)', [
+    ('AND NOT private.playoff_matchup_is_consumed(matchup.id)', ''),
+    ("AND (matchup.matchup_type = 'regular_season' OR matchup.is_finalized IS NOT TRUE)", ''),
+    ('AND (matchup.home_points IS DISTINCT FROM requested.home_points OR matchup.away_points IS DISTINCT FROM requested.away_points)', ''),
+], [recipe('live-score-guards')])
+sql(LIVE, 'public.update_score_points_atomic', '(uuid,uuid,integer,jsonb)', [
+    ('OR NOT private.lock_current_score_inputs(p_league_season_id, p_week_number, v_input_token)', 'OR false'),
+], [db('live-score-overlap')])
+sql(LIVE, 'public.save_live_scoreboard_atomic', '(uuid,text,text,integer,integer,text,numeric)', [
+    ("OR (v_game.status='InProgress' AND p_status='Scheduled')", ''),
+    ('v_game.live_scoreboard_elapsed_seconds>p_elapsed_seconds', 'v_game.live_scoreboard_elapsed_seconds>=p_elapsed_seconds'),
+    ('v_game.nba_game_id IS DISTINCT FROM p_provider_game_id', 'false'),
+], [recipe('live-snapshot-order')])
+sql(LIVE, 'public.save_live_game_stats_atomic', '(uuid,text,jsonb,numeric)', [
+    ('v_game.nba_game_id IS DISTINCT FROM p_provider_game_id', 'false'),
+], [recipe('live-snapshot-order')])
+ts(LIVE, 'hooks/use-matchup-data.ts', [
+    ('eventTimes.set(row.id, eventTime)', 'eventTimes.delete(row.id)'),
+    ('eventTime < (eventTimes.get(row.id) ?? -Infinity)', 'eventTime <= (eventTimes.get(row.id) ?? -Infinity)'),
+], ['npx vitest run tests/hooks/matchup-realtime-boundary.test.ts'])
+ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
+    ('input_token: liveInputToken,', ''),
+], [db('live-score-overlap')])
+sql(WEEKLY, 'public.invoke_live_poll_if_due', '()', [
+    ("league.status IN ('active', 'playoffs')", "league.status = 'active'"),
+    ("interval '30 minutes'", "interval '5 minutes'"),
+    ('final.is_finalized AND NOT final.is_voided', 'NOT final.is_finalized AND NOT final.is_voided'),
+    ('certificate.input_token IS DISTINCT FROM private.score_input_token', 'certificate.input_token IS NOT DISTINCT FROM private.score_input_token'),
+], [recipe('weekly-idle-dispatch')])
 Path('scripts/mutation/live/catalog.json').write_text(json.dumps(rows, indent=2) + '\n')
 print({area: sum(r['area'] == area for r in rows) for area in (LIVE, WEEKLY)})

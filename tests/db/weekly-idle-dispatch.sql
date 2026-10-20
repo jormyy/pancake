@@ -14,6 +14,7 @@ DECLARE
   v_today date := (now() AT TIME ZONE 'America/New_York')::date;
   v_before bigint;
   v_after bigint;
+  v_matchup uuid := gen_random_uuid();
 BEGIN
   IF EXISTS (SELECT 1 FROM get_live_poll_work()) THEN
     RAISE EXCEPTION 'This isolated recipe requires an idle local stack';
@@ -30,8 +31,8 @@ BEGIN
       (v_away, v_league, v_other_user, 'manager', 'Away');
   INSERT INTO season_weeks(season_year, week_number, week_start, week_end)
     VALUES(8993, 1, v_today - 13, v_today - 7);
-  INSERT INTO matchups(league_id, league_season_id, week_number, home_member_id, away_member_id, matchup_type)
-    VALUES(v_league, v_season, 1, v_home, v_away, 'regular_season');
+  INSERT INTO matchups(id, league_id, league_season_id, week_number, home_member_id, away_member_id, matchup_type)
+    VALUES(v_matchup, v_league, v_season, 1, v_home, v_away, 'regular_season');
   SELECT count(*) INTO v_before FROM edge_invocations WHERE function_name = 'sync-scores';
   PERFORM invoke_live_poll_if_due();
   SELECT count(*) INTO v_after FROM edge_invocations WHERE function_name = 'sync-scores';
@@ -41,6 +42,60 @@ BEGIN
   PERFORM invoke_live_poll_if_due();
   IF (SELECT count(*) FROM edge_invocations WHERE function_name = 'sync-scores') <> v_after THEN
     RAISE EXCEPTION 'Idle scoring does not respect its retry interval';
+  END IF;
+  UPDATE edge_invocations SET queued_at = now() - interval '29 minutes'
+    WHERE function_name = 'sync-scores' AND queued_at >= now();
+  PERFORM invoke_live_poll_if_due();
+  IF (SELECT count(*) FROM edge_invocations WHERE function_name = 'sync-scores') <> v_after THEN
+    RAISE EXCEPTION 'Idle scoring retries before thirty minutes';
+  END IF;
+  UPDATE edge_invocations SET queued_at = now() - interval '31 minutes'
+    WHERE function_name = 'sync-scores' AND queued_at > now() - interval '30 minutes';
+  UPDATE leagues SET status = 'playoffs' WHERE id = v_league;
+  UPDATE matchups SET matchup_type = 'playoff_final', end_week_number = 1 WHERE id = v_matchup;
+  SELECT count(*) INTO v_before FROM edge_invocations WHERE function_name = 'sync-scores';
+  PERFORM invoke_live_poll_if_due();
+  SELECT count(*) INTO v_after FROM edge_invocations WHERE function_name = 'sync-scores';
+  IF v_after <> v_before + 1 THEN
+    RAISE EXCEPTION 'Playoff final without later game days did not dispatch scoring';
+  END IF;
+  UPDATE edge_invocations SET queued_at = now() - interval '31 minutes'
+    WHERE function_name = 'sync-scores' AND queued_at >= now();
+  UPDATE season_weeks SET week_start = v_today - 8, week_end = v_today - 2 WHERE season_year = 8993;
+  UPDATE matchups SET is_finalized = true, finalized_at = now(), winner_member_id = v_home WHERE id = v_matchup;
+  PERFORM invoke_live_poll_if_due();
+  IF (SELECT count(*) FROM edge_invocations WHERE function_name = 'sync-scores') <> v_after THEN
+    RAISE EXCEPTION 'Finalized playoff final keeps idle scoring awake during grace';
+  END IF;
+  UPDATE matchups SET is_finalized = false WHERE id = v_matchup;
+  UPDATE leagues SET status = 'offseason' WHERE id = v_league;
+  PERFORM invoke_live_poll_if_due();
+  IF (SELECT count(*) FROM edge_invocations WHERE function_name = 'sync-scores') <> v_after THEN
+    RAISE EXCEPTION 'Offseason league wakes idle scoring';
+  END IF;
+  UPDATE leagues SET status = 'archived' WHERE id = v_league;
+  PERFORM invoke_live_poll_if_due();
+  IF (SELECT count(*) FROM edge_invocations WHERE function_name = 'sync-scores') <> v_after THEN
+    RAISE EXCEPTION 'Archived league wakes idle scoring';
+  END IF;
+  UPDATE leagues SET status = 'active' WHERE id = v_league;
+  UPDATE matchups SET matchup_type = 'regular_season', is_finalized = true WHERE id = v_matchup;
+  PERFORM invoke_live_poll_if_due();
+  SELECT count(*) INTO v_before FROM edge_invocations WHERE function_name = 'sync-scores';
+  IF v_before <> v_after + 1 THEN RAISE EXCEPTION 'Recent closed week does not recover corrections'; END IF;
+  UPDATE edge_invocations SET queued_at = now() - interval '31 minutes'
+    WHERE function_name = 'sync-scores' AND queued_at >= now();
+  UPDATE season_weeks SET week_start = v_today - 14, week_end = v_today - 8 WHERE season_year = 8993;
+  INSERT INTO private.score_week_certificates(league_season_id, week_number, input_token)
+    VALUES(v_season, 1, capture_score_inputs(v_season, 1));
+  PERFORM invoke_live_poll_if_due();
+  IF (SELECT count(*) FROM edge_invocations WHERE function_name = 'sync-scores') <> v_before THEN
+    RAISE EXCEPTION 'Settled All-Star break week keeps scoring awake';
+  END IF;
+  UPDATE leagues SET scoring_settings = '{"points":2}' WHERE id = v_league;
+  PERFORM invoke_live_poll_if_due();
+  IF (SELECT count(*) FROM edge_invocations WHERE function_name = 'sync-scores') <> v_before + 1 THEN
+    RAISE EXCEPTION 'Stale finalized week does not recover corrected scoring inputs';
   END IF;
 END;
 $$;
