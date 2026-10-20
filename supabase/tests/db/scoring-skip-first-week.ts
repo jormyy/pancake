@@ -3,9 +3,14 @@ import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from '../../functions/_shared/database.ts'
 
 const api = Deno.env.get('SUPABASE_URL')!, db = Deno.env.get('SUPABASE_DB_URL')!
-for (const [endpoint, port] of [[api, 57321], [db, 57322]] as const) {
+for (const [endpoint, port, protocols] of [
+  [api, Deno.env.get('PANCAKE_TEST_API_PORT') ?? '54321', ['http:', 'https:']],
+  [db, Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322', ['postgres:', 'postgresql:']],
+] as const) {
   const url = new URL(endpoint)
-  assert.ok(['localhost', '127.0.0.1'].includes(url.hostname) && Number(url.port) === port)
+  assert.ok(/^[1-9]\d{0,4}$/.test(port) && Number(port) <= 65535 &&
+    ['localhost', '127.0.0.1'].includes(url.hostname) && url.port === port &&
+    protocols.some(protocol => protocol === url.protocol), `Refuse a target outside loopback port ${port}`)
 }
 const { supabase } = await import('../../functions/_shared/supabase.ts')
 const { syncScores } = await import('../../functions/_shared/syncScores.ts')

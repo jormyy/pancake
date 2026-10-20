@@ -2,9 +2,14 @@ import { strict as assert } from 'node:assert'
 import { liveIngestionProvider } from './live-ingestion-provider.ts'
 
 const api = Deno.env.get('SUPABASE_URL')!, db = Deno.env.get('SUPABASE_DB_URL')!
-for (const [endpoint, port] of [[api, 57321], [db, 57322]] as const) {
+for (const [endpoint, port, protocols] of [
+  [api, Deno.env.get('PANCAKE_TEST_API_PORT') ?? '54321', ['http:', 'https:']],
+  [db, Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322', ['postgres:', 'postgresql:']],
+] as const) {
   const url = new URL(endpoint)
-  assert.ok(['localhost', '127.0.0.1'].includes(url.hostname) && Number(url.port) === port)
+  assert.ok(/^[1-9]\d{0,4}$/.test(port) && Number(port) <= 65535 &&
+    ['localhost', '127.0.0.1'].includes(url.hostname) && url.port === port &&
+    protocols.some(protocol => protocol === url.protocol), `Refuse a target outside loopback port ${port}`)
 }
 const origin = 'http://127.0.0.1:57380'
 const provider = Deno.serve({ hostname: '127.0.0.1', port: 57380, onListen() {} }, liveIngestionProvider())

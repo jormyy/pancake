@@ -3,6 +3,8 @@ set -euo pipefail
 eval "$(supabase-go status -o env 2>/dev/null)"
 export SUPABASE_URL="$API_URL"
 export SUPABASE_DB_URL="$DB_URL"
+export PANCAKE_TEST_API_PORT=57321
+export PANCAKE_TEST_DB_PORT=57322
 export PANCAKE_SUPABASE_SECRET_KEY="$SECRET_KEY"
 export PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token
 export E2E_SUPABASE_URL="$API_URL"
