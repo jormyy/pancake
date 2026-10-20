@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { advanceCron, cronCommands, cronMatches, productionJobs, verifyCronCatalog, mergeCronCatalog } from './cron.mjs'
+import { advanceCron, cronCommands, cronMatches, expiryCronTick, productionJobs, verifyCronCatalog, mergeCronCatalog } from './cron.mjs'
+
+test('rookie expiry waits for its production minute without expiring the following pick', () => {
+  const start = Date.parse('2026-06-26T14:00:11Z')
+  const firstExpiry = new Date(start + 5000).toISOString()
+  const tick = expiryCronTick(firstExpiry)
+  assert.equal(tick, Date.parse('2026-06-26T14:01:00Z'))
+  const nextExpiry = tick + 5000
+  assert.ok(tick < nextExpiry)
+  assert.ok(start + 60000 >= nextExpiry, 'The old fixed wait leaves the next pick expired')
+  assert.equal(expiryCronTick('2026-06-26T14:01:00Z'), Date.parse('2026-06-26T14:02:00Z'))
+  assert.throws(() => expiryCronTick(null), /real pick expiry/)
+})
 
 test('production gates and annual UTC draft window match the migration catalog', () => {
   assert.ok(verifyCronCatalog(productionJobs))

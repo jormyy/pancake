@@ -18,7 +18,7 @@ import { finishSeason, finishRookieDraft } from './season-end.mjs'
 import { advanceCron, verifyCronCatalog } from './cron.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
 import { startRealtimeProbe } from './realtime-probe.mjs'
-import { saveSnapshot } from './checkpoints.mjs'
+import { saveSnapshot, waitForSnapshotWorkers } from './checkpoints.mjs'
 import { runNextSeason } from './next-season.mjs'
 import { tradeScenarios } from './trade-scenarios.mjs'
 import { applyOverlay, functionFingerprint } from './overlay.mjs'
@@ -101,9 +101,10 @@ export async function replay(options = {}) {
   }
   const snapshot = async (name, date, days) => {
     if (options.resume && name === options.segment) return
+    const preparation = await waitForSnapshotWorkers({ advance: move })
     runtime.origin.flushCoverage()
     const cursor = { date, clock, verifiedWeeks, actions: report.actions, evidence: { offseasonTrade: report.offseasonTrade }, context: Object.fromEntries(Object.entries(context).filter(([, value]) => typeof value !== 'function')), options: { start: date, days } }
-    report.snapshots.push(await saveSnapshot(name, cursor))
+    report.snapshots.push({ ...await saveSnapshot(name, cursor), preparation })
   }
   try {
     process.env.SEASON_SIM_PRODUCTION_ONLY = '1'
@@ -143,9 +144,9 @@ export async function replay(options = {}) {
     probe = await startRealtimeProbe(context, runtime.keys)
     if (options.resume?.actions) { report.actions = options.resume.actions; report.retainedActions = true }
     if (options.resume?.evidence) Object.assign(report, options.resume.evidence)
-    if (['pre-rollover', 'pre-draft', 'next-season-start'].includes(options.segment)) {
+    if (['pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start'].includes(options.segment)) {
       if (options.segment === 'pre-rollover') report.seasonEnd = await finishSeason(context, move, report, checkpoint, { stopAfterRollover: true })
-      if (options.segment === 'pre-draft') report.seasonEnd = await finishRookieDraft(context, move, report, checkpoint)
+      if (['post-rollover', 'pre-draft'].includes(options.segment)) report.seasonEnd = await finishRookieDraft(context, move, report, checkpoint)
       if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot)
       await dispatcher.drain(clock)
       report.complete = true

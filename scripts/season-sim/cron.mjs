@@ -48,6 +48,12 @@ export function cronCommands(instant) {
   return productionJobs.filter(job => cronMatches(job.schedule, instant))
 }
 
+export function expiryCronTick(expiresAt) {
+  const at = Date.parse(expiresAt)
+  assert.ok(Number.isFinite(at), 'A real pick expiry is required')
+  return (Math.floor(at / 60000) + 1) * 60000
+}
+
 export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null, profile = null }) {
   assert.ok(Number.isFinite(from) && Number.isFinite(to) && to >= from, 'Cron time cannot move backwards')
   if (settle) {

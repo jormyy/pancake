@@ -4,12 +4,50 @@ import { chmod, cp, mkdir, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { setClock } from './clock.mjs'
 import { functionFingerprint } from './overlay.mjs'
-import { config, miniRoot, sha256, writeJson } from './common.mjs'
+import { config, delay, miniRoot, originUrl, sha256, writeJson } from './common.mjs'
 import { databaseEnvironment, localKeys, sql, sqlJson } from './local-stack.mjs'
 
-export const segmentNames = ['live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'pre-draft', 'next-season-start', 'waiver-week']
+export const segmentNames = ['live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start', 'waiver-week']
 export function snapshotRoot() {
   return process.env.SEASON_SIM_SNAPSHOT_ROOT ?? path.resolve(miniRoot, '../../shared/sim/snapshots')
+}
+
+async function snapshotActivity() {
+  const [workers, response] = await Promise.all([
+    sqlJson("SELECT coalesce(json_agg(r),'[]') FROM (SELECT id,function_name,worker_status,queued_at FROM edge_invocations WHERE worker_status IN ('pending','running') ORDER BY id) r", 'Snapshot workers'),
+    fetch(`${originUrl('edge')}/health`, { redirect: 'error', signal: AbortSignal.timeout(5000) }).catch(error => {
+      if (error.cause?.code !== 'ECONNREFUSED') throw error
+      return null
+    }),
+  ])
+  if (response == null) {
+    assert.equal(workers.length, 0, `Stopped runtime has unfinished snapshot workers: ${JSON.stringify(workers)}`)
+    return { workers, runtime: { active: 0, fetches: 0 } }
+  }
+  assert.ok(response.ok, 'Snapshot runtime health read must succeed')
+  return { workers, runtime: await response.json() }
+}
+
+export async function waitForSnapshotWorkers({ read = snapshotActivity, wait = delay, now = Date.now, timeoutMs = 120000, advance = null } = {}) {
+  const started = now()
+  let polls = 0, firstAt = null, advancedMs = 0
+  for (;;) {
+    const activity = await read()
+    polls++
+    if (!activity.workers.length && activity.runtime.active === 0 && activity.runtime.fetches === 0) return { polls, waitedMs: now() - started, advancedMs }
+    assert.ok(now() - started < timeoutMs, `Snapshot workers did not settle under the paused clock: ${JSON.stringify(activity)}`)
+    if (advance && activity.runtime.active > 0 && activity.runtime.sleeping === activity.runtime.active && activity.runtime.fetches === 0 && activity.runtime.nextAt != null) {
+      const at = Date.parse(activity.runtime.at)
+      firstAt ??= at
+      assert.ok(Number.isFinite(at) && Number.isFinite(activity.runtime.nextAt) && activity.runtime.nextAt - firstAt <= timeoutMs, 'Snapshot worker deadlines must settle within two business minutes')
+      if (activity.runtime.nextAt > at) {
+        await advance(activity.runtime.nextAt)
+        advancedMs = activity.runtime.nextAt - firstAt
+        continue
+      }
+    }
+    await wait(10)
+  }
 }
 
 async function snapshotDirectory(name) {
@@ -26,7 +64,7 @@ export async function saveSnapshot(name, cursor) {
   await mkdir(directory, { mode: 0o700 })
   const clock = JSON.parse(await readFile(path.join(miniRoot, 'state/clock.json'), 'utf8'))
   assert.equal(clock.rate, 0, 'Snapshots require a paused business clock')
-  assert.equal(Number(await sql("SELECT count(*) FROM edge_invocations WHERE worker_status IN ('pending','running')")), 0, 'Snapshot cannot include unfinished dispatch')
+  const quiescence = await waitForSnapshotWorkers()
   const env = databaseEnvironment()
   const file = path.join(directory, 'database.dump')
   execFileSync('pg_dump', ['--format=custom', '--data-only', '--schema=public', '--schema=private', '--schema=auth', '--schema=season_sim', '--no-owner', '--no-privileges', '--file', file], { env, stdio: ['ignore', 'ignore', 'pipe'] })
@@ -34,10 +72,10 @@ export async function saveSnapshot(name, cursor) {
   await cp(path.join(miniRoot, 'evidence/upstream-summary.json'), path.join(directory, 'upstream-summary.json'))
   await cp(path.join(miniRoot, 'state'), path.join(directory, 'state'), { recursive: true })
   const tables = await sqlJson("SELECT coalesce(json_agg(format('%I.%I',schemaname,tablename)),'[]') FROM pg_tables WHERE schemaname IN ('public','private','auth','season_sim')", 'Snapshot tables')
-  const metadata = { name, createdAt: new Date().toISOString(), project: config.project, clock, cursor, tables, dumpSha256: sha256(await readFile(file)), fixtures: { directory: path.join(miniRoot, 'fixtures'), manifestSha256: sha256(await readFile(path.join(miniRoot, 'fixtures/manifest.jsonl'))) }, measuredSeconds: null }
+  const metadata = { name, createdAt: new Date().toISOString(), project: config.project, clock, cursor, tables, quiescence, dumpSha256: sha256(await readFile(file)), fixtures: { directory: path.join(miniRoot, 'fixtures'), manifestSha256: sha256(await readFile(path.join(miniRoot, 'fixtures/manifest.jsonl'))) }, measuredSeconds: null }
   await writeJson(path.join(directory, 'snapshot.json'), metadata)
   await chmod(path.join(directory, 'snapshot.json'), 0o600)
-  return { name, createdAt: metadata.createdAt, dumpSha256: metadata.dumpSha256 }
+  return { name, createdAt: metadata.createdAt, dumpSha256: metadata.dumpSha256, quiescence }
 }
 
 export async function restoreSnapshot(name) {

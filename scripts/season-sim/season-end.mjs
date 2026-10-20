@@ -7,6 +7,7 @@ import { assertClientScores } from './live-checks.mjs'
 import { assertDomain } from './invariants.mjs'
 import { checkChampion, checkAllocation, rookieOrder, checkDraftOrder } from './post-oracle.mjs'
 import { maintenanceTick, waitForRollover } from './maintenance.mjs'
+import { expiryCronTick } from './cron.mjs'
 
 export async function finishSeason(c, move, report, checkpoint, { snapshot = async (..._args) => {}, stopAfterRollover = false } = {}) {
   const oldSeason = c.leagueSeasonId
@@ -90,6 +91,7 @@ export async function finishSeason(c, move, report, checkpoint, { snapshot = asy
   await assertWaiverRollover(c, oldSeason, report)
   c.previousSeasonId = oldSeason
   c.previousChampionId = final.id
+  await snapshot('post-rollover', '2026-04-12', 1)
   if (stopAfterRollover) return { passed: true, oldSeason, newSeason: c.leagueSeasonId, playoffGames: decided.length }
   return finishRookieDraft(c, move, report, checkpoint, { snapshot })
 }
@@ -118,8 +120,7 @@ export async function finishRookieDraft(c, move, report, checkpoint, { snapshot 
   checkDraftOrder({ picks, assets, expectedOrder, rounds: 2 })
   const order = JSON.parse(await sql(`SELECT json_agg(member_id ORDER BY position) FROM draft_orders WHERE draft_id='${draftId}'`))
   assert.deepEqual(order, expectedOrder, 'Draft order agrees with independently sorted prior standings')
-  const now = Number(await sql('SELECT extract(epoch FROM now())*1000'))
-  await move(now + 60000)
+  await move(expiryCronTick(picks[0].timer_expires_at))
   const expired = JSON.parse(await sql(`SELECT row_to_json(p) FROM snake_draft_picks p WHERE draft_id='${draftId}' AND overall_pick=1`))
   assert.ok(expired.player_id && expired.picked_at, 'Production expiry gate must make the timed-out rookie pick')
   report.rookieAutoPick = { draftId, pick: expired, passed: true }

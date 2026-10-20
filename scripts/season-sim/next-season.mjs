@@ -26,6 +26,12 @@ export function remapGame(box, pbp, source, target) {
   return { box: mappedBox, pbp: mappedPbp }
 }
 
+export async function nextSeasonMorning(date, move, current = async () => Number(await sql('SELECT extract(epoch FROM now())*1000'))) {
+  const at = await current()
+  assert.ok(Number.isFinite(at), 'Next-season morning requires the current business clock')
+  await move(Math.max(Date.parse(`${date}T14:00:00Z`), at))
+}
+
 export async function prepareNextFixtures() {
   const directory = path.join(miniRoot, 'fixtures')
   const source = JSON.parse(await readFile(path.join(directory, 'next-schedule-source.json'), 'utf8'))
@@ -81,7 +87,7 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot) {
   c.firstDate = mapping.first
   const playoffStart = await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`)
   assert.equal(playoffStart, '23', 'Skipping week one does not change the configured calendar playoff week')
-  await move(`${mapping.first}T14:00:00Z`)
+  await nextSeasonMorning(mapping.first, move)
   await snapshot('next-season-start', mapping.first, 21)
   const rows = await sqlJson(`SELECT coalesce(json_agg(w ORDER BY week_number),'[]') FROM season_weeks w WHERE season_year=2027 AND week_number IN (1,2,3)`, 'Next-season calendar')
   assert.equal(rows.length, 3, 'Production schedule ingestion creates three calendar weeks')
@@ -93,7 +99,7 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot) {
   let previous = {}
   const days = []
   for (const date of dates(mapping.first, mapping.end)) {
-    await move(`${date}T14:00:00Z`)
+    await nextSeasonMorning(date, move)
     const today = games.filter(game => game.date === date), day = { date, provenance: 'SYNTHETIC' }
     const week = rows.find(row => date >= row.week_start && date <= row.week_end)?.week_number
     assert.ok(week, 'Every next-season date belongs to a published calendar week')
