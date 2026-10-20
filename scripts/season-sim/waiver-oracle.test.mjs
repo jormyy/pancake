@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { waiverParticipants, waiverOutcomes, checkWaiverResult, checkWaiverTiming, rolloverPriorities } from './waiver-oracle.mjs'
+import { waiverResetAt, checkWaiverReset, waiverParticipants, waiverOutcomes, checkWaiverResult, checkWaiverTiming, rolloverPriorities } from './waiver-oracle.mjs'
 
 const input = { mode: 'faab', priorities: { a: 1, b: 2, c: 3 }, budgets: { a: 100, b: 20, c: 100 }, rosterCounts: { a: 3, b: 3, c: 3 }, weeklyCounts: { a: 0, b: 0, c: 0 }, limit: 1, rosterSize: 3,
   claims: [
@@ -57,4 +57,14 @@ test('later waiver batches select an actually full claimant after earlier donor 
   const rosters = { a: [1, 2, 3], b: [1, 2, 3], c: [1, 2], d: [1, 2] }
   assert.deepEqual(waiverParticipants(users, priorities, rosters, 3).map(row => row.memberId), ['b', 'c', 'd', 'a'])
   assert.throws(() => waiverParticipants(users, priorities, { ...rosters, a: [], b: [] }, 3), /actual full roster/)
+})
+
+test('eligible-week add resets stay at Eastern midnight through the November DST change', () => {
+  assert.equal(new Date(waiverResetAt('2026-10-25')).toISOString(), '2026-10-26T04:00:00.000Z')
+  assert.equal(new Date(waiverResetAt('2026-11-01')).toISOString(), '2026-11-02T05:00:00.000Z')
+  const state = { week_number: 2, weekly_add_count: 0, add_limit_resets_at: '2026-11-02T05:00:00Z' }
+  checkWaiverReset(state, 2, waiverResetAt('2026-11-01'))
+  assert.throws(() => checkWaiverReset({ ...state, add_limit_resets_at: '2026-11-02T04:00:00Z' }, 2, waiverResetAt('2026-11-01')), /DST/)
+  assert.throws(() => checkWaiverReset({ ...state, weekly_add_count: 1 }, 2, waiverResetAt('2026-11-01')), /fresh add/)
+  assert.throws(() => checkWaiverReset({ ...state, week_number: 1 }, 2, waiverResetAt('2026-11-01')), /calendar week/)
 })

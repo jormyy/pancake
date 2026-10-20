@@ -1,11 +1,26 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkSkippedWeek, checkNextSchedule } from './skipped-week.mjs'
+import { checkSkippedWeek, checkNextSchedule, skippedWeekActions } from './skipped-week.mjs'
 
-test('skipped week rejects phantom matchups, lineups and standings separately', () => {
-  const input = { week: 1, matchups: [{ week_number: 2 }], lineups: [], standings: [] }
-  assert.ok(checkSkippedWeek(input).passed)
-  for (const key of ['matchups', 'lineups', 'standings']) assert.throws(() => checkSkippedWeek({ ...input, [key]: [{ week_number: 1 }] }), /Skipped week 1/)
+const skipped = { week: 1, matchups: [], lineups: [{ week_number: 1, is_auto_set: true, slot_type: 'UTIL' }], standings: [], certificates: [], addCounts: [], expectedAdds: { a: 0 }, transactions: [], expectedTransactions: [] }
+
+test('skipped weeks can retain daily lineups without fantasy results or transaction effects', () => {
+  assert.equal(checkSkippedWeek(skipped).lineups, 1)
+})
+
+test('skipped weeks reject phantom matchups, standings, certificates, adds and transactions', () => {
+  const corruptions = [
+    input => { input.matchups.push({ week_number: 1, home_points: 1 }) },
+    input => { input.standings.push({ week_number: 1 }) },
+    input => { input.certificates.push({ week_number: 1 }) },
+    input => { input.addCounts.push({ member_id: 'a', week_number: 1, add_count: 1 }) },
+    input => { input.transactions.push({ transaction_type: 'fa_add', member_id: 'a', player_id: 'phantom', related_claim_id: null }) },
+  ]
+  for (const corrupt of corruptions) {
+    const input = structuredClone(skipped)
+    corrupt(input)
+    assert.throws(() => checkSkippedWeek(input), /Skipped week 1/)
+  }
 })
 
 test('next-season schedule preserves calendar weeks and every member before the playoff boundary', () => {
@@ -15,4 +30,16 @@ test('next-season schedule preserves calendar weeks and every member before the 
   assert.throws(() => checkNextSchedule([{ ...rows[0], week_number: 4 }, ...rows.slice(1)], members, 4, [1]), /calendar week 2/)
   assert.throws(() => checkNextSchedule([...rows, { ...rows[0], week_number: 1 }], members, 4, [1]), /playoff boundary/)
   assert.throws(() => checkNextSchedule([{ ...rows[0], home_member_id: 'c' }, ...rows.slice(1)], members, 4, [1]), /every member once/)
+})
+
+test('skipped-week add counts follow real claims and reset in the next calendar bucket', () => {
+  const context = { leagueSeasonId: 'new', users: [{ memberId: 'a' }], waiverScenarios: [{ seasonId: 'new', targets: [{ member: 'a', player: 'dropped', droppedAt: 10 }], processAt: 30, input: { claims: [{ id: 'claim', member: 'a', player: 'won', drop: 'conditional' }] }, expected: { claims: { claim: 'succeeded' } } }] }
+  const early = skippedWeekActions(context, 1, 20, 0, 100)
+  assert.deepEqual(early.expectedAdds, { a: 0 })
+  assert.equal(early.expectedTransactions.length, 1)
+  const processed = skippedWeekActions(context, 1, 40, 0, 100)
+  assert.deepEqual(processed.expectedAdds, { a: 1 })
+  assert.deepEqual(processed.expectedTransactions.map(row => row.transaction_type), ['fa_drop', 'waiver_add', 'waiver_drop'])
+  assert.deepEqual(skippedWeekActions(context, 2, 110, 100, 200).expectedAdds, { a: 0 })
+  assert.ok(checkSkippedWeek({ ...skipped, addCounts: [{ member_id: 'a', week_number: 1, add_count: 1 }], ...processed, transactions: processed.expectedTransactions }).passed)
 })
