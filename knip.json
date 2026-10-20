@@ -75,7 +75,26 @@
         "scripts/bench/{compare,dispatch-concurrency,lineup-concurrency,oracle.test,pre-tipoff,prepare-schedule,profile-certificates,profile-prototypes,profile-span-certificates,report-metrics,verify-tipoffs}.ts",
         "scripts/bench/{profile-env,profile-psql,server-queries}.mjs",
         "scripts/bench/{profile-compare,profile-report,profile.test}.ts",
-        "scripts/season-sim/{edge,plan-audit,psql}.mjs"
+        "scripts/season-sim/{edge,plan-audit,psql}.mjs",
+        "supabase/tests/db/live-score-load.ts",
+        "supabase/tests/db/live-score-overlap.ts",
+        "supabase/tests/db/live-score-tick-recovery.ts",
+        "supabase/tests/db/scoring-skip-first-week.ts",
+        "supabase/tests/db/playoff-stale-boundary.ts",
+        "supabase/tests/db/rookie-backstop.ts",
+        "supabase/tests/db/rookie-skipped-week.ts",
+        "scripts/mutation/post/check.mjs",
+        "scripts/mutation/post/check-registrations.mjs",
+        "scripts/mutation/post/integration.mjs",
+        "scripts/mutation/post/report.mjs",
+        "scripts/mutation/post/residue.mjs",
+        "scripts/mutation/post/run.mjs",
+        "scripts/mutation/post/setup.mjs",
+        "scripts/mutation/post/verify-review.mjs",
+        "scripts/mutation/post/verify-skipped-week.mjs",
+        "scripts/mutation/post/verify-stale-boundary.mjs",
+        "tests/e2e/{faab-worker,waiver-season,waiver-season-end}-db.mjs",
+        "scripts/mutation/waivers/targets.test.mjs"
       ],
       "project": [
         "**/*.{js,mjs,ts,tsx}"

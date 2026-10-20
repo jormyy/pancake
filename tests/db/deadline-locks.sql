@@ -17,7 +17,7 @@ DO $$
 DECLARE
   league uuid:=gen_random_uuid(); season uuid:=gen_random_uuid(); users uuid[]:='{}'; members uuid[]:='{}';
   today date:=(now() AT TIME ZONE 'America/New_York')::date; offer uuid; expired_offer uuid;
-  future_offer uuid; no_expiry uuid; asset uuid; other_asset uuid; i int; message text; result_count int;
+  future_offer uuid; no_expiry uuid; asset uuid; other_asset uuid; i int; message text; result_count int; batch_count int;
 BEGIN
   PERFORM pg_temp.check_deadline(private.trade_deadline_for_season('2000-10-01',3102)='3101-10-01','October deadline anchors in previous year');
   FOR i IN 1..4 LOOP
@@ -66,7 +66,11 @@ BEGIN
   VALUES(expired_offer,league,season,members[1],members[2],now()),
     (future_offer,league,season,members[1],members[2],now()+interval '1 day'),
     (no_expiry,league,season,members[1],members[2],NULL);
-  SELECT count(*) INTO result_count FROM expire_pending_trades_atomic(100);
+  LOOP
+    SELECT count(*),count(*) FILTER(WHERE expired.trade_id=expired_offer) INTO batch_count,result_count
+    FROM expire_pending_trades_atomic(100) expired;
+    EXIT WHEN result_count>0 OR batch_count=0;
+  END LOOP;
   PERFORM pg_temp.check_deadline(result_count=1 AND (SELECT status='expired' FROM trades WHERE id=expired_offer)
     AND (SELECT status='pending' FROM trades WHERE id=future_offer) AND (SELECT status='pending' FROM trades WHERE id=no_expiry),'expiry resolves due offers and preserves future and indefinite offers');
   UPDATE leagues SET trade_deadline=today-1 WHERE id=league;

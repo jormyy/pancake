@@ -170,3 +170,24 @@ It runs new live SQL entries, waiver chain entries, and all eight post recipes s
 It skips the live TypeScript recipe pending that lane's concurrent port change.
 It also proves default-port refusal before fixture changes and rejects broken registration controls.
 The complete `test:db` chain remains an integration check for the orchestrator.
+
+## Residue checks
+
+```sh
+node scripts/mutation/post/residue.mjs
+```
+
+Run this check on the admitted lane stack without a reset.
+Save the review-start gate and deadline recipes under `evidence/review6/` as `rookie-drafting-gate-before.sql` and `deadline-locks-before.sql` first.
+The check runs the three-season recipe, then commits SYNTHETIC residue in five league states and one expired offer.
+Both old recipes must reject that residue.
+All fourteen new chain entries then run twice in their registered order.
+The residue must remain identical after both passes.
+The final gate must also reject the pre-fix application function from the pristine base copy.
+The check restores the function by SHA-256 and proves the fixed gate passes.
+It runs the touched mutation tools in baseline mode and removes only its own committed fixtures.
+
+The gate recipe temporarily archives other league states inside its rolled-back transaction.
+This isolates the drafting-only fleet without changing committed leagues.
+Its dispatch counts include only rows from its own transaction.
+The deadline recipe drains expiry batches until its own offer appears and checks only that offer's result.
