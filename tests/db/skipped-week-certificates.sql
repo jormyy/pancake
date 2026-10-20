@@ -24,8 +24,8 @@ BEGIN
     IF i = 1 THEN
       INSERT INTO leagues(id, name, slug, commissioner_id, status, playoff_start_week, playoff_entrants, playoff_round_lengths)
         VALUES(v_league, 'Skipped week certificate regression', v_league::text, v_user, 'active', 4, 4, ARRAY[1,1]);
-      INSERT INTO league_seasons(id, league_id, season_year, is_current, skipped_weeks)
-        VALUES(v_season, v_league, 8991, true, ARRAY[2]);
+      INSERT INTO league_seasons(id, league_id, season_year, is_current)
+        VALUES(v_season, v_league, 8991, true);
     END IF;
     INSERT INTO league_members(id, league_id, user_id, role, team_name)
       VALUES(v_member, v_league, v_user, CASE WHEN i=1 THEN 'commissioner' ELSE 'manager' END::league_member_role, 'Team ' || i);
@@ -36,6 +36,8 @@ BEGIN
     matchup_type, is_finalized, finalized_at, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id)
     SELECT v_league, v_season, week, v_members[pair], v_members[pair+1], 'regular_season', true, now()-interval '3 days',
       10, 5, 12, 8, v_members[pair] FROM unnest(ARRAY[1,3]) week CROSS JOIN unnest(ARRAY[1,3]) pair;
+  PERFORM set_config('request.jwt.claim.sub', v_users[1]::text, true);
+  PERFORM update_league_settings_atomic(v_league, '{"skipped_weeks":[2]}'::jsonb);
   PERFORM private.rebuild_regular_standings(v_league, v_season);
   IF EXISTS (
     SELECT 1 FROM standings
