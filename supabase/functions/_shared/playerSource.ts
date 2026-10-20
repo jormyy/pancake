@@ -40,7 +40,7 @@ const ESPN_INJURY_STATUSES: Record<string, string> = {
   'Doubtful': 'Doubtful',
 }
 
-export type SourcePlayerRecord = {
+type SourcePlayerRecord = {
   espn_id: string
   first_name: string
   last_name: string
@@ -206,7 +206,7 @@ export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
   return records
 }
 
-export type SourceNewsItem = {
+type SourceNewsItem = {
   title: string
   summary: string
   source: string

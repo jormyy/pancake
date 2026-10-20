@@ -7,7 +7,7 @@ import { workFetch } from './workContext.ts'
 // Each attempt gets its own timeout. A caller-supplied signal still cancels the
 // whole call, but a per-attempt abort (the classic CDN hang) must not poison the
 // retry: re-issuing fetch with an already-aborted signal fails instantly.
-export type FetchRetryOptions = {
+type FetchRetryOptions = {
   attemptTimeoutMs?: number
   retryDelayMs?: () => number
 }

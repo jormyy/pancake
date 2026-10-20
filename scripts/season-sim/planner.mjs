@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { orderedActions, gameEndTime } from './snapshots.mjs'
 
-export const faultDates = ['2025-10-22', '2025-10-23', '2025-10-24', '2025-10-25', '2025-10-26', '2025-10-27', '2025-10-28', '2025-11-04']
+const faultDates = ['2025-10-22', '2025-10-23', '2025-10-24', '2025-10-25', '2025-10-26', '2025-10-27', '2025-10-28', '2025-11-04']
 const boundaryDates = ['2026-01-08', '2026-01-09', '2026-01-24', '2026-01-25', '2026-01-26', '2026-01-29', '2026-03-18', '2026-03-31']
 
 export function dayClass(date) {

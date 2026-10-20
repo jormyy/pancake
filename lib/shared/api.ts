@@ -70,7 +70,7 @@ async function authHeaders(options: { accessToken?: string; expectedUserId?: str
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
-export interface ApiRequestOptions {
+interface ApiRequestOptions {
     timeoutMs?: number
     /** Act as this session instead of the stored one (cleanup after local sign-out). */
     accessToken?: string

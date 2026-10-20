@@ -1,251 +1,73 @@
-# Pancake — Dynasty Fantasy Basketball
+# Pancake
 
-A dynasty fantasy basketball app targeting the gap between ESPN (no dynasty support) and
-Fantrax/Sleeper (poor UX or flawed scoring). Built for managers with busy lifestyles who
-want meaningful, skill-rewarding gameplay — and leagues that keep running even when the
-commissioner disappears.
-
-- [Highlights](#highlights)
-- [Architecture](#architecture)
-- [Getting started](#getting-started)
-- [Project structure](#project-structure)
-- [Season autonomy](#season-autonomy)
-- [Data sources](#data-sources)
-- [Data integrity](#data-integrity)
-- [Testing](#testing)
-- [Security posture](#security-posture)
-- [Deployment](#deployment)
-- [Documentation](#documentation)
-
-Pancake supports iPhone Safari, the installed iPhone PWA, and desktop browsers.
-It is a web app. It needs no native app or Xcode.
-The web build uses browser touch input and the cached PWA shell; it needs no native splash or gesture-handler package.
-
-## Highlights
-
-- **Startup auction draft** with real-time bidding, commissioner-chosen nomination-order
-  modes, nomination withdrawal, and free-form validated bids; a manager may spend the
-  full remaining budget and fill any open slots later through waivers or free agency
-- **Mock draft rooms** (auction or rookie) with scheduling, realtime multi-user play,
-  creator/commissioner deletion, and daily auto-expiry of finished or stale rooms
-- **Snake rookie draft** for annual offseason drafts (pick-ownership ordered), with an
-  automatic best-available backstop if it never runs by week 1
-- **Daily lineups** with manual options, per-team Auto-set daily, and ET tip-off locks ([automation](./docs/pre-tipoff-lineups.md))
-- **Player discovery** with indexed search, sort, availability, health, team, playing-day,
-  rookie, and stats-season filters (the current season or either of the two before it)
-- **Dynasty Hub** with Hashtag Basketball dynasty rankings, source stat strips, player
-  headshots, curated news, and roster-filtered My News
-- **Waiver wire** with weekly add limits (in the offseason the limit keeps counting in
-  synthetic 7-day weeks anchored to the last regular-season week), rolling or FAAB claim modes, blind bids,
-  pending-claim edit/reorder/cancel, and a 48h clearance window
-- **Trades** with active-roster players, future draft picks, tradeable FAAB, multi-team
-  offers, expiration, counteroffers, outgoing edits, trade block, and a 24h veto window
-- **H2H matchups** with cumulative weekly scoring, playoff brackets, and a fully
-  automated season lifecycle ([Season autonomy](#season-autonomy))
-- **Push notifications** via Web Push for the installed iPhone PWA (server-emitted only)
-- **PWA**: installable web app with an offline app shell (manifest + service worker)
+Pancake is a dynasty fantasy basketball web app.
+It supports iPhone Safari, an installed iPhone PWA, and desktop browsers.
+Leagues use auction and rookie drafts, daily lineups, waivers, trades, and automated season transitions.
 
 ## Architecture
 
-| Layer | Technology |
+| Layer | Implementation |
 | --- | --- |
-| Frontend | Expo / React Native (TypeScript), Expo Router; web export deployed as a PWA |
-| API | Supabase Edge Functions (`/functions/v1/api` is the single HTTP boundary) |
-| Database | Supabase Postgres — gameplay mutations via `SECURITY DEFINER` RPCs only |
-| Scheduling | Supabase pg_cron + `invoke_edge_function`, ET wall-clock gates with once-per-period catch-up, idle gated, responses retained in `edge_invocations`; dispatch failures recorded in `sync_runs` |
-| Realtime | Supabase Realtime (matchups, auction bids) |
-| Auth | Supabase Auth |
+| Web app | Expo Router, React, TypeScript, and React Native Web |
+| Backend | Supabase Auth, PostgREST, Realtime, and Edge Functions |
+| Rules | PostgreSQL functions enforce ownership, roster limits, deadlines, and scoring locks |
+| Automation | PostgreSQL cron dispatches guarded Edge jobs through pg_net |
+| Shared logic | `core/` and `supabase/shared-src/` supply generated runtime copies |
+| Delivery | Static web export, public boot shell, and service worker |
 
-Scoring and season logic shared across app, Edge, and SQL runtimes is generated from
-single sources in `core/` and `supabase/shared-src/` (`npm run generate:edge-shared`);
-parity tests fail the build if any copy drifts.
+The app uses Auth, direct database reads and RPCs, and the Edge API.
+The Edge API is not the only backend boundary.
+See the [architecture](docs/architecture.md) and [route inventory](docs/supabase-backend-route-inventory.md).
 
 ## Getting started
 
-```bash
-npm install
-npm start                                     # Safari/PWA frontend
-supabase start                                # local database stack
-supabase functions serve --env-file .env      # Edge API
+Use Node 22, npm, Docker, and the Supabase CLI.
+Run these commands from the repository root:
+
+```sh
+npm ci
+cp .env.example .env
+supabase start
+supabase status -o env
 ```
 
-Copy `.env.example` to `.env` and fill in the Supabase URL, publishable key, and
-`EXPO_PUBLIC_API_URL=https://<project-ref>.supabase.co/functions/v1/api`.
-Runtime overrides remain available in local web builds with `?pancake_api_url=...`.
+Set the three public app variables in `.env` from that local stack.
+Use its API URL with `/functions/v1/api` appended for `EXPO_PUBLIC_API_URL`.
+Set `PANCAKE_SUPABASE_SECRET_KEY` from the local stack's service key.
+Generate a local `PANCAKE_EDGE_INTERNAL_TOKEN` if you run internal jobs.
+Keep its value equal to the database dispatch token; see the [verification setup](docs/verification.md#local-stack).
+Never use a hosted secret in a local test.
 
-## Project structure
+Run each process in a separate terminal:
 
-```
-app/          # Expo Router screens (auth, tabs, modals)
-components/   # Reusable UI components
-constants/    # App constants
-contexts/     # React context providers
-core/         # Shared scoring/season logic (source of generated runtime copies)
-docs/         # Operating docs, ledgers, audits (see docs/README.md)
-hooks/        # React hooks
-lib/          # Frontend data layer
-supabase/     # Migrations, Edge Functions, canonical SQL function sources
-tests/        # Vitest suites, DB behavior tests, e2e harnesses (tests/e2e/)
-types/        # TypeScript type definitions
+```sh
+supabase functions serve --env-file .env
+npm start
 ```
 
-## Season autonomy
+`npm start` serves the web app through Expo.
+For a release export, run `npm run build:web:release`.
+The build writes the stamped app into the generated dist directory.
+See [release provenance](docs/release-build-provenance.md) for deployment and artifact checks.
 
-A league whose commissioner disappears in October still finishes its playoffs in April,
-rolls into the next season, and is scoring games the following October. The daily
-`season-boundary` cron, per league:
+## Checks
 
-1. generates the playoff bracket once the last regular-season week finalizes,
-2. advances the bracket round by round — each move waits a **48h stat-correction grace
-   window**, and a round is immutable once the next one exists,
-3. rolls the season over after the final (waiver priority reseeds from inverse
-   standings, FAAB and add-limits reset, the rookie draft gets a default date),
-4. generates the new season's matchups so scoring resumes, and
-5. auto-completes an unrun rookie draft best-available at the new season's week 1,
-   which reactivates the league.
+| Command | Scope |
+| --- | --- |
+| `npm run check:quality` | Lint, typechecks, dead code, generated sources, and inventories |
+| `npm run check:comprehensive` | Quality plus Edge and database source checks |
+| `npm test` | App and shared contract tests |
+| `npm run test:db` | Database behavior on an isolated local stack |
+| `npm run perf:budget` | Performance budget contract |
+| `npm run e2e:web-targets` | Supported browser layouts and optional gameplay |
+| `npm run e2e:layout-stability` | Release layout measurements |
+| `npm run e2e:season-sim` | Historical replay; requires the dedicated simulator setup |
 
-Every step is idempotent, safe to re-run, and defers to a commissioner who already
-acted — the commissioner buttons remain as manual overrides. The simulated-season
-harness proves the loop across consecutive rollovers and proves it fails red when the
-automation is disabled:
-
-```bash
-npm run e2e:perpetual                       # 2 consecutive rollovers, zero manual actions
-npm run e2e:perpetual -- --disable-boundary # proof the check can go red
-```
-
-Evidence and status per acceptance criterion live in
-[docs/season-autonomy-ledger.md](./docs/season-autonomy-ledger.md).
-
-## Data sources
-
-All sources are keyless public endpoints with a tested degraded-mode contract: a broken
-or reshaped payload is refused (never written), and the next good poll self-heals with
-no manual action.
-
-| Source | Provides | Degraded behavior |
-| --- | --- | --- |
-| NBA CDN | schedule, scoreboard, box scores, player index | refuse bad payloads; record scoreboard failures before stored-game fallback |
-| ESPN public JSON | player master list, teams, positions, injuries, Dynasty Hub news | refuse truncated payloads; ambiguous names are never guessed; any component failure marks the sync failed |
-| FantasyPros | projections | parse failure falls back to internal rolling averages |
-| HashtagBasketball | dynasty rankings | card-layout parser with legacy-table fallback; degraded scrape refused below 300 rows; stale rankings kept |
-| stats.nba.com / NBA.com | draft order (June–July window) | failed day retried on later window days; incomplete boards never half-written |
-| Sleeper | dormant fallback player list | behind `PLAYER_SYNC_SOURCE=sleeper` only |
-
-The Sleeper→ESPN migration design and side-by-side parity evidence are in
-[docs/sleeper-migration.md](./docs/sleeper-migration.md).
-The current health fields and recovery steps are in
-[docs/source-monitoring.md](./docs/source-monitoring.md).
-
-## Data integrity
-
-Only **regular-season** NBA data ever reaches a stat, projection, or score. The NBA-CDN
-path filters by `002%` game ids; the historical Basketball-Reference backfill excludes
-the postseason and All-Star/exhibition games. The fantasy-points formula is shared
-through core/generated adapters for app, Edge, and SQL — `tests/scoring-parity.test.ts`
-fails the build if any copy drifts in formula, category set, DNP handling, or
-regular-season filtering.
-
-Player discovery uses the `search_players` Postgres RPC as the canonical read path,
-backed by the `analytics.mv_player_avg_fantasy_points` materialized view (refreshed
-daily, with a fresh-league seeding trigger so new leagues are populated immediately).
-The Dynasty Hub loads 5-year Points, 3-year Points, and Rookie ranks in one authorized
-batch. It preserves the published Hashtag order and filters each tab in memory. The
-service-role-only `replace_dynasty_rankings` RPC replaces each source atomically.
-Retention (`prune_unbounded_history`, weekly cron) keeps all game and league history.
-It removes only completed successful high-frequency operational records after seven days.
-Failures, unfinished work, unknown jobs, and important daily or weekly outcomes remain.
-Cleanup does not retire seasons or remove replay inputs.
-Existing retirement guards still protect results whose original inputs are already missing.
-Correcting those results requires verified restoration of the original inputs.
-Present rosters or saved totals cannot reconstruct them.
-
-Roster-linked state (trade-block listings, future lineup slots, pending waiver drops,
-pending offers) is kept consistent by database triggers whenever a player leaves a
-roster or a pick changes hands, on every path: drops, waiver drops, trades, IR/taxi
-moves, merges, resets, and service-role maintenance. History rows are never deleted;
-a merge re-points the surviving player identity and closes an open waiver entry whose
-player is rostered under it.
-See [docs/roster-lifecycle.md](./docs/roster-lifecycle.md).
-
-## Testing
-
-`npm run e2e:web-targets` checks phone layouts in WebKit and desktop layouts in Chromium and WebKit.
-Use `-- --actions` for form and admin actions. Use `-- --gameplay` for league, lineup, waiver, draft, and trade settlements.
-Run it against a seeded local release build. See [the web checks](tests/e2e/README.md#supported-web-clients) for setup.
-Phone sizes are 390x844 and 393x852. Desktop sizes are 1280x720 and 1440x900.
-Standalone mode and safe areas are simulated. These checks do not install a Home Screen app or open an iPhone keyboard.
-
-```bash
-npm run check:comprehensive   # lint, typechecks, dead-code, parity, edge + db checks
-npm test                      # vitest: app, lib, cross-cutting guards
-npm run check:edge-functions  # deno check + deno test for Edge functions
-npm run test:db               # DB behavior suites against the local stack
-npm run perf:budget           # top-workflow performance budget contract
-npm run e2e:season-sim        # historical replay through real local dispatch and API actions
-npm run e2e:layout-stability  # release layout sweep; use -- --help for setup flags
-npm run bench:profile         # local database reads and job profile; supply --out
-npm run bench:profile:compare # paired scoring profile; supply both source copies
-npm run bench:profile:report  # render a saved profile: -- INPUT.json OUTPUT.md
-npm run test:bench:profile    # profile target, percentile, and provider guards
-npm run e2e:perpetual         # season-autonomy simulation harness
-npm run e2e:soak              # exploratory multi-season soak
-npm run e2e:soak:release      # coverage-enforcing 20-season release soak (Node 22+)
-```
-
-See [season setup](docs/season-simulator.md#run), [layout setup](tests/e2e/layout-stability-README.md) and [profile setup](scripts/bench/README.md#screen-and-job-capacity-profile).
-Run profiles and browser sweeps on the mini with isolated local targets. Keep evidence outside the checkout.
-
-Cross-cutting guard tests: scoring parity, RLS grants, security regressions
-(service-role-only RPCs, revoked columns, realtime gating), performance budgets
-(`docs/instant-loading.md`), round-robin/standings/scoring property batteries, and a
-no-LLM-in-runtime guard. Browser E2E flows live in `tests/e2e/`
-(see [tests/e2e/README.md](./tests/e2e/README.md)). Generated reports, screenshots, and
-snapshots are ignored artifacts — regenerate them for the run you are validating.
-The soak harness itself is audited by forced-red mutation runs
-([docs/soak-harness-audit.md](./docs/soak-harness-audit.md)).
-
-## Security posture
-
-- RLS is enabled on every public table; `anon` has no write capability anywhere.
-- All gameplay mutations flow through `SECURITY DEFINER` RPCs or Supabase Edge
-  service-role clients; client direct-writes are limited to `profiles` and
-  `league_members.team_name`.
-- Edge Functions use Supabase secret keys from hosted secrets and a dedicated internal
-  token for cron/admin function-to-function calls.
-- The public `api` Edge Function verifies the Supabase session token and re-derives the
-  acting member from the token before calling service-role-only RPCs.
-
-## Deployment
-
-Production releases run through the protected `Deploy production` workflow: it resolves
-the ordered production migration history plus attested frontend and Edge releases, soaks
-the pending migration range, cross-verifies deployed↔candidate artifacts on the upgraded
-schema, bakes the release SHA and an Edge source digest into the artifacts, and promotes
-the frontend only after hosted readiness verifies both digests. Vercel also
-auto-builds production from `main` (`vercel.json` `deploymentEnabled`), so merges
-ship the frontend directly; the protected workflow remains the verified path for
-coordinated schema + Edge + frontend releases.
-The release history preflight also verifies the narrowly scoped
-[historical migration attestations](./docs/production-migration-history.md).
-
-The web build (`npm run build:web:release` → `dist/`) ships light-only and installable
-as a PWA; `public/manifest.webmanifest` + `public/sw.js` provide install metadata and an
-offline app shell. API/realtime calls are never intercepted by the service worker.
-
-The exported document paints a static app shell before any JavaScript runs, and the
-build stamps the worker with a precache manifest of exactly what that shell boots from —
-so a deploy relaunches from disk instead of re-downloading the bundle. The stamp fails
-the build if the worker declares no manifest. When a release moves the bundle hashes,
-run `npm run e2e:pwa-update -- --previous=<dist-of-live-release> --next=dist` before
-promoting. See [docs/pwa-live-data.md](./docs/pwa-live-data.md).
-
-An online PWA reopen restores expired auth before routing. It then opens the saved league without a sign-in detour.
-The per-user league choice has no expiry. Cached memberships cover thirty days while the server refreshes them.
-Sign-out and account changes clear private caches. Server membership results safely replace choices for removed leagues.
+Use the [verification recipes](docs/verification.md) for prerequisites and focused checks.
+Generated reports, screenshots, and snapshots are ignored artifacts. Regenerate them for each run.
 
 ## Documentation
 
-The `docs/` directory is indexed in [docs/README.md](./docs/README.md): operating plans,
-the season-autonomy ledger, the Sleeper→ESPN migration record, harness audits, the
-backend route inventory, and dated review ledgers under `docs/audits/`.
+The [docs index](docs/README.md) lists the current contracts and operational records.
+The [browser guide](tests/e2e/README.md) owns browser and soak setup.
+The [benchmark guide](scripts/bench/README.md) owns local capacity measurements.

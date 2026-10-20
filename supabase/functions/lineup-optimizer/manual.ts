@@ -8,7 +8,7 @@ const MANUAL_DATABASE_REQUESTS_PER_DATE = 3
 export const MANUAL_DATABASE_REQUEST_BUDGET =
   MANUAL_FIXED_DATABASE_REQUESTS + MANUAL_DATE_LIMIT * MANUAL_DATABASE_REQUESTS_PER_DATE
 
-export type ManualDateContext = {
+type ManualDateContext = {
   date: string
   seasonYear: number
 }

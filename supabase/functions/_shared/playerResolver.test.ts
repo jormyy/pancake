@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert'
 
 Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:9')
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'local-resolver-test')
-const { loadCdnPlayerResolver, resolveCdnPlayer } = await import('./playerResolver.ts')
+const { loadCdnPlayerResolver, resolveCdnPlayers } = await import('./playerResolver.ts')
 
 // HTTP contract tests only. Matching, claims, and rollback run against real SQL
 // in tests/db/player-imports.sql and the concurrent importer regression.
@@ -34,23 +34,23 @@ async function withImports(replies: (string | Error)[], run: () => Promise<void>
 Deno.test('CDN resolution propagates a provider conflict without returning a cached player', async () => {
   await withImports([new Error('Conflicting provider identity')], async () => {
     const resolver = await loadCdnPlayerResolver()
-    await assert.rejects(() => resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), /Conflicting provider identity/)
+    await assert.rejects(() => resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'Shared Name' }]), /Conflicting provider identity/)
   })
 })
 
 Deno.test('CDN resolution confirms the canonical identity on every call', async () => {
   await withImports(['current', 'current'], async () => {
     const resolver = await loadCdnPlayerResolver()
-    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'current')
-    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'New Display'), 'current')
+    assert.deepEqual(await resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'Shared Name' }]), ['current'])
+    assert.deepEqual(await resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'New Display' }]), ['current'])
   })
 })
 
 Deno.test('a stale CDN resolver returns the survivor after an intervening merge', async () => {
   await withImports(['first', 'survivor'], async () => {
     const resolver = await loadCdnPlayerResolver()
-    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'first')
-    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'survivor')
+    assert.deepEqual(await resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'Shared Name' }]), ['first'])
+    assert.deepEqual(await resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'Shared Name' }]), ['survivor'])
     assert.equal(resolver.byNbaId.get('nba-id'), 'survivor')
   })
 })
@@ -58,7 +58,7 @@ Deno.test('a stale CDN resolver returns the survivor after an intervening merge'
 Deno.test('failed CDN resolution never recovers through an earlier cached success', async () => {
   await withImports(['first', new Error('creation unavailable')], async () => {
     const resolver = await loadCdnPlayerResolver()
-    assert.equal(await resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), 'first')
-    await assert.rejects(() => resolveCdnPlayer(resolver, 'nba-id', 'Shared Name'), /creation unavailable/)
+    assert.deepEqual(await resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'Shared Name' }]), ['first'])
+    await assert.rejects(() => resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'Shared Name' }]), /creation unavailable/)
   })
 })

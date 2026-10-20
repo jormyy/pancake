@@ -8,7 +8,7 @@ import { BROWSER_SCENARIO_MANIFEST } from './browser-scenario-manifest.mjs'
 const ROOT = process.cwd()
 export const SURFACE_MATRIX_PATH = path.join(
   ROOT,
-  'docs/evidence/2026-08-23-instant-pwa/surface-matrix.json',
+  'tests/e2e/surface-matrix.json',
 )
 
 const DIMENSIONS = ['cache', 'freshness', 'realtime', 'autoUpdate', 'pwa']

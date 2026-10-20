@@ -91,24 +91,3 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   await writeJson(path.join(miniRoot, 'state/league.json'), context)
   return { ...context, users, rpc, api, rest, restWrite }
 }
-
-export async function resumeLeagueActions(keys, context) {
-  assertTarget(keys.API_URL, 'api')
-  const users = []
-  for (const member of context.members) {
-    assert.match(member.user_id, /^[a-f0-9-]{36}$/)
-    const headers = { apikey: keys.SERVICE_ROLE_KEY, Authorization: `Bearer ${keys.SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' }
-    const found = await fetch(`${keys.API_URL}/auth/v1/admin/users/${member.user_id}`, { headers, redirect: 'error' })
-    assert.ok(found.ok)
-    const user = await found.json()
-    assert.match(user.email, /^season-sim-[a-f0-9]+-\d@example\.test$/)
-    const password = randomBytes(24).toString('hex')
-    const changed = await fetch(`${keys.API_URL}/auth/v1/admin/users/${member.user_id}`, { method: 'PUT', headers, body: JSON.stringify({ password }), redirect: 'error' })
-    assert.ok(changed.ok)
-    const login = await fetch(`${keys.API_URL}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: keys.ANON_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email, password }), redirect: 'error' })
-    assert.ok(login.ok)
-    const session = await login.json()
-    users.push({ id: member.user_id, memberId: member.id, token: session.access_token, refreshToken: session.refresh_token, expiresAt: Date.now() + session.expires_in * 1000 })
-  }
-  return { ...context, users, ...actionClient(keys) }
-}

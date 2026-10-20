@@ -96,7 +96,7 @@ export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member
     }
 }
 
-export type TradeCardModel = ReturnType<typeof tradeCardModel>
+type TradeCardModel = ReturnType<typeof tradeCardModel>
 
 function tradeItemKey(item: TradeItem, index: number) {
     if (item.kind === 'player') return `player:${item.playerId}:${index}`

@@ -33,7 +33,7 @@ type DynastyRankingInsert = RankingStats & {
   fetched_at: string
 }
 
-export type RankingPayload = {
+type RankingPayload = {
   rows: DynastyRankingInsert[]
   matched: number
 }

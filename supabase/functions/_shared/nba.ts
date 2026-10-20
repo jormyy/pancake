@@ -153,7 +153,7 @@ export interface NBAGame {
   awayTeam: { teamTricode: string; score: number }
 }
 
-export interface NBAScheduledGame {
+interface NBAScheduledGame {
   gameId: string
   gameDate: string
   homeTeam: string
@@ -165,7 +165,7 @@ export interface NBAScheduledGame {
   scheduleSeasonYear: string | null
 }
 
-export interface NBABoxScore {
+interface NBABoxScore {
   period?: number
   gameClock?: string
   gameId: string

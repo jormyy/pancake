@@ -19,7 +19,7 @@ type StatsSyncJobDependencies = {
   complete: (completedItems: number, metadata: StatsSyncJobMetadata) => Promise<void>
 }
 
-export type StatsSyncJobUnitResult = {
+type StatsSyncJobUnitResult = {
   completedItems: number
   completed: boolean
   processedGame: boolean

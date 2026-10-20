@@ -5,7 +5,7 @@ import { todayET } from '@/lib/shared/dates'
 import type { LineupContext, LineupPlayer, LineupSlot, WeekDay } from './read'
 import { clampDateToWeek } from './date'
 
-export type LineupSnapshotScope = { ownerId: string; memberId: string; leagueId: string; day: string }
+type LineupSnapshotScope = { ownerId: string; memberId: string; leagueId: string; day: string }
 export type LineupSnapshot = {
     schema: 1
     scope: LineupSnapshotScope

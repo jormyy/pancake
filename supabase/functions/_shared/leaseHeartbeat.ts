@@ -5,7 +5,7 @@
 // lost, `lost` flips; live-poll checks it before the game-status upsert and
 // before the stats/scores sync pair and bails out with 'lease-lost' instead of
 // writing beside the new holder (writes already in flight are not cancelled).
-export type LeaseHeartbeat = {
+type LeaseHeartbeat = {
   stop: () => void
   readonly lost: boolean
 }

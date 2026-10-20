@@ -2,7 +2,7 @@ import { ScrollView, Text, StyleSheet } from 'react-native'
 import { colors, fontSize, fontWeight } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
-export type LeagueSwitcherMembership = {
+type LeagueSwitcherMembership = {
     id: string
     leagues?: { name: string | null } | null
 }

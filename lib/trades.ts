@@ -188,7 +188,7 @@ type TradeQueryRow = {
     trade_items: TradeItemQueryRow[] | null
 }
 
-export type TradeProposalOptions = {
+type TradeProposalOptions = {
     rosterPlan?: TradeRosterPlan
     requestId?: string
     notes?: string | null

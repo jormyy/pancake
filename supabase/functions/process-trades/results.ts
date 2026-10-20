@@ -1,11 +1,11 @@
-export type TradeProcessingResult = {
+type TradeProcessingResult = {
   trade_id: string
   status: string
   error_code: string | null
   error_message: string | null
 }
 
-export type PartitionedTradeResults<Row extends TradeProcessingResult> = {
+type PartitionedTradeResults<Row extends TradeProcessingResult> = {
   completed: Row[]
   terminalFailures: Row[]
   retryableFailures: Row[]

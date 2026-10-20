@@ -1,33 +1,30 @@
-# Pancake docs
+# Documentation
 
-Operating documentation for the product and its automation. Dated, point-in-time review
-records live under [`audits/`](./audits/).
+Each topic has one owner below. Generated reports stay outside tracked documentation.
+The production migration history remains an operational record.
 
-| Document | What it is |
+| Document | Scope |
 | --- | --- |
-| [dynasty-decision-tools.md](./dynasty-decision-tools.md) | Product, engine, cache, and release contracts for Dynasty Rankings and Trade Analyzer. |
-| [dynasty-decision-tools-status.json](./dynasty-decision-tools-status.json) | Machine-readable feature and release-gate evidence for the dynasty decision tools. |
-| [season-simulator.md](./season-simulator.md) | Historical replay, fixture provenance, real dispatch, source limits, and measured acceptance. |
-| [season-autonomy-ledger.md](./season-autonomy-ledger.md) | Acceptance-criteria ledger for the perpetual-season autonomy work: one PASS/FAIL line per criterion with its evidence pointer, plus the checkpoint log. |
-| [sleeper-migration.md](./sleeper-migration.md) | Sleeper→ESPN player-source migration: cutover design, degraded-source contract, `years_exp` semantics, and the side-by-side parity run table (raw runs in [`sleeper-migration-parity/`](./sleeper-migration-parity/)). |
-| [soak-harness-audit.md](./soak-harness-audit.md) | Forced-red audit of the release-soak harness: each major assertion family broken on purpose to prove its green is trustworthy. |
-| [architecture.md](./architecture.md) | Where auth, caches, live updates, scheduled jobs and the API boundary live, plus recent simplifications. |
-| [pre-tipoff-lineups.md](./pre-tipoff-lineups.md) | Daily lineup opt-in, tipoff dispatch, lock precedence, retries, and rollback. |
-| [verification.md](./verification.md) | Local stack, correctness and benchmark recipes, latest measured results and their limits. |
-| [instant-loading.md](./instant-loading.md) | Loading rules, research sources, workflow budgets, and regression gates. |
-| [pwa-live-data.md](./pwa-live-data.md) | PWA architecture, cache rules, reconnect recovery, verification, and known limits. |
-| [roster-lifecycle.md](./roster-lifecycle.md) | Roster-linked state map: what happens to trade-block listings, lineups, pending claims, and pending offers when a player leaves a roster, and the triggers that enforce it. |
-| [source-monitoring.md](./source-monitoring.md) | Source freshness, completeness, failure records, recovery steps, and known limits. |
-| [supabase-performance-capacity.md](./supabase-performance-capacity.md) | Local read capacity, paired scoring results, measurement limits, and reproduction links. |
-| [supabase-backend-route-inventory.md](./supabase-backend-route-inventory.md) | Inventory of every Edge API route and internal function with its auth model. |
-| [evidence/](./evidence/) | Dated performance evidence: what was measured, under what conditions, and what the numbers do and do not claim. |
-| [audits/](./audits/) | Dated review ledgers and readiness snapshots (feedback-review hardening, multi-team trade parity, season readiness). |
+| [architecture.md](architecture.md) | Code boundaries, auth, change hints, and season transitions. |
+| [database-readiness-catalog.md](database-readiness-catalog.md) | Attested migration phases and database security checks. |
+| [dynasty-decision-tools.md](dynasty-decision-tools.md) | Published ranks, value engine, Analyzer, and cache rules. |
+| [instant-loading.md](instant-loading.md) | Loading, retained content, empty results, and layout gates. |
+| [pre-tipoff-lineups.md](pre-tipoff-lineups.md) | Auto-set daily, locks, dispatch, retries, and rollback. |
+| [production-migration-history.md](production-migration-history.md) | Historical release attestations and migration recovery records. |
+| [pwa-live-data.md](pwa-live-data.md) | Public caching, private snapshots, offline actions, updates, and push. |
+| [release-build-provenance.md](release-build-provenance.md) | Build identity, artifact recovery, and stable exports. |
+| [roster-lifecycle.md](roster-lifecycle.md) | Ownership cleanup, waivers, taxi, atomic trade plans, and playoffs. |
+| [season-simulator.md](season-simulator.md) | Historical replay, source classes, invariants, and acceptance. |
+| [source-monitoring.md](source-monitoring.md) | Providers, freshness, dispatch, recovery, and retention. |
+| [supabase-backend-route-inventory.md](supabase-backend-route-inventory.md) | Client boundaries, API routes, access rules, and measurement rules. |
+| [supabase-performance-capacity.md](supabase-performance-capacity.md) | Scoring and read contracts, profiles, and measurement limits. |
+| [verification.md](verification.md) | Local setup, focused checks, and release workflow prerequisites. |
 
-Related, outside this directory:
+## Related guides
 
-- [tests/e2e/README.md](../tests/e2e/README.md) — browser targets, layout sweep, seed, soak, and perpetual-season checks.
-- [tests/e2e/layout-stability-README.md](../tests/e2e/layout-stability-README.md) — isolated layout setup, recorder checks, paired captures, and cleanup.
-- [scripts/bench/README.md](../scripts/bench/README.md) — local profile setup, paired scoring, and certificate regressions.
-- `supabase/sql/functions/by-name/` — canonical sources for every SQL function; edited
-  first, then copied into a timestamped migration (`npm run check:db-function-sources`
-  enforces parity).
+- [Browser and soak checks](../tests/e2e/README.md)
+- [Layout setup and measurements](../tests/e2e/layout-stability-README.md)
+- [Benchmark setup and comparisons](../scripts/bench/README.md)
+- [Simulator setup and cleanup](../scripts/season-sim/README.md)
+- [Font generation](../assets/fonts/README.md)
+- [Reviewed player identity correction](../supabase/functions/_shared/playerIdentityCorrections.md)

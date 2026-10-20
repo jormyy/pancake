@@ -5,8 +5,6 @@
   "scripts": {
     "start": "expo start --web",
     "web": "expo start --web",
-    "web:local": "node scripts/run-local-web.mjs",
-    "seed:local": "node scripts/seed-local-demo.mjs",
     "build:web:release": "expo export --platform web --clear && node scripts/stamp-release-provenance.mjs",
     "release:recover-artifact": "node tests/e2e/recover-release-artifact.mjs",
     "lint": "expo lint",
@@ -82,7 +80,6 @@
     "e2e:browser-auth": "node tests/e2e/browser-auth.mjs",
     "e2e:browser-perf": "node tests/e2e/browser-perf-smoke.mjs",
     "e2e:browser-gameplay": "node tests/e2e/browser-gameplay.mjs",
-    "e2e:browser-league-lifecycle": "node tests/e2e/browser-league-lifecycle.mjs",
     "e2e:browser-lineup": "node tests/e2e/browser-lineup-gameplay.mjs",
     "e2e:browser-lineup-auto-set": "node tests/e2e/browser-lineup-gameplay.mjs --auto-set",
     "e2e:browser-lineup-locked": "node tests/e2e/browser-lineup-gameplay.mjs --locked",
@@ -97,9 +94,7 @@
     "e2e:pwa-paint-probe": "node tests/e2e/pwa-paint-probe.mjs",
     "e2e:dynasty-release-final-gate": "node tests/e2e/dynasty-release-final-gate.mjs",
     "e2e:dynasty-ranking-rpc": "node tests/e2e/dynasty-ranking-rpc.mjs",
-    "e2e:web-static": "node tests/e2e/static-web-server.mjs",
     "e2e:web-hydration": "node tests/e2e/production-web-hydration.mjs",
-    "e2e:fake-upstream": "node tests/e2e/fake-upstream.mjs",
     "prod:check": "node tests/e2e/production-readiness.mjs",
     "prod:data-health": "node tests/e2e/prod-data-source-health.mjs",
     "e2e:source-health": "node tests/e2e/configured-source-health.mjs",
@@ -257,7 +252,6 @@
     "@types/react-test-renderer": "^19.1.0",
     "agent-browser": "^0.25.4",
     "cheerio": "^1.2.0",
-    "esbuild": "0.28.1",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "knip": "^6.24.0",
@@ -271,7 +265,6 @@
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
     "fast-uri": "3.1.2",
-    "esbuild": "0.28.1",
     "js-yaml": "4.3.2",
     "postcss": "8.5.26",
     "uuid": "11.1.1"

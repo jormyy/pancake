@@ -33,7 +33,7 @@ import { colors, fontSize, fontWeight, layout, radii, spacing, table } from '@/c
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { readableSourceName } from '@/lib/source-names'
 
-export type DynastySection = 'rankings' | 'news'
+type DynastySection = 'rankings' | 'news'
 type StatKey = keyof Pick<
     DynastyRankPlayer,
     | 'gamesPlayed'

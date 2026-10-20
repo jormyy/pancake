@@ -12,7 +12,7 @@ export type UnmatchedRookieRanking = Pick<
     'id' | 'source_rank' | 'source_player_name' | 'source_team' | 'source_positions' | 'age' | 'fetched_at'
 >
 
-export type DynastyDecisionCacheScope = {
+type DynastyDecisionCacheScope = {
     userId: string
     memberId: string
     leagueId: string
@@ -30,7 +30,7 @@ export type DynastyAnalyzerCacheScope = {
     faabBudget: number
 }
 
-export type DynastyAnalyzerCacheIdentity = Pick<
+type DynastyAnalyzerCacheIdentity = Pick<
     DynastyAnalyzerCacheScope,
     'userId' | 'memberId' | 'leagueId'
 >

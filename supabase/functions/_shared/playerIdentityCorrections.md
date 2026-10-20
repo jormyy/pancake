@@ -13,9 +13,9 @@ The first ID appears only in the January 21 box within the complete regular-seas
 
 Sources:
 
-- https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022500622.json
-- https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022500643.json
+- [January 21 box](https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022500622.json)
+- [January 24 box](https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022500643.json)
 
-The simulator's `audit-identities.mjs` records all observations and source SHA-256 values outside the repository.
+The simulator's `scripts/season-sim/audit-identities.mjs` records all observations and source SHA-256 values outside the repository.
 Its independent final oracle pins this correction to the one affected historical game.
 Raw final payloads and every statistical field remain unchanged.

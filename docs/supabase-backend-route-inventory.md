@@ -1,8 +1,6 @@
 # Supabase Backend Route Inventory
 
-Updated: 2026-10-18. Source review: `0899a19e`.
-
-This inventory describes the integrated source. It does not establish a new browser request-count or hosted latency baseline.
+This inventory maps request ownership and authorization. It does not establish request counts or hosted latency.
 
 ## Runtime Boundaries
 
@@ -33,7 +31,7 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | `/sign-in`, `/sign-up` | Session state in [Auth](../lib/auth.ts) | Auth sign-in/sign-up |
 | `/` | Membership, season/week, matchup, lineup, roster, game and live-stat reads in [matchup loader](../hooks/use-matchup-data.ts) | Public avatars; league change stream |
 | `/roster` | Current roster, averages, waiver claims, transaction state in [roster](../lib/roster.ts) and [waivers](../lib/waivers.ts) | Direct roster RPCs; Edge IR/taxi and waiver actions |
-| `/players?section=players` | `search_players`, ownership and transaction support, averages/projections in [Players](../app/(tabs)/players.tsx) | Pickup controls; public avatars |
+| `/players?section=players` | `search_players`, ownership and transaction support, averages/projections in [Players](../app/%28tabs%29/players.tsx) | Pickup controls; public avatars |
 | `/players?section=rankings` | Bounded `get_dynasty_forecast_inputs` cohort in [dynasty decisions](../lib/dynasty-decisions.ts) | Client scoring and sorting; public avatars |
 | `/players?section=news` | Bounded `dynasty_news`; My News first resolves roster IDs in [dynasty](../lib/dynasty.ts) | External article navigation |
 | `/dynasty` | Redirects to `/players?section=rankings` | Attribute destination reads to Rankings |
@@ -50,8 +48,8 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | `/profile` | Shared owner profile, preferences and push status in [profile resource](../hooks/use-profile-resource.ts) | Profile/preferences writes, Storage avatar upload, push configuration and subscription, sign-out |
 | `/player/:id` | Player, seasons, averages, game log, fantasy points, transactions and projection in [player detail](../hooks/use-player-screen-data.ts) | Pickup controls; paged history and game log |
 | `/lineup` | Actor, season/week, schedule, optimizer settings, slots, lineup and roster in [lineup reads](../lib/lineup/read.ts) | Slot RPCs, optimizer settings, Edge rest-of-season optimization |
-| `/team-roster?memberId=:id` | Selected roster and averages in [team roster](../app/(modals)/team-roster.tsx) | Player navigation |
-| `/claim-player?playerId=:id` | Player, roster, priority, transaction limits and waiver clearance in [claim modal](../app/(modals)/claim-player.tsx) | Edge waiver claim |
+| `/team-roster?memberId=:id` | Selected roster and averages in [team roster](../app/%28modals%29/team-roster.tsx) | Player navigation |
+| `/claim-player?playerId=:id` | Player, roster, priority, transaction limits and waiver clearance in [claim modal](../app/%28modals%29/claim-player.tsx) | Edge waiver claim |
 | `/propose-trade` | Members, participant assets and stats in [trade composer](../hooks/use-multi-team-trade-composer.ts) | Edge proposal, counter or edit |
 | `/bracket` | Current season and playoff matchups in [bracket](../lib/bracket.ts) | Commissioner playoff actions |
 | `/commissioner-settings` | Slots, members and playoff calendar in [settings resource](../hooks/use-commissioner-settings-resource.ts) | League configuration and commissioner RPCs |
@@ -68,12 +66,12 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | Player transaction history | Default 20 rows with an offset |
 | League activity | Default 50 rows with an offset |
 | Trade pages | Default 40 entries; request 41 references to detect another page, then fetch selected details |
-| Dynasty inputs | Default 600 rows; caller limit clamps to 1–1,000; client scores the complete requested cohort |
+| Dynasty inputs | Batched ranking and player inputs; limits depend on the requested view |
 | Dynasty news | Default 20 rows; My News scopes to the current roster |
 | Player projections | Detail requests one player; batch reads scope to requested player IDs |
 | Live player stats | Selected date and player IDs; batches contain at most 100 IDs |
 
-A source-rank page cannot replace the complete dynasty cohort without changing custom ranking results.
+Published dynasty tabs preserve source order. League value context does not reorder them.
 Record actual limits, offsets, selects, returned row counts, and decoded sizes for each measurement.
 
 Current loaders defer reads while their route is inactive, hidden, or offline. They retain pending work for visible reconnect.
@@ -170,47 +168,10 @@ WebKit with an iPhone viewport does not prove installed-iPhone suspension behavi
 Record standalone emulation separately; the old baseline and corrected audit use different WebKit modes.
 Exclude segments contaminated by the next workflow's setup. Local timing and byte counts do not establish hosted latency or egress cost.
 
-## Valid-Image Fixture And Historical Evidence
+## Images and scheduled work
 
-The corrected audit at `0beaff80` uses 600 synthetic players and 239,520 synthetic stats rows.
-Its image fixture assigns 526 public NBA IDs and leaves 74 IDs absent. It preserves every synthetic player and history row.
-The fixture uses the NBA public player index at `https://cdn.nba.com/static/json/staticData/playerIndex.json`.
-Confirm successful image status and content type before measuring caching. Keep absent-ID fallback cases separate.
+The web avatar defers offscreen images and falls back to initials after failure.
+Measure successful image responses separately from absent or malformed identities.
+Logical cache hits do not establish transferred bytes.
 
-The older fixture uses malformed `E2ENBA...` IDs. Its 1,123 Chromium headshots fail as non-image responses; 1,046 WebKit headshots return 404.
-Those results cannot establish successful-image caching behavior.
-
-| Historical valid-image sample at `0beaff80` | Result |
-| --- | --- |
-| Chromium | 420 logical successful responses; 57 network loads; 363 cache hits |
-| Chromium wire transfer | 911,157 bytes including headers; repeated cached requests transfer zero bytes |
-| WebKit | 372 logical successful responses; 57 unique URLs; no equivalent wire-byte claim |
-| Successful response cache policy | `public, max-age=604800, stale-while-revalidate=86400` |
-
-These historical samples establish fixture validity and the existing HTTP cache behavior. They are not measurements of `0899a19e`.
-Do not sum cached response headers as transferred bytes.
-
-The integrated [Avatar](../components/Avatar.tsx) starts web images within a 128-pixel viewport margin.
-It remembers successfully loaded URLs in a bounded set and falls back to initials on image failure.
-Native clients and browsers without `IntersectionObserver` load immediately.
-Measure cold loading, scrolling, URI replacement, and cached returns separately.
-Deferring offscreen images delays their bytes; scrolling through every image can still transfer them all.
-
-## Scheduled Work And Retention
-
-Cron includes guarded Edge dispatch and direct SQL maintenance. [Source monitoring](source-monitoring.md) defines retry, outcome, and recovery rules.
-
-| Work | Integrated behavior |
-| --- | --- |
-| Daily source jobs | Due-work checks every 15 minutes; ranking checks hourly with weekly catch-up |
-| Live polling | Two-minute dispatcher; leased worker targets twenty-second ingestion; one scoring pass per update batch |
-| Live recovery | Missing final-game stats remain eligible; failed fetches do not mark games complete |
-| Lineups, nominations, stats range jobs | Due-work gates skip idle Edge dispatch |
-| Trades | Five-minute due-work gate checks expiration, accepted trades, notification delivery, and pending receipts |
-| Invocation reconciliation | Every five minutes; compares transport and worker outcomes |
-| Response-table maintenance | Daily at 08:17 UTC; ordinary vacuum preserves live responses |
-| Operational retention | Seven days for successful high-frequency records; failures and important daily/weekly results remain |
-
-All player stats, NBA games, and league history remain protected.
-Idle gates avoid Edge invocation rows. SQL cron logging still depends on cluster settings.
-Failure records do not imply an external alert destination; the owner must configure and authorize one.
+[Source monitoring](source-monitoring.md) owns scheduling, invocation reconciliation, retry, and retention rules.

@@ -1,2 +1,0 @@
-import { sql } from './local-stack.mjs'
-console.log(await sql(process.argv[2] ?? "SELECT json_build_object('now',now(),'games',(SELECT count(*) FROM nba_games),'finals',(SELECT count(*) FROM nba_games WHERE status='Final'),'stats',(SELECT count(*) FROM player_game_stats),'leagues',(SELECT count(*) FROM leagues),'matchups',(SELECT count(*) FROM matchups),'lineups',(SELECT count(*) FROM weekly_lineups))"))

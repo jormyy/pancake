@@ -34,7 +34,6 @@
         "npm:@types/react@19.1",
         "npm:agent-browser@~0.25.4",
         "npm:cheerio@^1.2.0",
-        "npm:esbuild@0.28.1",
         "npm:eslint-config-expo@10.0",
         "npm:eslint@^9.25.0",
         "npm:expo-constants@~18.0.13",
@@ -64,7 +63,6 @@
       "overrides": {
         "@xmldom/xmldom": "0.8.15",
         "fast-uri": "3.1.2",
-        "esbuild": "0.28.1",
         "js-yaml": "4.3.2",
         "postcss": "8.5.26",
         "uuid": "11.1.1"

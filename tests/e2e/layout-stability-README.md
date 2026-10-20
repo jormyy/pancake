@@ -2,13 +2,6 @@
 
 This harness measures the release app in headless Chromium and WebKit.
 Run it with `npm run e2e:layout-stability -- FLAGS`.
-The [browser README](./README.md#layout-stability-sweep) lists targets, scenarios, metrics, and the corrected BEFORE counts.
-The final release sweep records 1,870 passes, zero failures, and 50 explained navigation omissions.
-All 300 empty-notice returns pass. Chromium CLS is zero; WebKit CLS is unsupported.
-The largest sampled displacement is 1.6 CSS pixels, below the unchanged two-pixel threshold.
-No blank frames, loading/spinner cells, or reappearances are recorded.
-Small steps at or below 0.5 pixels can accumulate without saved movement details and can understate settling time.
-Source: release evidence `sweep/round5-handoff.md`, `sweep/final/compare.md`, and `sweep/final/metric-support.md` for release `aff7aac1`.
 It never writes to production.
 Its API and frontend guards require HTTP loopback on their exact configured ports.
 Its database guard requires PostgreSQL loopback on its exact configured port.
@@ -57,83 +50,29 @@ node tests/e2e/layout-stability.mjs --self-test \
 npx vitest run tests/e2e/layout-stability-ports.test.ts
 ```
 
-## Run locations
+## Stack setup
 
-Run browsers, builds, and Supabase only on the mini.
-Source the task environment before each remote command.
-Keep evidence and generated local keys outside the checkout.
-Do not copy a project or profile `.env` file.
-
-```sh
-/Users/michaelchen/.cache/supervise/tasks/t_04935f0d/ssh-task mini '<command>'
-```
-
-Before each heavy job, run this capacity check locally.
-If it exits 3, wait 60 seconds and retry.
-
-```sh
-FLEETCAPACITY_SSH_BIN=/Users/michaelchen/.cache/supervise/tasks/t_04935f0d/ssh-task \
-  python3 ~/.claude/skills/supervise/scripts/fleetcapacity.py --need-mini --json
-```
-
-## Prepare the base copy
-
-Run these commands on the mini.
-The shared base stays unchanged.
-
-```sh
-. ~/pancake-t_04935f0d/env.sh
-mkdir -p ~/pancake-t_04935f0d/lanes/sweep/repo
-rsync -a --exclude=.git --exclude=node_modules --exclude=dist --exclude=.expo \
-  --exclude='.env*' ~/pancake-t_04935f0d/base/ ~/pancake-t_04935f0d/lanes/sweep/repo/
-cd ~/pancake-t_04935f0d/lanes/sweep/repo
-npm ci --no-audit --no-fund
-python3 - <<'PY'
-from pathlib import Path
-import re
-p = Path('supabase/config.toml')
-s = re.sub(r'^project_id = .*', 'project_id = "pt0493sweep"', p.read_text(), flags=re.M)
-p.write_text(s.replace('543', '561'))
-PY
-```
-
-Copy `layout-stability*.mjs` and `web-targets-geometry.mjs` into the mini copy after copying the base.
-Do not rebuild app source from another lane for BEFORE measurements.
-
-The task's Supabase shim can lack its companion binary.
-Use the task-local companion installed during this run.
-
-```sh
-export SUPABASE_GO_BINARY=$HOME/pancake-t_04935f0d/lanes/sweep/tools/supabase-go
-```
-
-If that companion is absent, extract the complete approved CLI release inside this lane.
-
-```sh
-mkdir -p ../tools
-curl -fsSL https://github.com/supabase/cli/releases/download/v2.109.1/supabase_2.109.1_darwin_arm64.tar.gz \
-  -o ../tools/supabase.tar.gz
-tar -xzf ../tools/supabase.tar.gz -C ../tools
-```
-
-## Stack, keys, seed, build, and server
+Use an isolated local project with its own project ID and configured loopback ports.
+Install the pinned Playwright Chromium and WebKit browsers before this recipe.
+The commands below use the default 561xx ports.
+Use the port flags above for another assigned stack.
+Keep generated keys and seed state in `../local`, outside the checkout.
 
 ```sh
 supabase start -x studio,imgproxy,vector,logflare,supavisor
 node tests/e2e/layout-stability-local.mjs --output-dir=../local --seed=true
 mkdir -p ../evidence/before
-nohup ../tools/supabase-go functions serve --env-file ../local/functions.env \
+nohup supabase functions serve --env-file ../local/functions.env \
   > ../evidence/before/functions.log 2>&1 < /dev/null &
 echo $! > ../local/functions.pid
 set -a
 . ../local/local-stack.env
 set +a
-PANCAKE_RELEASE_SHA=725fa91363c7c0fb858c2647892136dd847f6146 \
+PANCAKE_RELEASE_SHA="$(git rev-parse HEAD)" \
   EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release
 nohup node tests/e2e/static-web-server.mjs --root=dist --port=56190 \
   > ../evidence/before/server.log 2>&1 < /dev/null &
 echo $! > ../local/server.pid
-npx playwright install chromium webkit
 ```
 
 `layout-stability-local.mjs` reads only `supabase status -o env` for local keys.
@@ -164,14 +103,14 @@ WebKit must report CLS as `unsupported`.
 ```sh
 node tests/e2e/layout-stability.mjs \
   --stack-env=../local/local-stack.env --state=../local/tests/e2e-state.json \
-  --build-sha=725fa91363c7c0fb858c2647892136dd847f6146 \
+  --build-sha="$(git rev-parse HEAD)" \
   --latency-profile=seeded,slow --workers=4 --observe-ms=1000 \
   --label=before --output-dir=../evidence/before
 
 node tests/e2e/layout-stability.mjs --notice-navigation \
   --stack-env=../local/local-stack.env --state=../local/tests/e2e-state.json \
   --targets=iphone-webkit-390-standalone,desktop-chromium-1440 \
-  --build-sha=725fa91363c7c0fb858c2647892136dd847f6146 \
+  --build-sha="$(git rev-parse HEAD)" \
   --latency-profile=seeded --cycles=10 --workers=2 \
   --label=before --output-dir=../evidence/before
 ```
@@ -248,109 +187,12 @@ The self-test includes a static busy region to enforce this distinction.
 Each scenario reports only script errors raised during that scenario.
 An earlier error remains in its own raw capture.
 
-## Prepare another AFTER build
+## Compare releases
 
-Keep the base directory and its `dist` intact.
-Create a separate directory for each release SHA.
-Run this archive block locally, with a full commit SHA.
-The archive filter excludes every `.env*` path, including tracked files.
-
-```sh
-AFTER_SHA=62e4304f4fb1a8d4bc3f16adf6d8e9e52470148a
-EVIDENCE=/Users/michaelchen/.cache/supervise/tasks/t_04935f0d/evidence/sweep
-git -C /Users/michaelchen/Projects/Apps/pancake-t_04935f0d archive "$AFTER_SHA" | \
-  python3 -c 'import sys,tarfile
-source=tarfile.open(fileobj=sys.stdin.buffer,mode="r|")
-target=tarfile.open(fileobj=sys.stdout.buffer,mode="w|gz")
-for item in source:
-    parts=item.name.split("/")
-    if any(p.startswith(".env") or p in {".git","node_modules","dist",".expo"} for p in parts): continue
-    target.addfile(item,source.extractfile(item) if item.isfile() else None)
-target.close()' > "$EVIDENCE/after-source-$AFTER_SHA.tar.gz"
-rsync -a -e /Users/michaelchen/.cache/supervise/tasks/t_04935f0d/ssh-task \
-  "$EVIDENCE/after-source-$AFTER_SHA.tar.gz" mini:pancake-t_04935f0d/lanes/sweep/
-```
-
-Use the capacity check before each install, stack start, build, or browser run.
-Run the following blocks separately through the approved SSH wrapper.
-Set `AFTER_SHA` to the same SHA in each remote shell.
-
-```sh
-. ~/pancake-t_04935f0d/env.sh
-AFTER_SHA=62e4304f4fb1a8d4bc3f16adf6d8e9e52470148a
-cd ~/pancake-t_04935f0d/lanes/sweep
-mkdir -p "after-$AFTER_SHA/repo"
-tar -xzf "after-source-$AFTER_SHA.tar.gz" -C "after-$AFTER_SHA/repo"
-cd "after-$AFTER_SHA/repo"
-npm ci --no-audit --no-fund
-python3 - <<'PY'
-from pathlib import Path
-import re
-p = Path('supabase/config.toml')
-s = re.sub(r'^project_id = .*', 'project_id = "pt0493sweep"', p.read_text(), flags=re.M)
-p.write_text(s.replace('543', '561'))
-PY
-```
-
-Copy the latest owned harness files from the local checkout after extraction.
-Use the same harness files for both builds when a measurement rule changes.
-
-```sh
-rsync -a -e /Users/michaelchen/.cache/supervise/tasks/t_04935f0d/ssh-task \
-  tests/e2e/layout-stability*.mjs tests/e2e/layout-stability*.test.ts \
-  tests/e2e/web-targets-geometry.mjs \
-  "mini:pancake-t_04935f0d/lanes/sweep/after-$AFTER_SHA/repo/tests/e2e/"
-```
-
-```sh
-. ~/pancake-t_04935f0d/env.sh
-AFTER_SHA=62e4304f4fb1a8d4bc3f16adf6d8e9e52470148a
-cd ~/pancake-t_04935f0d/lanes/sweep/after-$AFTER_SHA/repo
-export SUPABASE_GO_BINARY=$HOME/pancake-t_04935f0d/lanes/sweep/tools/supabase-go
-supabase start -x studio,imgproxy,vector,logflare,supavisor
-node tests/e2e/layout-stability-local.mjs --output-dir=../../local --seed=true
-```
-
-```sh
-. ~/pancake-t_04935f0d/env.sh
-AFTER_SHA=62e4304f4fb1a8d4bc3f16adf6d8e9e52470148a
-cd ~/pancake-t_04935f0d/lanes/sweep/after-$AFTER_SHA/repo
-set -a
-. ../../local/local-stack.env
-set +a
-PANCAKE_RELEASE_SHA="$AFTER_SHA" EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release
-```
-
-Start these servers only when this lane has no existing server on the same port.
-Check each saved PID's command before stopping or replacing it.
-
-```sh
-mkdir -p ../../evidence/after-$AFTER_SHA
-nohup ../../tools/supabase-go functions serve --env-file ../../local/functions.env \
-  > ../../evidence/after-$AFTER_SHA/functions.log 2>&1 < /dev/null &
-echo $! > ../../local/functions.pid
-nohup node tests/e2e/static-web-server.mjs --root=dist --port=56190 \
-  > ../../evidence/after-$AFTER_SHA/server.log 2>&1 < /dev/null &
-echo $! > ../../local/server.pid
-```
-
-Run the full sweep and notice mode as separate capacity-gated jobs.
-Use the same environment, working directory, and `AFTER_SHA` as above.
-
-```sh
-node tests/e2e/layout-stability.mjs \
-  --stack-env=../../local/local-stack.env --state=../../local/tests/e2e-state.json \
-  --build-sha="$AFTER_SHA" --latency-profile=seeded,slow --seed=493 \
-  --workers=4 --observe-ms=1000 --label=after --output-dir=../../evidence/after-$AFTER_SHA
-```
-
-```sh
-node tests/e2e/layout-stability.mjs --notice-navigation \
-  --stack-env=../../local/local-stack.env --state=../../local/tests/e2e-state.json \
-  --build-sha="$AFTER_SHA" --latency-profile=seeded --seed=493 --cycles=10 --workers=4 \
-  --targets=iphone-webkit-390-standalone,iphone-webkit-393-standalone,desktop-chromium-1440,desktop-webkit-1440 \
-  --label=after --output-dir=../../evidence/after-$AFTER_SHA
-```
+Keep each release in its own checkout with its own `dist` directory.
+Build each release with `PANCAKE_RELEASE_SHA` set to its full commit SHA.
+Use the same harness, seed, ports, browser versions, and measurement options for both runs.
+Keep each run in a separate evidence directory.
 
 ## Compare completed reports
 
@@ -392,23 +234,7 @@ node tests/e2e/layout-stability-cls.mjs --output-dir=../evidence/before
 
 ## Cleanup
 
-Stop only the PIDs saved by this lane.
-Do not stop the shared VM.
-
-```sh
-SWEEP_ROOT=$HOME/pancake-t_04935f0d/lanes/sweep
-for service in functions server; do
-  service_pid=$(cat "$SWEEP_ROOT/local/$service.pid")
-  service_command=$(ps -p "$service_pid" -o command=)
-  case "$service:$service_command" in
-    functions:*'supabase-go functions serve'*) kill "$service_pid" ;;
-    server:*'node tests/e2e/static-web-server.mjs --root=dist --port=56190'*) kill "$service_pid" ;;
-    functions:|server:) ;;
-    *) echo "Saved PID no longer matches $service"; exit 1 ;;
-  esac
-done
-"$SWEEP_ROOT/tools/supabase-go" stop --project-id pt0493sweep
-```
-
-Copy evidence back without copying the separate `local` directory.
-That directory contains synthetic passwords and generated local stack keys.
+Stop only the server processes recorded in `../local/functions.pid` and `../local/server.pid`.
+Check each saved process command before stopping it.
+Stop only the assigned Supabase project by its configured project ID.
+Keep `../local` out of copied evidence; it contains generated keys and synthetic passwords.

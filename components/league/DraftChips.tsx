@@ -20,7 +20,7 @@ import {
 } from '@/lib/draft-options'
 
 type ChipValue = string | number
-export type ChipOption<T extends ChipValue> = {
+type ChipOption<T extends ChipValue> = {
     value: T
     label: string
 }

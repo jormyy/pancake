@@ -21,7 +21,7 @@ type BoundaryMatchup = {
   winner_member_id: string | null
 }
 
-export type BoundaryLeagueReport = {
+type BoundaryLeagueReport = {
   leagueId: string
   actions: string[]
   error?: string

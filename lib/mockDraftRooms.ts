@@ -54,7 +54,7 @@ type RoomDraftRow = {
     }[]
 }
 
-export type CreateMockDraftRoomOptions = {
+type CreateMockDraftRoomOptions = {
     leagueId: string
     memberId: string
     draftType: MockDraftRoomKind

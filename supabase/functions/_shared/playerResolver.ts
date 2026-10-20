@@ -17,7 +17,7 @@ export type CdnPlayerResolver = {
   byName: Map<string, string>
 }
 
-export type NamePlayerResolver = {
+type NamePlayerResolver = {
   byExactName: Map<string, string>
   byName: Map<string, string>
 }
@@ -55,16 +55,6 @@ export async function loadNamePlayerResolver(): Promise<NamePlayerResolver> {
     }
   }
   return { byExactName, byName }
-}
-
-export async function resolveCdnPlayer(
-  resolver: CdnPlayerResolver,
-  personId: string,
-  displayName: string,
-): Promise<string | null> {
-  // Cached names are hints only. A merge or another provider can change the
-  // canonical UUID after this resolver loads.
-  return (await resolveCdnPlayers(resolver, [{ personId, displayName }]))[0]
 }
 
 export async function resolveCdnPlayers(

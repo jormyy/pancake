@@ -11,7 +11,7 @@ Every enabled source records its latest attempt and result. The health report ne
 | FantasyPros | One run per projection type | Rows and player matches | Failed or skipped runs keep the reason | Internal averages remain available |
 | Hashtag Basketball | Ranking sync run and fetch date | A view must meet its row floor | Changed views fail before replacement | The next weekly run retries |
 | NBA draft order | Draft sync run | At least 50 verified picks | Incomplete boards keep prior data | Each window day retries |
-| Sleeper | Disabled | Disabled | No request occurs | Enable only after a licensing review |
+| Sleeper | Disabled | Disabled | No request occurs | Explicit fallback setting |
 
 Run the degraded-source tests before the report. Then confirm that proof for the report run.
 
@@ -49,10 +49,9 @@ An abort guard stops work at 115 seconds. A ninety-second lease renews every thi
 Lease loss stops further writes. One scoring pass follows each batch of game updates.
 Missing final-game stats remain eligible for recovery. Failed provider requests back off without marking the game complete.
 
-The response-table maintenance job runs daily at 08:17 UTC after migration 20261018000013.
-It uses ordinary vacuum to reclaim expired response space. It preserves live responses and requires no table rewrite.
-Local tests cover page reuse. Hosted pg_net 0.19.5 differs from the local 0.20.4 test runtime.
-Read back table size, dead tuples, and reconciliation time after release. Revisit frequency if these measurements increase materially.
+The response-table maintenance job uses ordinary vacuum to reclaim expired response space.
+It preserves live responses and requires no table rewrite.
+Inspect table size, dead tuples, and reconciliation time when reviewing its frequency.
 
 Successful high-frequency operational records retain seven days under the existing retention policy.
 Failures, important daily or weekly results, player stats, game records, and league history remain protected.
@@ -82,3 +81,25 @@ FantasyPros can publish no projections during the offseason. The report marks an
 The scoreboard can return zero games. A successful empty response differs from a failed request.
 
 Sleeper remains dormant. Its data does not count toward active-source health.
+
+## Player sources
+
+`PLAYER_SYNC_SOURCE` defaults to `espn`. Setting it to `sleeper` enables the dormant fallback.
+ESPN supplies names, teams, coarse positions, injuries, and news.
+The sync preserves finer existing position eligibility.
+NBA CDN supplies NBA identities. Existing Sleeper identities remain resolvable.
+Truncated master lists fail before replacement.
+Rookie eligibility uses zero experience; career-game taxi eligibility follows the [roster rules](roster-lifecycle.md).
+
+`npm run parity:players` compares the two public feeds.
+It writes ignored results under the player-source-parity artifact directory in tests.
+It does not edit tracked documentation.
+
+## Participation corrections
+
+The CDN writer honors explicit provider played flags before the minutes fallback.
+Zero means DNP. One means played, including zero minutes.
+Missing or invalid flags use parsed minutes; missing or malformed minutes indicate DNP.
+Raw stat fields remain stored. Scoring applies the DNP exclusion.
+Eligible syncs can correct existing rows. Completed backfill jobs do not automatically replay.
+Derived averages follow their own refresh schedule.

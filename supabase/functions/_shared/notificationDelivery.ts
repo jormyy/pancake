@@ -101,7 +101,7 @@ export type NotificationDependencies = {
   webPush?: WebPushFanout
 }
 
-export type NotifyMember = (
+type NotifyMember = (
   memberId: string,
   title: string,
   body: string,
@@ -121,11 +121,7 @@ export type NotificationBatchDependencies = {
   webPush?: WebPushFanout
 }
 
-export function isPermanentNotificationFailure(error: unknown): boolean {
-  return notificationFailureDisposition(error) !== 'retry'
-}
-
-export type NotificationFailureDisposition = 'discard' | 'dead_letter' | 'retry'
+type NotificationFailureDisposition = 'discard' | 'dead_letter' | 'retry'
 
 function deliveryErrors(error: unknown): NotificationDeliveryError[] {
   if (error instanceof NotificationDeliveryError) return [error]

@@ -37,7 +37,7 @@ export type VapidKeys = {
   subject: string
 }
 
-export type WebPushOptions = {
+type WebPushOptions = {
   ttlSeconds?: number
   urgency?: 'very-low' | 'low' | 'normal' | 'high'
   /** Collapses undelivered messages that share a topic (max 32 url-safe chars). */
