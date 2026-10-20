@@ -146,10 +146,47 @@ Player search now uses a request-specific database plan. It keeps paging and pro
 
 ## Smaller public delivery
 
-The release uses the same three Outfit faces in WOFF2 format. Each face uses `font-display: swap`. Text can paint with the existing fallback stack while fonts load. The icon subset contains names referenced by source. Metro rejects new names that are absent from the subset. Regeneration and licenses live in `assets/fonts/README.md`.
+The release uses the same three Outfit faces in WOFF2 format. Each web display face uses `font-display: optional` to avoid a late font swap. The document preloads display and icon fonts. The icon subset contains names referenced by source. Metro rejects new names that are absent from the subset. Regeneration and licenses live in `assets/fonts/README.md`.
 
 Press feedback, the live pulse, and toast fades use React Native's existing animation API. Reduced-motion settings disable movement and remove toast transitions. The web bundle excludes the native URL polyfill because supported browsers provide URL and URLSearchParams.
 
 The boot mark is 128 pixels for its 42-pixel display size. Installation icons keep their original sizes. Release stamping gives the manifest, favicon, installation icons, and boot mark content-addressed URLs under `/assets/`. The worker serves its verified shell and public assets from cache without a background body download on every launch. Worker update checks remain.
 
 Measure new signed-out visits separately from returning chrome. A cached identity can paint the boot shell before JavaScript. That paint is not authentication, data freshness, or completed app readiness. WebKit cache measurements require persistent browser profiles. Record observed response encodings and bytes; do not estimate compression.
+
+## Stable loading surfaces
+
+A cold read keeps headers, tabs, and section frames visible. Busy content reserves space without loading text, spinners, or animated placeholders.
+`LoadingState` reserves a flexible area with a 320-pixel minimum height and exposes a busy state.
+`DeferredContent` retains the last settled children while the next view fills. Pending retained content cannot receive clicks or keyboard focus.
+A session change clears retained children. Cached content never grants write authority.
+
+Refreshes keep matching rows visible. Summaries reserve their final space and leave unknown counts blank.
+Roster sections retain their configured places. Empty results appear only after the relevant read settles.
+Home retains a confirmed empty-matchup notice during revalidation, navigation returns, and failed background reads.
+A different owner or unconfirmed membership cannot inherit that answer.
+
+Headers reserve delayed identity, metadata, and action space. Week-off copy reserves space for each supported reason.
+Offline and read-error notices use a polite overlay on supported screens. Temporary scroll-tail space keeps rows and retries reachable.
+That tail remains until it can shrink without clamping the current scroll position. Action errors retain their existing controls.
+
+The [layout sweep](../tests/e2e/layout-stability-README.md) checks these rules across release builds.
+The final release sweep records 1,870 passes, zero failures, and 50 explained navigation omissions.
+All 300 empty-notice returns pass. Chromium CLS is zero; WebKit CLS is unsupported.
+The largest sampled displacement is 1.6 CSS pixels, below the unchanged two-pixel threshold.
+No blank frames, loading/spinner cells, or reappearances are recorded.
+Small steps at or below 0.5 pixels can accumulate without saved movement details and can understate settling time.
+Source: release evidence `sweep/round5-handoff.md`, `sweep/final/compare.md`, and `sweep/final/metric-support.md` for release `aff7aac1`.
+
+### Research sources
+
+The research record dates from October 19, 2026. These sources guide the loading rules; measured browser support comes from the sweep.
+
+- [web.dev: CLS](https://web.dev/articles/cls) and [Optimize CLS](https://web.dev/articles/optimize-cls): reserve space and measure visible movement.
+- [NN/g: Skeleton Screens](https://www.nngroup.com/articles/skeleton-screens/) and [Response Times](https://www.nngroup.com/articles/response-times-3-important-limits/): avoid brief progress flashes.
+- [MDN: LayoutShift](https://developer.mozilla.org/en-US/docs/Web/API/LayoutShift) and [compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/LayoutShift.json): distinguish unsupported CLS from zero.
+- [React: useTransition](https://react.dev/reference/react/useTransition): retain revealed content during pending work.
+- [TanStack: Placeholder Query Data](https://tanstack.com/query/latest/docs/framework/react/guides/placeholder-query-data) and [Important Defaults](https://tanstack.com/query/latest/docs/framework/react/guides/important-defaults): retain cached views while refreshing.
+- [Workbox: Caching strategies](https://developer.chrome.com/docs/workbox/caching-strategies-overview) and [web.dev: bfcache](https://web.dev/articles/bfcache): keep shell caching and return navigation predictable.
+- [MDN: aria-busy](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-busy): expose pending regions to assistive tools.
+- [MDN: reduced motion](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion) and [WCAG: Pause, Stop, Hide](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html): avoid distracting continuous animation.

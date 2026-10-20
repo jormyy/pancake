@@ -182,10 +182,19 @@ npm test                      # vitest: app, lib, cross-cutting guards
 npm run check:edge-functions  # deno check + deno test for Edge functions
 npm run test:db               # DB behavior suites against the local stack
 npm run perf:budget           # top-workflow performance budget contract
+npm run e2e:season-sim        # historical replay through real local dispatch and API actions
+npm run e2e:layout-stability  # release layout sweep; use -- --help for setup flags
+npm run bench:profile         # local database reads and job profile; supply --out
+npm run bench:profile:compare # paired scoring profile; supply both source copies
+npm run bench:profile:report  # render a saved profile: -- INPUT.json OUTPUT.md
+npm run test:bench:profile    # profile target, percentile, and provider guards
 npm run e2e:perpetual         # season-autonomy simulation harness
 npm run e2e:soak              # exploratory multi-season soak
 npm run e2e:soak:release      # coverage-enforcing 20-season release soak (Node 22+)
 ```
+
+See [season setup](docs/season-simulator.md#run), [layout setup](tests/e2e/layout-stability-README.md) and [profile setup](scripts/bench/README.md#screen-and-job-capacity-profile).
+Run profiles and browser sweeps on the mini with isolated local targets. Keep evidence outside the checkout.
 
 Cross-cutting guard tests: scoring parity, RLS grants, security regressions
 (service-role-only RPCs, revoked columns, realtime gating), performance budgets
