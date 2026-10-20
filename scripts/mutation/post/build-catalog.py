@@ -113,5 +113,19 @@ add_ts('const MAX_BACKSTOP_PICKS = 200', 'const MAX_BACKSTOP_PICKS = 1', 'pick-l
 add_ts("p_reason: 'season_boundary_backstop'", "p_reason: 'manual'", 'expired-timer-authorization')
 add('rookie-draft','public.auto_pick_snake_pick_atomic','uuid,uuid,text,boolean',"v_draft.status = 'paused'", "v_draft.status = 'in_progress'", 'resume-status')
 catalog[-1]['oracles'] = catalog[-2]['oracles']
+add('picks','public.advance_season_atomic','uuid','generate_series(v_new_year,v_far_year)','generate_series(v_new_year+1,v_far_year)','fill-start-boundary')
+catalog[-1]['oracles'] = [oracle('rollover-year-gap')]
+add('picks','public.advance_season_atomic','uuid','ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING','ON CONFLICT (league_id, season_year, round, original_owner_id) DO UPDATE SET current_owner_id=EXCLUDED.current_owner_id','fill-owner-preservation')
+catalog[-1]['oracles'] = [oracle('rollover-year-gap')]
+add('rookie-draft','public.invoke_season_boundary_if_due','timestamp with time zone',"'drafting'::public.league_status", "'setup'::public.league_status", 'drafting-cron-gate')
+catalog[-1]['oracles'] = [oracle('rookie-drafting-gate')]
+add_ts("status !== 'offseason' && status !== 'drafting'", "status !== 'offseason' && status !== 'setup'", 'drafting-job-filter')
+add('rookie-draft','public.auto_pick_snake_pick_atomic','uuid,uuid,text,boolean',"AND NOT v_draft.is_mock AND v_draft.status = 'paused'", "AND v_draft.status = 'paused'", 'mock-resume-guard')
+catalog[-1]['oracles'] = catalog[-2]['oracles']
+add_ts('runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)', 'runRookieDraftBackstop(season.league_id, season.id, referenceDate, true)', 'startup-auction-guard')
+add_ts('toETDate(referenceDate) < weekOne.week_start', 'toETDate(referenceDate) > weekOne.week_start', 'premature-commissioner-resume')
+catalog[-1]['oracles'] = [{'name': 'rookie-commissioner-early', 'command': 'POST_ROOKIE_CASE=commissioner_early deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts'}]
+add('rookie-draft','public.invoke_season_boundary_if_due','timestamp with time zone',"IF NOT private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD')) THEN\n    RETURN;\n  END IF;", "PERFORM private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD'));", 'daily-dispatch-guard')
+catalog[-1]['oracles'] = [oracle('rookie-drafting-gate')]
 Path('scripts/mutation/post/catalog.json').write_text(json.dumps(catalog, indent=2) + '\n')
 print(len(catalog), 'mutants')

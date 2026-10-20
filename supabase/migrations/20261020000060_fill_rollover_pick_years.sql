@@ -37,8 +37,9 @@ BEGIN
     RAISE EXCEPTION 'No active season found for this league';
   END IF;
 
-
-
+  -- Prior+1 alone breaks a league that skipped a season or was created
+  -- off-cycle: the derived year would never match season_weeks. The real
+  -- calendar wins whenever it is ahead.
   v_new_year := GREATEST(
     v_current_season.season_year + 1,
     public.current_season_year_et(now())
@@ -135,6 +136,7 @@ BEGIN
     AND previous.member_id=current.member_id AND previous.player_id=current.player_id
   WHERE current.league_season_id=v_new_season_id AND previous.is_on_taxi AND NOT current.is_on_taxi;
 
+  -- Fill skipped pick years and preserve existing owners.
   INSERT INTO draft_picks (
     league_id,
     season_year,
@@ -190,6 +192,7 @@ BEGIN
   SELECT p_league_id, v_new_season_id, member_id, priority
   FROM ordered_members;
 
+  -- The trade deadline repeats every season.
   UPDATE leagues
      SET status = 'offseason',
          trade_deadline = private.trade_deadline_for_season(trade_deadline, v_new_year)

@@ -2,11 +2,11 @@ BEGIN;
 SET LOCAL statement_timeout='30s';
 DO $$
 DECLARE
-  usr uuid; league uuid:=gen_random_uuid(); season uuid:=gen_random_uuid(); member uuid;
+  usr uuid; league uuid:=gen_random_uuid(); season uuid:=gen_random_uuid(); member uuid; members uuid[]:='{}'; preserved_pick uuid:=gen_random_uuid();
   next_year int; next_id uuid; i int; result jsonb;
 BEGIN
   FOR i IN 1..4 LOOP
-    usr:=gen_random_uuid(); member:=gen_random_uuid();
+    usr:=gen_random_uuid(); member:=gen_random_uuid(); members:=array_append(members,member);
     INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
     VALUES(usr,'authenticated','authenticated',usr||'@example.test','x',now(),'{}','{}',now(),now());
     IF i=1 THEN
@@ -18,7 +18,12 @@ BEGIN
     INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
     SELECT league,y,r,member,member FROM generate_series(2001,2005) y CROSS JOIN generate_series(1,3) r;
   END LOOP;
+  INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
+  VALUES(preserved_pick,league,current_season_year_et(now())+2,1,members[1],members[2]);
   SELECT new_season_id,new_year INTO next_id,next_year FROM advance_season_atomic(league);
+  IF (SELECT current_owner_id FROM draft_picks WHERE id=preserved_pick)<>members[2] THEN
+    RAISE EXCEPTION 'Filling missing classes must preserve an existing traded pick owner';
+  END IF;
   result:=start_rookie_draft_atomic(league,3,false);
   IF (SELECT count(*) FROM snake_draft_picks WHERE draft_id=(result->>'id')::uuid)<>12 THEN
     RAISE EXCEPTION 'Year jump must allocate every current rookie slot';

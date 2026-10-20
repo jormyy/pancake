@@ -50,6 +50,7 @@ Every catalog entry records one semantic change and its exact oracle commands.
 ## Direct checks
 
 ```sh
+node scripts/mutation/post/check.mjs tests/db/rookie-drafting-gate.sql
 node scripts/mutation/post/check.mjs tests/db/rollover-year-gap.sql
 node scripts/mutation/post/check.mjs tests/db/picks-lifecycle.sql
 node scripts/mutation/post/check.mjs tests/db/deadline-locks.sql
@@ -66,6 +67,7 @@ It prints the command, exit code, and elapsed time without printing keys.
 node scripts/mutation/post/report.mjs /absolute/path/to/evidence
 ```
 
+Pass later JSONL files after the evidence path to merge updated verdicts.
 The report combines the initial run, final run, and final rookie recheck.
 It verifies catalog coverage, row schemas, source locations, and restore evidence.
 It writes `results.jsonl`, `scores.md`, and `survivors.md` outside the repository.
@@ -73,3 +75,23 @@ It writes `results.jsonl`, `scores.md`, and `survivors.md` outside the repositor
 The simulation lane owns Tier 2.
 Use its published segment instructions when available.
 This directory does not contain a second simulator.
+
+## Review proof
+
+```sh
+node scripts/mutation/post/verify-review.mjs
+node scripts/mutation/post/check.mjs tests/db/picks-unused-rounds.sql
+```
+
+The proof first applies the three canonical statements to the assigned database.
+It checks source parity and the affected unmutated recipes.
+It then loads the pristine base boundary module and the two pre-fix recovery functions.
+The final rookie fixture must fail on that application.
+Auction startup and commissioner pause guards must still pass on base.
+The drafting-only cron gate must fail on base.
+The helper restores every application file and definition by SHA-256, then proves green.
+The fixture SHA-256 stays identical across red and green.
+
+The unused-round recipe records current behavior through real offer, acceptance, and settlement RPCs.
+Its assertions describe an unresolved expiry policy.
+Keep it as an audit recipe until that policy is decided.

@@ -7,7 +7,9 @@ assert.ok(directory && path.isAbsolute(directory))
 const readRows = file => readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 const initial = readRows(path.join(directory, 'round1/results.jsonl'))
 const final = new Map(readRows(path.join(directory, 'results.jsonl')).map(row => [row.id, row]))
-for (const row of readRows(path.join(directory, 'rookie-final/results.jsonl'))) final.set(row.id, row)
+for (const file of [path.join(directory, 'rookie-final/results.jsonl'), ...process.argv.slice(3)]) {
+  for (const row of readRows(file)) final.set(row.id, row)
+}
 const catalog = JSON.parse(readFileSync('scripts/mutation/post/catalog.json', 'utf8'))
 const expectedKeys = ['id','area','file','line','symbol','operator','original','mutated','applied','outcome','oracles','killed_by','notes'].sort()
 assert.equal(final.size, catalog.length)
@@ -30,7 +32,7 @@ for (const area of areas) {
   const c = counts(after)
   lines.push(`| ${area} | ${score(before)} | ${score(same)} | ${score(after)} | ${after.length} | ${c.invalid} | ${c.timeout} | ${c.equivalent} |`)
 }
-lines.push('', `Original checks kill ${score(initial)}. Stronger checks kill ${score([...final.values()].filter(row => initial.some(original => original.id === row.id)))} on the same set. The expanded set kills ${score([...final.values()])}.`, '', 'The common-set gain is 28 additional kills, from 44% to 100%. Six added rookie recovery mutations also die. Every application definition or file restores to its original SHA-256 before the next mutation.', '', 'Tier 2: no simulation segment README is published at the final readiness check. No simulation verdict is claimed. Run the matching segments in the next round.', '', 'Baseline green commands and exit codes are in baseline-green.log. Each mutant row records its exact oracle commands, exit codes, timing, and log paths.')
+lines.push('', `Original checks kill ${score(initial)}. Stronger checks kill ${score([...final.values()].filter(row => initial.some(original => original.id === row.id)))} on the same set. The expanded set kills ${score([...final.values()])}.`, '', 'The common-set gain is 28 additional kills, from 44% to 100%. The later catalog additions cover rookie recovery, drafting-only dispatch, mock isolation, and rollover fill ownership. Every application definition or file restores to its original SHA-256 before the next mutation.', '', 'Tier 2 status is recorded in tier2-readiness.log. No simulation verdict is implied by a Tier 1 kill.', '', 'Baseline green commands and exit codes are in baseline-green.log. Each mutant row records its exact oracle commands, exit codes, timing, and log paths.')
 writeFileSync(path.join(directory, 'scores.md'), lines.join('\n')+'\n')
 const classification = id => ['champion-01','champion-04'].includes(id) ? 'weak oracle' : id === 'champion-06' ? 'unreachable in tests' : 'missing assertion'
 const survivors = ['# Survivor review','', 'There are no final survivors, invalid mutants, timeouts, or equivalent classifications. The original 28 survivors all die after stronger checks.','', '| Original survivor | Classification | Added killing check | Final outcome |','|---|---|---|---|']
@@ -39,6 +41,6 @@ for (const row of initial.filter(row => row.outcome === 'survived')) {
   const added = updated.killed_by.filter(name => !row.killed_by.includes(name))
   survivors.push(`| ${row.id} | ${classification(row.id)} | ${added.join(', ')} | ${updated.outcome} |`)
 }
-survivors.push('', 'Playoff tests now distinguish max possible points from points against. Champion checks cover 47-hour grace, a missing decision, and a certified final without a winner. Deadline tests exercise creation and acceptance on both sides of the ET date, reopening after a champion, and offer expiry. Rookie and pick checks exercise multiple historical seasons, tied records, new members, three-round snake order, traded slot owners, settlement, consumption, and rollover allocation.', '', 'The rookie backstop uses fresh Deno processes. The six recovery mutants change the actual imported Edge module or deployed auto-pick RPC. No fixture, mock, or assertion is mutated.')
+survivors.push('', 'Playoff tests now distinguish max possible points from points against. Champion checks cover 47-hour grace, a missing decision, and a certified final without a winner. Deadline tests exercise creation and acceptance on both sides of the ET date, reopening after a champion, and offer expiry. Rookie and pick checks exercise multiple historical seasons, tied records, new members, three-round snake order, traded slot owners, settlement, consumption, and rollover allocation.', '', 'The rookie backstop uses fresh Deno processes. Recovery mutations change the actual imported Edge module or deployed auto-pick and cron gate RPCs. Fill-year mutations change the deployed rollover RPC. No fixture, mock, or assertion is mutated.')
 writeFileSync(path.join(directory, 'survivors.md'), survivors.join('\n')+'\n')
 console.log(`${catalog.length} verdicts validated; ${score([...final.values()])} killed`)

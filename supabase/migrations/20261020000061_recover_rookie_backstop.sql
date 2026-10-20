@@ -33,6 +33,7 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  -- Resume real drafts when the season-start backstop runs.
   IF v_reason = 'season_boundary_backstop' AND NOT v_draft.is_mock AND v_draft.status = 'paused' THEN
     UPDATE drafts SET status = 'in_progress', paused_at = NULL,
       timer_paused_remaining_seconds = NULL, pause_reason = NULL WHERE id = p_draft_id;
@@ -106,15 +107,17 @@ AS $$
 DECLARE
   v_now timestamp := timezone('America/New_York', p_now);
 BEGIN
-
-
+  -- Due from 09:00 ET onward, once per ET day; a tick delayed past the 9 o'clock
+  -- hour used to skip the whole day's bracket/rollover work.
   IF v_now::time < make_time(9, 0, 0) THEN
     RETURN;
   END IF;
 
-
+  -- Setup leagues have no bracket work, but one whose season ended before it
+  -- drafted moves to the next season.
   PERFORM private.roll_setup_league_seasons(p_now);
 
+  -- Drafting leagues can need the rookie-draft backstop.
   IF NOT EXISTS (
     SELECT 1
       FROM public.leagues

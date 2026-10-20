@@ -427,7 +427,7 @@
     "id": "champion-07",
     "area": "champion",
     "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
-    "line": 194,
+    "line": 197,
     "symbol": "public.advance_season_atomic(uuid)",
     "operator": "wrong-transition",
     "original": "SET status = 'offseason',",
@@ -451,7 +451,7 @@
     "id": "champion-08",
     "area": "champion",
     "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
-    "line": 58,
+    "line": 59,
     "symbol": "public.advance_season_atomic(uuid)",
     "operator": "history-current",
     "original": "SET is_current = false",
@@ -475,7 +475,7 @@
     "id": "champion-09",
     "area": "champion",
     "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
-    "line": 43,
+    "line": 44,
     "symbol": "public.advance_season_atomic(uuid)",
     "operator": "off-by-one",
     "original": "v_current_season.season_year + 1",
@@ -931,7 +931,7 @@
     "id": "rookie-draft-08",
     "area": "rookie-draft",
     "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
-    "line": 63,
+    "line": 64,
     "symbol": "public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean)",
     "operator": "autopick-choice",
     "original": "ORDER BY player.nba_draft_number, player.id",
@@ -1067,7 +1067,7 @@
     "id": "picks-03",
     "area": "picks",
     "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
-    "line": 46,
+    "line": 47,
     "symbol": "public.advance_season_atomic(uuid)",
     "operator": "allocation-horizon",
     "original": "v_far_year := v_new_year + 5",
@@ -1099,7 +1099,7 @@
     "id": "picks-04",
     "area": "picks",
     "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
-    "line": 153,
+    "line": 155,
     "symbol": "public.advance_season_atomic(uuid)",
     "operator": "rollover-rounds",
     "original": "unnest(ARRAY[1, 2, 3]) AS round_value",
@@ -1403,7 +1403,7 @@
     "id": "rookie-draft-16",
     "area": "rookie-draft",
     "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
-    "line": 36,
+    "line": 37,
     "symbol": "public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean)",
     "operator": "resume-status",
     "original": "v_draft.status = 'paused'",
@@ -1412,6 +1412,134 @@
       {
         "name": "rookie-backstop",
         "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "picks-11",
+    "area": "picks",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 154,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "fill-start-boundary",
+    "original": "generate_series(v_new_year,v_far_year)",
+    "mutated": "generate_series(v_new_year+1,v_far_year)",
+    "oracles": [
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-12",
+    "area": "picks",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 157,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "fill-owner-preservation",
+    "original": "ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING",
+    "mutated": "ON CONFLICT (league_id, season_year, round, original_owner_id) DO UPDATE SET current_owner_id=EXCLUDED.current_owner_id",
+    "oracles": [
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-17",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 128,
+    "symbol": "public.invoke_season_boundary_if_due(timestamp with time zone)",
+    "operator": "drafting-cron-gate",
+    "original": "'drafting'::public.league_status",
+    "mutated": "'setup'::public.league_status",
+    "oracles": [
+      {
+        "name": "rookie-drafting-gate",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-18",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 303,
+    "symbol": "runSeasonBoundary",
+    "operator": "drafting-job-filter",
+    "original": "status !== 'offseason' && status !== 'drafting'",
+    "mutated": "status !== 'offseason' && status !== 'setup'",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-19",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 37,
+    "symbol": "public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean)",
+    "operator": "mock-resume-guard",
+    "original": "AND NOT v_draft.is_mock AND v_draft.status = 'paused'",
+    "mutated": "AND v_draft.status = 'paused'",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-20",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 316,
+    "symbol": "runSeasonBoundary",
+    "operator": "startup-auction-guard",
+    "original": "runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)",
+    "mutated": "runRookieDraftBackstop(season.league_id, season.id, referenceDate, true)",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-21",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 104,
+    "symbol": "runSeasonBoundary",
+    "operator": "premature-commissioner-resume",
+    "original": "toETDate(referenceDate) < weekOne.week_start",
+    "mutated": "toETDate(referenceDate) > weekOne.week_start",
+    "oracles": [
+      {
+        "name": "rookie-commissioner-early",
+        "command": "POST_ROOKIE_CASE=commissioner_early deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-22",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 134,
+    "symbol": "public.invoke_season_boundary_if_due(timestamp with time zone)",
+    "operator": "daily-dispatch-guard",
+    "original": "IF NOT private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD')) THEN\n    RETURN;\n  END IF;",
+    "mutated": "PERFORM private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD'));",
+    "oracles": [
+      {
+        "name": "rookie-drafting-gate",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql"
       }
     ]
   }
