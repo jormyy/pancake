@@ -23,7 +23,7 @@ export function liveIngestionProvider() {
       counter++
       requests.push({ kind: 'scoreboard', at: Date.now(), counter, mode: config.mode })
       const gameStatus = config.mode === 'final' || config.mode === 'box-fail' ? 3 : 2
-      return Response.json({ scoreboard: { games: [{ gameId: config.gameId, gameStatus,
+      return Response.json({ scoreboard: { games: [{ gameId: config.gameId, gameStatus, period: 3, gameClock: `PT${Math.max(0,12-counter)}M00.00S`,
         gameStatusText: gameStatus === 3 ? 'Final' : `Q1 ${counter}:00`,
         homeTeam: { teamTricode: 'BOS', score: counter + 10 }, awayTeam: { teamTricode: 'MIA', score: 1 },
       }] } })
@@ -32,7 +32,7 @@ export function liveIngestionProvider() {
       requests.push({ kind: 'boxscore', at: Date.now(), counter, mode: config.mode })
       if (config.mode === 'box-stall') return new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('{')) } }))
       if (config.mode === 'box-fail') return new Response('Synthetic provider unavailable', { status: 503 })
-      return Response.json({ game: { gameId: config.gameId, gameStatus: config.mode === 'final' ? 3 : 2,
+      return Response.json({ game: { gameId: config.gameId, gameStatus: config.mode === 'final' ? 3 : 2, period: 3, gameClock: `PT${Math.max(0,12-counter)}M00.00S`,
         gameEt: null, homeTeam: { teamTricode: 'BOS', players: [player(config.homePersonId, true)] },
         awayTeam: { teamTricode: 'MIA', players: [player(config.awayPersonId, false)] },
       } })

@@ -277,6 +277,8 @@
     "public.resume_draft_if_absent_atomic(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.revoke_push_token_atomic(text,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.save_game_stats_atomic(uuid,text,jsonb,boolean)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.save_live_game_stats_atomic(uuid,text,jsonb,numeric)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.search_players(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.seed_default_lineup_slots()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.seed_default_scoring_settings()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
