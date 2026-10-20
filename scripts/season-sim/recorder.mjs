@@ -23,6 +23,7 @@ export function upstreamRecorder(directory, { resume = false } = {}) {
       else if (event.gameStatus === 3 && event.provenance === 'REAL-RAW') game.finalRaw++
       else if (event.gameStatus === 2) game.live[`${event.period}:${event.gameClock}`] = event.at
     }
+    if (event.kind === 'boxscore') appendFileSync(path.join(directory, 'boxscore-deliveries.jsonl'), `${JSON.stringify(event)}\n`)
     if (report.deliveries <= report.rawSampleLimit || report.deliveries % report.rawSampleEvery === 0) {
       appendFileSync(path.join(directory, 'upstream-events.jsonl'), `${JSON.stringify(event)}\n`)
       report.rawSampleRows++
