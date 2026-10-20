@@ -168,7 +168,7 @@ ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
     ("updateErr.code === 'PT409' &&", "updateErr.code === 'PT409' ||"),
 ], [unit('scoreCertifiedMax')], 'LCR')
 ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
-    ('onPublicationRetry()', ''),
+    ('onPublicationRetry?.()', ''),
 ], [unit('scoreCertifiedMax')], 'STMT-DEL')
 sql(LIVE, 'public.get_live_poll_work', '(timestamp with time zone)', [
     ("BETWEEN p_now-interval '45 minutes'", "BETWEEN p_now-interval '10 minutes'"),
@@ -191,6 +191,12 @@ ts(LIVE, 'supabase/functions/live-poll/policy.ts', [
 ts(LIVE, 'supabase/functions/live-poll/policy.ts', [
     ("game.status === 'InProgress'", "game.status === 'Final'"),
 ], worker_oracle, 'CONST')
+ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
+    ('if (retryPublication && (', 'if (retryPublication && onPublicationRetry && ('),
+], [unit('scoreCertifiedMax')], 'LCR')
+ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
+    ('settings, onPublicationRetry, false)', 'settings, onPublicationRetry, true)'),
+], [unit('scoreCertifiedMax')], 'CONST')
 legacy_operators = {
     'L': ['ROR', 'STMT-DEL', 'ROR', 'ROR', 'STMT-DEL', 'ARG-SWAP', 'ARG-SWAP', 'CONST', 'CONST', 'NEG',
           'CONST', 'ROR', 'STMT-DEL', 'CONST', 'CONST', 'AOR', 'ROR', 'STMT-DEL', 'STMT-DEL', 'STMT-DEL',

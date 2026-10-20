@@ -570,6 +570,7 @@ async function updateWeekPoints(
     weekNumber: number,
     settings: Record<string, number>,
     onPublicationRetry?: () => void,
+    retryPublication = true,
 ): Promise<void> {
     const { data: weekData, error: weekErr } = await supabase
         .from('season_weeks')
@@ -658,13 +659,13 @@ async function updateWeekPoints(
         p_matchups: updates,
     })
     if (updateErr) {
-        if (onPublicationRetry && (
+        if (retryPublication && (
             updateErr.code === 'PT409' &&
             updateErr.message === 'Score inputs changed or were not certified. Retry scoring.'
         )) {
-            onPublicationRetry()
+            onPublicationRetry?.()
             console.warn(`[scores] Retrying changed inputs for league ${leagueId}, week ${weekNumber}`)
-            return await updateWeekPoints(leagueId, seasonId, seasonYear, weekNumber, settings)
+            return await updateWeekPoints(leagueId, seasonId, seasonYear, weekNumber, settings, onPublicationRetry, false)
         }
         throw updateErr
     }

@@ -22,6 +22,8 @@ const day = (offset: number) => new Date(Date.parse(`${today}T12:00:00Z`) + offs
 let year = 0
 const nativeFetch = globalThis.fetch.bind(globalThis)
 let armed = false
+let staleRejections = 0
+const scoringReads: number[] = []
 let announce!: () => void
 let resume!: () => void
 const reached = new Promise<void>(resolve => { announce = resolve })
@@ -36,6 +38,16 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : input)
   assert.equal(url.origin, api)
   const response = await nativeFetch(input, init)
+  if (url.pathname.endsWith('/rpc/update_score_points_atomic') && !response.ok) {
+    const failure = await response.clone().json()
+    assert.equal(failure.code, 'PT409')
+    assert.equal(failure.message, 'Score inputs changed or were not certified. Retry scoring.')
+    staleRejections++
+  }
+  if (url.pathname.endsWith('/player_game_stats') && url.searchParams.get('select')?.includes('points,rebounds')) {
+    const rows = await response.clone().json()
+    scoringReads.push(rows.find((row: { player_id: string }) => row.player_id === players[0])?.points)
+  }
   if (armed && url.pathname.endsWith('/player_game_stats') && url.searchParams.get('select')?.includes('points,rebounds')) {
     armed = false
     const rows = await response.clone().json()
@@ -94,11 +106,13 @@ try {
   const newer = await read()
   assert.equal(Number(newer?.home_points), 80)
   resume()
-  const rejected = await pending
+  const failure = await pending
   const after = await read()
-  console.log(JSON.stringify({ provenance: 'SYNTHETIC', newer, after, staleError: String(rejected) }))
+  console.log(JSON.stringify({ provenance: 'SYNTHETIC', newer, after, staleRejections, scoringReads, failure: String(failure) }))
   assert.equal(Number(after?.home_points), 80, 'Older scoring read overwrites a newer live score')
-  assert.ok(rejected instanceof AggregateError, 'Stale scorer must reject its changed inputs')
+  assert.equal(failure, null, 'A stale scorer must recover once without retry telemetry')
+  assert.equal(staleRejections, 1, 'The database must reject the actual stale publication')
+  assert.deepEqual(scoringReads, [20, 80, 80], 'The retry must read the corrected stats again')
   assert.equal(after?.is_finalized, false)
 } finally {
   armed = false
