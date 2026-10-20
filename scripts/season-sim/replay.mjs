@@ -22,8 +22,9 @@ import { saveSnapshot, waitForSnapshotWorkers } from './checkpoints.mjs'
 import { runNextSeason } from './next-season.mjs'
 import { tradeScenarios } from './trade-scenarios.mjs'
 import { applyOverlay, functionFingerprint } from './overlay.mjs'
-import { beginWaivers, verifyWaivers } from './waiver-scenarios.mjs'
+import { assertWaiverRollover, beginWaivers, verifyWaivers } from './waiver-scenarios.mjs'
 import { acceptanceGaps } from './report-summary.mjs'
+import { waiverBoundaryDeferral } from './maintenance.mjs'
 import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
 
 export async function replay(options = {}) {
@@ -73,13 +74,11 @@ export async function replay(options = {}) {
   }
   const dispatcher = cronDispatcher(async outcome => {
     if (outcome.status_code === 200 && outcome.worker_status === 'success') return
-    if (outcome.function_name === 'season-boundary' && context?.waiverScenarios?.some(row => row.name === 'postseason-pending' && !row.checked)) {
-      const errors = JSON.parse(outcome.content ?? 'null')?.leagues?.filter(row => row.error) ?? []
-      if (errors.length && errors.every(row => row.error === 'Resolve pending waiver claims and waiver holds before advancing season.')) {
-        report.waiverBoundaryDeferrals ??= []
-        report.waiverBoundaryDeferrals.push({ id: outcome.id, at: new Date(clock).toISOString(), errors })
-        return
-      }
+    const at = Number(await sql('SELECT extract(epoch FROM now())*1000'))
+    if (waiverBoundaryDeferral(outcome, context, at)) {
+      report.waiverBoundaryDeferrals ??= []
+      report.waiverBoundaryDeferrals.push({ id: outcome.id, at: new Date(at).toISOString(), errors: JSON.parse(outcome.content).leagues.filter(row => row.error) })
+      return
     }
     if (['sync-rankings', 'sync-projections'].includes(outcome.function_name)) report.triggerFidelity.unsupportedInputs.push({ function: outcome.function_name, id: outcome.id, status: outcome.status_code })
     else assert.fail(`Production dispatch fails: ${JSON.stringify(outcome)}`)
@@ -144,10 +143,19 @@ export async function replay(options = {}) {
     probe = await startRealtimeProbe(context, runtime.keys)
     if (options.resume?.actions) { report.actions = options.resume.actions; report.retainedActions = true }
     if (options.resume?.evidence) Object.assign(report, options.resume.evidence)
-    if (['pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start'].includes(options.segment)) {
+    if (['automatic-champion', 'pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start'].includes(options.segment)) {
+      if (options.segment === 'automatic-champion') {
+        report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
+        activeDate = null
+        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint)
+      }
       if (options.segment === 'pre-rollover') report.seasonEnd = await finishSeason(context, move, report, checkpoint, { stopAfterRollover: true })
-      if (['post-rollover', 'pre-draft'].includes(options.segment)) report.seasonEnd = await finishRookieDraft(context, move, report, checkpoint)
-      if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot)
+      if (['post-rollover', 'pre-draft'].includes(options.segment)) {
+        await assertWaiverRollover(context, context.previousSeasonId, report)
+        report.seasonEnd = await finishRookieDraft(context, move, report, checkpoint, { snapshot })
+        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint)
+      }
+      if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot, checkpoint)
       await dispatcher.drain(clock)
       report.complete = true
       return report
@@ -207,7 +215,7 @@ export async function replay(options = {}) {
     if (selected.at(-1) === season.end) {
       report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
       activeDate = null
-      report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot)
+      report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint)
     }
     await dispatcher.drain(clock)
     report.complete = true

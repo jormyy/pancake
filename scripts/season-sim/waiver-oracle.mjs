@@ -52,3 +52,17 @@ export function waiverParticipants(users, priorities, rosters, rosterSize) {
   assert.ok(claimant, 'Full-roster failure requires an actual full roster')
   return [claimant, ...ordered.filter(user => user.memberId !== claimant.memberId)]
 }
+
+export function checkPendingWaivers(expected, observed) {
+  assert.equal(observed.length, expected.length, 'Every expected pending claim remains readable through its owner')
+  assert.equal(new Set(observed.map(row => row.id)).size, expected.length, 'Pending claim observations are unique')
+  for (const claim of expected) {
+    const actual = observed.find(row => row.id === claim.id)
+    assert.ok(actual, `Pending claim ${claim.id} exists`)
+    assert.equal(actual.member_id, claim.member, `Pending claim ${claim.id} keeps its owner`)
+    assert.equal(actual.status, 'pending', `Final finalization preserves pending claim ${claim.id}`)
+    assert.equal(actual.processed_at, null, `Pending claim ${claim.id} has no processing time`)
+    assert.equal(actual.failure_reason, null, `Pending claim ${claim.id} has no failure reason`)
+  }
+  return { passed: true, claims: observed.map(({ id, member_id, status, process_date, processed_at, failure_reason }) => ({ id, member_id, status, process_date, processed_at, failure_reason })) }
+}
