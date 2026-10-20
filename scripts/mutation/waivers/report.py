@@ -16,11 +16,16 @@ def rows(name):
 initial = {r['id']:r for r in rows('initial-results.jsonl')}
 final = {r['id']:r for r in rows('enhanced-results.jsonl')}
 worker = {r['id']:r for r in rows('worker-results.jsonl')}
+boundary = {}
+if (evidence/'turn2/boundary-results.jsonl').exists():
+    initial.update({r['id']:r for r in rows('turn2/initial-results.jsonl')})
+    boundary = {r['id']:r for r in rows('turn2/boundary-results.jsonl')}
+    final.update(boundary)
 ids = {r['id'] for r in catalog['mutants']}
 assert set(initial) == set(final) == ids
 assert all(r['applied'] and 'restored_sha256=' in r['notes'] for r in final.values())
-assert len(rows('initial-results.jsonl')) == len(ids)
-assert len(rows('enhanced-results.jsonl')) == len(ids)
+assert len(rows('initial-results.jsonl')) + (len(rows('turn2/initial-results.jsonl')) if boundary else 0) == len(ids)
+assert len(rows('enhanced-results.jsonl')) + len(boundary) == len(ids)
 unreached = {
     'waiv-skipped-week-01': 'unreachable in tests: on the last day, the fallback returns the same calendar week. A difference requires overlapping current weeks.',
     'waiv-skipped-week-05': 'unreachable in tests: on the first day, the fallback returns the same calendar week. A difference requires overlapping or misordered calendar weeks.',
@@ -30,15 +35,16 @@ for key, row in final.items():
         row['oracles'] += worker[key]['oracles']
         row['killed_by'] = sorted(set(row['killed_by']+worker[key]['killed_by']))
         row['notes'] += ' | real HTTP worker also kills this mutation'
-    row['notes'] = 'SYNTHETIC oracle inputs; REAL-DERIVED repository SQL. ' + row['notes']
+    source_kind = 'TypeScript' if row['file'].endswith('.ts') else 'SQL'
+    row['notes'] = f'SYNTHETIC oracle inputs; REAL-DERIVED repository {source_kind}. ' + row['notes']
     if key in unreached:
         row['notes'] += ' | classification=' + unreached[key]
     for oracle in row['oracles']:
-        oracle['log'] = Path(oracle['log']).name
+        oracle['log'] = ('turn2/' if key in boundary else '') + Path(oracle['log']).name
         oracle['command'] = oracle['command'].replace("'$SUPABASE_DB_URL'", '"$SUPABASE_DB_URL"')
 (evidence/'results.jsonl').write_text(''.join(json.dumps(final[m['id']])+'\n' for m in catalog['mutants']))
-scores = ['# Measured mutation scores', '', 'Inputs: SYNTHETIC users, leagues, players, standings, dates, and bids. Function definitions are REAL-DERIVED from the repository migrations.', '',
-          'Initial = three existing SQL recipes. Final = those recipes plus the new season matrix. Six selected final kills also pass through authenticated HTTP submission and the real worker.', '',
+scores = ['# Measured mutation scores', '', 'Inputs: SYNTHETIC users, leagues, players, standings, dates, and bids. Application definitions are REAL-DERIVED from repository migrations and the executed Edge source.', '',
+          'Initial = three existing SQL recipes. Final = those recipes plus the season matrix and, for the eleven additions, the real season-end gate/worker and DST checks. Six earlier selected kills also pass through authenticated HTTP submission and the real worker.', '',
           '| Area | Initial killed / (killed + survived) | Final killed / (killed + survived) | Total | Invalid | Timeout | Equivalent | Final survived |',
           '|---|---:|---:|---:|---:|---:|---:|---:|']
 for area in ['faab','waiver-order','waiver-limits','skipped-week']:
@@ -71,13 +77,22 @@ shutil.copyfile(evidence/'enhanced-waiv-faab-03-season-matrix.log',evidence/'red
 shutil.copyfile(evidence/'worker-waiv-waiver-limits-04-http-worker.log',evidence/'red'/'missing-add-consumption-http.log')
 shutil.copyfile(evidence/'baseline-enhanced-season-matrix.log',evidence/'green'/'season-matrix.log')
 shutil.copyfile(evidence/'baseline-worker-http-worker.log',evidence/'green'/'http-worker.log')
-(evidence/'red'/'README.md').write_text('These failures are mutation negative controls. No real application bug is reproduced or fixed. Baseline green logs exercise the same checks without the overlay.\n')
+if boundary:
+    shutil.copyfile(evidence/'turn2/boundary-waiv-skipped-week-08-dst.log',evidence/'red'/'dst-calendar-days.log')
+    shutil.copyfile(evidence/'turn2/boundary-waiv-waiver-order-15-season-end.log',evidence/'red'/'unguarded-hold-rollover.log')
+    shutil.copyfile(evidence/'turn2/baseline-boundary-dst.log',evidence/'green'/'dst.log')
+    shutil.copyfile(evidence/'turn2/baseline-boundary-season-end.log',evidence/'green'/'season-end.log')
+    shutil.copyfile(evidence/'turn2/rollover-stall-red.log',evidence/'red'/'rollover-stall.log')
+    shutil.copyfile(evidence/'turn2/rollover-stall-green.log',evidence/'green'/'rollover-stall.log')
+(evidence/'red'/'README.md').write_text(
+    'rollover-stall.log reproduces a real application bug before the worker fix. The matching green log passes after the fix. Other red logs are mutation negative controls.\n'
+    if boundary else 'These failures are mutation negative controls. No real application bug is reproduced or fixed. Baseline green logs exercise the same checks without the overlay.\n')
 symbols = sorted({m['symbol'] for m in catalog['mutants']})
 map_text = ['# Application paths and measured oracles', '',
             'All SQL overlays use canonical statements that match the newest deployed migration. The runner compares pg_get_functiondef hashes before applying each overlay and after each restore. The stack starts from unmodified repository migrations.', '',
             '| Path | Application behavior | Evidence |', '|---|---|---|',
             '| api/waivers.ts | Authenticated create/edit/cancel/reorder routes pass the user ID to the atomic RPCs. | HTTP worker baseline; matrix preference; edit/concurrency recipes |',
-            '| process-waivers/index.ts + drain.ts | ET date; bounded batch RPC loop; notifications after committed batches; expiry after drain. | HTTP worker; backlog; preference concurrency |',
+            '| process-waivers/index.ts + drain.ts + reconcile.ts | ET date; bounded batches; notifications; expiry; playoff score refresh from persisted stats, including empty runs. | HTTP worker; backlog; real automatic season-end regression |',
             '| cron → invoke_edge_function_at_et_time | Every 15 minutes; due from 03:00 ET onward; daily dispatch claim; retries are reconciled separately. | cron-catchup recipe; newest scheduling migration 20261018000002 |',
             '| create_waiver_claim_atomic | Weekly limit checked at submission. Rolling bids become zero. FAAB permits zero and exact balance. Claims stay submit-able until holds clear. | matrix; HTTP; clearing-window |',
             '| process_next_waiver_claim_atomic | Due date ASC, FAAB bid DESC, waiver priority ASC, claim_order ASC, submitted_at ASC, id ASC. Rechecks budget, limits, roster and IR. Winner pays and moves last; losers keep funds and priority. | matrix; all mutation logs |',
@@ -88,7 +103,7 @@ map_text = ['# Application paths and measured oracles', '',
             '| update_league_settings_atomic(skipped_weeks=[1]) | Skips scoring week 1. Add counters still use the scheduled calendar. A skipped-week add consumes week 1; week 2 starts a fresh bucket, without relabeling it week 1. | matrix and HTTP settings paths |',
             '| trades | Trade code has no call to consume_weekly_add/assert_weekly_add_available. Trades can clear pending drop selections; league/team locks serialize competing moves. | trade-waiver concurrency and cross-league recipes; source read |', '',
             'The tests move SYNTHETIC calendar rows around the actual ET date. They exercise exact SQL timestamp equality, ET reset rendering, and first/last scheduled dates. They do not freeze the worker clock across a real midnight or DST transition.', '',
-            'Permanent function redefinitions: none. Temporary mutation overlays:', '']
+            'Permanent SQL function redefinitions: none. The Edge worker now refreshes playoff scores after waivers without fetching provider stats. Temporary SQL and worker mutation overlays:', '']
 map_text += ['- '+s for s in symbols]
 map_text += ['', 'Exact newest deployed locations are in catalog.json and results.jsonl.']
 (evidence/'application-map.md').write_text('\n'.join(map_text)+'\n')

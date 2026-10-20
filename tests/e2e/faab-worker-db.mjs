@@ -2,15 +2,12 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { createClient } from '@supabase/supabase-js'
+import { apiTarget, databaseTarget } from '../../scripts/mutation/waivers/targets.mjs'
 
-const db = process.env.SUPABASE_DB_URL
-const origin = process.env.E2E_SUPABASE_URL
-for (const [value, port] of [[db, '57622'], [origin, '57621']]) {
-  const url = new URL(value ?? '')
-  assert(['localhost', '127.0.0.1'].includes(url.hostname) && url.port === port, 'Refuse a target outside the isolated stack')
-}
-const secret = process.env.E2E_PANCAKE_SUPABASE_SECRET_KEY
-const publishable = process.env.E2E_SUPABASE_PUBLISHABLE_KEY
+const db = databaseTarget().href
+const origin = apiTarget().origin
+const secret = process.env.E2E_PANCAKE_SUPABASE_SECRET_KEY ?? process.env.PANCAKE_SUPABASE_SECRET_KEY
+const publishable = process.env.E2E_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY
 const token = process.env.PANCAKE_EDGE_INTERNAL_TOKEN
 assert(secret && publishable && token, 'Local stack keys and internal token are required')
 const admin = createClient(origin, secret, { auth: { persistSession: false, autoRefreshToken: false } })

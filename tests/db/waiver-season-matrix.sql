@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
-SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = '57622' AS lane_local \gset
+\set expected_db_port 54322
+\getenv expected_db_port PANCAKE_TEST_DB_PORT
+SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS lane_local \gset
 \if :lane_local
 \else
   \quit 2

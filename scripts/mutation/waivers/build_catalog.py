@@ -74,6 +74,23 @@ add('skipped-week', 'public.commissioner_override_weekly_add_count_atomic', 'v_w
 add('skipped-week', 'private.current_add_week', 'weeks.week_start <= v_today', 'weeks.week_start < v_today', 'ROR <= -> <', 'First eligible day uses upcoming fallback')
 add('skipped-week', 'private.current_add_week_number', 'SELECT week.week_number', 'SELECT week.week_number + 1', 'CONST week -> week+1', 'Skip calendar label when allocating weekly usage')
 add('skipped-week', 'private.assert_weekly_add_available', '    v_week,\n    0', '    v_week + 1,\n    0', 'CONST week -> week+1', 'Allocate the next week during skipped-week submission')
+add('waiver-order', 'public.prevent_season_deactivation_with_pending_waivers', "claim.status = 'pending'::waiver_claim_status", "claim.status <> 'pending'::waiver_claim_status", 'ROR', 'Completed or cancelled claims block the automatic rollover')
+add('waiver-order', 'public.prevent_season_deactivation_with_pending_waivers', 'IF FOUND THEN', 'IF false THEN', 'CONST', 'Ignore an unclaimed hold at season rollover', 1)
+add('waiver-order', p, "'playoffs'::league_status", "'setup'::league_status", 'CONST', 'Playoff claims never become worker candidates', 0)
+add('waiver-order', p, "'offseason'::league_status", "'setup'::league_status", 'CONST', 'Offseason claims never become worker candidates', 0)
+add('waiver-order', 'public.expire_waiver_wire_logs', "'playoffs'::league_status", "'setup'::league_status", 'CONST', 'Unclaimed playoff drops never expire')
+add('waiver-limits', 'public.expire_waiver_wire_logs', 'AND NOT EXISTS (', 'AND EXISTS (', 'NEG', 'Expire pending holds while retaining unclaimed holds')
+add('skipped-week', 'public.set_waiver_clears_at', "INTERVAL '48 hours'", "INTERVAL '2 days'", 'CONST', 'Use calendar days instead of elapsed hours across DST')
+add('skipped-week', 'public.set_waiver_clears_at', "INTERVAL '48 hours'", "INTERVAL '47 hours'", 'CONST', 'Clear one elapsed hour too early across DST')
+add('skipped-week', 'private.weekly_add_limit_reset_label', 'AT TIME ZONE private.add_week_timezone()', "AT TIME ZONE 'UTC'", 'CONST', 'Render DST-week resets in UTC instead of ET')
+add('skipped-week', 'private.current_add_week', '(v_week_end + 1)::timestamp AT TIME ZONE v_zone', "(v_week_end + 1)::timestamp AT TIME ZONE 'UTC'", 'CONST', 'Reset the DST week at UTC midnight')
+worker_file = 'supabase/functions/process-waivers/index.ts'
+worker_source = (ROOT/worker_file).read_text()
+worker_original = '  await reconcilePlayoffScores()'
+rows.append(dict(id='waiv-waiver-order-19',area='waiver-order',file=worker_file,
+                 line=worker_source[:worker_source.index(worker_original)].count('\n')+1,
+                 symbol='processWaiverClaims',operator='STMT-DEL',original=worker_original,mutated='',
+                 canonical=worker_file,occurrence=0,kind='file',notes='Leave playoff score inputs stale after waiver work'))
 
 oracles = {
     'initial': [
@@ -85,5 +102,9 @@ oracles = {
 }
 oracles['enhanced'] = oracles['initial'] + oracles['enhanced']
 oracles['worker'] = [['http-worker', ['node', 'tests/e2e/faab-worker-db.mjs']]]
+oracles['boundary'] = [
+    ['season-end', ['node', 'tests/e2e/waiver-season-end-db.mjs']],
+    ['dst', ['psql', '{db}', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/waiver-dst-boundaries.sql']],
+]
 (ROOT / 'scripts/mutation/waivers/catalog.json').write_text(json.dumps({'provenance':'SYNTHETIC', 'oracles':oracles,'mutants':rows},indent=2)+'\n')
 print(f'{len(rows)} mutants')
