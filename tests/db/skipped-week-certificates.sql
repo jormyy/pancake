@@ -37,6 +37,18 @@ BEGIN
     SELECT v_league, v_season, week, v_members[pair], v_members[pair+1], 'regular_season', true, now()-interval '3 days',
       10, 5, 12, 8, v_members[pair] FROM unnest(ARRAY[1,3]) week CROSS JOIN unnest(ARRAY[1,3]) pair;
   PERFORM private.rebuild_regular_standings(v_league, v_season);
+  IF EXISTS (
+    SELECT 1 FROM standings
+    WHERE league_season_id = v_season
+      AND (ties <> 0
+        OR wins <> CASE WHEN member_id = ANY(ARRAY[v_members[1], v_members[3]]) THEN (week_number + 1) / 2 ELSE 0 END
+        OR losses <> CASE WHEN member_id = ANY(ARRAY[v_members[2], v_members[4]]) THEN (week_number + 1) / 2 ELSE 0 END
+        OR points_for <> (week_number + 1) / 2 * CASE WHEN member_id = ANY(ARRAY[v_members[1], v_members[3]]) THEN 10 ELSE 5 END
+        OR points_against <> (week_number + 1) / 2 * CASE WHEN member_id = ANY(ARRAY[v_members[1], v_members[3]]) THEN 5 ELSE 10 END
+        OR max_possible_points <> (week_number + 1) / 2 * CASE WHEN member_id = ANY(ARRAY[v_members[1], v_members[3]]) THEN 12 ELSE 8 END)
+  ) THEN
+    RAISE EXCEPTION 'Rebuilt standings have incorrect records, points, or maxima';
+  END IF;
   SELECT jsonb_agg(to_jsonb(s) ORDER BY s.id) INTO v_before FROM standings s WHERE league_season_id=v_season;
   v_token := capture_score_inputs(v_season, 3);
   PERFORM private.rebuild_regular_standings(v_league, v_season);

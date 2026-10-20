@@ -49,6 +49,10 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
   } else if (table === 'capture_score_inputs') {
     if (staleAfterCapture) stale = true
     body = { 'season:fixture': '1' }
+  } else if (table === 'update_score_points_atomic') {
+    const payload = await request.json()
+    assert.ok(payload.p_matchups.every((row: { input_token: unknown }) =>
+      JSON.stringify(row.input_token) === JSON.stringify({ 'season:fixture': '1' })))
   } else if (table === 'get_stale_score_weeks') {
     certificateReads++
     body = stale ? [{ week_number: 1 }] : []
@@ -61,6 +65,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
       players: { position: 'PG', eligible_positions: ['PG'] } }))
   } else if (table === 'weekly_lineups') {
     body = members.map((member_id, index) => ({ member_id, player_id: players[index], slot_type: 'UTIL', game_date: '2101-01-03' }))
+      .filter(row => url.searchParams.getAll('slot_type').every(filter => !filter.startsWith('neq.') || row.slot_type !== filter.slice(4)))
   } else if (table === 'player_game_stats') {
     body = players.map((player_id, index) => ({ player_id, game_date: '2101-01-03', points: index ? 8 : 10,
       nba_games: { nba_game_id: '0022100001', game_time: '2101-01-03T23:00:00Z', started_at: null } }))

@@ -148,6 +148,9 @@ BEGIN
   PERFORM pg_temp.expect_error(format('SELECT public.save_game_stats_atomic(%L::uuid,%L,%L::jsonb,true)',
     v_a,v_pa,jsonb_build_array(pg_temp.stat_row(v_p1,v_a,11),pg_temp.stat_row(v_p1,v_a,11))),
     ARRAY['22023'], 'duplicate canonical player rejected');
+  PERFORM pg_temp.expect_error(format('SELECT public.save_game_stats_atomic(%L::uuid,%L,%L::jsonb,true)',
+    v_a,v_pa,jsonb_build_array(pg_temp.stat_row(v_p1,v_b,11),pg_temp.stat_row(v_p2,v_a,20))),
+    ARRAY['22023'], 'payload for another game rejected');
 
   -- Numeric corrections keep row coverage, and therefore keep completion.
   UPDATE public.player_game_stats SET points=12 WHERE game_id=v_a AND player_id=v_p1;
