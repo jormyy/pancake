@@ -1,9 +1,7 @@
 import { spawnSync } from 'node:child_process'
+import { databaseTarget } from '../../scripts/mutation/waivers/targets.mjs'
 
-const url = new URL(process.env.SUPABASE_DB_URL ?? '')
-if (!['127.0.0.1', 'localhost'].includes(url.hostname) || url.port !== '57622') {
-  throw new Error('This synthetic waiver recipe requires the isolated database on port 57622')
-}
+const url = databaseTarget()
 const result = spawnSync('psql', [url.href, '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/waiver-season-matrix.sql'], {
   stdio: 'inherit', timeout: 60_000,
 })

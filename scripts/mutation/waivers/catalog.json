@@ -92,6 +92,27 @@
           "tests/e2e/faab-worker-db.mjs"
         ]
       ]
+    ],
+    "boundary": [
+      [
+        "season-end",
+        [
+          "node",
+          "tests/e2e/waiver-season-end-db.mjs"
+        ]
+      ],
+      [
+        "dst",
+        [
+          "psql",
+          "{db}",
+          "-X",
+          "-v",
+          "ON_ERROR_STOP=1",
+          "-f",
+          "tests/db/waiver-dst-boundaries.sql"
+        ]
+      ]
     ]
   },
   "mutants": [
@@ -679,6 +700,150 @@
       "canonical": "supabase/sql/functions/by-name/private/assert_weekly_add_available.sql",
       "occurrence": 0,
       "notes": "Allocate the next week during skipped-week submission"
+    },
+    {
+      "id": "waiv-waiver-order-14",
+      "area": "waiver-order",
+      "file": "supabase/migrations/20260627000012_playoff_waiver_season_guards.sql",
+      "line": 121,
+      "symbol": "public.prevent_season_deactivation_with_pending_waivers",
+      "operator": "ROR",
+      "original": "claim.status = 'pending'::waiver_claim_status",
+      "mutated": "claim.status <> 'pending'::waiver_claim_status",
+      "canonical": "supabase/sql/functions/by-name/public/prevent_season_deactivation_with_pending_waivers.sql",
+      "occurrence": 0,
+      "notes": "Completed or cancelled claims block the automatic rollover"
+    },
+    {
+      "id": "waiv-waiver-order-15",
+      "area": "waiver-order",
+      "file": "supabase/migrations/20260627000012_playoff_waiver_season_guards.sql",
+      "line": 136,
+      "symbol": "public.prevent_season_deactivation_with_pending_waivers",
+      "operator": "CONST",
+      "original": "IF FOUND THEN",
+      "mutated": "IF false THEN",
+      "canonical": "supabase/sql/functions/by-name/public/prevent_season_deactivation_with_pending_waivers.sql",
+      "occurrence": 1,
+      "notes": "Ignore an unclaimed hold at season rollover"
+    },
+    {
+      "id": "waiv-waiver-order-16",
+      "area": "waiver-order",
+      "file": "supabase/migrations/20261011000053_defer_busy_waiver_leagues.sql",
+      "line": 55,
+      "symbol": "public.process_next_waiver_claim_atomic",
+      "operator": "CONST",
+      "original": "'playoffs'::league_status",
+      "mutated": "'setup'::league_status",
+      "canonical": "supabase/sql/functions/by-name/public/process_next_waiver_claim_atomic.sql",
+      "occurrence": 0,
+      "notes": "Playoff claims never become worker candidates"
+    },
+    {
+      "id": "waiv-waiver-order-17",
+      "area": "waiver-order",
+      "file": "supabase/migrations/20261011000053_defer_busy_waiver_leagues.sql",
+      "line": 55,
+      "symbol": "public.process_next_waiver_claim_atomic",
+      "operator": "CONST",
+      "original": "'offseason'::league_status",
+      "mutated": "'setup'::league_status",
+      "canonical": "supabase/sql/functions/by-name/public/process_next_waiver_claim_atomic.sql",
+      "occurrence": 0,
+      "notes": "Offseason claims never become worker candidates"
+    },
+    {
+      "id": "waiv-waiver-order-18",
+      "area": "waiver-order",
+      "file": "supabase/migrations/20260815000006_offseason_waiver_wire_expiry.sql",
+      "line": 23,
+      "symbol": "public.expire_waiver_wire_logs",
+      "operator": "CONST",
+      "original": "'playoffs'::league_status",
+      "mutated": "'setup'::league_status",
+      "canonical": "supabase/sql/functions/by-name/public/expire_waiver_wire_logs.sql",
+      "occurrence": 0,
+      "notes": "Unclaimed playoff drops never expire"
+    },
+    {
+      "id": "waiv-waiver-limits-14",
+      "area": "waiver-limits",
+      "file": "supabase/migrations/20260815000006_offseason_waiver_wire_expiry.sql",
+      "line": 25,
+      "symbol": "public.expire_waiver_wire_logs",
+      "operator": "NEG",
+      "original": "AND NOT EXISTS (",
+      "mutated": "AND EXISTS (",
+      "canonical": "supabase/sql/functions/by-name/public/expire_waiver_wire_logs.sql",
+      "occurrence": 0,
+      "notes": "Expire pending holds while retaining unclaimed holds"
+    },
+    {
+      "id": "waiv-skipped-week-08",
+      "area": "skipped-week",
+      "file": "supabase/migrations/20260422000002_security_fixes.sql",
+      "line": 136,
+      "symbol": "public.set_waiver_clears_at",
+      "operator": "CONST",
+      "original": "INTERVAL '48 hours'",
+      "mutated": "INTERVAL '2 days'",
+      "canonical": "supabase/sql/functions/by-name/public/set_waiver_clears_at.sql",
+      "occurrence": 0,
+      "notes": "Use calendar days instead of elapsed hours across DST"
+    },
+    {
+      "id": "waiv-skipped-week-09",
+      "area": "skipped-week",
+      "file": "supabase/migrations/20260422000002_security_fixes.sql",
+      "line": 136,
+      "symbol": "public.set_waiver_clears_at",
+      "operator": "CONST",
+      "original": "INTERVAL '48 hours'",
+      "mutated": "INTERVAL '47 hours'",
+      "canonical": "supabase/sql/functions/by-name/public/set_waiver_clears_at.sql",
+      "occurrence": 0,
+      "notes": "Clear one elapsed hour too early across DST"
+    },
+    {
+      "id": "waiv-skipped-week-10",
+      "area": "skipped-week",
+      "file": "supabase/migrations/20261018000012_harden_function_paths_and_lineup_actor_checks.sql",
+      "line": 59,
+      "symbol": "private.weekly_add_limit_reset_label",
+      "operator": "CONST",
+      "original": "AT TIME ZONE private.add_week_timezone()",
+      "mutated": "AT TIME ZONE 'UTC'",
+      "canonical": "supabase/sql/functions/by-name/private/weekly_add_limit_reset_label.sql",
+      "occurrence": 0,
+      "notes": "Render DST-week resets in UTC instead of ET"
+    },
+    {
+      "id": "waiv-skipped-week-11",
+      "area": "skipped-week",
+      "file": "supabase/migrations/20260827000006_single_owners_for_pick_and_reservation_rules.sql",
+      "line": 164,
+      "symbol": "private.current_add_week",
+      "operator": "CONST",
+      "original": "(v_week_end + 1)::timestamp AT TIME ZONE v_zone",
+      "mutated": "(v_week_end + 1)::timestamp AT TIME ZONE 'UTC'",
+      "canonical": "supabase/sql/functions/by-name/private/current_add_week.sql",
+      "occurrence": 0,
+      "notes": "Reset the DST week at UTC midnight"
+    },
+    {
+      "id": "waiv-waiver-order-19",
+      "area": "waiver-order",
+      "file": "supabase/functions/process-waivers/index.ts",
+      "line": 92,
+      "symbol": "processWaiverClaims",
+      "operator": "STMT-DEL",
+      "original": "  await reconcilePlayoffScores()",
+      "mutated": "",
+      "canonical": "supabase/functions/process-waivers/index.ts",
+      "occurrence": 0,
+      "kind": "file",
+      "notes": "Leave playoff score inputs stale after waiver work"
     }
   ]
 }

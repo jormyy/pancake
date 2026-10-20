@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--phase', choices=['initial', 'enhanced', 'worker'], default='initial')
+parser.add_argument('--phase', choices=['initial', 'enhanced', 'worker', 'boundary'], default='initial')
 parser.add_argument('--evidence', required=True, type=Path)
 parser.add_argument('--ids', default='')
 parser.add_argument('--baseline-only', action='store_true')
@@ -67,20 +67,27 @@ for mutant in catalog['mutants']:
     if selected and mutant['id'] not in selected:
         continue
     symbol = mutant['symbol']
-    original_definition = sql(f"SELECT pg_get_functiondef('{symbol}'::regproc);")
+    is_file = mutant.get('kind') == 'file'
+    source_path = root / mutant['canonical']
+    original_definition = source_path.read_text() if is_file else sql(f"SELECT pg_get_functiondef('{symbol}'::regproc);")
     before_hash = hashlib.sha256(original_definition.encode()).hexdigest()
-    source = (root / mutant['canonical']).read_text()
-    source = source[source.index('CREATE OR REPLACE FUNCTION'):].strip()
+    source = source_path.read_text()
+    if not is_file:
+        source = source[source.index('CREATE OR REPLACE FUNCTION'):].strip()
     matches = list(re.finditer(re.escape(mutant['original']), source))
     row = {k:mutant[k] for k in ('id','area','file','line','symbol','operator','original','mutated')}
     row.update(applied=False, outcome='invalid', oracles=[], killed_by=[], notes=mutant['notes'])
     try:
-        sql(source)
-        if hashlib.sha256(sql(f"SELECT pg_get_functiondef('{symbol}'::regproc);").encode()).hexdigest() != before_hash:
-            raise RuntimeError('Canonical definition differs from migrated database')
+        if not is_file:
+            sql(source)
+            if hashlib.sha256(sql(f"SELECT pg_get_functiondef('{symbol}'::regproc);").encode()).hexdigest() != before_hash:
+                raise RuntimeError('Canonical definition differs from migrated database')
         match = matches[mutant['occurrence']]
         changed = source[:match.start()] + mutant['mutated'] + source[match.end():]
-        sql(changed)
+        if is_file:
+            source_path.write_text(changed)
+        else:
+            sql(changed)
         row['applied'] = True
         row['oracles'] = [oracle(name, cmd, f'{args.phase}-{mutant["id"]}') for name, cmd in oracles]
         exits = [o['exit'] for o in row['oracles']]
@@ -89,8 +96,12 @@ for mutant in catalog['mutants']:
     except Exception as error:
         row['notes'] += ' | ' + str(error)
     finally:
-        sql(original_definition)
-        restored = sql(f"SELECT pg_get_functiondef('{symbol}'::regproc);")
+        if is_file:
+            source_path.write_text(original_definition)
+            restored = source_path.read_text()
+        else:
+            sql(original_definition)
+            restored = sql(f"SELECT pg_get_functiondef('{symbol}'::regproc);")
         restored_hash = hashlib.sha256(restored.encode()).hexdigest()
         if restored_hash != before_hash:
             raise SystemExit(f'RESTORE FAILED: {symbol}')
