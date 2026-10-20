@@ -1,3 +1,4 @@
+import { shouldKeepPolling } from './policy.ts'
 import { saveScoreboardGames } from './scoreboard.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames } from '../_shared/nba.ts'
@@ -66,13 +67,7 @@ async function ingestTick(holder: string): Promise<{ lines: number; keepRunning:
     }
   }
   for (const error of failures) console.error('[live-poll] input failed:', error)
-  const now = Date.now()
-  const keepRunning = work.some(game => {
-    if (game.status === 'InProgress') return true
-    const tipoff = game.game_time ?? game.started_at
-    return game.status === 'Scheduled' && tipoff != null &&
-      Date.parse(tipoff) >= now - 10 * 60_000 && Date.parse(tipoff) <= now + 2 * 60_000
-  })
+  const keepRunning = shouldKeepPolling(work)
   return { lines, keepRunning, worked: true, failures: failures.map(errorMessage), scoreRetries }
 }
 

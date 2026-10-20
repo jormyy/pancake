@@ -15,9 +15,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       game.status = 'InProgress' OR (
         game.status = 'Scheduled'
         AND (
-          COALESCE(game.game_time,game.started_at) BETWEEN p_now-interval '10 minutes' AND p_now+interval '2 minutes'
+          COALESCE(game.game_time,game.started_at) BETWEEN p_now-interval '45 minutes' AND p_now+interval '2 minutes'
           OR (
-            (COALESCE(game.game_time,game.started_at) < p_now-interval '10 minutes'
+            (COALESCE(game.game_time,game.started_at) < p_now-interval '45 minutes'
               OR (COALESCE(game.game_time,game.started_at) IS NULL AND
                 ((p_now AT TIME ZONE 'America/New_York')::time >= time '11:00' OR game.game_date < (p_now AT TIME ZONE 'America/New_York')::date)))
             AND (attempt.checked_at IS NULL OR attempt.checked_at <= p_now-interval '30 minutes')

@@ -88,3 +88,22 @@ Snapshots verify the unrelated league, stale certificate, live games, calendars,
 lease, and invocation survive every recipe and mutation oracle unchanged.
 The gate recipes isolate fleet work inside BEGIN/ROLLBACK and count their own requests.
 They and the point-guard recipe select an unused calendar year.
+
+The delayed-tipoff selector keeps Scheduled games due through T+45 minutes.
+The worker uses needs_scoreboard from that selector to continue its ticks.
+After T+45, the existing thirty-minute Scheduled backoff resumes.
+The pinned season has 1,230 games; the largest measured tip delay is 35.14 minutes.
+The distribution helper verifies each decompressed PBP payload against its manifest hash.
+Its overlap counts describe exposure under the old T+10 cutoff, rather than historical app observations.
+
+```sh
+python3 scripts/mutation/live/tipoff-impact.py --fixtures "$TASK/lanes/sim/fixtures" --output ../evidence/round7/tipoff-impact.json
+bash scripts/mutation/live/with-stack.sh python3 scripts/mutation/live/delayed-residue.py
+bash scripts/mutation/live/with-stack.sh bash -c 'psql "$SUPABASE_DB_URL" -X --set ON_ERROR_STOP=1 -f scripts/mutation/live/game-night-load.sql'
+```
+
+The residue helper commits one unrelated InProgress game and one Scheduled game.
+It runs the registered delayed-tipoff recipe twice, checks their unchanged hashes, and deletes only those two games.
+The game-night benchmark measures twelve late Scheduled games and rolls back all rows.
+It records timing without asserting a wall-clock threshold and stays outside CI.
+L32–L39 cover the extended window, throttle boundaries, and the actual worker continuation policy.
