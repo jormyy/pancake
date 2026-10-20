@@ -13,7 +13,8 @@
     "test:db:picks-lifecycle": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql",
     "test:db:rollover-year-gap": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql",
     "test:db:rookie-backstop": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts",
-    "test:db:rookie-drafting-gate": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql"
+    "test:db:rookie-drafting-gate": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql",
+    "test:db:live-poll-delayed-tipoff": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql"
   },
   "evidence only": {
     "evidence:db:weekly-idle-load": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/weekly-idle-load.sql",
