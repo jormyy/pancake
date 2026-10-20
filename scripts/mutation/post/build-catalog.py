@@ -150,5 +150,15 @@ add_skip('private.generate_playoff_round','uuid,uuid,integer','v_start:=v_season
 add_skip_ts('!season.skipped_weeks.includes(week.week_number)','season.skipped_weeks.includes(week.week_number)','NEG')
 add_skip_ts('toETDate(referenceDate) < firstEligibleWeek.week_start','toETDate(referenceDate) <= firstEligibleWeek.week_start','ROR')
 add_skip_ts('.order(\'week_number\')', '.order(\'week_number\', { ascending: false })', 'ORDER')
+stale_oracle = {'name': 'playoff-stale-boundary', 'command': 'deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts'}
+def add_stale(original, mutated, operator, symbol='applyBoundaryWithScoreRefresh'):
+    add_ts(original, mutated, operator)
+    catalog[-1].update(id=f'post-stale-{sum(x["id"].startswith("post-stale-") for x in catalog)+1:02}', area='champion', symbol=symbol, oracles=[stale_oracle])
+
+add_stale('if (stale.length === 0) return result','if (stale.length >= 0) return result','ROR')
+add_stale('if (!finalDecided || !graceElapsed(finals, referenceDate)) return actions','if (!finalDecided) return actions','STMT-DEL','processLeagueBoundary')
+add_stale('const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)','const refreshed = result','STMT-DEL')
+add_stale('(await staleBoundaryWeeks(seasonId, weeks)).length > 0','(await staleBoundaryWeeks(seasonId, weeks)).length < 0','ROR')
+add_stale('await syncScores(leagueId, referenceDate, { recoverStats: false })','await syncScores(leagueId, referenceDate, { recoverStats: true })','CONST')
 Path('scripts/mutation/post/catalog.json').write_text(json.dumps(catalog, indent=2) + '\n')
 print(len(catalog), 'mutants')

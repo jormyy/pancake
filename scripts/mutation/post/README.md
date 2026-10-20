@@ -118,3 +118,27 @@ Capture it from the review-start commit before testing.
 The helper runs the final fixture against that source and the fixed source.
 It verifies both the restored application hash and the unchanged fixture hash.
 The `post-sw-NN` catalog entries use classic mutation operators.
+
+## Stale boundary recovery
+
+```sh
+node scripts/mutation/post/check.mjs supabase/tests/db/playoff-stale-boundary.ts
+node scripts/mutation/post/verify-stale-boundary.mjs
+POST_EVIDENCE="$TASK/lanes/post/evidence/review4/mutations" node scripts/mutation/post/run.mjs post-stale-01 post-stale-02 post-stale-03 post-stale-04 post-stale-05
+```
+
+The new fixture uses SYNTHETIC persisted games, player stats, lineups, and rosters.
+The real scorer creates current certificates before one real free-agent add makes them stale.
+Two daily boundary runs expose the stall without a score refresh between them.
+The fixed runner re-scores only due leagues with stale prerequisite certificates.
+It uses `syncScores(leagueId, referenceDate, { recoverStats: false })` and retries the guarded SQL transition once.
+A failed or incomplete refresh becomes a report error.
+Changed results still wait for their new 48-hour grace.
+Current certificates and a repeated daily run cause no extra score calls.
+The test counts actual scorer planning requests and rejects every non-local fetch.
+It covers rollover, bracket creation, round advancement, incomplete persisted stats, and an injected score-read failure.
+
+The proof needs the review-start module at `evidence/review4/seasonBoundary-before.ts` outside the repository.
+It proves both stalls on the final fixture, restores the module by hash, and proves green.
+It also proves the skipped-week fixture without manual certificate replay fails before recovery and passes after it.
+The skipped-week fixture now supplies persisted stats for its synthetic results.

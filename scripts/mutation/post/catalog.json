@@ -1323,7 +1323,7 @@
     "id": "rookie-draft-11",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 285,
+    "line": 316,
     "symbol": "runSeasonBoundary",
     "operator": "drafting-query-exclusion",
     "original": "['active', 'playoffs', 'offseason', 'drafting']",
@@ -1339,7 +1339,7 @@
     "id": "rookie-draft-12",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 132,
+    "line": 133,
     "symbol": "runSeasonBoundary",
     "operator": "paused-exclusion",
     "original": "['in_progress', 'paused'].includes(draft.status)",
@@ -1355,7 +1355,7 @@
     "id": "rookie-draft-13",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 104,
+    "line": 105,
     "symbol": "runSeasonBoundary",
     "operator": "ET-day-boundary",
     "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
@@ -1371,7 +1371,7 @@
     "id": "rookie-draft-14",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 82,
+    "line": 83,
     "symbol": "runSeasonBoundary",
     "operator": "pick-limit",
     "original": "const MAX_BACKSTOP_PICKS = 200",
@@ -1387,7 +1387,7 @@
     "id": "rookie-draft-15",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 149,
+    "line": 150,
     "symbol": "runSeasonBoundary",
     "operator": "expired-timer-authorization",
     "original": "p_reason: 'season_boundary_backstop'",
@@ -1467,7 +1467,7 @@
     "id": "rookie-draft-18",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 303,
+    "line": 334,
     "symbol": "runSeasonBoundary",
     "operator": "drafting-job-filter",
     "original": "status !== 'offseason' && status !== 'drafting'",
@@ -1499,7 +1499,7 @@
     "id": "rookie-draft-20",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 316,
+    "line": 347,
     "symbol": "runSeasonBoundary",
     "operator": "startup-auction-guard",
     "original": "runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)",
@@ -1515,7 +1515,7 @@
     "id": "rookie-draft-21",
     "area": "rookie-draft",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 104,
+    "line": 105,
     "symbol": "runSeasonBoundary",
     "operator": "premature-commissioner-resume",
     "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
@@ -1659,7 +1659,7 @@
     "id": "post-sw-08",
     "area": "skipped-week",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 103,
+    "line": 104,
     "symbol": "runSeasonBoundary",
     "operator": "NEG",
     "original": "!season.skipped_weeks.includes(week.week_number)",
@@ -1675,7 +1675,7 @@
     "id": "post-sw-09",
     "area": "skipped-week",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 104,
+    "line": 105,
     "symbol": "runSeasonBoundary",
     "operator": "ROR",
     "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
@@ -1691,7 +1691,7 @@
     "id": "post-sw-10",
     "area": "skipped-week",
     "file": "supabase/functions/_shared/seasonBoundary.ts",
-    "line": 101,
+    "line": 102,
     "symbol": "runSeasonBoundary",
     "operator": "ORDER",
     "original": ".order('week_number')",
@@ -1700,6 +1700,86 @@
       {
         "name": "rookie-skipped-week",
         "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-01",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 266,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "ROR",
+    "original": "if (stale.length === 0) return result",
+    "mutated": "if (stale.length >= 0) return result",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-02",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 232,
+    "symbol": "processLeagueBoundary",
+    "operator": "STMT-DEL",
+    "original": "if (!finalDecided || !graceElapsed(finals, referenceDate)) return actions",
+    "mutated": "if (!finalDecided) return actions",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-03",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 268,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "STMT-DEL",
+    "original": "const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)",
+    "mutated": "const refreshed = result",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-04",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 269,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "ROR",
+    "original": "(await staleBoundaryWeeks(seasonId, weeks)).length > 0",
+    "mutated": "(await staleBoundaryWeeks(seasonId, weeks)).length < 0",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-05",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 267,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "CONST",
+    "original": "await syncScores(leagueId, referenceDate, { recoverStats: false })",
+    "mutated": "await syncScores(leagueId, referenceDate, { recoverStats: true })",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
       }
     ]
   }
