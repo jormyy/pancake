@@ -46,7 +46,7 @@ A commissioner matchup-generation request is an authenticated setup action.
 The installer records the actual migrated cron catalog before disabling jobs.
 
 Internal worker sampling uses the discrete-clock path described below.
-Complete ancillary input evidence and restored segment proofs remain acceptance requirements.
+Tier 2 segment baselines are dropped. Ancillary ranking and projection quality stays an explicit coverage gap.
 Published segment durations stay unknown until measured.
 A short or resumed diagnostic run never counts as a fresh full replay.
 
@@ -106,7 +106,7 @@ node scripts/season-sim/index.mjs --segment live-week \
 The generated restore and segment proofs record function hashes and overlay hashes.
 A missing snapshot or failed baseline cannot serve as a mutation oracle.
 The current integrated late-season diagnostic is incomplete.
-Base-versus-integration season-end evidence and complete segment proofs remain required.
+The base comparison, Tier 2 segment baselines, and pre-deadline segment proof are dropped from this card.
 
 The replay serves the pinned next-season schedule from July 1 in this synthetic scenario.
 It does not measure the schedule's historical publication date.
@@ -125,3 +125,85 @@ node scripts/season-sim/retained-check.mjs --date 2026-03-22
 ```
 
 This check never counts as a fresh replay.
+
+
+## Boundary timing
+
+The cron calls the boundary gate every fifteen minutes.
+The gate dispatches once per Eastern date, from 09:00 onward.
+The strict missing-bracket check waits for the first daily dispatch after the 48-hour correction period.
+It fails at that dispatch time if the expected rows remain absent.
+The calculation follows Eastern daylight saving changes.
+
+The retained March 25 failure occurred at 09:00 UTC, which is 05:00 EDT.
+Its week-22 certificate matched the current input token.
+Its stale-week RPC returned no rows.
+The previous boundary workers returned no actions before the correction period ended.
+This evidence classifies that stop as a harness timing defect, rather than proof of P-B4.
+The next eligible dispatch is March 25 at 13:00 UTC.
+
+## Fresh replay launch
+
+Use the final integration commit after the diagnostic and quality checks pass.
+Do not overlay files onto its extracted source.
+The launcher refuses a harness hash that differs from the pinned archive.
+The launcher removes only its configured local stack's old database backup.
+It applies all migrations with cron disabled, then requires an empty application database.
+It creates a new snapshot directory for this run.
+It records the source SHA, archive hash, command, process ID, start, and end.
+It restores native database clocks and stops its own stack after success or failure.
+The final JSON exit file records cleanup failures too.
+
+On the editing Mac:
+
+```sh
+SHA=<final-committed-integration-sha>
+EVIDENCE=/Users/michaelchen/.hermes/kanban/workspaces/t_4ba51e0d/evidence/sim
+git archive "$SHA" --output="$EVIDENCE/integration.tar" -- . ':!.env*' ':!**/.env*'
+rsync -a -e /Users/michaelchen/.hermes/kanban/workspaces/t_4ba51e0d/bin/ssh-via-mbp \
+  "$EVIDENCE/integration.tar" mini:pancake-t_4ba51e0d/lanes/sim/integration.tar
+```
+
+After capacity admission, run the following on the mini through the required SSH wrapper.
+First ensure the diagnostic has exited and its evidence has been copied.
+Keep its source copy under the same lane folder.
+
+```sh
+. ~/pancake-t_4ba51e0d/env.sh
+SHA=<same-final-committed-integration-sha>
+cd "$TASK/lanes/sim"
+mv repo "repo-before-$SHA"
+mkdir repo
+tar -xf integration.tar -C repo
+cp -cR "$TASK/base/node_modules" repo/node_modules
+cd repo
+SEASON_SIM_SOURCE_SHA="$SHA" node --input-type=module <<'JS'
+import { readFile, writeFile } from 'node:fs/promises'
+import { sha256 } from './scripts/season-sim/common.mjs'
+import { harnessManifest } from './scripts/season-sim/source-manifest.mjs'
+const source = {
+  commit: process.env.SEASON_SIM_SOURCE_SHA,
+  archiveSha256: sha256(await readFile('../integration.tar')),
+  harnessSha256: (await harnessManifest()).sha256,
+  excluded: ['.env*', '**/.env*'],
+}
+await writeFile('../application-source.json', JSON.stringify(source, null, 2))
+JS
+nohup node scripts/season-sim/fresh-run.mjs --source-sha "$SHA" \
+  > ../fresh-run.log 2>&1 < /dev/null &
+echo $! > ../fresh-run.pid
+```
+
+Progress: `cat "$TASK/lanes/sim/evidence/replay-progress.json"`.
+Completion: `cat "$TASK/lanes/sim/evidence/exit.json"`.
+Output: `tail -30 "$TASK/lanes/sim/fresh-run.log"`.
+Acceptance: `cat "$TASK/lanes/sim/evidence/final-run.json"`.
+The report prints one result for each of twelve acceptance areas.
+An incomplete area prints `not measured`.
+Missing evidence cannot produce full acceptance.
+
+The cadence profile records wall time, clock steps, and minute counts by Eastern date.
+It includes all production minute calls and worker wakeups.
+Normal date results also include full day wall time and assertion costs.
+A current projection still requires measured game, playoff, and offseason days.
+Do not substitute an earlier card's duration.

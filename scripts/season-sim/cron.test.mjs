@@ -44,3 +44,14 @@ test('reusing a stack preserves its captured cron catalog and detects changed mi
   assert.throws(() => mergeCronCatalog([]), /Missing production cron/)
   assert.throws(() => mergeCronCatalog([{ ...productionJobs[0], schedule: '* * * * *' }], productionJobs), /Changed production cadence/)
 })
+
+test('cadence profiles retain each real production minute and internal wake', async () => {
+  const from = Date.parse('2026-03-23T12:59:00Z'), rows = []
+  await advanceCron({ from, to: from + 120000, move: async () => {}, invoke: async () => {},
+    settle: async at => ({ nextAt: at < from + 90000 ? from + 90000 : null }),
+    profile: row => { rows.push(row) },
+  })
+  assert.equal(rows.filter(row => row.minute).length, 2)
+  assert.equal(rows.filter(row => !row.minute).length, 1)
+  assert.ok(rows.every(row => row.wallSeconds >= 0))
+})

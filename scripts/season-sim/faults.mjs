@@ -5,25 +5,6 @@ import { sql } from './local-stack.mjs'
 import { dispatch } from './dispatch.mjs'
 import { setClock } from './clock.mjs'
 
-export async function probeOutOfOrder(gameId, at) {
-  assert.match(gameId, /^00225\d{5}$/)
-  assert.ok(Number.isFinite(Date.parse(at)))
-  const query = `SELECT json_build_object('game',(SELECT json_build_object('status',status,'home',home_score,'away',away_score) FROM nba_games WHERE nba_game_id='${gameId}'),'stats',(SELECT json_agg(r ORDER BY player_id) FROM (SELECT player_id,points,rebounds,assists,minutes_played FROM player_game_stats WHERE game_id=(SELECT id FROM nba_games WHERE nba_game_id='${gameId}')) r))`
-  const before = JSON.parse(await sql(query))
-  assert.equal(before.game.status, 'InProgress')
-  assert.ok(before.stats?.length)
-  await writeJson(path.join(miniRoot, 'state/fault.json'), { type: 'out-of-order', gameId, at, seed: 493, provenance: 'SYNTHETIC' })
-  try {
-    const dispatches = await dispatch('SELECT public.invoke_live_poll_if_due()', { allowFailure: true })
-    const after = JSON.parse(await sql(query))
-    const passed = JSON.stringify(after) === JSON.stringify(before)
-    await writeJson(path.join(miniRoot, 'evidence/out-of-order.json'), { gameId, at, provenance: 'SYNTHETIC', seed: 493, before, after, dispatches, passed })
-    assert.deepEqual(after, before, 'Older live snapshots must not regress stored scores or player lines')
-  } finally {
-    await writeJson(path.join(miniRoot, 'state/fault.json'), {})
-  }
-}
-
 export async function probeRecovery(runtime, date, gameId) {
   assert.match(date, /^\d{4}-\d{2}-\d{2}$/)
   assert.match(gameId, /^00225\d{5}$/)

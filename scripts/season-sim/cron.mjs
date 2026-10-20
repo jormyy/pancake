@@ -48,12 +48,13 @@ export function cronCommands(instant) {
   return productionJobs.filter(job => cronMatches(job.schedule, instant))
 }
 
-export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null }) {
+export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null, profile = null }) {
   assert.ok(Number.isFinite(from) && Number.isFinite(to) && to >= from, 'Cron time cannot move backwards')
   if (settle) {
     let at = from
     let state = await settle(at)
     while (at < to) {
+      const began = performance.now()
       const minute = (Math.floor(at / 60000) + 1) * 60000
       const wake = state.nextAt == null ? Infinity : state.nextAt
       assert.ok(wake > at, 'Worker timer must settle before advancing the clock')
@@ -66,6 +67,7 @@ export async function advanceCron({ from, to, move, invoke, sample = async (..._
       }
       state = await settle(at)
       if (jobs.length) await sample(at, jobs)
+      await profile?.({ at, wallSeconds: (performance.now() - began) / 1000, minute: at % 60000 === 0 })
     }
     await move(to, to)
     return counts

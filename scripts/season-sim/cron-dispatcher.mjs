@@ -8,6 +8,7 @@ import { sqlJson } from './local-stack.mjs'
 export function canAdvanceWorkers(pendingRows, state, at) {
   const unstarted = pendingRows.some(row => !['running', 'success', 'failed'].includes(row.worker_status))
   const running = pendingRows.filter(row => row.worker_status === 'running').length
+  if (!unstarted && running === 0 && state.active === 0) return true
   return !unstarted && running === state.active && state.active > 0 && state.active === state.sleeping && state.fetches === 0 && state.nextAt > at
 }
 
@@ -16,7 +17,7 @@ export function cronDispatcher(onOutcome) {
   const enqueue = async statement => {
     for (const row of await dispatch(statement, { optional: true, defer: true })) pending.set(row.id, row)
   }
-  const settle = async at => {
+  const settle = async (at, waitForResponses = false) => {
     const deadline = Date.now() + 120000
     for (;;) {
       let pendingRows = []
@@ -34,10 +35,10 @@ export function cronDispatcher(onOutcome) {
       assert.ok(response.ok, 'Local runtime health read succeeds')
       const state = await response.json()
       if (!pending.size && !state.active) return { nextAt: null }
-      if (canAdvanceWorkers(pendingRows.filter(row => pending.has(row.id)), state, at)) return { nextAt: state.nextAt }
+      if (!waitForResponses && canAdvanceWorkers(pendingRows.filter(row => pending.has(row.id)), state, at)) return { nextAt: state.active ? state.nextAt : null }
       assert.ok(Date.now() < deadline, `Production workers do not settle at ${new Date(at).toISOString()}: ${JSON.stringify({ pending: [...pending.keys()], ...state })}`)
       await delay(5)
     }
   }
-  return { enqueue, settle }
+  return { enqueue, settle, drain: at => settle(at, true) }
 }

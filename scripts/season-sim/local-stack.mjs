@@ -12,7 +12,7 @@ let checkedNativeTarget = false
 let nativeSession
 
 async function docker(method, resource, body) {
-  assert.ok(resource === `/containers/${container}/json` || resource === `/containers/${container}/exec` || /^\/exec\/[a-f0-9]+\/(start|json)$/.test(resource))
+  assert.ok(resource === `/containers/${container}/json` || resource === `/containers/${container}/exec` || /^\/exec\/[a-f0-9]+\/(start|json)$/.test(resource) || resource === `/volumes/${container}`)
   const socketPath = config.socket
   assert.ok(socketPath, 'Set DOCKER_HOST to the task-local Unix socket')
   return await new Promise((resolve, reject) => {
@@ -21,7 +21,7 @@ async function docker(method, resource, body) {
       res.on('data', chunk => chunks.push(chunk))
       res.on('end', () => {
         const bytes = Buffer.concat(chunks)
-        if (res.statusCode >= 300) reject(new Error(`Own-container Docker request failed: ${res.statusCode} ${bytes.toString()}`))
+        if (res.statusCode >= 300) reject(Object.assign(new Error(`Own-container Docker request failed: ${res.statusCode} ${bytes.toString()}`), { statusCode: res.statusCode }))
         else resolve(bytes)
       })
     })
@@ -105,7 +105,7 @@ export async function setupStack() {
   await sql("ALTER SYSTEM SET cron.launch_active_jobs = 'off'")
   await sql('SELECT pg_reload_conf()')
   await writeFile(configFile, contents.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1true'))
-  execFileSync(cli, ['migration', 'up', '--local'], { stdio: 'inherit' })
+  execFileSync(cli, ['migration', 'up', '--local', '--include-all'], { stdio: 'inherit' })
   const catalogFile = path.join(miniRoot, 'cron-jobs.json')
   const installed = JSON.parse(await sql("SELECT coalesce(json_agg(r ORDER BY jobname),'[]') FROM (SELECT jobname,schedule,command FROM cron.job) r"))
   let retained = []
@@ -114,4 +114,14 @@ export async function setupStack() {
   await writeFile(path.join(miniRoot, 'cron-catalog-evidence.json'), JSON.stringify({ capturedAt: new Date().toISOString(), installedRows: installed.length, retainedRows: retained.filter(row => !installed.some(job => job.jobname === row.jobname)).length, scope: 'Installed migration cron rows override the earlier captured catalog; disabled jobs are retained as pinned catalog evidence.' }))
   await sql('SELECT cron.unschedule(jobid) FROM cron.job')
   console.log(JSON.stringify({ event: 'stack-ready', project: config.project, cronJobs: Number(await sql('SELECT count(*) FROM cron.job')) }))
+}
+
+export async function clearOwnBackup(request = docker) {
+  let volume
+  try { volume = JSON.parse((await request('GET', `/volumes/${container}`)).toString()) }
+  catch (error) { if (error.statusCode === 404) return false; throw error }
+  assert.equal(volume.Name, container, 'Backup name must match the configured lane')
+  assert.equal(volume.Labels?.['com.supabase.cli.project'], config.project, 'Backup label must match the configured project')
+  await request('DELETE', `/volumes/${container}`)
+  return true
 }

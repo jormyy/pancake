@@ -11,3 +11,11 @@ test('finished HTTP calls awaiting pg_net collection do not block other sleeping
   assert.ok(!canAdvanceWorkers(rows, { ...state, sleeping: 1 }, 347))
   assert.ok(!canAdvanceWorkers(rows, state, 376))
 })
+
+test('completed workers do not wait for delayed HTTP response collection', () => {
+  const idle = { active: 0, sleeping: 0, fetches: 0, nextAt: null }
+  assert.ok(canAdvanceWorkers([{ worker_status: 'success' }], idle, 347))
+  assert.ok(canAdvanceWorkers([{ worker_status: 'failed' }], idle, 347))
+  assert.ok(!canAdvanceWorkers([{ worker_status: 'pending' }], idle, 347))
+  assert.ok(!canAdvanceWorkers([{ worker_status: 'running' }], idle, 347))
+})

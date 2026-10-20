@@ -45,3 +45,10 @@ export function checkWaiverTiming(processedAt, expectedAt) {
   assert.equal(Date.parse(processedAt), expectedAt, 'Due waiver claim processes at the production 03:00 Eastern gate')
   return true
 }
+
+export function waiverParticipants(users, priorities, rosters, rosterSize) {
+  const ordered = [...users].sort((a, b) => priorities[a.memberId] - priorities[b.memberId])
+  const claimant = ordered.find(user => rosters[user.memberId].length === rosterSize)
+  assert.ok(claimant, 'Full-roster failure requires an actual full roster')
+  return [claimant, ...ordered.filter(user => user.memberId !== claimant.memberId)]
+}
