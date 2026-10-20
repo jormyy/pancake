@@ -63,6 +63,9 @@ It also probes after each worker and gate.
 These reads include every internal tick, plus scoreboard reload reads.
 The origin checks a runtime token before it accepts a probe.
 A failed comparison fails the production dispatch.
+`boxscore-deliveries.jsonl` retains every box-score delivery, including repeated clocks.
+The general upstream log remains sampled.
+The summary's clock keys retain the latest delivery time, rather than the first.
 
 The late-season diagnostic skips completed calendar weeks through the commissioner configuration RPC.
 This creates a declared late-start league, with real games in its remaining weeks.
@@ -231,3 +234,48 @@ It always reports full acceptance as false.
 Success requires one complete date, live comparisons, an empty initial database, and a populated snapshot in the run directory.
 It writes `first-date-check.json`, restores native clocks, stops its project, and removes only its inspected backup volume.
 The real fresh replay omits this flag and still refuses a harness overlay.
+
+## Delayed-tipoff reproduction
+
+The retained March 26 diagnostic misses quarter one of game `0022501063`.
+The pinned play-by-play starts at 23:11:00.200 UTC and ends quarter one at 23:39:12.800 UTC.
+The game is scheduled for 23:00 UTC.
+The last pre-tipoff worker finishes at 23:10:20 UTC.
+No live worker runs during quarter one.
+The next worker starts at 23:40 UTC, when the first stored stat rows appear.
+
+`get_live_poll_work` stops frequent checks ten minutes after the scheduled tipoff.
+Its late-game branch waits thirty minutes after the previous check.
+This leaves the entire first quarter without work for this game.
+The definition is in `supabase/migrations/20261018000003_bound_live_ingestion.sql`, lines 42–47.
+The worker also uses a ten-minute scheduled-start window in `supabase/functions/live-poll/runner.ts`.
+This is an application candidate; the simulator keeps every required quarter.
+
+Run this probe on a stopped-worker diagnostic database that already contains this scheduled game:
+
+```sh
+. ~/pancake-t_4ba51e0d/env.sh
+cd "$TASK/lanes/sim/repo"
+node scripts/season-sim/index.mjs --probe-delayed-tipoff
+```
+
+The command uses the configured loopback stack and pinned fixture hashes.
+It reconstructs the pre-tipoff check inside a transaction, reads the real work selector, then rolls back.
+Its synthetic probe state is separate from its real-derived fixture snapshots.
+The report is `evidence/delayed-tipoff-probe.json`.
+It exits nonzero when every first-quarter cron tick has no work.
+It checks that the retained game and attempt rows remain unchanged.
+The current integration returns no work at all fourteen ticks from 23:12 through 23:38 UTC.
+
+The retained diagnostic completes March 23–25 and stops at the March 26 coverage check.
+It creates two semifinal rows automatically on March 25.
+It does not reach a finalized semifinal, final, champion, rollover, or rookie draft.
+Champion-dependent trading, offseason picks, rolling waivers, next-season limits, and skipped-week/DST flows remain unmeasured.
+The missing first-quarter application behavior blocks their integrated diagnostic proof.
+The nearest retained snapshot is `pre-playoffs`; no later snapshot exists yet.
+
+Measured game-date times are 259.369 seconds for October 21 and 416.999–509.463 seconds for March 23–25.
+These measurements use earlier retained source copies, rather than the running fresh replay.
+An idle offseason date has not run.
+At 450 seconds per game date, 194 selected historical and next-season dates take about 24.25 hours.
+This estimate excludes offseason cadence and setup; the complete duration remains unmeasured.
