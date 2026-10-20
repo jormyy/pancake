@@ -66,3 +66,15 @@ export function checkPendingWaivers(expected, observed) {
   }
   return { passed: true, claims: observed.map(({ id, member_id, status, process_date, processed_at, failure_reason }) => ({ id, member_id, status, process_date, processed_at, failure_reason })) }
 }
+
+export function waiverResetAt(weekEnd) {
+  const next = new Date(Date.parse(`${weekEnd}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
+  const offset = new Intl.DateTimeFormat('en', { timeZone: 'America/New_York', timeZoneName: 'longOffset' }).formatToParts(new Date(`${next}T12:00:00Z`)).find(part => part.type === 'timeZoneName').value.replace('GMT', '')
+  return Date.parse(`${next}T00:00:00${offset}`)
+}
+
+export function checkWaiverReset(state, week, resetsAt) {
+  assert.equal(state.weekly_add_count, 0, 'The eligible week starts with a fresh add limit')
+  assert.equal(state.week_number, week, 'Add limits use the expected calendar week')
+  assert.equal(Date.parse(state.add_limit_resets_at), resetsAt, 'Add limits reset at Eastern midnight across DST')
+}

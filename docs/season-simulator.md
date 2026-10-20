@@ -360,3 +360,46 @@ A changed standings priority must match the independent waiver ledger.
 Every result field, row ID, finalization time, winner, score, and standings total must remain unchanged.
 Raw stored game stats still require the complete original digest.
 The next-season history check retains its full digest after rollover has settled.
+
+
+## Skipped weeks and daily lineups
+
+A skipped week suppresses fantasy matchups, published standings, and score certification.
+It does not remove NBA game dates or daily lineup preferences.
+The pre-tipoff optimizer can still fill daily starter slots.
+Its selector and writer have no skipped-week exclusion in migration `20261018000005_resume_pre_tipoff_optimizer.sql`, lines 15–39 and 126–129.
+The gate follows scheduled NBA tipoffs in migration `20261019000002_pre_tipoff_scheduled_start.sql`, lines 13–31.
+Lineup locks still follow the player's NBA game start.
+The matchup client reads only non-voided matchup rows in `lib/scoring.ts`, lines 114–132.
+
+The harness permits daily lineup rows and records their count.
+It requires no matchup spanning the skipped week, no standings row, and no score certificate.
+It compares add counts and roster transactions with the genuine manager actions in its scenario ledger.
+An optimizer row cannot consume an add or create a roster transaction.
+The score publication and finalization guards are migrations `20261020000031_certify_live_score_publication.sql`, line 36, and `20261018000006_queue_matchup_final_notifications.sql`, line 61.
+The standings rebuild uses only finalized, non-voided matchup weeks in migration `20261017000001_dynasty_rules_and_trade_plans.sql`, lines 214–236.
+
+Waiver limits keep their calendar buckets during skipped weeks.
+Genuine successful claims consume that week's limit and reset at the next calendar week.
+This follows `private.current_add_week` in migration `20260827000006_single_owners_for_pick_and_reservation_rules.sql`, line 109.
+The skipped-week checks continue after weeks two and three to catch later phantom publications.
+These checks do not treat global NBA player stats as fantasy matchup scores.
+
+The first days of eligible weeks two and three check every manager's add counter and calendar week.
+They compare the next reset time with Eastern midnight, including the November 1 clock change.
+A resumed next-season segment also verifies the subscribed client's score changes before it completes.
+
+The Realtime probe updates its channel when authenticated reads refresh the local session.
+This keeps a long next-season segment from retaining an expired startup token.
+
+Next-season dates also run the historical delivery-coverage check, including required regulation-quarter snapshots.
+The daily record stores that coverage with its live-score and weekly checks.
+
+Before each next-season waiver batch, genuine free-agent adds maintain enough NBA roster depth for scoring checks.
+These adds obey the weekly limit and enter the independent transaction ledger.
+The scenario drops NBA players and retains an NBA player for every manager.
+No roster-size or add-limit setting changes to make the scenario pass.
+
+A manager who uses the weekly add on a refill cannot submit another claim that week.
+The harness checks the real API rejection and proves that no pending claim is stored.
+Only accepted claims enter the processing oracle; rejected proposals remain in the scenario evidence.

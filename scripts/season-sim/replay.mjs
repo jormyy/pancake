@@ -57,6 +57,7 @@ export async function replay(options = {}) {
     if (!week) return
     if (await isSkippedWeek(context, Number(week))) {
       await assertSkippedWeek(context, Number(week))
+      await probe?.syncAuth()
       report.skippedLiveSamples = (report.skippedLiveSamples ?? 0) + 1
       return
     }
@@ -68,6 +69,7 @@ export async function replay(options = {}) {
     }
     const result = await assertClientScores(context, { week: Number(week), previous: observed })
     observed = { ...observed, ...result.observations }
+    await probe?.syncAuth()
     report.liveSamples++
     report.sourceCorrections ??= []
     report.sourceCorrections.push(...result.corrections)
@@ -105,6 +107,7 @@ export async function replay(options = {}) {
     const cursor = { date, clock, verifiedWeeks, actions: report.actions, evidence: { offseasonTrade: report.offseasonTrade }, context: Object.fromEntries(Object.entries(context).filter(([, value]) => typeof value !== 'function')), options: { start: date, days } }
     report.snapshots.push({ ...await saveSnapshot(name, cursor), preparation })
   }
+  const liveCoverage = () => { runtime.origin.flushCoverage(); return runtime.origin.coverage }
   try {
     process.env.SEASON_SIM_PRODUCTION_ONLY = '1'
     process.env.SEASON_SIM_DISCRETE_CLOCK = '1'
@@ -147,17 +150,24 @@ export async function replay(options = {}) {
       if (options.segment === 'automatic-champion') {
         report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
         activeDate = null
-        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint)
+        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
       }
       if (options.segment === 'pre-rollover') report.seasonEnd = await finishSeason(context, move, report, checkpoint, { stopAfterRollover: true })
       if (['post-rollover', 'pre-draft'].includes(options.segment)) {
         await assertWaiverRollover(context, context.previousSeasonId, report)
         report.seasonEnd = await finishRookieDraft(context, move, report, checkpoint, { snapshot })
-        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint)
+        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
       }
-      if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot, checkpoint)
+      if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot, checkpoint, liveCoverage)
       await dispatcher.drain(clock)
+      if (report.nextSeason?.passed && probe) {
+        report.realtime = await probe.verify(await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
+        await probe.close()
+        probe = null
+      }
+      report.triggerFidelity.verified = true
       report.complete = true
+      report.acceptanceGaps = acceptanceGaps(report)
       return report
     }
     const trades = tradeScenarios(context, report.actions, move)
@@ -215,7 +225,7 @@ export async function replay(options = {}) {
     if (selected.at(-1) === season.end) {
       report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
       activeDate = null
-      report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint)
+      report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
     }
     await dispatcher.drain(clock)
     report.complete = true

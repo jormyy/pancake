@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { assertPendingWaivers, readWaiverClaims } from './waiver-scenarios.mjs'
+import { assertPendingWaivers, readWaiverClaims, waiverDrop, waiverRosterRefills } from './waiver-scenarios.mjs'
 
 const members = ['a', 'b', 'c', 'd']
 const claims = [
@@ -41,4 +41,20 @@ test('the champion checkpoint rejects a missing claim and each changed pending f
     corrupt(rows)
     await assert.rejects(() => assertPendingWaivers(context(rows), scenario), /claim/)
   }
+})
+
+test('a donor who drops its last player submits a claim without an impossible conditional drop', () => {
+  assert.equal(waiverDrop([], true), null)
+  assert.equal(waiverDrop([{ player_id: 'owned' }], true), 'owned')
+  assert.equal(waiverDrop([{ player_id: 'owned' }], false), null)
+})
+
+test('next-season waiver donors retain an NBA player and refill through available roster room', () => {
+  const nba = id => ({ player_id: id, players: { nba_id: id, display_name: 'NBA player' } })
+  const prospect = { player_id: 'rookie', players: { nba_id: 9999999, display_name: 'Synthetic Prospect 2026 1' } }
+  const users = ['a', 'b', 'c'].map(memberId => ({ memberId }))
+  const rosters = { a: [nba('a1'), nba('a2'), nba('a3')], b: [nba('b1')], c: [nba('c1'), prospect] }
+  assert.deepEqual(waiverRosterRefills(users, rosters).map(u => u.memberId), ['b', 'c'])
+  assert.throws(() => waiverRosterRefills(users, { ...rosters, b: [] }), /retains an NBA player/)
+  assert.throws(() => waiverRosterRefills(users, { ...rosters, c: [nba('c1'), prospect, prospect] }), /roster limit/)
 })

@@ -6,10 +6,12 @@ import { fixtureStore } from './fixtures.mjs'
 import { planDay } from './planner.mjs'
 import { prepareLineups, checkLineups } from './lineups.mjs'
 import { assertFinals, assertLeaguePoints } from './assertions.mjs'
+import { assertLiveCoverage } from './invariants.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
 import { beginWaivers, verifyWaivers, assertWaiverReset } from './waiver-scenarios.mjs'
 import { assertSkippedWeek, checkNextSchedule } from './skipped-week.mjs'
+import { waiverResetAt } from './waiver-oracle.mjs'
 
 export function remapGame(box, pbp, source, target) {
   const shift = Date.parse(target.time) - Date.parse(source.time)
@@ -71,7 +73,7 @@ async function historyDigest(c, oldSeason) {
   return sql(`SELECT json_build_object('stats',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.season_year=2026),'matchups',(SELECT md5(string_agg(row_to_json(m)::text,'' ORDER BY m.id)) FROM matchups m WHERE league_season_id='${oldSeason}'),'standings',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM standings s WHERE league_season_id='${oldSeason}'),'usedPicks',(SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM draft_picks p WHERE league_id='${c.leagueId}' AND is_used))`)
 }
 
-export async function runNextSeason(c, oldSeason, move, report, snapshot, checkpoint = async (..._args) => {}) {
+export async function runNextSeason(c, oldSeason, move, report, snapshot, checkpoint = async (..._args) => {}, liveCoverage) {
   const began = Date.now()
   const mapping = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/next-season-mapping.json'), 'utf8'))
   const history = await historyDigest(c, oldSeason)
@@ -109,8 +111,11 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot, checkp
     assert.ok(week, 'Every next-season date belongs to a published calendar week')
     await verifyWaivers(c, report)
     if (date === mapping.first) await beginWaivers(c, 'skipped-week-rolling', report)
+    if (week !== 1 && date === rows.find(row => row.week_number === week).week_start) {
+      report.waiverWeekResets ??= []
+      report.waiverWeekResets.push(await assertWaiverReset(c, week, waiverResetAt(rows.find(row => row.week_number === week).week_end)))
+    }
     if (date === rows.find(row => row.week_number === 2).week_start) {
-      await assertWaiverReset(c)
       await beginWaivers(c, 'eligible-week-rolling', report)
     }
     if (week !== 1) await prepareLineups(c, date, day)
@@ -127,10 +132,12 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot, checkp
     const next = new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
     await move(`${next}T09:00:00Z`)
     day.finals = today.length ? await assertFinals(date) : { games: 0 }
+    day.coverage = assertLiveCoverage(liveCoverage(), today, plan)
     day.points = week === 1 ? await assertSkippedWeek(c, 1) : today.length ? await assertLeaguePoints({ ...c, date }) : null
     if (week !== 1) await assertClientScores(c, { week, previous, expectedCount: c.users.length / 2 })
     await verifyWaivers(c, report)
     day.weekly = await assertClosedWeeks(c, next, checked)
+    day.skippedWeek = await assertSkippedWeek(c, 1)
     for (const pick of [...report.actions.tradeDeadline.transferredPicks, { id: report.offseasonTrade.pickId, owner: report.offseasonTrade.owner }, ...(report.offseasonTrade.counterPickId ? [{ id: report.offseasonTrade.counterPickId, owner: report.offseasonTrade.counterOwner }] : [])]) assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick.id}'`), pick.owner, 'Future pick ownership survives next-season scoring')
     assert.equal(await historyDigest(c, oldSeason), history, 'Season-one stats, matchups, standings and used picks stay unchanged')
     day.wallSeconds = (Date.now() - dayBegan) / 1000
