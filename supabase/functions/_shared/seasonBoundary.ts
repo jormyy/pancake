@@ -3,6 +3,7 @@ import { toETDate } from './date.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
 import { fetchAllPages } from './scoreShared.ts'
+import { syncScores } from './syncScores.ts'
 
 // NBA stat corrections land 1-2 days after games. Bracket generation,
 // advancement, and rollover wait this long after the prerequisite week
@@ -74,7 +75,7 @@ async function ensureSeasonMatchups(
   return ['matchups-generated']
 }
 
-// Rookie-draft backstop: if the new NBA season's week 1 has begun and the
+// Rookie-draft backstop: if the league's first eligible week has begun and the
 // league's rookie draft still has not run, start it and complete every pick
 // best-available (auto_pick uses nba_draft_number order). Completing the last
 // pick activates the league, so the season-boundary loop resumes normally.
@@ -89,19 +90,19 @@ async function runRookieDraftBackstop(
 ): Promise<string[]> {
   const { data: season, error: seasonError } = await supabase
     .from('league_seasons')
-    .select('season_year')
+    .select('season_year, skipped_weeks')
     .eq('id', leagueSeasonId)
     .single()
   if (seasonError) throw seasonError
 
-  const { data: weekOne, error: weekError } = await supabase
+  const { data: weeks, error: weekError } = await supabase
     .from('season_weeks')
-    .select('week_start')
+    .select('week_number, week_start')
     .eq('season_year', season.season_year)
-    .eq('week_number', 1)
-    .maybeSingle()
+    .order('week_number')
   if (weekError) throw weekError
-  if (!weekOne || toETDate(referenceDate) < weekOne.week_start) return []
+  const firstEligibleWeek = weeks?.find((week) => !season.skipped_weeks.includes(week.week_number))
+  if (!firstEligibleWeek || toETDate(referenceDate) < firstEligibleWeek.week_start) return []
 
   const actions: string[] = []
   const { data: drafts, error: draftError } = await supabase
@@ -202,7 +203,7 @@ async function processLeagueBoundary(
 
   if (!bracketExists) {
     if (playoffStartWeek > 1 && (!allFinalized(regular) || !graceElapsed(regular, referenceDate))) return actions
-    const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'generate', referenceDate)
+    const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'generate', referenceDate, regular)
     if (result.applied === true) actions.push('bracket-generated')
     return actions
   }
@@ -222,7 +223,7 @@ async function processLeagueBoundary(
     if (currentRound.length === 0 || !roundDecided || !graceElapsed(currentRound, referenceDate)) {
       return actions
     }
-    const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'advance', referenceDate)
+    const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'advance', referenceDate, currentRound)
     if (result.applied === true) actions.push(semifinals.length > 0 ? 'final-created' : latestRound > 0 ? 'round-created' : 'semifinals-created')
     return actions
   }
@@ -230,7 +231,7 @@ async function processLeagueBoundary(
   const finalDecided = finals.every((m) => m.is_finalized && m.winner_member_id != null)
   if (!finalDecided || !graceElapsed(finals, referenceDate)) return actions
 
-  const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'rollover', referenceDate)
+  const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'rollover', referenceDate, [...regular, ...finals])
   if (result.applied !== true) return actions
   actions.push('season-advanced')
 
@@ -239,6 +240,36 @@ async function processLeagueBoundary(
     actions.push(...await ensureSeasonMatchups(leagueId, newSeasonId, playoffStartWeek))
   }
   return actions
+}
+
+async function staleBoundaryWeeks(seasonId: string, weeks: number[]): Promise<number[]> {
+  if (weeks.length === 0) return []
+  const rows = await fetchAllPages<{ week_number: number }>((from, to) => supabase
+    .rpc('get_stale_score_weeks', { p_league_season_id: seasonId, p_through_week: Math.max(...weeks) })
+    .in('week_number', weeks)
+    .order('week_number', { ascending: true })
+    .range(from, to))
+  return rows.map((row) => row.week_number)
+}
+
+async function applyBoundaryWithScoreRefresh(
+  leagueId: string,
+  seasonId: string,
+  action: 'generate' | 'advance' | 'rollover',
+  referenceDate: Date,
+  prerequisites: BoundaryMatchup[],
+) {
+  const result = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)
+  if (result.applied === true) return result
+  const weeks = [...new Set(prerequisites.map((matchup) => matchup.week_number))]
+  const stale = await staleBoundaryWeeks(seasonId, weeks)
+  if (stale.length === 0) return result
+  await syncScores(leagueId, referenceDate, { recoverStats: false })
+  const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)
+  if (refreshed.applied !== true && (await staleBoundaryWeeks(seasonId, weeks)).length > 0) {
+    throw new Error('Score certificates remain stale after boundary refresh. Retry scoring.')
+  }
+  return refreshed
 }
 
 async function applyBoundaryAfterGrace(

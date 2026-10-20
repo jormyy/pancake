@@ -7,7 +7,7 @@ assert.ok(directory && path.isAbsolute(directory))
 const readRows = file => readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 const initial = readRows(path.join(directory, 'round1/results.jsonl'))
 const final = new Map(readRows(path.join(directory, 'results.jsonl')).map(row => [row.id, row]))
-for (const file of [path.join(directory, 'rookie-final/results.jsonl'), ...process.argv.slice(3)]) {
+for (const file of process.argv.slice(3)) {
   for (const row of readRows(file)) final.set(row.id, row)
 }
 const catalog = JSON.parse(readFileSync('scripts/mutation/post/catalog.json', 'utf8'))
@@ -21,9 +21,9 @@ for (const item of catalog) {
   assert.match(row.notes, /Restore SHA-256 verified:/)
 }
 writeFileSync(path.join(directory, 'results.jsonl'), catalog.map(item => JSON.stringify(final.get(item.id))).join('\n') + '\n')
-const areas = ['playoffs','champion','trade-deadline','rookie-draft','picks']
+const areas = ['playoffs','champion','trade-deadline','rookie-draft','picks','skipped-week']
 const counts = rows => Object.fromEntries(['killed','survived','invalid','timeout','equivalent'].map(outcome => [outcome, rows.filter(row => row.outcome === outcome).length]))
-const score = rows => { const c = counts(rows); return `${c.killed}/${c.killed+c.survived}` }
+const score = rows => { const c = counts(rows); return rows.length ? `${c.killed}/${c.killed+c.survived}` : 'N/A' }
 const lines = ['# Mutation scores','', 'Provenance: SYNTHETIC fixtures on the assigned Mac mini database. These scores do not prove historical replay correctness.','', '| Area | Original checks | Stronger checks, original set | Final expanded set | Total | Invalid | Timeout | Equivalent |','|---|---:|---:|---:|---:|---:|---:|---:|']
 for (const area of areas) {
   const before = initial.filter(row => row.area === area)
@@ -41,6 +41,6 @@ for (const row of initial.filter(row => row.outcome === 'survived')) {
   const added = updated.killed_by.filter(name => !row.killed_by.includes(name))
   survivors.push(`| ${row.id} | ${classification(row.id)} | ${added.join(', ')} | ${updated.outcome} |`)
 }
-survivors.push('', 'Playoff tests now distinguish max possible points from points against. Champion checks cover 47-hour grace, a missing decision, and a certified final without a winner. Deadline tests exercise creation and acceptance on both sides of the ET date, reopening after a champion, and offer expiry. Rookie and pick checks exercise multiple historical seasons, tied records, new members, three-round snake order, traded slot owners, settlement, consumption, and rollover allocation.', '', 'The rookie backstop uses fresh Deno processes. Recovery mutations change the actual imported Edge module or deployed auto-pick and cron gate RPCs. Fill-year mutations change the deployed rollover RPC. No fixture, mock, or assertion is mutated.')
+survivors.push('', 'Playoff tests now distinguish max possible points from points against. Champion checks cover 47-hour grace, a missing decision, and a certified final without a winner. Deadline tests exercise creation and acceptance on both sides of the ET date, reopening after a champion, and offer expiry. Rookie and pick checks exercise multiple historical seasons, tied records, new members, three-round snake order, traded slot owners, settlement, consumption, and rollover allocation.', '', 'The rookie backstop uses fresh Deno processes. Recovery mutations change the actual imported Edge module or deployed auto-pick and cron gate RPCs. Fill-year mutations change the deployed rollover RPC. No fixture, mock, or assertion is mutated.', '', 'Skipped-week checks kill all ten additions on their first Tier 1 run. They cover the schedule rotation, trigger clearing, settings validation and existing results, fixed playoff weeks, first eligible draft week, its inclusive ET start, and calendar order.', '', 'Five stale-boundary mutations die on their first Tier 1 run. They cover stale detection, the due-league grace filter, same-run re-evaluation, incomplete-refresh errors, and disabled provider recovery. The oracle uses real persisted scores and a real free-agent add. There are no new survivors to classify.')
 writeFileSync(path.join(directory, 'survivors.md'), survivors.join('\n')+'\n')
 console.log(`${catalog.length} verdicts validated; ${score([...final.values()])} killed`)
