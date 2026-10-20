@@ -132,8 +132,8 @@
   {
     "id": "L11",
     "area": "live-streams",
-    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
-    "line": 42,
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 18,
     "symbol": "public.get_live_poll_work(timestamp with time zone)",
     "operator": "CONST",
     "original": "p_now+interval '2 minutes'",
@@ -145,8 +145,8 @@
   {
     "id": "L12",
     "area": "live-streams",
-    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
-    "line": 53,
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 29,
     "symbol": "public.get_live_poll_work(timestamp with time zone)",
     "operator": "ROR",
     "original": "attempt.stats_attempted_at <= p_now-interval '30 minutes'",
@@ -158,8 +158,8 @@
   {
     "id": "L13",
     "area": "live-streams",
-    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
-    "line": 58,
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 34,
     "symbol": "public.get_live_poll_work(timestamp with time zone)",
     "operator": "STMT-DEL",
     "original": "AND private.lineup_game_available(game.status,game.game_status_text)",
@@ -171,8 +171,8 @@
   {
     "id": "L14",
     "area": "live-streams",
-    "file": "supabase/migrations/20261018000003_bound_live_ingestion.sql",
-    "line": 56,
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 32,
     "symbol": "public.get_live_poll_work(timestamp with time zone)",
     "operator": "CONST",
     "original": "(p_now AT TIME ZONE 'America/New_York')::date-1",
@@ -806,6 +806,110 @@
     "mutated": "",
     "oracles": [
       "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "L32",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 18,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "CONST",
+    "original": "BETWEEN p_now-interval '45 minutes'",
+    "mutated": "BETWEEN p_now-interval '10 minutes'",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql"
+    ]
+  },
+  {
+    "id": "L33",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 18,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "CONST",
+    "original": "BETWEEN p_now-interval '45 minutes'",
+    "mutated": "BETWEEN p_now-interval '44 minutes'",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql"
+    ]
+  },
+  {
+    "id": "L34",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 20,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "ROR",
+    "original": "COALESCE(game.game_time,game.started_at) < p_now-interval '45 minutes'",
+    "mutated": "COALESCE(game.game_time,game.started_at) > p_now-interval '45 minutes'",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql"
+    ]
+  },
+  {
+    "id": "L35",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 23,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "ROR",
+    "original": "attempt.checked_at <= p_now-interval '30 minutes'",
+    "mutated": "attempt.checked_at < p_now-interval '30 minutes'",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql"
+    ]
+  },
+  {
+    "id": "L36",
+    "area": "live-streams",
+    "file": "supabase/migrations/20261020000033_poll_delayed_tipoffs.sql",
+    "line": 23,
+    "symbol": "public.get_live_poll_work(timestamp with time zone)",
+    "operator": "CONST",
+    "original": "attempt.checked_at <= p_now-interval '30 minutes'",
+    "mutated": "attempt.checked_at <= p_now-interval '2 minutes'",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql"
+    ]
+  },
+  {
+    "id": "L37",
+    "area": "live-streams",
+    "file": "supabase/functions/live-poll/policy.ts",
+    "line": 5,
+    "symbol": "supabase/functions/live-poll/policy.ts",
+    "operator": "LCR",
+    "original": "game.status === 'Scheduled' && game.needs_scoreboard",
+    "mutated": "game.status === 'Scheduled' || game.needs_scoreboard",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none supabase/functions/live-poll/policy.test.ts"
+    ]
+  },
+  {
+    "id": "L38",
+    "area": "live-streams",
+    "file": "supabase/functions/live-poll/policy.ts",
+    "line": 5,
+    "symbol": "supabase/functions/live-poll/policy.ts",
+    "operator": "NEG",
+    "original": "&& game.needs_scoreboard",
+    "mutated": "&& !game.needs_scoreboard",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none supabase/functions/live-poll/policy.test.ts"
+    ]
+  },
+  {
+    "id": "L39",
+    "area": "live-streams",
+    "file": "supabase/functions/live-poll/policy.ts",
+    "line": 4,
+    "symbol": "supabase/functions/live-poll/policy.ts",
+    "operator": "CONST",
+    "original": "game.status === 'InProgress'",
+    "mutated": "game.status === 'Final'",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none supabase/functions/live-poll/policy.test.ts"
     ]
   }
 ]

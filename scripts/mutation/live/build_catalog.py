@@ -170,6 +170,27 @@ ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
 ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
     ('onPublicationRetry()', ''),
 ], [unit('scoreCertifiedMax')], 'STMT-DEL')
+sql(LIVE, 'public.get_live_poll_work', '(timestamp with time zone)', [
+    ("BETWEEN p_now-interval '45 minutes'", "BETWEEN p_now-interval '10 minutes'"),
+    ("BETWEEN p_now-interval '45 minutes'", "BETWEEN p_now-interval '44 minutes'"),
+], [recipe('live-poll-delayed-tipoff')], 'CONST')
+sql(LIVE, 'public.get_live_poll_work', '(timestamp with time zone)', [
+    ("COALESCE(game.game_time,game.started_at) < p_now-interval '45 minutes'", "COALESCE(game.game_time,game.started_at) > p_now-interval '45 minutes'"),
+    ("attempt.checked_at <= p_now-interval '30 minutes'", "attempt.checked_at < p_now-interval '30 minutes'"),
+], [recipe('live-poll-delayed-tipoff')], 'ROR')
+sql(LIVE, 'public.get_live_poll_work', '(timestamp with time zone)', [
+    ("attempt.checked_at <= p_now-interval '30 minutes'", "attempt.checked_at <= p_now-interval '2 minutes'"),
+], [recipe('live-poll-delayed-tipoff')], 'CONST')
+worker_oracle = ['deno test --no-lock --node-modules-dir=none supabase/functions/live-poll/policy.test.ts']
+ts(LIVE, 'supabase/functions/live-poll/policy.ts', [
+    ("game.status === 'Scheduled' && game.needs_scoreboard", "game.status === 'Scheduled' || game.needs_scoreboard"),
+], worker_oracle, 'LCR')
+ts(LIVE, 'supabase/functions/live-poll/policy.ts', [
+    ('&& game.needs_scoreboard', '&& !game.needs_scoreboard'),
+], worker_oracle, 'NEG')
+ts(LIVE, 'supabase/functions/live-poll/policy.ts', [
+    ("game.status === 'InProgress'", "game.status === 'Final'"),
+], worker_oracle, 'CONST')
 legacy_operators = {
     'L': ['ROR', 'STMT-DEL', 'ROR', 'ROR', 'STMT-DEL', 'ARG-SWAP', 'ARG-SWAP', 'CONST', 'CONST', 'NEG',
           'CONST', 'ROR', 'STMT-DEL', 'CONST', 'CONST', 'AOR', 'ROR', 'STMT-DEL', 'STMT-DEL', 'STMT-DEL',
