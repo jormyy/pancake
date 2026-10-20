@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, symlink } from 'node:fs/promises'
+import { mkdir, readFile, symlink } from 'node:fs/promises'
 import path from 'node:path'
 import { miniRoot } from './common.mjs'
 import { localKeys, sql } from './local-stack.mjs'
@@ -10,6 +10,7 @@ const keys = localKeys()
 process.env.SUPABASE_URL = keys.API_URL
 process.env.SUPABASE_DB_URL = keys.DB_URL
 const env = { ...process.env, PATH: `${path.join(miniRoot, 'tools')}:${process.env.PATH}`, PANCAKE_SUPABASE_SECRET_KEY: keys.SECRET_KEY ?? keys.SERVICE_ROLE_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: 'synthetic-local-verification-token' }
+await mkdir(path.join(miniRoot, 'tools'), { recursive: true })
 await symlink(path.join(miniRoot, 'repo/scripts/season-sim/psql.mjs'), path.join(miniRoot, 'tools/psql')).catch(error => { if (error.code !== 'EEXIST') throw error })
 if (process.argv.includes('--clock-roundtrip')) {
   const saved = JSON.parse(await readFile(path.join(miniRoot, 'state/clock.json'), 'utf8'))

@@ -1,47 +1,51 @@
 # Historical season simulator
 
-The simulator replays NBA activity through real local dispatch, Edge handlers, database rules, and authenticated manager actions.
-It exercises scoring, lineups, locks, waivers, trades, IR, taxi, playoffs, rollover, and the rookie draft.
-Use the [setup and command guide](../scripts/season-sim/README.md).
+The simulator exercises local production dispatch, Edge handlers, database rules, and authenticated user actions.
+Its generated evidence establishes coverage.
+Earlier reports and fixture facts do not establish a new run's result.
+See the [command guide](../scripts/season-sim/README.md).
 
-## Input classes
+## Inputs
 
 | Class | Inputs |
 | --- | --- |
-| REAL-RAW | NBA final boxes and play-by-play; ESPN date scoreboards and summaries |
-| REAL-DERIVED | Schedule, historical roster bootstrap, injury/news selection, and live boxes |
-| SYNTHETIC | Users, manager actions, invented prospects, unavailable-career responses, and fault overlays |
+| REAL-RAW | NBA final boxes and play-by-play, ESPN JSON, published 2026–27 NBA schedule |
+| REAL-DERIVED | Historical schedule, roster observations, injury selection, historical live snapshots |
+| SYNTHETIC | Users, actions, invented prospects, next-season boxes and live snapshots |
 
-Collection records source URL, retrieval time, status, byte count, and SHA-256.
-Reads verify decompressed bytes. Raw finals retain the provider shape.
-The configured season runs from October 21, 2025 through April 12, 2026.
-Historical announcement times are unavailable. Recaps substitute for general news.
-Roster bootstrap can use later debut observations. Historical career totals remain unknown.
-Synthetic prospects test taxi and rookie flows without inventing historical career totals.
+Manifests record source URL, retrieval time, status, byte count, and SHA-256.
+Reads verify decompressed bytes.
+Next-season mappings retain the historical source game and target schedule hash.
+Known source exceptions remain pinned; they never exempt official final equality.
 
-`scripts/season-sim/known-discrepancies.json` pins accepted live counting-stat differences.
-Derived minutes and plus-minus retain source limits.
-These limits never exempt final equality.
-The [reviewed identity correction](../supabase/functions/_shared/playerIdentityCorrections.md) preserves the canonical player and history.
+## Checks
 
-## Dispatch and clock
+| Area | Independent evidence |
+| --- | --- |
+| Live matchups | Authenticated client score read versus stored stats and locked starters; private Realtime subscription |
+| Weekly scoring | Every expected result finalizes; standings rebuild from completed regular results |
+| Playoffs | Independent seeds, bracket advancement, grace periods, multi-week point totals |
+| Champion | Finalized final, independent winner, authenticated bracket read before rollover |
+| Deadline | Commissioner setting, completed early trade, blocked late proposal and acceptance, pending offer state |
+| Rookie draft | Independent prior standings order, snake reversal, traded owner, production expiry path |
+| Picks | Far-year allocation, unused rounds, retained traded ownership |
+| Next season | Published schedule, synthetic scoring, fresh standings, retained season-one history |
 
-The driver calls production dispatch SQL in timeline order. pg_net reaches the local Deno router.
-Handlers use real PostgREST, authorization, leases, receipts, and write locks.
-Database and Edge business time share a monotonic anchor that stops at the next planned event.
-Read-only checks pause business time. Native work deadlines keep real wall time.
-The isolated installer replaces local clock functions and audits affected business-time references.
-Production receives no clock seam.
+An implemented check is not a measured pass.
+Reports retain missing acceptance work and distinguish assertion failures from execution failures.
+The report adds continuation wording only when a continuation occurs.
+It never imports old defect fixes as new evidence.
 
-Fault overlays inject stale delivery, duplicates, source failures, missing data, transport failures, and overlapping dispatch.
-Recovery must use production handlers and database guards.
-Independent checks compare final fields, player points, lineup totals, matchup outcomes, and retained history.
-Next-day and end-of-season repeats check recovery and idempotence.
+## Trigger fidelity
 
-## Acceptance
+Production cron gates drive automatic outcomes.
+Production has no daily direct `sync-stats` or `sync-scores` job.
+The replay removes those morning and season-end overrides.
+A missing champion or rollover must remain a failure.
+A commissioner matchup-generation request is an authenticated setup action.
+The installer records the actual migrated cron catalog before disabling jobs.
 
-Fixture collection alone does not prove a replay.
-A short or resumed diagnostic run does not prove a fresh full season.
-Inspect the generated final report for completed dates, final equality, faults, actions, lifecycle outcomes, and invariant failures.
-Keep reports outside tracked documentation and regenerate them for the source under review.
-Local replay does not measure hosted startup, quotas, scheduler overlap, or physical iPhone behavior.
+Current replay sampling follows gate completion.
+Sampling every internal worker tick, complete ancillary cron inputs, and restored segment proofs remain acceptance requirements.
+Published segment durations stay unknown until measured.
+A short or resumed diagnostic run never counts as a fresh full replay.

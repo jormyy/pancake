@@ -94,15 +94,16 @@ export async function assertLeaguePoints(context) {
     const value = await playerPoints(row.nba_game_id, row.nba_id)
     assert.equal(row.fantasy_points, value, `Player fantasy points: ${row.nba_id}`)
   }
-  const matchups = await sqlJson(`SELECT coalesce(json_agg(m),'[]') FROM matchups m WHERE league_season_id='${context.leagueSeasonId}' AND (SELECT week_number FROM season_weeks WHERE season_year=2026 AND '${context.date}' BETWEEN week_start AND week_end) BETWEEN week_number AND coalesce(end_week_number,week_number)`, label('matchups'))
+  const matchups = await sqlJson(`SELECT coalesce(json_agg(m),'[]') FROM matchups m WHERE league_season_id='${context.leagueSeasonId}' AND (SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${context.date}' BETWEEN week_start AND week_end) BETWEEN week_number AND coalesce(end_week_number,week_number)`, label('matchups'))
   assert.ok(Array.isArray(matchups), label('Matchups must be an explicit JSON array'))
   if (!matchups.length) {
-    const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=2026 AND '${context.date}' BETWEEN week_start AND week_end`))
-    assert.ok(week >= 23, 'A regular week must have scheduled matchups')
+    const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${context.date}' BETWEEN week_start AND week_end`))
+    const waitingForGrace = Number(await sql(`SELECT count(*) FROM matchups m WHERE league_season_id='${context.leagueSeasonId}' AND NOT is_voided AND is_finalized AND finalized_at + interval '48 hours' > now()`)) > 0
+    assert.ok(!week || waitingForGrace, 'Every expected matchup must exist after playoff grace')
   }
-  const lineup = await sqlJson(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT l.member_id,l.week_number,l.slot_type,g.nba_game_id,p.nba_id FROM weekly_lineups l JOIN players p ON p.id=l.player_id JOIN player_game_stats s ON s.player_id=l.player_id JOIN nba_games g ON g.id=s.game_id AND g.game_date=l.game_date WHERE l.league_season_id='${context.leagueSeasonId}' AND l.slot_type::text NOT IN ('BE','IR','TX')) r`, label('starter lineups'))
+  const lineup = await sqlJson(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT l.member_id,l.week_number,l.slot_type,g.nba_game_id,p.nba_id FROM weekly_lineups l JOIN players p ON p.id=l.player_id JOIN player_game_stats s ON s.player_id=l.player_id JOIN nba_games g ON g.id=s.game_id AND g.game_date=l.game_date WHERE l.league_season_id='${context.leagueSeasonId}' AND l.slot_type::text NOT IN ('BE','IR')) r`, label('starter lineups'))
   assert.ok(Array.isArray(lineup), label('Starter lineups must be an explicit JSON array'))
-  if (!lineup.length) assert.ok(context.allowEmptyLineups, 'Empty starter coverage requires an explicit scenario')
+  if (!lineup.length) assert.ok(context.plannedEmptyWeek === Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${context.date}' BETWEEN week_start AND week_end`)), 'Empty starter coverage requires the planned empty week')
   for (const matchup of matchups ?? []) for (const side of ['home', 'away']) {
     let total = 0
     for (const row of lineup.filter(row => row.member_id === matchup[`${side}_member_id`] && row.week_number >= matchup.week_number && row.week_number <= (matchup.end_week_number ?? matchup.week_number))) total += await playerPoints(row.nba_game_id, row.nba_id)
