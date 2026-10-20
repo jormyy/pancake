@@ -66,6 +66,13 @@ output_path = args.evidence / f'{args.phase}-results.jsonl'
 for mutant in catalog['mutants']:
     if selected and mutant['id'] not in selected:
         continue
+    if mutant.get('retired'):
+        row = {k:mutant[k] for k in ('id','area','file','line','symbol','operator','original','mutated')}
+        row.update(applied=False, outcome='invalid', oracles=[], killed_by=[], notes=mutant['notes'])
+        with output_path.open('a') as log:
+            log.write(json.dumps(row)+'\n')
+        print(f'{row["id"]}: invalid', flush=True)
+        continue
     symbol = mutant['symbol']
     is_file = mutant.get('kind') == 'file'
     source_path = root / mutant['canonical']

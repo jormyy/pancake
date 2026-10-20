@@ -84,13 +84,14 @@ add('skipped-week', 'public.set_waiver_clears_at', "INTERVAL '48 hours'", "INTER
 add('skipped-week', 'public.set_waiver_clears_at', "INTERVAL '48 hours'", "INTERVAL '47 hours'", 'CONST', 'Clear one elapsed hour too early across DST')
 add('skipped-week', 'private.weekly_add_limit_reset_label', 'AT TIME ZONE private.add_week_timezone()', "AT TIME ZONE 'UTC'", 'CONST', 'Render DST-week resets in UTC instead of ET')
 add('skipped-week', 'private.current_add_week', '(v_week_end + 1)::timestamp AT TIME ZONE v_zone', "(v_week_end + 1)::timestamp AT TIME ZONE 'UTC'", 'CONST', 'Reset the DST week at UTC midnight')
-worker_file = 'supabase/functions/process-waivers/index.ts'
-worker_source = (ROOT/worker_file).read_text()
-worker_original = '  await reconcilePlayoffScores()'
-rows.append(dict(id='waiv-waiver-order-19',area='waiver-order',file=worker_file,
-                 line=worker_source[:worker_source.index(worker_original)].count('\n')+1,
-                 symbol='processWaiverClaims',operator='STMT-DEL',original=worker_original,mutated='',
-                 canonical=worker_file,occurrence=0,kind='file',notes='Leave playoff score inputs stale after waiver work'))
+rows.append(dict(id='waiv-waiver-order-19', area='waiver-order',
+                 file='supabase/functions/process-waivers/index.ts', line=92,
+                 symbol='processWaiverClaims', operator='STMT-DEL',
+                 original='  await reconcilePlayoffScores()', mutated='',
+                 canonical='supabase/functions/process-waivers/index.ts', occurrence=0, kind='file',
+                 notes='target removed; fix relocated to season boundary (post lane)', retired=True))
+add('waiver-order', 'public.expire_waiver_wire_logs', 'season.is_current = true', 'season.is_current = false', 'NEG', 'Current playoff holds never expire')
+add('waiver-order', 'public.expire_waiver_wire_logs', 'wwl.clears_at < now()', 'wwl.clears_at > now()', 'ROR', 'Clear future holds and retain mature holds')
 
 oracles = {
     'initial': [

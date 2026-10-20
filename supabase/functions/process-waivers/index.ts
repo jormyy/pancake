@@ -4,7 +4,6 @@ import { notifyMember } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { runBounded, type AsyncJob } from '../_shared/runBounded.ts'
 import { drainDueClaims, PROCESS_BATCH_LIMIT } from './drain.ts'
-import { reconcilePlayoffScores } from './reconcile.ts'
 
 const NOTIFICATION_CONCURRENCY = 10
 
@@ -89,7 +88,6 @@ async function processWaiverClaims(): Promise<number> {
 
   const { error: expiredErr } = await supabase.rpc('expire_waiver_wire_logs')
   if (expiredErr) throw expiredErr
-  await reconcilePlayoffScores()
 
   return rows.filter((row) => row.processed).length
 }

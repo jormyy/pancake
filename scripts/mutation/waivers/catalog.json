@@ -843,7 +843,34 @@
       "canonical": "supabase/functions/process-waivers/index.ts",
       "occurrence": 0,
       "kind": "file",
-      "notes": "Leave playoff score inputs stale after waiver work"
+      "notes": "target removed; fix relocated to season boundary (post lane)",
+      "retired": true
+    },
+    {
+      "id": "waiv-waiver-order-20",
+      "area": "waiver-order",
+      "file": "supabase/migrations/20260815000006_offseason_waiver_wire_expiry.sql",
+      "line": 21,
+      "symbol": "public.expire_waiver_wire_logs",
+      "operator": "NEG",
+      "original": "season.is_current = true",
+      "mutated": "season.is_current = false",
+      "canonical": "supabase/sql/functions/by-name/public/expire_waiver_wire_logs.sql",
+      "occurrence": 0,
+      "notes": "Current playoff holds never expire"
+    },
+    {
+      "id": "waiv-waiver-order-21",
+      "area": "waiver-order",
+      "file": "supabase/migrations/20260815000006_offseason_waiver_wire_expiry.sql",
+      "line": 24,
+      "symbol": "public.expire_waiver_wire_logs",
+      "operator": "ROR",
+      "original": "wwl.clears_at < now()",
+      "mutated": "wwl.clears_at > now()",
+      "canonical": "supabase/sql/functions/by-name/public/expire_waiver_wire_logs.sql",
+      "occurrence": 0,
+      "notes": "Clear future holds and retain mature holds"
     }
   ]
 }
