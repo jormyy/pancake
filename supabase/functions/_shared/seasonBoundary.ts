@@ -85,6 +85,7 @@ async function runRookieDraftBackstop(
   leagueId: string,
   leagueSeasonId: string,
   referenceDate: Date,
+  startIfMissing = true,
 ): Promise<string[]> {
   const { data: season, error: seasonError } = await supabase
     .from('league_seasons')
@@ -115,6 +116,7 @@ async function runRookieDraftBackstop(
   if (draftError) throw draftError
 
   let draft = drafts?.[0] ?? null
+  if (!draft && !startIfMissing) return actions
   if (!draft) {
     const { data: started, error: startError } = await supabase.rpc('start_rookie_draft_atomic', {
       p_league_id: leagueId,
@@ -127,7 +129,7 @@ async function runRookieDraftBackstop(
     draft = started as typeof draft
     actions.push('rookie-draft-started')
   }
-  if (!draft || draft.status !== 'in_progress') return actions
+  if (!draft || !['in_progress', 'paused'].includes(draft.status)) return actions
 
   for (let picks = 0; picks < MAX_BACKSTOP_PICKS; picks += 1) {
     const { data: nextPick, error: nextError } = await supabase
@@ -280,7 +282,7 @@ export async function runSeasonBoundary(
       .from('league_seasons')
       .select('id, league_id, leagues!league_seasons_league_id_fkey!inner ( status, playoff_start_week )')
       .eq('is_current', true)
-      .in('leagues.status', ['active', 'playoffs', 'offseason'])
+      .in('leagues.status', ['active', 'playoffs', 'offseason', 'drafting'])
       .order('id')
       .limit(1000)
     if (leagueId) query = query.eq('league_id', leagueId)
@@ -298,7 +300,7 @@ export async function runSeasonBoundary(
   const jobs = (seasons ?? []).flatMap((season) => {
     const league = season.leagues as { status?: string | null; playoff_start_week?: number | null } | null
     const status = league?.status ?? 'setup'
-    if (status !== 'active' && status !== 'playoffs' && status !== 'offseason') return []
+    if (status !== 'active' && status !== 'playoffs' && status !== 'offseason' && status !== 'drafting') return []
     const playoffStartWeek = league?.playoff_start_week ?? DEFAULT_PLAYOFF_START_WEEK
     return [async () => {
       try {
@@ -310,6 +312,8 @@ export async function runSeasonBoundary(
             ...await ensureSeasonMatchups(season.league_id, season.id, playoffStartWeek),
             ...await runRookieDraftBackstop(season.league_id, season.id, referenceDate),
           ]
+          : status === 'drafting'
+          ? await runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)
           : await processLeagueBoundary(
             season.league_id,
             season.id,
