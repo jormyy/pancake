@@ -21,6 +21,7 @@ DECLARE
   user_id uuid; member_id uuid; other_league uuid; other_season uuid; created jsonb;
   expected_order uuid[]; rookie_draft jsonb;
   i int; result jsonb; seeds uuid[]; player_ids uuid[]:='{}'; player uuid; start_week int;
+  week_one date:=date '2026-10-20'+7*greatest(0,ceil((((now() AT TIME ZONE 'America/New_York')::date+1)-date '2026-10-20')/7.0)::int);
 BEGIN
   FOR i IN 1..10 LOOP
     user_id:=gen_random_uuid(); member_id:=gen_random_uuid();
@@ -36,8 +37,8 @@ BEGIN
     VALUES(member_id,league,user_id,CASE WHEN i=1 THEN 'commissioner' ELSE 'manager' END::league_member_role,'Team '||i);
   END LOOP;
   INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
-  SELECT 8200,w,date '2026-10-20'+CASE WHEN w=1 THEN 0 ELSE 6+(w-2)*7 END,
-    date '2026-10-25'+(w-1)*7 FROM generate_series(1,30) w;
+  SELECT 8200,w,week_one+CASE WHEN w=1 THEN 0 ELSE 6+(w-2)*7 END,
+    week_one+5+(w-1)*7 FROM generate_series(1,30) w;
   PERFORM set_config('request.jwt.claim.sub',users[1]::text,true);
   PERFORM pg_temp.check_dynasty((SELECT team_limit=10 AND taxi_rule='drafted_rookies' AND taxi_max_seasons IS NULL
     AND NOT allow_inactive_trades AND playoff_entrants IS NULL AND playoff_start_week=18 FROM leagues WHERE id=league),'existing defaults and saved start preserved');
@@ -55,10 +56,10 @@ BEGIN
   PERFORM pg_temp.check_dynasty((result->>'inserted')::int=32 AND (SELECT min(week_number)=1 AND max(week_number)=16 FROM matchups WHERE league_season_id=other_season),'new league default regular schedule weeks1 through16');
   PERFORM update_league_settings_atomic(league,'{"taxi_rule":"rookies_or_64_games","taxi_max_seasons":2,"allow_inactive_trades":true,"playoff_entrants":4,"playoff_round_lengths":[2,2],"skipped_weeks":[1]}');
   PERFORM pg_temp.check_dynasty((SELECT playoff_start_week=18 FROM leagues WHERE id=league),'unspecified playoff start stays 18');
-  PERFORM pg_temp.check_dynasty(private.league_week_at_pacific(season,'2026-10-20 06:59:59+00') IS NULL
-    AND private.league_week_at_pacific(season,'2026-10-20 07:00:00+00')=1
-    AND private.league_week_at_pacific(season,'2026-10-26 06:59:59+00')=1
-    AND private.league_week_at_pacific(season,'2026-10-26 07:00:00+00')=2,'Oct20 through Oct25 exact Pacific boundaries');
+  PERFORM pg_temp.check_dynasty(private.league_week_at_pacific(season,(week_one::timestamp AT TIME ZONE 'America/Los_Angeles')-interval '1 second') IS NULL
+    AND private.league_week_at_pacific(season,week_one::timestamp AT TIME ZONE 'America/Los_Angeles')=1
+    AND private.league_week_at_pacific(season,((week_one+6)::timestamp AT TIME ZONE 'America/Los_Angeles')-interval '1 second')=1
+    AND private.league_week_at_pacific(season,(week_one+6)::timestamp AT TIME ZONE 'America/Los_Angeles')=2,'exact Pacific week boundaries');
   result:=replace_regular_season_matchups_atomic(league,season,false,private.regular_season_matchup_payload(league,season,17));
   PERFORM pg_temp.check_dynasty((result->>'inserted')::int=80 AND (SELECT min(week_number)=2 AND max(week_number)=17 FROM matchups WHERE league_season_id=season),'official regular weeks2 through17 have80 matchups');
   PERFORM pg_temp.check_dynasty(NOT EXISTS(SELECT 1 FROM matchups WHERE league_season_id=season AND week_number=1),'skip before generation creates no week1 matchups');
