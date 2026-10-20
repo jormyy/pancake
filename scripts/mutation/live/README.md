@@ -44,3 +44,18 @@ The application scorer always supplies tokens.
 
 `weekly-idle-load.sql` measures the gate with 30 leagues, 360 teams, 90 seasons,
 and 11,880 matchups. It rolls back every synthetic row.
+
+`scoring-skip-first-week.ts` uses the authenticated settings RPC to skip week 1.
+Its 28-week calendar starts on 2026-10-19 and includes the October opening games.
+It checks the real REST API and Realtime stream, week-2 maxima, and certificates.
+`weekly-skip-idle.sql` covers the timer gate for the first eligible week.
+
+`live-score-load.ts` writes stats every 1.5 seconds for three minutes.
+It runs scoring every twenty seconds, matching the live worker cadence.
+It checks rejection recovery, continued progress, and finalization during writes.
+
+The idle gate reuses one current token per wholly regular-season schedule.
+Regular matchups cover one week, as enforced by the database constraint.
+Earlier tokens retain all common keys and only their own cumulative week keys.
+Playoff schedules and missing current tokens use the full comparison.
+The gate recipe checks earlier stale certificates and playoff spans independently.

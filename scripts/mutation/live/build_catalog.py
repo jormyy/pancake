@@ -20,10 +20,11 @@ def db(name):
 
 
 def add(area, file, line, symbol, original, mutated, oracles, operator='condition'):
-    rows.append(dict(id=('L' if area == LIVE else 'W') + str(1 + sum(r['area'] == area for r in rows)).zfill(2), area=area, file=file, line=line, symbol=symbol, operator=operator, original=original, mutated=mutated, oracles=oracles))
+    prefix = 'L' if area == LIVE else 'live-sw-' if area == 'skipped-week' else 'W'
+    rows.append(dict(id=prefix + str(1 + sum(r['area'] == area for r in rows)).zfill(2), area=area, file=file, line=line, symbol=symbol, operator=operator, original=original, mutated=mutated, oracles=oracles))
 
 
-def sql(area, name, signature, changes, oracles):
+def sql(area, name, signature, changes, oracles, operator='condition'):
     matches = []
     for path in sorted(Path('supabase/migrations').glob('*.sql')):
         source = path.read_text()
@@ -34,7 +35,7 @@ def sql(area, name, signature, changes, oracles):
     for original, mutated in changes:
         if source[start:end].count(original) != 1:
             raise ValueError((name, original, path))
-        add(area, str(path), source.count('\n', 0, source.index(original, start)) + 1, name + signature, original, mutated, oracles)
+        add(area, str(path), source.count('\n', 0, source.index(original, start)) + 1, name + signature, original, mutated, oracles, operator)
 
 
 def ts(area, file, changes, oracles):
@@ -131,7 +132,45 @@ sql(WEEKLY, 'public.invoke_live_poll_if_due', '()', [
     ("league.status IN ('active', 'playoffs')", "league.status = 'active'"),
     ("interval '30 minutes'", "interval '5 minutes'"),
     ('final.is_finalized AND NOT final.is_voided', 'NOT final.is_finalized AND NOT final.is_voided'),
-    ('certificate.input_token IS DISTINCT FROM private.score_input_token', 'certificate.input_token IS NOT DISTINCT FROM private.score_input_token'),
+    ('certificate.input_token IS DISTINCT FROM CASE', 'certificate.input_token IS NOT DISTINCT FROM CASE'),
 ], [recipe('weekly-idle-dispatch')])
+sql(WEEKLY, 'public.invoke_live_poll_if_due', '()', [
+    ('::int <= candidate.week_number', '::int < candidate.week_number'),
+], [recipe('weekly-idle-dispatch')], 'ROR')
+sql(WEEKLY, 'public.invoke_live_poll_if_due', '()', [
+    ('CASE WHEN NOT EXISTS (', 'CASE WHEN EXISTS ('),
+], [recipe('weekly-idle-dispatch')], 'NEG')
+sql('skipped-week', 'public.update_score_points_atomic', '(uuid,uuid,integer,jsonb)', [
+    ('p_week_number=ANY(skipped_weeks)', 'p_week_number<>ALL(skipped_weeks)'),
+], [db('scoring-skip-first-week')], 'NEG')
+sql('skipped-week', 'public.update_score_points_atomic', '(uuid,uuid,integer,jsonb)', [
+    ('p_week_number=ANY(skipped_weeks)', '(p_week_number+1)=ANY(skipped_weeks)'),
+], [db('scoring-skip-first-week')], 'CONST')
+sql('skipped-week', 'public.finalize_score_week_atomic', '(uuid,uuid,integer,jsonb,jsonb,timestamp with time zone,timestamp with time zone)', [
+    ('p_week_number=ANY(skipped_weeks)', 'p_week_number<>ALL(skipped_weeks)'),
+], [db('scoring-skip-first-week')], 'NEG')
+sql('skipped-week', 'public.finalize_score_week_atomic', '(uuid,uuid,integer,jsonb,jsonb,timestamp with time zone,timestamp with time zone)', [
+    ("IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_league_season_id AND p_week_number=ANY(skipped_weeks)) THEN RETURN '[]'::jsonb; END IF;", ''),
+], [db('scoring-skip-first-week')], 'STMT-DEL')
+sql('skipped-week', 'public.invoke_live_poll_if_due', '()', [
+    ('AND NOT (matchup.week_number = ANY(season.skipped_weeks))', 'AND (matchup.week_number = ANY(season.skipped_weeks))'),
+], [recipe('weekly-skip-idle')], 'NEG')
+sql('skipped-week', 'private.rebuild_regular_standings', '(uuid,uuid)', [
+    ('AND result.is_finalized AND NOT result.is_voided', 'AND result.is_finalized'),
+], [db('scoring-skip-first-week')], 'STMT-DEL')
+sql('skipped-week', 'private.enforce_skipped_matchup', '()', [
+    ('NEW.week_number = ANY(skipped_weeks)', 'NEW.week_number <> ALL(skipped_weeks)'),
+], [db('scoring-skip-first-week')], 'NEG')
+legacy_operators = {
+    'L': ['ROR', 'STMT-DEL', 'ROR', 'ROR', 'STMT-DEL', 'ARG-SWAP', 'ARG-SWAP', 'CONST', 'CONST', 'NEG',
+          'CONST', 'ROR', 'STMT-DEL', 'CONST', 'CONST', 'AOR', 'ROR', 'STMT-DEL', 'STMT-DEL', 'STMT-DEL',
+          'CONST', 'STMT-DEL', 'ROR', 'CONST', 'CONST', 'STMT-DEL', 'ROR', 'STMT-DEL'],
+    'W': ['NEG', 'AOR', 'AOR', 'ROR', 'NEG', 'ROR', 'ARG-SWAP', 'ROR', 'ROR', 'ROR', 'STMT-DEL',
+          'CONST', 'ORDER', 'AOR', 'AOR', 'NEG', 'NEG', 'STMT-DEL', 'CONST', 'CONST', 'NEG', 'NEG'],
+}
+for row in rows:
+    match = re.fullmatch(r'([LW])(\d+)', row['id'])
+    if match and int(match[2]) <= len(legacy_operators[match[1]]):
+        row['operator'] = legacy_operators[match[1]][int(match[2]) - 1]
 Path('scripts/mutation/live/catalog.json').write_text(json.dumps(rows, indent=2) + '\n')
-print({area: sum(r['area'] == area for r in rows) for area in (LIVE, WEEKLY)})
+print({area: sum(r['area'] == area for r in rows) for area in (LIVE, WEEKLY, 'skipped-week')})
