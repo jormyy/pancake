@@ -1,5 +1,6 @@
+import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native'
+import { Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import { useRouter } from 'expo-router'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'

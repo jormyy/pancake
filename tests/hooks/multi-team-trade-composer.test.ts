@@ -261,3 +261,23 @@ it('defers participant reads and retry while inactive without discarding the off
     expect(latest.buildMultiTeamItems()).toEqual([expect.objectContaining({ faabAmount: 9 })])
     await act(async () => view.unmount())
 })
+
+
+it('separates loaded assets from refresh readiness and retains them during retry', async () => {
+    getRostersForMembers.mockResolvedValue({ member: [rosterPlayer('owned')] })
+    let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+    const Probe = () => { latest = useMultiTeamTradeComposer({ enabled: true, leagueId: 'league',
+        myMemberId: 'member', myTeamName: 'Team', members: [], faabEnabled: false }); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    expect(latest.assetsLoaded).toBe(true)
+    const pending = deferred<Record<string, ReturnType<typeof rosterPlayer>[]>>()
+    getRostersForMembers.mockReturnValue(pending.promise)
+    await act(async () => latest.retry())
+    expect(latest.assetsLoaded).toBe(true)
+    expect(latest.assetsReady).toBe(false)
+    expect(latest.participantRosters.member[0].players.id).toBe('owned')
+    await act(async () => pending.resolve({ member: [rosterPlayer('owned')] }))
+    expect(latest.assetsReady).toBe(true)
+    await act(async () => view.unmount())
+})

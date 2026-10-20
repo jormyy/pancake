@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 import type { DraftState } from '@/lib/draft'
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({ state: vi.fn(), change: null as (() => void) | null }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))

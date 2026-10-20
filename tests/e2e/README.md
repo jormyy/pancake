@@ -1,5 +1,71 @@
 # Multi-Season E2E Harness
 
+## Layout stability sweep
+
+`npm run e2e:layout-stability` measures a stamped release with seeded local data.
+Use the [setup and cleanup recipe](./layout-stability-README.md) for ports, keys, seeding, builds, servers, and recorder checks.
+Run builds, browsers, and the isolated stack on the mini after the capacity check. Keep reports outside the checkout.
+
+| Target | Viewport | Mode |
+| --- | --- | --- |
+| WebKit phone | 390x844, 393x852 | Simulated standalone |
+| Chromium desktop | 1280x720, 1440x900 | Browser tab |
+| WebKit desktop | 1440x900 | Browser tab |
+
+The sweep covers cold load, refresh, tab return, reconnect, in-app navigation, and browser back/forward.
+It checks 32 seeded surfaces with deterministic 250–900 ms and 1400–1600 ms API delays.
+Use `-- --list` for exact targets and surfaces. Missing navigation controls produce explicit omissions.
+
+```sh
+npm run e2e:layout-stability -- --self-test \
+  --targets=desktop-chromium-1440,desktop-webkit-1440 \
+  --output-dir=../evidence/layout/self-test
+npm run e2e:layout-stability -- \
+  --stack-env=../local/local-stack.env --state=../local/tests/e2e-state.json \
+  --build-sha="$RELEASE_SHA" --latency-profile=seeded,slow --seed=493 \
+  --workers=4 --observe-ms=1000 --label=after --output-dir=../evidence/layout/after
+npm run e2e:layout-stability -- --notice-navigation \
+  --stack-env=../local/local-stack.env --state=../local/tests/e2e-state.json \
+  --build-sha="$RELEASE_SHA" --latency-profile=seeded --cycles=10 \
+  --targets=iphone-webkit-390-standalone,iphone-webkit-393-standalone,desktop-chromium-1440,desktop-webkit-1440 \
+  --label=after --output-dir=../evidence/layout/after
+```
+
+The self-test must detect deliberate movement, loading text, a spinner, disappearance, and reappearance.
+Main captures measure displacement, blank frames, reappearance, visible loading duration, spinner duration, and time to stable content.
+Chromium measures CLS with session windows and excludes recent input. WebKit CLS is unsupported; it must never appear as zero.
+Both engines use visible-element geometry and frame samples. Samples cannot prove stability between captures or outside the viewport.
+Standalone mode simulates installation; it does not prove physical iOS behavior.
+
+Displacement above two CSS pixels fails. Positive measured CLS, loading duration, spinner duration, blank frames, or reappearance also fail.
+A missing expected result cannot pass through empty measurements. Inspect failure reasons, raw records, screenshots, and video together.
+
+The corrected BEFORE matrix records 904 passes, 966 failures, and 50 explained omissions across 1,920 cells.
+The notice check fails all 120 BEFORE returns across four targets.
+Source: release evidence `sweep/compare.md` and `sweep/round2-handoff.md` from October 19, 2026.
+| Metric | Corrected BEFORE | FINAL |
+| --- | ---: | ---: |
+| Pass / fail / not run | 904 / 966 / 50 | 1,870 / 0 / 50 |
+| Largest sampled horizontal / vertical movement, CSS px | 10.3 / 402 | 0 / 1.6 |
+| Largest Chromium CLS | 0.115314670 | 0 |
+| WebKit CLS | Unsupported | Unsupported |
+| Blank frames | 24,138 | 0 |
+| Loading / spinner cells | 42 / 168 | 0 / 0 |
+| Reappearances / affected cells | 6,630 / 618 | 0 / 0 |
+
+The measured FINAL release is `aff7aac1c493a9ddad0dfda9fd71d16e2ee9605e`.
+All 300 notice returns pass with no blank or missing-notice frames.
+The 120 matched BEFORE returns fail; the additional 180 FINAL returns have no paired BEFORE notice run.
+The main sweep exits 2 because of the same 50 explained navigation omissions; it records no failures or run error.
+
+WebKit CLS is unsupported. Its geometry samples cannot replace native CLS or prove sidebar stability.
+The recorder saves movement details only for individual steps above 0.5 pixels.
+Smaller steps can accumulate displacement without saved selectors or rectangle pairs and can understate time to stable layout.
+Two desktop WebKit Lineup cells record 1.6 pixels with no saved movement details; two Team Roster cells record 0.01 pixels.
+These values remain below the unchanged two-pixel threshold. This recorder limit remains open.
+
+Source: release evidence `sweep/round5-handoff.md`, `sweep/final/compare.md`, and `sweep/final/metric-support.md`.
+
 ## Supported web clients
 
 Pancake supports iPhone Safari, its Home Screen PWA, and desktop browsers.

@@ -1,5 +1,6 @@
 import { Platform, StyleSheet, Text, View } from 'react-native'
 import { AuthBrandMark } from '@/components/auth/AuthBrandMark'
+import { authWebAttributes } from '@/components/auth/authScaffoldCss'
 import { MotionView } from '@/components/Motion'
 import { brand, fontFamily, fontSize, fontWeight, radii, spacing, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 
@@ -11,7 +12,7 @@ export type AuthHeroContent = {
 
 export function AuthHero({ content }: { content: AuthHeroContent }) {
     return (
-        <View style={[styles.panel, Platform.OS === 'web' && styles.panelWeb]}>
+        <View style={[styles.panel, Platform.OS === 'web' && styles.panelWeb]} {...authWebAttributes('authHero')}>
             <View style={styles.brandTop}>
                 <AuthBrandMark />
             </View>

@@ -1,4 +1,6 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
+import { DeferredContent } from '@/components/ui/DeferredContent'
+import { StyleSheet, Text, View } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { useRouter } from 'expo-router'
 import { useIsFocused } from '@react-navigation/native'
@@ -65,7 +67,8 @@ function CardGap() {
     return <View style={styles.cardGap} />
 }
 
-export default function TradesScreen() {
+function TradesScreen() {
+    const statusScroll = useScreenStatusScroll()
     const { push } = useRouter()
     const { user } = useAuth()
     const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner, online } = useLeagueContext()
@@ -100,6 +103,7 @@ export default function TradesScreen() {
         ? analyzerTrade.trade : null
     const {
         trades,
+        hasData: offersHaveData,
         loading,
         loadingMore: offersLoadingMore,
         hasMore: offersHaveMore,
@@ -111,6 +115,7 @@ export default function TradesScreen() {
     } = useTradesFeed(myMemberId, leagueId, online, { autoLoad: false })
     const {
         trades: historyTrades,
+        hasData: historyHasData,
         loading: historyLoading,
         hasMore: historyHasMore,
         error: historyError,
@@ -126,6 +131,7 @@ export default function TradesScreen() {
     })
     const {
         items: blockItems,
+        hasData: blockHasData,
         roster: blockRoster,
         avgMap: blockAvgMap,
         avgStatsMap: blockAvgStatsMap,
@@ -178,13 +184,15 @@ export default function TradesScreen() {
         blockItems,
         memberId: myMemberId,
         picks: picksList,
+        tradesSettled: tab === 'history' ? historyHasData : offersHaveData,
         tradesLoading: tab === 'history' ? historyLoading : loading,
         tradesError: Boolean(tab === 'history' ? historyError : tradesError),
         blockLoading,
+        blockSettled: blockHasData,
         blockError: Boolean(blockError),
         blockRoster,
         leagueBlockItems: blockItems,
-    }), [blockError, blockItems, blockLoading, blockRoster, historyError, historyLoading, historyTrades, loading, myMemberId, picksList, tab, trades, tradesError])
+    }), [offersHaveData, historyHasData, blockHasData, blockError, blockItems, blockLoading, blockRoster, historyError, historyLoading, historyTrades, loading, myMemberId, picksList, tab, trades, tradesError])
     const { listData, pendingInboxCount } = screenModel
     const tradeTab = tab === 'offers' || tab === 'history'
     // Wide screens keep the offer list and the open trade side by side.
@@ -235,10 +243,10 @@ export default function TradesScreen() {
 
     const activeTabLoading = tab === 'picks' ? picksLoading && picksList.length === 0
         : tab === 'analyzer' ? false
-        : tab === 'block' ? blockLoading && blockItems.length === 0 && blockRoster.length === 0 && picksList.length === 0
-            : tab === 'leagueBlock' ? blockLoading && blockItems.length === 0
-                : tab === 'history' ? historyLoading && historyTrades.length === 0
-                    : loading && trades.length === 0
+        : tab === 'block' ? blockLoading && !blockHasData
+            : tab === 'leagueBlock' ? blockLoading && !blockHasData
+                : tab === 'history' ? historyLoading && !historyHasData
+                    : loading && !offersHaveData
     // Ordered by how often a manager needs each one: respond to offers, scout
     // the league's block, then the tools and records.
     const tabOptions: SegmentOption<TradeTabKey>[] = [
@@ -283,6 +291,8 @@ export default function TradesScreen() {
                     title={usableWidth < 340 ? undefined : !online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
                     icon={disabled ? 'lock' : 'add'}
                     size="sm"
+                    style={{ width: usableWidth < 340 ? 44 : 112 }}
+                    labelStyle={{ width: 56, textAlign: 'left' }}
                     onPress={onPropose}
                     disabled={disabled}
                     accessibilityLabel={!online ? 'Reconnect to propose a trade' : disabled ? 'Trades unavailable' : 'Propose trade'}
@@ -316,7 +326,7 @@ export default function TradesScreen() {
         onWithdraw: () => tradeActions.withdraw(openTrade.id),
     } : null
     const list = (
-        <FlashList data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
+        <FlashList onScroll={statusScroll.onScroll} scrollEventThrottle={16} data={listData} keyExtractor={tradeListKey} getItemType={tradeListItemType}
             key={`${tab}:${gridColumns}`}
             numColumns={gridColumns}
             overrideItemLayout={(itemLayout, item, _index, maxColumns) => {
@@ -324,7 +334,7 @@ export default function TradesScreen() {
             }}
             ItemSeparatorComponent={tradeTab ? CardGap : gridColumns > 1 ? undefined : ItemSeparator}
             renderItem={renderItem}
-            contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing['3xl'] }}
+            contentContainerStyle={statusScroll.contentStyle({ paddingHorizontal: padX, paddingBottom: spacing['3xl'] })}
             onEndReached={tab === 'history' && historyHasMore
                 ? loadMoreHistory
                 : tab === 'offers' && offersHaveMore && !offersLoadingMore ? loadMoreOffers : undefined}
@@ -333,20 +343,14 @@ export default function TradesScreen() {
 
     return <Page title="Trades">
         {header(!online || tradingClosed, () => push('/(modals)/propose-trade'))}
-        {activeError ? <ErrorBanner message={hasSavedData
-            ? `${resourceLabel[0].toUpperCase() + resourceLabel.slice(1)} refresh failed. Showing a saved snapshot.${online ? ' Tap to retry.' : ' Reconnect to update.'}`
-            : `${online ? 'Could not load' : 'Offline. No saved'} ${resourceLabel}.${online ? ' Tap to retry.' : ' Reconnect to load.'}`}
-            onRetry={() => { if (online) void retryActiveResource() }} />
-            : hasSavedData && isSnapshot && !online ? <Text style={styles.freshness} accessibilityLiveRegion="polite">
-                {`Offline. Showing a saved ${resourceLabel} snapshot.`}
-            </Text> : null}
         {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError.replace(/[.!]?\s*$/, '.')} Tap to refresh.`}
             onRetry={() => { void retryActiveResource() }} /> : null}
+        <DeferredContent ready={!activeTabLoading}>
         {tab === 'analyzer' ? (
-            <Suspense fallback={<View style={styles.emptyState}><Text style={styles.emptyStateText}>Loading Analyzer…</Text></View>}>
+            <Suspense fallback={<View style={[styles.emptyState, { minHeight: 320 }]} aria-busy accessibilityState={{ busy: true }} />}>
                 <TradeAnalyzer key={`${user?.id}:${leagueId}:${myMemberId}`} prefillTrade={ownedAnalyzerTrade} />
             </Suspense>
-        ) : activeTabLoading ? null
+        ) : activeTabLoading ? <View style={{ flex: 1, minHeight: 320 }} aria-busy accessibilityState={{ busy: true }} />
             : tab === 'picks' && picksError && picks === null ? null
                 : tab === 'picks' && picksList.length === 0 ? <View style={styles.emptyState}><Text style={styles.emptyStateText}>No draft picks</Text></View>
                     : tab === 'picks' ? (
@@ -368,6 +372,16 @@ export default function TradesScreen() {
                         </View>
                     )
                     : list}
+        </DeferredContent>
+        <ScreenStatusOverlay>
+            {activeError ? <ErrorBanner message={hasSavedData
+                ? `${resourceLabel[0].toUpperCase() + resourceLabel.slice(1)} refresh failed. Showing a saved snapshot.${online ? ' Tap to retry.' : ' Reconnect to update.'}`
+                : `${online ? 'Could not load' : 'Offline. No saved'} ${resourceLabel}.${online ? ' Tap to retry.' : ' Reconnect to load.'}`}
+                onRetry={() => { if (online) void retryActiveResource() }} />
+                : hasSavedData && isSnapshot && !online ? <Text style={styles.freshness} accessibilityLiveRegion="polite">
+                    {`Offline. Showing a saved ${resourceLabel} snapshot.`}
+                </Text> : null}
+        </ScreenStatusOverlay>
         {!split && tradeContext && detailActions ? (
             <Sheet
                 visible={openTradeId != null}
@@ -398,3 +412,7 @@ const styles = StyleSheet.create({
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: spacing['4xl'] },
     emptyStateText: { ...textStyles.body, color: colors.textPlaceholder },
 })
+
+export default function TradesScreenWithStatus() {
+    return <ScreenStatusProvider><TradesScreen /></ScreenStatusProvider>
+}

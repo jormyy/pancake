@@ -142,3 +142,41 @@ No billing tier follows from database settings.
 Cron recommends at most eight concurrent jobs and ten minutes per job. These are recommendations, not hard limits.
 The hosted `cron.max_running_jobs` setting is 32. It does not establish available resources or safe concurrency.
 [Official Cron guidance](https://supabase.com/docs/guides/cron).
+
+## Paired scoring profile — October 19, 2026
+
+Five interleaved BEFORE/AFTER pairs use one warmed synthetic fixture on the mini.
+Each pair runs BEFORE first. The copies share provider responses, runtime, arguments, and measurement scripts.
+Scores, standings, score timestamps, and notification content match in every run.
+
+| Workload | BEFORE median / p95, ms | AFTER median / p95, ms | BEFORE DB median / p95, ms | AFTER DB median / p95, ms |
+| --- | ---: | ---: | ---: | ---: |
+| sync-scores | 65,664.60 / 84,147.83 | 1,634.14 / 2,594.31 | 13,924.16 / 19,084.00 | 7,632.01 / 12,783.81 |
+| sync-scores-engine-no-provider | 66,813.80 / 92,748.13 | 2,053.26 / 3,039.54 | 15,692.33 / 23,327.97 | 9,686.86 / 14,257.75 |
+| stale-score-weeks | 150.57 / 169.44 | 36.46 / 40.40 | 147.58 / 167.45 | 35.00 / 37.06 |
+
+The measured scoring median improves 40.18 times. Warm valid certificates avoid repeated maximum-points roster reads.
+The distinct-first stale-week query reduces input-token calls from 120 to 20 per request.
+Cold repair and invalid certificates still use the exact search. Last-week stat and IR corrections retain explicit database regressions.
+
+All 43 authenticated read cases pass the 100 ms database and 300 ms HTTP p95 budgets in both versions.
+The largest AFTER database p95 is 61.27 ms; the largest HTTP p95 is 71.83 ms.
+The projection-capacity HTTP median rises from 40.32 to 54.92 ms. Its ranges overlap, and its query code stays unchanged.
+Those samples do not establish a code-caused regression.
+
+The fixture contains 600 synthetic players, 1,230 games, 49,200 stat rows, and thirty twelve-team leagues.
+Each team has fifteen roster players. Eleven scoring settings vary the points weight.
+Every synthetic player has 82 games without DNP rows. This dense workload does not represent an average NBA week.
+Cold BEFORE preparation takes 1,380.06 seconds and stays outside the paired table.
+The earlier independent baseline records a scoring median of 87,055.66 ms. It is not the BEFORE value for these pairs.
+
+The host is an Apple M4 with ten logical CPUs and 24 GiB RAM. The shared task VM has 7 GiB RAM.
+Versions are Node 22.23.3, Deno 2.7.14, Supabase CLI 2.109.1, and PostgreSQL 17.6.
+BEFORE one-minute load spans 2.73–10.43; AFTER spans 2.72–7.38. Shared-host load limits timing attribution.
+With five observations, nearest-rank p95 is the largest sample. Summed overlapping database statements do not measure CPU time.
+Host Deno runs handlers through local PostgREST. These samples exclude hosted Edge startup, CPU quotas, and production scheduler overlap.
+Pinned provider responses do not measure internet latency or successful new-stat ingestion.
+
+Run the [profile recipe](./verification.md#capacity-profile-and-paired-scoring) on an isolated local stack.
+Source numbers: release evidence `perf/after.md` and `perf/baseline.md`, captured October 19, 2026.
+Raw paired samples, source hashes, output digests, statement snapshots, and plans remain in `perf/after.json` and `perf/round2/scoring-after.json`.

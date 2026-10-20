@@ -1,5 +1,5 @@
 import { ComponentProps, ReactNode } from 'react'
-import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native'
+import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle, type TextStyle } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { colors, controlSize, elevation, fontFamily, fontWeight, motion, radii } from '@/constants/tokens'
 
@@ -19,6 +19,7 @@ type Props = {
     disabled?: boolean
     fullWidth?: boolean
     style?: StyleProp<ViewStyle>
+    labelStyle?: StyleProp<TextStyle>
     accessibilityLabel?: string
 }
 
@@ -55,6 +56,7 @@ export function Button({
     disabled = false,
     fullWidth = false,
     style,
+    labelStyle,
     accessibilityLabel,
 }: Props) {
     const s = SIZES[size]
@@ -88,7 +90,7 @@ export function Button({
         >
             {icon ? <MaterialIcons name={icon} size={s.icon} color={c.fg} /> : null}
             {title ? (
-                <Text style={[styles.label, { color: c.fg, fontSize: s.font }]} numberOfLines={1}>
+                <Text style={[styles.label, { color: c.fg, fontSize: s.font }, labelStyle]} numberOfLines={1}>
                     {title}
                 </Text>
             ) : (

@@ -19,7 +19,7 @@ BEGIN
        AND private.lineup_game_available(g.status, g.game_status_text)
        AND g.game_time > now()
        AND g.game_time <= now() + interval '2 minutes'
-       AND g.started_at IS NULL
+       AND (g.started_at IS NULL OR g.started_at > now())
        AND EXISTS (
          SELECT 1 FROM public.lineup_optimizer_settings s
          JOIN public.league_seasons ls ON ls.id = s.league_season_id

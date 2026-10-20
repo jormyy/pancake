@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 import type { RookieDraftState, RookieProspect } from '@/lib/rookieDraft'
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const boundary = vi.hoisted(() => ({
     state: vi.fn(), prospects: vi.fn(), revision: vi.fn(), pick: vi.fn(), expire: vi.fn(),

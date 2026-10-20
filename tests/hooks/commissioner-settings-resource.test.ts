@@ -469,3 +469,22 @@ it('checks commissioner authority again before saving and accepts co-commissione
     expect(latest.loadState).toBe('unauthorized')
     await act(async () => view.unmount())
 })
+
+
+it('keeps the settled settings ready while an activity refresh waits', async () => {
+    const value = league('refresh-frame')
+    mocks.getLineupSlots.mockResolvedValue([])
+    let latest!: ReturnType<typeof useCommissionerSettingsResource>
+    const Probe = () => { latest = useCommissionerSettingsResource({ league: value, ownerId: 'user',
+        isCommissioner: true, refresh: vi.fn(), onSaved: vi.fn() }); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    const pending = deferred<[]>()
+    mocks.getLineupSlots.mockReturnValue(pending.promise)
+    activity.epoch += 1
+    await act(async () => view.update(React.createElement(Probe)))
+    expect(latest.loadState).toBe('ready')
+    expect(latest.draft.rosterSize).toBe('20')
+    await act(async () => { pending.resolve([]) })
+    await act(async () => view.unmount())
+})

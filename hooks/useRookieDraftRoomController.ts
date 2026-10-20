@@ -1,3 +1,5 @@
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
@@ -43,12 +45,15 @@ export function useRookieDraftRoomController({
     const memberIdRef = useRef(memberId)
     memberIdRef.current = memberId
 
-    const [state, setState] = useState<RookieDraftState | null>(null)
-    const [loading, setLoading] = useState(true)
+    const cacheKey = `pancake:rookie-room:v1:${sessionOwner()}:${memberId}:${leagueId}:${draftId}`
+    const [initialCache] = useState(() => readPersistentCache<{ state: RookieDraftState | null }>(cacheKey))
+    const [initialProspects] = useState(() => readPersistentCache<RookieProspect[]>(`${cacheKey}:prospects`))
+    const [state, setState] = useState<RookieDraftState | null>(initialCache?.state ?? null)
+    const [loading, setLoading] = useState(!initialCache)
     const [loadError, setLoadError] = useState<{ ownerKey: string; message: string } | null>(null)
     const [prospectsError, setProspectsError] = useState<{ ownerKey: string; query: string; message: string } | null>(null)
     const [query, setQuery] = useState('')
-    const [prospects, setProspects] = useState<RookieProspect[]>([])
+    const [prospects, setProspects] = useState<RookieProspect[]>(initialProspects ?? [])
     const [prospectsLoading, setProspectsLoading] = useState(false)
     const [picking, setPicking] = useState(false)
     const [draftToTaxi, setDraftToTaxi] = useState(false)
@@ -70,7 +75,7 @@ export function useRookieDraftRoomController({
     const autoPickAttemptRef = useRef<{
         key: string; attempts: number; nextAt: number; inFlight: boolean; completed: boolean
     } | null>(null)
-    const roomSnapshotRef = useRef<RookieDraftState | null>(null)
+    const roomSnapshotRef = useRef<RookieDraftState | null>(initialCache?.state ?? null)
     const prospectsDirtyRef = useRef(true)
     const channelRef = useRef<ReturnType<typeof subscribeToRookieDraft> | null>(null)
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -135,15 +140,17 @@ export function useRookieDraftRoomController({
         autoPickAttemptRef.current = null
         queryRef.current = ''
         lastSearchQueryRef.current = ''
-        roomSnapshotRef.current = null
+        const cached = readPersistentCache<{ state: RookieDraftState | null }>(cacheKey)
+        const prospects = readPersistentCache<RookieProspect[]>(`${cacheKey}:prospects`)
+        roomSnapshotRef.current = cached?.state ?? null
         prospectsDirtyRef.current = true
-        setState(null)
-        setLoading(Boolean(draftId))
+        setState(cached?.state ?? null)
+        setLoading(Boolean(draftId) && !cached)
         setLoadError(null)
         setProspectsError(null)
         setQuery('')
-        setProspects([])
-        setProspectsLoading(Boolean(draftId))
+        setProspects(prospects ?? [])
+        setProspectsLoading(Boolean(draftId) && !prospects)
         setPicking(false)
         setActiveTab('prospects')
         setSecondsLeft(null)
@@ -154,7 +161,7 @@ export function useRookieDraftRoomController({
         setResolvingOverflow(false)
         setTrimOverflow(null)
         setTrimmingId(null)
-    }, [draftId, readOwnerKey])
+    }, [draftId, readOwnerKey, cacheKey])
 
     useEffect(() => {
         mutationGenerationRef.current += 1
@@ -187,6 +194,7 @@ export function useRookieDraftRoomController({
                 || previous?.picks.some(pick => pick.player && !picked.has(pick.player.id))) {
                 prospectsDirtyRef.current = true
             }
+            writePersistentCache(cacheKey, { state: data })
             roomSnapshotRef.current = data
             setState(data)
             setLoadError(null)
@@ -199,7 +207,7 @@ export function useRookieDraftRoomController({
         } finally {
             if (activityIsCurrent(readEpoch) && seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setLoading(false)
         }
-    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent])
+    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent, cacheKey])
 
     const loadProspects = useCallback(async (q?: string) => {
         if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
@@ -218,6 +226,7 @@ export function useRookieDraftRoomController({
             if (!activityIsCurrent(readEpoch) || prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             prospectsDirtyRef.current = false
             lastSearchQueryRef.current = requestedQuery?.trim() ?? ''
+            if (!requestedQuery?.trim()) writePersistentCache(`${cacheKey}:prospects`, data)
             setProspects(data)
             setProspectsError(null)
             return true
@@ -231,7 +240,7 @@ export function useRookieDraftRoomController({
         } finally {
             if (activityIsCurrent(readEpoch) && prospectsSeqRef.current === requestId && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setProspectsLoading(false)
         }
-    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent])
+    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent, cacheKey])
 
     const reloadRoom = useMemo(() => {
         let disposed = false

@@ -1,3 +1,5 @@
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
@@ -36,8 +38,11 @@ export function useAuctionDraftRoomController({
 }) {
     const activity = useDraftActivity(draftId && memberId ? `${draftId}:${memberId}` : null)
     const { identity, epoch, capture, canRead, isCurrent, canAct, markReady, blockActions } = activity
-    const [state, setState] = useState<DraftState | null>(null)
-    const snapshotRef = useRef<DraftState | null>(null)
+    const cacheKey = `pancake:auction-room:v1:${sessionOwner()}:${memberId}:${draftId}`
+    const [initialCache] = useState(() => readPersistentCache<{ state: DraftState | null }>(cacheKey))
+    const [state, setState] = useState<DraftState | null>(initialCache?.state ?? null)
+    const [loading, setLoading] = useState(!initialCache)
+    const snapshotRef = useRef<DraftState | null>(initialCache?.state ?? null)
     const [stateOwner, setStateOwner] = useState(identity)
     const activeIdentityRef = useRef(identity)
     activeIdentityRef.current = identity
@@ -99,10 +104,12 @@ export function useAuctionDraftRoomController({
     useEffect(() => draftId ? holdPwaUpdate('auction room') : undefined, [draftId])
 
     useEffect(() => {
-        snapshotRef.current = null
+        const cached = readPersistentCache<{ state: DraftState | null }>(cacheKey)
+        snapshotRef.current = cached?.state ?? null
+        setLoading(!cached)
         loadSeqRef.current += 1
         searchSeqRef.current += 1
-        setState(null)
+        setState(cached?.state ?? null)
         setStateOwner(identity)
         setLoadError(null)
         setBidText('1')
@@ -124,7 +131,7 @@ export function useAuctionDraftRoomController({
             loadSeqRef.current += 1
             searchSeqRef.current += 1
         }
-    }, [draftId, identity])
+    }, [draftId, identity, cacheKey])
 
     const load = useCallback(async (incremental = false) => {
         if (!draftId) return false
@@ -136,6 +143,7 @@ export function useAuctionDraftRoomController({
         const requestedDraftId = draftId
         if (activeDraftIdRef.current !== requestedDraftId) return false
         const seq = ++loadSeqRef.current
+        setLoading(true)
         const task = (async () => {
             try {
                 const s = incremental && canAct()
@@ -143,6 +151,7 @@ export function useAuctionDraftRoomController({
                     : await getDraftState(requestedDraftId)
                 // Ignore a stale, out-of-order result once a newer load has started.
                 if (!isCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
+                writePersistentCache(cacheKey, { state: s })
                 snapshotRef.current = s
                 setLoadError(null)
                 // A successful empty read means the room is gone. Read failures throw
@@ -186,13 +195,15 @@ export function useAuctionDraftRoomController({
                     setLoadError(getErrorMessage(e))
                 }
                 return false
+            } finally {
+                if (isCurrent(readEpoch) && seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId) setLoading(false)
             }
         })()
         const request = { epoch: readEpoch, identity, promise: task }
         inFlightRef.current = request
         try { return await task }
         finally { if (inFlightRef.current === request) inFlightRef.current = null }
-    }, [draftId, identity, capture, canRead, isCurrent, canAct, markReady])
+    }, [draftId, identity, capture, canRead, isCurrent, canAct, markReady, cacheKey])
 
     useEffect(() => {
         searchSeqRef.current += 1
@@ -488,6 +499,7 @@ export function useAuctionDraftRoomController({
 
     return {
         state: visibleState,
+        loading: stateOwner === identity ? loading : true,
         tab,
         setTab,
         loadError: loadError ?? (realtimeStatus !== 'SUBSCRIBED' && realtimeStatus !== 'CONNECTING'

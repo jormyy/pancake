@@ -12,7 +12,7 @@ import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
-import { usePageMetrics } from '@/components/ui'
+import { LoadingState, usePageMetrics } from '@/components/ui'
 import { MotionPressable } from '@/components/Motion'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
@@ -37,7 +37,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
     const myMemberId = current?.id
 
     const controller = useAuctionDraftRoomController({ draftId, memberId: myMemberId })
-    const { state, loadError, refresh, budgetByMember } = controller
+    const { state, loading, loadError, refresh, budgetByMember } = controller
 
     const { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy } =
         useDraftAdminControls({
@@ -68,7 +68,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                 <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
                 <ScreenFrame style={styles.container} edges={['bottom']}>
                     <DraftScreenHeader title="Auction Draft" onBack={() => navigateBackToDraftList()} />
-                    <View style={styles.draftEndedContainer}>
+                    {loading && !hasLoadError ? <LoadingState /> : <View style={styles.draftEndedContainer}>
                         <Text style={styles.draftEndedTitle}>{hasLoadError ? 'Could not load draft' : 'Draft not found'}</Text>
                         <Text style={styles.draftEndedSub}>
                             {hasLoadError ? loadError : 'This draft may have ended or no longer exists.'}
@@ -80,7 +80,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                         >
                             <Text style={styles.nominateButtonText}>{hasLoadError ? 'Try Again' : 'Back to League'}</Text>
                         </MotionPressable>
-                    </View>
+                    </View>}
                 </ScreenFrame>
             </>
         )

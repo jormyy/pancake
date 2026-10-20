@@ -42,9 +42,9 @@ BEGIN
         (v_league,v_season,v_member,v_bench,'draft');
   DELETE FROM public.lineup_slot_templates WHERE league_id=v_league;
   INSERT INTO public.lineup_slot_templates(league_id,slot_type,slot_count) VALUES(v_league,'PG',1),(v_league,'UTIL',1);
-  INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
-  VALUES(v_game,'0029912301',2199,1,v_date,'TP1','TP2','Scheduled',v_tipoff),
-        (v_other,'0029912302',2199,1,v_date,'TP3','TP4','Scheduled',v_tipoff);
+  INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time,started_at)
+  VALUES(v_game,'0029912301',2199,1,v_date,'TP1','TP2','Scheduled',v_tipoff,v_tipoff),
+        (v_other,'0029912302',2199,1,v_date,'TP3','TP4','Scheduled',v_tipoff,v_tipoff);
   IF NOT EXISTS(SELECT 1 FROM public.lineup_optimizer_settings WHERE member_id=v_member AND enabled)
      THEN RAISE EXCEPTION 'New team is not enabled by default'; END IF;
   DELETE FROM public.lineup_optimizer_settings WHERE member_id=v_member;
@@ -64,6 +64,7 @@ BEGIN
   UPDATE public.nba_games SET game_time=v_tipoff WHERE id IN (v_game,v_other);
   PERFORM public.invoke_pre_tipoff_optimizer_if_due();
   PERFORM public.invoke_pre_tipoff_optimizer_if_due();
+  IF NOT EXISTS(SELECT 1 FROM tipoff_requests) THEN RAISE EXCEPTION 'Scheduled future started_at prevents pre-tipoff dispatch'; END IF;
   IF (SELECT count(*) FROM tipoff_requests)<>1 THEN RAISE EXCEPTION 'Shared tipoff duplicates dispatch'; END IF;
   SELECT token INTO v_token FROM public.lineup_tipoff_dispatches WHERE tipoff_at=v_tipoff;
   IF public.claim_lineup_tipoff_dispatch(v_tipoff,v_token) IS DISTINCT FROM v_date

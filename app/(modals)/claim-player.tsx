@@ -1,3 +1,4 @@
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { getLeagueMembers } from '@/lib/league'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
@@ -34,6 +35,8 @@ import { Avatar } from '@/components/Avatar'
 import { EmptyState } from '@/components/EmptyState'
 import { useGoBack } from '@/components/ui/useGoBack'
 
+type ClaimSnapshot = { player: Awaited<ReturnType<typeof getPlayer>>; roster: RosterPlayer[]; priority: number | null; clearsAt: string | null; transactionState: MemberTransactionState | null }
+
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
     const { current, currentLeague } = useLeagueContext()
@@ -42,13 +45,21 @@ export default function ClaimPlayerScreen() {
     const router = useRouter()
     const goBack = useGoBack('/players')
 
-    const [player, setPlayer] = useState<any>(null)
-    const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
-    const [priority, setPriority] = useState<number | null>(null)
-    const [clearsAt, setClearsAt] = useState<string | null>(null)
-    const [transactionState, setTransactionState] = useState<MemberTransactionState | null>(null)
+    const rosterSize = currentLeague?.roster_size ?? 20
+    const leagueId = currentLeague?.id
+    const memberId = current?.id
+    const userId = user?.id
+    const ownerKey = JSON.stringify([userId, memberId, leagueId, playerId])
+    const cacheKey = `pancake:claim-player:v1:${ownerKey}`
+    const [initialCache] = useState(() => readPersistentCache<ClaimSnapshot>(cacheKey))
+    const [loadError, setLoadError] = useState<string | null>(null)
+    const [player, setPlayer] = useState<any>(initialCache?.player ?? null)
+    const [myRoster, setMyRoster] = useState<RosterPlayer[]>(initialCache?.roster ?? [])
+    const [priority, setPriority] = useState<number | null>(initialCache?.priority ?? null)
+    const [clearsAt, setClearsAt] = useState<string | null>(initialCache?.clearsAt ?? null)
+    const [transactionState, setTransactionState] = useState<MemberTransactionState | null>(initialCache?.transactionState ?? null)
     const [bidInput, setBidInput] = useState('0')
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(!initialCache)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
     const [submittingOwner, setSubmittingOwner] = useState<{ key: string } | null>(null)
     const claimLoadSeqRef = useRef(0)
@@ -67,11 +78,6 @@ export default function ClaimPlayerScreen() {
     const isCompactLandscape = viewportWidth > viewportHeight && viewportHeight < 520
     const { padX, usableWidth } = usePageMetrics()
 
-    const rosterSize = currentLeague?.roster_size ?? 20
-    const leagueId = currentLeague?.id
-    const memberId = current?.id
-    const userId = user?.id
-    const ownerKey = JSON.stringify([userId, memberId, leagueId, playerId])
     const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch } = useModalActivity(userId && memberId && leagueId && playerId ? ownerKey : null)
     const [loadAttempt, setLoadAttempt] = useState(0)
     const ownerRef = useRef({ key: ownerKey })
@@ -80,15 +86,17 @@ export default function ClaimPlayerScreen() {
     useEffect(() => () => { ownerRef.current = { key: ownerRef.current.key } }, [])
 
     useEffect(() => {
-        setLoading(true)
-        setPlayer(null)
-        setMyRoster([])
-        setPriority(null)
-        setTransactionState(null)
-        setClearsAt(null)
+        const cached = readPersistentCache<ClaimSnapshot>(cacheKey)
+        setLoading(!cached)
+        setLoadError(null)
+        setPlayer(cached?.player ?? null)
+        setMyRoster(cached?.roster ?? [])
+        setPriority(cached?.priority ?? null)
+        setTransactionState(cached?.transactionState ?? null)
+        setClearsAt(cached?.clearsAt ?? null)
         setSelectedDrop(null)
         setBidInput('0')
-    }, [ownerKey])
+    }, [ownerKey, cacheKey])
 
     useEffect(() => {
         if (!canRead()) return
@@ -96,6 +104,7 @@ export default function ClaimPlayerScreen() {
         const owner = ownerRef.current
         const generation = capture()
         setLoading(true)
+        setLoadError(null)
         blockActions()
         async function load() {
             if (!memberId || !userId || !playerId || !leagueId) {
@@ -114,7 +123,11 @@ export default function ClaimPlayerScreen() {
                     getLeagueMembers(requestedLeagueId),
                 ])
                 if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
-                if (!members.some(member => member.id === memberId && member.user_id === userId)) return
+                if (!members.some(member => member.id === memberId && member.user_id === userId)) {
+                    setLoadError('You no longer belong to this league.')
+                    return
+                }
+                writePersistentCache<ClaimSnapshot>(cacheKey, { player: p, roster, priority: prio, clearsAt: waiverEnds, transactionState: txState })
                 setPlayer(p)
                 setClearsAt(waiverEnds)
                 setMyRoster(roster)
@@ -125,13 +138,14 @@ export default function ClaimPlayerScreen() {
             } catch (e) {
                 if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
                 console.error(e)
+                setLoadError('Could not refresh the waiver claim. Try again.')
             } finally {
                 if (claimLoadSeqRef.current === requestId && ownerRef.current === owner && isCurrent(generation)) setLoading(false)
             }
         }
         void load()
         return () => { claimLoadSeqRef.current += 1 }
-    }, [leagueId, memberId, playerId, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt])
+    }, [leagueId, memberId, playerId, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt, cacheKey])
 
     const refreshTransactionState = useCallback(() => {
         blockActions()
@@ -416,15 +430,21 @@ export default function ClaimPlayerScreen() {
         <>
             <Stack.Screen options={{ title: 'Waiver Claim', presentation: 'modal', headerShown: false }} />
             <ScreenFrame style={styles.container} edges={['bottom']}>
+                <View style={{ flex: 1 }} aria-busy={loading} accessibilityState={{ busy: loading }}>
                 {renderScreenHeader()}
+                {loadError ? (
+                    <Pressable onPress={() => setLoadAttempt(value => value + 1)} accessibilityRole="button" accessibilityLabel="Retry waiver claim load" style={{ padding: spacing.lg }}>
+                        <Text accessibilityRole="alert" style={{ color: colors.danger }}>{loadError} Tap to retry.</Text>
+                    </Pressable>
+                ) : null}
                 {/* Until the claim loads, its facts (date, drop rule) would be guesses. */}
-                {loading ? <LoadingState /> : !player ? (
+                {loading && !player ? <LoadingState /> : !player ? (
                     <EmptyState
                         icon="person-off"
                         message="Couldn't load this player"
-                        description="Check your connection, then go back and try again."
-                        actionLabel="Back"
-                        onAction={goBack}
+                        description="Check your connection, then try again."
+                        actionLabel="Try Again"
+                        onAction={() => setLoadAttempt(value => value + 1)}
                     />
                 ) : ineligibleIR.length > 0 ? renderIneligibleIR() : twoColumn ? (
                     <ScrollView
@@ -454,6 +474,7 @@ export default function ClaimPlayerScreen() {
                         {bidFooter}
                     </>
                 )}
+                </View>
             </ScreenFrame>
         </>
     )

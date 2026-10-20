@@ -214,13 +214,15 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
 
     if (!current) {
         return (
-            <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
-                <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
-                <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
-                    {light ? null : (
-                        <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
-                    )}
+            <View style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
+                <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
+                    <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
+                    <View style={styles.flex1}>
+                        <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
+                        {light ? null : (
+                            <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
+                        )}
+                    </View>
                 </View>
             </View>
         )
@@ -457,14 +459,16 @@ function WebSidebar() {
                         active={pathname.startsWith('/draft') || pathname.startsWith('/rookie-draft-room')}
                     />
                     <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} active={pathname.startsWith('/bracket')} />
-                    {isCommissioner ? (
-                        <SidebarNavButton
-                            label="Commissioner"
-                            icon="admin-panel-settings"
-                            onPress={() => router.push('/(modals)/commissioner-settings')}
-                            active={pathname.startsWith('/commissioner-settings')}
-                        />
-                    ) : null}
+                    <View style={styles.commissionerSlot}>
+                        {isCommissioner ? (
+                            <SidebarNavButton
+                                label="Commissioner"
+                                icon="admin-panel-settings"
+                                onPress={() => router.push('/(modals)/commissioner-settings')}
+                                active={pathname.startsWith('/commissioner-settings')}
+                            />
+                        ) : null}
+                    </View>
                 </View>
             </ScrollView>
 

@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { readPersistentCache } from '@/lib/persistent-cache'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
@@ -469,4 +469,89 @@ it('does not enrich a hidden block cache and waits for its fresh roster before l
         await act(async () => { renderer.unmount() })
         vi.mocked(readPersistentCache).mockReturnValue(null)
     }
+})
+
+
+it.each(['offers', 'history'] as const)('keeps settled empty %s data available during refresh', async kind => {
+    const read = kind === 'offers' ? getTradesForScreen : getTradeHistoryForScreen
+    read.mockResolvedValue({ trades: [], nextCursor: null, hasMore: false })
+    let latest!: ReturnType<typeof useTradesFeed> | ReturnType<typeof useTradeHistoryFeed>
+    const Offers = () => { latest = useTradesFeed('member-empty', 'league-empty'); return null }
+    const History = () => { latest = useTradeHistoryFeed('member-empty', 'league-empty', true); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(kind === 'offers' ? Offers : History)) })
+    expect(latest.hasData).toBe(true)
+    const pending = deferred<TradePage>()
+    read.mockReturnValue(pending.promise)
+    let request!: Promise<boolean>
+    await act(async () => { request = latest.refresh() })
+    expect(latest.loading).toBe(true)
+    expect(latest.hasData).toBe(true)
+    expect(latest.trades).toEqual([])
+    await act(async () => { pending.resolve({ trades: [], nextCursor: null, hasMore: false }); await request })
+    await act(async () => view.unmount())
+})
+
+it('marks the first history render pending before its effect starts the read', async () => {
+    const pending = deferred<TradePage>()
+    getTradeHistoryForScreen.mockReturnValue(pending.promise)
+    const frames: { enabled: boolean; loading: boolean; hasData: boolean }[] = []
+    const Probe = ({ enabled }: { enabled: boolean }) => {
+        const result = useTradeHistoryFeed('member-history', 'league-history', enabled)
+        frames.push({ enabled, loading: result.loading, hasData: result.hasData })
+        return null
+    }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe, { enabled: false })) })
+    await act(async () => view.update(React.createElement(Probe, { enabled: true })))
+    expect(frames.find(frame => frame.enabled)).toEqual({ enabled: true, loading: true, hasData: false })
+    await act(async () => pending.resolve({ trades: [], nextCursor: null, hasMore: false }))
+    await act(async () => view.unmount())
+})
+
+it('keeps a settled empty trade block available during refresh', async () => {
+    vi.mocked(readPersistentCache).mockReturnValue(null)
+    getTradeBlockItems.mockResolvedValue([])
+    getRoster.mockResolvedValue([])
+    let latest!: ReturnType<typeof useTradeBlock>
+    const Probe = () => { latest = useTradeBlock('member-empty-block', 'league-empty-block'); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    await act(async () => { await latest.refresh() })
+    expect(latest.hasData).toBe(true)
+    const pending = deferred<TradeBlockItem[]>()
+    getTradeBlockItems.mockReturnValue(pending.promise)
+    let request!: Promise<boolean>
+    await act(async () => { request = latest.refresh() })
+    expect(latest.loading).toBe(true)
+    expect(latest.hasData).toBe(true)
+    await act(async () => { pending.resolve([]); await request })
+    await act(async () => view.unmount())
+})
+
+
+it('retains trade-block averages until replacement statistics settle', async () => {
+    vi.mocked(readPersistentCache).mockReturnValue(null)
+    getTradeBlockItems.mockResolvedValue([])
+    getRoster.mockResolvedValue([rosterPlayer('kept')])
+    getRosterStatsMaps.mockResolvedValue({ avgMap: new Map([['kept', 14]]), avgStatsMap: new Map() })
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let latest!: ReturnType<typeof useTradeBlock>
+    const Probe = () => { latest = useTradeBlock('member-stats', 'league-stats'); return null }
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(Probe)) })
+    await act(async () => { await latest.refresh() })
+    expect(latest.avgMap.get('kept')).toBe(14)
+    const pending = deferred<RosterStatsMaps>()
+    getRosterStatsMaps.mockReturnValueOnce(pending.promise)
+    await act(async () => { await latest.refresh() })
+    expect(latest.avgMap.get('kept')).toBe(14)
+    await act(async () => pending.resolve({ avgMap: new Map([['kept', 20]]), avgStatsMap: new Map() }))
+    expect(latest.avgMap.get('kept')).toBe(20)
+    getRosterStatsMaps.mockRejectedValueOnce(new Error('optional stats unavailable'))
+    await act(async () => { await latest.refresh() })
+    expect(latest.avgMap.get('kept')).toBe(20)
+    expect(vi.mocked(writePersistentCache).mock.lastCall?.[1]).toEqual(expect.objectContaining({ avgEntries: [['kept', 20]] }))
+    await act(async () => view.unmount())
+    warning.mockRestore()
 })

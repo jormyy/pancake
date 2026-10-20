@@ -1,3 +1,4 @@
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
@@ -132,12 +133,6 @@ export function MultiTeamTradeBuilder({
         )
     }
 
-    // Blank while rosters load — the builder appears fully formed instead of
-    // swapping a spinner row for participant panels.
-    if (rosterLoading) {
-        return null
-    }
-
     const panels = participants.map((participant) => (
         <ParticipantTradePanel
             key={participant.memberId}
@@ -168,6 +163,7 @@ export function MultiTeamTradeBuilder({
 
     if (reviewOnly) {
         return (
+            <DeferredContent ready={!rosterLoading}>
             <View
                 style={styles.reviewRoot}
                 onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
@@ -192,10 +188,12 @@ export function MultiTeamTradeBuilder({
                     <Text style={styles.reviewTermsValue}>{notes.trim() || 'No note added'}</Text>
                 </View>
             </View>
+            </DeferredContent>
         )
     }
 
     return (
+        <DeferredContent ready={!rosterLoading}>
         <View
             style={styles.root}
             onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
@@ -350,6 +348,7 @@ export function MultiTeamTradeBuilder({
                 </View>
             </View>
         </View>
+        </DeferredContent>
     )
 }
 

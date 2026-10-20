@@ -63,6 +63,13 @@ async function ensureSeasonMatchups(
     .eq('league_season_id', leagueSeasonId)
   if (error) throw error
   if ((count ?? 0) > 0 || playoffStartWeek === 1) return []
+  const { data: season, error: seasonError } = await supabase.from('league_seasons')
+    .select('season_year').eq('id', leagueSeasonId).single()
+  if (seasonError) throw seasonError
+  const { data: calendar, error: calendarError } = await supabase.from('season_weeks')
+    .select('week_number').eq('season_year', season.season_year).limit(1)
+  if (calendarError) throw calendarError
+  if (!calendar?.length) return ['calendar-pending']
   await generateMatchups(leagueId, leagueSeasonId, playoffStartWeek - 1)
   return ['matchups-generated']
 }
@@ -181,8 +188,7 @@ async function processLeagueBoundary(
     // A manually-advanced league can reach 'active' (rookie draft completed)
     // before any tick saw it in 'offseason', leaving a season with no
     // schedule at all. Backfill instead of silently never scoring.
-    await generateMatchups(leagueId, leagueSeasonId, playoffStartWeek - 1)
-    return ['matchups-generated']
+    return await ensureSeasonMatchups(leagueId, leagueSeasonId, playoffStartWeek)
   }
   const regular = matchups.filter((m) =>
     m.matchup_type === 'regular_season' && m.week_number < playoffStartWeek
@@ -228,8 +234,7 @@ async function processLeagueBoundary(
 
   const newSeasonId = result.new_season_id
   if (typeof newSeasonId === 'string' && playoffStartWeek > 1) {
-    await generateMatchups(leagueId, newSeasonId, playoffStartWeek - 1)
-    actions.push('matchups-generated')
+    actions.push(...await ensureSeasonMatchups(leagueId, newSeasonId, playoffStartWeek))
   }
   return actions
 }

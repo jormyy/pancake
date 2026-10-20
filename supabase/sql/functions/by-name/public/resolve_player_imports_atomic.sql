@@ -115,6 +115,24 @@ BEGIN
       IF private.player_import_name_key(v_name) = '' THEN
         RAISE EXCEPTION 'Player name is empty.' USING ERRCODE = '22023';
       END IF;
+      IF p_source = 'nba_cdn' AND v_provider IN ('196295686', '1641794') THEN
+        IF v_provider = '196295686' AND lower(btrim(v_name)) <> 'dillon jones' THEN
+          RAISE EXCEPTION 'Unexpected name for NBA CDN identity %: %', v_provider, v_name USING ERRCODE = '23514';
+        END IF;
+        IF lower(btrim(v_name)) = 'dillon jones' THEN
+          IF EXISTS (SELECT 1 FROM players WHERE nba_id = '196295686') THEN
+            IF EXISTS (SELECT 1 FROM players WHERE nba_id = '1641794') THEN
+              RAISE EXCEPTION 'Reviewed NBA identity correction has two existing owners; reconcile their histories first.' USING ERRCODE = '23514';
+            END IF;
+            UPDATE players SET nba_id = '1641794'
+              WHERE nba_id = '196295686' AND lower(btrim(display_name)) = 'dillon jones';
+            IF NOT FOUND THEN
+              RAISE EXCEPTION 'Unexpected stored owner for NBA CDN identity 196295686' USING ERRCODE = '23514';
+            END IF;
+          END IF;
+          v_provider := '1641794';
+        END IF;
+      END IF;
       IF p_source = 'nba_draft' THEN
         IF jsonb_typeof(v_record->'nba_draft_number') IS DISTINCT FROM 'number'
           OR (v_record->>'nba_draft_number') !~ '^[0-9]+$' THEN

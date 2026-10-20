@@ -16,13 +16,17 @@ describe('resolveHomeSurface', () => {
     })
 
     it('renders a failed load as an error, never as an empty week', () => {
-        expect(resolveHomeSurface({ ...base, error: 'Failed to load matchup' })).toBe('error')
-        expect(resolveHomeSurface({ ...base, loading: true, error: 'Failed to load matchup' })).toBe('loading')
+        expect(resolveHomeSurface({ ...base, emptyConfirmed: false, error: 'Failed to load matchup' })).toBe('error')
+        expect(resolveHomeSurface({ ...base, emptyConfirmed: false, loading: true, error: 'Failed to load matchup' })).toBe('loading')
     })
 
-    it('shows the empty week only when nothing failed', () => {
+    it('shows a settled empty week', () => {
         expect(resolveHomeSurface(base)).toBe('empty')
         expect(resolveHomeSurface({ ...base, leagueStatus: undefined })).toBe('empty')
+    })
+    it('retains a confirmed empty answer during revalidation and errors', () => {
+        expect(resolveHomeSurface({ ...base, loading: true })).toBe('empty')
+        expect(resolveHomeSurface({ ...base, error: 'Refresh failed' })).toBe('empty')
     })
     it('keeps an unconfirmed cached or stale-membership empty result blank', () => {
         expect(resolveHomeSurface({ ...base, emptyConfirmed: false })).toBe('loading')

@@ -5,6 +5,7 @@ import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomContro
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({
     appState: 'active', focused: true, listeners: new Set<(next: string) => void>(),

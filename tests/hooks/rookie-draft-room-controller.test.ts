@@ -4,6 +4,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 import type { RookieDraftState } from '@/lib/rookieDraft'
+const screenCache = vi.hoisted(() => new Map<string, unknown>())
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: (key: string) => screenCache.get(key), writePersistentCache: (key: string, value: unknown) => screenCache.set(key, value) }))
 
 const mocks = vi.hoisted(() => ({
     activate: vi.fn(),
@@ -65,6 +67,7 @@ const deferred = <Value,>() => {
 }
 
 beforeEach(() => {
+    screenCache.clear()
     vi.clearAllMocks()
     mocks.getPlayers.mockResolvedValue([])
     mocks.getRevision.mockResolvedValue('stable')
@@ -588,4 +591,29 @@ it('restarts a completion check discarded while the app is hidden', async () => 
     expect(mocks.getRoster).toHaveBeenCalledTimes(2)
     expect(mocks.activate).toHaveBeenCalledExactlyOnceWith('draft')
     await act(async () => { renderer.unmount() })
+})
+
+
+it('paints a saved rookie room and prospect pool throughout remount revalidation', async () => {
+    mocks.getState.mockResolvedValue(draftState('saved'))
+    mocks.getPlayers.mockResolvedValue([{ id: 'prospect', displayName: 'Saved Prospect' }])
+    let latest!: ReturnType<typeof useRookieDraftRoomController>
+    const frames: (string | undefined)[] = []
+    const Probe = () => {
+        latest = useRookieDraftRoomController({ draftId: 'saved', memberId: 'member', leagueId: 'league', rosterSize: 20 })
+        frames.push(latest.state?.draft.id)
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => renderer.unmount())
+    mocks.getState.mockReturnValue(new Promise(() => {}))
+    mocks.getPlayers.mockReturnValue(new Promise(() => {}))
+    frames.length = 0
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(frames.length).toBeGreaterThan(0)
+    expect(frames.every(value => value === 'saved')).toBe(true)
+    expect(latest.prospects.map(player => player.id)).toEqual(['prospect'])
+    expect(latest.actionsReady).toBe(false)
+    await act(async () => renderer.unmount())
 })

@@ -1,3 +1,5 @@
+import { newsFeedReady, updateNewsCache, type DynastyNewsCache, type NewsFeed } from '@/components/dynasty/news-cache'
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FlashList } from '@shopify/flash-list'
 import { memo, useCallback, useEffect, useState } from 'react'
@@ -31,7 +33,6 @@ import { colors, fontSize, fontWeight, layout, radii, spacing, table } from '@/c
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { readableSourceName } from '@/lib/source-names'
 
-type NewsFeed = 'news' | 'my-news'
 export type DynastySection = 'rankings' | 'news'
 type StatKey = keyof Pick<
     DynastyRankPlayer,
@@ -48,7 +49,6 @@ type StatKey = keyof Pick<
 >
 
 const EMPTY_NEWS: DynastyNewsItem[] = []
-type DynastyNewsCache = { news: DynastyNewsItem[]; myNews: DynastyNewsItem[] }
 type StatColumn = { key: StatKey; label: string; format?: 'integer' | 'pct' }
 const DYNASTY_NEWS_CACHE_PREFIX = 'pancake:dynasty-news:v1:'
 
@@ -357,20 +357,20 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     const { data: newsData, loading: newsLoading, error: newsError, refresh: refreshNews } = useFocusAsyncData(
         async () => {
             const previous = readPersistentCache<DynastyNewsCache>(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id))
-            const result = feed === 'news'
-                ? { news: await getDynastyNews(30), myNews: previous?.myNews ?? EMPTY_NEWS }
-                : { news: previous?.news ?? EMPTY_NEWS, myNews: current && currentLeague ? await getMyDynastyNews(current.id, currentLeague.id, 30) : EMPTY_NEWS }
-            return result
+            const items = feed === 'news'
+                ? await getDynastyNews(30)
+                : current && currentLeague ? await getMyDynastyNews(current.id, currentLeague.id, 30) : EMPTY_NEWS
+            return updateNewsCache(previous, feed, items)
         },
         [current?.id, currentLeague?.id, user?.id, feed],
-        { staleMs: 5 * 60_000, initialData: cachedNews, enabled: section === 'news',
+        { staleMs: 5 * 60_000, initialData: newsFeedReady(cachedNews, feed) ? cachedNews : undefined, enabled: section === 'news',
             onLoaded: (result) => writePersistentCache(dynastyNewsCacheKey(user?.id, current?.id, currentLeague?.id), result),
         },
     )
     const news = newsData?.news ?? EMPTY_NEWS
     const myNews = newsData?.myNews ?? EMPTY_NEWS
     const activeNews = feed === 'my-news' ? myNews : news
-    const activeNewsHydrated = !newsLoading || activeNews.length > 0
+    const activeNewsHydrated = activeNews.length > 0 || (!newsLoading && !newsError && newsFeedReady(newsData, feed))
     const emptyNewsMessage = feed === 'my-news' ? 'No news for your players.' : 'No dynasty news yet.'
     const visibleSync = rankings.players.find((player) => Date.parse(player.rankFetchedAt) > 0)?.rankFetchedAt ?? null
     // A search that matches nothing has no rows to read the date from; keep the last one seen.
@@ -416,6 +416,8 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 containerStyle={styles.searchField}
                             />
                         </View>
+                        {rankings.error && rankings.players.length > 0 ? <ErrorBanner message="Rankings could not refresh. Tap to retry." onRetry={() => void rankings.refresh()} /> : null}
+                        <DeferredContent ready={!rankings.loading || rankings.players.length > 0 || Boolean(rankings.error)}>
                         {rankings.error && rankings.players.length === 0 ? (
                             <View style={styles.errorState}>
                                 <MaterialIcons name="error-outline" size={26} color={colors.danger} />
@@ -448,6 +450,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 onEndReachedThreshold={0.4}
                             />
                         )}
+                        </DeferredContent>
                     </View>
                 </RetainedPanel>
                 <RetainedPanel active={section === 'news'}>
@@ -467,12 +470,13 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 scrollable
                             />
                         </View>
-                        {newsError && activeNews.length === 0 ? (
+                        {newsError ? (
                             <ErrorBanner message="Failed to load news. Tap to retry." onRetry={() => void refreshNews()} />
                         ) : null}
                         {/* Blank until hydrated — the card appears fully formed
                             instead of swapping a loading line for news rows. */}
-                        {!activeNewsHydrated ? null : (
+                        <DeferredContent ready={activeNewsHydrated}>
+                        {activeNewsHydrated ? (
                             <Card padding="md" radius="md" elevated="none" style={styles.listCard}>
                                 {activeNews.length === 0 ? (
                                     <EmptyState message={emptyNewsMessage} fullScreen={false} />
@@ -485,7 +489,8 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                     ))
                                 )}
                             </Card>
-                        )}
+                        ) : null}
+                        </DeferredContent>
                     </ScrollView>
                 </RetainedPanel>
                 </View>

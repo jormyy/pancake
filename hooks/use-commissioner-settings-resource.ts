@@ -121,7 +121,7 @@ export function useCommissionerSettingsResource({
         if (!canRead()) return
         const generation = capture()
         blockActions()
-        setLoadState('loading')
+        setLoadState(hydratedOwnerKey.current === ownerKey ? 'ready' : 'loading')
         setLoadError(null)
         Promise.all([getLineupSlots(leagueId), getLeagueMembers(leagueId), getLeaguePlayoffCalendar(leagueId), fetchUserLeagues(ownerId)])
             .then(([slotData, memberData, calendar, memberships]) => {
@@ -240,6 +240,7 @@ export function useCommissionerSettingsResource({
 
     return {
         adjustSlot,
+        hasDraft: Boolean(ownerKey && ownsDraft),
         authorityReady: ready && loadState === 'ready',
         revalidateAuthority,
         draft: ownsDraft ? draft : EMPTY_COMMISSIONER_SETTINGS_DRAFT,

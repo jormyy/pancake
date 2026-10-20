@@ -1,9 +1,12 @@
 import React from 'react'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 import type { DraftState } from '@/lib/draft'
+const screenCache = vi.hoisted(() => new Map<string, unknown>())
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: (key: string) => screenCache.get(key), writePersistentCache: (key: string, value: unknown) => screenCache.set(key, value) }))
+beforeEach(() => screenCache.clear())
 
 const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn(),
@@ -328,4 +331,28 @@ describe('auction settlement requests', () => {
         expect(mocks.closeExpiredNominations).toHaveBeenCalledTimes(2)
         await act(async () => { renderer.unmount() })
     })
+})
+
+
+it('paints a cached auction immediately on remount and keeps it throughout a pending recheck', async () => {
+    mocks.getDraftState.mockResolvedValue(state('saved-room'))
+    let latest!: ReturnType<typeof useAuctionDraftRoomController>
+    const frames: (string | undefined)[] = []
+    const Probe = () => {
+        latest = useAuctionDraftRoomController({ draftId: 'saved-room', memberId: 'member' })
+        frames.push(latest.state?.draft.id)
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.state?.draft.id).toBe('saved-room')
+    await act(async () => renderer.unmount())
+    mocks.getDraftState.mockReturnValue(new Promise(() => {}))
+    frames.length = 0
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(frames.length).toBeGreaterThan(0)
+    expect(frames.every(value => value === 'saved-room')).toBe(true)
+    expect(latest.loading).toBe(true)
+    expect(latest.actionsReady).toBe(false)
+    await act(async () => renderer.unmount())
 })

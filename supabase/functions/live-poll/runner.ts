@@ -1,5 +1,6 @@
+import { saveScoreboardGames } from './scoreboard.ts'
 import { supabase } from '../_shared/supabase.ts'
-import { fetchTodaysGames, mapGameStatus } from '../_shared/nba.ts'
+import { fetchTodaysGames } from '../_shared/nba.ts'
 import { syncLiveStatsGames } from '../_shared/syncStats.ts'
 import { syncScores } from '../_shared/syncScores.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
@@ -42,19 +43,7 @@ async function ingestTick(holder: string): Promise<{ lines: number; keepRunning:
       console.error('[live-poll] scoreboard unavailable:', errorMessage(error))
       return []
     })
-    for (const game of games) {
-      const stored = work.find(candidate => candidate.nba_game_id === game.gameId)
-      if (!stored) continue
-      const status = mapGameStatus(game.gameStatus)
-      const home = game.homeTeam.score ?? 0
-      const away = game.awayTeam.score ?? 0
-      const text = game.gameStatusText ?? ''
-      if (stored.status === status && stored.home_score === home && stored.away_score === away && stored.game_status_text === text) continue
-      const { error } = await supabase.from('nba_games').update({
-        status, home_score: home, away_score: away, game_status_text: text, updated_at: new Date().toISOString(),
-      }).eq('id', stored.id)
-      if (error) throw error
-    }
+    await saveScoreboardGames(games, work)
     work = await loadWork()
   }
   const statsGames = work.filter(game => game.needs_stats)

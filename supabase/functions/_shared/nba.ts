@@ -144,6 +144,8 @@ export function mapGameStatus(s: number): string {
 }
 
 export interface NBAGame {
+  period?: number
+  gameClock?: string
   gameId: string
   gameStatus: number
   gameStatusText: string
@@ -164,6 +166,8 @@ export interface NBAScheduledGame {
 }
 
 export interface NBABoxScore {
+  period?: number
+  gameClock?: string
   gameId: string
   gameStatus: number
   gameEt: string | null

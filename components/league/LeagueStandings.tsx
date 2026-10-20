@@ -1,4 +1,5 @@
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native'
+import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
+import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
 import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
@@ -312,8 +313,8 @@ export function StandingsTable({
         sortBy === 'wins' && sortDir === 'desc' && sorted.length > cutTeamCount ? cutTeamCount : -1
     const emptyState = loading
         ? {
-              message: 'Loading standings...',
-              description: 'Fetching teams, records, and point totals.',
+              message: '',
+              description: '',
               accessibilityLabel: 'Loading standings. Fetching teams, records, and point totals.',
           }
         : {
@@ -370,7 +371,7 @@ export function StandingsTable({
             accessibilityLiveRegion="polite"
             accessibilityState={{ busy: loading }}
         >
-            <EmptyState message={emptyState.message} description={emptyState.description} fullScreen={false} />
+            <View style={{ minHeight: 320 }}>{!loading ? <EmptyState message={emptyState.message} description={emptyState.description} fullScreen={false} /> : null}</View>
         </View>
     )
 

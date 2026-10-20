@@ -47,6 +47,7 @@ export function SettingsRow({
     role = 'button',
     checked,
     accessibilityLabel,
+    reserveValue = false,
 }: {
     label: string
     detail?: string
@@ -59,6 +60,7 @@ export function SettingsRow({
     role?: 'button' | 'switch'
     checked?: boolean
     accessibilityLabel?: string
+    reserveValue?: boolean
 }) {
     const showChevron = chevron ?? (onPress != null && role === 'button' && accessory == null)
     const content = (
@@ -67,7 +69,7 @@ export function SettingsRow({
                 <Text style={[textStyles.rowTitle, tone === 'danger' && styles.danger]} numberOfLines={2}>{label}</Text>
                 {detail ? <Text style={textStyles.meta}>{detail}</Text> : null}
             </View>
-            {value != null ? <Text style={[textStyles.body, styles.value]} numberOfLines={1}>{value}</Text> : null}
+            {value != null ? <Text style={[textStyles.body, styles.value, reserveValue && styles.reservedValue]} numberOfLines={1}>{value}</Text> : null}
             {accessory}
             {showChevron ? <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} /> : null}
         </>
@@ -131,6 +133,7 @@ const styles = StyleSheet.create({
     rowDisabled: { opacity: 0.5 },
     labelBlock: { flex: 1, minWidth: 0, gap: spacing.xxs },
     value: { flexShrink: 1, maxWidth: '60%', textAlign: 'right', color: colors.textSecondary },
+    reservedValue: { width: '60%' },
     danger: { color: colors.dangerDark },
     toggle: {
         width: 44,

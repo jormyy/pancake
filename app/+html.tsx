@@ -1,8 +1,15 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
+import { usePathname } from 'expo-router'
 import { type PropsWithChildren } from 'react'
-import { colors, shadows, webChrome } from '@/constants/tokens'
+import { colors, fontFamily, shadows, webChrome } from '@/constants/tokens'
+import { Asset } from 'expo-asset'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { FontDisplay, useFonts } from 'expo-font'
+import { criticalFonts } from '@/constants/fonts'
 import { BOOT_SHELL_CSS, BOOT_SHELL_HTML, BOOT_SHELL_SCRIPT } from '@/constants/boot-shell'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme-preference'
+import { AUTH_SCAFFOLD_CSS } from '@/components/auth/authScaffoldCss'
+import { AuthDocumentForm } from '@/components/auth/AuthDocumentForm'
 
 // Root HTML document for the web build. Adds the PWA manifest, theme color,
 // Apple install metadata, and registers the offline-shell service worker.
@@ -156,12 +163,19 @@ const POINTER_FOCUS_SCRIPT = `
 })();
 `
 const FOCUS_CSS = 'input:focus,textarea:focus{outline:none;}html[data-pointer] :focus{outline:none;}'
+const SHELL_GEOMETRY_CSS = `.pbs-side .pbs-league{height:68px;flex-shrink:0}.pbs-side .pbs-league-name{font-family:${fontFamily.displayMedium};line-height:18px}.pbs-side .pbs-league-meta{line-height:14px}.pbs-brand-title{font-family:${fontFamily.display}}`
+const documentFonts = {
+    ...criticalFonts,
+    ...Object.fromEntries(Object.entries(MaterialIcons.font).map(([name, uri]) => [name, { uri, display: FontDisplay.BLOCK }])),
+}
 
 const SUPABASE_ORIGIN = process.env.EXPO_PUBLIC_SUPABASE_URL
     ? new URL(process.env.EXPO_PUBLIC_SUPABASE_URL).origin
     : 'https://ceeytbfmwsnzalxlkalc.supabase.co'
 
 export default function Root({ children }: PropsWithChildren) {
+    useFonts(documentFonts)
+    const pathname = usePathname()
     return (
         <html lang="en">
             <head>
@@ -172,6 +186,9 @@ export default function Root({ children }: PropsWithChildren) {
                     content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
                 />
                 <title>Pancake</title>
+                {Object.entries(documentFonts).map(([name, source]) => (
+                    <link key={name} rel="preload" href={Asset.fromModule(source.uri).uri} as="font" type="font/woff2" crossOrigin="anonymous" />
+                ))}
                 <meta name="pancake-release" content="pancake-build" />
                 {/* Warm up the Supabase connection (DNS + TLS) before the first
                     auth/data request fires from the JS bundle. */}
@@ -193,6 +210,8 @@ export default function Root({ children }: PropsWithChildren) {
                 {/* Paints the real app chrome from static HTML, before the JS
                     bundle mounts React. Removed by WebAppShell on mount. */}
                 <style dangerouslySetInnerHTML={{ __html: BOOT_SHELL_CSS }} />
+                <style dangerouslySetInnerHTML={{ __html: SHELL_GEOMETRY_CSS }} />
+                <style dangerouslySetInnerHTML={{ __html: AUTH_SCAFFOLD_CSS }} />
                 <style dangerouslySetInnerHTML={{ __html: FOCUS_CSS }} />
                 <script dangerouslySetInnerHTML={{ __html: POINTER_FOCUS_SCRIPT }} />
                 <link rel="icon" href="/favicon.ico" />
@@ -208,6 +227,7 @@ export default function Root({ children }: PropsWithChildren) {
             <body>
                 <div dangerouslySetInnerHTML={{ __html: BOOT_SHELL_HTML }} />
                 <script dangerouslySetInnerHTML={{ __html: BOOT_SHELL_SCRIPT }} />
+                <AuthDocumentForm pathname={pathname} />
                 {children}
             </body>
         </html>

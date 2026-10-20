@@ -6,6 +6,7 @@ import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomContro
 import type { DraftState } from '@/lib/draft'
 import { isPwaUpdateHeld } from '@/lib/pwa-update-guard'
 import type { RealtimeSubscriptionStatus } from '@/lib/realtime'
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({
     getDraftState: vi.fn<() => Promise<DraftState | null>>(),

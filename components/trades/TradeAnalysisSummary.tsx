@@ -1,3 +1,4 @@
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import { StyleSheet, Text, View } from 'react-native'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
@@ -19,13 +20,16 @@ export function TradeAnalysisSummary({
 }) {
     if (!analysis) {
         return (
-            <View style={[styles.empty, inset && styles.inset]} accessibilityLiveRegion="polite">
-                <Text style={styles.emptyTitle}>{loading ? 'Calculating league values…' : 'Add assets to see the 5-year outlook.'}</Text>
+            <DeferredContent ready={!loading} style={{ flex: 0, minHeight: 64 }}>
+            <View style={[styles.empty, inset && styles.inset]} aria-busy={loading} accessibilityState={{ busy: loading }} accessibilityLiveRegion="polite">
+                <Text style={[styles.emptyTitle, loading && { opacity: 0 }]}>Add assets to see the 5-year outlook.</Text>
             </View>
+            </DeferredContent>
         )
     }
 
     return (
+        <DeferredContent ready={!loading} style={{ flex: 0, minHeight: 64 }}>
         <View style={[styles.root, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis">
             <View style={styles.headingRow}>
                 <Text style={styles.title}>5-year outlook</Text>
@@ -63,6 +67,7 @@ export function TradeAnalysisSummary({
                 : 'No dated source was available.'}</Text>
             <Text style={styles.detail}>Missing: {analysis.missingInputs.length > 0 ? analysis.missingInputs.join(', ') : 'None'}</Text>
         </View>
+        </DeferredContent>
     )
 }
 

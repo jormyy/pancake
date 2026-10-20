@@ -36,6 +36,7 @@ type Props = {
     rosterStatus: PlayerRosterStatus | null
     claimPending?: boolean
     leagueActive: boolean
+    actionsReady?: boolean
     actionLoading: boolean
     dropDisabled?: boolean
     playedToday?: boolean
@@ -57,6 +58,7 @@ export function PlayerHeader({
     claimPending = false,
     leagueActive,
     actionLoading,
+    actionsReady = true,
     dropDisabled = false,
     playedToday = false,
     addBlockedReason = null,
@@ -85,10 +87,10 @@ export function PlayerHeader({
                 <Pressable
                     style={[buttonStyle, blockedReason ? styles.pickupBlocked : null]}
                     onPress={onPress}
-                    disabled={actionLoading}
+                    disabled={actionLoading || !actionsReady}
                     accessibilityRole="button"
                     accessibilityLabel={accessibilityLabel}
-                    {...blockedActionProps(blockedReason, actionLoading)}
+                    {...blockedActionProps(blockedReason, actionLoading || !actionsReady)}
                 >
                     <Text style={[textStyle, blockedReason ? styles.pickupBlockedText : null]}>{label}</Text>
                 </Pressable>
@@ -151,9 +153,9 @@ export function PlayerHeader({
                 </View>
             </View>
 
-            {leagueActive && rosterStatus && (
-                <View style={styles.actionWrap}>
-                    {rosterStatus.status === 'free_agent' ? (
+            {leagueActive && (
+                <View style={styles.actionWrap} aria-busy={!actionsReady} accessibilityState={{ busy: !actionsReady }}>
+                    {!rosterStatus ? null : rosterStatus.status === 'free_agent' ? (
                         renderPickupAction({ label: 'Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: [styles.action, styles.actionPrimary], textStyle: styles.actionPrimaryText, onPress: onAdd, blockedReason: addBlockedReason })
                     ) : rosterStatus.status === 'on_waivers' ? (
                         renderPickupAction({ label: claimPending ? 'Claim pending' : 'Claim', accessibilityLabel: claimPending ? `Claim pending for ${player.display_name}, view claims` : `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: [styles.actionPrimaryText, styles.actionClaimText], onPress: onClaim, blockedReason: null })
@@ -162,20 +164,20 @@ export function PlayerHeader({
                             <Pressable
                                 style={[styles.action, styles.actionPrimary]}
                                 onPress={onSetLineup}
-                                disabled={actionLoading}
+                                disabled={actionLoading || !actionsReady}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Move ${player.display_name} in lineup`}
-                                accessibilityState={{ disabled: actionLoading }}
+                                accessibilityState={{ disabled: actionLoading || !actionsReady }}
                             >
                                 <Text style={styles.actionPrimaryText}>Lineup</Text>
                             </Pressable>
                             <Pressable
                                 style={[styles.action, styles.actionDanger, dropDisabled && { opacity: 0.5 }]}
                                 onPress={onDrop}
-                                disabled={actionLoading || dropDisabled}
+                                disabled={actionLoading || dropDisabled || !actionsReady}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Drop ${player.display_name}`}
-                                accessibilityState={{ disabled: actionLoading || dropDisabled }}
+                                accessibilityState={{ disabled: actionLoading || dropDisabled || !actionsReady }}
                             >
                                 <Text style={styles.actionDangerText}>Drop</Text>
                             </Pressable>
@@ -208,7 +210,7 @@ const styles = StyleSheet.create({
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
     badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 
-    actionWrap: { flexShrink: 0, alignSelf: 'flex-start' },
+    actionWrap: { width: 100, minHeight: controlSize.button.sm.height * 2 + spacing.sm, flexShrink: 0, alignSelf: 'flex-start' },
     myActions: { gap: spacing.sm, alignItems: 'stretch' },
     pickupAction: { alignItems: 'flex-end', gap: spacing.xs, maxWidth: 160 },
     pickupBlocked: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },

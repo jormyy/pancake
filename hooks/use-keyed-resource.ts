@@ -126,11 +126,12 @@ export function useKeyedResource<Value>(
             : current)
     }, [])
     const ownsKey = state.key === key
+    const nextState = ownsKey ? state : seededState(key)
     return {
-        data: ownsKey ? state.data : initialValue,
+        data: nextState.data,
         error: ownsKey ? state.error : null,
-        loading: ownsKey ? state.loading : Boolean(key),
-        loaded: ownsKey ? state.loaded : false,
+        loading: nextState.loading,
+        loaded: nextState.loaded,
         ensure,
         refresh,
         invalidate,

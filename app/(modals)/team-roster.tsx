@@ -1,3 +1,5 @@
+import { DeferredContent } from '@/components/ui/DeferredContent'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     View,
@@ -11,7 +13,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
 import { listenForLeagueChanges } from '@/lib/league-changes'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterStatsMaps } from '@/lib/roster-stats'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage, type RosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
 import { Button, ErrorBanner, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
@@ -20,6 +22,12 @@ import { useGoBack } from '@/components/ui/useGoBack'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 const EMPTY_ROSTER: RosterPlayer[] = []
+type TeamRosterCache = { roster: RosterPlayer[]; averages: [string, number][]; stats: [string, RosterAverage][] }
+
+function readRosterResource(scope: string | null) {
+    const cached = scope ? readPersistentCache<TeamRosterCache>(`pancake:team-roster:v1:${scope}`) : null
+    return cached && scope ? { scope, roster: cached.roster, stats: { avgMap: new Map(cached.averages), avgStatsMap: new Map(cached.stats) } } : null
+}
 
 function rosterSlotRank(player: RosterPlayer): number {
     const eligible = player.players.eligible_positions?.length
@@ -46,7 +54,7 @@ export default function TeamRosterScreen() {
     const scope = memberId && current && currentLeague ? `${current.id}:${currentLeague.id}:${memberId}` : null
     const leagueId = currentLeague?.id
     const { canRead, capture, isCurrent, epoch } = useModalActivity(scope)
-    const [resource, setResource] = useState<{ scope: string; roster: RosterPlayer[]; stats: RosterStatsMaps } | null>(null)
+    const [resource, setResource] = useState<{ scope: string; roster: RosterPlayer[]; stats: RosterStatsMaps } | null>(() => readRosterResource(scope))
     const [loading, setLoading] = useState(true)
     const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null)
     const [attempt, setAttempt] = useState(0)
@@ -55,6 +63,10 @@ export default function TeamRosterScreen() {
     const { avgMap, avgStatsMap } = ownsRoster ? resource.stats : { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP }
     const loadError = failure?.scope === scope ? failure.message : null
     const canProposeTrade = !!scope && memberId !== current?.id && !isTradingClosed(currentLeague)
+
+    useEffect(() => {
+        setResource(readRosterResource(scope))
+    }, [scope])
 
     useEffect(() => {
         if (!leagueId || !memberId || !scope) return
@@ -87,6 +99,7 @@ export default function TeamRosterScreen() {
             }))
             const stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), leagueId)
             if (cancelled || !isCurrent(generation)) return
+            writePersistentCache<TeamRosterCache>(`pancake:team-roster:v1:${scope}`, { roster: nextRoster, averages: [...stats.avgMap], stats: [...stats.avgStatsMap] })
             setResource((previous) => previous?.scope === scope ? { ...previous, stats } : previous)
         })()
             .catch((error) => {
@@ -146,6 +159,7 @@ export default function TeamRosterScreen() {
         <Page title={teamName ?? 'Team roster'}>
             <PageHeader
                 title={teamName ?? 'Team roster'}
+                reserveMeta
                 meta={roster.length > 0
                     ? `${active.length} active${ir.length > 0 ? ` · ${ir.length} IR` : ''}${taxi.length > 0 ? ` · ${taxi.length} taxi` : ''}`
                     : undefined}
@@ -163,9 +177,12 @@ export default function TeamRosterScreen() {
 
             <ScrollView
                 style={styles.list}
+                aria-busy={loading}
+                accessibilityState={{ busy: loading }}
                 contentContainerStyle={[styles.listContent, { paddingHorizontal: padX }]}
             >
                 {loadError ? <ErrorBanner message={loadError} onRetry={() => setAttempt((value) => value + 1)} /> : null}
+                <DeferredContent ready={ownsRoster || Boolean(loadError) || !memberId || !scope}>
                 {!memberId ? (
                     <Text>Choose a team to view its roster.</Text>
                 ) : !scope ? (
@@ -173,7 +190,7 @@ export default function TeamRosterScreen() {
                         : membershipStatus === 'unavailable'
                             ? <ErrorBanner message="League access is unavailable. Tap to retry." onRetry={() => { void refresh() }} />
                             : <Text>Join a league to view team rosters.</Text>
-                ) : (!ownsRoster && !loadError) || (loading && roster.length === 0) ? (
+                ) : (!ownsRoster && !loadError) || (loading && !ownsRoster) ? (
                     <LoadingState />
                 ) : ownsRoster ? (
                     <>
@@ -191,6 +208,7 @@ export default function TeamRosterScreen() {
                         {renderSection('Taxi squad', taxi, currentLeague?.taxi_slots ?? 0, 'Empty taxi slot', 'taxi')}
                     </>
                 ) : null}
+                </DeferredContent>
             </ScrollView>
         </Page>
     )

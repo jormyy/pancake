@@ -1,3 +1,4 @@
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 import React from 'react'
 import {act,create,type ReactTestRenderer} from 'react-test-renderer'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
@@ -28,7 +29,7 @@ vi.mock('@/lib/alert',()=>({showAlert:vi.fn(),showSuccess:state.success}))
 const render=()=>React.createElement(React.StrictMode,null,React.createElement(ClaimPlayerScreen))
 let screen:ReactTestRenderer
 const submit=()=>screen.root.findAllByType('Pressable' as React.ElementType).find(node=>node.props.accessibilityLabel==='Submit waiver claim')!
-beforeEach(async()=>{vi.clearAllMocks();state.owner='a';state.members.mockImplementation(async()=>[{id:'member-'+state.owner,user_id:state.owner}]);state.player.mockResolvedValue({id:'target',display_name:'Claim target',nba_team:'BOS',eligible_positions:['PG']});state.claim.mockResolvedValue(undefined);await act(async()=>{screen=create(render())})})
+beforeEach(async()=>{activity.active=true;activity.epoch=0;clearPersistentCaches();vi.clearAllMocks();state.owner='a';state.members.mockImplementation(async()=>[{id:'member-'+state.owner,user_id:state.owner}]);state.player.mockResolvedValue({id:'target',display_name:'Claim target',nba_team:'BOS',eligible_positions:['PG']});state.claim.mockResolvedValue(undefined);await act(async()=>{screen=create(render())})})
 afterEach(async()=>{await act(async()=>screen?.unmount())})
 it('keeps ordinary successful claims and same-owner failures actionable',async()=>{
  state.claim.mockRejectedValueOnce(new Error('Claim failed'))
@@ -95,4 +96,27 @@ it('does not submit after suspension while fresh authority is in flight', async 
     await act(async () => screen.update(render()))
     await act(async () => { finish([{id:'member-a',user_id:'a'}]);await pending })
     expect(state.claim).not.toHaveBeenCalled()
+})
+
+it('keeps the saved claim visible while a remount revalidates', async () => {
+    await act(async () => screen.unmount())
+    state.player.mockReturnValue(new Promise(() => {}))
+    await act(async () => { screen = create(render()) })
+    expect(screen.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'Claim target')).toBe(true)
+    expect(screen.root.findAll(node => node.props['aria-busy'] === true)).toHaveLength(1)
+})
+it('shows a retry after the first claim read fails and recovers without leaving the page', async () => {
+    await act(async () => screen.unmount())
+    clearPersistentCaches()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    state.player.mockRejectedValue(new Error('offline'))
+    await act(async () => { screen = create(render()) })
+    expect(screen.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
+    const retry = screen.root.findAllByType('Pressable' as React.ElementType).find(node => node.props.accessibilityLabel === 'Retry waiver claim load')!
+    expect(retry).toBeDefined()
+    state.player.mockResolvedValue({ id: 'target', display_name: 'Claim target', nba_team: 'BOS', eligible_positions: ['PG'] })
+    await act(async () => retry.props.onPress())
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'Claim target')).toBe(true)
+    error.mockRestore()
 })

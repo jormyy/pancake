@@ -17,6 +17,37 @@ export async function waitForWebTargetReads(page) {
   }
 }
 
+function webTargetReady({ placeholder }) {
+  const visible = (node) => {
+    if (!node || getComputedStyle(node).visibility !== 'visible') return false
+    const box = node.getBoundingClientRect()
+    return box.width > 0 && box.height > 0
+  }
+  if (placeholder !== null) {
+    const documents = document.querySelectorAll('#pancake-auth-document')
+    if (documents.length > 1) throw new Error('More than one auth document')
+    if (documents.length) return false
+    return [...document.querySelectorAll('input,textarea')].some((node) =>
+      node.getAttribute('placeholder') === placeholder && !node.closest('[inert]') && visible(node))
+  }
+  const navigation = document.querySelectorAll('[role="navigation"][aria-label="Primary"]')
+  if (navigation.length > 1) throw new Error('More than one primary navigation')
+  if (!visible(navigation[0])) return false
+  const mains = document.querySelectorAll('[role="main"]')
+  if (mains.length > 1) throw new Error('More than one main region')
+  const main = mains[0]
+  return visible(main) && (main.textContent ?? '').trim().length > 5
+}
+
+export async function waitForWebTargetReady(page) {
+  await page.waitForFunction(webTargetReady, { placeholder: null }, { polling: 'raf', timeout: 45_000 })
+}
+
+export async function waitForWebAuthForm(page, placeholder) {
+  await page.waitForFunction(webTargetReady, { placeholder }, { polling: 'raf', timeout: 30_000 })
+  await page.getByPlaceholder(placeholder, { exact: true }).waitFor({ state: 'visible' })
+}
+
 export async function navigateWebTarget(page, url) {
   await waitForWebTargetReads(page)
   return page.goto(url)

@@ -3,6 +3,7 @@ import { setSessionOwner } from '@/lib/session-cache-registry'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
 const mocks = vi.hoisted(() => ({
     appState: 'active',

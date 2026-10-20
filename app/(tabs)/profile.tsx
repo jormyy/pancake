@@ -266,7 +266,7 @@ export default function ProfileScreen() {
                     onRetry={() => { void retryProfile() }}
                 />
             ) : null}
-            <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
+            <ScrollView aria-busy={!profileLoaded} accessibilityState={{ busy: !profileLoaded }} style={styles.scroll} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
                 <View style={styles.identity}>
                     <Pressable
                         onPress={handlePickAvatar}
@@ -289,17 +289,18 @@ export default function ProfileScreen() {
                         </View>
                     </Pressable>
                     <View style={styles.identityText}>
-                        <Text style={textStyles.pageTitle} numberOfLines={1}>
-                            {profile?.display_name ?? 'Profile'}
+                        <Text style={[textStyles.pageTitle, { minHeight: textStyles.pageTitle.lineHeight }]} numberOfLines={1}>
+                            {profile?.display_name ?? ''}
                         </Text>
-                        {profile?.username ? <Text style={textStyles.meta} numberOfLines={1}>@{profile.username}</Text> : null}
+                        <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]} numberOfLines={1}>{profile?.username ? `@${profile.username}` : ''}</Text>
                     </View>
                 </View>
 
                 <SettingsGroup title="Account">
                     <SettingsRow
+                        reserveValue
                         label="Name"
-                        value={editing ? null : profile?.display_name ?? '—'}
+                        value={editing ? null : profile?.display_name ?? ''}
                         accessory={editing ? (
                             <TextInput
                                 style={styles.input}
@@ -311,14 +312,15 @@ export default function ProfileScreen() {
                             />
                         ) : undefined}
                     />
-                    <SettingsRow label="Email" value={user?.email ?? '—'} />
+                    <SettingsRow reserveValue label="Email" value={user?.email ?? ''} />
                 </SettingsGroup>
 
                 {showTeamSection ? (
                     <SettingsGroup title={currentLeague?.name ?? 'League'}>
                         <SettingsRow
+                            reserveValue
                             label="Team name"
-                            value={editing && current ? null : current?.team_name ?? '—'}
+                            value={editing && current ? null : current?.team_name ?? ''}
                             accessory={editing && current ? (
                                 <TextInput
                                     style={styles.input}

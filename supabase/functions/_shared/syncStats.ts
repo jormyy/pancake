@@ -1,3 +1,4 @@
+import { gameElapsedSeconds } from './gameProgress.ts'
 import { assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
@@ -132,21 +133,37 @@ async function syncStatsGameWithResolver(
   game: StatsSyncGame,
   resolver: Awaited<ReturnType<typeof loadCdnPlayerResolver>>,
   skipScheduled: boolean,
+  persist: (write: () => Promise<number>) => Promise<number> = write => write(),
 ): Promise<number> {
-  if (!game.nba_game_id) throw new Error(`NBA game ${game.id} is missing its provider id`)
-  const boxScore = await fetchBoxScore(game.nba_game_id)
+  const providerGameId = game.nba_game_id
+  if (!providerGameId) throw new Error(`NBA game ${game.id} is missing its provider id`)
+  const boxScore = await fetchBoxScore(providerGameId)
   if (game.status === 'Final' && boxScore.gameStatus !== 3) {
-    throw new Error(`Final game box score is not final for ${game.nba_game_id}`)
+    throw new Error(`Final game box score is not final for ${providerGameId}`)
   }
   if (skipScheduled && boxScore.gameStatus === 1) return 0
 
-  await assertGameUnambiguous(game.id)
-  const resolved = await resolveBoxScorePlayers(boxScore, game.nba_game_id, resolver)
-  const stats = resolved.map(({ player, playerId }) =>
-    buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
-  const changed = await saveGameStats(game.id, game.nba_game_id, stats, boxScore.gameStatus === 3)
-  if (changed > 0) console.log(`[sync-stats] Game ${game.nba_game_id}: ${changed}/${stats.length} stat line(s) changed.`)
-  return stats.length
+  return await persist(() => retrySourceContention(async () => {
+    await assertGameUnambiguous(game.id)
+    const resolved = await resolveBoxScorePlayers(boxScore, providerGameId, resolver)
+    const stats = resolved.map(({ player, playerId }) =>
+      buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
+    const changed = await saveGameStats(game.id, providerGameId, stats, boxScore.gameStatus === 3, boxScore.gameStatus === 3 ? undefined : gameElapsedSeconds(boxScore))
+    if (changed > 0) console.log(`[sync-stats] Game ${providerGameId}: ${changed}/${stats.length} stat line(s) changed.`)
+    return stats.length
+  }))
+}
+
+async function retrySourceContention<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await run()
+    } catch (error) {
+      const failure = error as { code?: string; message?: string } | null
+      if (attempt >= 4 || failure?.code !== 'PT409' || failure?.message !== 'Game inputs are being updated. Retry this operation.') throw error
+      await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
+    }
+  }
 }
 
 type BoxScorePlayers = {
@@ -198,12 +215,15 @@ export async function saveGameStats(
   providerGameId: string,
   stats: PlayerGameStatsInsert[],
   isFinal: boolean,
+  elapsedSeconds?: number,
 ): Promise<number> {
-  const { data, error } = await supabase.rpc('save_game_stats_atomic', {
+  const { data, error } = isFinal ? await supabase.rpc('save_game_stats_atomic', {
     p_game_id: gameId,
     p_provider_game_id: providerGameId,
     p_stats: stats,
-    p_is_final: isFinal,
+    p_is_final: true,
+  }) : await supabase.rpc('save_live_game_stats_atomic', {
+    p_game_id: gameId, p_provider_game_id: providerGameId, p_stats: stats, p_elapsed_seconds: elapsedSeconds!,
   })
   if (error) throw error
   return data
@@ -268,9 +288,15 @@ export async function syncLiveStatsGames(games: StatsSyncGame[]): Promise<{ stat
   let statLines = 0
   const failures: unknown[] = []
   const resolver: CdnPlayerResolver = { byNbaId: new Map(), byExactName: new Map(), byName: new Map() }
+  let writes: Promise<number> = Promise.resolve(0)
+  const persist = (write: () => Promise<number>) => {
+    const pending = writes.then(write, write)
+    writes = pending
+    return pending
+  }
   await runBounded(games.map(game => async () => {
     try {
-      const lines = await syncStatsGameWithResolver(game, resolver, true)
+      const lines = await syncStatsGameWithResolver(game, resolver, true, persist)
       statLines += lines
     } catch (error) {
       failures.push(error)

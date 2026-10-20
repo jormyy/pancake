@@ -1,7 +1,7 @@
 // Which surface the Home play area shows. Kept pure so the precedence is
 // testable: a loaded matchup, then the live-draft card (the manager must get
 // to the draft room even when the matchup refresh failed), then loading, then
-// a failed load, and only then the true "no matchup" empty state.
+// a failed load. A confirmed empty answer also survives a background read.
 export type HomeSurface = 'draft' | 'matchup' | 'loading' | 'error' | 'empty'
 
 export function resolveHomeSurface(input: {
@@ -13,7 +13,8 @@ export function resolveHomeSurface(input: {
 }): HomeSurface {
     if (input.hasMatchup) return 'matchup'
     if (input.leagueStatus === 'drafting') return 'draft'
+    if (input.emptyConfirmed) return 'empty'
     if (input.loading) return 'loading'
     if (input.error) return 'error'
-    return input.emptyConfirmed ? 'empty' : 'loading'
+    return 'loading'
 }

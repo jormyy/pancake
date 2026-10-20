@@ -373,6 +373,32 @@ function addMemberPoints(total: Map<string, number>, week: Map<string, number>) 
     for (const [memberId, points] of week) total.set(memberId, roundFantasyPoints((total.get(memberId) ?? 0) + points))
 }
 
+async function loadCertifiedMaxPossiblePoints(
+    matchups: MatchupForFinalization[],
+    leagueSeasonId: string,
+    weekNumber: number,
+): Promise<Map<string, number> | null> {
+    const pointsByMember = new Map<string, number>()
+    for (const matchup of matchups) {
+        if (!matchup.is_finalized) return null
+        for (const [memberId, value] of [
+            [matchup.home_member_id, matchup.home_max_possible_points],
+            [matchup.away_member_id, matchup.away_max_possible_points],
+        ] as const) {
+            if (value == null || !Number.isFinite(Number(value))) return null
+            const points = Number(value)
+            if (pointsByMember.has(memberId) && pointsByMember.get(memberId) !== points) return null
+            pointsByMember.set(memberId, points)
+        }
+    }
+    const { data, error } = await supabase.rpc('get_stale_score_weeks', {
+        p_league_season_id: leagueSeasonId, p_through_week: weekNumber,
+    })
+    if (error) throw error
+    if (data == null || data.some((row) => row.week_number === weekNumber)) return null
+    return pointsByMember
+}
+
 // If all games in a week are finished, mark matchups as finalized. Already
 // finalized rows are reconciled without notifications so late NBA stat
 // corrections cannot leave displayed scores, winners, max possible, and
@@ -443,12 +469,17 @@ async function finalizeWeekIfComplete(
     const memberIds = [
         ...new Set(matchups.flatMap((m) => [m.home_member_id, m.away_member_id])),
     ]
-    const maxPossiblePointsByMember = new Map<string, number>()
+    const certifiedMaxPossiblePoints = toETDate(referenceDate) > endDate
+        ? await loadCertifiedMaxPossiblePoints(matchups, leagueSeasonId, weekNumber)
+        : null
+    const maxPossiblePointsByMember = certifiedMaxPossiblePoints ?? new Map<string, number>()
     const pointsByMember = new Map<string, number>()
     for (const week of weeks) {
-        addMemberPoints(maxPossiblePointsByMember, await calcWeekMaxPossiblePointsByMember(
-            memberIds, leagueId, leagueSeasonId, seasonYear, settings, week.week_start, week.week_end,
-        ))
+        if (!certifiedMaxPossiblePoints) {
+            addMemberPoints(maxPossiblePointsByMember, await calcWeekMaxPossiblePointsByMember(
+                memberIds, leagueId, leagueSeasonId, seasonYear, settings, week.week_start, week.week_end,
+            ))
+        }
         addMemberPoints(pointsByMember, await calcWeekPointsByMember(
             memberIds, leagueSeasonId, seasonYear, week.week_number, settings, week.week_start, week.week_end,
         ))

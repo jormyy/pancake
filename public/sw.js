@@ -246,14 +246,24 @@ async function onlineShell(event) {
   return response
 }
 
+async function shellForRoute(response, requestUrl) {
+  if (new URL(requestUrl).pathname === SHELL_URL) return response
+  const html = await response.clone().text()
+  const clientShell = html.replace(/(globalThis\.__EXPO_ROUTER_HYDRATE__\s*=\s*)true\b/g, '$1false')
+  if (clientShell === html) return response
+  const headers = new Headers(response.headers)
+  for (const header of ['content-length', 'content-encoding', 'etag']) headers.delete(header)
+  return new Response(clientShell, { status: response.status, statusText: response.statusText, headers })
+}
+
 async function shellResponse(event) {
   const cache = await caches.open(SHELL_CACHE)
   const cached = await safeMatch(cache, SHELL_URL, { allowDocument: true })
-  if (cached) return cached
+  if (cached) return shellForRoute(cached, event.request.url)
   try {
     const response = await bootResponse(SHELL_URL)
     await cache.put(SHELL_URL, response.clone()).catch(() => {})
-    return response
+    return shellForRoute(response, event.request.url)
   } catch {
     return onlineShell(event)
   }

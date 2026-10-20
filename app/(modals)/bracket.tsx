@@ -12,7 +12,8 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { getPlayoffBracket, PlayoffBracket, BracketMatchup } from '@/lib/bracket'
 import { EmptyState } from '@/components/EmptyState'
 import { ModalScreen } from '@/components/ui/ModalScreen'
-import { LoadingState, usePageMetrics } from '@/components/ui'
+import { ErrorBanner, LoadingState, usePageMetrics } from '@/components/ui'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { formatPoints } from '@/lib/format'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 
@@ -27,11 +28,13 @@ export default function BracketScreen() {
     const resourceKey = current?.id && currentLeague?.id ? `${current.id}:${currentLeague.id}` : null
     const { canRead, capture, isCurrent, epoch } = useModalActivity(resourceKey)
     // "No bracket yet" is only true once a load succeeds; until then show loading or a retry.
-    const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null; status: LoadStatus }>({
-        key: resourceKey,
-        bracket: null,
-        status: 'loading',
+    const cacheKey = `pancake:bracket:v1:${resourceKey}`
+    const [resource, setResource] = useState<{ key: string | null; bracket: PlayoffBracket | null; status: LoadStatus }>(() => {
+        const cached = resourceKey ? readPersistentCache<{ bracket: PlayoffBracket | null }>(cacheKey) : undefined
+        return { key: resourceKey, bracket: cached?.bracket ?? null, status: cached ? 'ready' : 'loading' }
     })
+    const [refreshError, setRefreshError] = useState(false)
+    const [refreshing, setRefreshing] = useState(false)
     const [attempt, setAttempt] = useState(0)
     const requestRef = useRef(0)
     const bracket = resource.key === resourceKey ? resource.bracket : null
@@ -49,24 +52,37 @@ export default function BracketScreen() {
         const requestId = ++requestRef.current
         if (!canRead()) return
         const generation = capture()
-        setResource(previous => ({ key: resourceKey, bracket: previous.key === resourceKey ? previous.bracket : null, status: 'loading' }))
+        setRefreshing(true)
+        setRefreshError(false)
+        setResource(previous => {
+            if (previous.key === resourceKey && previous.status === 'ready') return previous
+            const cached = resourceKey ? readPersistentCache<{ bracket: PlayoffBracket | null }>(cacheKey) : undefined
+            return { key: resourceKey, bracket: cached?.bracket ?? null, status: cached ? 'ready' : 'loading' }
+        })
         async function load() {
             if (!currentId || !currentLeagueId) {
                 setResource({ key: resourceKey, bracket: null, status: 'ready' })
+                setRefreshing(false)
                 return
             }
             try {
                 const data = await getPlayoffBracket(currentLeagueId)
-                if (requestRef.current === requestId && isCurrent(generation)) setResource({ key: resourceKey, bracket: data, status: 'ready' })
+                if (requestRef.current === requestId && isCurrent(generation)) {
+                    writePersistentCache(cacheKey, { bracket: data })
+                    setResource({ key: resourceKey, bracket: data, status: 'ready' })
+                }
             } catch (e) {
                 if (requestRef.current !== requestId || !isCurrent(generation)) return
                 console.error(e)
-                setResource({ key: resourceKey, bracket: null, status: 'error' })
+                setRefreshError(true)
+                setResource(previous => previous.key === resourceKey && previous.status === 'ready' ? previous : { key: resourceKey, bracket: null, status: 'error' })
+            } finally {
+                if (requestRef.current === requestId && isCurrent(generation)) setRefreshing(false)
             }
         }
         load()
         return () => { requestRef.current += 1 }
-    }, [attempt, currentId, currentLeagueId, resourceKey, canRead, capture, isCurrent, epoch])
+    }, [attempt, currentId, currentLeagueId, resourceKey, canRead, capture, isCurrent, epoch, cacheKey])
 
     const backToStandings = () => router.replace('/league?tab=results')
     const rounds: Round[] = bracket?.rounds?.map((round) => ({
@@ -86,6 +102,8 @@ export default function BracketScreen() {
         <>
             <Stack.Screen options={{ title: 'Playoffs', presentation: 'modal', headerShown: false }} />
             <ModalScreen title="Playoffs" onBack={backToStandings} backLabel="Back to league standings">
+                {refreshError && status !== 'error' ? <ErrorBanner message="Could not refresh the bracket." onRetry={() => setAttempt(value => value + 1)} /> : null}
+                <View style={{ flex: 1, minHeight: 320 }} aria-busy={refreshing} accessibilityState={{ busy: refreshing }}>
                 {status === 'loading' ? <LoadingState /> : status === 'error' ? (
                     <EmptyState
                         icon="cloud-off"
@@ -127,6 +145,7 @@ export default function BracketScreen() {
                         )}
                     </ScrollView>
                 )}
+                </View>
             </ModalScreen>
         </>
     )

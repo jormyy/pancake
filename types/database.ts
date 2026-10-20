@@ -1744,6 +1744,8 @@ export type Database = {
           home_score: number
           home_team: string
           id: string
+          live_scoreboard_elapsed_seconds: number | null
+          live_stats_elapsed_seconds: number | null
           nba_game_id: string | null
           season_year: number
           sportsdata_game_id: string | null
@@ -1766,6 +1768,8 @@ export type Database = {
           home_score?: number
           home_team: string
           id?: string
+          live_scoreboard_elapsed_seconds?: number | null
+          live_stats_elapsed_seconds?: number | null
           nba_game_id?: string | null
           season_year: number
           sportsdata_game_id?: string | null
@@ -1788,6 +1792,8 @@ export type Database = {
           home_score?: number
           home_team?: string
           id?: string
+          live_scoreboard_elapsed_seconds?: number | null
+          live_stats_elapsed_seconds?: number | null
           nba_game_id?: string | null
           season_year?: number
           sportsdata_game_id?: string | null
@@ -4944,6 +4950,27 @@ export type Database = {
           p_stats: Json
         }
         Returns: number
+      }
+      save_live_game_stats_atomic: {
+        Args: {
+          p_elapsed_seconds: number
+          p_game_id: string
+          p_provider_game_id: string
+          p_stats: Json
+        }
+        Returns: number
+      }
+      save_live_scoreboard_atomic: {
+        Args: {
+          p_away_score: number
+          p_elapsed_seconds: number
+          p_game_id: string
+          p_home_score: number
+          p_provider_game_id: string
+          p_status: string
+          p_status_text: string
+        }
+        Returns: boolean
       }
       search_players: {
         Args: {

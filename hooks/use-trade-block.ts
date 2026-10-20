@@ -41,6 +41,9 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
     const [roster, setRoster] = useState<RosterPlayer[]>(cached?.roster ?? [])
     const [avgMap, setAvgMap] = useState(cachedAvgMap)
     const [avgStatsMap, setAvgStatsMap] = useState(cachedAvgStatsMap)
+    const [settledKey, setSettledKey] = useState(cached ? resourceKey : null)
+    const latestAverages = useRef({ avgMap, avgStatsMap })
+    latestAverages.current = { avgMap, avgStatsMap }
     const [loading, setLoading] = useState(!cached)
     const [error, setError] = useState<string | null>(null)
     // A failed add/remove is reported separately from a failed load so the
@@ -82,10 +85,9 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
             const nextRoster = memberRoster.filter((player) => isTradeableRosterPlayer(player))
             setItems(nextItems)
             setRoster(nextRoster)
-            setAvgMap(EMPTY_AVG_MAP)
-            setAvgStatsMap(EMPTY_STATS_MAP)
             setDataKey(resourceKey)
             setValidatedKey(resourceKey)
+            setSettledKey(resourceKey)
             return true
         } catch (cause) {
             if (loadSequence.current !== requestId) return false
@@ -111,6 +113,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         setBusyId(null)
         setLoading(!cached)
         setDataKey(resourceKey)
+        setSettledKey(cached ? resourceKey : null)
         setValidatedKey(null)
     }, [cached, cachedAvgMap, cachedAvgStatsMap, resourceKey])
 
@@ -142,7 +145,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
             } catch (statsError) {
                 if (statsLoadSequence.current !== requestId) return
                 console.warn('Could not load optional trade-block player averages.', statsError)
-                persist(EMPTY_AVG_MAP, EMPTY_STATS_MAP)
+                persist(latestAverages.current.avgMap, latestAverages.current.avgStatsMap)
             }
         }
         void loadStats()
@@ -210,6 +213,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
     ), [ownsResource, items, cached, avgMap, avgStatsMap, cachedAvgMap, cachedAvgStatsMap])
     return {
         items: itemsWithStats,
+        hasData: Boolean(resourceKey && (settledKey === resourceKey || cached)),
         roster: ownsResource ? roster : cached?.roster ?? [],
         avgMap: ownsResource ? avgMap : cachedAvgMap,
         avgStatsMap: ownsResource ? avgStatsMap : cachedAvgStatsMap,

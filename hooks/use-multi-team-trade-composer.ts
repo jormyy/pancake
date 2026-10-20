@@ -164,9 +164,7 @@ export function useMultiTeamTradeComposer({
     const retry = useCallback(() => {
         rosterLoadSeqRef.current += 1
         statsLoadSeqRef.current += 1
-        setParticipantAssets({ rosters: {}, picks: {} })
-        setAvgMap(EMPTY_AVG_MAP)
-        setAvgStatsMap(EMPTY_STATS_MAP)
+        assetsEpoch.current = null
         setRetryToken((value) => value + 1)
     }, [])
 
@@ -244,8 +242,6 @@ export function useMultiTeamTradeComposer({
         const requestId = ++statsLoadSeqRef.current
         if (!canRead()) return
         const generation = capture()
-        setAvgMap(EMPTY_AVG_MAP)
-        setAvgStatsMap(EMPTY_STATS_MAP)
 
         const ownsCompleteSnapshot = assetsEpoch.current === generation && enabled && leagueId && myMemberId &&
             participantIds[0] === myMemberId && loadedParticipantKey === selectedParticipantKey &&
@@ -276,6 +272,8 @@ export function useMultiTeamTradeComposer({
     }, [enabled, leagueId, loadedParticipantKey, myMemberId, participantIds, participantPicks,
         participantRosters, selectedParticipantKey, canRead, capture, isCurrent, epoch])
 
+    const assetsLoaded = participantIds[0] === myMemberId && loadedParticipantKey === selectedParticipantKey &&
+        participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
     const assetsReady = canRead() && assetsEpoch.current === epoch && enabled && !rosterLoading && !rosterError &&
         loadedParticipantKey === selectedParticipantKey &&
         participantIds.every((memberId) => memberId in participantRosters && memberId in participantPicks)
@@ -294,6 +292,7 @@ export function useMultiTeamTradeComposer({
         rosterLoading,
         rosterError,
         loadedParticipantKey,
+        assetsLoaded,
         assetsReady,
         selectedAssetsAvailable,
         reset,

@@ -1,3 +1,5 @@
+import { ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { colors, fontSize, spacing } from '@/constants/tokens'
 import { ErrorBanner, Page, PageHeader, SegmentedControl } from '@/components/ui'
@@ -15,7 +17,7 @@ const LEAGUE_TAB_LABELS = Object.fromEntries(
 ) as Record<(typeof LEAGUE_TABS)[number]['key'], string>
 
 
-export default function LeagueScreen() {
+function LeagueScreen() {
     const screen = useLeagueScreenState()
     const activePanelId = `league-panel-${screen.tab}`
     const activeTabId = `league-tab-${screen.tab}`
@@ -184,20 +186,22 @@ export default function LeagueScreen() {
                 aria-labelledby={activeTabId}
                 accessibilityLabel={`${activeTabLabel} league section`}
             >
-                    {screen.tab !== 'auctions' && screen.isTabLoaded && !screen.isOnline ? (
-                        <Text style={styles.freshness} accessibilityLiveRegion="polite">
-                            {`Offline. Showing saved ${activeTabLabel} data.`}
-                        </Text>
-                    ) : screen.tabErr && !screen.isTabLoading ? (
-                        <ErrorBanner
-                            message={screen.isTabLoaded
-                                ? `${activeTabLabel} refresh failed. Showing saved data. Select to retry.`
-                                : `${activeTabLabel} could not load. Select to retry.`}
-                            onRetry={screen.retryCurrentTab}
-                        />
-                    ) : null}
-                {renderTabContent()}
+                <DeferredContent ready={screen.isTabLoaded && (!(screen.tab === 'auctions' || screen.tab === 'draftBoard') || screen.activeDraftLoaded)} busy={screen.isTabRefreshing || screen.isTabLoading}>{renderTabContent()}</DeferredContent>
             </View>
+            <ScreenStatusOverlay>
+                {screen.tab !== 'auctions' && screen.isTabLoaded && !screen.isOnline ? (
+                    <Text style={styles.freshness} accessibilityLiveRegion="polite">
+                        {`Offline. Showing saved ${activeTabLabel} data.`}
+                    </Text>
+                ) : screen.tabErr && !screen.isTabLoading ? (
+                    <ErrorBanner
+                        message={screen.isTabLoaded
+                            ? `${activeTabLabel} refresh failed. Showing saved data. Select to retry.`
+                            : `${activeTabLabel} could not load. Select to retry.`}
+                        onRetry={screen.retryCurrentTab}
+                    />
+                ) : null}
+            </ScreenStatusOverlay>
         </Page>
     )
 }
@@ -209,3 +213,7 @@ const styles = StyleSheet.create({
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
+export default function LeagueScreenWithStatus() {
+    return <ScreenStatusProvider><LeagueScreen /></ScreenStatusProvider>
+}

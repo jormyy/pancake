@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
-import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, readWebLayout, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReady, waitForWebAuthForm, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
 import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 import { runWebTargetUpdates } from './web-targets-update.mjs'
 import { checkWebEmptySlots } from './web-targets-slots.mjs'
@@ -50,9 +50,7 @@ async function metadata(page) {
 }
 
 async function ready(page) {
-  await page.locator('[role="navigation"][aria-label="Primary"]').waitFor({ timeout: 45_000 })
-  await page.locator('[role="main"]').waitFor({ timeout: 45_000 })
-  await page.waitForFunction(() => document.querySelector('[role="main"]')?.textContent.trim().length > 5)
+  await waitForWebTargetReady(page)
   await page.waitForTimeout(400)
 }
 
@@ -92,8 +90,7 @@ async function checkInputs(page) {
 
 async function launch(page, mobile, captures) {
   await reloadWebTarget(page)
-  await page.locator('[role="navigation"][aria-label="Primary"]').waitFor({ timeout: 45_000 })
-  await page.locator('[role="main"]').waitFor({ timeout: 45_000 })
+  await waitForWebTargetReady(page)
   await page.waitForFunction(() => {
     const main = document.querySelector('[role="main"]')
     return main?.querySelector('[role="heading"][aria-label$=" matchup"]') ||
@@ -232,6 +229,7 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
     page.on('pageerror', (error) => result.errors.push({ phase, message: errorText(error), stack: error.stack }))
     const check = async (name, action) => {
       phase = name
+      const checkStarted = performance.now()
       try {
         if (authenticated) await pinWebTargetLeague(target, page, { userId: state.users[0].id, memberId: me.id, leagueName: league.data.name })
         result.checks.push({ name, status: 'PASS', detail: await action() })
@@ -239,17 +237,25 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
         result.checks.push({ name, status: 'FAIL', error: errorText(error) })
         await page.screenshot({ path: path.join(captures, `${name.replace(/[^a-z0-9-]/gi, '-')}-failure.png`) }).catch(() => {})
       }
+      result.checks.at(-1).durationMs = performance.now() - checkStarted
       process.stdout.write(`${target.id} ${name}: ${result.checks.at(-1).status} ${result.checks.at(-1).error ?? ''}\n`)
       await writeFile(path.join(captures, 'result.json'), `${JSON.stringify(result, null, 2)}\n`)
     }
     try {
       await navigateWebTarget(page, url('/sign-up'))
       await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
-      await page.getByPlaceholder('Maple Manager').waitFor()
-      await check('sign-up-inputs', () => checkInputs(page))
+      await waitForWebAuthForm(page, 'Maple Manager')
+      await check('sign-up-inputs', async () => {
+        const inspected = await checkInputs(page)
+        const name = page.getByPlaceholder('Maple Manager', { exact: true })
+        await name.pressSequentially('Web Manager')
+        await page.getByPlaceholder('hoopsgod', { exact: true }).focus()
+        assert.equal(await name.inputValue(), 'Web Manager', 'Sign-up input survives focus changes after hydration')
+        return inspected
+      })
       await navigateWebTarget(page, url('/sign-in'))
       await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
-      await page.getByPlaceholder('you@example.com').waitFor()
+      await waitForWebAuthForm(page, 'you@example.com')
       await check('install-metadata', () => metadata(page))
       await check('sign-in-inputs', () => checkInputs(page))
       await page.evaluate(() => {

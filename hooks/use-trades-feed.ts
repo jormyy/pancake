@@ -20,6 +20,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
         () => resource.key === resourceKey ? resource.trades : cached ?? [],
         [cached, resource, resourceKey],
     )
+    const [settledKey, setSettledKey] = useState(cached ? resourceKey : null)
     const [loading, setLoading] = useState(!cached)
     const [validatedKey, setValidatedKey] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
@@ -54,6 +55,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
             if (loadSequence.current !== requestId) return false
             nextCursor.current = result.nextCursor
             setResource({ key: resourceKey, trades: result.trades })
+            setSettledKey(resourceKey)
             setValidatedKey(resourceKey)
             setHasMore(result.hasMore)
             writePersistentCache(tradesCacheKey(memberId, leagueId), result.trades)
@@ -73,6 +75,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
         paginationRequest.current = null
         nextCursor.current = null
         setResource({ key: resourceKey, trades: cached ?? [] })
+        setSettledKey(cached ? resourceKey : null)
         setValidatedKey(null)
         setError(null)
         setLoadMoreError(null)
@@ -133,6 +136,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
     const ownsResource = resource.key === resourceKey
     return {
         trades,
+        hasData: Boolean(resourceKey && (settledKey === resourceKey || cached)),
         loading: ownsResource ? loading : !cached,
         loadingMore: ownsResource && loadingMore,
         hasMore: ownsResource ? hasMore : (cached?.length ?? 0) >= TRADES_PAGE_SIZE,

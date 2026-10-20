@@ -249,3 +249,89 @@ The database repeats the actor check under locks after the API check.
 The recipe overlaps a role demotion with that transaction and verifies refusal without activation.
 It also checks anonymous access, forged actors, legacy commissioner calls and a stale season.
 Automatic draft completion continues through the existing private readiness helper.
+
+## Layout stability release sweep
+
+Prepare a stamped local release and seeded isolated stack using the [sweep recipe](../tests/e2e/layout-stability-README.md).
+Run each heavy step on the mini after the capacity check. Read local keys from that stack's status output.
+Keep generated environments, reports, and recordings outside the checkout.
+
+```sh
+npm run e2e:layout-stability -- --self-test \
+  --targets=desktop-chromium-1440,desktop-webkit-1440 \
+  --output-dir=../evidence/layout/self-test
+npm run e2e:layout-stability -- \
+  --stack-env=../local/local-stack.env --state=../local/tests/e2e-state.json \
+  --build-sha="$RELEASE_SHA" --latency-profile=seeded,slow --seed=493 \
+  --workers=4 --observe-ms=1000 --label=after --output-dir=../evidence/layout/after
+```
+
+Run notice-navigation mode separately, as shown in the [browser README](../tests/e2e/README.md#layout-stability-sweep).
+Keep the seed, harness, targets, browser versions, scenarios, and delay settings identical between builds.
+Use the analysis helper to compare reports. Use the merge helper for corrected cells; preserve original captures.
+Stop only the owned servers and stack when finished.
+
+The corrected BEFORE matrix has 1,920 cells: 904 pass, 966 fail, and 50 explained navigation omissions.
+It covers 32 surfaces, five targets, six scenarios, and two delay profiles.
+All 120 BEFORE notice returns fail across four targets.
+These numbers come from release evidence `sweep/compare.md`; setup and recorder corrections appear in `sweep/round2-handoff.md`.
+WebKit CLS is unsupported. Geometry and frame measurements remain available on both engines.
+| Metric | Corrected BEFORE | FINAL |
+| --- | ---: | ---: |
+| Pass / fail / not run | 904 / 966 / 50 | 1,870 / 0 / 50 |
+| Largest sampled horizontal / vertical movement, CSS px | 10.3 / 402 | 0 / 1.6 |
+| Largest Chromium CLS | 0.115314670 | 0 |
+| WebKit CLS | Unsupported | Unsupported |
+| Blank frames | 24,138 | 0 |
+| Loading / spinner cells | 42 / 168 | 0 / 0 |
+| Reappearances / affected cells | 6,630 / 618 | 0 / 0 |
+
+The measured FINAL release is `aff7aac1c493a9ddad0dfda9fd71d16e2ee9605e`.
+All 300 notice returns pass with no blank or missing-notice frames.
+The 120 matched BEFORE returns fail; the additional 180 FINAL returns have no paired BEFORE notice run.
+The main sweep exits 2 because of the same 50 explained navigation omissions; it records no failures or run error.
+
+WebKit CLS is unsupported. Its geometry samples cannot replace native CLS or prove sidebar stability.
+The recorder saves movement details only for individual steps above 0.5 pixels.
+Smaller steps can accumulate displacement without saved selectors or rectangle pairs and can understate time to stable layout.
+Two desktop WebKit Lineup cells record 1.6 pixels with no saved movement details; two Team Roster cells record 0.01 pixels.
+These values remain below the unchanged two-pixel threshold. This recorder limit remains open.
+
+Source: release evidence `sweep/round5-handoff.md`, `sweep/final/compare.md`, and `sweep/final/metric-support.md`.
+
+## Capacity profile and paired scoring
+
+Use the [profile preparation recipe](../scripts/bench/README.md#screen-and-job-capacity-profile) before these commands.
+It requires the isolated profile stack, generated local environment, provider cache, and separate unchanged and changed source copies.
+The profile requires loopback API port 56321 and database port 56322. It rejects other targets before database writes.
+Warm the unchanged scorer first. Keep cold repair outside the paired samples.
+
+```sh
+npm run test:bench:profile
+npm run bench:profile -- --label reads --rounds 5 --phase reads --jobs none \
+  --reuse-fixture true --out ../evidence/profile
+npm run bench:profile:compare -- --label scoring-after --rounds 5 \
+  --before ../before --after . --out ../evidence/profile
+npm run bench:profile:report -- ../evidence/profile/reads.json ../evidence/profile/reads.md
+```
+
+The comparison alternates BEFORE then AFTER on one warmed fixture. It checks scores, standings, timestamps, and notification content for equality.
+The [capacity results](./supabase-performance-capacity.md#paired-scoring-profile--october-19-2026) retain exact timing pairs and measurement limits.
+Run the explicit certificate and last-week correction regressions from the [profile README](../scripts/bench/README.md#span-certificate-regression).
+Restore native clocks and stop the owned stack after measurement.
+
+## Historical season replay
+
+The [simulator guide](./season-simulator.md) covers fixture provenance, real dispatch, synthetic actions, source limits, and defect regressions.
+Prepare only the owned local stack using the [setup recipe](../scripts/season-sim/README.md).
+Keep its replay and collector running while healthy. A diagnostic run never replaces the fresh full replay.
+
+```sh
+npm run e2e:season-sim -- --collect
+npm run e2e:season-sim -- --audit
+npm run e2e:season-sim -- --replay
+node scripts/season-sim/report.mjs
+```
+
+For a short ingestion check, use `npm run e2e:season-sim -- --replay --start 2025-10-27 --days 1`.
+Read the [latest run status](./season-simulator.md#latest-measured-run) before claiming full-season acceptance.

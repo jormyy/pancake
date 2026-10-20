@@ -5,6 +5,10 @@ import { acquireJoinableDraft, type Draft } from '@/lib/draft'
 import { useLeagueContext } from '@/contexts/league-context'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
+import { onSessionCachesCleared } from '@/lib/session-cache-registry'
+
+const draftLaunchCache = new Map<string, { draft: Draft | null }>()
+onSessionCachesCleared(() => draftLaunchCache.clear())
 
 type LaunchResult = 'opened' | 'missing' | 'error' | 'stale' | 'deferred'
 
@@ -31,7 +35,11 @@ export function useDraftRoomLauncher(
         loading: boolean
         error: string | null
         draft: Draft | null
-    } | null>(null)
+        checked?: boolean
+    } | null>(() => {
+        const cached = draftLaunchCache.get(resourceKey)
+        return cached ? { key: resourceKey, ...cached, checked: true, loading: false, error: null } : null
+    })
 
     useEffect(() => () => { generationRef.current += 1 }, [])
     useEffect(() => () => {
@@ -47,7 +55,9 @@ export function useDraftRoomLauncher(
         if (activeResourceKeyRef.current !== capturedKey) return Promise.resolve<LaunchResult>('stale')
         if (!canRead()) {
             pendingRef.current = { key: capturedKey, fallbackOnMissing }
-            setRequest({ key: capturedKey, loading: true, error: null, draft: null })
+            setRequest(previous => previous?.key === capturedKey
+                ? { ...previous, loading: true, error: null }
+                : { key: capturedKey, loading: true, error: null, draft: null })
             return Promise.resolve<LaunchResult>('deferred')
         }
         if (!leagueId) {
@@ -61,7 +71,9 @@ export function useDraftRoomLauncher(
         pendingRef.current = { key: capturedKey, fallbackOnMissing }
 
         const generation = ++generationRef.current
-        setRequest({ key: capturedKey, loading: true, error: null, draft: null })
+        setRequest(previous => previous?.key === capturedKey
+                ? { ...previous, loading: true, error: null }
+                : { key: capturedKey, loading: true, error: null, draft: null })
         const ownsRequest = () => (
             isCurrent(readEpoch) && activeResourceKeyRef.current === capturedKey
             && generationRef.current === generation
@@ -75,6 +87,8 @@ export function useDraftRoomLauncher(
                     return 'stale'
                 }
                 pendingRef.current = null
+                draftLaunchCache.set(capturedKey, { draft })
+                setRequest({ key: capturedKey, loading: false, error: null, draft, checked: true })
                 if (!draft) {
                     if (fallbackOnMissing && !options.renderAuctionInline) router.push(NO_DRAFT_ROUTE)
                     return 'missing'
@@ -82,14 +96,13 @@ export function useDraftRoomLauncher(
                 const pathname = draft.draftType === 'snake'
                     ? '/(modals)/rookie-draft-room'
                     : '/(modals)/draft-room'
-                setRequest({ key: capturedKey, loading: false, error: null, draft })
                 if (!options.renderAuctionInline || draft.draftType === 'snake') router.push({ pathname, params: { draftId: draft.id } })
                 return 'opened'
             } catch (error) {
                 if (!ownsRequest()) return 'stale'
                 pendingRef.current = null
                 const message = getErrorMessage(error)
-                setRequest({ key: capturedKey, loading: false, error: message, draft: null })
+                setRequest(previous => ({ key: capturedKey, loading: false, error: message, draft: previous?.key === capturedKey ? previous.draft : null, checked: true }))
                 if (options.notifyOnError) showAlert('Could not open draft room', message)
                 return 'error'
             } finally {
@@ -117,6 +130,6 @@ export function useDraftRoomLauncher(
         draft: ownsState ? request.draft : null,
         draftLoading: ownsState ? request.loading : false,
         draftError: ownsState ? request.error : null,
-        draftChecked: Boolean(ownsState && !request.loading),
+        draftChecked: Boolean(ownsState && (request.checked || !request.loading)),
     }
 }

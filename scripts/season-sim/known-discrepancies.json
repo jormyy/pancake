@@ -1,0 +1,182 @@
+[
+  {
+    "id": "0022500045",
+    "differences": [
+      {
+        "player": 1630530,
+        "name": "Trey Murphy III",
+        "field": "reboundsTotal",
+        "expected": 7,
+        "actual": 6
+      },
+      {
+        "player": 1630530,
+        "name": "Trey Murphy III",
+        "field": "reboundsDefensive",
+        "expected": 5,
+        "actual": 4
+      },
+      {
+        "player": 1630529,
+        "name": "Herbert Jones",
+        "field": "reboundsTotal",
+        "expected": 5,
+        "actual": 6
+      },
+      {
+        "player": 1630529,
+        "name": "Herbert Jones",
+        "field": "reboundsDefensive",
+        "expected": 3,
+        "actual": 4
+      }
+    ]
+  },
+  {
+    "id": "0022500081",
+    "differences": [
+      {
+        "player": 1630217,
+        "name": "Desmond Bane",
+        "field": "threePointersAttempted",
+        "expected": 6,
+        "actual": 7
+      }
+    ]
+  },
+  {
+    "id": "0022500116",
+    "differences": [
+      {
+        "player": 1641730,
+        "name": "Noah Clowney",
+        "field": "threePointersAttempted",
+        "expected": 4,
+        "actual": 3
+      }
+    ]
+  },
+  {
+    "id": "0022500132",
+    "differences": [
+      {
+        "player": 201942,
+        "name": "DeMar DeRozan",
+        "field": "reboundsTotal",
+        "expected": 6,
+        "actual": 5
+      },
+      {
+        "player": 201942,
+        "name": "DeMar DeRozan",
+        "field": "reboundsOffensive",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "player": 1642269,
+        "name": "Devin Carter",
+        "field": "fieldGoalsAttempted",
+        "expected": 3,
+        "actual": 2
+      },
+      {
+        "player": 1642269,
+        "name": "Devin Carter",
+        "field": "threePointersAttempted",
+        "expected": 2,
+        "actual": 1
+      }
+    ]
+  },
+  {
+    "id": "0022500166",
+    "differences": [
+      {
+        "player": 1630532,
+        "name": "Franz Wagner",
+        "field": "reboundsTotal",
+        "expected": 6,
+        "actual": 5
+      },
+      {
+        "player": 1630532,
+        "name": "Franz Wagner",
+        "field": "reboundsDefensive",
+        "expected": 3,
+        "actual": 2
+      },
+      {
+        "player": 1628371,
+        "name": "Jonathan Isaac",
+        "field": "reboundsTotal",
+        "expected": 2,
+        "actual": 3
+      },
+      {
+        "player": 1628371,
+        "name": "Jonathan Isaac",
+        "field": "reboundsDefensive",
+        "expected": 2,
+        "actual": 3
+      }
+    ]
+  },
+  {
+    "id": "0022500338",
+    "differences": [
+      {
+        "player": 1631169,
+        "name": "Josh Minott",
+        "field": "reboundsTotal",
+        "expected": 3,
+        "actual": 4
+      },
+      {
+        "player": 1631169,
+        "name": "Josh Minott",
+        "field": "reboundsOffensive",
+        "expected": 0,
+        "actual": 1
+      },
+      {
+        "player": 1631169,
+        "name": "Josh Minott",
+        "field": "fieldGoalsAttempted",
+        "expected": 3,
+        "actual": 4
+      }
+    ]
+  },
+  {
+    "id": "0022500587",
+    "differences": [
+      {
+        "player": 1630171,
+        "name": "Isaac Okoro",
+        "field": "steals",
+        "expected": 4,
+        "actual": 3
+      },
+      {
+        "player": 1630200,
+        "name": "Tre Jones",
+        "field": "steals",
+        "expected": 1,
+        "actual": 2
+      }
+    ]
+  },
+  {
+    "id": "0022500805",
+    "differences": [
+      {
+        "player": 1629638,
+        "name": "Nickeil Alexander-Walker",
+        "field": "turnovers",
+        "expected": 4,
+        "actual": 3
+      }
+    ]
+  }
+]

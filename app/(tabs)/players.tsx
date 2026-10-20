@@ -1,3 +1,5 @@
+import { ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
+import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useIsFocused } from '@react-navigation/native'
 import {
     View,
@@ -142,6 +144,7 @@ function PlayerTableHeader({
 }
 
 function PlayerSearchSection() {
+    const statusScroll = useScreenStatusScroll()
     const { push } = useRouter()
     const { user, loading: authLoading } = useAuth()
     const { memberships, current, currentLeague, loading: leagueLoading, online, membershipValidated } = useLeagueContext()
@@ -320,14 +323,14 @@ function PlayerSearchSection() {
     ].join('|')
     const showInitialShell = authLoading || (leagueLoading && memberships.length === 0)
     const resultCount = search.results.players.length
-    const resultCountLabel = search.results.loading && resultCount === 0
-        ? '— players'
+    const resultCountLabel = resultCount === 0 && (search.results.loading || search.results.isSnapshot)
+        ? ''
         : `${resultCount}${search.activeFilterCount > 0 ? ' filtered' : ''} player${resultCount === 1 ? '' : 's'}`
     const waiverLine = transactionState
         ? transactionState.waiverMode === 'faab'
             ? `FAAB $${transactionState.faabBalance}`
             : 'Rolling waivers'
-        : 'Waivers —'
+        : ''
     const seasonNote = search.season.value === null ? '' : ` · ${seasonLabel(search.season.value)} stats`
     const summaryLine = `${resultCountLabel}${seasonNote} · ${addLimitSummary(transactionState)} · ${waiverLine}`
     const filterControls = (variant: 'chip' | 'field') => (
@@ -432,11 +435,11 @@ function PlayerSearchSection() {
                                     <Text style={localStyles.clearButtonText}>Clear</Text>
                                 </Pressable>
                             ) : null}
-                            <Text style={[localStyles.summary, localStyles.summaryWide]} numberOfLines={1}>{summaryLine}</Text>
+                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: 20, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text>
                         </>
                     )}
                 </View>
-                {compactToolbar ? <Text style={localStyles.summary} numberOfLines={1}>{summaryLine}</Text> : null}
+                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: 20, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
                 {addBlockedReason ? (
                     <Text
                         style={localStyles.addLimitNotice}
@@ -449,18 +452,6 @@ function PlayerSearchSection() {
                 ) : null}
             </View>
 
-            {search.results.players.length > 0 && (!online || search.results.error || playerSupportError) && <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Refresh player data"
-                disabled={!online || search.results.refreshing}
-                onPress={() => { void refreshPlayers() }}
-                style={localStyles.freshness}
-            >
-                <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">
-                    {!online ? 'Offline. Saved player results may be out of date.'
-                        : 'Player refresh failed. Saved results may be out of date. Tap to retry.'}
-                </Text>
-            </Pressable>}
             <Sheet visible={compactToolbar && filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
                 <View style={localStyles.sheetFields}>
                     {filterControls('field')}
@@ -493,12 +484,15 @@ function PlayerSearchSection() {
                 </View>
             </Sheet>
 
+            <DeferredContent ready={!listIsInitialLoading || Boolean(search.results.error)} busy={search.results.loading || search.results.refreshing || playerSupportFetchLoading}>
             <FlashList
+                    onScroll={statusScroll.onScroll}
+                    scrollEventThrottle={16}
                     ref={search.results.listRef}
                     data={search.results.players}
                     extraData={playerListExtraData}
                     keyExtractor={(p: PlayerRow) => p.id}
-                    contentContainerStyle={search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined}
+                    contentContainerStyle={statusScroll.contentStyle(search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined)}
                     ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showStatTable ? (
                         <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
@@ -525,7 +519,22 @@ function PlayerSearchSection() {
                     onEndReachedThreshold={0.3}
                     ListFooterComponent={null}
                 />
+            </DeferredContent>
           </View>
+            <ScreenStatusOverlay>
+                {search.results.players.length > 0 && (!online || search.results.error || playerSupportError) && <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Refresh player data"
+                    disabled={!online || search.results.refreshing}
+                    onPress={() => { void refreshPlayers() }}
+                    style={localStyles.freshness}
+                >
+                    <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">
+                        {!online ? 'Offline. Saved player results may be out of date.'
+                            : 'Player refresh failed. Saved results may be out of date. Tap to retry.'}
+                    </Text>
+                </Pressable>}
+            </ScreenStatusOverlay>
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
@@ -563,7 +572,7 @@ function initialSection(value: string | string[] | undefined): PlayersSection {
  * rankings, and news. A section mounts the first time it is opened and stays
  * mounted, so switching back keeps its search, filters, and scroll.
  */
-export default function PlayersScreen() {
+function PlayersScreen() {
     const focused = useIsFocused()
     const params = useLocalSearchParams<{ section?: string }>()
     const { user, loading: authLoading } = useAuth()
@@ -691,3 +700,7 @@ const localStyles = StyleSheet.create({
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
+
+export default function PlayersScreenWithStatus() {
+    return <ScreenStatusProvider><PlayersScreen /></ScreenStatusProvider>
+}

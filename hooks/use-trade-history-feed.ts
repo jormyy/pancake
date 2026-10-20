@@ -9,6 +9,7 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
     const resourceKey = memberId && leagueId ? `${leagueId}:${memberId}` : null
     const [resource, setResource] = useState<HistoryResource>({ key: resourceKey, trades: [] })
     const trades = resource.key === resourceKey ? resource.trades : []
+    const [settledKey, setSettledKey] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(false)
@@ -38,6 +39,7 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
             const result = await getTradeHistoryForScreen(memberId, leagueId, PAGE_SIZE)
             if (sequence.current !== requestId || activeKey.current !== requestKey) return false
             setResource({ key: requestKey, trades: result.trades })
+            setSettledKey(requestKey)
             nextCursor.current = result.nextCursor
             setHasMore(result.hasMore)
             return true
@@ -55,6 +57,7 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
         paginationRequest.current = null
         nextCursor.current = null
         setResource({ key: resourceKey, trades: [] })
+        setSettledKey(null)
         setError(null)
         setLoading(false)
         setLoadingMore(false)
@@ -103,7 +106,8 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
     const ownsResource = resource.key === resourceKey
     return {
         trades,
-        loading: ownsResource && loading,
+        hasData: Boolean(resourceKey && ownsResource && settledKey === resourceKey),
+        loading: ownsResource ? loading || Boolean(enabled && resourceKey && settledKey !== resourceKey && !error) : Boolean(enabled && resourceKey),
         loadingMore: ownsResource && loadingMore,
         hasMore: ownsResource && hasMore,
         error: ownsResource ? error : null,

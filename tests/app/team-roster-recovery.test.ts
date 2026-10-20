@@ -1,3 +1,4 @@
+import { clearPersistentCaches } from '@/lib/persistent-cache'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,6 +49,7 @@ const roster: RosterPlayer[] = [{
 describe('team roster read recovery', () => {
     let screen: ReactTestRenderer
     beforeEach(() => {
+        clearPersistentCaches()
         vi.clearAllMocks()
         mocks.context.current = { id: 'own-member' }
         mocks.context.currentLeague = { id: 'league-a' }
@@ -143,6 +145,7 @@ describe('team roster read recovery', () => {
 describe('team roster slot capacity', () => {
     let screen: ReactTestRenderer
     beforeEach(() => {
+        clearPersistentCaches()
         vi.clearAllMocks()
         mocks.context.current = { id: 'own-member' }
         mocks.context.currentLeague = { id: 'league-a', roster_size: 3, ir_slots: 2, taxi_slots: 2 }
@@ -230,5 +233,23 @@ it('revalidates relevant roster changes and coalesces suspended changes into the
     activity.active = true; activity.epoch += 1
     await act(async () => view.update(React.createElement(TeamRosterScreen)))
     expect(mocks.getRoster).toHaveBeenCalledTimes(3)
+    await act(async () => view.unmount())
+})
+
+it('paints a saved team roster throughout a pending remount refresh', async () => {
+    clearPersistentCaches()
+    mocks.context.current = { id: 'own-member' }
+    mocks.context.currentLeague = { id: 'league-a' }
+    mocks.params.memberId = 'other-member'
+    mocks.getRoster.mockResolvedValue(roster)
+    mocks.getStats.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(TeamRosterScreen)) })
+    await act(async () => view.unmount())
+    mocks.getRoster.mockReturnValue(new Promise(() => {}))
+    await act(async () => { view = create(React.createElement(TeamRosterScreen)) })
+    expect(view.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
+    expect(view.root.findAll(node => node.props.item?.id === 'roster-one')).toHaveLength(1)
+    expect(view.root.findAll(node => node.props['aria-busy'] === true)).toHaveLength(1)
     await act(async () => view.unmount())
 })

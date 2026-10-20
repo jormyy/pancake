@@ -279,9 +279,8 @@ installs once the page has loaded. Precaching fixes every launch after that.
 The precache is roughly a megabyte, most of it the bundle. It is fetched in the
 background after load, so it never blocks the launch that triggers it.
 
-A signed-out launch still shows the plain background until the bundle mounts.
-The shell stays hidden there on purpose: painting app chrome for someone who is
-about to see a sign-in screen would be a worse flash than the background.
+Signed-out auth routes paint a static sign-in or sign-up form before hydration.
+The document form remains until the matching route is ready. Private app chrome stays hidden.
 
 Browser background limits can delay sockets on an idle home-screen app. Foreground and reconnect refreshes correct missed data.
 
@@ -396,3 +395,27 @@ Missing old route scripts request an update. Recovery uses the same hold checks.
 The worker verifies every boot file before storage. It stores files one at a time. Activation still requires the full set.
 
 Push subscription changes notify open same-origin windows. Signed-in pages reconcile the browser's current subscription on that notice, reconnect, controller changes, and foreground return. Concurrent signals coalesce. Ordinary foreground checks wait five minutes after success. Disabled or logged-out notification intent remains closed. Missing subscriptions and changed VAPID keys still require explicit Enable.
+
+## Loading and layout continuity
+
+Cold content keeps the screen frame and reserves its content space. It shows no loading sentence, spinner, or looping shimmer.
+Matching cached rows stay visible during refresh. View changes retain settled content while the next read completes.
+Retained pending content remains inactive. Session changes clear it, and server validation still controls writes.
+
+Unknown counts stay blank inside reserved summary space. A settled empty answer remains distinct from an error or an unfinished read.
+The confirmed Home empty-matchup notice survives route returns and background failures. Unconfirmed membership cannot establish a new empty answer.
+Week-off reasons, account labels, roster metadata, and player actions reserve their space before their values arrive.
+
+Supported screens place offline and read-error notices in an accessible overlay. Added scroll-tail space keeps content and retries reachable.
+The tail shrinks only when the current scroll offset stays safe. Retry actions and meaningful errors remain visible.
+
+Web display fonts use optional loading and document preloads to avoid late text movement.
+Auth document forms and live forms share their frame. Their handoff waits for route readiness.
+The [loading rules and research sources](./instant-loading.md#stable-loading-surfaces) explain these choices.
+Run the [layout sweep](../tests/e2e/layout-stability-README.md) against the stamped local release.
+The final release sweep records 1,870 passes, zero failures, and 50 explained navigation omissions.
+All 300 empty-notice returns pass. Chromium CLS is zero; WebKit CLS is unsupported.
+The largest sampled displacement is 1.6 CSS pixels, below the unchanged two-pixel threshold.
+No blank frames, loading/spinner cells, or reappearances are recorded.
+Small steps at or below 0.5 pixels can accumulate without saved movement details and can understate settling time.
+Source: release evidence `sweep/round5-handoff.md`, `sweep/final/compare.md`, and `sweep/final/metric-support.md` for release `aff7aac1`.

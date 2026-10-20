@@ -9,6 +9,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import { AuthBrandMark } from '@/components/auth/AuthBrandMark'
+import { authWebAttributes } from '@/components/auth/authScaffoldCss'
 import { AuthHero, type AuthHeroContent } from '@/components/auth/AuthHero'
 import { breakpoints, colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 
@@ -30,28 +31,29 @@ export function AuthScaffold({
     footer,
 }: AuthScaffoldProps) {
     const { width } = useWindowDimensions()
-    const split = Platform.OS === 'web' && width >= breakpoints.auth
-    const compact = width < breakpoints.phone
+    const web = Platform.OS === 'web'
+    const compact = !web && width < breakpoints.phone
 
     return (
         <KeyboardAvoidingView
             style={[styles.container, Platform.OS === 'web' && styles.containerWeb]}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <View style={[styles.shell, split && styles.shellSplit]}>
-                {split ? <AuthHero content={hero} /> : null}
+            <View style={styles.shell} {...authWebAttributes('authShell')}>
+                {web ? <AuthHero content={hero} /> : null}
 
                 <View style={styles.formPanel}>
                     <ScrollView
-                        contentContainerStyle={[styles.formScroll, compact && styles.formScrollCompact, split && styles.formScrollSplit]}
+                        contentContainerStyle={[styles.formScroll, compact && styles.formScrollCompact]}
+                        {...authWebAttributes('authScroll')}
                         keyboardShouldPersistTaps="handled"
                     >
-                        <View style={[styles.formCard, compact && styles.formCardCompact, Platform.OS === 'web' && styles.formCardWeb]}>
-                            {!split ? <MobileBrand /> : null}
+                        <View style={[styles.formCard, compact && styles.formCardCompact, web && styles.formCardWeb]} {...authWebAttributes('authCard')}>
+                            <MobileBrand />
 
                             <View style={styles.titleBlock}>
                                 <Text style={styles.eyebrow}>{eyebrow}</Text>
-                                <Text style={[styles.title, compact && styles.titleCompact]} role="heading" aria-level={1}>{title}</Text>
+                                <Text style={[styles.title, compact && styles.titleCompact]} {...authWebAttributes('authTitle')} role="heading" aria-level={1}>{title}</Text>
                                 {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
                             </View>
 
@@ -68,7 +70,7 @@ export function AuthScaffold({
 
 function MobileBrand() {
     return (
-        <View style={styles.mobileBrand}>
+        <View style={styles.mobileBrand} {...authWebAttributes('authMobileBrand')}>
             <AuthBrandMark compact />
         </View>
     )
@@ -83,7 +85,6 @@ const styles = StyleSheet.create({
         backgroundImage: webBackgrounds.authScreen,
     } as WebOnlyViewStyle,
     shell: { flex: 1 },
-    shellSplit: { flexDirection: 'row' },
     // Stretch so the scroll area spans the panel; the scroll content centers the card.
     formPanel: {
         flex: 1,
@@ -103,10 +104,6 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-start',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.xl,
-    },
-    formScrollSplit: {
-        paddingHorizontal: spacing['5xl'],
-        paddingVertical: spacing['5xl'],
     },
     formCard: {
         width: '100%',

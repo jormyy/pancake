@@ -1,3 +1,4 @@
+import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
@@ -83,6 +84,7 @@ export function ActivityFeed({
     loadingMore?: boolean
     loadMoreError?: string | null
 }) {
+    const statusScroll = useScreenStatusScroll()
     const { padX } = usePageMetrics()
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
@@ -118,14 +120,14 @@ export function ActivityFeed({
             style={styles.activityFooterAction}
         >
             <Text style={styles.footerText}>
-                {loadingMore ? 'Loading...' : 'Load More'}
+                Load More
             </Text>
         </Pressable>
     ) : null
     const emptyState = loading
         ? {
-              message: 'Loading league activity...',
-              description: 'Fetching adds, drops, trades, and league updates.',
+              message: '',
+              description: '',
               accessibilityLabel: 'Loading league activity. Fetching adds, drops, trades, and league updates.',
           }
         : {
@@ -143,7 +145,7 @@ export function ActivityFeed({
             accessibilityLiveRegion="polite"
             accessibilityState={{ busy: loading }}
         >
-            <EmptyState message={emptyState.message} description={emptyState.description} fullScreen={false} />
+            <View style={{ minHeight: 320 }}>{!loading ? <EmptyState message={emptyState.message} description={emptyState.description} fullScreen={false} /> : null}</View>
         </View>
     )
 
@@ -159,6 +161,9 @@ export function ActivityFeed({
     return (
         <View style={styles.column}>
             <FlashList
+                onScroll={statusScroll.onScroll}
+                scrollEventThrottle={16}
+                contentContainerStyle={statusScroll.contentStyle()}
                 data={transactions}
                 keyExtractor={(t) => t.id}
                 ItemSeparatorComponent={ItemSeparator}

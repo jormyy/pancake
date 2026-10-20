@@ -1,4 +1,5 @@
-import { View, Text, Pressable, StyleSheet, ScrollView, TextInput } from 'react-native'
+import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
+import { View, Text, Pressable, StyleSheet, TextInput } from 'react-native'
 import type {
     MockDraftRoom,
     MockDraftRoomKind,

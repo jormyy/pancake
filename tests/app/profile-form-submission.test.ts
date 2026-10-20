@@ -345,3 +345,26 @@ it('keeps editing busy when the profile resource updates before the team save se
     expect(mocks.success).toHaveBeenCalledOnce()
     expect(button('Edit')).toBeDefined()
 })
+
+
+it('reserves both identity lines and leaves unknown account values blank', async () => {
+    await act(async () => mocks.receiveProfile?.({ display_name: '', username: '', avatar_url: null }))
+    const names = screen.root.findAllByType('Text' as React.ElementType)
+        .filter(node => Array.isArray(node.props.style) && node.props.style.some((style: { minHeight?: number }) => style?.minHeight))
+    expect(names).toHaveLength(2)
+    expect(names.every(node => node.props.style.some((style: { minHeight?: number }) => (style?.minHeight ?? 0) > 0))).toBe(true)
+    const nameRow = screen.root.findAllByType('SettingsRow' as React.ElementType).find(node => node.props.label === 'Name')
+    await act(async () => button('Cancel').props.onPress())
+    expect(nameRow).toBeDefined()
+    const accountRows = screen.root.findAllByType('SettingsRow' as React.ElementType).filter(node => ['Name', 'Email'].includes(node.props.label))
+    expect(accountRows.every(node => node.props.value === '')).toBe(true)
+})
+
+
+it('leaves an unknown team name blank until the membership supplies it', async () => {
+    mocks.teamName = null as unknown as string
+    await act(async () => screen.update(React.createElement(ProfileScreen)))
+    await act(async () => button('Cancel').props.onPress())
+    const row = screen.root.findAllByType('SettingsRow' as React.ElementType).find(node => node.props.label === 'Team name')
+    expect(row?.props.value).toBe('')
+})

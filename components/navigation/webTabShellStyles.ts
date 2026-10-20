@@ -77,7 +77,8 @@ export const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     leagueSwitch: {
-        minHeight: 58,
+        height: 68,
+        flexShrink: 0,
         width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
@@ -111,11 +112,14 @@ export const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         fontSize: fontSize.md,
         fontFamily: fontFamily.displayMedium,
+        lineHeight: 18,
     },
     leagueMeta: {
         color: brand.onSubtle,
         fontSize: fontSize.xs,
+        lineHeight: 14,
     },
+    commissionerSlot: { height: 44 },
     // Light variant for the mobile top bar (web is light-themed). Kept at the
     // touch-target floor while staying visually aligned with the compact brand mark.
     leagueSwitchWrapLight: {
