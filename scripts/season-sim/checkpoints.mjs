@@ -3,10 +3,11 @@ import { execFileSync } from 'node:child_process'
 import { chmod, cp, mkdir, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { setClock } from './clock.mjs'
+import { functionFingerprint } from './overlay.mjs'
 import { config, miniRoot, sha256, writeJson } from './common.mjs'
 import { databaseEnvironment, localKeys, sql, sqlJson } from './local-stack.mjs'
 
-export const segmentNames = ['live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'pre-draft', 'next-season-start']
+export const segmentNames = ['live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'pre-draft', 'next-season-start', 'waiver-week']
 export const snapshotRoot = process.env.SEASON_SIM_SNAPSHOT_ROOT ?? path.resolve(miniRoot, '../../shared/sim/snapshots')
 
 async function snapshotDirectory(name) {
@@ -49,11 +50,16 @@ export async function restoreSnapshot(name) {
   assert.equal(await sql("SELECT current_setting('cron.launch_active_jobs')"), 'off')
   assert.equal(await sql('SELECT count(*) FROM cron.job'), '0')
   await setClock({ install: true, at: new Date(metadata.clock.sim_ms ?? metadata.clock.simMs).toISOString(), rate: 0 })
+  const definitionsBefore = await functionFingerprint()
   for (const table of metadata.tables) assert.match(table, /^(public|private|auth|season_sim)\.[a-z_][a-z0-9_]*$/, 'Snapshot table must be in a permitted schema')
   await sql(`TRUNCATE ${metadata.tables.join(',')} RESTART IDENTITY CASCADE`)
   execFileSync('pg_restore', ['--dbname', 'postgres', '--data-only', '--disable-triggers', '--no-owner', '--no-privileges', '--exit-on-error', path.join(directory, 'database.dump')], { env, stdio: ['ignore', 'ignore', 'pipe'] })
+  const definitionsAfter = await functionFingerprint()
+  assert.equal(definitionsAfter, definitionsBefore, 'Restoring data must preserve the lane application function definitions')
   await mkdir(path.join(miniRoot, 'evidence'), { recursive: true })
   await cp(path.join(directory, 'upstream-summary.json'), path.join(miniRoot, 'evidence/upstream-summary.json'))
   await cp(path.join(directory, 'state'), path.join(miniRoot, 'state'), { recursive: true })
+  metadata.restore = { definitionsBefore, definitionsAfter, functionsPreserved: true, restoredAt: new Date().toISOString(), dataOnly: true }
+  await writeJson(path.join(miniRoot, 'evidence/restore-proof.json'), metadata.restore)
   return metadata
 }

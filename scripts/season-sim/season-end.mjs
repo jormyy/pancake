@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { assertWaiverRollover, verifyWaivers } from './waiver-scenarios.mjs'
 import { completeOffseasonTrade } from './trade-scenarios.mjs'
 import { sql } from './local-stack.mjs'
 import { assertClientScores } from './live-checks.mjs'
@@ -19,6 +20,13 @@ export async function finishSeason(c, move, report, checkpoint, { snapshot = asy
   const championRead = await c.rest(c.users[0], `matchups?select=*&league_id=eq.${c.leagueId}&league_season_id=eq.${oldSeason}&matchup_type=eq.playoff_final`)
   await assertClientScores(c)
   report.champion = checkChampion(final, championRead[0])
+  const pendingWaivers = c.waiverScenarios?.find(row => row.name === 'postseason-pending')
+  if (pendingWaivers) {
+    assert.ok(!pendingWaivers.checked, 'A genuine waiver batch remains pending when the final finalizes')
+    const claims = await c.rest(c.users[0], `waiver_claims?select=id,status&league_season_id=eq.${oldSeason}&status=eq.pending`)
+    assert.equal(claims.length, pendingWaivers.input.claims.length, 'Final finalization preserves every pending waiver claim')
+    report.pendingWaiversAtChampion = { passed: true, claims: claims.length }
+  }
   const pending = report.actions.tradeDeadline
   if (await sql(`SELECT status FROM trades WHERE id='${pending.pendingTrade}'`) === 'pending') await c.api(c.users[1], `/trades/${pending.pendingTrade}/accept`, { memberId: c.users[1].memberId })
   await move(Number(await sql('SELECT extract(epoch FROM now())*1000')) + 6 * 60000)
@@ -31,7 +39,7 @@ export async function finishSeason(c, move, report, checkpoint, { snapshot = asy
   assert.ok(Number.isFinite(ready), 'The final must be finalized before waiting for rollover')
   const deadline = Math.max(start, ready) + 26 * 3600000
   report.rolloverRecovery = await waitForRollover({ start, deadline, oldSeason,
-    move: async at => { await checkpoint(`${at}:playoff-grace`); await move(at) },
+    move: async at => { await checkpoint(`${at}:playoff-grace`); await move(at); await verifyWaivers(c, report) },
     tick: () => maintenanceTick(),
     current: async () => {
       const current = await sql(`SELECT id FROM league_seasons WHERE league_id='${c.leagueId}' AND is_current`)
@@ -79,6 +87,7 @@ export async function finishSeason(c, move, report, checkpoint, { snapshot = asy
   }
   assert.equal(await sql(`SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s`), history, 'Automatic rollover preserves all stored game stats')
   assert.equal(await sql(historyQuery), resultsHistory, 'Rollover preserves season-one matchups and standings')
+  await assertWaiverRollover(c, oldSeason, report)
   c.previousSeasonId = oldSeason
   c.previousChampionId = final.id
   if (stopAfterRollover) return { passed: true, oldSeason, newSeason: c.leagueSeasonId, playoffGames: decided.length }
@@ -94,6 +103,8 @@ export async function finishRookieDraft(c, move, report, checkpoint, { snapshot 
   await move(Math.max(Date.parse('2026-06-26T14:00:00Z'), Number(await sql('SELECT extract(epoch FROM now())*1000'))))
   await snapshot('pre-draft', '2026-04-12', 1)
   const commissioner = c.users[0]
+  await c.rpc(commissioner, 'update_league_settings_atomic', { p_league_id: c.leagueId, p_settings: { waiver_mode: 'rolling' } })
+  report.waiverModeChange = { route: '/rest/v1/rpc/update_league_settings_atomic', from: 'faab', to: 'rolling', reason: 'One retained league covers both waiver modes and the same cross-season assets.' }
   const { draft } = await c.api(commissioner, '/draft/start-rookie', { leagueId: c.leagueId, rounds: 2, timerSeconds: 5, timerExpiryBehavior: 'auto_pick' })
   const draftId = draft.id ?? draft.draft_id ?? draft.draftId
   assert.ok(draftId, JSON.stringify(draft))

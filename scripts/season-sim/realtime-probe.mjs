@@ -25,6 +25,12 @@ export async function startRealtimeProbe(c, keys) {
   return { topic, events, async verify(matchups) {
     for (let attempt = 0; attempt < 50 && !events.length; attempt++) await delay(100)
     assert.ok(events.some(event => event.scoreChanged), 'Subscribed client must receive a real matchup score change')
+    const current = new Map(matchups.map(row => [row.id, row]))
+    const synchronized = () => [...new Map(events.map(event => [event.row.id, event.row]))].every(([id, received]) => {
+      const row = current.get(id)
+      return !row || ['home_points', 'away_points', 'is_finalized', 'winner_member_id'].every(key => received[key] === row[key])
+    })
+    for (let attempt = 0; attempt < 50 && !synchronized(); attempt++) await delay(100)
     const last = new Map(events.map(event => [event.row.id, event]))
     for (const row of matchups) {
       const received = last.get(row.id)?.row

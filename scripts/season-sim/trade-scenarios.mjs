@@ -53,5 +53,6 @@ export async function completeOffseasonTrade(c, move) {
   await move(now + 6 * 60000)
   assert.equal(await sql(`SELECT status FROM trades WHERE id='${proposed.tradeId}'`), 'completed')
   assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pickId}'`), b.memberId, 'Offseason pick trade transfers ownership through production processing')
-  return { tradeId: proposed.tradeId, pickId, owner: b.memberId, passed: true }
+  assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${requested}'`), a.memberId, 'Offseason pick trade transfers the counterparty asset')
+  return { tradeId: proposed.tradeId, pickId, owner: b.memberId, counterPickId: requested, counterOwner: a.memberId, passed: true }
 }

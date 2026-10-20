@@ -45,7 +45,83 @@ A missing champion or rollover must remain a failure.
 A commissioner matchup-generation request is an authenticated setup action.
 The installer records the actual migrated cron catalog before disabling jobs.
 
-Current replay sampling follows gate completion.
-Sampling every internal worker tick, complete ancillary cron inputs, and restored segment proofs remain acceptance requirements.
+Internal worker sampling uses the discrete-clock path described below.
+Complete ancillary input evidence and restored segment proofs remain acceptance requirements.
 Published segment durations stay unknown until measured.
 A short or resumed diagnostic run never counts as a fresh full replay.
+
+## Discrete clock and internal samples
+
+The replay pauses business time during database and HTTP work.
+It advances to each cron minute and each worker timer deadline.
+Network abort deadlines keep their real wall-clock budget.
+Fractional retry delays round up to a whole millisecond.
+The dispatcher distinguishes completed workers from delayed pg_net response collection.
+
+The Edge wrapper probes before every internal live-work read with a live-holder header.
+It also probes after each worker and gate.
+These reads include every internal tick, plus scoreboard reload reads.
+The origin checks a runtime token before it accepts a probe.
+A failed comparison fails the production dispatch.
+
+The late-season diagnostic skips completed calendar weeks through the commissioner configuration RPC.
+This creates a declared late-start league, with real games in its remaining weeks.
+It does not invent earlier results or bypass season-boundary rules.
+The full replay requires an empty application database.
+
+## Skipped first week and waivers
+
+The next-season fixture mapping covers October 20 through November 8, 2026.
+Its 146 games use the pinned published schedule and synthetic box/PBP inputs.
+Eastern game times change from UTC−4 to UTC−5 on November 1.
+The commissioner skips week 1 after schedule ingestion, before matchup generation.
+The replay requires no week-1 matchups, lineups, or standings.
+Weeks 2 and 3 keep their calendar numbers.
+Playoffs still start in configured calendar week 23.
+
+The initial league uses FAAB 100 and one weekly add.
+The waiver scenario submits real claims after real drops.
+Its oracle orders bids, current priority, claim order, submission time, and claim ID.
+It checks roster failures, over-budget rejection, awards, balances, priority, and add counts.
+The offseason commissioner changes this retained league to rolling waivers.
+This bounds runtime and keeps the same cross-season assets under test.
+Rolling scenarios run during skipped week 1 and eligible week 2.
+A separate batch remains pending at champion finalization.
+Expected rollover deferrals remain recorded until production waiver processing resolves that batch.
+These flows require measured replay evidence before acceptance.
+
+## Restore order
+
+Snapshot dumps contain data only.
+Restore installs the clock, fingerprints application functions, restores data, then checks the fingerprint again.
+Runtime startup checks that it preserves this fingerprint.
+The optional SQL overlay runs last, after runtime startup.
+No later restore replaces the lane's application definitions.
+
+```sh
+node scripts/season-sim/index.mjs --segment live-week \
+  --after-restore-sql /absolute/path/to/mutant.sql
+```
+
+The generated restore and segment proofs record function hashes and overlay hashes.
+A missing snapshot or failed baseline cannot serve as a mutation oracle.
+The current integrated late-season diagnostic is incomplete.
+Base-versus-integration season-end evidence and complete segment proofs remain required.
+
+The replay serves the pinned next-season schedule from July 1 in this synthetic scenario.
+It does not measure the schedule's historical publication date.
+Next-season roster and injury responses derived from mapped games carry the SYNTHETIC label.
+
+Maximum-score candidates come from roster ownership and availability transactions at each game's tipoff.
+The oracle folds that history independently and checks player position eligibility.
+A later drop cannot erase an earlier bench player's maximum-score eligibility.
+Weekly lineup rows only supply actual starter scores.
+
+A retained-state check can isolate a harness correction without rerunning application outcomes:
+
+```sh
+SEASON_SIM_SNAPSHOT_ROOT="$TASK/shared/sim/snapshots-r2" \
+node scripts/season-sim/retained-check.mjs --date 2026-03-22
+```
+
+This check never counts as a fresh replay.

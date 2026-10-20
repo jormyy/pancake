@@ -14,7 +14,7 @@ function scoreboardTeam(team) {
   return Object.fromEntries(['teamId', 'teamName', 'teamCity', 'teamTricode', 'score'].map(key => [key, team[key]]))
 }
 
-export async function startOrigin({ resume = false } = {}) {
+export async function startOrigin({ resume = false, probeToken = '' } = {}) {
   const directory = await laneDirectory(path.join(miniRoot, 'fixtures'))
   const evidence = await laneDirectory(path.join(miniRoot, 'evidence'))
   const store = await fixtureStore(directory)
@@ -78,11 +78,18 @@ export async function startOrigin({ resume = false } = {}) {
       return { ...person, team: observation.team, position: { abbreviation: observation.position }, status: { type: 'active' } }
     })
   }
-  const server = /** @type {http.Server & { historicalRoster: () => { espnId: string, nbaTeam: string }[], coverage: typeof recorder.report, flushCoverage: typeof recorder.save }} */ (http.createServer(async (request, response) => {
+  const server = /** @type {http.Server & { historicalRoster: () => { espnId: string, nbaTeam: string }[], coverage: typeof recorder.report, flushCoverage: typeof recorder.save, onLiveSample?: (sample: { phase: string }) => Promise<void> }} */ (http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host}`)
     try {
       assertTarget(url.origin, 'replay')
       assert.equal(request.method, 'GET')
+      if (url.pathname === '/__sim/live-sample') {
+        assert.ok(probeToken && request.headers['x-sim-probe-token'] === probeToken, 'Internal live sampling requires the local runtime token')
+        await server.onLiveSample?.({ phase: url.searchParams.get('phase') })
+        response.setHeader('Content-Type', 'application/json')
+        response.end(JSON.stringify({ ok: true }))
+        return
+      }
       const at = now(), date = etDate(new Date(at).toISOString())
       let fault
       try { fault = JSON.parse(readFileSync(path.join(miniRoot, 'state/fault.json'), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
@@ -160,6 +167,10 @@ export async function startOrigin({ resume = false } = {}) {
         provenance = 'SYNTHETIC'
         source = 'invented rookie prospects; historical draft and career coverage unavailable'
       } else throw new Error(`Unimplemented historical endpoint: ${url.pathname}`)
+      if (games.some(game => game.provenance === 'SYNTHETIC' && game.date <= date) && (url.pathname === '/espn/injuries' || /^\/espn\/teams\/\d+\/roster$/.test(url.pathname))) {
+        provenance = 'SYNTHETIC'
+        source = 'Roster and injury observations include synthetic next-season mappings'
+      }
       response.setHeader('Content-Type', 'application/json')
       response.setHeader('X-Sim-Provenance', provenance)
       response.end(JSON.stringify(payload))

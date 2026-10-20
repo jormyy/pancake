@@ -36,11 +36,12 @@ export function checkMatchupPoints({ matchups, starters, candidates = starters, 
       const days = new Map()
       for (const row of candidates.filter(row => row.member_id === matchup[`${side}_member_id`] && row.week_number >= matchup.week_number && row.week_number <= (matchup.end_week_number ?? matchup.week_number))) {
         const key = row.lineup_date ?? row.game_id
-        const values = days.get(key) ?? []
-        values.push(statPoints(row, settings))
+        const values = days.get(key) ?? new Map()
+        const player = row.player_id
+        values.set(player, (values.get(player) ?? 0) + statPoints(row, settings))
         days.set(key, values)
       }
-      const maximum = [...days.values()].reduce((sum, values) => sum + values.sort((a, b) => b - a).slice(0, starterLimit).reduce((total, value) => total + Math.max(0, value), 0), 0)
+      const maximum = [...days.values()].reduce((sum, byPlayer) => sum + [...byPlayer.values()].sort((a, b) => b - a).slice(0, starterLimit).reduce((total, value) => total + Math.max(0, value), 0), 0)
       if (matchup.is_finalized) assert.equal(Number(matchup[`${side}_max_possible_points`]), roundPoints(maximum), `${matchup.id}: ${side} maximum from daily roster candidates`)
       const before = previous[matchup.id]
       if (before && observed[side] < before[side]) {
@@ -81,4 +82,60 @@ export function checkWeeklyRows({ matchups, standings, members, week, expectedMa
     for (const [key, value] of Object.entries(expected)) assert.equal(Number(actual[key]), roundPoints(value), `Week ${week}: standings ${member}/${key}`)
   }
   return { week, matchups: weekRows.length, standings: snapshots.length, passed: true }
+}
+
+export function checkStarterCoverage(matchup, observation, allowedEmptyMembers = []) {
+  for (const side of ['home', 'away']) {
+    if (allowedEmptyMembers.includes(matchup[`${side}_member_id`])) continue
+    assert.ok(Object.keys(observation.source).some(key => key.startsWith(`${side}:`)), `${matchup.id}: ${side} finalized matchup needs starter stat coverage`)
+  }
+  return true
+}
+
+export function rosterCandidates({ stats, transactions, roster, members }) {
+  const additions = new Set(['fa_add', 'waiver_add', 'trade_in', 'draft_won', 'carry_over'])
+  const removals = new Set(['fa_drop', 'waiver_drop', 'trade_out'])
+  const inactive = new Set(['ir_designate', 'taxi_designate'])
+  const active = new Set(['ir_return', 'taxi_return'])
+  const positions = new Set(['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'])
+  const history = new Map(), current = new Map()
+  for (const row of roster) current.set(`${row.member_id}:${row.player_id}`, row)
+  for (const row of transactions) {
+    const key = `${row.member_id}:${row.player_id}`
+    const rows = history.get(key) ?? []
+    rows.push(row)
+    history.set(key, rows)
+  }
+  for (const rows of history.values()) rows.sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at) || a.id.localeCompare(b.id))
+  const candidates = []
+  for (const stat of stats) {
+    assert.ok(Number.isFinite(Date.parse(stat.game_time)), 'Historical roster eligibility requires the game tipoff')
+    const eligible = stat.eligible_positions?.length ? stat.eligible_positions : [stat.position]
+    if (!eligible.some(position => positions.has(position))) continue
+    for (const member of members) {
+      const key = `${member}:${stat.player_id}`, cutoff = Date.parse(stat.game_time)
+      const events = (history.get(key) ?? []).filter(row => Date.parse(row.occurred_at) <= cutoff)
+      const ownership = events.filter(row => additions.has(row.transaction_type) || removals.has(row.transaction_type))
+      let owned = false, available = false
+      if (ownership.length) {
+        for (const event of events) {
+          if (additions.has(event.transaction_type)) { owned = true; available = event.acquired_to_taxi !== true }
+          else if (removals.has(event.transaction_type)) { owned = false; available = false }
+          else if (owned && inactive.has(event.transaction_type)) available = false
+          else if (owned && active.has(event.transaction_type)) available = true
+        }
+      } else {
+        const row = current.get(key)
+        if (!row || row.is_on_ir || row.is_on_taxi || row.acquired_at && Date.parse(row.acquired_at) > cutoff) continue
+        owned = true
+        available = true
+        for (const event of events.filter(event => !row.acquired_at || Date.parse(event.occurred_at) >= Date.parse(row.acquired_at))) {
+          if (inactive.has(event.transaction_type)) available = false
+          else if (active.has(event.transaction_type)) available = true
+        }
+      }
+      if (owned && available) candidates.push({ ...stat, member_id: member })
+    }
+  }
+  return candidates
 }
