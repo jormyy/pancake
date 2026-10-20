@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Sheet } from './Sheet'
 
-export type FilterOption<T extends string> = { key: T; label: string }
+type FilterOption<T extends string> = { key: T; label: string }
 
 type Variant = 'field' | 'chip'
 

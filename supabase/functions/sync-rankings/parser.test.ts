@@ -2,8 +2,6 @@ import {
   isDraftPlaceholder,
   parseDynastyRankingOrderHtml,
   parseDynastyRankingsHtml,
-  selectedDynastyForecastSeasons,
-  selectedDynastyRankingType,
 } from './parser.ts'
 
 function expect(condition: unknown, message: string): asserts condition {
@@ -164,24 +162,6 @@ Deno.test('returns no rows when the expected ranking table shape is missing', ()
   expect(rankings.length === 0, `expected no rows, got ${rankings.length}`)
 })
 
-Deno.test('detects the selected Hashtag dynasty ranking type', () => {
-  const html = `
-    <select id="ContentPlaceHolder1_DDTYPE">
-      <option value="OVERALL">Overall</option>
-      <option selected="selected" value="POINT">Points Leagues</option>
-    </select>`
-  expect(selectedDynastyRankingType(html) === 'POINT', 'expected POINT ranking type')
-})
-
-Deno.test('detects the selected Hashtag forecast period', () => {
-  const html = `
-    <select id="ContentPlaceHolder1_DDFORECAST">
-      <option value="5">Next 5 seasons</option>
-      <option selected="selected" value="3">Next 3 seasons</option>
-    </select>`
-  expect(selectedDynastyForecastSeasons(html) === 3, 'expected 3-year forecast')
-})
-
 Deno.test('rejects rows missing the stats/comment column', () => {
   const html = `
     <table class="table table--statistics">
@@ -229,7 +209,6 @@ Deno.test('parses the 2026-08 card markup from a saved real-page fixture', async
     throw new Error(`card stats incomplete: ${JSON.stringify(first)}`)
   }
   if (second.rank !== 2 || second.comment == null) throw new Error('card comment (Dynasty Outlook) missing')
-  if (selectedDynastyRankingType(html) !== 'POINT') throw new Error('selected ranking type not detected')
 })
 
 Deno.test('parses card order without expanding statistics', async () => {

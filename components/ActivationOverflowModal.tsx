@@ -7,7 +7,7 @@ import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 
-export type ActivationOverflowPending = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType?: string | null } | null
+type ActivationOverflowPending = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType?: string | null } | null
 
 export function ActivationOverflowModal({
     pending,

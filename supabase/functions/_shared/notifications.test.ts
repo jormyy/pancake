@@ -1,7 +1,7 @@
 import {
   createNotifyMember,
   createNotifyMembers,
-  isPermanentNotificationFailure,
+  notificationFailureDisposition,
   NotificationDeliveryError,
   type NotificationBatchDependencies,
   type NotificationDeliveryFailureCode,
@@ -151,7 +151,7 @@ Deno.test('bulk notification delivery clears invalid tokens and classifies the r
     }])
     throw new Error('expected invalid token delivery to fail')
   } catch (error) {
-    if (!isPermanentNotificationFailure(error)) throw error
+    if (notificationFailureDisposition(error) !== 'discard') throw error
   }
   if (JSON.stringify(invalidated) !== JSON.stringify([{
     userId: 'user-a',

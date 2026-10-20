@@ -12,14 +12,12 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
-.kotlin/
+# Merge backups and private keys
 *.orig.*
 *.jks
 *.p8
 *.p12
 *.key
-*.mobileprovision
 
 # Metro
 .metro-health-check*
@@ -35,6 +33,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env.perf-functions
+.env.perf-run
 
 # typescript
 *.tsbuildinfo
@@ -43,22 +43,13 @@ yarn-error.*
 tests/artifacts/
 tests/snapshots/
 tests/*.md
+tests/source-health/
 tests/e2e-state.json
 tests/e2e-browser-*-report.json
 tests/e2e-pwa-update-report.json
-validation/*
-!validation/
-!validation/fresh-hardening-report.md
 
-# docs
 /*.md
 !README.md
-
-app-example
-
-# generated native folders
-/ios
-/android
 
 # env files
 .env
@@ -71,7 +62,9 @@ skills-lock.json
 .claude/
 
 # editor
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .windsurf/
 
 # Regenerated soak summary

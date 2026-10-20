@@ -25,7 +25,7 @@ export type PlayerSearchParams = {
     seasonYear: number | null
 }
 
-export type PlayerSearchFilterState = {
+type PlayerSearchFilterState = {
     query: string
     position: string
     selectedTeams: string[]

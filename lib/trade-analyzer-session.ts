@@ -1,6 +1,6 @@
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
-export type TradeAnalyzerDraft = {
+type TradeAnalyzerDraft = {
     leagueId: string
     actorMemberId: string
     participantMemberIds: string[]

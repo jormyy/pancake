@@ -5,7 +5,7 @@ import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 // An unsent trade kept in this tab's session storage, so a page reload (an app update reloads the
 // page) brings the editor back. The editor clears it on send and when it closes, so in-app
 // navigation never restores it; only a reload, which skips React cleanup, finds it again.
-export type TradeComposerDraft = {
+type TradeComposerDraft = {
     ownerIdentity: string
     mode: string
     sourceTradeId: string | null

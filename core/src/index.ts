@@ -38,7 +38,6 @@ export {
 
 // Roster
 export { isIREligible, isDTD, isTaxiEligible } from './roster/eligibility'
-export { isRosterFull, hasTaxiSpace } from './roster/limits'
 
 // Positions
 export {

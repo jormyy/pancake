@@ -28,13 +28,7 @@ import { AppState, type AppStateStatus } from 'react-native'
 import { leagueSnapshotRevision } from '@/lib/league-changes'
 import { usePanelActivity } from '@/contexts/panel-activity'
 
-export type SortMode = PlayerSearchSortMode
-type SortDir = PlayerSearchSortDir
-
 export const SORT_OPTIONS = PLAYER_SEARCH_SORT_OPTIONS
-export type HealthFilter = PlayerSearchHealthFilter
-export type AvailabilityFilter = PlayerAvailabilityFilter
-export type PlayingFilter = PlayerPlayingFilter
 
 type CachedPage = {
     players: PlayerRow[]
@@ -122,11 +116,11 @@ export function usePlayerSearch(
     const [query, setQuery] = useState('')
     const [position, setPosition] = useState('ALL')
     const [selectedTeams, setSelectedTeams] = useState<string[]>([])
-    const [playingFilter, setPlayingFilter] = useState<PlayingFilter>('all')
-    const [sortMode, setSortMode] = useState<SortMode>('fpts')
-    const [sortDir, setSortDir] = useState<SortDir>('desc')
-    const [health, setHealth] = useState<HealthFilter>('all')
-    const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('free_agents')
+    const [playingFilter, setPlayingFilter] = useState<PlayerPlayingFilter>('all')
+    const [sortMode, setSortMode] = useState<PlayerSearchSortMode>('fpts')
+    const [sortDir, setSortDir] = useState<PlayerSearchSortDir>('desc')
+    const [health, setHealth] = useState<PlayerSearchHealthFilter>('all')
+    const [availabilityFilter, setAvailabilityFilter] = useState<PlayerAvailabilityFilter>('free_agents')
     const [rookiesOnly, setRookiesOnly] = useState(false)
     const [seasonYear, setSeasonYear] = useState<number | null>(null)
     const [players, setPlayers] = useState<PlayerRow[]>([])

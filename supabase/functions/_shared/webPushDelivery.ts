@@ -26,7 +26,7 @@ export type WebPushSnapshot = { endpoint: string; user_id: string; updated_at: s
 type StoredSubscription = WebPushSubscription & WebPushSnapshot
 type LookupError = { message: string }
 
-export type WebPushFanoutDependencies = {
+type WebPushFanoutDependencies = {
   vapid: () => VapidKeys | null
   subscriptions: (userIds: string[]) => Promise<{ data: StoredSubscription[] | null; error: LookupError | null }>
   prune: (subscriptions: WebPushSnapshot[]) => Promise<{ error: LookupError | null; count?: number }>

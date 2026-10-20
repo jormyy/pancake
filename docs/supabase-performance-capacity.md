@@ -1,182 +1,41 @@
-# Database performance and capacity
+# Database performance contracts
 
-## Measurement scope
+## Scoring
 
-Measurements date from October 18, 2026. Hosted reads contain metadata and aggregates only.
-The local benchmark uses 600 players, 240,360 stat rows, six historical seasons, and three leagues.
-Each authenticated HTTP query runs once, then repeats ten times. Timings include HTTP and JSON decoding.
-The database cache stays warm. The first request is not a cold database benchmark.
-The isolated VM has two CPUs and 4 GiB of memory.
-The earlier baseline uses 239,520 stats, ten managers, 700 lineups, and different compute.
-These results establish local query latency. They do not establish hosted latency, browser speed, or a league capacity ceiling.
+Scoring reuses certified closed-week maximum points when the input certificate remains valid.
+Cold repair and invalid certificates still run the exact search.
+Stale-week detection checks each distinct week before expanding its result.
+Stat corrections, IR history, and scoring settings remain inputs to correctness.
+Run `npm run test:db:skipped-week-certificates` for the closed-week regression.
 
-Run `scripts/bench/server-queries.mjs` only against an isolated local database.
-Supply the output directory and the prior refresh function source as arguments.
-It creates owned fixtures and removes them after measurement. It requires an unused current-season calendar.
+The projection query selects the next regular-season game once per requested team within each statement.
+It keeps season, date, team, regular-season filtering, and game ordering intact.
+It creates no persistent snapshot.
+Trade veto reads check `private.can_read_trade(trade_id)` directly for each veto row.
+They retain the existing participant and league access rules.
 
-## Local authenticated reads
+Health-filtered player search reuses score rows within its statement.
+Other searches keep the direct view path.
+This adds no stored cache or new source authority.
 
-| Read | Returned rows | Median, ms | p95, ms |
-| --- | ---: | ---: | ---: |
-| search-50 | 50 | 31.86 | 35.13 |
-| search-name | 50 | 30.08 | 31.07 |
-| player-detail | 1 | 2.11 | 2.63 |
-| player-game-log | 7 | 1.72 | 2.02 |
-| projection-player | 1 | 6.19 | 6.57 |
-| projection-600 | 600 | 38.61 | 45.12 |
-| dynasty-inputs-600 | 600 | 44.05 | 50.09 |
-| averages-season | 600 | 5.00 | 6.12 |
+## Measurements
 
-All measured reads meet the 500 ms investigation threshold. No speculative query rewrite follows from historic maximum timings.
-Projection and dynasty requests retain their bounded SQL limits and existing authorization checks.
+The [benchmark guide](../scripts/bench/README.md) owns setup, fixtures, clocks, and comparison commands.
+The profiler measures authenticated reads and local job handlers against synthetic data.
+Its fixed fixture represents a dense capacity workload, not an average NBA week.
+Provider responses can be pinned. Such results do not measure internet latency or new-stat ingestion.
+Host Deno execution excludes hosted Edge startup and CPU quotas.
+Summed nested statement time does not measure CPU time.
+With five observations, nearest-rank p95 equals the largest observation.
 
-## Cache refresh cost
+Confirm equal outputs before comparing measurements.
+Save raw samples, source hashes, statement snapshots, and plans outside the checkout.
+Run `npm run bench:profile:report -- <input-json> <output-markdown>` to render a saved profile.
+The [verification guide](verification.md#capacity-profile-and-paired-scoring) defines reporting requirements.
 
-| Leagues | Distinct scoring rules | Cached rows | Full refresh, ms |
-| ---: | ---: | ---: | ---: |
-| 3 | 1 | 10,440 | 794 |
-| 30 | 1 | 104,400 | 1,400 |
-| 30 | 11 | 104,400 | 4,448 |
+## Retained recovery sources
 
-The view expands each player's available seasons across leagues. Scoring-rule diversity adds computation without changing row cardinality.
-These timings include two local SQL client launches. They are single full-refresh observations, not percentile estimates.
-Allocated relation sizes include prior benchmark churn. They must not become per-league storage forecasts.
-
-The old unchanged-refresh check scans 240,360 stats and touches 5,115 buffers.
-The source-revision check reads one row and touches one buffer.
-Eleven old checks take 16.6–18.6 ms. The new checks take 0.009–0.448 ms, including the first call.
-Source changes, scoring changes, game eligibility changes, and deletes invalidate the revision.
-No-row writes and unchanged game metadata leave it unchanged. Rolled-back writes do not advance it.
-A transactional revision prevents an uncommitted write from being marked refreshed.
-An advisory lock prevents overlapping full refreshes.
-The revision row serializes source invalidations within their write transactions; keep ingestion transactions short.
-
-## Hosted counters and growth
-
-The database occupies 191,802,515 bytes at 16:48 UTC. Player stats occupy 92,643,328 bytes, including 46,055,424 index bytes.
-These values do not disclose the project's storage allocation or billing tier.
-
-| Season | Stat rows | Sum of row bytes |
-| ---: | ---: | ---: |
-| 2021 | 32,083 | 5,682,868 |
-| 2022 | 38,158 | 6,753,808 |
-| 2023 | 38,438 | 6,805,256 |
-| 2024 | 41,086 | 7,264,984 |
-| 2025 | 41,963 | 7,420,444 |
-| 2026 | 43,188 | 7,640,688 |
-
-Row-byte sums exclude indexes, page slack, and other tables. They are not storage growth forecasts.
-Each complete synthetic season contains 39,360 rows and 6,455,040 row bytes.
-No measurement supports partitioning or removing history at the observed scale.
-
-Database temporary bytes total 1,269,404,049,146; their reset timestamp is unknown.
-The counter increases by 89,543,736 bytes and eighteen files over twelve minutes, forty-nine seconds.
-This proves new temporary-file activity. It does not identify its query source.
-Statement statistics reset on May 14, 2026. They cover 24,766,242 calls and 301,511 temporary blocks written.
-Historic statement maxima and cumulative database counters cannot describe current request latency.
-Collect matched interval deltas before attributing spills or changing memory settings.
-
-## Index and maintenance decisions
-
-Keep both stats indexes. One indexes `(player_id, season_year, game_date DESC)`; the other indexes `(game_date, player_id)`.
-Authenticated plans use the first for player logs and the second for date-plus-player lookup.
-Neither index belongs to a constraint. Different column order serves different reads.
-Keep narrower lineup indexes until plans prove redundancy. Zero scans since a reset do not prove uselessness.
-No index is removed by this change.
-
-The advisory query flags thirty-seven foreign keys without an unconditional leading index.
-Several already have usable partial indexes, including dynasty players and trade-item players, picks, and members.
-Membership authorization already has `(user_id, league_id)` and `(league_id, user_id)` indexes.
-Taxi reads use league-prefixed primary keys. Explicit member and outsider checks preserve access boundaries.
-Most remaining gameplay tables are empty in the hosted snapshot. No measured hot plan justifies additional indexes now.
-Review parent-deletion and member-removal latency when those tables grow. Preserve every constraint.
-
-Estimated dead tuples are 13,827 for player stats and 1,590 for games.
-Dead-tuple estimates do not measure reclaimable file space or justify a table rewrite.
-No production vacuum, reindex, delete, or retention reduction occurs during this work.
-The daily response maintenance schedule retains ordinary vacuum; local tests prove expired-page reuse and live-response preservation.
-
-## Scheduler decisions
-
-The trade gate retains its five-minute schedule. It starts the worker only for due trades, notifications, or receipts.
-The reconciler retains five minutes. Its hosted mean runtime is 93.3 ms across 2,016 weekly runs.
-That is about 26.9 database execution seconds per day, before future gating savings.
-Reducing its frequency would delay failure detection and claim recovery.
-
-Nomination, stats, live, and lineup gates remain separate. Their observed mean runtimes sum to about 166 ms per coincident tick.
-This sum does not measure connection setup or prove a shared connection bottleneck.
-Combining them would couple failures without a demonstrated latency benefit.
-Cron logging remains enabled. Its controls require a server restart, and the installed job catalog has no per-job logging switch.
-Successful operational retention limits log growth without suppressing failures.
-
-Response maintenance falls from twenty-four daily executions to one.
-The hosted snapshot has seventy-three live responses, zero estimated dead rows, and a 327,680-byte relation.
-The previous weekly sample has 168 successful maintenance runs averaging 119 ms.
-The supervisor verifies size and reconciliation latency after release, especially because local and hosted pg_net versions differ.
-
-## Investigation thresholds and owners
-
-These are engineering triggers, not platform quotas or promises.
-
-| Signal | Investigation trigger | Owner and action |
-| --- | --- | --- |
-| Hot reads | Repeatable p95 above 500 ms | Server owner captures authenticated plans and checks payload size and RLS costs. |
-| Live scores | Repeated ingestion gaps above 24 seconds during healthy provider responses | Server owner measures query, provider, lease, and CPU time against the twenty-second cadence. |
-| Trade delivery | Due work remains beyond the next five-minute dispatch plus worker runtime | Server owner checks gate predicates, claims, receipts, and dead letters. |
-| Worker failure | No start or finish after ten minutes, still unreconciled after the next five-minute tick | Server owner checks durable outcomes and dispatch recovery. |
-| Cache refresh | Repeated refreshes exceed ten seconds or overlap their next scheduled start | Database owner compares rule diversity, cardinality, plans, and lock waits. |
-| Connections | Sustained use exceeds 48 of the observed 60 connections | Database owner checks pool use and competing jobs; confirms current allocation before resizing. |
-| Storage | Weekly growth leaves less than ninety days against confirmed allocated capacity | Project owner confirms the dashboard allocation; database owner measures table and index growth. |
-| Temporary files | Positive interval deltas coincide with slow requests | Database owner matches statement deltas and plans before changing memory. |
-| External alerts | A destination or delivery credential is absent | Project owner selects and authorizes the destination and integration. |
-
-## Runtime limits
-
-Official Edge limits list 256 MB memory, two CPU seconds per request, and 150-second free or 400-second paid worker lifetimes.
-Asynchronous waiting does not count as CPU time. Request idle timeout is 150 seconds.
-The 110-second live worker and 115-second abort guard fit both wall-time limits.
-Local Deno tests do not prove hosted CPU compliance; hosted CPU measurement remains a release observation.
-No billing tier follows from database settings.
-[Official Edge limits](https://supabase.com/docs/guides/functions/limits).
-
-Cron recommends at most eight concurrent jobs and ten minutes per job. These are recommendations, not hard limits.
-The hosted `cron.max_running_jobs` setting is 32. It does not establish available resources or safe concurrency.
-[Official Cron guidance](https://supabase.com/docs/guides/cron).
-
-## Paired scoring profile — October 19, 2026
-
-Five interleaved BEFORE/AFTER pairs use one warmed synthetic fixture on the mini.
-Each pair runs BEFORE first. The copies share provider responses, runtime, arguments, and measurement scripts.
-Scores, standings, score timestamps, and notification content match in every run.
-
-| Workload | BEFORE median / p95, ms | AFTER median / p95, ms | BEFORE DB median / p95, ms | AFTER DB median / p95, ms |
-| --- | ---: | ---: | ---: | ---: |
-| sync-scores | 65,664.60 / 84,147.83 | 1,634.14 / 2,594.31 | 13,924.16 / 19,084.00 | 7,632.01 / 12,783.81 |
-| sync-scores-engine-no-provider | 66,813.80 / 92,748.13 | 2,053.26 / 3,039.54 | 15,692.33 / 23,327.97 | 9,686.86 / 14,257.75 |
-| stale-score-weeks | 150.57 / 169.44 | 36.46 / 40.40 | 147.58 / 167.45 | 35.00 / 37.06 |
-
-The measured scoring median improves 40.18 times. Warm valid certificates avoid repeated maximum-points roster reads.
-The distinct-first stale-week query reduces input-token calls from 120 to 20 per request.
-Cold repair and invalid certificates still use the exact search. Last-week stat and IR corrections retain explicit database regressions.
-
-All 43 authenticated read cases pass the 100 ms database and 300 ms HTTP p95 budgets in both versions.
-The largest AFTER database p95 is 61.27 ms; the largest HTTP p95 is 71.83 ms.
-The projection-capacity HTTP median rises from 40.32 to 54.92 ms. Its ranges overlap, and its query code stays unchanged.
-Those samples do not establish a code-caused regression.
-
-The fixture contains 600 synthetic players, 1,230 games, 49,200 stat rows, and thirty twelve-team leagues.
-Each team has fifteen roster players. Eleven scoring settings vary the points weight.
-Every synthetic player has 82 games without DNP rows. This dense workload does not represent an average NBA week.
-Cold BEFORE preparation takes 1,380.06 seconds and stays outside the paired table.
-The earlier independent baseline records a scoring median of 87,055.66 ms. It is not the BEFORE value for these pairs.
-
-The host is an Apple M4 with ten logical CPUs and 24 GiB RAM. The shared task VM has 7 GiB RAM.
-Versions are Node 22.23.3, Deno 2.7.14, Supabase CLI 2.109.1, and PostgreSQL 17.6.
-BEFORE one-minute load spans 2.73–10.43; AFTER spans 2.72–7.38. Shared-host load limits timing attribution.
-With five observations, nearest-rank p95 is the largest sample. Summed overlapping database statements do not measure CPU time.
-Host Deno runs handlers through local PostgREST. These samples exclude hosted Edge startup, CPU quotas, and production scheduler overlap.
-Pinned provider responses do not measure internet latency or successful new-stat ingestion.
-
-Run the [profile recipe](./verification.md#capacity-profile-and-paired-scoring) on an isolated local stack.
-Source numbers: release evidence `perf/after.md` and `perf/baseline.md`, captured October 19, 2026.
-Raw paired samples, source hashes, output digests, statement snapshots, and plans remain in `perf/after.json` and `perf/round2/scoring-after.json`.
+Projection lookup recovery replaces the function with its prior canonical definition and reloads the PostgREST schema.
+Replacement preserves the function identity, grants, and dependencies. Do not drop the function.
+Trade-veto policy recovery restores its prior statement from `supabase/migrations/20260328000004_rls_policies.sql` in one bounded transaction.
+Neither recovery restores old data or bypasses the attested release checks.

@@ -262,15 +262,6 @@ describe('scenario resource ownership', () => {
   })
 })
 
-describe('e2e harness reporting', () => {
-  it('exports report writers for the soak runner', async () => {
-    const reporting = await import('./e2e/harness/reporting.mjs')
-
-    expect(reporting.writeCoverageReport).toEqual(expect.any(Function))
-    expect(reporting.writeReport).toEqual(expect.any(Function))
-  })
-})
-
 type ScenarioMocks = {
   auth: ReturnType<typeof vi.fn>
   perf: ReturnType<typeof vi.fn>

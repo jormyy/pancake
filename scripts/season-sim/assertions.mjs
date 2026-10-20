@@ -8,7 +8,7 @@ import { sql, sqlJson } from './local-stack.mjs'
 
 const fields = { points: 'points', assists: 'assists', rebounds: 'reboundsTotal', offensive_rebounds: 'reboundsOffensive', defensive_rebounds: 'reboundsDefensive', steals: 'steals', blocks: 'blocks', turnovers: 'turnovers', personal_fouls: 'foulsPersonal', field_goals_made: 'fieldGoalsMade', field_goals_attempted: 'fieldGoalsAttempted', three_pointers_made: 'threePointersMade', three_pointers_attempted: 'threePointersAttempted', free_throws_made: 'freeThrowsMade', free_throws_attempted: 'freeThrowsAttempted', plus_minus: 'plusMinusPoints' }
 
-export function assertFinalPlayer(stored, expected) {
+function assertFinalPlayer(stored, expected) {
   for (const [column, source] of Object.entries(fields)) assert.equal(stored[column], expected.statistics[source], `${expected.name}: ${column}`)
   const minutes = /^PT(\d+)M([\d.]+)S$/.exec(expected.statistics.minutes)
   assert.ok(minutes)

@@ -62,23 +62,34 @@ Manual and automatic writes share the existing roster and date locks.
 Unchanged assignments preserve row identities and timestamps.
 Dispatch tables and RPCs are service-only. Client setting permissions stay unchanged.
 
-## Rollout and rollback
+## Operations
 
-Deploy the Edge function, then apply `20261014000001_pre_tipoff_lineups.sql`.
-The new code still supports the old scheduler.
-No preference backfill runs. No existing setting or lineup is deleted by the migration.
-The migration adds two internal ledgers, an index, and service-only functions.
-It changes the existing cron job to the new predicate.
+The scheduler migration is `supabase/migrations/20261014000001_pre_tipoff_lineups.sql`.
+The default-on migration is `supabase/migrations/20261014000002_default_daily_lineup_optimizer.sql`.
+Both remain published history. Later migrations refine retries and dispatch guards.
+Use the canonical functions and current Edge code when checking behavior.
 
-Run `supabase/rollbacks/20261014000001_pre_tipoff_lineups_rollback.sql` to restore the ten-minute job.
-The rollback fences existing claims and keeps all data and additive schema. The old predicate and Edge path remain callable.
-Restore the scheduler and let the current tipoff window end before rolling back the Edge deployment.
-The old scheduler resumes its old behavior, including future-date optimization and its first-tipoff day gate.
+The retained rollback is `supabase/rollbacks/20261014000001_pre_tipoff_lineups_rollback.sql`.
+It restores the older scheduler and fences claims while retaining additive schema and data.
+It also restores older optimization behavior. Review current migration compatibility before using it.
 
-## Default rollout
+Owner RLS and composite foreign keys bind each setting to its member, league, and season.
+Clients can write only the approved setting columns.
+The toggle rejects offline admission and never replays that intent on reconnect.
 
-Apply `20261014000002_default_daily_lineup_optimizer.sql` once after the scheduler migration.
-It enables all current teams and sets the database default to true.
-Member and season triggers create settings for league creation, invite joins, and season changes.
-Later seasons copy each manager's previous choice. Existing settings keep explicit false values.
-The migration changes no lineups. The switch uses the existing owner mutation.
+```sh
+npm run test:db:pre-tipoff
+npm run test:db:optimizer-default
+npm run test:db:optimizer-context
+```
+
+Use the [benchmark guide](../scripts/bench/README.md) for isolated dispatch and assignment measurements.
+
+## Setting recovery
+
+The retained settings recovery plan first revokes client INSERT/UPDATE privileges on the five approved columns.
+It then drops the member/league and season/league composite foreign keys, followed by their parent unique indexes.
+Keep the original foreign keys, rows, RLS, table grants, and triggers.
+Use one bounded transaction and verify inconsistent tuples before reapplication.
+Published migration `supabase/migrations/20261008000002_optimizer_setting_context_writes.sql` defines the exact objects and original grants.
+Recovery must follow the attested release process. Do not edit applied migrations.

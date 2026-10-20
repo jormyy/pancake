@@ -3,10 +3,10 @@ import type { connect } from './request-driver.ts'
 export const seed = 6172026
 export const id = (value: number) => `617fd6e6-0000-4000-8000-${String(value).padStart(12, '0')}`
 export const leagueId = id(1)
-export const seasonId = id(2)
+const seasonId = id(2)
 export const slots = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
 export type Game = { sourceId: string; time: string; date: string; home: string; away: string; postponed: boolean }
-export const positions = [['PG'], ['SG'], ['SF'], ['PF'], ['C'], ['PG', 'SG'], ['SF', 'PF'], ['PF', 'C'], ['PG', 'SF'], ['SG', 'SF']]
+const positions = [['PG'], ['SG'], ['SF'], ['PF'], ['C'], ['PG', 'SG'], ['SF', 'PF'], ['PF', 'C'], ['PG', 'SF'], ['SG', 'SF']]
 export const teams = 'ATL BOS BKN CHA CHI CLE DAL DEN DET GS HOU IND LAC LAL MEM MIA MIL MIN NO NY OKC ORL PHI PHX POR SAC SA TOR UTAH WSH'.split(' ')
 export const randomAt = (a: number, b: number) => {
   let value = (seed ^ Math.imul(a + 1, 0x9e3779b1) ^ Math.imul(b + 1, 0x85ebca6b)) >>> 0

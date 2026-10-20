@@ -4,7 +4,7 @@ import type { RosterSlotPlan } from '@/lib/lineup'
 const STARTER_SLOT_ORDER = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL']
 const RESERVE_SLOT_TYPES = new Set(['BE', 'IR', 'TX'])
 
-export type RosterSlotRow<P> = { slotType: string; player: P | null }
+type RosterSlotRow<P> = { slotType: string; player: P | null }
 
 function starterRank(slotType: string): number {
     const rank = STARTER_SLOT_ORDER.indexOf(slotType)

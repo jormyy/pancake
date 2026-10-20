@@ -2,7 +2,7 @@
 // testable: a loaded matchup, then the live-draft card (the manager must get
 // to the draft room even when the matchup refresh failed), then loading, then
 // a failed load. A confirmed empty answer also survives a background read.
-export type HomeSurface = 'draft' | 'matchup' | 'loading' | 'error' | 'empty'
+type HomeSurface = 'draft' | 'matchup' | 'loading' | 'error' | 'empty'
 
 export function resolveHomeSurface(input: {
     leagueStatus: string | null | undefined

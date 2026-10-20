@@ -116,7 +116,7 @@ function parseBBRefScheduleHtml(
   return games
 }
 
-export interface BBRefGame {
+interface BBRefGame {
   bbrefId: string
   gameDate: string
   homeTeamBBRef: string
@@ -125,7 +125,7 @@ export interface BBRefGame {
   awayTeam: string
 }
 
-export interface BBRefPlayerStat {
+interface BBRefPlayerStat {
   playerName: string
   dnp: boolean
   minutesDecimal: number | null

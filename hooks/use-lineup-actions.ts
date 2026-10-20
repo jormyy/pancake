@@ -17,7 +17,7 @@ import { getErrorMessage } from '@/lib/shared/errors'
 type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir?: LineupPlayer[]; taxi?: LineupPlayer[] }
 type Sel = LineupSelection
 type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType: string | null }
-export type LineupActionContext = {
+type LineupActionContext = {
     memberId: string
     leagueId: string
     seasonId: string

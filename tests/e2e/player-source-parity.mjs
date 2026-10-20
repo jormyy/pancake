@@ -1,16 +1,9 @@
-// Side-by-side parity between the dormant Sleeper player source and the
-// keyless ESPN replacement (players master list + injuries). Run before and
-// after cutover; each run appends a dated summary to
-// docs/sleeper-migration.md and writes a full JSON artifact next to it.
-//
-//   npm run parity:players
 import path from 'node:path'
 import process from 'node:process'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 
 const ROOT = process.cwd()
-const DOC_PATH = path.join(ROOT, 'docs/sleeper-migration.md')
-const ARTIFACT_DIR = path.join(ROOT, 'docs/sleeper-migration-parity')
+const ARTIFACT_DIR = path.join(ROOT, 'tests/artifacts/player-source-parity')
 
 const SLEEPER_URL = process.env.SLEEPER_BASE_URL
   ? `${process.env.SLEEPER_BASE_URL}/players/nba`
@@ -130,15 +123,6 @@ const main = async () => {
     `${JSON.stringify({ summary, unmatched }, null, 2)}\n`,
   )
 
-  const line = `| ${summary.ranAt} | ${summary.sleeperRostered} | ${summary.espnRostered} | ` +
-    `${summary.matchedByName} (${summary.coveragePct}%) | ${summary.teamAgreementPct}% | ` +
-    `${summary.positionGroupAgreementPct}% | ${summary.sleeperInjured}/${summary.espnInjured}, ` +
-    `both ${summary.injuryComparable} agree ${summary.injuryStatusAgreementPct ?? 'n/a'}% | ` +
-    `${summary.unmatchedSleeperPlayers} |`
-  const existing = await readFile(DOC_PATH, 'utf8').catch(() => null)
-  if (existing?.includes('<!-- parity-runs -->')) {
-    await writeFile(DOC_PATH, existing.replace('<!-- parity-runs -->', `<!-- parity-runs -->\n${line}`))
-  }
   console.log(JSON.stringify(summary, null, 2))
   if ((summary.coveragePct ?? 0) < 95 || (summary.teamAgreementPct ?? 0) < 97) {
     console.error('Parity below thresholds (coverage >= 95%, team agreement >= 97%)')

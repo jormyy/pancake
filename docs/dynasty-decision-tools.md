@@ -14,7 +14,7 @@ This document defines the shared value engine for Dynasty Rankings and Trade Ana
   status badge; it is disabled while another trade action is in flight.
 - Analyzer experiments stay in session memory.
 - Make Offer needs an explicit action and confirmation.
-- The app does not call a trade won, lost, fair, unfair, approved, or rejected.
+- The Analyzer reports value changes without judging a trade as fair or unfair.
 
 ## Engine contract
 
@@ -35,7 +35,7 @@ It also reports package, replacement-player, and roster-slot effects.
 
 ## Internal calibration
 
-All values use a 0 to 1000 display scale. The engine rounds only the final display values.
+All values use a 0 to 1000 display scale. The engine rounds asset values and reported components.
 
 | Component | Weight | Reason |
 | --- | ---: | --- |
@@ -77,8 +77,8 @@ one elite asset.
 - Dynasty views and the last safe Analyzer snapshot stay readable offline.
 - Offer submission stays disabled offline.
 
-## Release proof
+## Verification
 
-The machine-readable record is `docs/dynasty-decision-tools-status.json`.
-The feature count can reach 2/2 before the release gates pass.
-The goal completes only after the 20-season soak and agent-browser walkthrough pass.
+Use `npm run e2e:dynasty-release-final-gate` for the API gate.
+Use the [browser and release checks](../tests/e2e/README.md) for UI and full-season acceptance.
+Saved reports describe their measured source only. Regenerate them for the release under review.

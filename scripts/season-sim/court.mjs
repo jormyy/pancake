@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-export function clockSeconds(value) {
+function clockSeconds(value) {
   const match = /^PT(\d+)M([\d.]+)S$/.exec(value)
   assert.ok(match, `Invalid game clock: ${value}`)
   return Number(match[1]) * 60 + Number(match[2])

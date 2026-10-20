@@ -1,6 +1,6 @@
 import { formatPoints } from '@/lib/format'
 
-export type PlayerContextInput = {
+type PlayerContextInput = {
     position?: string | null
     eligiblePositions?: string[] | null
     yearsExp?: number | null

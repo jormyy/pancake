@@ -1,4 +1,4 @@
-export type ProfileUpdate = { display_name?: string; avatar_url?: string }
+type ProfileUpdate = { display_name?: string; avatar_url?: string }
 type Subscription = { userId: string; receive: (update: ProfileUpdate) => void }
 const subscriptions = new Set<Subscription>()
 

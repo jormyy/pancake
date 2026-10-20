@@ -1,421 +1,83 @@
-# PWA and live data operations
+# PWA, saved content, and reconnects
 
-Pancake keeps the installed shell fast. It keeps live data outside the service worker cache.
+## Public shell
 
-## Architecture
+`app/+html.tsx` and `constants/boot-shell.ts` paint the public frame before app startup.
+Signed-out routes use static forms until their live routes become ready.
+Saved league identity belongs to the configured project and user.
+It does not authorize reads or actions.
 
-1. The release build creates static route files and hashed assets.
-2. The document paints a static boot shell before any JavaScript runs.
-3. The service worker handles same-origin documents and static assets.
-4. Supabase handles authentication, database reads, and row security.
-5. Realtime channels deliver matchup, lineup, draft, and roster changes.
-6. Application caches give safe data an immediate first paint.
-7. Edge jobs update schedules, players, scores, projections, rankings, and draft order.
+`public/sw.js` caches approved same-origin public files.
+It excludes API, Auth, Realtime, private responses, and cross-origin images.
+The release stamper supplies the public file manifest and content digests.
+Installation verifies the complete boot set before activation.
+Activation removes older Pancake caches.
+Network fallback handles missing or corrupt cache entries.
 
-Matchup callbacks check the active owner, league, matchup, and subscription before applying scores or lineup changes.
-Server commit times reject reversed score events. Later corrections can reduce points.
+A first install needs a network connection.
+An installed shell can reopen offline, but an unvisited route can lack required assets.
+See [release provenance](release-build-provenance.md) for stamped builds and update checks.
 
-See [source monitoring](./source-monitoring.md) for upstream health and recovery.
+## Private saved content
 
-## Boot shell
+The app stores private screen snapshots separately from the worker's public cache.
+Snapshot keys include the actor and relevant league, season, day, settings, or source revision.
+Saved data does not establish current membership, lock state, or eligibility.
+Sign-out and identity changes clear private caches and fence late replies.
 
-The web build is a client-rendered app. Its exported HTML holds an empty root
-element, so nothing reaches the screen until the JavaScript bundle mounts React.
-On an installed PWA over a mobile link that was seconds of blank screen.
+Lineup recovery keeps the selected day's saved rows read-only until required context and domain reads succeed.
+Successful roster reads alone do not restore edit authority.
+Storage denial or corruption causes a cache miss.
+The [loading rules](instant-loading.md) define how retained content and errors appear.
 
-`constants/boot-shell.ts` emits the persistent chrome as static HTML and CSS.
-The document carries it, so it paints from the HTML alone.
+## Offline actions and recovery
 
-- It is built from the same design tokens as `WebTabShell`. The two cannot drift.
-- An inline script reveals it only for checked auth from Pancake's configured Supabase project.
-  It honors the shared and tab logout markers before reading cached identity.
-  A signed-out or auth-route launch never shows app chrome.
-- The same script fills the league, team, initials, and active route from the
-  stored owner's cache. Memberships expire after thirty days; the saved choice has no age limit.
-  If cached rows omit that choice, it paints plain chrome until the server checks membership.
-- Every navigation item is a real link, so the shell navigates without the bundle.
-- Icons are inline SVG. The chrome never waits on an icon font.
-- `useBootShellHandoff` removes the shell in a layout effect, before the real
-  chrome paints. It waits while auth restores. The handoff shows no duplicate navigation.
+Time-sensitive roster and lineup actions require the server.
+Drop, waiver Submit, and the optimizer toggle reject offline admission.
+Reconnect enables a new explicit action. It does not queue or replay writes.
+An online browser signal does not prove server reachability or permission.
 
-The shell records `pancake-boot-shell` and the handoff records
-`pancake-app-mounted`. The gap between them is how long the static chrome held
-the screen alone. `window.__PANCAKE_BOOT__` keeps what the shell painted.
+Reconnect and foreground events trigger the owning loaders' refresh paths.
+Realtime recovery catches missed revisions before saved content becomes fresh.
+Hidden screens defer reads until visible.
+Dynasty keeps saved rows and the selection while it revalidates the source.
+Published source timestamps keep their meaning; a support lookup does not confirm source freshness.
 
-### What the boot shell must never do
+Restore the connection and use Retry if the error remains.
+Check [source health](source-monitoring.md) when server data stays stale.
 
-It paints chrome and cached identity only. It never paints scores, lineups,
-rosters, trades, or any value whose staleness could mislead a roster decision.
-It reads only this user's own storage. It writes nothing.
+## Updates and push
 
-### What the shell deliberately omits
+The document and worker share one release identity.
+Worker checks run on foreground return, reconnect, and periodically while visible.
+An update waits for a visible online page and for active mutation holds to release.
+The live auction holds updates while active.
+A long wait shows a notice; it never forces a held reload.
+A session marker limits repeated automatic reloads for the same release.
+Missing old route files use the same guarded recovery path.
 
-Two things the real chrome shows are additive at handoff, so the shell leaves
-them out rather than guessing: the pending-trade badge on the Trades item, and a
-profile photo on the footer chip. Neither is in the persistent cache the shell
-reads, and both only ever *appear* at mount — they never replace something the
-shell got wrong. Everything else the chrome renders is pinned to its component
-by a test.
+Web Push needs all three VAPID variables in `.env.example`.
+Subscription notices, reconnect, controller changes, and foreground return reconcile existing subscriptions.
+Missing subscriptions or changed VAPID keys require an explicit Enable action.
+Disabled or signed-out intent stays closed.
 
-### How it degrades
+## Sign-out
 
-Every failure path renders plain chrome rather than breaking the launch:
-
-| Condition | Result |
-| --- | --- |
-| No stored session | Shell stays hidden; the launch shows the marketing or auth screen. |
-| Sign-out, or a switch to another user | Storage is cleared or replaced, so the next launch paints that user's identity or nothing. |
-| Corrupt session entry | Parse fails; the shell stays hidden and the app boots to its signed-out state. |
-| Cache older than thirty days | Chrome paints without claiming a league. |
-| Cached shape the shell does not recognise | Chrome paints without identity. Cache keys carry their own version, so a schema change misses rather than mismatches. |
-| Storage unavailable (private mode) | Shell stays hidden. |
-| No service worker, evicted cache, or offline | Every cache path falls back to the network; the shell still paints from the document. |
-
-## Cache policy
-
-| Data | Policy | Invalidation |
-| --- | --- | --- |
-| App shell | Verified cache first | A new worker installs the next complete release. A missing old shell can use uncached anonymous online HTML. |
-| Boot bundle and fonts | Precached during install | The release's own manifest lists them. |
-| Hashed assets (`/_expo/static`, `/assets`) | Cache first | The filename is the version. |
-| Declared public assets | Verified cache first | Content-addressed files change with their bytes. The worker never caches undeclared account data. |
-| Supabase API | Never intercepted | Each request reaches Supabase. |
-| Realtime | Never intercepted | The socket reconnects to Supabase. |
-| Matchup data | Same-day, user-scoped local cache | Focus, realtime, or reconnect refreshes it. |
-| Selected league | Per-user choice with no age limit or cache eviction | Sign-out, account change, or unusable auth clears it. Confirmed membership removal replaces it. |
-| League memberships | Per-user cache available for thirty days; protected from cache pruning | Startup, reconnect, and realtime replace it with server results. |
-| Live box scores and today's slate | Shared in memory per date | Polled every 15 s while a game is live, otherwise every 60 s. A remount reuses a snapshot younger than that. No polling while the page is hidden; a return refreshes at once when a tick was missed. |
-| Other screen data | User, league, and resource scoped | TTL, focus, mutation, or sign-out clears it. |
-
-Silent Home refreshes retain equal lineup references after the owner, date, and request checks pass.
-The comparison includes every player field, slot, reserve list, and row order. Changed lineups still replace the visible data.
-Live polls keep refreshing both lineups when scores stay equal, so independent lineup edits still appear.
-Score reads, poll intervals, freshness signals, and reconnect recovery keep their existing behavior.
-Every empty starter, bench, IR, and taxi slot stays visible.
-
-Membership events and return signals share a 250 ms window, starting with the first signal.
-Later signals cannot extend that window. Hidden or offline pages defer these automatic reads until return.
-Startup and explicit refreshes start immediately. One read runs at a time; changes during it queue one follow-up.
-Explicit refresh promises include that follow-up while the page can refresh.
-Owner changes and cleanup reject pending results and callbacks before they can update state or storage.
-Unchanged membership rows keep their references. Roles, league settings, row order, removal, and confirmed empty results still update the context.
-
-The pending-trade badge uses the authoritative count RPC, including offers beyond the first page.
-Trade events, participant events, route changes, and focus share a bounded 250 ms window.
-The first signal sets the deadline. One count read runs per owner; changes during it queue one follow-up.
-Initial owner reads start immediately. Failed reads keep the last count and retry twice, after two and four seconds.
-Owner changes and cleanup cancel timers and reject old callbacks and results. Sign-out clears the badge.
-
-Rookie draft notifications share a bounded 250 ms window for one board and prospect reload.
-Changes during a reload queue one follow-up. Startup, pick replies, and explicit refreshes load both immediately.
-The initial empty-query prospect read runs once. Later search changes keep their 300 ms debounce.
-The 15 s revision poll allows one pending probe and reload. It confirms a revision only after both reads succeed.
-Automatic reloads wait while hidden. Resume checks the revision; a pending pre-sleep probe gets one fresh follow-up.
-Old owners, disposed subscriptions, and obsolete probe results cannot update the room.
-
-The release cache version contains the commit and a build fingerprint. A same-commit rebuild still creates a new version.
-
-### Session restoration on reopen
-
-A stored expired access token never authorizes data reads. A checked session with a refresh token can still restore auth.
-Online startup keeps auth loading until refresh succeeds or the server rejects it. Hidden pages defer the attempt until visible.
-A transient refresh error keeps restoration pending. Foreground and online events retry it.
-Missing or invalid sessions, rejected refreshes, and offline expired sessions show sign-in. Rejected and offline expired sessions show the expired-session notice.
-
-The client keeps the same owner's startup cache during online restoration. It blocks data access and fences responses from the previous admitted session.
-After refresh, it reads that owner's saved league and memberships together. Cached rows do not prove current league access or permit offline actions.
-The server replaces cached memberships. Only a successful result can replace a saved choice or confirm an empty list.
-If stale rows omit the saved choice, startup waits without displaying a default league. A confirmed removal selects the first remaining membership safely.
-Sign-out and account changes clear both persistent and registered memory caches. Late auth events and data responses cannot restore the previous owner.
-
-`scripts/stamp-release-provenance.mjs` writes the version and the precache
-manifest into `dist/sw.js` at build time. The manifest lists exactly what the
-shell HTML boots from: its scripts, its stylesheet, the web manifest, and the
-brand mark. Per-route chunks stay lazy. The stamp fails the build when the
-worker declares no manifest, so a deploy cannot ship a cold bundle.
-
-Per-route chunks are deliberately absent from the manifest. The worker answers
-every navigation with the cached `/` document, so a launch — including a deep
-link and including the boot shell's own links — boots the `/` route chunk and
-then routes on the client. Measured client-side route changes are 33-70ms, well
-under a single round trip, so nothing else needs prefetching.
-
-Fonts are in the manifest for a specific reason: they are fetched by the bundle,
-not the document, so they only start downloading once the app has mounted. Left
-alone, the real chrome rendered empty icon boxes for about two seconds after the
-shell handed off — measured on a relaunch, the icon font landed at 2196ms
-against a mount at 113ms. After precaching, the icon font and both Outfit faces
-resolve 11ms after mount with no bytes on the wire.
-
-The rule matches fonts under `dist/assets` whose family name appears in the
-app's own source, not anywhere in the bundle: `@expo-google-fonts` re-exports
-every weight, so matching the bundle would precache nine Outfit faces to render
-the three `useFonts` declares.
-
-Install precaches that manifest before activation deletes the previous
-release's caches. Without it a deploy dropped the old assets and the
-version-change reload re-downloaded the whole bundle — a blank screen on every
-release. Entries are added one at a time, so a stale URL cannot fail the install
-and strand a launch with no assets.
-
-Activation deletes older Pancake caches. The new worker takes control immediately.
-
-A failed install can leave its own release caches behind, for example after a
-storage-quota error while writing them. Install never deletes them, so the
-installed release keeps working. Carryover reads only the eight newest earlier
-asset caches, with the same 64 MiB bound and header and hash checks. Older leftovers
-therefore never block a later healthy update; its activation removes them.
-
-The page checks for a new worker on every return to the foreground, on the browser `online`
-event, and hourly while it stays visible. The page reloads once after a new worker takes
-control. The first worker install does not reload the page.
-If session storage denies access, the version reply still closes its port. The page
-does not reload without a saved version comparison. This does not grant a cached
-identity or change the private-resource policy.
-
-A response the host rewrote to a document (the `+not-found.html` HTTP 200 rewrite for a
-hashed asset from a previous release) is never stored in an asset cache.
-
-Every cache path falls back to the network. An evicted, disabled, or corrupt
-cache cannot break a launch.
-
-## What is never cached
-
-The service worker intercepts same-origin documents and static assets only.
-Supabase, realtime, and every other cross-origin request pass straight through,
-so no API response, token, or row of another user's data reaches a cache the
-worker controls. The cached `/` document is the static export: identical for
-every user, with no data baked in.
-
-The boot shell checks the configured project's stored session and logout markers. It reads identity caches under that session's user id and writes nothing.
-It renders a league name, a team name, and initials —
-nothing whose staleness could mislead a roster decision, and no authorization
-decision. The app still validates the session before anything acts on it.
-
-Sign-out and a change of user both clear the persistent caches and the in-memory
-league lookups, so the next launch paints the new user's identity or none. A
-database response that arrives after the signed-in user changed (sign-out, a
-switch to another account, or signing in again) is discarded before it reaches
-any cache; its caller gets an error instead of the data. The web sign-in reloads its tab, but another open tab of the
-same browser session stays live, so identity changes must fence pending responses.
-
-## Offline and reconnect behavior
-
-The installed shell opens without a network. Cached matchup and lineup data remain visible.
-
-A failed refresh stays visible. The error banner shows that cached data can be stale.
-
-Lineup and roster writes require the server. Pancake does not queue time-sensitive sports actions offline.
-
-The browser `online` event clears season and week lookup caches. Home then reloads the current matchup.
-Data loaded through `useFocusAsyncData` (roster, player support data, dynasty data, and trade picks)
-refetches on `online` and re-checks staleness when the page becomes visible again.
-The trades feed, trade block, and league screen do not use that reconnect refetch path.
-
-Realtime subscriptions reconnect separately. Cross-tab events still update active screens.
-
-## Recovery
-
-1. Confirm the error banner and browser connection.
-2. Restore the network.
-3. Wait for the matchup refresh.
-4. Reload once if the banner remains.
-5. Check source health when server data stays stale.
-6. Clear site data only after normal recovery fails.
-
-For a bad release, deploy the last verified build. Its cache version replaces the failed build.
+Sign-out requests server revocation and then clears local identity under the Auth lock.
+If the server request fails, the app reports that only this device's sign-out is confirmed.
+Project-scoped logout markers fence saved sessions and late Auth responses across tabs.
+If storage rejects every persistent change, durable erasure cannot be guaranteed after process restoration.
 
 ## Verification
 
-Run the release build before browser checks.
+Use the [browser setup](../tests/e2e/README.md#supported-web-clients) before these checks:
 
 ```sh
-npm run build:web:release
 npm run e2e:browser-pwa-launch
-npm run e2e:browser-perf
-npm run e2e:data-latency
-npm run perf:budget -- --require-report --require-data-report
+npm run e2e:pwa-update -- --previous=<previous-build> --next=dist
+npm run e2e:web-targets
 ```
 
-`e2e:browser-pwa-launch` is the launch gate. It relaunches the signed-in path
-and checks that the shell paints, paints before the app takes over, paints the
-cached league, team, and active route, hands off without duplicate chrome,
-survives a background-to-foreground return and a week-old cache, holds every
-boot asset it declares, and still launches offline. Signed out, none of the
-chrome may appear. It runs in the CI browser matrix as `pwa-launch`.
-
-`e2e:pwa-update` is the deploy gate. It needs two built directories:
-
-```sh
-npm run e2e:pwa-update -- --previous=<dist-of-live-release> --next=dist
-```
-
-It installs the previous release's worker, swaps the origin to the next
-release, and checks that each release precaches what it declares, that only the
-activated release keeps caches, and that the first relaunch after the deploy
-still mounts. Run it before promoting a release whose asset hashes moved.
-
-### Schema
-
-The boot shell reads only browser storage and ships no migration. A release
-that changes it needs no Supabase change. If a cached shape it reads is ever
-versioned up, the shell misses that read and paints plain chrome — correct, but
-worth updating deliberately rather than by accident.
-
-The dated evidence lives in [`evidence/2026-08-23-instant-pwa/`](./evidence/2026-08-23-instant-pwa/)
-and [`evidence/2026-08-27-instant-paint/`](./evidence/2026-08-27-instant-paint/).
-
-## Known limits
-
-The first install needs one online load before every route asset can enter the cache.
-
-The boot shell does not shorten the bundle. It covers the wait; it does not
-remove it. A cold first install still downloads the bundle before the app is
-interactive. The shell is chrome, not the screen's content.
-
-A first-ever install fetches the fonts after mount, because the worker only
-installs once the page has loaded. Precaching fixes every launch after that.
-
-The precache is roughly a megabyte, most of it the bundle. It is fetched in the
-background after load, so it never blocks the launch that triggers it.
-
-Signed-out auth routes paint a static sign-in or sign-up form before hydration.
-The document form remains until the matching route is ready. Private app chrome stays hidden.
-
-Browser background limits can delay sockets on an idle home-screen app. Foreground and reconnect refreshes correct missed data.
-
-Offline data is a last known snapshot. The error banner marks its uncertain freshness.
-
-Offline writes remain disabled. This avoids invalid moves after a game lock or roster change.
-
-## Supported client target
-
-Pancake supports iPhone Safari, the installed iPhone PWA, and desktop browsers.
-It is a web app. There is no native iOS app, Xcode project, App Store build, or Android target.
-Expo and React Native Web provide shared web components and routing.
-
-`npm run e2e:web-targets` checks WebKit at two iPhone sizes, in tab mode and simulated standalone mode.
-Use `-- --actions` for form and admin actions. Use `-- --gameplay` for league, lineup, waiver, draft, and trade settlements.
-It also checks desktop Chromium and WebKit at 1280x720 and 1440x900.
-The test injects `navigator.standalone` and standalone `matchMedia` results.
-It replaces CSS safe-area `env()` values with test insets.
-It does not install a Home Screen app or use a real iOS keyboard.
-Only a physical iPhone can prove installation, real keyboard placement, status bars, home indicators, and background suspension.
-See [setup and limits](../tests/e2e/README.md#supported-web-clients).
-
-The default tab layout uses `WebTabShell` on web. Modal layouts retain their platform-specific headers and presentation.
-
-### Dynasty foreground freshness
-
-Dynasty keeps its five-minute saved source snapshot for fast route loads. The
-focused screen revalidates that source on reconnect and foreground return,
-including within the five-minute window. It keeps matching saved rows and the
-search selection while loading. Concurrent resume events share the pending
-read. A new disconnect fences the old response and allows one follow-up read.
-Hidden screens defer resume reads until visible; there is no new poll timer.
-
-The existing metadata shows `Refreshing` during revalidation and `Refresh failed`
-when a source read fails. Published source timestamps retain their original
-meaning. A successful support lookup or cached replay does not confirm a fresh
-source response. Offline actions still require online server validation.
-
-### Local logout when the server is unavailable
-
-Sign Out first requests normal SDK server sign-out. After that attempt, the app
-clears its own identity and saved private resources under the SDK's existing lock.
-A failed server request still signs out this browser, and shows “Signed out on this
-device” with “Server sign-out could not be confirmed. Other sessions may still be
-signed in.” This does not prove remote revocation or access-token invalidity.
-
-A project-scoped logout marker fences late auth responses and saved sessions across
-tabs and reloads. It contains only an opaque revision, generation, and signed-out
-flag; it stores no credential. One localStorage entry and one sessionStorage backup
-retain the latest generation without an expiry. A successful new password/signup
-response clears their signed-out flag. At most eight transient
-response tickets fence concurrent SDK saves. Other projects' storage stays intact.
-If the browser refuses every persistent write and removal, durable erasure cannot
-be promised after full process death and later restoration of storage access.
-
-The required public boot graph includes the sign-in export's scripts and styles.
-Logout can therefore reach signed-out controls even when a user entered through
-signup and never loaded Sign In. The worker still verifies allowlisted public bytes
-and headers, rejects incomplete installs, and does not cache private responses.
-
-### Lineup saved-day recovery
-
-The Lineup screen stores successful roster, slot and week-schedule reads through the
-existing private cache. Its scope includes the admitted auth project and user,
-member, league, current ET day, selected day and the observed season. A context
-pointer and the day payload must agree. The family uses at most four cache entries,
-within the global 64-entry limit, and rejects payloads over 256 KiB. Entries expire
-within 24 hours and cannot carry yesterday's current-day context into today.
-
-Saved Lineup content is read-only. It never establishes current locks, eligibility,
-optimizer authority or live game status. Offline, updating and failed-refresh
-states use the existing inline status area. Date and back navigation remain usable;
-an unsaved day is unavailable. Auto-set and move controls require a successful
-current load and online server validation. There is no offline write queue.
-
-Reconnect, foreground and the next ET midnight revalidate the context. Requests
-capture the owner generation and selected date before fetching, and recheck them
-before saving or rendering. Confirmed access failures, missing active seasons,
-logout and identity changes cannot use the previous snapshot. Storage denial or
-corruption makes the saved view unavailable; it never grants identity or access.
-
-Lineup snapshot recovery keeps context authority separate from domain availability. Retry, date changes, realtime catch-up and action readback validate the current owner/member/league, then refresh season and week context before reading the complete selected-day domain. A failed required lookup keeps saved content read-only; a successful roster or lineup response alone cannot restore edit authority. These necessary context reads add traffic and are not a backend-saving claim.
-
-
-### Health-filtered player search
-
-Health-filtered search evaluates the existing invoker score view once per statement for the requested league and season. The statement reuses those rows while applying the existing player filters and page order. Searches without a recognized health filter keep the direct view path. This adds no stored snapshot, API call, TTL, or authority change. Existing score-cache refresh and projection-source rules still apply.
-
-At the isolated 1,330-player population, five paired OUT and IR caller medians fell from 486/331ms to 43/31ms. Ordered output and response bytes stayed equal. Singleton, empty, sort, role, materialized-cache, correction, DNP, settings-refresh, and concurrent-user cases retain the frozen cost and correctness guards. These are local synthetic-data measurements, not production or phone timings.
-
-Migration `20261009000002_health_search_score_reuse.sql` only replaces `public.search_players`; its signature, invoker privileges, stability and existing function settings stay unchanged. It takes no table rewrite or index-build lock. A three-second lock timeout aborts blocked application. Recovery reinstalls the prior canonical function from the accepted pre-migration revision in a transaction, then verifies its body and ACL. Existing callers work with either definition. Production application still requires the release migration preflight and readback.
-
-## Safe release changes
-
-The exported document and worker carry the same release identity. The page observes controller changes before load. A new online document first reconciles an older controller. It does not immediately reload into that older release.
-
-Call `holdPwaUpdate(reason)` before a mutation. Release the returned hold in `finally`. Hold the live auction view for its entire active lifetime. All holds share one browser registry. Release is idempotent. `isPwaUpdateHeld()` reports whether any hold remains.
-
-```ts
-const release = holdPwaUpdate('save lineup')
-try {
-    await saveLineup()
-} finally {
-    release()
-}
-```
-
-A pending release waits until the document loads, the page is visible, the network returns, and every hold releases. After sixty seconds, a notice replaces silent waiting. The timeout never expires a hold or forces a reload. A per-route session marker prevents repeated automatic reloads for one release. The final hold release resumes the update.
-
-Missing old route scripts request an update. Recovery uses the same hold checks. If a controlled navigation loses its cached shell, it can use fresh anonymous HTML. That response never enters the older release cache. Cached and fetched release assets retain digest checks. API requests and account data remain outside worker caches.
-
-The worker verifies every boot file before storage. It stores files one at a time. Activation still requires the full set.
-
-Push subscription changes notify open same-origin windows. Signed-in pages reconcile the browser's current subscription on that notice, reconnect, controller changes, and foreground return. Concurrent signals coalesce. Ordinary foreground checks wait five minutes after success. Disabled or logged-out notification intent remains closed. Missing subscriptions and changed VAPID keys still require explicit Enable.
-
-## Loading and layout continuity
-
-Cold content keeps the screen frame and reserves its content space. It shows no loading sentence, spinner, or looping shimmer.
-Matching cached rows stay visible during refresh. View changes retain settled content while the next read completes.
-Retained pending content remains inactive. Session changes clear it, and server validation still controls writes.
-
-Unknown counts stay blank inside reserved summary space. A settled empty answer remains distinct from an error or an unfinished read.
-The confirmed Home empty-matchup notice survives route returns and background failures. Unconfirmed membership cannot establish a new empty answer.
-Week-off reasons, account labels, roster metadata, and player actions reserve their space before their values arrive.
-
-Supported screens place offline and read-error notices in an accessible overlay. Added scroll-tail space keeps content and retries reachable.
-The tail shrinks only when the current scroll offset stays safe. Retry actions and meaningful errors remain visible.
-
-Web display fonts use optional loading and document preloads to avoid late text movement.
-Auth document forms and live forms share their frame. Their handoff waits for route readiness.
-The [loading rules and research sources](./instant-loading.md#stable-loading-surfaces) explain these choices.
-Run the [layout sweep](../tests/e2e/layout-stability-README.md) against the stamped local release.
-The final release sweep records 1,870 passes, zero failures, and 50 explained navigation omissions.
-All 300 empty-notice returns pass. Chromium CLS is zero; WebKit CLS is unsupported.
-The largest sampled displacement is 1.6 CSS pixels, below the unchanged two-pixel threshold.
-No blank frames, loading/spinner cells, or reappearances are recorded.
-Small steps at or below 0.5 pixels can accumulate without saved movement details and can understate settling time.
-Source: release evidence `sweep/round5-handoff.md`, `sweep/final/compare.md`, and `sweep/final/metric-support.md` for release `aff7aac1`.
+The update check requires two complete stamped builds.
+Headless WebKit simulates phone sizes, standalone mode, and safe areas.
+Physical installation, keyboard placement, status bars, and background suspension need a real iPhone.

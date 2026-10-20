@@ -25,7 +25,7 @@ type ReceiptActions = {
 }
 
 export type ReceiptDeferralState = 'deferred' | 'dead_lettered'
-export type ReceiptDeferralCounts = { deferred: number; deadLettered: number }
+type ReceiptDeferralCounts = { deferred: number; deadLettered: number }
 
 export async function deferTradeNotificationReceipts(
   rows: TradeNotificationReceiptRow[],
