@@ -77,3 +77,14 @@ PANCAKE_TEST_API_PORT and PANCAKE_TEST_DB_PORT select another local test stack.
 The wrapper and mutation runner set these to 57321 and 57322.
 Their own assigned-stack guards stay fixed.
 Recipe guards validate protocol, loopback host, and exact expected port before writes.
+
+The chain residue check uses the real npm recipes and committed SYNTHETIC fixtures.
+Save the pre-fix SQL files as before-NAME.sql in the external evidence directory.
+Run residue.py with --phase seed, then --phase red before revising recipes.
+Run --phase green to execute all five chain entries twice without resetting.
+Run --phase verify after targeted mutations and --phase cleanup afterward.
+Every phase requires --evidence PATH and the assigned mini loopback stack.
+Snapshots verify the unrelated league, stale certificate, live games, calendars,
+lease, and invocation survive every recipe and mutation oracle unchanged.
+The gate recipes isolate fleet work inside BEGIN/ROLLBACK and count their own requests.
+They and the point-guard recipe select an unused calendar year.
