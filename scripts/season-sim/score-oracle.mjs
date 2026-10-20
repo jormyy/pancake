@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 
-export const roundPoints = value => Math.sign(value) * Math.round(Math.abs(Number(value.toFixed(8))) * 100) / 100
+const roundPoints = value => Math.sign(value) * Math.round(Math.abs(Number(value.toFixed(8))) * 100) / 100
 const categories = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made', 'field_goals_made', 'field_goals_attempted', 'free_throws_made', 'free_throws_attempted']
 
-export function statPoints(stats, settings) {
+function statPoints(stats, settings) {
   if (stats.did_not_play) return 0
   const doubles = ['points', 'rebounds', 'assists', 'steals', 'blocks'].filter(key => Number(stats[key]) >= 10).length
   const base = categories.reduce((sum, key) => sum + Number(stats[key] ?? 0) * Number(settings[key] ?? 0), 0)

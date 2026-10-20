@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { waiverOutcomes, checkWaiverResult, checkWaiverTiming, rolloverPriorities } from './waiver-oracle.mjs'
+import { waiverParticipants, waiverOutcomes, checkWaiverResult, checkWaiverTiming, rolloverPriorities } from './waiver-oracle.mjs'
 
 const input = { mode: 'faab', priorities: { a: 1, b: 2, c: 3 }, budgets: { a: 100, b: 20, c: 100 }, rosterCounts: { a: 3, b: 3, c: 3 }, weeklyCounts: { a: 0, b: 0, c: 0 }, limit: 1, rosterSize: 3,
   claims: [
@@ -49,4 +49,12 @@ test('waiver timing rejects both early and late observed processing', () => {
   const expected = Date.parse('2026-03-19T07:00:00Z')
   assert.ok(checkWaiverTiming('2026-03-19T07:00:00Z', expected))
   for (const observed of ['2026-03-19T06:59:00Z', '2026-03-19T07:15:00Z']) assert.throws(() => checkWaiverTiming(observed, expected), /03:00 Eastern/)
+})
+
+test('later waiver batches select an actually full claimant after earlier donor drops', () => {
+  const users = ['a', 'b', 'c', 'd'].map(memberId => ({ memberId }))
+  const priorities = { a: 6, b: 5, c: 3, d: 4 }
+  const rosters = { a: [1, 2, 3], b: [1, 2, 3], c: [1, 2], d: [1, 2] }
+  assert.deepEqual(waiverParticipants(users, priorities, rosters, 3).map(row => row.memberId), ['b', 'c', 'd', 'a'])
+  assert.throws(() => waiverParticipants(users, priorities, { ...rosters, a: [], b: [] }, 3), /actual full roster/)
 })

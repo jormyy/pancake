@@ -3,6 +3,7 @@ import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { fixtureStore } from './fixtures.mjs'
 import { miniRoot, writeJson } from './common.mjs'
+import { checkBoundaryWait } from './boundary-clock.mjs'
 import { fixtureNbaId } from './fixture-identities.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
 
@@ -98,8 +99,9 @@ export async function assertLeaguePoints(context) {
   assert.ok(Array.isArray(matchups), label('Matchups must be an explicit JSON array'))
   if (!matchups.length) {
     const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${context.date}' BETWEEN week_start AND week_end`))
-    const waitingForGrace = Number(await sql(`SELECT count(*) FROM matchups m WHERE league_season_id='${context.leagueSeasonId}' AND NOT is_voided AND is_finalized AND finalized_at + interval '48 hours' > now()`)) > 0
-    assert.ok(!week || waitingForGrace, 'Every expected matchup must exist after playoff grace')
+    assert.ok(week, 'Expected NBA calendar week must exist')
+    const prior = await sqlJson(`SELECT json_build_object('finalizedAt',max(finalized_at),'finalized',bool_and(is_finalized),'now',extract(epoch FROM now())*1000) FROM matchups WHERE league_season_id='${context.leagueSeasonId}' AND NOT is_voided AND coalesce(end_week_number,week_number)<${week}`, label('boundary prerequisites'))
+    checkBoundaryWait(prior)
   }
   const lineup = await sqlJson(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT l.member_id,l.week_number,l.slot_type,g.nba_game_id,p.nba_id FROM weekly_lineups l JOIN players p ON p.id=l.player_id JOIN player_game_stats s ON s.player_id=l.player_id JOIN nba_games g ON g.id=s.game_id AND g.game_date=l.game_date WHERE l.league_season_id='${context.leagueSeasonId}' AND l.slot_type::text NOT IN ('BE','IR')) r`, label('starter lineups'))
   assert.ok(Array.isArray(lineup), label('Starter lineups must be an explicit JSON array'))

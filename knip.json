@@ -22,7 +22,9 @@
   "ignoreBinaries": [
     "psql",
     "security",
-    "supabase"
+    "supabase",
+    "pg_dump",
+    "pg_restore"
   ],
   "workspaces": {
     ".": {
@@ -94,7 +96,8 @@
         "scripts/mutation/post/verify-skipped-week.mjs",
         "scripts/mutation/post/verify-stale-boundary.mjs",
         "tests/e2e/{faab-worker,waiver-season,waiver-season-end}-db.mjs",
-        "scripts/mutation/waivers/targets.test.mjs"
+        "scripts/mutation/waivers/targets.test.mjs",
+        "scripts/season-sim/{fresh-run,gate-probe,retained-check}.mjs"
       ],
       "project": [
         "**/*.{js,mjs,ts,tsx}"

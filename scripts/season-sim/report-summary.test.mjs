@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { countersBelongToRun, executionNotes, summarizeRun } from './report-summary.mjs'
+import { acceptanceAreas, acceptanceGaps, countersBelongToRun, executionNotes, summarizeRun } from './report-summary.mjs'
 
 const run = { days: [], dates: [], complete: false, fullAcceptance: false }
 test('ordinary runs make no continuation or segment claim', () => {
   assert.equal(executionNotes(run), '')
   assert.deepEqual(summarizeRun(run).defectEvidence, [])
-  assert.equal(summarizeRun(run).withinFiveHours, null)
+  assert.equal(summarizeRun(run).withinTwelveHours, null)
 })
 test('invariant failures and execution failures remain distinct', () => {
   assert.equal(summarizeRun({ ...run, failure: { name: 'AssertionError' } }).invariantFailures, 1)
@@ -26,4 +26,16 @@ test('origin counters outside the replay window cannot become measured run total
   assert.equal(countersBelongToRun({ startedAt: '2026-10-20T09:00:00Z', lastEventRealAt: '2026-10-20T10:59:00Z' }, replay), false)
   assert.equal(countersBelongToRun({ startedAt: '2026-10-20T10:01:00Z', lastEventRealAt: '2026-10-20T11:01:00Z' }, replay), false)
   assert.equal(countersBelongToRun({}, replay), false)
+})
+
+test('per-area acceptance requires measured outcomes and excludes dropped segment prerequisites', () => {
+  assert.ok(Object.values(acceptanceAreas(run)).every(value => value === 'not measured'))
+  assert.ok(acceptanceGaps(run).some(value => value.includes('historical replay')))
+  assert.ok(!acceptanceGaps(run).some(value => /segment|Tier 2/.test(value)))
+  assert.equal(acceptanceAreas({ ...run, champion: { passed: true } }).champion, 'pass')
+  assert.equal(acceptanceAreas({ ...run, champion: { passed: false } }).champion, 'not measured')
+})
+
+test('a forged acceptance flag cannot bypass missing area evidence', () => {
+  assert.throws(() => summarizeRun({ ...run, complete: true, fullAcceptance: true, acceptanceGaps: [], triggerFidelity: { verified: true } }), /Full acceptance/)
 })

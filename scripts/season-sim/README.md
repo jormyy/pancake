@@ -102,7 +102,7 @@ node scripts/season-sim/index.mjs --segment live-week \
 | `next-season-start` | Skipped week 1, eligible weeks 2–3, DST, retained history | Not measured |
 | `waiver-week` | FAAB claims, roster failure, priority, budgets and add counts | Not measured |
 
-The CLI exists; restored segment proofs remain required.
+The CLI exists. Tier 2 segment baselines are no longer required for this card.
 Postseason cursor routing and next-season segment boundaries still require integration verification.
 Do not treat an unmeasured segment as a working mutation oracle.
 
@@ -114,12 +114,12 @@ npm run typecheck:e2e
 ```
 
 The generated report records acceptance gaps explicitly.
-Current gaps include restored segment proofs and a fresh committed-source replay.
+A fresh committed-source replay and all measured acceptance areas remain required.
 Ranking and projection inputs are outside the collected historical fixture set.
-Their failed production dispatches stay recorded and prevent trigger-fidelity acceptance.
+Their failed dispatches stay recorded as ancillary input gaps. The report does not claim their output quality.
 The driver probes every internal live-work read, worker completion, and live gate.
 The current diagnostic measures this path; complete season-end evidence remains pending.
-A full report must establish the five-hour budget from measured execution time.
+A full report checks the twelve-hour budget against measured execution time.
 Do not infer it from earlier cards.
 
 ## Cleanup

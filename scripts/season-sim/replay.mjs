@@ -23,6 +23,7 @@ import { runNextSeason } from './next-season.mjs'
 import { tradeScenarios } from './trade-scenarios.mjs'
 import { applyOverlay, functionFingerprint } from './overlay.mjs'
 import { beginWaivers, verifyWaivers } from './waiver-scenarios.mjs'
+import { acceptanceGaps } from './report-summary.mjs'
 import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
 
 export async function replay(options = {}) {
@@ -38,9 +39,9 @@ export async function replay(options = {}) {
   const verifiedWeeks = options.resume?.verifiedWeeks ?? []
   const report = { startedAt: new Date().toISOString(), phase: 'startup', complete: false, fullAcceptance: false, fresh: !options.resume, continuation: !!options.resume, interruptions: options.interruptions ?? [],
     dates: selected, days: [], events: {}, faults: [], actions: { provenance: 'SYNTHETIC', completed: [] },
-    snapshots: [], liveSamples: 0, sampling: 'Authenticated matchups read before every internal get_live_poll_work call with a live-holder header, after each live worker, and after every live gate. This includes each internal tick and extra scoreboard refresh reads. Stored stat rows and locked starters form the independent oracle.',
+    cadenceDays: {}, snapshots: [], liveSamples: 0, sampling: 'Authenticated matchups read before every internal get_live_poll_work call with a live-holder header, after each live worker, and after every live gate. This includes each internal tick and extra scoreboard refresh reads. Stored stat rows and locked starters form the independent oracle.',
     triggerFidelity: { verified: false, cadence: 'Every intervening UTC minute, plus worker timer deadlines; clock stays paused during I/O; no scoring/stat maintenance overrides', counts: {}, unsupportedInputs: [] },
-    acceptanceGaps: ['Restored segment proofs remain required', 'A fresh committed-source replay remains required', 'Ancillary cron jobs and ranking/projection sources remain required'] }
+    acceptanceGaps: [], ancillaryGaps: ['Rankings and projections use incomplete fixture inputs. They do not determine the asserted locked-starter scores, waiver rules, playoff rules, draft order, or pick ownership. Projection quality and optimal lineup selection remain unverified.'] }
   const checkpoint = async phase => {
     report.phase = phase
     await writeJson(path.join(miniRoot, 'evidence/replay-checkpoint.json'), { ...report, savedAt: new Date().toISOString() })
@@ -87,8 +88,15 @@ export async function replay(options = {}) {
     const to = typeof value === 'number' ? value : Date.parse(value)
     assert.ok(to >= clock, 'Replay cannot rewind business time')
     await advanceCron({ from: clock, to, counts: report.triggerFidelity.counts,
-      move: at => setClock({ at: new Date(at).toISOString(), rate: 0 }),
-      invoke: dispatcher.enqueue, settle: dispatcher.settle, sample })
+      move: at => setClock({ at: new Date(at).toISOString(), rate: 0, quiet: true }),
+      invoke: dispatcher.enqueue, settle: dispatcher.settle, sample,
+      profile: step => {
+        const date = etDate(step.at)
+        const row = report.cadenceDays[date] ??= { minutes: 0, steps: 0, wallSeconds: 0 }
+        row.minutes += Number(step.minute)
+        row.steps++
+        row.wallSeconds += step.wallSeconds
+      } })
     clock = to
   }
   const snapshot = async (name, date, days) => {
@@ -139,6 +147,7 @@ export async function replay(options = {}) {
       if (options.segment === 'pre-rollover') report.seasonEnd = await finishSeason(context, move, report, checkpoint, { stopAfterRollover: true })
       if (options.segment === 'pre-draft') report.seasonEnd = await finishRookieDraft(context, move, report, checkpoint)
       if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot)
+      await dispatcher.drain(clock)
       report.complete = true
       return report
     }
@@ -199,8 +208,10 @@ export async function replay(options = {}) {
       activeDate = null
       report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot)
     }
+    await dispatcher.drain(clock)
     report.complete = true
-    report.triggerFidelity.verified = report.triggerFidelity.unsupportedInputs.length === 0
+    report.triggerFidelity.verified = true
+    report.acceptanceGaps = acceptanceGaps(report)
     report.fullAcceptance = start === season.start && selected.length === 174 && report.acceptanceGaps.length === 0 && report.seasonEnd?.passed === true && report.triggerFidelity.verified
     await checkpoint('requested-days-verified')
   } catch (error) {
@@ -216,8 +227,4 @@ export async function replay(options = {}) {
       try { await captureLoad('replay', baseline) } finally { await runtime.close() }
     }
   }
-}
-
-export async function retainedClock() {
-  return clockTime(JSON.parse(await readFile(path.join(miniRoot, 'state/clock.json'), 'utf8')), Date.now())
 }

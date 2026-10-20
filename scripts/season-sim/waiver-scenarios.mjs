@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { etDate } from './common.mjs'
 import { sql } from './local-stack.mjs'
-import { checkWaiverResult, checkWaiverTiming, rolloverPriorities, waiverOutcomes } from './waiver-oracle.mjs'
+import { checkWaiverResult, checkWaiverTiming, rolloverPriorities, waiverOutcomes, waiverParticipants } from './waiver-oracle.mjs'
 
 const roster = (c, user) => c.rest(user, `roster_players?select=*&league_season_id=eq.${c.leagueSeasonId}&member_id=eq.${user.memberId}&is_on_ir=eq.false&is_on_taxi=eq.false&order=player_id`)
 const transactionState = async (c, user) => (await c.rpc(user, 'get_member_transaction_state', { p_member_id: user.memberId, p_league_id: c.leagueId }))[0]
@@ -22,10 +22,10 @@ export async function beginWaivers(c, name, report) {
   if (c.waiverScenarios.some(row => row.name === name)) return
   const mode = await sql(`SELECT waiver_mode FROM leagues WHERE id='${c.leagueId}'`)
   const priorities = c.expectedWaiverPriorities ?? Object.fromEntries(c.users.map((user, index) => [user.memberId, index + 1]))
-  const users = [...c.users].sort((a, b) => priorities[a.memberId] - priorities[b.memberId])
+  const initialRosters = Object.fromEntries(await Promise.all(c.users.map(async user => [user.memberId, await roster(c, user)])))
+  const users = waiverParticipants(c.users, priorities, initialRosters, 3)
   const [a, b, donorC, donorD] = users
   assert.equal(users.length, 4, 'The declared waiver scenario uses four managers')
-  const initialRosters = Object.fromEntries(await Promise.all(users.map(async user => [user.memberId, await roster(c, user)])))
   assert.equal(initialRosters[a.memberId].length, 3, 'Full-roster failure needs a full claimant roster')
   const targets = []
   for (const donor of [donorD, donorC]) {
@@ -43,8 +43,9 @@ export async function beginWaivers(c, name, report) {
     const rejected = await c.api(a, '/waivers/claims', { memberId: a.memberId, leagueId: c.leagueId, playerId: targets[0].player, bidAmount: 101 }, 400)
     assert.match(JSON.stringify(rejected), /balance|FAAB/i)
   }
+  const budgets = c.expectedWaiverBudgets ?? Object.fromEntries(users.map(user => [user.memberId, 100]))
   const plans = [
-    [a, targets[0], 80, false], [b, targets[0], 30, true], [donorC, targets[0], 20, true],
+    [a, targets[0], Math.min(80, budgets[a.memberId]), false], [b, targets[0], 30, true], [donorC, targets[0], 20, true],
     [a, targets[1], 10, true], [donorC, targets[1], 10, true], [donorD, targets[1], 10, true],
   ]
   const claims = [], orders = {}
@@ -60,7 +61,7 @@ export async function beginWaivers(c, name, report) {
     assert.equal(claim.bid_amount, mode === 'faab' ? bid : 0, 'Rolling claims ignore entered FAAB amounts')
     claims.push({ id: claim.id, member: user.memberId, player: target.player, bid, drop: dropPlayer, order, submitted: claim.submitted_at })
   }
-  const input = { claims, mode, priorities, budgets: c.expectedWaiverBudgets ?? Object.fromEntries(users.map(user => [user.memberId, 100])), rosterCounts: Object.fromEntries(users.map(user => [user.memberId, active[user.memberId].length])), weeklyCounts: Object.fromEntries(users.map(user => [user.memberId, 0])), limit: 1, rosterSize: 3 }
+  const input = { claims, mode, priorities, budgets, rosterCounts: Object.fromEntries(users.map(user => [user.memberId, active[user.memberId].length])), weeklyCounts: Object.fromEntries(users.map(user => [user.memberId, 0])), limit: 1, rosterSize: 3 }
   const scenario = { name, mode, seasonId: c.leagueSeasonId, targets, input, expected: waiverOutcomes(input), processAt: nextWaiverRun(Math.max(...targets.map(row => row.clearsAt))), checked: false }
   c.waiverScenarios.push(scenario)
   report.waivers ??= []
