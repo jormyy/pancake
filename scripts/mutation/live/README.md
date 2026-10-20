@@ -64,7 +64,7 @@ Live polling permits one retry when the points RPC returns its exact stale-token
 The scorer captures inputs and reads stats again before that retry.
 The worker reports scoreRetries and logs the retry with its league and week.
 A second conflict or any other error keeps the worker failure signal.
-Other scoring callers retain their strict behavior unless they opt into this retry.
+All scoring callers receive one bounded retry; onPublicationRetry supplies optional telemetry.
 
 The native tick recipe checks real worker correlation and database reconciliation.
 Its dispatch and transport-response records are SYNTHETIC; its worker and SQL functions are real.
@@ -107,3 +107,21 @@ It runs the registered delayed-tipoff recipe twice, checks their unchanged hashe
 The game-night benchmark measures twelve late Scheduled games and rolls back all rows.
 It records timing without asserting a wall-clock threshold and stays outside CI.
 L32–L39 cover the extended window, throttle boundaries, and the actual worker continuation policy.
+
+The retry budget is independent of telemetry.
+A points conflict captures fresh inputs and reads matchups and stats again.
+Consumed playoff rows are then excluded by the normal scoring path.
+The second points conflict and every finalization conflict still fail the job.
+The overlap recipe observes the actual SQL rejection and confirms stats reads of 20, 80, and 80.
+It requires the newer score to remain 80 after the older scorer recovers.
+
+```sh
+bash scripts/mutation/live/with-stack.sh python3 scripts/mutation/live/retry-regressions.py
+```
+
+The helper runs the thirteen round-eight database targets twice, without resetting between runs.
+The origin control belongs only on the unfixed integration copy.
+It temporarily omits the L-B2 input-token field, runs playoff-consumption, and restores the file hash.
+It does not remove any certificate check from the shipped scorer.
+L40 restores callback-gated retry. L41 re-enables a second retry.
+Their unit oracle checks default callers, callback counts, fresh tokens and points, strict error types, and the two-attempt bound.

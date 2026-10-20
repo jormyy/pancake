@@ -212,12 +212,26 @@ Deno.test('a second conflict fails without another retry', async () => {
   assert.equal(livePublications.length, 2)
 })
 
-Deno.test('callers without a retry policy still receive a stale publication failure', async () => {
+Deno.test('a caller without retry telemetry captures and scores fresh inputs once', async () => {
   reset()
   finalized = false
   liveWriteFailures = [{ code: 'PT409', message: 'Score inputs changed or were not certified. Retry scoring.' }]
-  await assert.rejects(() => syncScores(league, new Date('2101-01-07T18:00:00Z'), { recoverStats: false }), /Score sync failed/)
-  assert.equal(livePublications.length, 1)
+  await syncScores(league, new Date('2101-01-07T18:00:00Z'))
+  assert.equal(livePublications.length, 2)
+  const rows = livePublications.map(payload => (payload.p_matchups as Record<string, unknown>[])[0])
+  assert.deepEqual(rows.map(row => [row.home_points, row.input_token]), [
+    [10, { 'season:fixture': '1' }], [11, { 'season:fixture': '2' }],
+  ])
+})
+
+Deno.test('a second conflict without retry telemetry still fails', async () => {
+  reset()
+  finalized = false
+  liveWriteFailures = Array.from({ length: 2 }, () => ({
+    code: 'PT409', message: 'Score inputs changed or were not certified. Retry scoring.',
+  }))
+  await assert.rejects(() => syncScores(league, new Date('2101-01-07T18:00:00Z')), /Score sync failed/)
+  assert.equal(livePublications.length, 2)
 })
 
 Deno.test({ name: 'close certificate test server', sanitizeOps: false, sanitizeResources: false, fn: () => postgrest.shutdown() })

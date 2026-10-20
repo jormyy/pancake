@@ -591,7 +591,7 @@
     "id": "L28",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 650,
+    "line": 651,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "STMT-DEL",
     "original": "input_token: liveInputToken,",
@@ -773,7 +773,7 @@
     "id": "L29",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 664,
+    "line": 665,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "NEG",
     "original": "updateErr.code === 'PT409'",
@@ -786,7 +786,7 @@
     "id": "L30",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 664,
+    "line": 665,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "LCR",
     "original": "updateErr.code === 'PT409' &&",
@@ -799,10 +799,10 @@
     "id": "L31",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 667,
+    "line": 668,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "STMT-DEL",
-    "original": "onPublicationRetry()",
+    "original": "onPublicationRetry?.()",
     "mutated": "",
     "oracles": [
       "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
@@ -910,6 +910,32 @@
     "mutated": "game.status === 'Final'",
     "oracles": [
       "deno test --no-lock --node-modules-dir=none supabase/functions/live-poll/policy.test.ts"
+    ]
+  },
+  {
+    "id": "L40",
+    "area": "live-streams",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 664,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "LCR",
+    "original": "if (retryPublication && (",
+    "mutated": "if (retryPublication && onPublicationRetry && (",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "L41",
+    "area": "live-streams",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 670,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "CONST",
+    "original": "settings, onPublicationRetry, false)",
+    "mutated": "settings, onPublicationRetry, true)",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
     ]
   }
 ]
