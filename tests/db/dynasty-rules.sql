@@ -113,8 +113,7 @@ BEGIN
   SELECT new_season_id INTO other_season FROM advance_season_atomic(league);
   PERFORM pg_temp.check_dynasty((SELECT is_on_taxi AND taxi_start_season_year=8200 FROM roster_players WHERE league_season_id=other_season AND player_id=player_ids[2]),'taxi survives second season with original tenure');
   PERFORM pg_temp.check_dynasty((SELECT array_agg(priority.member_id ORDER BY priority.priority)=expected_order FROM waiver_priorities priority WHERE league_season_id=other_season),'waiver reset order excludes voided week');
-  INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
-  SELECT league,8201,1,id,id FROM league_members WHERE league_id=league;
+  PERFORM pg_temp.check_dynasty((SELECT count(*)=30 FROM draft_picks WHERE league_id=league AND season_year=8201),'rollover supplies every rookie round without a fixture repair');
   rookie_draft:=start_rookie_draft_atomic(league,1,false);
   PERFORM pg_temp.check_dynasty((SELECT array_agg(draft_order.member_id ORDER BY draft_order.position)=expected_order FROM draft_orders draft_order WHERE draft_id=(rookie_draft->>'id')::uuid),'real rookie draft order excludes voided week');
   UPDATE drafts SET status='cancelled' WHERE id=(rookie_draft->>'id')::uuid;
