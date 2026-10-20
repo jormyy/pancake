@@ -38,6 +38,12 @@ const route = async (index, path, body, expected = 200) => {
   assert.equal(response.status, expected, JSON.stringify(result))
   return result
 }
+const seasonYear = Number(sql(`SELECT candidate FROM generate_series(2188,9999) candidate
+  WHERE NOT EXISTS (SELECT 1 FROM season_weeks WHERE season_year=candidate)
+    AND NOT EXISTS (SELECT 1 FROM league_seasons WHERE season_year=candidate)
+    AND NOT EXISTS (SELECT 1 FROM nba_games WHERE season_year=candidate)
+  ORDER BY candidate LIMIT 1`))
+assert(Number.isInteger(seasonYear) && seasonYear >= 2188)
 try {
   for (let i = 0; i < 2; i += 1) {
     const email = `synthetic-faab-${randomUUID()}@example.test`
@@ -57,9 +63,9 @@ try {
   await rpc(clients[1], 'join_league_by_invite_code', { p_invite_code: code, p_team_name: 'HTTP B' })
   const members = users.map(u => sql(`SELECT id FROM league_members WHERE league_id=${quote(league)} AND user_id=${quote(u.id)}`))
   sql(`BEGIN;
-    UPDATE league_seasons SET season_year=2188 WHERE league_id=${quote(league)} AND is_current;
+    UPDATE league_seasons SET season_year=${seasonYear} WHERE league_id=${quote(league)} AND is_current;
     INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
-    VALUES(2188,1,(now() AT TIME ZONE 'America/New_York')::date-3,(now() AT TIME ZONE 'America/New_York')::date+3);
+    VALUES(${seasonYear},1,(now() AT TIME ZONE 'America/New_York')::date-3,(now() AT TIME ZONE 'America/New_York')::date+3);
     UPDATE leagues SET status='active',waiver_mode='faab',weekly_add_limit=2 WHERE id=${quote(league)};
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team)
     VALUES ${players.map(p => `(${quote(p)},'Synthetic','HTTP','PG',ARRAY['PG'],'Active','SIM')`).join(',')};
@@ -88,26 +94,32 @@ try {
     assert.equal(response.status, 200, JSON.stringify(result))
     return result
   }
-  const first = await processClaims()
-  assert.equal(first.processed, 3)
+  await processClaims()
+  const ownClaimStates = () => sql(`SELECT json_agg(json_build_array(id,status,failure_reason,processed_at) ORDER BY id)
+    FROM waiver_claims WHERE league_id=${quote(league)}`)
+  assert.deepEqual(JSON.parse(sql(`SELECT json_object_agg(status,total) FROM (
+    SELECT status,count(*) total FROM waiver_claims WHERE league_id=${quote(league)} GROUP BY status
+  ) counts`)), { cancelled: 1, failed_priority: 1, succeeded: 2 })
+  const settledClaims = ownClaimStates()
   assert.equal(sql(`SELECT balance FROM faab_balances WHERE member_id=${quote(members[0])}`), '90')
   assert.equal(sql(`SELECT balance FROM faab_balances WHERE member_id=${quote(members[1])}`), '100')
   assert.equal(sql(`SELECT add_count FROM weekly_add_counts WHERE member_id=${quote(members[0])}`), '2')
   assert.equal(sql(`SELECT week_number FROM weekly_add_counts WHERE member_id=${quote(members[0])}`), '1')
   assert.equal(sql(`SELECT status FROM waiver_claims WHERE player_id=${quote(players[0])} AND member_id=${quote(members[1])}`), 'failed_priority')
   assert.equal(sql(`SELECT count(*) FROM roster_players WHERE member_id=${quote(members[0])}`), '2')
-  const second = await processClaims()
-  assert.equal(second.processed, 0)
+  await processClaims()
+  assert.equal(ownClaimStates(), settledClaims)
+  assert.equal(sql(`SELECT count(*) FROM roster_transactions WHERE league_id=${quote(league)} AND transaction_type='waiver_add'`), '2')
   assert.equal(sql(`SELECT balance FROM faab_balances WHERE member_id=${quote(members[0])}`), '90')
   sql(`UPDATE season_weeks SET week_start=(now() AT TIME ZONE 'America/New_York')::date-7,
-    week_end=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE season_year=2188 AND week_number=1;
-    INSERT INTO season_weeks(season_year,week_number,week_start,week_end) VALUES(2188,2,
+    week_end=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE season_year=${seasonYear} AND week_number=1;
+    INSERT INTO season_weeks(season_year,week_number,week_start,week_end) VALUES(${seasonYear},2,
       (now() AT TIME ZONE 'America/New_York')::date,(now() AT TIME ZONE 'America/New_York')::date+6);`)
   await rpc(clients[0], 'add_free_agent_atomic', { p_member_id: members[0], p_league_id: league, p_player_id: players[2] })
   assert.deepEqual(JSON.parse(sql(`SELECT json_agg(add_count ORDER BY week_number) FROM weekly_add_counts WHERE member_id=${quote(members[0])}`)), [2, 1])
   console.log('PASS SYNTHETIC: authenticated HTTP submission/edit/cancel, skipped settings, real worker, tied/zero bids, winner-only debit, add limits, retry')
 } finally {
-  if (league) sql(`DELETE FROM leagues WHERE id=${quote(league)}; DELETE FROM players WHERE id IN(${players.map(quote).join(',')}); DELETE FROM season_weeks WHERE season_year=2188;`)
+  if (league) sql(`DELETE FROM leagues WHERE id=${quote(league)}; DELETE FROM players WHERE id IN(${players.map(quote).join(',')}); DELETE FROM season_weeks WHERE season_year=${seasonYear};`)
   for (const user of users) {
     const result = await admin.auth.admin.deleteUser(user.id)
     assert.ifError(result.error)

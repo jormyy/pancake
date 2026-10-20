@@ -26,6 +26,10 @@ if (evidence/'turn3/boundary-results.jsonl').exists():
     initial.update({r['id']:r for r in rows('turn3/initial-results.jsonl')})
     turn3 = {r['id']:r for r in rows('turn3/boundary-results.jsonl')}
     final.update(turn3)
+turn5 = {}
+if (evidence/'turn5/boundary-results.jsonl').exists():
+    turn5 = {r['id']:r for r in rows('turn5/boundary-results.jsonl')}
+    final.update(turn5)
 retired = {r['id']:r for r in catalog['mutants'] if r.get('retired')}
 for key, mutant in retired.items():
     row = {k:mutant[k] for k in ('id','area','file','line','symbol','operator','original','mutated')}
@@ -51,9 +55,22 @@ for key, row in final.items():
     if key in unreached:
         row['notes'] += ' | classification=' + unreached[key]
     for oracle in row['oracles']:
-        oracle['log'] = ('turn3/' if key in turn3 else 'turn2/' if key in boundary else '') + Path(oracle['log']).name
+        oracle['log'] = ('turn5/' if key in turn5 else 'turn3/' if key in turn3 else 'turn2/' if key in boundary else '') + Path(oracle['log']).name
         oracle['command'] = oracle['command'].replace("'$SUPABASE_DB_URL'", '"$SUPABASE_DB_URL"')
-(evidence/'results.jsonl').write_text(''.join(json.dumps(final[m['id']])+'\n' for m in catalog['mutants']))
+current = [final[m['id']] for m in catalog['mutants']]
+result_path = evidence/'results.jsonl'
+if turn5 and result_path.exists():
+    history = rows('results.jsonl')
+    with result_path.open('a') as log:
+        for row in current:
+            if row['id'] in turn5 and row not in history:
+                log.write(json.dumps(row)+'\n')
+    latest = {row['id']: row for row in rows('results.jsonl')}
+    assert latest == final
+else:
+    result_path.write_text(''.join(json.dumps(row)+'\n' for row in current))
+(evidence/'latest-results.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in current))
+
 scores = ['# Measured mutation scores', '', 'Inputs: SYNTHETIC users, leagues, players, standings, dates, and bids. Application definitions are REAL-DERIVED from repository migrations and the executed Edge source.', '',
           'Initial = three existing SQL recipes. Final = those recipes plus the season matrix and the real season-end gate/worker and DST checks for boundary additions. Round 3 runs on integration 53e916ed with the worker refresh removed. Earlier verdicts carry forward; the removed worker mutant is invalid. Six earlier selected kills also pass through authenticated HTTP submission and the real worker.', '',
           '| Area | Initial killed / (killed + survived) | Final killed / (killed + survived) | Total | Invalid | Timeout | Equivalent | Final survived |',
@@ -72,6 +89,8 @@ scores += ['', f'Overall: {initial_kills}/{initial_denominator} initially; {fina
            'Round 3 adds two waiver-expiry controls on the integrated build. The retired refresh-call mutation remains recorded as invalid. Raw historical verdicts remain in the turn2 logs. New baseline and killing logs are in turn3/.', '',
            'Tier 2: see turn3/shared-sim-readme.md and HANDOFF.md for the final publication check. No new simulator is built.', '',
            'These results do not prove all waiver behavior through a full season. They measure the catalog and targeted cases only.']
+if turn5:
+    scores += ['', 'Round 5 integration hygiene: five selected mutants rerun against the residue-tolerant DST recipe. All five remain killed by DST assertions. The 58-entry denominator is unchanged. results.jsonl appends rerun history; latest-results.jsonl has one current verdict per ID. See turn5/boundary-results.jsonl.']
 (evidence/'scores.md').write_text('\n'.join(scores)+'\n')
 survivors = ['# Every initial survivor', '', '| Mutant | Initial classification | Final result | Killing check or remaining limit |', '|---|---|---|---|']
 for mutant in catalog['mutants']:
@@ -107,6 +126,13 @@ if turn3:
         if key in retired:
             continue
         shutil.copyfile(evidence/f'turn3/boundary-{key}-season-end.log', evidence/f'red/{key}.log')
+if turn5:
+    shutil.copyfile(evidence/'turn5/boundary-waiv-skipped-week-08-dst.log', evidence/'red/dst-calendar-days.log')
+    shutil.copyfile(evidence/'turn5/baseline-boundary-dst.log', evidence/'green/dst.log')
+    for recipe in ['dst', 'worker']:
+        green_name = 'waiver-dst' if recipe == 'dst' else 'faab-worker'
+        shutil.copyfile(evidence/f'turn5/old-{recipe}-red.log', evidence/f'red/residue-{recipe}.log')
+        shutil.copyfile(evidence/f'turn5/green-1-{green_name}.log', evidence/f'green/residue-{recipe}.log')
 (evidence/'red'/'README.md').write_text(
     'The current rollover-stall red/green logs come from round3: the integrated boundary fix passes without worker refresh; restoring the old boundary source fails. Historical worker-fix logs remain under turn2/. Other red logs are mutation negative controls.\n'
     if boundary else 'These failures are mutation negative controls. No real application bug is reproduced or fixed. Baseline green logs exercise the same checks without the overlay.\n')

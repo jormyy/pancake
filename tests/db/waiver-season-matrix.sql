@@ -7,6 +7,8 @@ SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS
   \quit 2
 \endif
 BEGIN;
+UPDATE waiver_claims SET process_date='infinity'::date WHERE status='pending';
+DELETE FROM season_weeks WHERE season_year=2187;
 SET LOCAL statement_timeout = '25s';
 CREATE TYPE pg_temp.fixture AS (l uuid, s uuid, u uuid[], m uuid[]);
 CREATE FUNCTION pg_temp.check_that(ok boolean, label text) RETURNS void LANGUAGE plpgsql AS $$
