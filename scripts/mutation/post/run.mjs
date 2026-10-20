@@ -17,7 +17,7 @@ const status = execFileSync('supabase', ['status', '-o', 'env'], { encoding: 'ut
 const keys = Object.fromEntries(status.trim().split('\n').map(line => { const at = line.indexOf('='); return [line.slice(0, at), line.slice(at + 1).replace(/^"|"$/g, '')] }))
 assert.equal(new URL(keys.API_URL).port, '57421')
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(keys.API_URL).hostname))
-const env = { ...process.env, SUPABASE_DB_URL: db, SUPABASE_URL: keys.API_URL, SUPABASE_ANON_KEY: keys.ANON_KEY, PANCAKE_SUPABASE_SECRET_KEY: keys.SERVICE_ROLE_KEY, SUPABASE_SERVICE_ROLE_KEY: keys.SERVICE_ROLE_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: 'local-database-ci-token' }
+const env = { ...process.env, PANCAKE_TEST_API_PORT: '57421', PANCAKE_TEST_DB_PORT: '57422', SUPABASE_DB_URL: db, SUPABASE_URL: keys.API_URL, SUPABASE_ANON_KEY: keys.ANON_KEY, PANCAKE_SUPABASE_SECRET_KEY: keys.SERVICE_ROLE_KEY, SUPABASE_SERVICE_ROLE_KEY: keys.SERVICE_ROLE_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: 'local-database-ci-token' }
 const sql = statement => {
   const result = spawnSync('psql', [db, '-XqAt', '-v', 'ON_ERROR_STOP=1'], { input: statement, encoding: 'utf8', timeout: 30_000 })
   if (result.status !== 0) throw new Error(result.stderr || String(result.error))

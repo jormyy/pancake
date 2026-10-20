@@ -19,7 +19,7 @@ execFileSync('supabase', ['start', '-x', 'studio,imgproxy,vector,logflare,supavi
 await sql("ALTER SYSTEM SET cron.launch_active_jobs = 'off'")
 await sql('SELECT pg_reload_conf()')
 writeFileSync('supabase/config.toml', config.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1true'))
-execFileSync('supabase', ['migration', 'up', '--local'], { stdio: 'inherit' })
+execFileSync('supabase', process.argv.includes('--reset') ? ['db', 'reset', '--local', '--no-seed'] : ['migration', 'up', '--local'], { stdio: 'inherit' })
 await sql('SELECT cron.unschedule(jobid) FROM cron.job')
 writeFileSync(`${lane}/edge.env`, 'PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token\n')
 const { openSync } = await import('node:fs')

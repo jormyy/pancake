@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 const api = Deno.env.get('SUPABASE_URL')!
 const db = Deno.env.get('SUPABASE_DB_URL')!
 for (const target of [api, db]) assert.ok(['127.0.0.1', 'localhost'].includes(new URL(target).hostname))
-assert.equal(new URL(api).port, Deno.env.get('PANCAKE_TEST_API_PORT') ?? '57421')
-assert.equal(new URL(db).port, Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '57422')
+assert.equal(new URL(api).port, Deno.env.get('PANCAKE_TEST_API_PORT') ?? '54321')
+assert.equal(new URL(db).port, Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322')
 const { runSeasonBoundary } = await import('../../functions/_shared/seasonBoundary.ts')
 const { generateMatchups } = await import('../../functions/_shared/matchupGeneration.ts')
 const sql = async (statement: string): Promise<string> => {
