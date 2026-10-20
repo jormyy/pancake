@@ -285,12 +285,13 @@ The `cb74d8f7` integration returns no work at all fourteen ticks from 23:12 thro
 The unchanged probe on `658dd95c` returns work at all fourteen ticks and exits zero.
 The fixture and oracle hashes match across that red/green pair.
 
-The retained diagnostic completes March 23–25 and stops at the March 26 coverage check.
-It creates two semifinal rows automatically on March 25.
-It does not reach a finalized semifinal, final, champion, rollover, or rookie draft.
-Champion-dependent trading, offseason picks, rolling waivers, next-season limits, and skipped-week/DST flows remain unmeasured.
-The corrected diagnostic resumes from `pre-playoffs` and continues through those paths.
-Their measured results still require its generated evidence.
+The earlier retained diagnostic stops at the March 26 coverage check.
+The corrected diagnostic completes March 23 through April 12 on the integrated application.
+It passes the strict quarter checks and proves the automatic champion on April 13.
+Its first season-end assertion then reads only one of six pending claims.
+The database retains all six claims without processing or cancellation.
+The corrected harness reads each pending claim through its authenticated owner.
+Later outcomes require their generated continuation evidence.
 Next-season morning steps preserve any worker time advanced during snapshot preparation.
 Rookie expiry waits for the first cron minute strictly after the recorded pick expiry.
 
@@ -299,3 +300,63 @@ These measurements use earlier retained source copies, rather than the running f
 An idle offseason date has not run.
 At 450 seconds per game date, 194 selected historical and next-season dates take about 24.25 hours.
 This estimate excludes offseason cadence and setup; the complete duration remains unmeasured.
+
+
+## Pending claims and season-end recovery
+
+Pending waiver claims are private to their managers.
+The policy is `supabase/migrations/20260627000018_waiver_claim_privacy.sql`, line 11.
+A commissioner read cannot measure the whole pending batch.
+The harness reads every scenario owner through the authenticated REST route.
+It checks each expected claim ID, owner, pending status, processing time, and failure reason.
+Missing claims and changed statuses fail independently.
+Resolved claim checks also use the owners' reads.
+
+Successful conditional drops create another 48-hour waiver hold.
+The real rollover guard requires all pending claims and uncleared holds to settle.
+The harness records that specific boundary refusal only for its declared postseason scenario and league.
+Unclaimed holds expire only when `clears_at < now()` in migration `20260815000006_offseason_waiver_wire_expiry.sql`, line 24.
+A hold created at 03:00 ET therefore expires on the daily run strictly after its 48-hour clear time.
+The wait includes that expiry run and one daily boundary window.
+An unrelated error or a missed bound still fails.
+No worker or scoring override clears these holds.
+
+The `automatic-champion` snapshot precedes the pending-claim assertion.
+Its segment continues through rollover, the rookie draft, and the next-season weeks.
+A stopped diagnostic can also save this checkpoint from retained data:
+
+```sh
+. ~/pancake-t_4ba51e0d/env.sh
+cd "$TASK/lanes/sim/repo"
+export SEASON_SIM_SNAPSHOT_ROOT="$TASK/shared/sim/snapshots-r7"
+node scripts/season-sim/retained-check.mjs --save-automatic-champion --context-snapshot pre-playoffs
+node scripts/season-sim/index.mjs --segment automatic-champion
+```
+
+The existing stack must contain the failed run's retained database and evidence.
+The context snapshot must belong to the same league season.
+The save checks the retained champion against the database and requires a paused clock with no unfinished workers.
+It generates new local sessions only for existing simulator users.
+It preserves application business data and records the retained failure as prior evidence.
+The dump and session-bearing metadata stay private and outside the repository.
+The continuation never counts as a fresh replay.
+Use a new snapshot root for each attempt to preserve earlier snapshots.
+
+`phaseTimings` records measured season-end, rollover, offseason, draft, and next-season costs.
+`nextSeasonProgress` and the replay checkpoint record each next-season date as it completes.
+A phase without a completed measurement remains unverified.
+The separate automatic rookie backstop remains unverified until an explicit scenario proves it.
+
+
+`--save-post-rollover` saves a retained rollover checkpoint through the same guarded path.
+Its context remains tied to the old champion and the recorded new season.
+The post-rollover segment checks the new waiver budget and order, then continues through the draft and next-season weeks.
+
+Score certification refreshes `matchups.score_read_started_at` and `standings.created_at`.
+It also publishes the current waiver priority with rebuilt standings.
+The SQL writes these fields in migration `20261017000001_dynasty_rules_and_trade_plans.sql`, lines 2988 and 3074–3081.
+The rollover history check records these changes separately.
+A changed standings priority must match the independent waiver ledger.
+Every result field, row ID, finalization time, winner, score, and standings total must remain unchanged.
+Raw stored game stats still require the complete original digest.
+The next-season history check retains its full digest after rollover has settled.

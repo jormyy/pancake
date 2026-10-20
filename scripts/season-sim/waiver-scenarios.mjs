@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { etDate } from './common.mjs'
 import { sql } from './local-stack.mjs'
-import { checkWaiverResult, checkWaiverTiming, rolloverPriorities, waiverOutcomes, waiverParticipants } from './waiver-oracle.mjs'
+import { checkPendingWaivers, checkWaiverResult, checkWaiverTiming, rolloverPriorities, waiverOutcomes, waiverParticipants } from './waiver-oracle.mjs'
 
 const roster = (c, user) => c.rest(user, `roster_players?select=*&league_season_id=eq.${c.leagueSeasonId}&member_id=eq.${user.memberId}&is_on_ir=eq.false&is_on_taxi=eq.false&order=player_id`)
 const transactionState = async (c, user) => (await c.rpc(user, 'get_member_transaction_state', { p_member_id: user.memberId, p_league_id: c.leagueId }))[0]
@@ -72,7 +72,7 @@ export async function verifyWaivers(c, report) {
   const now = Number(await sql('SELECT extract(epoch FROM now())*1000'))
   for (const scenario of c.waiverScenarios ?? []) {
     if (scenario.checked || scenario.seasonId !== c.leagueSeasonId || now < scenario.processAt) continue
-    const claims = await c.rest(c.users[0], `waiver_claims?select=*&league_season_id=eq.${c.leagueSeasonId}`)
+    const claims = await readWaiverClaims(c, scenario)
     const priorities = await c.rest(c.users[0], `waiver_priorities?select=*&league_season_id=eq.${c.leagueSeasonId}`)
     const states = Object.fromEntries(await Promise.all(c.users.map(async user => [user.memberId, await transactionState(c, user)])))
     const rosterCounts = Object.fromEntries(await Promise.all(c.users.map(async user => [user.memberId, (await roster(c, user)).length])))
@@ -114,4 +114,19 @@ export async function assertWaiverRollover(c, oldSeason, report) {
   c.expectedWaiverPriorities = expected
   c.expectedWaiverBudgets = Object.fromEntries(c.users.map(user => [user.memberId, 100]))
   report.waiverRollover = { passed: true, priorities: expected, faab: 100, weeklyAdds: 0 }
+}
+
+export async function readWaiverClaims(c, scenario) {
+  const ids = scenario.input.claims.map(row => row.id)
+  const owners = [...new Set(scenario.input.claims.map(row => row.member))]
+  const rows = await Promise.all(owners.map(member => {
+    const user = c.users.find(row => row.memberId === member)
+    assert.ok(user, 'Every waiver claim has an authenticated owner')
+    return c.rest(user, `waiver_claims?select=*&league_season_id=eq.${scenario.seasonId}&member_id=eq.${member}&id=in.(${ids.join(',')})`)
+  }))
+  return rows.flat()
+}
+
+export async function assertPendingWaivers(c, scenario) {
+  return checkPendingWaivers(scenario.input.claims, await readWaiverClaims(c, scenario))
 }

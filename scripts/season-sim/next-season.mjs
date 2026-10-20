@@ -71,7 +71,8 @@ async function historyDigest(c, oldSeason) {
   return sql(`SELECT json_build_object('stats',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.season_year=2026),'matchups',(SELECT md5(string_agg(row_to_json(m)::text,'' ORDER BY m.id)) FROM matchups m WHERE league_season_id='${oldSeason}'),'standings',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM standings s WHERE league_season_id='${oldSeason}'),'usedPicks',(SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM draft_picks p WHERE league_id='${c.leagueId}' AND is_used))`)
 }
 
-export async function runNextSeason(c, oldSeason, move, report, snapshot) {
+export async function runNextSeason(c, oldSeason, move, report, snapshot, checkpoint = async (..._args) => {}) {
+  const began = Date.now()
   const mapping = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/next-season-mapping.json'), 'utf8'))
   const history = await historyDigest(c, oldSeason)
   c.seasonYear = 2027
@@ -98,7 +99,10 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot) {
   const { games } = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/games.json'), 'utf8'))
   let previous = {}
   const days = []
+  report.nextSeasonProgress = { beganAt: new Date(began).toISOString(), days }
   for (const date of dates(mapping.first, mapping.end)) {
+    const dayBegan = Date.now()
+    await checkpoint(`${date}:next-season-morning`)
     await nextSeasonMorning(date, move)
     const today = games.filter(game => game.date === date), day = { date, provenance: 'SYNTHETIC' }
     const week = rows.find(row => date >= row.week_start && date <= row.week_end)?.week_number
@@ -129,10 +133,15 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot) {
     day.weekly = await assertClosedWeeks(c, next, checked)
     for (const pick of [...report.actions.tradeDeadline.transferredPicks, { id: report.offseasonTrade.pickId, owner: report.offseasonTrade.owner }, ...(report.offseasonTrade.counterPickId ? [{ id: report.offseasonTrade.counterPickId, owner: report.offseasonTrade.counterOwner }] : [])]) assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick.id}'`), pick.owner, 'Future pick ownership survives next-season scoring')
     assert.equal(await historyDigest(c, oldSeason), history, 'Season-one stats, matchups, standings and used picks stay unchanged')
+    day.wallSeconds = (Date.now() - dayBegan) / 1000
     days.push(day)
+    console.log(JSON.stringify({ nextSeasonDate: date, games: day.finals.games, wallSeconds: day.wallSeconds }))
+    await checkpoint(`${date}:next-season-verified`)
   }
   assert.deepEqual(checked, [2, 3], 'Both eligible next-season weeks close and pass')
   assert.equal(await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`), playoffStart, 'Skipped weeks preserve the calendar playoff boundary')
   report.nextSeason = { passed: true, days, checked, skippedWeeks: [1], playoffRule: 'Configured calendar week 23 remains week 23; skipped regular weeks are omitted, never renumbered.', historyPreserved: true, provenance: 'Published REAL-RAW schedule; SYNTHETIC game data' }
+  report.phaseTimings ??= []
+  report.phaseTimings.push({ phase: 'next-season', seconds: (Date.now() - began) / 1000, businessAt: new Date(Number(await sql('SELECT extract(epoch FROM now())*1000'))).toISOString() })
   return report.nextSeason
 }
