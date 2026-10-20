@@ -1,12 +1,42 @@
+\getenv post_test_api_url SUPABASE_URL
+\getenv post_test_db_url SUPABASE_DB_URL
+\getenv post_test_api_port PANCAKE_TEST_API_PORT
+\getenv post_test_db_port PANCAKE_TEST_DB_PORT
+\if :{?post_test_api_url}
+\else
+  \echo SUPABASE_URL is required
+  \quit 3
+\endif
+\if :{?post_test_db_url}
+\else
+  \echo SUPABASE_DB_URL is required
+  \quit 3
+\endif
+\if :{?post_test_api_port}
+\else
+  \set post_test_api_port 54321
+\endif
+\if :{?post_test_db_port}
+\else
+  \set post_test_db_port 54322
+\endif
 BEGIN;
 SET LOCAL statement_timeout='30s';
-SELECT set_config('app.supabase_url','http://127.0.0.1:57421',true);
+SELECT set_config('app.supabase_url', :'post_test_api_url',true);
+SELECT set_config('post.test_api_port', :'post_test_api_port',true) \gset
+SELECT set_config('post.test_db_url', :'post_test_db_url',true) \gset
+SELECT set_config('post.test_db_port', :'post_test_db_port',true) \gset
 SELECT set_config('app.edge_internal_token','synthetic-post-gate-token',true);
 DO $$
 DECLARE
   usr uuid:=gen_random_uuid(); league uuid:=gen_random_uuid(); season uuid:=gen_random_uuid();
   initial_count bigint; first_count bigint; repeated_count bigint; next_count bigint;
 BEGIN
+  IF current_setting('post.test_api_port') !~ '^[0-9]+$' OR current_setting('post.test_db_port') !~ '^[0-9]+$'
+    OR current_setting('app.supabase_url') !~ format('^http://(127[.]0[.]0[.]1|localhost):%s/?$',current_setting('post.test_api_port'))
+    OR current_setting('post.test_db_url') !~ format('^postgres(ql)?://[^/@]+@(127[.]0[.]0[.]1|localhost):%s/[^?]+([?].*)?$',current_setting('post.test_db_port')) THEN
+    RAISE EXCEPTION 'Only the expected loopback API and database ports are allowed';
+  END IF;
   IF EXISTS(SELECT 1 FROM leagues WHERE status IN('active','playoffs','offseason','setup')) THEN
     RAISE EXCEPTION 'The drafting-only gate oracle requires an isolated empty stack';
   END IF;

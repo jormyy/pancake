@@ -142,3 +142,31 @@ The proof needs the review-start module at `evidence/review4/seasonBoundary-befo
 It proves both stalls on the final fixture, restores the module by hash, and proves green.
 It also proves the skipped-week fixture without manual certificate replay fails before recovery and passes after it.
 The skipped-week fixture now supplies persisted stats for its synthetic results.
+
+## CI registration
+
+The three guarded postseason scripts default to API 54321 and DB 54322.
+Alternate local stacks set `PANCAKE_TEST_API_PORT` and `PANCAKE_TEST_DB_PORT`.
+The mutation runner and direct checker always pass this lane's 57421/57422 overrides.
+The drafting gate reads `SUPABASE_URL` through psql and sets the transaction-local `app.supabase_url`.
+`public.invoke_edge_function` reads that setting when the gate queues its request.
+The recipe validates the expected loopback API and DB URLs before it inserts fixtures.
+
+`registrations.json` records the live, waiv, and post recipe order.
+Six post recipes enter the fast database chain.
+The skipped-week and stale-boundary scenarios stay evidence recipes because they compare real-clock grace timestamps.
+The unused-round policy probe stays unregistered.
+
+```sh
+node scripts/mutation/post/setup.mjs --reset
+node scripts/mutation/post/integration.mjs
+node scripts/mutation/post/check-registrations.mjs package.json /absolute/path/to/package-before.json
+```
+
+Run these commands only on the admitted lane stack after sourcing the task environment.
+The setup reset rebuilds only the guarded lane database from this tree's migrations.
+The integration runner supplies the CI variable names and local generated keys.
+It runs new live SQL entries, waiver chain entries, and all eight post recipes separately.
+It skips the live TypeScript recipe pending that lane's concurrent port change.
+It also proves default-port refusal before fixture changes and rejects broken registration controls.
+The complete `test:db` chain remains an integration check for the orchestrator.
