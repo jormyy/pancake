@@ -20,12 +20,10 @@ type Props = {
 export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSecondary, size = 44, uri }: Props) {
     const containerRef = useRef<View | null>(null)
     const [visibleUri, setVisibleUri] = useState(() => uri && loadedImageUris.has(uri) ? uri : null)
-    const [failedUri, setFailedUri] = useState<string | null>(null)
     const half = size / 2
     const fs = size <= 38 ? 12 : size <= 44 ? 14 : 18
 
     useEffect(() => {
-        setFailedUri(null)
         if (!uri) return
         if (loadedImageUris.has(uri) || Platform.OS !== 'web' || typeof IntersectionObserver === 'undefined') {
             setVisibleUri(uri)
@@ -55,26 +53,47 @@ export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSe
                 { width: size, height: size, borderRadius: half, backgroundColor: color },
             ]}
         >
-            {uri && uri === visibleUri && uri !== failedUri ? (
+            <AvatarContent key={uri} uri={uri === visibleUri ? uri : null} name={name} size={size} fontSize={fs} textColor={textColor} />
+        </View>
+    )
+}
+
+function AvatarContent({ uri, name, size, fontSize, textColor }: {
+    uri?: string | null
+    name: string
+    size: number
+    fontSize: number
+    textColor: string
+}) {
+    const [loaded, setLoaded] = useState(false)
+    const [failed, setFailed] = useState(false)
+    const initials = getInitials(name)
+    return (
+        <>
+            {(!loaded || failed) && initials !== '?' ? <Text style={[styles.text, { fontSize, color: textColor }]}>{initials}</Text> : null}
+            {uri && !failed ? (
                 <Image
                     source={{ uri }}
-                    style={{ width: size, height: size, borderRadius: half }}
+                    style={{ position: 'absolute', width: size, height: size, borderRadius: size / 2, opacity: loaded ? 1 : 0 }}
                     resizeMode="cover"
                     onLoad={() => {
                         loadedImageUris.add(uri)
                         if (loadedImageUris.size > 512) loadedImageUris.delete(loadedImageUris.values().next().value!)
+                        setLoaded(true)
                     }}
-                    onError={() => setFailedUri(uri)}
+                    onError={() => {
+                        loadedImageUris.delete(uri)
+                        setFailed(true)
+                    }}
                 />
-            ) : (
-                <Text style={[styles.text, { fontSize: fs, color: textColor }]}>{getInitials(name)}</Text>
-            )}
-        </View>
+            ) : null}
+        </>
     )
 }
 
 const styles = StyleSheet.create({
     circle: {
+        flexShrink: 0,
         borderCurve: 'continuous',
         justifyContent: 'center',
         alignItems: 'center',

@@ -1,4 +1,4 @@
-import { createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, createElement, ReactNode, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { isAuthApiError, isAuthSessionMissingError, Session } from '@supabase/supabase-js'
 import { inspectAuthSession, readStoredAuthState, supabase, supabaseAuthStorageKey, localAuthChangeEvent } from '@/lib/supabase'
 import type { StoredAuthState } from '@/lib/auth-session'
@@ -13,11 +13,16 @@ type AuthContextValue = {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+const subscribeToHydration = () => () => {}
+const serverAuth: AuthContextValue = { session: null, user: null, loading: true, restorationStatus: 'missing' }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false)
     const [restored, setRestored] = useState(readStoredAuthState)
     const initial = useRef(restored)
     const [loading, setLoading] = useState(restored.session === null)
+
+    useLayoutEffect(() => { setSessionOwner(initial.current.session?.user.id ?? null) }, [])
 
     useEffect(() => {
         let active = true
@@ -139,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         restorationStatus: restored.status,
     }), [restored, loading])
 
-    return createElement(AuthContext.Provider, { value }, children)
+    return createElement(AuthContext.Provider, { value: hydrated ? value : serverAuth }, children)
 }
 
 export function useAuth() {

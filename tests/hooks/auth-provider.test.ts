@@ -3,6 +3,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from '@/hooks/use-auth'
+import { sessionOwner, setSessionOwner } from '@/lib/session-cache-registry'
 
 const mocks = vi.hoisted(() => ({
     getSession: vi.fn(),
@@ -68,6 +69,28 @@ describe('AuthProvider bootstrap ownership', () => {
         snapshots.push({ userId: user?.id ?? null, loading })
         return null
     }
+
+    it('admits saved private data before child effects on a client-rendered offline launch', async () => {
+        setSessionOwner(null)
+        mocks.readStoredSessionSync.mockReturnValue(authSession('saved-user'))
+        const bootstrap = deferred<{ data: { session: unknown }; error: null }>()
+        mocks.getSession.mockReturnValue(bootstrap.promise)
+        const admitted: boolean[] = []
+        function SavedData() {
+            const { user } = useAuth()
+            React.useEffect(() => { admitted.push(sessionOwner() === user?.id) }, [user?.id])
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => {
+            renderer = create(React.createElement(AuthProvider, null, React.createElement(SavedData)))
+        })
+        try {
+            expect(admitted).toEqual([true])
+        } finally {
+            await act(async () => { renderer.unmount() })
+        }
+    })
 
     it('does not let a late bootstrap overwrite a newer auth event', async () => {
         const bootstrap = deferred<{ data: { session: unknown }; error: null }>()
