@@ -569,6 +569,7 @@ async function updateWeekPoints(
     seasonYear: number,
     weekNumber: number,
     settings: Record<string, number>,
+    onPublicationRetry?: () => void,
 ): Promise<void> {
     const { data: weekData, error: weekErr } = await supabase
         .from('season_weeks')
@@ -656,7 +657,17 @@ async function updateWeekPoints(
         p_week_number: weekNumber,
         p_matchups: updates,
     })
-    if (updateErr) throw updateErr
+    if (updateErr) {
+        if (onPublicationRetry && (
+            updateErr.code === 'PT409' &&
+            updateErr.message === 'Score inputs changed or were not certified. Retry scoring.'
+        )) {
+            onPublicationRetry()
+            console.warn(`[scores] Retrying changed inputs for league ${leagueId}, week ${weekNumber}`)
+            return await updateWeekPoints(leagueId, seasonId, seasonYear, weekNumber, settings)
+        }
+        throw updateErr
+    }
 }
 
 async function loadWeeksToSync(
@@ -821,7 +832,7 @@ async function syncStatsForCompletedWeeks(
 }
 
 // Update current matchups and replay corrected historical seasons.
-export async function syncScores(leagueId?: string, referenceDate = new Date(), options: { recoverStats?: boolean } = {}) {
+export async function syncScores(leagueId?: string, referenceDate = new Date(), options: { recoverStats?: boolean; onPublicationRetry?: () => void } = {}) {
     const seasons = await fetchAllPages<{
         id: string
         league_id: string
@@ -919,7 +930,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date(), 
             // An overlapping correction must remain newer than this read boundary.
             const scoringReadStartedAt = new Date().toISOString()
             for (const scoreWeek of weeksToSync) {
-                await updateWeekPoints(season.league_id, season.id, season.season_year, scoreWeek, settings)
+                await updateWeekPoints(season.league_id, season.id, season.season_year, scoreWeek, settings, options.onPublicationRetry)
             }
 
             // Finalize older weeks before newer weeks so cumulative standings for

@@ -59,3 +59,15 @@ Regular matchups cover one week, as enforced by the database constraint.
 Earlier tokens retain all common keys and only their own cumulative week keys.
 Playoff schedules and missing current tokens use the full comparison.
 The gate recipe checks earlier stale certificates and playoff spans independently.
+
+Live polling permits one retry when the points RPC returns its exact stale-token error.
+The scorer captures inputs and reads stats again before that retry.
+The worker reports scoreRetries and logs the retry with its league and week.
+A second conflict or any other error keeps the worker failure signal.
+Other scoring callers retain their strict behavior unless they opt into this retry.
+
+The native tick recipe checks real worker correlation and database reconciliation.
+Its dispatch and transport-response records are SYNTHETIC; its worker and SQL functions are real.
+It checks both a recovered stale publication and an unrelated PT409 database error.
+The recipe uses actual tick timing and belongs among evidence scripts.
+The three-minute writer and gate-load recipes also remain outside the CI database chain.
