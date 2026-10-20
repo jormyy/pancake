@@ -5,6 +5,9 @@ import { delay, miniRoot } from './common.mjs'
 import { sql } from './local-stack.mjs'
 
 export async function dispatch(statement, { optional = false, allowFailure = false } = {}) {
+  if (process.env.SEASON_SIM_PRODUCTION_ONLY === '1') {
+    for (const query of Array.isArray(statement) ? statement : [statement]) assert.ok(!/invoke_edge_function\s*\(\s*'(?:sync-stats|sync-scores|sync-players|sync-schedule)'/i.test(query), 'Replay forbids direct business maintenance invocations; use production gates')
+  }
   const before = Number(await sql('SELECT coalesce(max(id),0) FROM public.edge_invocations'))
   if (Array.isArray(statement)) await Promise.all(statement.map(query => sql(query)))
   else await sql(statement)

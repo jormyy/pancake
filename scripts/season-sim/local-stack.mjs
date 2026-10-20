@@ -3,15 +3,15 @@ import { execFileSync } from 'node:child_process'
 import http from 'node:http'
 import { readFile, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { assertTarget, miniRoot } from './common.mjs'
+import { assertTarget, config, databaseUrl, miniRoot } from './common.mjs'
 
-const cli = path.join(miniRoot, 'tools/supabase-go')
-const container = 'supabase_db_pt0493sim'
+const { cli, container } = config
+let checkedNativeTarget = false
 
 async function docker(method, resource, body) {
   assert.ok(resource === `/containers/${container}/json` || resource === `/containers/${container}/exec` || /^\/exec\/[a-f0-9]+\/(start|json)$/.test(resource))
-  const socketPath = process.env.DOCKER_HOST?.replace(/^unix:\/\//, '')
-  assert.equal(socketPath, path.join(miniRoot, '../../lima/pt0493/sock/docker.sock'))
+  const socketPath = config.socket
+  assert.ok(socketPath, 'Set DOCKER_HOST to the task-local Unix socket')
   return await new Promise((resolve, reject) => {
     const req = http.request({ socketPath, method, path: resource, headers: { 'Content-Type': 'application/json' } }, res => {
       const chunks = []
@@ -28,7 +28,7 @@ async function docker(method, resource, body) {
 }
 
 export function localKeys() {
-  const output = execFileSync(cli, ['status', '-o', 'env'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  const output = execFileSync(cli, ['status', '-o', 'env', '--workdir', path.join(miniRoot, 'repo')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
   const values = Object.fromEntries(output.split('\n').flatMap(line => {
     const match = /^([A-Z_]+)="(.*)"$/.exec(line)
     return match ? [[match[1], match[2]]] : []
@@ -38,11 +38,24 @@ export function localKeys() {
   return values
 }
 
+export function databaseEnvironment(target = assertTarget(localKeys().DB_URL, 'db')) {
+  assertTarget(target.href, 'db')
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['PGSERVICE', 'PGSERVICEFILE'].includes(key)))
+  return { ...inherited, PGHOST: target.hostname, PGPORT: target.port, PGUSER: 'supabase_admin', PGDATABASE: 'postgres', PGPASSWORD: decodeURIComponent(target.password), PGPASSFILE: '/dev/null' }
+}
+
 export async function sql(statement) {
-  assertTarget('postgresql://postgres@127.0.0.1:56222/postgres', 'db')
-  const inspected = JSON.parse((await docker('GET', `/containers/${container}/json`)).toString())
-  assert.equal(inspected.Name, `/${container}`)
-  assert.ok(inspected.NetworkSettings.Ports['5432/tcp'].some(binding => binding.HostPort === '56222'))
+  assertTarget(databaseUrl, 'db')
+  if (!checkedNativeTarget) {
+    const inspected = JSON.parse((await docker('GET', `/containers/${container}/json`)).toString())
+    assert.equal(inspected.Name, `/${container}`)
+    assert.ok(inspected.NetworkSettings.Ports['5432/tcp'].some(binding => binding.HostPort === String(config.ports.db)))
+    checkedNativeTarget = true
+  }
+  if (process.env.SUPABASE_DB_URL) {
+    const target = assertTarget(process.env.SUPABASE_DB_URL, 'db')
+    return execFileSync(path.resolve(miniRoot, '../../tools/pg/bin/psql'), ['-XqAt', '--set', 'ON_ERROR_STOP=1'], { input: statement, env: databaseEnvironment(target), encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+  }
   const command = statement.length > 32000
     ? ['sh', '-c', 'printf %s "$@" | base64 -d | psql -XqAt -U supabase_admin -d postgres --set ON_ERROR_STOP=1', 'season-sim-sql', ...Buffer.from(statement).toString('base64').match(/.{1,60000}/g)]
     : ['psql', '-XqAt', '-U', 'supabase_admin', '-d', 'postgres', '--set', 'ON_ERROR_STOP=1', '-c', statement]
@@ -78,17 +91,18 @@ export async function sqlJson(statement, context, execute = sql) {
 
 export async function setupStack() {
   assert.equal(await realpath(process.cwd()), path.join(miniRoot, 'repo'), 'Stack setup runs only in the mini lane checkout')
-  const config = path.join(process.cwd(), 'supabase/config.toml')
-  let contents = await readFile(config, 'utf8')
-  contents = contents.replace(/^project_id = .*$/m, 'project_id = "pt0493sim"').replace(/\b543(\d\d)\b/g, '562$1').replace('inspector_port = 8083', 'inspector_port = 56283')
+  const configFile = path.join(process.cwd(), 'supabase/config.toml')
+  let contents = await readFile(configFile, 'utf8')
+  contents = contents.replace(/^project_id = .*$/m, `project_id = "${config.project}"`).replace(/\b543(\d\d)\b/g, `${config.prefix}$1`).replace('inspector_port = 8083', `inspector_port = ${config.ports.inspector}`)
   contents = contents.replace(/(\[realtime\]\s*enabled = )false/, '$1true').replace(/(\[storage\]\s*enabled = )false/, '$1true')
   contents = contents.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1false').replace(/(\[db.seed\][\s\S]*?enabled = )(?:true|false)/, '$1false')
-  await writeFile(config, contents)
+  await writeFile(configFile, contents)
   execFileSync(cli, ['start', '-x', 'studio,imgproxy,vector,logflare,supavisor,edge-runtime,postgres-meta,mailpit'], { stdio: ['ignore', 'ignore', 'inherit'] })
   await sql("ALTER SYSTEM SET cron.launch_active_jobs = 'off'")
   await sql('SELECT pg_reload_conf()')
-  await writeFile(config, contents.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1true'))
+  await writeFile(configFile, contents.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1true'))
   execFileSync(cli, ['migration', 'up', '--local'], { stdio: 'inherit' })
+  await writeFile(path.join(miniRoot, 'cron-jobs.json'), await sql("SELECT coalesce(json_agg(r ORDER BY jobname),'[]') FROM (SELECT jobname,schedule,command FROM cron.job) r"))
   await sql('SELECT cron.unschedule(jobid) FROM cron.job')
-  console.log(JSON.stringify({ event: 'stack-ready', project: 'pt0493sim', cronJobs: Number(await sql('SELECT count(*) FROM cron.job')) }))
+  console.log(JSON.stringify({ event: 'stack-ready', project: config.project, cronJobs: Number(await sql('SELECT count(*) FROM cron.job')) }))
 }

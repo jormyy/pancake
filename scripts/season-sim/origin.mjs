@@ -3,7 +3,7 @@ import http from 'node:http'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { assertTarget, delay, etDate, historicalSummary, laneDirectory, miniRoot, teamCode } from './common.mjs'
+import { config, assertTarget, delay, etDate, historicalSummary, laneDirectory, miniRoot, sha256, teamCode } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { orderedActions, snapshot, gameEndTime } from './snapshots.mjs'
 import { clockTime } from './virtual-clock.mjs'
@@ -21,6 +21,9 @@ export async function startOrigin({ resume = false } = {}) {
   const recorder = upstreamRecorder(evidence, { resume })
   const { games } = JSON.parse(await readFile(path.join(directory, 'games.json'), 'utf8'))
   const { games: schedule } = JSON.parse(await readFile(path.join(directory, 'schedule.json'), 'utf8'))
+  const nextSource = JSON.parse(await readFile(path.join(directory, 'next-schedule-source.json'), 'utf8'))
+  const nextScheduleBytes = await readFile(path.join(directory, nextSource.file))
+  assert.equal(sha256(nextScheduleBytes), nextSource.sha256, 'Published next-season schedule hash')
   const boxes = new Map(), plays = new Map(), people = new Map(), teams = new Map(), articles = [], bounds = new Map()
   const now = () => clockTime(JSON.parse(readFileSync(path.join(miniRoot, 'state/clock.json'), 'utf8')), Date.now())
   for (const game of [...games].sort((a, b) => a.time.localeCompare(b.time))) {
@@ -28,6 +31,7 @@ export async function startOrigin({ resume = false } = {}) {
     boxes.set(game.id, box)
     const actions = orderedActions(await store.json(`playbyplay-${game.id}`))
     bounds.set(game.id, { start: Date.parse(actions[0].timeActual), end: gameEndTime(actions) + 60000 })
+    if (game.provenance === 'SYNTHETIC') continue
     const summary = await store.json(`summary-${game.espnId}`)
     articles.push(...historicalSummary(summary, game.time).news)
     for (const side of summary.boxscore?.players ?? []) {
@@ -64,8 +68,8 @@ export async function startOrigin({ resume = false } = {}) {
       plays.set(game.id, await store.json(`playbyplay-${game.id}`))
     }
     const pbp = plays.get(game.id)
-    if (at >= bounds.get(game.id).end) return { payload: boxes.get(game.id), provenance: 'REAL-RAW', key: `boxscore-${game.id}` }
-    return { payload: snapshot(boxes.get(game.id), pbp, new Date(at).toISOString(), withCourt), provenance: fault?.gameId === game.id ? 'SYNTHETIC' : 'REAL-DERIVED', key: `playbyplay-${game.id}` }
+    if (at >= bounds.get(game.id).end) return { payload: boxes.get(game.id), provenance: game.provenance === 'SYNTHETIC' ? 'SYNTHETIC' : 'REAL-RAW', key: `boxscore-${game.id}` }
+    return { payload: snapshot(boxes.get(game.id), pbp, new Date(at).toISOString(), withCourt), provenance: fault?.gameId === game.id || game.provenance === 'SYNTHETIC' ? 'SYNTHETIC' : 'REAL-DERIVED', key: `playbyplay-${game.id}` }
   }
   function rosterAt(at) {
     const date = etDate(new Date(at).toISOString())
@@ -95,11 +99,18 @@ export async function startOrigin({ resume = false } = {}) {
       else if (url.pathname === '/static/json/staticData/scheduleLeagueV2_1.json') {
         const rows = games.map(game => scheduleObservation(game, postponements.get(game.id), bounds.get(game.id), at))
         if (fault?.type === 'missing-schedule') { const index = rows.findIndex(row => row.gameId === fault.gameId); assert.ok(index >= 0); rows.splice(index, 1); provenance = 'SYNTHETIC' }
-        payload = { leagueSchedule: { seasonYear: '2025-26', gameDates: [{ games: rows }] } }
+        if (date >= '2026-07-01') {
+          response.setHeader('Content-Type', 'application/json')
+          response.setHeader('X-Sim-Provenance', 'REAL-RAW')
+          response.end(nextScheduleBytes)
+          recorder.record({ path: url.pathname, at, provenance: 'REAL-RAW', source: nextSource.file, status: 200 })
+          return
+        }
+        payload = { leagueSchedule: { seasonYear: '2025-26', gameDates: [{ games: rows.filter(row => row.gameId.startsWith('00225')) }] } }
       } else if (url.pathname.endsWith('/todaysScoreboard_00.json')) {
         const selected = await Promise.all(games.filter(game => game.date === date).map(game => view(game, at, false)))
         provenance = selected.some(item => item.provenance === 'SYNTHETIC') ? 'SYNTHETIC' : 'REAL-DERIVED'
-        gameEvent = { scoreboardGames: selected.filter(item => item.provenance !== 'SYNTHETIC').map(item => item.payload.game.gameId) }
+        gameEvent = { scoreboardGames: selected.map(item => item.payload.game.gameId) }
         payload = { scoreboard: { gameDate: date, games: selected.map(({ payload: { game } }) => ({ gameId: game.gameId, gameCode: game.gameCode, gameStatus: game.gameStatus, gameStatusText: game.gameStatusText, period: game.period, gameClock: game.gameClock, gameTimeUTC: game.gameTimeUTC, homeTeam: scoreboardTeam(game.homeTeam), awayTeam: scoreboardTeam(game.awayTeam) })) } }
       } else if (/\/boxscore_\d+\.json$/.test(url.pathname)) {
         const id = /boxscore_(\d+)\.json$/.exec(url.pathname)[1]
@@ -114,7 +125,7 @@ export async function startOrigin({ resume = false } = {}) {
         }
         source = result.key
         gameEvent = { gameId: id, gameStatus: result.payload.game.gameStatus, period: result.payload.game.period, gameClock: result.payload.game.gameClock, kind: 'boxscore' }
-        if (provenance === 'REAL-RAW') {
+        if (provenance === 'REAL-RAW' || game.provenance === 'SYNTHETIC' && result.payload.game.gameStatus === 3) {
           response.setHeader('Content-Type', 'application/json')
           response.setHeader('X-Sim-Provenance', provenance)
           response.end(await store.bytes(result.key))
@@ -160,7 +171,7 @@ export async function startOrigin({ resume = false } = {}) {
       console.error(error)
     }
   }))
-  await new Promise(resolve => server.listen(56280, '127.0.0.1', () => resolve(undefined)))
+  await new Promise(resolve => server.listen(config.ports.replay, '127.0.0.1', () => resolve(undefined)))
   console.log(JSON.stringify({ event: 'origin-ready', games: games.length, people: people.size, teams: teams.size }))
   server.historicalRoster = () => rosterAt(now()).map(player => ({ espnId: player.id, nbaTeam: player.team }))
   server.coverage = recorder.report

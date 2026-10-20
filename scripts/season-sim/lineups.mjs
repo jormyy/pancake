@@ -3,16 +3,15 @@ import { sql } from './local-stack.mjs'
 import { publishedWeekNumber } from './calendar.mjs'
 
 export async function prepareLineups(c, date, report) {
-  const week = publishedWeekNumber(await sql(`SELECT week_number FROM season_weeks WHERE season_year=2026 AND '${date}' BETWEEN week_start AND week_end`))
+  const week = publishedWeekNumber(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${c.seasonYear ?? 2026} AND '${date}' BETWEEN week_start AND week_end`))
   if (week == null) {
     assert.equal(await sql(`SELECT count(*) FROM nba_games WHERE game_date='${date}'`), '0', 'A calendar gap cannot hide NBA games')
     report.lineups = { week: null, tieMembers: [], disabledMembers: [], postLockRejections: 0, preferenceChecks: 0, skipped: 'No published fantasy week' }
     return
   }
   const matchups = JSON.parse(await sql(`SELECT coalesce(json_agg(m ORDER BY id),'[]') FROM matchups m WHERE league_season_id='${c.leagueSeasonId}' AND week_number=${week}`))
-  const tieMembers = week === 2 && matchups[0] ? [matchups[0].home_member_id, matchups[0].away_member_id] : []
-  const preferenceMember = c.users[0].memberId
-  const manualMembers = new Set([...tieMembers, preferenceMember])
+  const tieMembers = (c.seasonYear ?? 2026) === 2026 && week === 2 && matchups[0] ? [matchups[0].home_member_id, matchups[0].away_member_id] : []
+  const manualMembers = new Set(tieMembers)
   for (const user of c.users) {
     const enabled = !manualMembers.has(user.memberId)
     await c.restWrite(user, `lineup_optimizer_settings?league_season_id=eq.${c.leagueSeasonId}&member_id=eq.${user.memberId}`, { enabled, enabled_at: enabled ? `${date}T12:00:00Z` : null }, 'PATCH')

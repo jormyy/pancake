@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
-SELECT :'HOST' IN ('localhost', '127.0.0.1') AND :'PORT' = '56222'
+SELECT :'HOST' IN ('localhost', '127.0.0.1') AND :'PORT' = :'season_sim_port'
   AND current_database() = 'postgres' AS season_sim_safe \gset
 \if :season_sim_safe
 \else

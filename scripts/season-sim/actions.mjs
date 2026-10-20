@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { appendFile } from 'node:fs/promises'
 import path from 'node:path'
-import { assertTarget, miniRoot, writeJson } from './common.mjs'
+import { config, originUrl, assertTarget, miniRoot, writeJson } from './common.mjs'
 import { setClock } from './clock.mjs'
 import { sql } from './local-stack.mjs'
 
 /** @typedef {{ id: string, token: string, refreshToken: string, expiresAt: number, memberId?: string }} ReplayUser */
 
-function actionClient(keys) {
+export function actionClient(keys) {
   assertTarget(keys.API_URL, 'api')
   /**
    * @param {unknown} [body]
@@ -16,7 +16,7 @@ function actionClient(keys) {
    * @param {string} [method]
    */
   async function request(origin, route, token, body, expected = 200, method) {
-    assertTarget(origin, origin.includes('56281') ? 'edge' : 'api')
+    assertTarget(origin, new URL(origin).port === String(config.ports.edge) ? 'edge' : 'api')
     const response = await fetch(`${origin}${route}`, { method: method ?? (body ? 'POST' : 'GET'), headers: { apikey: keys.ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' }, body: body ? JSON.stringify(body) : undefined, redirect: 'error' })
     const text = await response.text()
     const data = text ? JSON.parse(text) : null
@@ -35,7 +35,7 @@ function actionClient(keys) {
   /** @param {number | number[]} [expected] */
   const rpc = async (user, name, body, expected = 200) => request(keys.API_URL, `/rest/v1/rpc/${name}`, await refresh(user), body, expected)
   /** @param {number | number[]} [expected] */
-  const api = async (user, route, body, expected = 200) => request('http://127.0.0.1:56281', `/functions/v1/api${route}`, await refresh(user), body, expected)
+  const api = async (user, route, body, expected = 200) => request(originUrl('edge'), `/functions/v1/api${route}`, await refresh(user), body, expected)
   const rest = async (user, query) => request(keys.API_URL, `/rest/v1/${query}`, await refresh(user))
   const restWrite = async (user, query, body, method = 'POST') => request(keys.API_URL, `/rest/v1/${query}`, await refresh(user), body, 200, method)
   return { rpc, api, rest, restWrite }
@@ -59,13 +59,15 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   const league = await rpc(users[0], 'create_league', { p_name: `Historical replay ${run}`, p_team_name: 'Synthetic home', p_auction_budget: 20 })
   for (const [index, user] of users.slice(1).entries()) await rpc(user, 'join_league_by_invite_code', { p_invite_code: league.invite_code, p_team_name: `Synthetic away ${index + 1}` })
   const leagueId = league.id
-  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, taxi_rule: 'rookies_or_64_games', playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.integrated ? 23 : 20, playoff_round_lengths: options.integrated ? [1, 2] : [1] }, p_slots: [{ slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
+  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, taxi_rule: 'rookies_or_64_games', playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.playoffStartWeek ?? (options.integrated ? 23 : 20), playoff_round_lengths: options.roundLengths ?? (options.integrated ? [1, 2] : [1]) }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
+  const configuredSlots = await rest(users[0], `lineup_slot_templates?select=slot_type,slot_count&league_id=eq.${leagueId}`)
+  for (const row of configuredSlots) assert.equal(row.slot_count, row.slot_type === 'UTIL' ? 2 : row.slot_type === 'BE' ? 1 : row.slot_type === 'IR' ? 2 : 0, 'Commissioner slot configuration must match the declared scenario')
   const members = JSON.parse(await sql(`SELECT json_agg(t) FROM (SELECT id,user_id FROM league_members WHERE league_id='${leagueId}') t`))
   const leagueSeasonId = await sql(`SELECT id FROM league_seasons WHERE league_id='${leagueId}' AND is_current`)
   for (const user of users) user.memberId = members.find(member => member.user_id === user.id).id
   const { draft } = await api(users[0], '/draft/start', { leagueId, timerSeconds: 5 })
   let clock = Date.parse(`${options.auctionDate ?? date}T14:00:00Z`)
-  await setClock({ at: new Date(clock).toISOString(), rate: 0 })
+  await (options.move ? options.move(clock) : setClock({ at: new Date(clock).toISOString(), rate: 0 }))
   const players = JSON.parse(await sql(`SELECT json_agg(t) FROM (SELECT p.id,p.nba_id FROM players p WHERE p.nba_team IN (SELECT home_team FROM nba_games WHERE game_date='${date}' UNION SELECT away_team FROM nba_games WHERE game_date='${date}') AND p.injury_status IS NULL AND p.position IS NOT NULL ORDER BY p.nba_id LIMIT ${teamCount * 3}) t`))
   if (options.integrated) {
     const memberId = await sql(`SELECT member_id FROM draft_orders WHERE draft_id='${draft.id}' AND position=1`)
@@ -81,13 +83,13 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
     if (index === 0) await api(user, `/draft/${draft.id}/bid`, { memberId, nominationId: nomination.id, amount: 21 }, 400)
     await api(user, `/draft/${draft.id}/bid`, { memberId, nominationId: nomination.id, amount: 1 })
     clock += 16000
-    await setClock({ at: new Date(clock).toISOString(), rate: 0 })
+    await (options.move ? options.move(clock) : setClock({ at: new Date(clock).toISOString(), rate: 0 }))
     await api(user, `/draft/${draft.id}/close-expired`, {})
   }
   assert.equal(await sql(`SELECT status FROM drafts WHERE id='${draft.id}'`), 'completed')
   await api(users[0], '/sync/matchups', { leagueId })
   for (const user of users) await api(user, '/league/lineup/auto-set-season', { memberId: user.memberId, leagueId, leagueSeasonId, dates: [date] })
-  const context = { leagueId, leagueSeasonId, draftId: draft.id, members, date }
+  const context = { leagueId, leagueSeasonId, seasonYear: 2026, firstDate: date, draftId: draft.id, members, date }
   await writeJson(path.join(miniRoot, 'state/league.json'), context)
   return { ...context, users, rpc, api, rest, restWrite }
 }

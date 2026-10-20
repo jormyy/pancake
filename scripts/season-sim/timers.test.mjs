@@ -20,3 +20,11 @@ test('cadence accelerates but the outer wall-clock safety limit stays real', () 
   timers.timeout(() => {}, 115000)
   assert.deepEqual(delays, [1000, 1500, 5000, 115000])
 })
+
+test('network abort deadlines keep their native budget under clock acceleration', () => {
+  const delays = []
+  const controller = new AbortController()
+  const timers = virtualTimers({ timeout: (_callback, ms) => delays.push(ms), interval: (_callback, ms) => delays.push(ms) }, () => 100)
+  timers.timeout(() => controller.abort(new DOMException('Attempt timed out.', 'TimeoutError')), 10000)
+  assert.deepEqual(delays, [10000])
+})
