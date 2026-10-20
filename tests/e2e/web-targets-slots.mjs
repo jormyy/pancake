@@ -3,7 +3,7 @@ import path from 'node:path'
 import { writeFile } from 'node:fs/promises'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
-import { openWebTarget, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
+import { openWebTarget, pressWebControl, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebTargetReady, waitForWebAuthForm, waitForWebTargetReads, waitForWebTargetGeometry } from './web-targets-browser.mjs'
 import { ensureSyntheticSeasonWeeks } from './soak-fixtures.mjs'
 import { summarizeWebTargetGeometry } from './web-targets-geometry.mjs'
 
@@ -37,7 +37,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
   }
   const visit = async (route) => {
     await navigateWebTarget(page, new URL(route, env.frontendUrl).href)
-    await page.locator('[role="navigation"][aria-label="Primary"]').waitFor()
+    await waitForWebTargetReady(page)
     await pinLeague()
     if (new URL(page.url()).pathname === '/roster') await page.getByText('Your roster is empty', { exact: true }).waitFor()
     if (new URL(page.url()).pathname === '/team-roster') await page.getByText('No players yet', { exact: true }).waitFor()
@@ -74,6 +74,7 @@ export const checkWebEmptySlots = (target, captures, env) => runWithScenarioReso
     await apply(4, 3, 2, 2)
     await navigateWebTarget(page, new URL('/sign-in', env.frontendUrl).href)
     await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
+    await waitForWebAuthForm(page, 'you@example.com')
     await page.getByPlaceholder('you@example.com').fill(fixture.users[0].email)
     await page.locator('input[type="password"]').fill(fixture.password)
     await pressWebControl(target, page.getByRole('button', { name: 'Sign In', exact: true }))

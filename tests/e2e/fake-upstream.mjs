@@ -58,6 +58,8 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
       gameDate,
       gameEt: `${gameDate}T23:30:00Z`,
       gameStatus: 1,
+      period: 1,
+      gameClock: 'PT12M00.00S',
       gameStatusText: 'Scheduled',
       awayTeam: { teamTricode: awayTeam, score: 0, players: [] },
       homeTeam: { teamTricode: homeTeam, score: 0, players: [] },
@@ -241,6 +243,8 @@ export function createFakeUpstreamServer({ seasonYear = 2027, calendarWeeks = 26
           game.gameStatus = body.status
           game.gameStatusText = body.status === 3 ? 'Final' : body.status === 2 ? 'In Progress' : 'Scheduled'
         }
+        if (body.period != null) game.period = body.period
+        if (body.gameClock != null) game.gameClock = body.gameClock
         if (body.homeScore != null) game.homeTeam.score = body.homeScore
         if (body.awayScore != null) game.awayTeam.score = body.awayScore
         return json(res, 200, { ok: true, game })
