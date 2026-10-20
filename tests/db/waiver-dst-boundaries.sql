@@ -7,6 +7,8 @@ SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS
   \quit 2
 \endif
 BEGIN;
+UPDATE waiver_claims SET process_date='infinity'::date WHERE status='pending';
+DELETE FROM season_weeks WHERE season_year=2199;
 SET LOCAL TIME ZONE 'America/New_York';
 SET LOCAL statement_timeout='20s';
 DO $$
@@ -66,11 +68,11 @@ BEGIN
   IF (SELECT process_date FROM waiver_claims WHERE id=c1)<>today-1 OR (SELECT process_date FROM waiver_claims WHERE id=c2)<>today THEN
     RAISE EXCEPTION 'ASSERT submission must derive the ET clearing day';
   END IF;
-  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(today-1,100);
+  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(today-1,100) WHERE claim_id IN(c1,c2);
   IF got<>1 OR (SELECT status FROM waiver_claims WHERE id=c1)<>'succeeded' OR (SELECT status FROM waiver_claims WHERE id=c2)<>'pending' THEN
     RAISE EXCEPTION 'ASSERT ET previous-day processing must select only the pre-midnight claim';
   END IF;
-  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(today,100);
+  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(today,100) WHERE claim_id IN(c1,c2);
   IF got<>1 OR (SELECT status FROM waiver_claims WHERE id=c2)<>'succeeded' THEN RAISE EXCEPTION 'ASSERT midnight claim must process on its ET day'; END IF;
   RAISE NOTICE 'PASS SYNTHETIC fixed 2026 DST drop instants, 48 elapsed hours, ET midnight labels, real submission/processing day edges';
 END $$;
