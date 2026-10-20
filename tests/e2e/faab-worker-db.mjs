@@ -11,6 +11,7 @@ const publishable = process.env.E2E_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPA
 const token = process.env.PANCAKE_EDGE_INTERNAL_TOKEN
 assert(secret && publishable && token, 'Local stack keys and internal token are required')
 const admin = createClient(origin, secret, { auth: { persistSession: false, autoRefreshToken: false } })
+/** @type {{ id: string, accessToken?: string }[]} */
 const users = []
 const clients = []
 let league

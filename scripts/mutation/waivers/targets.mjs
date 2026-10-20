@@ -1,4 +1,4 @@
-export function localTarget(value, expectedPort, protocols) {
+function localTarget(value, expectedPort, protocols) {
   const url = new URL(value ?? '')
   if (!/^[1-9]\d{0,4}$/.test(expectedPort) || Number(expectedPort) > 65535
     || !['localhost', '127.0.0.1'].includes(url.hostname) || url.port !== expectedPort
