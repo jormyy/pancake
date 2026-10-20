@@ -49,6 +49,7 @@ def main():
         raise SystemExit('Only the assigned loopback API is allowed')
     if '/pancake-t_4ba51e0d/lanes/live/' not in str(Path.cwd()):
         raise SystemExit('Mutations run only inside the assigned mini copy')
+    os.environ.update(PANCAKE_TEST_API_PORT='57321', PANCAKE_TEST_DB_PORT='57322')
     evidence = Path(args.evidence).resolve()
     evidence.mkdir(parents=True, exist_ok=True)
     catalog = json.loads(Path('scripts/mutation/live/catalog.json').read_text())

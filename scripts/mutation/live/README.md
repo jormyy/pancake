@@ -71,3 +71,9 @@ Its dispatch and transport-response records are SYNTHETIC; its worker and SQL fu
 It checks both a recovered stale publication and an unrelated PT409 database error.
 The recipe uses actual tick timing and belongs among evidence scripts.
 The three-minute writer and gate-load recipes also remain outside the CI database chain.
+
+Database recipes default to CI ports 54321 and 54322.
+PANCAKE_TEST_API_PORT and PANCAKE_TEST_DB_PORT select another local test stack.
+The wrapper and mutation runner set these to 57321 and 57322.
+Their own assigned-stack guards stay fixed.
+Recipe guards validate protocol, loopback host, and exact expected port before writes.
