@@ -96,6 +96,7 @@
     "private.parse_multi_team_trade_items(jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.pick_left_owner(draft_picks,draft_picks)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.player_import_name_key(text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.playoff_clinched_standings()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.playoff_matchup_is_consumed(uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.playoff_round_is_consumed(uuid,matchup_type)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.playoff_round_plan(integer,integer,integer[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
