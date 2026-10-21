@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--phase', choices=['initial', 'enhanced', 'worker', 'boundary'], default='initial')
+parser.add_argument('--phase', choices=['initial', 'enhanced', 'worker', 'boundary', 'allstar'], default='initial')
 parser.add_argument('--evidence', required=True, type=Path)
 parser.add_argument('--ids', default='')
 parser.add_argument('--baseline-only', action='store_true')

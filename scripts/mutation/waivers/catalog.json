@@ -113,6 +113,20 @@
           "tests/db/waiver-dst-boundaries.sql"
         ]
       ]
+    ],
+    "allstar": [
+      [
+        "merged-limits",
+        [
+          "psql",
+          "{db}",
+          "-X",
+          "-v",
+          "ON_ERROR_STOP=1",
+          "-f",
+          "tests/db/limits-all-star-week.sql"
+        ]
+      ]
     ]
   },
   "mutants": [
@@ -871,6 +885,58 @@
       "canonical": "supabase/sql/functions/by-name/public/expire_waiver_wire_logs.sql",
       "occurrence": 0,
       "notes": "Clear future holds and retain mature holds"
+    },
+    {
+      "id": "waiv-waiver-limits-15",
+      "area": "waiver-limits",
+      "file": "supabase/migrations/20260827000006_single_owners_for_pick_and_reservation_rules.sql",
+      "line": 148,
+      "symbol": "private.current_add_week",
+      "operator": "ROR",
+      "original": "weeks.week_start <= v_today",
+      "mutated": "weeks.week_start >= v_today",
+      "canonical": "supabase/sql/functions/by-name/private/current_add_week.sql",
+      "occurrence": 0,
+      "notes": "Select the next week while inside the merged All-Star range"
+    },
+    {
+      "id": "waiv-waiver-limits-16",
+      "area": "waiver-limits",
+      "file": "supabase/migrations/20260827000006_single_owners_for_pick_and_reservation_rules.sql",
+      "line": 144,
+      "symbol": "private.current_add_week",
+      "operator": "CONST",
+      "original": "SELECT weeks.week_number, weeks.week_end",
+      "mutated": "SELECT weeks.week_number, LEAST(weeks.week_end, weeks.week_start + 6)",
+      "canonical": "supabase/sql/functions/by-name/private/current_add_week.sql",
+      "occurrence": 0,
+      "notes": "Cap the selected C2 range at seven days, resetting halfway through All-Star"
+    },
+    {
+      "id": "waiv-waiver-limits-17",
+      "area": "waiver-limits",
+      "file": "supabase/migrations/20260827000006_single_owners_for_pick_and_reservation_rules.sql",
+      "line": 164,
+      "symbol": "private.current_add_week",
+      "operator": "CONST",
+      "original": "(v_week_end + 1)::timestamp",
+      "mutated": "(v_week_end + 7)::timestamp",
+      "canonical": "supabase/sql/functions/by-name/private/current_add_week.sql",
+      "occurrence": 0,
+      "notes": "Reset six days after the actual merged-week boundary"
+    },
+    {
+      "id": "waiv-waiver-limits-18",
+      "area": "waiver-limits",
+      "file": "supabase/migrations/20260827000006_single_owners_for_pick_and_reservation_rules.sql",
+      "line": 179,
+      "symbol": "private.current_add_week",
+      "operator": "CONST",
+      "original": "v_elapsed_weeks := (v_today - v_last_end - 1) / 7;",
+      "mutated": "v_elapsed_weeks := (v_today - v_last_end - 1) / 14;",
+      "canonical": "supabase/sql/functions/by-name/private/current_add_week.sql",
+      "occurrence": 0,
+      "notes": "Advance post-schedule buckets every fourteen days after the shortened season"
     }
   ]
 }
