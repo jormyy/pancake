@@ -423,11 +423,13 @@ export function usePlayerSearch(
         }
     }, [cachePage, enabled, admitted, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
 
+    const isFallbackSeason = dataKey === searchParamsKey
+        && players[0]?.stats_season_year === currentSeasonYear() - 1
     useEffect(() => {
-        if (!enabled || !admitted || !online || !focused || !visible || seasonYear !== null) return
+        if (!enabled || !admitted || !online || !focused || !visible || seasonYear !== null || !isFallbackSeason) return
         const timer = setInterval(() => setRetryToken(token => token + 1), 60_000)
         return () => clearInterval(timer)
-    }, [enabled, admitted, online, focused, visible, seasonYear])
+    }, [enabled, admitted, online, focused, visible, seasonYear, isFallbackSeason])
 
     const retry = useCallback(() => setRetryToken((token) => token + 1), [])
     const refreshIfChanged = useCallback(() => {
