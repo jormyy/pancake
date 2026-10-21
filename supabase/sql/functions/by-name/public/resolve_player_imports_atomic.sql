@@ -13,6 +13,7 @@ DECLARE
   v_first text;
   v_last text;
   v_id uuid;
+  v_game_id uuid;
   v_row players%ROWTYPE;
   v_matches uuid[];
   v_ids uuid[] := '{}';
@@ -62,7 +63,7 @@ BEGIN
       OR EXISTS (SELECT 1 FROM jsonb_object_keys(v_record) k WHERE NOT k = ANY(
         CASE WHEN p_source = 'nba_index' THEN ARRAY['provider_id', 'player_id', 'expected_display_name', 'name_match', 'metadata']
         WHEN p_source = 'nba_draft' THEN ARRAY['display_name', 'nba_draft_number', 'metadata']
-        WHEN p_source = 'nba_cdn' THEN ARRAY['provider_id', 'display_name', 'metadata']
+        WHEN p_source = 'nba_cdn' THEN ARRAY['provider_id', 'display_name', 'metadata', 'nba_game_id']
         ELSE ARRAY['provider_id', 'first_name', 'last_name', 'metadata'] END)) THEN
       RAISE EXCEPTION 'Unsupported player import field.' USING ERRCODE = '22023';
     END IF;
@@ -70,6 +71,18 @@ BEGIN
     IF p_source <> 'nba_draft' AND (jsonb_typeof(v_record->'provider_id') IS DISTINCT FROM 'string'
         OR btrim(v_provider) = '') THEN
       RAISE EXCEPTION 'Provider identity is required.' USING ERRCODE = '22023';
+    END IF;
+    v_game_id := NULL;
+    IF p_source = 'nba_cdn' AND v_record ? 'nba_game_id' THEN
+      IF jsonb_typeof(v_record->'nba_game_id') IS DISTINCT FROM 'string'
+        OR btrim(v_record->>'nba_game_id') = '' THEN
+        RAISE EXCEPTION 'NBA game identity is required.' USING ERRCODE = '22023';
+      END IF;
+      SELECT id INTO v_game_id FROM nba_games
+        WHERE nba_game_id = v_record->>'nba_game_id' FOR KEY SHARE;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Unknown NBA game identity.' USING ERRCODE = '22023';
+      END IF;
     END IF;
     v_id := NULL;
     v_action := 'updated';
@@ -198,6 +211,10 @@ BEGIN
           WHERE id = v_id;
         ELSIF p_source = 'nba_cdn' THEN
           UPDATE players SET nba_id = v_provider WHERE id = v_id AND nba_id IS DISTINCT FROM v_provider;
+          IF v_game_id IS NOT NULL THEN
+            INSERT INTO private.player_game_memberships(player_id, game_id)
+            VALUES (v_id, v_game_id) ON CONFLICT (player_id, game_id) DO NOTHING;
+          END IF;
         ELSE
           IF v_id = ANY(v_ids) THEN
             RAISE EXCEPTION 'Multiple draft picks resolve to the same player.' USING ERRCODE = '23514';

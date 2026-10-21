@@ -13,6 +13,8 @@ These files contain real NBA data. Test leagues, ownership, support rows, and cl
 | trades-2025.json | REAL-DERIVED | Dončić rows before and after DAL → LAL |
 | trades-2026.json | REAL-DERIVED | Observed team changes near the 2026 deadline, including DNP rows |
 | trade-harden.json | REAL-DERIVED | Harden's last played LAC game and first four played CLE games |
+| boxscore-0022400768.json | REAL-RAW | Dončić debut, NBA CDN boxscore, captured final |
+| boxscore-0022500756.json | REAL-RAW | Harden debut, pinned NBA CDN boxscore, captured final |
 
 The draft article arrives on 2026-10-21 at 05:52:54 UTC. It still names the complete 2025 class.
 Its SHA256 is `b07024982ea4c9093827d89b31a96849d7aa0e5fe67771a3f540d28cbf9a8a13`.
@@ -30,3 +32,7 @@ Those four picks do not count as played coverage. Other observed players appear 
 
 The scoring recipe uses one long test week to isolate identity from calendar behavior.
 It preserves real game dates, IDs, points, names, and teams. It does not prove the real fantasy calendar.
+
+The membership recipe replays these final boxes as live responses.
+Game clocks, ownership and stat failures are synthetic.
+The captured payloads are not historical first-poll snapshots.

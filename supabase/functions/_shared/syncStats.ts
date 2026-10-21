@@ -202,12 +202,12 @@ export async function resolveBoxScorePlayers(
   boxScore: BoxScorePlayers,
   providerGameId: string,
   resolver: CdnPlayerResolver,
-): Promise<Array<{ player: NBABoxScorePlayer; playerId: string }>> {
+): Promise<{ player: NBABoxScorePlayer; playerId: string }[]> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
-  const resolved: Array<{ player: NBABoxScorePlayer; playerId: string }> = []
+  const resolved: { player: NBABoxScorePlayer; playerId: string }[] = []
   const playerIds = await resolveCdnPlayers(resolver, allPlayers.map(player => ({
     personId: String(player.personId), displayName: player.name ?? '',
-  })))
+  })), providerGameId)
   for (const [index, player] of allPlayers.entries()) {
     const playerId = playerIds[index]
     if (playerId && player.statistics) resolved.push({ player, playerId })
