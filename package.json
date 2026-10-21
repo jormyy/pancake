@@ -297,6 +297,8 @@
     "evidence:db:draft-timer-cutoff": "node tests/db/draft-timer-cutoff.mjs",
     "evidence:db:draft-timer-restart-real": "node tests/e2e/draft-timer-restart-real.mjs",
     "evidence:db:draft-mock-expiry": "node tests/db/draft-mock-expiry.mjs",
+    "evidence:db:identity-projections": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/identity-projections.ts",
+    "evidence:db:identity-rankings": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/identity-rankings.ts",
     "evidence:db:scoring-eliminated-lineups": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-eliminated-lineups.ts",
     "evidence:db:notif-pause-resume": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1,0.0.0.0 --allow-run=psql,docker supabase/tests/db/notif-pause-resume.ts",
     "evidence:db:rookie-skipped-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts",
