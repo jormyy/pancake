@@ -17,23 +17,23 @@ const legacyKeys = { trade: 'tradeEnabled', waiver: 'waiverEnabled', draft: 'dra
 export function NotificationSettings({ preferences, disabled, onChange }: {
     preferences: NotificationPreferences
     disabled: boolean
-    onChange: (next: NotificationPreferences) => void
+    onChange: (update: (current: NotificationPreferences) => NotificationPreferences) => void
 }) {
     const [expanded, setExpanded] = useState<Partial<Record<NotificationCategory, boolean>>>({ trade: true, draft: true, waiver: true })
     const master = preferences.masterEnabled !== false
-    function categoryEnabled(category: NotificationCategory) {
-        const legacy = category in legacyKeys ? preferences[legacyKeys[category as keyof typeof legacyKeys]] : preferences.activityEnabled
-        return legacy && preferences.categories?.[category] !== false
+    function categoryEnabled(category: NotificationCategory, current = preferences) {
+        const legacy = category in legacyKeys ? current[legacyKeys[category as keyof typeof legacyKeys]] : current.activityEnabled
+        return legacy && current.categories?.[category] !== false
     }
     function toggleCategory(category: NotificationCategory) {
-        onChange(setNotificationCategory(preferences, category, !categoryEnabled(category)))
+        onChange(current => setNotificationCategory(current, category, !categoryEnabled(category, current)))
     }
     const anyExpanded = Object.values(expanded).some(Boolean)
     return (
         <View style={styles.content}>
             <SettingsGroup>
                 <SettingsRow label="All notifications" role="switch" checked={master} disabled={disabled}
-                    onPress={() => onChange({ ...preferences, masterEnabled: !master })}
+                    onPress={() => onChange(current => ({ ...current, masterEnabled: current.masterEnabled === false }))}
                     accessory={<SettingsToggle on={master} />} />
                 <SettingsRow label={anyExpanded ? 'Collapse all' : 'Expand all'} disabled={disabled}
                     onPress={() => setExpanded(Object.fromEntries(Object.keys(notificationCategories).map(key => [key, !anyExpanded])))} />
@@ -60,7 +60,7 @@ export function NotificationSettings({ preferences, disabled, onChange }: {
                             accessibilityLabel={`${notificationCategories[category]}: ${event.label}`}
                             accessibilityState={{ disabled: disabled || !master || !categoryEnabled(category), checked: eventEnabled(preferences, event.key) }}
                             disabled={disabled || !master || !categoryEnabled(category)}
-                            onPress={() => onChange({ ...preferences, events: { ...preferences.events, [event.key]: !eventEnabled(preferences, event.key) } })}>
+                            onPress={() => onChange(current => ({ ...current, events: { ...current.events, [event.key]: !eventEnabled(current, event.key) } }))}>
                             <Text style={[textStyles.body, styles.label]} numberOfLines={1}>{event.label}</Text>
                             <SettingsToggle on={eventEnabled(preferences, event.key)} />
                         </Pressable>

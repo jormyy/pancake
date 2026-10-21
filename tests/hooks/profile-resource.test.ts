@@ -5,7 +5,11 @@ import { useProfileResource } from '@/hooks/use-profile-resource'
 
 const mocks = vi.hoisted(() => ({ getProfile: vi.fn(), getNotificationPreferences: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ getProfile: mocks.getProfile, suspendProfileRead: vi.fn() }))
-vi.mock('@/lib/notification-preferences', () => ({ getNotificationPreferences: mocks.getNotificationPreferences }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
+vi.mock('@/lib/notification-preferences', async importOriginal => ({
+    ...await importOriginal<typeof import('@/lib/notification-preferences')>(),
+    getNotificationPreferences: mocks.getNotificationPreferences,
+}))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
