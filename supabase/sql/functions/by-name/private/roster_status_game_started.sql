@@ -14,7 +14,18 @@ AS $$
   SELECT EXISTS (
     SELECT 1
       FROM players AS p
-      JOIN nba_games AS g ON g.home_team = p.nba_team OR g.away_team = p.nba_team
+      JOIN nba_games AS g ON (
+        ((g.home_team = p.nba_team OR g.away_team = p.nba_team)
+          AND NOT EXISTS (
+            SELECT 1 FROM player_game_stats AS observed
+            JOIN nba_games AS actual ON actual.id = observed.game_id
+            WHERE observed.player_id = p.id AND actual.game_date = g.game_date
+          ))
+        OR EXISTS (
+          SELECT 1 FROM player_game_stats AS stats
+          WHERE stats.player_id = p.id AND stats.game_id = g.id
+        )
+      )
       CROSS JOIN slate
      WHERE p.id = p_player_id
        AND g.game_date IN (slate.today - 1, slate.today)
