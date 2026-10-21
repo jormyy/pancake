@@ -132,7 +132,9 @@
         "scripts/season-sim/{fresh-run,gate-probe,retained-check}.mjs",
         "scripts/mutation/draft/round3.mjs",
         "tests/db/draft-timer-cutoff.mjs",
-        "tests/e2e/draft-timer-restart-real.mjs"
+        "tests/e2e/draft-timer-restart-real.mjs",
+        "tests/db/draft-mock-expiry.mjs",
+        "scripts/mutation/draft/mock-expiry.mjs"
       ],
       "project": [
         "**/*.{js,mjs,ts,tsx}"
