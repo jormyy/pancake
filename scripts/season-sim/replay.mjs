@@ -10,7 +10,7 @@ import { sourceEvidence } from './source-manifest.mjs'
 import { cronDispatcher } from './cron-dispatcher.mjs'
 import { sql } from './local-stack.mjs'
 import { setClock } from './clock.mjs'
-import { dates, etDate, miniRoot, season, writeJson } from './common.mjs'
+import { fixtureDirectory, dates, etDate, miniRoot, season, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { clockTime } from './virtual-clock.mjs'
 import { planDay } from './planner.mjs'
@@ -24,16 +24,24 @@ import { tradeScenarios } from './trade-scenarios.mjs'
 import { applyOverlay, functionFingerprint } from './overlay.mjs'
 import { assertWaiverRollover, beginWaivers, verifyWaivers } from './waiver-scenarios.mjs'
 import { acceptanceGaps } from './report-summary.mjs'
+import { twoPlan, assertTwoCalendar, assertTwoDay, assertPublishedCalendar, draftSourceUnavailable } from './two-checks.mjs'
+import { nbaTradeSetup, allStarLimit, rookieLineups } from './two-actions.mjs'
+import { runRealSeason } from './real-season.mjs'
+import { shiftDay } from './season-model.mjs'
 import { waiverBoundaryDeferral } from './maintenance.mjs'
 import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
 
 export async function replay(options = {}) {
-  const start = options.resume?.date ?? options.start ?? (options['late-season'] ? '2026-03-16' : season.start)
+  const realPlan = await twoPlan(), profile = realPlan?.seasons[0]
+  assert.ok(!realPlan||!options.resume,'Legacy synthetic segments cannot resume a real two-season launch')
+  const start = options.resume?.date ?? options.start ?? (options['late-season'] ? shiftDay(season.end,-27) : season.start)
   assert.match(start, /^\d{4}-\d{2}-\d{2}$/)
   assert.ok(options.segment === 'next-season-start' || start >= season.start && start <= season.end)
-  const selected = dates(start, season.end).slice(0, Number(options.days ?? 174))
-  const { games } = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/games.json'), 'utf8'))
-  const store = await fixtureStore(path.join(miniRoot, 'fixtures'))
+  const selected = dates(start, season.end).slice(0, Number(options.days ?? dates(season.start,season.end).length))
+  if(options.deferCalendarFailure)assert.ok(realPlan&&!options.resume&&selected.length<=2,'Calendar failure deferral is limited to a two-date diagnostic and remains fatal')
+  let deferredCalendarError
+  const { games } = JSON.parse(await readFile(path.join(fixtureDirectory, 'games.json'), 'utf8'))
+  const store = await fixtureStore(fixtureDirectory)
   const auctionDate = start
   let runtime, context, baseline, probe, previous = {}, previousTeams = {}, observed = {}, activeDate
   let clock = options.resume?.clock ?? Date.parse(`${auctionDate}T09:59:00Z`)
@@ -42,7 +50,8 @@ export async function replay(options = {}) {
     dates: selected, days: [], events: {}, faults: [], actions: { provenance: 'SYNTHETIC', completed: [] },
     cadenceDays: {}, snapshots: [], liveSamples: 0, sampling: 'Authenticated matchups read before every internal get_live_poll_work call with a live-holder header, after each live worker, and after every live gate. This includes each internal tick and extra scoreboard refresh reads. Stored stat rows and locked starters form the independent oracle.',
     triggerFidelity: { verified: false, cadence: 'Every intervening UTC minute, plus worker timer deadlines; clock stays paused during I/O; no scoring/stat maintenance overrides', counts: {}, unsupportedInputs: [] },
-    acceptanceGaps: [], ancillaryGaps: ['Rankings and projections use incomplete fixture inputs. They do not determine the asserted locked-starter scores, waiver rules, playoff rules, draft order, or pick ownership. Projection quality and optimal lineup selection remain unverified.'] }
+    requestedSecondDates: realPlan&&selected.at(-1)===season.end?dates(realPlan.seasons[1].start,realPlan.seasons[1].end).length:0, inputPostponements:realPlan?.postponements.timelines??[], historicalRange: { start: season.start, end: season.end, dates: dates(season.start,season.end).length }, realTwoSeasons: !!realPlan, inputPlan: realPlan ? { provenance: realPlan.provenance, gaps: realPlan.gaps, postponementGaps: realPlan.postponements.gaps, draft: { availableAt: realPlan.draft.availableAt, availabilityProvenance: realPlan.draft.availabilityProvenance } } : null, acceptanceGaps: [], ancillaryGaps: ['Rankings and projections use incomplete fixture inputs. They do not determine the asserted locked-starter scores, waiver rules, playoff rules, draft order, or pick ownership. Projection quality and optimal lineup selection remain unverified.'] }
+  if(realPlan) report.ancillaryGaps.push('This scenario starts a commissioner rookie draft; the automatic unstarted-draft backstop is not measured.')
   const checkpoint = async phase => {
     report.phase = phase
     await writeJson(path.join(miniRoot, 'evidence/replay-checkpoint.json'), { ...report, savedAt: new Date().toISOString() })
@@ -53,7 +62,7 @@ export async function replay(options = {}) {
     const date = activeDate ?? etDate(new Date(clockTime(JSON.parse(await readFile(path.join(miniRoot, 'state/clock.json'), 'utf8')), Date.now())).toISOString())
     const activeGames = Number(await sql(`SELECT count(*) FROM nba_games WHERE game_date='${date}' AND status='InProgress'`))
     if (!activeGames) return
-    const week = await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${date}' BETWEEN week_start AND week_end`)
+    const week = await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? season.year} AND '${date}' BETWEEN week_start AND week_end`)
     if (!week) return
     if (await isSkippedWeek(context, Number(week))) {
       await assertSkippedWeek(context, Number(week))
@@ -80,6 +89,12 @@ export async function replay(options = {}) {
     if (waiverBoundaryDeferral(outcome, context, at)) {
       report.waiverBoundaryDeferrals ??= []
       report.waiverBoundaryDeferrals.push({ id: outcome.id, at: new Date(at).toISOString(), errors: JSON.parse(outcome.content).leagues.filter(row => row.error) })
+      return
+    }
+    const sourceError=realPlan&&outcome.function_name==='sync-draft-order'?await sql(`SELECT coalesce(error,'') FROM sync_runs WHERE id=(SELECT sync_run_id FROM edge_invocations WHERE id=${Number(outcome.id)})`):''
+    if (realPlan && draftSourceUnavailable(outcome.function_name,at,realPlan.draft.availableAt,sourceError)) {
+      report.sourceUnavailable ??= []
+      report.sourceUnavailable.push({ function: outcome.function_name, id: outcome.id, businessAt: new Date(at).toISOString(), reason: realPlan.draft.availabilityProvenance,error:sourceError })
       return
     }
     if (['sync-rankings', 'sync-projections'].includes(outcome.function_name)) report.triggerFidelity.unsupportedInputs.push({ function: outcome.function_name, id: outcome.id, status: outcome.status_code })
@@ -131,8 +146,16 @@ export async function replay(options = {}) {
     }
     else {
       await move(`${auctionDate}T14:00:00Z`)
-      context = await createLeagueActions(runtime.keys, start, 4, { integrated: true, auctionDate, move, skipPastWeeks: options['late-season'] === true })
-      context.seasonYear = 2026
+      if(profile){
+        try{await assertPublishedCalendar(profile)}catch(error){
+          if(!options.deferCalendarFailure)throw error
+          deferredCalendarError=error
+          report.calendarFindings=[{name:error.name,message:error.message,area:error.area,scope:'Deferred only until this two-date diagnostic finishes; not acceptable for a fresh run'}]
+        }
+      }
+      context = await createLeagueActions(runtime.keys, start, 4, { integrated: true, auctionDate, move, skipPastWeeks: options['late-season'] === true, playoffStartWeek: profile?.playoffStart })
+      context.seasonYear = season.year
+      context.seasonEnd = season.end
       context.firstDate = start
     }
     runtime.origin.onLiveSample = async event => {
@@ -150,13 +173,13 @@ export async function replay(options = {}) {
       if (options.segment === 'automatic-champion') {
         report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
         activeDate = null
-        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
+        report.nextSeason = realPlan ? await runRealSeason(context,realPlan,move,report,checkpoint,snapshot,liveCoverage,async()=>{ await probe?.close(); probe=await startRealtimeProbe(context,runtime.keys) }) : await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
       }
       if (options.segment === 'pre-rollover') report.seasonEnd = await finishSeason(context, move, report, checkpoint, { stopAfterRollover: true })
       if (['post-rollover', 'pre-draft'].includes(options.segment)) {
         await assertWaiverRollover(context, context.previousSeasonId, report)
         report.seasonEnd = await finishRookieDraft(context, move, report, checkpoint, { snapshot })
-        report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
+        report.nextSeason = realPlan ? await runRealSeason(context,realPlan,move,report,checkpoint,snapshot,liveCoverage,async()=>{ await probe?.close(); probe=await startRealtimeProbe(context,runtime.keys) }) : await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
       }
       if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot, checkpoint, liveCoverage)
       await dispatcher.drain(clock)
@@ -170,13 +193,14 @@ export async function replay(options = {}) {
       report.acceptanceGaps = acceptanceGaps(report)
       return report
     }
+    if (realPlan) report.firstCalendar = await assertTwoCalendar(context, profile,!!deferredCalendarError)
     const trades = tradeScenarios(context, report.actions, move)
     for (const date of selected) {
       activeDate = date
       const began = Date.now()
       const next = new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
       const today = games.filter(game => game.date === date)
-      const plan = await planDay(today, store, date)
+      const plan = await planDay(today, store, date, profile ? { profile, calendar: profile.calendar, postponements: realPlan.postponements.timelines, playoffStart: profile.playoffStart } : undefined)
       const day = { date, category: plan.category, plannedCheckpoints: plan.events.length, minimumSnapshots: plan.minimumSnapshots, requiredPeriods: plan.requiredPeriods }
       await checkpoint(`${date}:morning`)
       await move(Math.max(Date.parse(`${date}T14:00:00Z`), clock))
@@ -185,12 +209,14 @@ export async function replay(options = {}) {
       day.nbaTeams = { checked: teams.checked, changes: teams.changes }
       await verifyWaivers(context, report)
       if (!options.resume && date === start) await beginWaivers(context, 'season-one-faab', report)
-      if (date === '2026-04-12') await beginWaivers(context, 'postseason-pending', report)
+      if (date === season.end) await beginWaivers(context, 'postseason-pending', report)
+      if (realPlan) { await nbaTradeSetup(context,date,realPlan); await allStarLimit(context,date,profile,report) }
       await prepareLineups(context, date, day)
-      if (date === '2025-10-27' || options['late-season'] && date === start) await snapshot('live-week', date, 1)
+      if(realPlan&&day.lineups.week)await rookieLineups(context,date,day.lineups.week,today,store,report)
+      if (date === shiftDay(season.start,6) || options['late-season'] && date === start) await snapshot('live-week', date, 1)
       if (date === start && !options.resume) await snapshot('waiver-week', date, 5)
-      if (date === '2026-01-14') await snapshot('pre-deadline', date, 3)
-      if (date === '2026-03-23') await snapshot('pre-playoffs', date, 4)
+      if (date === `${season.year}-01-14`) await snapshot('pre-deadline', date, 3)
+      if (date === (profile?.calendar.weeks.find(row=>row.week_number===profile.playoffStart)?.week_start ?? shiftDay(season.end,-20))) await snapshot('pre-playoffs', date, 4)
       await trades(date)
       for (const event of plan.events) {
         await checkpoint(`${date}:${event.type}:${new Date(event.at).toISOString()}`)
@@ -216,25 +242,28 @@ export async function replay(options = {}) {
         await probe.close()
         probe = null
       }
+      if (realPlan) day.realInputs = await assertTwoDay(context,date,report,realPlan,store,today)
       runtime.origin.flushCoverage()
       console.log(JSON.stringify({ date, games: day.finals.games, wallSeconds: day.wallSeconds, liveSamples: report.liveSamples }))
       await checkpoint(`${date}:verified`)
     }
     const current = await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`)
     if (!report.realtime) report.realtime = await probe.verify(current)
+    if(deferredCalendarError)throw deferredCalendarError
     if (selected.at(-1) === season.end) {
       report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
       activeDate = null
-      report.nextSeason = await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
+      report.nextSeason = realPlan ? await runRealSeason(context,realPlan,move,report,checkpoint,snapshot,liveCoverage,async()=>{ await probe?.close(); probe=await startRealtimeProbe(context,runtime.keys) }) : await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
     }
     await dispatcher.drain(clock)
+    if (realPlan && report.nextSeason?.passed) report.realtimeSecond=await probe.verify(await context.rest(context.users[0],`matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
     report.complete = true
     report.triggerFidelity.verified = true
     report.acceptanceGaps = acceptanceGaps(report)
-    report.fullAcceptance = start === season.start && selected.length === 174 && report.acceptanceGaps.length === 0 && report.seasonEnd?.passed === true && report.triggerFidelity.verified
+    report.fullAcceptance = start === season.start && selected.length === dates(season.start,season.end).length && report.acceptanceGaps.length === 0 && report.seasonEnd?.passed === true && report.triggerFidelity.verified
     await checkpoint('requested-days-verified')
   } catch (error) {
-    report.failure = { name: error.name, message: error.message, stack: error.stack }
+    report.failure = { name: error.name, message: error.message, stack: error.stack, area: error.area ?? (/rookie/i.test(error.message)?'rookie-identity':null) }
     throw error
   } finally {
     report.finishedAt = new Date().toISOString()

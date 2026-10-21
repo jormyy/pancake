@@ -4,8 +4,9 @@ import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { gzipSync, gunzipSync } from 'node:zlib'
+import { seasonProfile } from './season-model.mjs'
 
-export const season = { year: 2026, start: '2025-10-21', end: '2026-04-12', games: 1230 }
+export const season = seasonProfile(Number(process.env.SEASON_SIM_YEAR ?? 2026))
 export function configuration(env = process.env) {
   const prefix = env.SEASON_SIM_PORT_PREFIX ?? '572'
   const project = env.SEASON_SIM_PROJECT ?? 'pt4basim'
@@ -24,6 +25,7 @@ export function configuration(env = process.env) {
 
 export const config = configuration()
 export const miniRoot = config.root
+export const fixtureDirectory = process.env.SEASON_SIM_FIXTURES ?? path.join(miniRoot, 'fixtures')
 export const originUrl = kind => `http://127.0.0.1:${config.ports[kind]}`
 export const databaseUrl = `postgresql://postgres@127.0.0.1:${config.ports.db}/postgres`
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')

@@ -39,3 +39,15 @@ test('per-area acceptance requires measured outcomes and excludes dropped segmen
 test('a forged acceptance flag cannot bypass missing area evidence', () => {
   assert.throws(() => summarizeRun({ ...run, complete: true, fullAcceptance: true, acceptanceGaps: [], triggerFidelity: { verified: true } }), /Full acceptance/)
 })
+
+test('a reproduced unscored rookie failure cannot be labelled not measured',()=>{
+  const result=acceptanceAreas({...run,realTwoSeasons:true,failure:{area:'rookie-identity',message:'Missing real rookie game'}})
+  assert.equal(result['rookie identity'],'fail')
+  assert.equal(result['NBA deadline trades'],'not measured')
+})
+
+test('two-season live acceptance requires a subscription result in each season',()=>{
+  const measured={...run,realTwoSeasons:true,liveSamples:1,realtime:{passed:true}}
+  assert.equal(acceptanceAreas(measured)['live streams'],'not measured')
+  assert.equal(acceptanceAreas({...measured,realtimeSecond:{passed:true}})['live streams'],'pass')
+})

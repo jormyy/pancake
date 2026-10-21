@@ -1,3 +1,4 @@
+import { regularGame } from './season-model.mjs'
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { config, writeJson, miniRoot } from './common.mjs'
@@ -7,7 +8,7 @@ import { setClock } from './clock.mjs'
 
 export async function probeRecovery(runtime, date, gameId) {
   assert.match(date, /^\d{4}-\d{2}-\d{2}$/)
-  assert.match(gameId, /^00225\d{5}$/)
+  assert.ok(regularGame(gameId),'Fault probes require a regular-season NBA game')
   const statement = `SELECT public.invoke_edge_function('sync-stats','{"date":"${date}"}')`
   const query = `SELECT json_agg(r ORDER BY game_id,player_id) FROM (SELECT * FROM player_game_stats WHERE game_id IN(SELECT id FROM nba_games WHERE game_date='${date}')) r`
   const before = JSON.parse(await sql(query))

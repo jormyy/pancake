@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { fixtureStore } from './fixtures.mjs'
-import { miniRoot, writeJson } from './common.mjs'
+import { season, fixtureDirectory, miniRoot, writeJson } from './common.mjs'
 import { checkBoundaryWait } from './boundary-clock.mjs'
 import { fixtureNbaId } from './fixture-identities.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
@@ -22,9 +22,9 @@ function assertFinalPlayer(stored, expected) {
 
 export async function assertFinals(date) {
   assert.match(date, /^\d{4}-\d{2}-\d{2}$/)
-  const store = await fixtureStore(path.join(miniRoot, 'fixtures'))
+  const store = await fixtureStore(fixtureDirectory)
   const rows = JSON.parse(await sql(`SELECT coalesce(json_agg(row_to_json(r)),'[]') FROM (SELECT g.nba_game_id,g.status,p.nba_id,s.* FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id JOIN players p ON p.id=s.player_id WHERE g.game_date='${date}') r`))
-  const fixtureGames = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/games.json'), 'utf8')).games
+  const fixtureGames = JSON.parse(await readFile(path.join(fixtureDirectory, 'games.json'), 'utf8')).games
   const games = fixtureGames.filter(game => game.date === date).map(game => game.id)
   let checked = 0, mutationDetected = false
   for (const game of games) {
@@ -79,7 +79,7 @@ export async function assertLeaguePoints(context) {
   assert.match(context.leagueSeasonId, /^[a-f0-9-]{36}$/)
   assert.match(context.date, /^\d{4}-\d{2}-\d{2}$/)
   const label = name => `${name} league=${context.leagueId} season=${context.leagueSeasonId} date=${context.date}`
-  const store = await fixtureStore(path.join(miniRoot, 'fixtures'))
+  const store = await fixtureStore(fixtureDirectory)
   const settings = await sqlJson(`SELECT scoring_settings FROM leagues WHERE id='${context.leagueId}'`, label('scoring settings'))
   const points = await sqlJson(`SELECT json_agg(r) FROM (SELECT v.fantasy_points,g.nba_game_id,p.nba_id,p.id AS player_id FROM v_fantasy_points v JOIN nba_games g ON g.id=v.game_id JOIN players p ON p.id=v.player_id WHERE v.league_id='${context.leagueId}' AND g.game_date='${context.date}') r`, label('player points'))
   assert.ok(Array.isArray(points) && points.length > 0, label('Fantasy points oracle must see real game rows'))
@@ -95,17 +95,17 @@ export async function assertLeaguePoints(context) {
     const value = await playerPoints(row.nba_game_id, row.nba_id)
     assert.equal(row.fantasy_points, value, `Player fantasy points: ${row.nba_id}`)
   }
-  const matchups = await sqlJson(`SELECT coalesce(json_agg(m),'[]') FROM matchups m WHERE league_season_id='${context.leagueSeasonId}' AND (SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${context.date}' BETWEEN week_start AND week_end) BETWEEN week_number AND coalesce(end_week_number,week_number)`, label('matchups'))
+  const matchups = await sqlJson(`SELECT coalesce(json_agg(m),'[]') FROM matchups m WHERE league_season_id='${context.leagueSeasonId}' AND (SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? season.year} AND '${context.date}' BETWEEN week_start AND week_end) BETWEEN week_number AND coalesce(end_week_number,week_number)`, label('matchups'))
   assert.ok(Array.isArray(matchups), label('Matchups must be an explicit JSON array'))
   if (!matchups.length) {
-    const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${context.date}' BETWEEN week_start AND week_end`))
+    const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? season.year} AND '${context.date}' BETWEEN week_start AND week_end`))
     assert.ok(week, 'Expected NBA calendar week must exist')
     const prior = await sqlJson(`SELECT json_build_object('finalizedAt',max(finalized_at),'finalized',bool_and(is_finalized),'now',extract(epoch FROM now())*1000) FROM matchups WHERE league_season_id='${context.leagueSeasonId}' AND NOT is_voided AND coalesce(end_week_number,week_number)<${week}`, label('boundary prerequisites'))
     checkBoundaryWait(prior)
   }
   const lineup = await sqlJson(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT l.member_id,l.week_number,l.slot_type,g.nba_game_id,p.nba_id FROM weekly_lineups l JOIN players p ON p.id=l.player_id JOIN player_game_stats s ON s.player_id=l.player_id JOIN nba_games g ON g.id=s.game_id AND g.game_date=l.game_date WHERE l.league_season_id='${context.leagueSeasonId}' AND l.slot_type::text NOT IN ('BE','IR')) r`, label('starter lineups'))
   assert.ok(Array.isArray(lineup), label('Starter lineups must be an explicit JSON array'))
-  if (!lineup.length) assert.ok(context.plannedEmptyWeek === Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? 2026} AND '${context.date}' BETWEEN week_start AND week_end`)), 'Empty starter coverage requires the planned empty week')
+  if (!lineup.length) assert.ok(context.plannedEmptyWeek === Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear ?? season.year} AND '${context.date}' BETWEEN week_start AND week_end`)), 'Empty starter coverage requires the planned empty week')
   for (const matchup of matchups ?? []) for (const side of ['home', 'away']) {
     let total = 0
     for (const row of lineup.filter(row => row.member_id === matchup[`${side}_member_id`] && row.week_number >= matchup.week_number && row.week_number <= (matchup.end_week_number ?? matchup.week_number))) total += await playerPoints(row.nba_game_id, row.nba_id)

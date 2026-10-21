@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { etDate } from './common.mjs'
+import { etDate, season } from './common.mjs'
 import { sql } from './local-stack.mjs'
 import { checkPendingWaivers, checkWaiverReset, checkWaiverResult, checkWaiverTiming, rolloverPriorities, waiverOutcomes, waiverParticipants } from './waiver-oracle.mjs'
 
@@ -28,7 +28,7 @@ export async function beginWaivers(c, name, report) {
   const bucket = `${c.leagueSeasonId}:${week}`
   const weeklyCounts = c.expectedAddsByWeek[bucket] ??= Object.fromEntries(c.users.map(user => [user.memberId, 0]))
   let initialRosters = Object.fromEntries(await Promise.all(c.users.map(async user => [user.memberId, await roster(c, user)])))
-  if (c.seasonYear === 2027) {
+  if (c.seasonYear > season.year) {
     for (const user of waiverRosterRefills(c.users, initialRosters)) {
       assert.equal(weeklyCounts[user.memberId], 0, 'Roster refill stays within the real weekly add limit')
       const player = await freePlayer(c), at = Number(await sql('SELECT extract(epoch FROM now())*1000'))
