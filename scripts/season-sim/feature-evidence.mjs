@@ -57,10 +57,17 @@ export async function extractFeatureFile(file){
 export function playerAverages(stats,settings){
   const totals=new Map()
   for(const stat of stats.filter(row=>!row.did_not_play)){
-    const value=totals.get(stat.player_id)??{total:0,games:0}
-    value.total+=statPoints(stat,settings);value.games++;totals.set(stat.player_id,value)
+    const value=totals.get(stat.player_id)??{cents:0,games:0}
+    value.cents+=Math.round(statPoints(stat,settings)*100);value.games++;totals.set(stat.player_id,value)
   }
-  return Object.fromEntries([...totals].map(([id,value])=>[id,Math.sign(value.total)*Math.round(Math.abs(Number((value.total/value.games).toFixed(8)))*100)/100]))
+  return Object.fromEntries([...totals].map(([id,value])=>{
+    const magnitude=Math.abs(value.cents),rounded=Math.floor(magnitude/value.games)+(2*(magnitude%value.games)>=value.games?1:0)
+    return[id,Math.sign(value.cents)*rounded/100]
+  }))
+}
+
+export function playerEvidence(year,label,businessAt,result){
+  return{...result,year,label,businessAt,statsLabel:result.label??null}
 }
 
 export async function capturePlayers(c,label,report){
@@ -77,6 +84,6 @@ export async function capturePlayers(c,label,report){
   const expected=playerAverages(stats,input.settings)
   const result=await emit(`F3-${c.seasonYear}-${label}`,{...input,expectedYear,rows,expected},()=>checkPlayersPool({rows,expected,expectedYear,allPlayerIds:input.ids}))
   if(result.status==='FAILED'){report.failures??=[];report.failures.push({name:'AssertionError',area:'players-sort',message:result.error,phase:`${c.seasonYear}:${label}`})}
-  report.playersEvidence??=[];report.playersEvidence.push({year:c.seasonYear,label,businessAt:input.at,...result})
+  report.playersEvidence??=[];report.playersEvidence.push(playerEvidence(c.seasonYear,label,input.at,result))
   return result
 }

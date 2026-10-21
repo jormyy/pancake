@@ -94,7 +94,7 @@ test('snapshot writer waits before dumping an API-created pending invocation', a
     `
     const child = spawnSync(process.execPath, ['--input-type=module', '-e', program], {
       cwd: path.join(directory, 'repo'), encoding: 'utf8',
-      env: { ...process.env, SEASON_SIM_ROOT: directory, SEASON_SIM_SNAPSHOT_ROOT: path.join(directory, 'snapshots') },
+      env: { ...process.env, SEASON_SIM_PROJECT:'pt4bafake',SEASON_SIM_PORT_PREFIX:'574',SEASON_SIM_CONTAINER:'supabase_db_pt4bafake', SEASON_SIM_ROOT: directory, SEASON_SIM_SNAPSHOT_ROOT: path.join(directory, 'snapshots') },
     })
     assert.equal(child.status, 0, child.stderr)
     const result = JSON.parse(child.stdout)
@@ -105,7 +105,7 @@ test('snapshot writer waits before dumping an API-created pending invocation', a
       .replace("saveSnapshot('live-week'", "saveSnapshot('waiver-week'")
     const stopped = spawnSync(process.execPath, ['--input-type=module', '-e', offline], {
       cwd: path.join(directory, 'repo'), encoding: 'utf8',
-      env: { ...process.env, SEASON_SIM_ROOT: directory, SEASON_SIM_SNAPSHOT_ROOT: path.join(directory, 'snapshots') },
+      env: { ...process.env, SEASON_SIM_PROJECT:'pt4bafake',SEASON_SIM_PORT_PREFIX:'574',SEASON_SIM_CONTAINER:'supabase_db_pt4bafake', SEASON_SIM_ROOT: directory, SEASON_SIM_SNAPSHOT_ROOT: path.join(directory, 'snapshots') },
     })
     assert.equal(stopped.status, 0, stopped.stderr)
     assert.equal(JSON.parse(stopped.stdout).quiescence.polls, 1)
@@ -129,7 +129,7 @@ test('snapshot writes use the launcher root set after static module imports', as
     `
     const child = spawnSync(process.execPath, ['--input-type=module', '-e', program], {
       cwd: path.join(root, 'repo'), encoding: 'utf8',
-      env: { ...process.env, SEASON_SIM_ROOT: root, SEASON_SIM_SNAPSHOT_ROOT: oldRoot },
+      env: { ...process.env, SEASON_SIM_PROJECT:'pt4bafake',SEASON_SIM_PORT_PREFIX:'574',SEASON_SIM_CONTAINER:'supabase_db_pt4bafake', SEASON_SIM_ROOT: root, SEASON_SIM_SNAPSHOT_ROOT: oldRoot },
     })
     assert.equal(child.status, 0, child.stderr)
     const result = JSON.parse(child.stdout)

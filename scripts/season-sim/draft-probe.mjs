@@ -25,7 +25,7 @@ export function openingCutoff(date){
   return at
 }
 
-async function scenarioLeague(keys){
+export async function scenarioLeague(keys){
   assertTarget(keys.API_URL,'api')
   const client=actionClient(keys),users=[]
   for(let i=0;i<4;i++){

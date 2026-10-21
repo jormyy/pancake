@@ -10,10 +10,14 @@ export const season = seasonProfile(Number(process.env.SEASON_SIM_YEAR ?? 2026))
 export function configuration(env = process.env) {
   const prefix = env.SEASON_SIM_PORT_PREFIX ?? '572'
   const project = env.SEASON_SIM_PROJECT ?? 'pt4basim'
-  assert.match(prefix, /^57[2-5]$/, 'Use an assigned task port block')
   assert.match(project, /^pt4ba[a-z0-9_-]+$/, 'Use a task-local project')
   const root = env.SEASON_SIM_ROOT ?? path.join(homedir(), 'pancake-t_4ba51e0d/lanes/sim')
   assert.ok(path.isAbsolute(root), 'SEASON_SIM_ROOT must be absolute')
+  if(prefix==='581'||project==='pt4basimx'){
+    assert.equal(prefix,'581','The supplemental project uses block 581')
+    assert.equal(project,'pt4basimx','Block 581 belongs only to the supplemental project')
+    assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/sim-supp'),'The supplemental project uses its separate root')
+  }else assert.match(prefix, /^57[2-5]$/, 'Use an assigned task port block')
   const container = env.SEASON_SIM_CONTAINER ?? `supabase_db_${project}`
   assert.equal(container, `supabase_db_${project}`, 'Container must belong to the configured project')
   const socket = env.SEASON_SIM_DOCKER_SOCKET ?? env.DOCKER_HOST?.replace(/^unix:\/\//, '')

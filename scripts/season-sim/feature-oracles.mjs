@@ -123,7 +123,7 @@ export function checkDraftPushes(picks,members,deliveries,outbox,audits=[]){
     const owner=members.find(row=>row.memberId===pick.member_id)
     assert.ok(owner,'Every pick owner belongs to the league')
     const sent=deliveries.filter(row=>row.eventType==='draft_on_clock'&&row.data.pickId===pick.id)
-    assert.equal(sent.length,1,'Every rookie pick receives exactly one on-clock push')
+    assert.equal(sent.length,1,'One recorded on-clock push exists per pick in this run')
     assert.equal(sent[0].recipientToken,owner.token,'On-clock push reaches the traded pick owner')
     const events=outbox.filter(row=>row.event_type==='draft_on_clock'&&row.data.pickId===pick.id)
     assert.equal(events.length,1,'One durable on-clock event exists per pick')
