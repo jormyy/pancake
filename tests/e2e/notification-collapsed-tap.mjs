@@ -37,6 +37,8 @@ const buildSha = args['build-sha'] ?? process.env.PANCAKE_RELEASE_SHA
 const run = args.run ?? '1'
 assert.match(run, /^[a-zA-Z0-9-]+$/)
 const evidence = path.resolve(process.env.NOTIFICATION_TAP_EVIDENCE ?? `evidence/notification-collapsed-tap/run-${run}`)
+// Mutation runs stop each engine at its first failed flow so a broken build costs one timeout, not twenty.
+const failFast = process.env.NOTIFICATION_TAP_FAIL_FAST === '1'
 const status = execFileSync('supabase', ['status', '-o', 'env'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
 const keys = Object.fromEntries(status.split('\n').flatMap(line => {
   const match = /^([A-Z_]+)="(.*)"$/.exec(line)
@@ -60,7 +62,7 @@ const report = {
   convention: 'Taps count from the visible League Settings panel (/league?tab=settings); the first counted tap opens profile and settings. Scrolls are counted separately and are not taps.',
   simulation: '393x852 DPR 3, mobile and touch enabled, fresh automation contexts; the web-target helper replaces CSS safe-area env() values with 59/34 px',
   limitations: ['Not native iOS Safari, an installed home-screen PWA, or real-device evidence', 'Scroll steps are programmatic scrollIntoView calls standing in for a finger swipe; Playwright mobile WebKit has no wheel or touch-drag input'],
-  release: null, engines: [], cleanup: [], seconds: 0,
+  failFast, release: null, engines: [], cleanup: [], seconds: 0,
 }
 const fixtures = []
 await mkdir(evidence, { recursive: true })
@@ -82,7 +84,7 @@ async function inView(page, locator) {
   const hits = await locator.evaluate((element, points) => points.map(([x, y]) => element.contains(document.elementFromPoint(x, y))), points)
   return { box, navTop: nav?.y ?? null, hits, visible: !!box && hits.length === 3 && hits.every(Boolean) && box.x >= 0 && box.x + box.width <= 393 }
 }
-async function flow(page, engine, user, category, event, position, route, directory) {
+async function flow(page, engine, user, category, event, position, route, directory, progress) {
   const label = catalog.notificationCategories[category]
   const eventLabel = `${label}: ${event.label}`
   const prefix = `${category}-${position}-${route}`
@@ -106,6 +108,7 @@ async function flow(page, engine, user, category, event, position, route, direct
     return view
   }
   const tap = async (locator, name, after) => {
+    progress.step = name
     const view = await reach(locator, name)
     await locator.tap()
     taps++
@@ -113,6 +116,7 @@ async function flow(page, engine, user, category, event, position, route, direct
     const pointer = await page.evaluate(() => Reflect.get(window, '__webTargetPointer') ?? null)
     steps.push({ action: 'tap', target: name, ...view, pointer, screenshot: await shot(name) })
   }
+  progress.step = 'entry'
   await page.goto(`${origin}/league?tab=settings`)
   const profile = page.getByRole('button', { name: 'Open profile and settings', exact: true })
   await profile.waitFor()
@@ -205,14 +209,18 @@ try {
       result.layout = await readWebLayout(page, { top: 59, bottom: 34 })
       assert.equal(result.layout.overflow, 0, 'Document width equals viewport width')
       assert.ok(result.collapsedAtOpen.length > 0, 'At least one category starts collapsed')
-      for (const category of result.collapsedAtOpen) {
+      flows: for (const category of result.collapsedAtOpen) {
         const events = catalog.notificationEvents.filter(event => event.category === category)
         for (const [position, event] of [['first', events[0]], ['last', events.at(-1)]]) for (const route of ['direct', 'collapse-first']) {
-          try { result.flows.push(await flow(page, engine, created.user, category, event, position, route, directory)) }
+          const progress = { step: null }
+          try { result.flows.push(await flow(page, engine, created.user, category, event, position, route, directory, progress)) }
           catch (error) {
             const file = path.join(directory, `${category}-${position}-${route}-failure.png`)
             await page.screenshot({ path: file, animations: 'disabled' })
-            result.failures.push({ category, position, route, event: event.key, error: error instanceof Error ? error.message : String(error), screenshot: path.relative(evidence, file) })
+            const row = await preferenceRow(created.user.id)
+            result.failures.push({ category, position, route, event: event.key, step: progress.step, error: error instanceof Error ? error.message : String(error),
+              storedAtFailure: row ? stored(row) : null, screenshot: path.relative(evidence, file) })
+            if (failFast) break flows
           }
         }
       }
