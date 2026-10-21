@@ -24,7 +24,7 @@ const runId = new Date().toISOString().replaceAll(':', '-')
 const evidence = path.join(miniRoot, 'evidence')
 try { await rename(evidence, path.join(miniRoot, `evidence-before-${runId}`)) } catch (error) { if (error.code !== 'ENOENT') throw error }
 await mkdir(evidence)
-process.env.SEASON_SIM_SNAPSHOT_ROOT = path.resolve(miniRoot, real ? '../../shared/sim2' : '../../shared/sim', `snapshots-${runId}`)
+process.env.SEASON_SIM_SNAPSHOT_ROOT = path.join(config.snapshots, runId)
 await writeJson(path.join(evidence, 'launch.json'), { source, runId, pid: process.pid, command: process.argv, startedAt: new Date().toISOString(), snapshots: process.env.SEASON_SIM_SNAPSHOT_ROOT, mode: check?.scope ?? (real ? 'Fresh real two-season replay' : 'Fresh full replay'), inputDirectory: fixtureDirectory, check })
 let exit = 1, ready = false
 try {

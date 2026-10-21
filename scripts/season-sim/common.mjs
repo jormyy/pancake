@@ -17,13 +17,17 @@ export function configuration(env = process.env) {
     assert.equal(prefix,'581','The supplemental project uses block 581')
     assert.equal(project,'pt4basimx','Block 581 belongs only to the supplemental project')
     assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/sim-supp'),'The supplemental project uses its separate root')
+  }else if(prefix==='582'||project==='pt4basim6'||path.resolve(root)===path.join(homedir(),'pancake-t_4ba51e0d/lanes/sim-t6')){
+    assert.equal(prefix,'582','The replacement replay uses block 582')
+    assert.equal(project,'pt4basim6','Block 582 belongs only to the replacement replay')
+    assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/sim-t6'),'The replacement replay uses its separate root')
   }else assert.match(prefix, /^57[2-5]$/, 'Use an assigned task port block')
   const container = env.SEASON_SIM_CONTAINER ?? `supabase_db_${project}`
   assert.equal(container, `supabase_db_${project}`, 'Container must belong to the configured project')
   const socket = env.SEASON_SIM_DOCKER_SOCKET ?? env.DOCKER_HOST?.replace(/^unix:\/\//, '')
   if (socket != null) assert.ok(path.isAbsolute(socket) && !socket.includes('://'), 'Docker requires an absolute Unix socket')
   const ports = Object.fromEntries(Object.entries({ api: 21, db: 22, replay: 80, edge: 81, inspector: 83, fault: 89 }).map(([key, suffix]) => [key, Number(`${prefix}${suffix}`)]))
-  return { root: path.resolve(root), prefix, project, container, socket, ports,
+  return { root: path.resolve(root), snapshots: path.resolve(root, 'snapshots'), prefix, project, container, socket, ports,
     cli: env.SEASON_SIM_CLI ?? path.resolve(root, '../../tools/bin/supabase-go') }
 }
 
