@@ -22,7 +22,9 @@ BEGIN
       FROM drafts AS draft
       JOIN league_seasons AS season ON season.id = draft.league_season_id AND season.is_current
      WHERE draft.draft_type = 'snake' AND NOT draft.is_mock
-       AND draft.status IN ('in_progress', 'paused')
+       AND (draft.status IN ('in_progress', 'paused') OR (draft.status = 'completed' AND EXISTS (
+         SELECT 1 FROM snake_draft_picks AS unmade WHERE unmade.draft_id=draft.id
+           AND unmade.player_id IS NULL AND unmade.skipped_at IS NOT NULL)))
        AND private.draft_timer_opening_night_cutoff(season.season_year) <= p_at
      ORDER BY draft.id
      LIMIT LEAST(GREATEST(COALESCE(p_limit, 100), 0), 500)
@@ -30,8 +32,21 @@ BEGIN
     BEGIN
       v_results := '[]'::jsonb;
       IF NOT pg_try_advisory_xact_lock(hashtext(v_draft.id::text), 0) THEN CONTINUE; END IF;
-      PERFORM 1 FROM drafts WHERE id = v_draft.id AND status IN ('in_progress', 'paused') FOR UPDATE;
+      PERFORM 1 FROM drafts AS current_draft WHERE current_draft.id=v_draft.id
+        AND (current_draft.status IN ('in_progress','paused') OR (current_draft.status='completed' AND EXISTS (
+          SELECT 1 FROM snake_draft_picks AS unmade WHERE unmade.draft_id=current_draft.id
+            AND unmade.player_id IS NULL AND unmade.skipped_at IS NOT NULL))) FOR UPDATE;
       IF NOT FOUND THEN CONTINUE; END IF;
+      UPDATE draft_picks AS asset
+         SET is_used=false, used_at=NULL, rookie_draft_id=NULL
+        FROM snake_draft_picks AS skipped
+       WHERE skipped.draft_id=v_draft.id AND skipped.player_id IS NULL AND skipped.skipped_at IS NOT NULL
+         AND asset.id=skipped.draft_pick_id AND asset.rookie_draft_id=v_draft.id;
+      UPDATE snake_draft_picks SET skipped_at=NULL, skip_reason=NULL
+       WHERE snake_draft_picks.draft_id=v_draft.id AND snake_draft_picks.player_id IS NULL
+         AND snake_draft_picks.skipped_at IS NOT NULL;
+      UPDATE drafts SET status='in_progress', completed_at=NULL
+       WHERE id=v_draft.id AND status='completed';
       FOR v_pick IN
         SELECT pick.id, pick.member_id FROM snake_draft_picks AS pick
          WHERE pick.draft_id = v_draft.id AND pick.player_id IS NULL AND pick.skipped_at IS NULL
