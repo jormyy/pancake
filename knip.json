@@ -93,6 +93,7 @@
         "supabase/tests/db/live-score-load.ts",
         "supabase/tests/db/live-score-overlap.ts",
         "supabase/tests/db/live-score-tick-recovery.ts",
+        "supabase/tests/db/live-t10-season-chain.ts",
         "supabase/tests/db/scoring-skip-first-week.ts",
         "supabase/tests/db/makeup-scoring.ts",
         "supabase/tests/db/scoring-all-star-week.ts",
