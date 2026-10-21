@@ -147,6 +147,8 @@
         "supabase/tests/db/notif-t9-lineup-watch.ts",
         "supabase/tests/db/identity-projections.ts",
         "supabase/tests/db/identity-rankings.ts",
+        "tests/e2e/notif-keyboard.mjs",
+        "scripts/mutation/notif/keyboard.mjs",
         "scripts/mutation/draft/mock-expiry.mjs"
       ],
       "project": [
