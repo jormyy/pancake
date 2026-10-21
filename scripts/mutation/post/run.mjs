@@ -3,10 +3,8 @@ import { spawnSync, execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { homedir } from 'node:os'
+import { lane } from './lane.mjs'
 
-const lane = resolve(homedir(), 'pancake-t_4ba51e0d/lanes/post')
-assert.equal(process.cwd(), resolve(lane, 'repo'))
 const evidence = process.env.POST_EVIDENCE ?? resolve(lane, 'evidence')
 assert.ok(evidence.startsWith(`${lane}/`))
 mkdirSync(evidence, { recursive: true })

@@ -239,3 +239,26 @@ The red helper needs `base-schedule.ts`, `base-nba.ts`, `base-boundary.ts`, and 
 It restores every changed runtime file and function by SHA-256.
 CDN discovery keeps an unresolved week-one placeholder until a complete calendar remaps it; scoring refuses unresolved ranges.
 The four new Deno recipes require explicit Knip entries and package scripts at integration.
+
+## Current-head reruns and the served boundary path
+
+Runners accept the retired `lanes/post` root and the `lanes/claude-post` root (`lane.mjs`).
+`setup.mjs` starts the stack and the real Edge server through `edge.mjs`, which stops only its own `functions serve` PID.
+
+```sh
+python3 scripts/mutation/post/t10-scan.py <post results.jsonl> > scan.tsv
+node scripts/mutation/post/rerun-t10.mjs --baseline
+node scripts/mutation/post/rerun-t10.mjs [id|area|sql|ts ...]
+python3 scripts/mutation/post/t10-merge.py <evidence dir> > results.jsonl
+```
+
+The scan compares each catalog target with the source its verdict was measured on and writes `t10-plan.json` for the changed ones.
+Two originals now occur twice, so their reruns extend the match by one adjacent line.
+SQL mutants overlay `pg_get_functiondef`; TypeScript mutants edit the file.
+Every oracle runs unmutated first, and each target is restored and hash-checked.
+Type-check failures are recorded but never count as kills.
+
+`post-t10-boundary-http.ts` posts each boundary tick to the served `season-boundary` function with the synthetic internal token.
+Served-path mutants restart the Edge runtime after the mutation and after the restore.
+The container's file hash must match each time.
+The Edge runtime does not type-check, so it can kill mutants whose module-level oracles fail only at `deno run --check`.

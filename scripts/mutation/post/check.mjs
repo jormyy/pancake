@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
-import { homedir } from 'node:os'
+import './lane.mjs'
 
-assert.equal(process.cwd(), resolve(homedir(), 'pancake-t_4ba51e0d/lanes/post/repo'))
 const keys = Object.fromEntries(execFileSync('supabase', ['status', '-o', 'env'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').flatMap(line => {
   const match = /^([A-Z_]+)="(.*)"$/.exec(line)
   return match ? [[match[1], match[2]]] : []

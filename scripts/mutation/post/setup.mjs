@@ -1,12 +1,10 @@
 import { sql } from './stack-sql.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { execFileSync, spawn } from 'node:child_process'
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { lane } from './lane.mjs'
+import { startEdge, stopEdge } from './edge.mjs'
 
-const lane = resolve(homedir(), 'pancake-t_4ba51e0d/lanes/post')
-assert.equal(process.cwd(), resolve(lane, 'repo'))
 const db = 'postgresql://postgres:postgres@127.0.0.1:57422/postgres'
 assert.equal(new URL(db).hostname, '127.0.0.1')
 assert.equal(new URL(db).port, '57422')
@@ -21,18 +19,6 @@ await sql('SELECT pg_reload_conf()')
 writeFileSync('supabase/config.toml', config.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1true'))
 execFileSync('supabase', process.argv.includes('--reset') ? ['db', 'reset', '--local', '--no-seed'] : ['migration', 'up', '--local'], { stdio: 'inherit' })
 await sql('SELECT cron.unschedule(jobid) FROM cron.job')
-writeFileSync(`${lane}/edge.env`, 'PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token\n')
-const { openSync } = await import('node:fs')
-const edge = spawn('supabase', ['functions', 'serve', '--env-file', `${lane}/edge.env`], { env: { ...process.env, PATH: `${lane}/bin:${process.env.PATH}`, DOCKER_CONFIG: `${lane}/docker-config` }, detached: true, stdio: ['ignore', openSync(`${lane}/evidence/edge.log`, 'a'), openSync(`${lane}/evidence/edge.log`, 'a')] })
-writeFileSync(`${lane}/edge.pid`, String(edge.pid))
-edge.unref()
-let ready = false
-for (let attempt = 0; attempt < 60; attempt++) {
-  try {
-    const response = await fetch('http://127.0.0.1:57421/functions/v1/season-boundary')
-    if ([401,403].includes(response.status)) { ready = true; break }
-  } catch {}
-  await new Promise(resolve => setTimeout(resolve, 500))
-}
-assert.ok(ready, 'The real Edge server must reject unauthenticated requests before tests start')
+await stopEdge()
+await startEdge()
 console.log('post stack and real Edge server ready; synthetic local data only')
