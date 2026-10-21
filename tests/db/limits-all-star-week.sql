@@ -4,8 +4,23 @@
 SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS local_target \gset
 \if :local_target
 \else
-  \quit 2
+  DO $$ BEGIN RAISE EXCEPTION 'Refuse a database outside the expected loopback target.'; END $$;
 \endif
+\getenv local_db_url SUPABASE_DB_URL
+SELECT split_part(:'local_db_url','@',2)=:'HOST'||':'||:'PORT'||'/'||:'DBNAME' AS same_target,
+  regexp_replace(:'local_db_url','^(postgres(?:ql)?://)[^:]+:', '\1supabase_admin:') AS local_admin_url \gset
+\if :same_target
+  \connect :local_admin_url
+\else
+  DO $$ BEGIN RAISE EXCEPTION 'Refuse a database outside the expected loopback target.'; END $$;
+\endif
+\unset local_db_url
+\unset local_admin_url
+SELECT md5(string_agg(pg_get_functiondef(p.oid),E'\n' ORDER BY p.oid)) AS function_hash_before
+FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+WHERE p.prokind='f' AND (n.nspname IN('public','private') OR p.oid IN(
+  'pg_catalog.now()'::regprocedure,'pg_catalog.clock_timestamp()'::regprocedure,
+  'pg_catalog.statement_timestamp()'::regprocedure,'pg_catalog.transaction_timestamp()'::regprocedure)) \gset
 BEGIN;
 SET LOCAL statement_timeout='30s';
 SET LOCAL lock_timeout='5s';
@@ -227,4 +242,169 @@ BEGIN
     END LOOP;
   END LOOP;
 END $$;
+\set clock_source `cat scripts/season-sim/clock.sql`
+SELECT replace(replace(replace(replace(
+  substring(:'clock_source' FROM '(?s)BEGIN;(.*)COMMIT;'),
+  $param$:'sim_ms'$param$, '1738857600000'),
+  $param$:'real_ms'$param$, (extract(epoch FROM clock_timestamp())*1000)::text),
+  $param$:'rate'$param$, '0'), $param$:'cap_ms'$param$, 'NULL') \gexec
+DO $$
+DECLARE saved record;
+BEGIN
+  FOR saved IN SELECT pg_get_functiondef(p.oid) AS definition FROM pg_proc p
+    WHERE p.pronamespace=pg_my_temp_schema() AND p.prokind='f'
+  LOOP EXECUTE saved.definition; END LOOP;
+END $$;
+INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
+SELECT * FROM c2_calendar
+ON CONFLICT(season_year,week_number) DO UPDATE SET week_start=excluded.week_start,week_end=excluded.week_end;
+CREATE FUNCTION pg_temp.at_time(at_instant timestamptz) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE season_sim.clock SET sim_ms=extract(epoch FROM at_instant)*1000,rate=0,cap_ms=NULL WHERE singleton;
+  PERFORM pg_temp.check_that(now()=at_instant AND clock_timestamp()=at_instant,'isolated database clock checkpoint');
+END $$;
+CREATE FUNCTION pg_temp.offer(f pg_temp.all_star_fixture) RETURNS uuid LANGUAGE plpgsql AS $$
+DECLARE pick uuid; requested uuid;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub','',true);
+  SELECT p.id INTO pick FROM draft_picks p WHERE p.league_id=f.l AND p.current_owner_id=f.m[1]
+    AND NOT EXISTS(SELECT 1 FROM trade_items i WHERE i.pick_id=p.id) ORDER BY p.season_year,p.round LIMIT 1;
+  SELECT p.id INTO requested FROM draft_picks p WHERE p.league_id=f.l AND p.current_owner_id=f.m[2]
+    AND NOT EXISTS(SELECT 1 FROM trade_items i WHERE i.pick_id=p.id) ORDER BY p.season_year,p.round LIMIT 1;
+  PERFORM pg_temp.check_that(pick IS NOT NULL AND requested IS NOT NULL,'both sides own a real draft pick');
+  RETURN submit_trade_offer_atomic(f.u[1],gen_random_uuid(),f.m[1],'propose',jsonb_build_object(
+    'leagueId',f.l,'leagueSeasonId',f.s,'recipientMemberId',f.m[2],
+    'offerPlayerIds','[]'::jsonb,'requestPlayerIds','[]'::jsonb,
+    'offerPickIds',jsonb_build_array(pick),'requestPickIds',jsonb_build_array(requested),
+    'offerFaabAmount',0,'requestFaabAmount',0,'notes',NULL,'expiresAt',NULL));
+END $$;
+CREATE FUNCTION pg_temp.accept(f pg_temp.all_star_fixture,offer_id uuid) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE result jsonb;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub','',true);
+  result:=accept_trade_atomic(offer_id,f.m[2]);
+  PERFORM pg_temp.check_that(result->>'expired'='false' AND result->>'allAccepted'='true'
+    AND (SELECT status='accepted' FROM trades WHERE id=offer_id),'real acceptance succeeds');
+END $$;
+CREATE FUNCTION pg_temp.locked(f pg_temp.all_star_fixture,offer_id uuid,label text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE message text; participant_before jsonb; offer_before jsonb; request_count int;
+BEGIN
+  SELECT to_jsonb(t) INTO offer_before FROM trades t WHERE id=offer_id;
+  SELECT jsonb_agg(to_jsonb(t) ORDER BY member_id) INTO participant_before FROM trade_participants t WHERE trade_id=offer_id;
+  SELECT count(*) INTO request_count FROM private.trade_offer_requests WHERE member_id=f.m[1];
+  BEGIN PERFORM pg_temp.offer(f); EXCEPTION WHEN OTHERS THEN message:=SQLERRM; END;
+  PERFORM pg_temp.check_that(message='Trades are locked from the trade deadline until the champion is finalized.',label||' proposal rejected by deadline');
+  message:=NULL;
+  BEGIN PERFORM pg_temp.accept(f,offer_id); EXCEPTION WHEN OTHERS THEN message:=SQLERRM; END;
+  PERFORM pg_temp.check_that(message='Trades are locked from the trade deadline until the champion is finalized.',label||' acceptance rejected by deadline');
+  PERFORM expire_pending_trades_atomic(100);
+  PERFORM pg_temp.check_that((SELECT status='pending' AND to_jsonb(t)=offer_before FROM trades t WHERE id=offer_id)
+    AND (SELECT jsonb_agg(to_jsonb(t) ORDER BY member_id)=participant_before FROM trade_participants t WHERE trade_id=offer_id)
+    AND (SELECT count(*)=request_count FROM private.trade_offer_requests WHERE member_id=f.m[1]),label||' pending offer and acceptance locks unchanged; no failed request receipt');
+  PERFORM set_config('request.jwt.claim.sub',f.u[1]::text,true);
+END $$;
+CREATE FUNCTION pg_temp.champion(f pg_temp.all_star_fixture) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE final_id uuid; token jsonb;
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub','',true);
+  UPDATE leagues SET status='playoffs' WHERE id=f.l;
+  INSERT INTO matchups(league_id,league_season_id,week_number,matchup_type,home_member_id,away_member_id)
+  VALUES(f.l,f.s,24,'playoff_final',f.m[1],f.m[2]) RETURNING id INTO final_id;
+  token:=capture_score_inputs(f.s,24);
+  PERFORM finalize_score_week_atomic(f.l,f.s,24,jsonb_build_array(jsonb_build_object('id',final_id,
+    'winner_member_id',f.m[1],'home_points',10,'away_points',5,
+    'home_max_possible_points',10,'away_max_possible_points',5,'input_token',token)),'[]');
+  PERFORM pg_temp.check_that((SELECT is_finalized AND winner_member_id=f.m[1] FROM matchups WHERE id=final_id),'real finalization RPC declares champion');
+END $$;
+DO $$
+DECLARE f pg_temp.all_star_fixture; y int; skipped boolean; deadline date; accepted uuid; pending uuid; reopened uuid;
+BEGIN
+  FOR y IN 2025..2026 LOOP
+    deadline:=make_date(y,2,CASE y WHEN 2025 THEN 6 ELSE 5 END);
+    FOREACH skipped IN ARRAY ARRAY[false,true] LOOP
+      PERFORM pg_temp.at_time((deadline::timestamp AT TIME ZONE 'America/New_York')+interval '12 hours');
+      f:=pg_temp.setup(y,'faab',skipped);
+      PERFORM update_league_settings_atomic(f.l,jsonb_build_object('trade_deadline',to_char(deadline,'MM-DD')));
+      PERFORM pg_temp.check_that((SELECT trade_deadline=deadline FROM leagues WHERE id=f.l),'settings derives real NBA deadline year');
+      accepted:=pg_temp.offer(f);
+      PERFORM pg_temp.accept(f,accepted);
+      PERFORM pg_temp.at_time(((deadline+1)::timestamp AT TIME ZONE 'America/New_York')-interval '1 microsecond');
+      pending:=pg_temp.offer(f);
+      PERFORM pg_temp.at_time((deadline+1)::timestamp AT TIME ZONE 'America/New_York');
+      PERFORM pg_temp.locked(f,pending,'next New York date');
+      UPDATE leagues SET status='playoffs' WHERE id=f.l;
+      PERFORM pg_temp.locked(f,pending,'playoffs before champion');
+      PERFORM pg_temp.at_time((make_date(y,4,14)::timestamp AT TIME ZONE 'America/New_York')+interval '12 hours');
+      PERFORM pg_temp.champion(f);
+      PERFORM pg_temp.accept(f,pending);
+      reopened:=pg_temp.offer(f);
+      PERFORM pg_temp.accept(f,reopened);
+      RAISE NOTICE 'PASS deadline season=% skipped=%: settings, on-date proposal/acceptance, exact ET midnight lock, pending preservation, champion reopening; calendar=REAL-DERIVED clock/results=SYNTHETIC',y,skipped;
+    END LOOP;
+  END LOOP;
+END $$;
+DO $$
+DECLARE f pg_temp.all_star_fixture; pending uuid; before_claim uuid; after_claim uuid; reset_before timestamptz; reset_after timestamptz; w int;
+BEGIN
+  PERFORM pg_temp.at_time('2026-02-12 12:00 America/New_York');
+  f:=pg_temp.setup(2026,'faab',true);
+  PERFORM update_league_settings_atomic(f.l,'{"trade_deadline":"02-15"}');
+  PERFORM pg_temp.check_that((SELECT trade_deadline='2026-02-15' FROM leagues WHERE id=f.l),'inside merged week deadline derives date');
+  before_claim:=pg_temp.claim(f,1,pg_temp.player(),5,true);
+  PERFORM pg_temp.drain();
+  PERFORM pg_temp.check_that((SELECT status='succeeded' FROM waiver_claims WHERE id=before_claim),'pre-deadline merged-week waiver win');
+  SELECT week_number,resets_at INTO w,reset_before FROM private.current_add_week(f.l,f.s);
+  PERFORM pg_temp.check_that(w=17 AND reset_before='2026-02-23 00:00 America/New_York','merged reset before deadline');
+  PERFORM pg_temp.at_time('2026-02-15 23:59:59.999999 America/New_York');
+  pending:=pg_temp.offer(f);
+  PERFORM pg_temp.at_time('2026-02-16 00:00 America/New_York');
+  PERFORM pg_temp.locked(f,pending,'middle of merged matchup');
+  PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+  PERFORM pg_temp.expect_limit(f);
+  SELECT week_number,resets_at INTO w,reset_after FROM private.current_add_week(f.l,f.s);
+  PERFORM pg_temp.check_that(w=17 AND reset_after=reset_before
+    AND (SELECT add_count=2 FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number=17),'deadline changes neither merged reset nor used count');
+  PERFORM pg_temp.at_time('2026-02-23 00:00 America/New_York');
+  PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
+  after_claim:=pg_temp.claim(f,1,pg_temp.player(),7,true);
+  PERFORM pg_temp.drain();
+  PERFORM pg_temp.check_that((SELECT status='succeeded' FROM waiver_claims WHERE id=after_claim)
+    AND (SELECT array_agg(add_count ORDER BY week_number)=ARRAY[2,1] FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number IN(17,18))
+    AND (SELECT balance=88 FROM faab_balances WHERE league_season_id=f.s AND member_id=f.m[1])
+    AND (SELECT priority=4 FROM waiver_priorities WHERE league_season_id=f.s AND member_id=f.m[1]),'post-merged reset permits waiver, keeps FAAB and rolling priority');
+  RAISE NOTICE 'PASS deadline inside REAL-DERIVED merged week: Feb 16 lock, Feb 23 reset, shared limit, FAAB 88, priority 4; clock/fixtures=SYNTHETIC';
+END $$;
+DO $$
+DECLARE f pg_temp.all_star_fixture; accepted uuid; pending uuid; result jsonb;
+BEGIN
+  PERFORM pg_temp.at_time('2025-02-06 12:00 America/New_York');
+  f:=pg_temp.setup(2025,'faab',true);
+  PERFORM update_league_settings_atomic(f.l,'{"trade_deadline":"02-06"}');
+  PERFORM pg_temp.at_time('2025-04-14 12:00 America/New_York');
+  PERFORM pg_temp.champion(f);
+  PERFORM pg_temp.at_time('2025-04-16 12:00 America/New_York');
+  result:=apply_season_boundary_after_grace(f.l,f.s,'rollover');
+  PERFORM pg_temp.check_that((result->>'applied')::boolean AND (result->>'new_year')::int=2026,'real automatic RPC rolls 2025 into 2026');
+  f.s:=(result->>'new_season_id')::uuid;
+  PERFORM pg_temp.check_that((SELECT trade_deadline='2026-02-06' AND status='offseason' FROM leagues WHERE id=f.l)
+    AND (SELECT season_year=2026 AND is_current FROM league_seasons WHERE id=f.s),'rollover derives 2026 recurring deadline');
+  UPDATE leagues SET status='active' WHERE id=f.l;
+  PERFORM pg_temp.at_time('2026-02-06 12:00 America/New_York');
+  accepted:=pg_temp.offer(f);
+  PERFORM pg_temp.accept(f,accepted);
+  pending:=pg_temp.offer(f);
+  PERFORM pg_temp.at_time('2026-02-07 00:00 America/New_York');
+  PERFORM pg_temp.locked(f,pending,'derived 2026 deadline');
+  RAISE NOTICE 'PASS real-year rollover 2025 -> 2026: recurring Feb 6 deadline enforced through real submission/acceptance RPCs; calendar=REAL-DERIVED clock/results=SYNTHETIC';
+END $$;
 ROLLBACK;
+SELECT to_regprocedure('pg_catalog.season_sim_native_now()') IS NULL
+  AND md5(string_agg(pg_get_functiondef(p.oid),E'\n' ORDER BY p.oid))=:'function_hash_before' AS clock_restored
+FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+WHERE p.prokind='f' AND (n.nspname IN('public','private') OR p.oid IN(
+  'pg_catalog.now()'::regprocedure,'pg_catalog.clock_timestamp()'::regprocedure,
+  'pg_catalog.statement_timestamp()'::regprocedure,'pg_catalog.transaction_timestamp()'::regprocedure)) \gset
+\if :clock_restored
+\else
+  DO $$ BEGIN RAISE EXCEPTION 'Database clock or function definitions were not restored.'; END $$;
+\endif

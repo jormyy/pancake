@@ -98,6 +98,9 @@ add('waiver-limits', 'private.current_add_week', 'SELECT weeks.week_number, week
 add('waiver-limits', 'private.current_add_week', '(v_week_end + 1)::timestamp', '(v_week_end + 7)::timestamp', 'CONST', 'Reset six days after the actual merged-week boundary')
 add('waiver-limits', 'private.current_add_week', 'v_elapsed_weeks := (v_today - v_last_end - 1) / 7;', 'v_elapsed_weeks := (v_today - v_last_end - 1) / 14;', 'CONST', 'Advance post-schedule buckets every fourteen days after the shortened season', 0)
 
+add('trade-deadline', 'private.create_trade_offer', "v_league.trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_league.trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock proposals on the deadline date instead of the next New York date')
+add('trade-deadline', 'public.prevent_trade_acceptance_after_deadline', "v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock acceptance on the deadline date instead of the next New York date')
+
 oracles = {
     'initial': [
         ['preference', ['psql', '{db}', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/waiver-preference-order.sql']],
