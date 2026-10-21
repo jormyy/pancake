@@ -14,7 +14,7 @@ BEGIN
       WHEN NEW.status = 'in_progress' THEN 'draft_started'
       WHEN NEW.status = 'paused' THEN 'draft_paused' WHEN NEW.status = 'completed' THEN 'draft_finished' END;
     v_occurrence := CASE WHEN v_event IN ('draft_paused','draft_resumed') THEN NEW.id::text || ':' || gen_random_uuid()::text ELSE NEW.id::text END;
-    IF v_event IS NOT NULL THEN
+    IF v_event IS NOT NULL AND v_event<>'draft_resumed' THEN
       FOR m IN SELECT id FROM public.league_members WHERE league_id = NEW.league_id LOOP
         PERFORM private.notif_enqueue(v_event,v_occurrence,NEW.league_id,m.id,jsonb_build_object('draftId',NEW.id));
       END LOOP;

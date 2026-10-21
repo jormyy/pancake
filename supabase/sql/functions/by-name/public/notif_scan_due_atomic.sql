@@ -18,7 +18,7 @@ BEGIN
     JOIN public.league_members member ON member.league_id = season.league_id
     JOIN public.leagues league ON league.id = season.league_id
     WHERE season.is_current AND league.status = 'active'
-      AND v_today >= season.regular_season_start AND v_today < season.regular_season_start + 1
+      AND v_today = private.notif_first_scoring_day(season.id)
   LOOP
     PERFORM private.notif_enqueue('season_started',r.id::text,r.league_id,r.member_id,jsonb_build_object('leagueSeasonId',r.id));
   END LOOP;
