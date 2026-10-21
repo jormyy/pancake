@@ -62,3 +62,57 @@ Deno.test('failed CDN resolution never recovers through an earlier cached succes
     await assert.rejects(() => resolveCdnPlayers(resolver, [{ personId: 'nba-id', displayName: 'Shared Name' }]), /creation unavailable/)
   })
 })
+
+const { resolvePlayerImports } = await import('./playerImports.ts')
+const retryRecords = [{ provider_id: 'nba-id', display_name: 'Shared Name' }]
+
+async function withImportFailures(codes: string[], run: (state: { calls: number; warnings: string[] }) => Promise<void>) {
+  const originalFetch = globalThis.fetch
+  const originalWarn = console.warn
+  const state = { calls: 0, warnings: [] as string[] }
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    assert.equal(new URL(request.url).pathname, '/rest/v1/rpc/resolve_player_imports_atomic')
+    assert.deepEqual(await request.json(), { p_source: 'nba_cdn', p_records: retryRecords })
+    const code = codes[state.calls++]
+    return code !== undefined
+      ? Response.json({ message: `Synthetic database ${code}`, code }, { status: 500 })
+      : Response.json({ results: [{ index: 0, player_id: 'canonical', action: 'updated' }], stale_draft_numbers_cleared: 0 })
+  }
+  console.warn = (...args: unknown[]) => { state.warnings.push(args.join(' ')) }
+  try { await run(state) }
+  finally { globalThis.fetch = originalFetch; console.warn = originalWarn }
+}
+
+Deno.test('atomic player imports retry deadlocks and serialization failures after rollback', async () => {
+  for (const code of ['40P01', '40001']) {
+    await withImportFailures([code], async state => {
+      const result = await resolvePlayerImports('nba_cdn', retryRecords)
+      assert.equal(result.results[0].player_id, 'canonical')
+      assert.equal(state.calls, 2)
+      assert.equal(state.warnings.length, 1)
+      assert.match(state.warnings[0], new RegExp(`${code}.*1/3`))
+    })
+  }
+})
+
+Deno.test('atomic player import retries stop after three retries and log every retry', async () => {
+  for (const code of ['40P01', '40001']) {
+    await withImportFailures(Array(8).fill(code), async state => {
+      await assert.rejects(() => resolvePlayerImports('nba_cdn', retryRecords), new RegExp(`Synthetic database ${code}`))
+      assert.equal(state.calls, 4)
+      assert.equal(state.warnings.length, 3)
+      for (let index = 0; index < 3; index++) assert.match(state.warnings[index], new RegExp(`${code}.*${index + 1}/3`))
+    })
+  }
+})
+
+Deno.test('atomic player imports never retry identity, validation, permission, source-lock or unknown failures', async () => {
+  for (const code of ['23514', '22023', '42501', 'PT409', 'PGRST301', '40P01-other', 'UNKNOWN', '']) {
+    await withImportFailures([code], async state => {
+      await assert.rejects(() => resolvePlayerImports('nba_cdn', retryRecords), /Synthetic database/)
+      assert.equal(state.calls, 1)
+      assert.equal(state.warnings.length, 0)
+    })
+  }
+})
