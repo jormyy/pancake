@@ -1,33 +1,20 @@
-import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.98.0'
-import type { Database } from './database.ts'
 import { supabase } from './supabase.ts'
 import { createNotifyMembers } from './notificationDelivery.ts'
+import { normalizeNotificationPreferences } from './notificationsPreferences.ts'
 import type { VapidKeys } from './webPush.ts'
 import { createWebPushFanout, type WebPushSnapshot } from './webPushDelivery.ts'
 
 export type { NotificationMessage, NotifyMembers } from './notificationDelivery.ts'
 
 
-type NotificationDatabase = Omit<Database, 'public'> & {
-  public: Omit<Database['public'], 'Functions'> & {
-    Functions: Database['public']['Functions'] & {
-      notif_admit_delivery_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: boolean }
-      notif_begin_web_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: string }
-      notif_finish_web_atomic: { Args: { p_id: string; p_claim_token: string; p_sent: boolean }; Returns: boolean }
-      notif_suppress_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: boolean }
-    }
-  }
-}
-const notificationClient = supabase as SupabaseClient<NotificationDatabase>
-
 export async function suppressNotification(id: string, claimToken: string) {
-  const { data, error } = await notificationClient.rpc('notif_suppress_atomic', { p_id: id, p_claim_token: claimToken })
+  const { data, error } = await supabase.rpc('notif_suppress_atomic', { p_id: id, p_claim_token: claimToken })
   if (error) throw error
   if (!data) throw new Error('Notification lease lost before suppression')
 }
 
 async function admitNotification(id: string, claimToken: string) {
-  const { data, error } = await notificationClient.rpc('notif_admit_delivery_atomic', { p_id: id, p_claim_token: claimToken })
+  const { data, error } = await supabase.rpc('notif_admit_delivery_atomic', { p_id: id, p_claim_token: claimToken })
   if (error) throw error
   return data === true
 }
@@ -80,7 +67,7 @@ export const notifyMembers = createNotifyMembers({
       .from('notification_preferences')
       .select('*')
       .in('user_id', userIds)
-    return { data, error }
+    return { data: data?.map(row => ({ user_id: row.user_id, ...normalizeNotificationPreferences(row) })) ?? null, error }
   },
   profiles: async (userIds) => {
     const { data, error } = await supabase
@@ -94,7 +81,7 @@ export const notifyMembers = createNotifyMembers({
     const subscriptions = await supabase.from('web_push_subscriptions').select('endpoint').eq('user_id', userId).limit(1)
     if (subscriptions.error) throw subscriptions.error
     if (!subscriptions.data?.length) return 'attempted'
-    const { data, error } = await notificationClient.rpc('notif_begin_web_atomic', {
+    const { data, error } = await supabase.rpc('notif_begin_web_atomic', {
       p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken,
     })
     if (error) throw error
@@ -102,7 +89,7 @@ export const notifyMembers = createNotifyMembers({
     return data
   },
   finishWebDelivery: async (message, sent) => {
-    const { data, error } = await notificationClient.rpc('notif_finish_web_atomic', {
+    const { data, error } = await supabase.rpc('notif_finish_web_atomic', {
       p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken, p_sent: sent,
     })
     if (error) throw error
