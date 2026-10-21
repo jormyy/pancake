@@ -5,7 +5,13 @@ import type { fetchBoxScore } from '../../functions/_shared/nba.ts'
 type NBABoxScore = Awaited<ReturnType<typeof fetchBoxScore>>
 
 assert.equal(await sql('SELECT count(*) FROM players'), '0')
-Deno.env.set('NBA_CDN_BASE_URL', 'http://127.0.0.1:57780')
+let served: { id: string; box: NBABoxScore } | undefined
+const server = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen: () => undefined }, request => {
+  assert.ok(served)
+  assert.equal(new URL(request.url).pathname, `/liveData/boxscore/boxscore_${served.id}.json`)
+  return Response.json({ game: served.box })
+})
+Deno.env.set('NBA_CDN_BASE_URL', `http://127.0.0.1:${server.addr.port}`)
 const { syncStatsGame } = await import('../../functions/_shared/syncStats.ts')
 const nativeFetch = globalThis.fetch
 const results: object[] = []
@@ -20,10 +26,7 @@ for (const world of [
   const day = await sql("SELECT (now() AT TIME ZONE 'America/New_York')::date")
   const first = world.name.split(' ')[0], last = world.name.slice(first.length + 1)
   let statAttempts = 0
-  const server = Deno.serve({ hostname: '127.0.0.1', port: 57780, onListen: () => undefined }, request => {
-    assert.equal(new URL(request.url).pathname, `/liveData/boxscore/boxscore_${world.id}.json`)
-    return Response.json({ game: box })
-  })
+  served = { id: world.id, box }
   globalThis.fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input)
     if (url.pathname.endsWith('/save_live_game_stats_atomic')) {
@@ -80,10 +83,11 @@ for (const world of [
     results.push({ world: world.id, canonical: player, beforeFirstPoll: 'bench remains possible without source data', statRows: 0, lockedAfterFirstBox: true, historicalMemberships: 2 })
   } finally {
     globalThis.fetch = nativeFetch
-    await server.shutdown()
+    served = undefined
     await sql(`BEGIN; DELETE FROM leagues WHERE id=${q(league)}; DELETE FROM player_game_stats; DELETE FROM nba_games WHERE id IN (${q(game)},${q(oldGame)}); DELETE FROM players; DELETE FROM season_weeks WHERE season_year=2198; DELETE FROM auth.users WHERE id=${q(user)}; COMMIT`)
   }
 }
+await server.shutdown()
 const cadence = await sql("SELECT schedule FROM cron.job WHERE jobname='nba-live-poll'")
 assert.equal(cadence, '*/2 * * * *')
 console.log(JSON.stringify({ provenance: 'REAL-DERIVED identities and boxes; SYNTHETIC live replay, current clock, ownership and stat failure', residualPollingSeconds: 120, conditionalBound: 'healthy cron, provider and invocation; provider delay and outages remain unbounded', cadence, results }))
