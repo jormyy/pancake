@@ -1,12 +1,13 @@
 // Players-sort reruns: the seven round-1 search_players mutants (W/evidence/players/run-mutations.txt, measured on
 // migration 20261020000230) retargeted at the deployed search_players definition, with the same operators and
-// the same oracle, tests/db/players-fp-season.sql.
-// Usage on an owned local stack: node scripts/mutation/players/rerun.mjs <checkout sha>
+// the same oracle, tests/db/players-fp-season.sql. Mode f7-browser runs the F7 compact-UI browser mutants (f7-browser.mjs).
+// Usage on an owned local stack: node scripts/mutation/players/rerun.mjs <checkout sha> [mutations|f7-browser]
 import { resolve } from 'node:path'
 import { ownedStack, rerunMutants } from '../identity/t10-rerun.mjs'
 
-const [baseSha] = process.argv.slice(2)
+const [baseSha, mode = 'mutations'] = process.argv.slice(2)
 const stack = ownedStack()
+const evidence = resolve(process.env.T10_EVIDENCE ?? 'evidence/t10/players')
 const symbol = 'public.search_players(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)'
 const prior = { priorSha: '141931ad', priorOutcome: 'killed' }
 const oracles = {
@@ -23,5 +24,11 @@ const mutants = [
   ['final-and-stats', 'OR to AND', "g.status = 'Final' OR EXISTS", "g.status = 'Final' AND EXISTS"],
 ].map(([id, operator, original, mutated, notes]) => ({ id, area: 'players-sort', symbol, operator, original, mutated, oracle: 'players-fp-season', ...prior,
   notes: notes ?? 'Prior verdict targeted migration 20261020000230; the current definition is 20261020000231. Same operator, original text and oracle.' }))
-const rows = rerunMutants({ lane: 'claude-gaps', mutants, oracles, evidence: resolve(process.env.T10_EVIDENCE ?? 'evidence/t10/players'), baseSha, stack })
-if (rows.some(row => row.outcome === 'survived')) process.exitCode = 1
+if (mode === 'f7-browser') {
+  const { runF7Browser } = await import('./f7-browser.mjs')
+  const rows = await runF7Browser({ baseSha, evidence, stack })
+  if (rows.some(row => row.outcome !== 'killed')) process.exitCode = 1
+} else {
+  const rows = rerunMutants({ lane: 'claude-gaps', mutants, oracles, evidence, baseSha, stack })
+  if (rows.some(row => row.outcome === 'survived')) process.exitCode = 1
+}

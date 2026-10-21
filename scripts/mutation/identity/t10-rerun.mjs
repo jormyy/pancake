@@ -37,7 +37,7 @@ export function ownedStack() {
   return { project, keys, ports, env, sql }
 }
 
-export function latestDefinition(symbol, original) {
+function latestDefinition(symbol, original) {
   const [schema, name] = symbol.split('(')[0].split('.')
   const pattern = new RegExp(`CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(?:${schema}\\.)?${name}\\s*\\(`, 'gi')
   let latest
@@ -54,7 +54,7 @@ export function latestDefinition(symbol, original) {
 
 const display = (command, stack) => command.map(part => part === stack.keys.DB_URL ? '"$SUPABASE_DB_URL"' : part).join(' ')
 
-export function oracleRunner(stack, evidence, baseSha) {
+function oracleRunner(stack, evidence, baseSha) {
   mkdirSync(join(evidence, 'logs'), { recursive: true })
   return (label, oracle) => {
     const started = performance.now()
