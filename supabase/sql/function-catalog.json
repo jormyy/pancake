@@ -85,6 +85,7 @@
     "private.notif_draft_deferred_until(text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_draft_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_enqueue(text,text,uuid,uuid,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.notif_first_scoring_day(uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_is_stale(text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_league_trade_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_league_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

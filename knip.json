@@ -135,6 +135,16 @@
         "tests/e2e/draft-timer-restart-real.mjs",
         "tests/db/draft-mock-expiry.mjs",
         "tests/e2e/players-notification-scroll.mjs",
+        "scripts/mutation/notif/t9.ts",
+        "scripts/mutation/notif/t9-follow-up-1.ts",
+        "supabase/tests/db/notif-t9-season.ts",
+        "supabase/tests/db/notif-t9-faab.ts",
+        "supabase/tests/db/notif-t9-draft.ts",
+        "supabase/tests/db/notif-t9-player.ts",
+        "supabase/tests/db/notif-t9-trade.ts",
+        "supabase/tests/db/notif-t9-matchup-league.ts",
+        "supabase/tests/db/notif-t9-announcement.ts",
+        "supabase/tests/db/notif-t9-lineup-watch.ts",
         "scripts/mutation/draft/mock-expiry.mjs"
       ],
       "project": [
