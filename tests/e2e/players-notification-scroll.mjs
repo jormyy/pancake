@@ -7,8 +7,29 @@ import { createClient } from '@supabase/supabase-js'
 import { openWebTarget, readWebLayout, waitForWebTargetReads } from './web-targets-browser.mjs'
 
 const started = performance.now()
-const origin = 'http://127.0.0.1:58080'
-const run = process.argv.find(value => value.startsWith('--run='))?.split('=')[1] ?? '1'
+const args = Object.fromEntries(process.argv.slice(2).map(value => {
+  const match = /^--(frontend-url|api-url|api-proxy-port|db-port|build-sha|run)=(.+)$/.exec(value)
+  assert.ok(match, `Invalid argument ${value}`)
+  return [match[1], match[2]]
+}))
+const localOrigin = value => {
+  const url = new URL(value)
+  assert.ok(url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname)
+    && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash, 'Owned HTTP loopback origin required')
+  return url.origin
+}
+const localPort = value => {
+  assert.ok(/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 65535, 'Valid local port required')
+  return String(Number(value))
+}
+const origin = localOrigin(args['frontend-url'] ?? process.env.E2E_FRONTEND_URL ?? 'http://127.0.0.1:58080')
+const apiUrl = localOrigin(args['api-url'] ?? process.env.E2E_SUPABASE_URL ?? 'http://127.0.0.1:58021')
+const apiProxyUrl = new URL(apiUrl)
+apiProxyUrl.port = localPort(args['api-proxy-port'] ?? process.env.E2E_API_PROXY_PORT ?? '58081')
+const apiProxyOrigin = apiProxyUrl.origin
+const dbPort = localPort(args['db-port'] ?? process.env.PANCAKE_TEST_DB_PORT ?? '58022')
+const buildSha = args['build-sha'] ?? process.env.PANCAKE_RELEASE_SHA
+const run = args.run ?? '1'
 assert.match(run, /^[a-zA-Z0-9-]+$/)
 const evidence = path.resolve(process.env.PLAYERS_SCROLL_EVIDENCE ?? `evidence/t9/browser-${run}`)
 const status = execFileSync('supabase', ['status', '-o', 'env'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
@@ -16,10 +37,10 @@ const keys = Object.fromEntries(status.split('\n').flatMap(line => {
   const match = /^([A-Z_]+)="(.*)"$/.exec(line)
   return match ? [[match[1], match[2]]] : []
 }))
-for (const [url, port] of [[keys.API_URL, '58021'], [keys.DB_URL, '58022'], [origin, '58080']]) {
-  const target = new URL(url)
-  assert.ok(['127.0.0.1', 'localhost'].includes(target.hostname) && target.port === port, 'Owned loopback targets required')
-}
+assert.equal(localOrigin(keys.API_URL), apiUrl, 'Supabase status must match the supplied API origin')
+const database = new URL(keys.DB_URL)
+assert.ok(['postgres:', 'postgresql:'].includes(database.protocol) && ['127.0.0.1', 'localhost'].includes(database.hostname)
+  && database.port === dbPort, 'Owned loopback database must match the supplied port')
 const catalog = await import(new URL('../../supabase/functions/_shared/notificationsPreferences.ts', import.meta.url).href)
 const finalEvent = catalog.notificationEvents.at(-1)
 assert.equal(finalEvent.key, 'league_settings_changed')
@@ -30,10 +51,11 @@ const checked = async query => {
   if (error) throw error
   return data
 }
-const admin = createClient(keys.API_URL, keys.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
-const publicClient = createClient(keys.API_URL, keys.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+const admin = createClient(apiUrl, keys.SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+const publicClient = createClient(apiUrl, keys.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
 const report = {
   run, provenance: 'SYNTHETIC local account and league; real notification catalog and release UI',
+  targets: { origin, apiUrl, apiProxyOrigin, dbPort, expectedBuildSha: buildSha ?? null },
   catalog: { finalEvent: finalEvent.key, finalEventLabel, categories, events: catalog.notificationEvents.length },
   simulation: '393x852 DPR 3, mobile and touch enabled; existing web-target helper replaces CSS safe-area env() values with 59/34 px in both engines',
   limitations: ['Not native iOS Safari, an installed home-screen PWA, or real-device evidence', 'WebKit safe-area values are CSS test substitutions, not engine or OS safe-area emulation'],
@@ -156,7 +178,7 @@ async function expandedEnd(page, result, directory, user) {
 }
 try {
   const release = await fetch(`${origin}/release-provenance.json`).then(response => response.json())
-  assert.equal(release.commitSha, '942840a666732806b8e2ffd5501a22a237559511')
+  if (buildSha) assert.equal(release.commitSha, buildSha)
   report.release = { commitSha: release.commitSha, bundleDigest: release.bundleDigest }
   const suffix = randomUUID().replaceAll('-', '')
   const email = `players-scroll-${suffix}@example.test`
@@ -181,13 +203,13 @@ try {
         const url = new URL(route.request().url())
         return ['127.0.0.1', 'localhost'].includes(url.hostname) || url.protocol === 'data:' ? route.continue() : route.abort()
       })
-      await context.route(`${keys.API_URL}/functions/v1/api/**`, async route => {
-        const response = await route.fetch({ url: route.request().url().replace(keys.API_URL, 'http://127.0.0.1:58081') })
+      await context.route(`${apiUrl}/functions/v1/api/**`, async route => {
+        const response = await route.fetch({ url: route.request().url().replace(apiUrl, apiProxyOrigin) })
         await route.fulfill({ response })
       })
       await context.addInitScript(({ session, authKey }) => {
         if (!localStorage.getItem(authKey)) localStorage.setItem(authKey, JSON.stringify(session))
-      }, { session: signed.session, authKey: `sb-${new URL(keys.API_URL).hostname.split('.')[0]}-auth-token` })
+      }, { session: signed.session, authKey: `sb-${new URL(apiUrl).hostname.split('.')[0]}-auth-token` })
       try { await expandedEnd(page, result, directory, created.user) }
       catch (error) {
         result.failures.push({ check: 'expanded-scroll-end', error: error instanceof Error ? error.message : String(error), screenshot: await capture(page, directory, 'expanded-scroll-end-failure') })
