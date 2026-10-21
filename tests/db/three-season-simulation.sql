@@ -542,7 +542,7 @@ CREATE FUNCTION pg_temp.run_rookie_draft(p_league uuid, p_commissioner uuid, p_f
 DECLARE v_draft uuid; v_member uuid; v_rookie int := p_first_rookie; v_status text; v_overall int := 0; v_total int; v_to_taxi boolean;
 BEGIN
   PERFORM pg_temp.act_as(NULL);
-  PERFORM public.start_rookie_draft_atomic(p_league, 2, false, 30, 'commissioner_pick');
+  PERFORM public.start_rookie_draft_atomic(p_league, 2, false, 60, 'commissioner_pick');
   SELECT id INTO v_draft FROM public.drafts WHERE league_id = p_league AND draft_type = 'snake' AND status = 'in_progress';
   PERFORM pg_temp.assert(v_draft IS NOT NULL, 'rookie draft did not start');
   SELECT count(*) INTO v_total FROM public.snake_draft_picks WHERE draft_id = v_draft;
@@ -685,7 +685,7 @@ BEGIN
   -- A pick of the class sits in an accepted, uncompleted trade: the draft waits.
   v_t := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a2, i.a3, '{}', '{}', ARRAY[pg_temp.pick('A2', 2100, 1)], ARRAY[pg_temp.pick('A3', 2100, 2)]);
   PERFORM public.accept_trade_atomic(v_t, i.a3);
-  PERFORM pg_temp.rejected('rookie draft with a reserved pick', pg_temp.try(format('SELECT public.start_rookie_draft_atomic(%L, 2, false, 30, %L)', i.a, 'commissioner_pick')), '%reserved%');
+  PERFORM pg_temp.rejected('rookie draft with a reserved pick', pg_temp.try(format('SELECT public.start_rookie_draft_atomic(%L, 2, false, 60, %L)', i.a, 'commissioner_pick')), '%reserved%');
   v_n := pg_temp.complete_due_trades();
   PERFORM pg_temp.assert(pg_temp.trade_status(v_t) = 'completed', 'the pick trade did not complete');
   PERFORM pg_temp.run_rookie_draft(i.a, i.u1, 7, pg_temp.pick('A1', 2100, 2));

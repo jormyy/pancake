@@ -439,6 +439,7 @@ export function MockRoomsPanel({
                             selectedValue={draftTimerSeconds}
                             onSelect={onDraftTimerSecondsChange}
                             groupLabel="Mock draft timer"
+                            rookie={roomDraftType === 'snake'}
                         />
                     </>
                 )}

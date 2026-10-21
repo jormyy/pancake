@@ -9,11 +9,11 @@ for (const [target, port] of [[values.API_URL, '57921'], [values.DB_URL, '57922'
   const url = new URL(target)
   assert(['127.0.0.1', 'localhost'].includes(url.hostname) && url.port === port, 'Use only the draft test stack')
 }
-const env = { ...process.env, PANCAKE_TEST_API_PORT: '57921', PANCAKE_TEST_DB_PORT: '57922', SUPABASE_URL: values.API_URL, SUPABASE_DB_URL: values.DB_URL, PANCAKE_SUPABASE_SECRET_KEY: values.SERVICE_ROLE_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: 'local-database-ci-token' }
+const env = { ...process.env, E2E_API_BASE_URL: `${values.API_URL}/functions/v1/api`, E2E_FRONTEND_URL: 'http://127.0.0.1:57980', E2E_ADMIN_SECRET: 'draft-round2-local-admin', E2E_SUPABASE_PUBLISHABLE_KEY: values.ANON_KEY, SUPABASE_ANON_KEY: values.ANON_KEY, SUPABASE_SERVICE_ROLE_KEY: values.SERVICE_ROLE_KEY, PANCAKE_TEST_API_PORT: '57921', PANCAKE_TEST_DB_PORT: '57922', SUPABASE_URL: values.API_URL, SUPABASE_DB_URL: values.DB_URL, PANCAKE_SUPABASE_SECRET_KEY: values.SERVICE_ROLE_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: 'local-database-ci-token' }
 const file = process.argv[2]
-assert(file && /^(tests\/db\/draft-timer-|supabase\/tests\/db\/draft-|tests\/e2e\/(draft-timer-|expired-draft-outcomes))/.test(file))
-const command = file.endsWith('.sql') ? 'psql' : 'node'
-const args = file.endsWith('.sql') ? [values.DB_URL, '-Xv', 'ON_ERROR_STOP=1', '-f', file] : [file]
+assert(file && /^(test:db:[a-z-]+|(?:tests\/(?:db|e2e)|supabase\/tests\/db)\/[A-Za-z0-9_-]+\.(?:sql|mjs|ts))$/.test(file))
+const command = file.startsWith('test:db:') ? 'npm' : file.endsWith('.sql') ? 'psql' : file.endsWith('.ts') ? 'deno' : 'node'
+const args = command === 'npm' ? ['run', file] : command === 'psql' ? [values.DB_URL, '-Xv', 'ON_ERROR_STOP=1', '-f', file] : command === 'deno' ? ['run', '--no-lock', '--check', '--allow-env', '--allow-net=127.0.0.1,localhost', '--allow-read', '--allow-run=psql', file] : [file]
 console.log(`${command} ${file}`)
 const started = performance.now()
 const result = spawnSync(command, args, { env, stdio: 'inherit', timeout: 120000 })
