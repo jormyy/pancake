@@ -4,6 +4,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
+if (process.argv.some(arg => arg.startsWith('--clinch-'))) {
+  const { runClinchReview } = await import('./clinch-review.mjs')
+  runClinchReview()
+  process.exit(0)
+}
 if (process.argv.some(arg => arg.startsWith('--cutoff-'))) {
   const { runCutoffReview } = await import('./cutoff-review.mjs')
   runCutoffReview()

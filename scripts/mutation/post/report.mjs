@@ -21,7 +21,7 @@ for (const item of catalog) {
   assert.match(row.notes, /Restore SHA-256 verified:/)
 }
 writeFileSync(path.join(directory, 'results.jsonl'), catalog.map(item => JSON.stringify(final.get(item.id))).join('\n') + '\n')
-const areas = ['playoffs','champion','trade-deadline','rookie-draft','picks','skipped-week','opening-night','all-star-week','postponement','nba-cup','matchup-order','playoff-fit']
+const areas = ['playoffs','champion','trade-deadline','rookie-draft','picks','skipped-week','opening-night','all-star-week','postponement','nba-cup','matchup-order','playoff-fit','notifications']
 const counts = rows => Object.fromEntries(['killed','survived','invalid','timeout','equivalent'].map(outcome => [outcome, rows.filter(row => row.outcome === outcome).length]))
 const score = rows => { const c = counts(rows); return rows.length ? `${c.killed}/${c.killed+c.survived}` : 'N/A' }
 const lines = ['# Mutation scores','', 'Provenance: SYNTHETIC isolated fixtures and REAL-DERIVED calendars from pinned REAL-RAW NBA/ESPN sources. These scores do not prove a full historical replay.','', '| Area | Original checks | Stronger checks, original set | Final expanded set | Total | Invalid | Timeout | Equivalent |','|---|---:|---:|---:|---:|---:|---:|---:|']
@@ -51,6 +51,8 @@ if (featureInitial.length) {
 }
 const cutoffFinal = [...final.values()].filter(row => row.id.startsWith('post-cutoff-'))
 if (cutoffFinal.length) lines.push('', `Round 9 cutoff checks kill ${score(cutoffFinal)}. All ${cutoffFinal.length} additions apply, with no invalid, timeout or equivalent outcomes. The checks cover concurrent completion after a lost response, delegation to the locked cutoff worker, the inclusive shared opening-night instant, and concurrent publication during the legacy fallback.`)
+const clinchFinal = [...final.values()].filter(row => row.id.startsWith('post-clinch-'))
+if (clinchFinal.length) lines.push('', `Round 10 clinch checks kill ${score(clinchFinal)}. The set covers strict reachable ties, remaining-match bounds, voided matches, undecided tiebreaks, enqueueing and season-scoped dedupe.`)
 writeFileSync(path.join(directory, 'scores.md'), lines.join('\n')+'\n')
 const classification = id => ['champion-01','champion-04'].includes(id) ? 'weak oracle' : id === 'champion-06' ? 'unreachable in tests' : 'missing assertion'
 const survivors = ['# Survivor review','', 'There are no final survivors, invalid mutants, timeouts, or equivalent classifications. The original 28 survivors all die after stronger checks.','', '| Original survivor | Classification | Added killing check | Final outcome |','|---|---|---|---|']
@@ -65,5 +67,6 @@ if (later.length) {
 }
 if (featureInitial.length) survivors.push('', 'Turn 4 survivor post-t4-06: missing assertion. The calendar completeness check still rejected an overrun, but the response reported lastAvailableWeek=25 for a 24-week calendar. The final oracle checks the full structured response and kills this mutant. Baseline passes. All turn-4 additions are now killed, including the boundary timer regression.')
 if (cutoffFinal.length) survivors.push('', 'Round 9 has no new survivors. All four cutoff mutations die on their first Tier 1 run. The complete historical catalog has one final verdict per ID. Historical kills remain evidence from their recorded source versions; this round does not rerun all older mutations against the integrated source.')
+if (clinchFinal.length) survivors.push('', `Round 10 final clinch score: ${score(clinchFinal)}. Classifications and any strengthened oracle are recorded in the Round 10 handoff.`)
 writeFileSync(path.join(directory, 'survivors.md'), survivors.join('\n')+'\n')
 console.log(`${catalog.length} verdicts validated; ${score([...final.values()])} killed`)

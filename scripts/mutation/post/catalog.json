@@ -2288,5 +2288,101 @@
         "command": "POST_ROOKIE_CASE=cutoff_publish node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
       }
     ]
+  },
+  {
+    "id": "post-clinch-01",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 58,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "ROR",
+    "original": "opponent.wins + opponent.remaining >= candidate.wins",
+    "mutated": "opponent.wins + opponent.remaining > candidate.wins",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-02",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 43,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "CONST",
+    "original": "count(matchup.id) FILTER (WHERE NOT matchup.is_finalized) AS remaining",
+    "mutated": "GREATEST(count(matchup.id) FILTER (WHERE NOT matchup.is_finalized) - 1, 0) AS remaining",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-03",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 49,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "STMT-DEL",
+    "original": "AND NOT matchup.is_voided",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-04",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 55,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "CONST",
+    "original": "NOT EXISTS (SELECT 1 FROM bounds WHERE remaining > 0)",
+    "mutated": "true",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-05",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 61,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "STMT-DEL",
+    "original": "PERFORM private.notif_enqueue('playoff_clinched', season.id::text, season.league_id, clincher.member_id,\n        jsonb_build_object('leagueSeasonId', season.id, 'seasonYear', season.season_year,\n          'playoffEntrants', entrants, 'phase', 'qualification', 'body', 'Your team has clinched a playoff spot.'));",
+    "mutated": "NULL;",
+    "oracles": [
+      {
+        "name": "playoff-clinched-early",
+        "command": "POST_CLINCH_CASE=2025:false:early node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-06",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 61,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "CONST",
+    "original": "'playoff_clinched', season.id::text",
+    "mutated": "'playoff_clinched', gen_random_uuid()::text",
+    "oracles": [
+      {
+        "name": "playoff-clinched-early",
+        "command": "POST_CLINCH_CASE=2025:false:early node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
   }
 ]
