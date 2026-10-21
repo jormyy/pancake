@@ -21,7 +21,7 @@ for (const item of catalog) {
   assert.match(row.notes, /Restore SHA-256 verified:/)
 }
 writeFileSync(path.join(directory, 'results.jsonl'), catalog.map(item => JSON.stringify(final.get(item.id))).join('\n') + '\n')
-const areas = ['playoffs','champion','trade-deadline','rookie-draft','picks','skipped-week','opening-night','all-star-week','postponement','nba-cup']
+const areas = ['playoffs','champion','trade-deadline','rookie-draft','picks','skipped-week','opening-night','all-star-week','postponement','nba-cup','matchup-order','playoff-fit']
 const counts = rows => Object.fromEntries(['killed','survived','invalid','timeout','equivalent'].map(outcome => [outcome, rows.filter(row => row.outcome === outcome).length]))
 const score = rows => { const c = counts(rows); return rows.length ? `${c.killed}/${c.killed+c.survived}` : 'N/A' }
 const lines = ['# Mutation scores','', 'Provenance: SYNTHETIC isolated fixtures and REAL-DERIVED calendars from pinned REAL-RAW NBA/ESPN sources. These scores do not prove a full historical replay.','', '| Area | Original checks | Stronger checks, original set | Final expanded set | Total | Invalid | Timeout | Equivalent |','|---|---:|---:|---:|---:|---:|---:|---:|']
@@ -43,6 +43,12 @@ if (later.length) {
     lines.push(`| ${area} | ${score(before)} | ${score(after)} | ${after.length} | ${c.invalid} | ${c.timeout} | ${c.equivalent} |`)
   }
 }
+const featureInitialFile = path.join(directory, 'review8/mutations/results.jsonl')
+const featureInitial = existsSync(featureInitialFile) ? readRows(featureInitialFile) : []
+if (featureInitial.length) {
+  const featureFinal = [...final.values()].filter(row => row.id.startsWith('post-t4-'))
+  lines.push('', `Turn 4 first checks kill ${score(featureInitial)}. The stronger response assertion kills ${score(featureFinal.filter(row => featureInitial.some(first => first.id === row.id)))} on those IDs. The expanded set kills ${score(featureFinal)}. Matchup order: ${score(featureFinal.filter(row => row.area === 'matchup-order'))}. Playoff fit: ${score(featureFinal.filter(row => row.area === 'playoff-fit'))}. All additions apply, with no invalid, timeout or equivalent outcomes.`)
+}
 writeFileSync(path.join(directory, 'scores.md'), lines.join('\n')+'\n')
 const classification = id => ['champion-01','champion-04'].includes(id) ? 'weak oracle' : id === 'champion-06' ? 'unreachable in tests' : 'missing assertion'
 const survivors = ['# Survivor review','', 'There are no final survivors, invalid mutants, timeouts, or equivalent classifications. The original 28 survivors all die after stronger checks.','', '| Original survivor | Classification | Added killing check | Final outcome |','|---|---|---|---|']
@@ -55,5 +61,6 @@ survivors.push('', 'Playoff tests now distinguish max possible points from point
 if (later.length) {
   survivors.push('', 'Turn 3 survivor post-t3-05: unreachable in the two real schedules because their single-day gaps do not cross Monday. A SYNTHETIC missing-Sunday control now tests that boundary. The mutant dies after that check, and the unmutated oracle passes. All 17 turn-3 mutants are killed; none remain invalid, timed out, equivalent, or survived.')
 }
+if (featureInitial.length) survivors.push('', 'Turn 4 survivor post-t4-06: missing assertion. The calendar completeness check still rejected an overrun, but the response reported lastAvailableWeek=25 for a 24-week calendar. The final oracle checks the full structured response and kills this mutant. Baseline passes. All turn-4 additions are now killed, including the boundary timer regression.')
 writeFileSync(path.join(directory, 'survivors.md'), survivors.join('\n')+'\n')
 console.log(`${catalog.length} verdicts validated; ${score([...final.values()])} killed`)

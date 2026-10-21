@@ -17,7 +17,7 @@ const sql = async (statement: string): Promise<string> => {
 }
 const quote = (value: string) => `'${value.replaceAll("'", "''")}'`
 const failures: string[] = []
-const cases = ['in_progress', 'paused', 'mock', 'auction', 'commissioner_early', 'mock_resume']
+const cases = ['in_progress', 'paused', 'mock', 'auction', 'commissioner_early', 'mock_resume', 'missing']
 const selectedCase = Deno.env.get('POST_ROOKIE_CASE')
 assert.ok(!selectedCase || cases.includes(selectedCase))
 for (const state of cases.filter(value => !selectedCase || value === selectedCase)) {
@@ -35,7 +35,7 @@ for (const state of cases.filter(value => !selectedCase || value === selectedCas
       INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id) SELECT ${quote(league)},${year},r,m,m FROM unnest(ARRAY[${members.map(quote).join(',')}]::uuid[]) m CROSS JOIN generate_series(1,3) r;
       INSERT INTO season_weeks(season_year,week_number,week_start,week_end) SELECT ${year},w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(1,3) w;
       ${players.map(player => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(player)},'Synthetic',${quote(player)},'PG',ARRAY['PG'],0,1);`).join('\n')}
-      ${state === 'auction' ? `SELECT start_auction_draft_atomic(${quote(league)});` : `SELECT start_rookie_draft_atomic(${quote(league)},3,false);`}
+      ${state === 'missing' ? '' : state === 'auction' ? `SELECT start_auction_draft_atomic(${quote(league)});` : `SELECT start_rookie_draft_atomic(${quote(league)},3,false);`}
       ${['mock', 'mock_resume'].includes(state) ? `UPDATE drafts SET is_mock=true WHERE league_id=${quote(league)};` : ''}
       ${state === 'paused' ? `UPDATE drafts SET status='paused',pause_reason='timer_expired_pause' WHERE league_id=${quote(league)};` : ''}
       ${['commissioner_early', 'mock_resume'].includes(state) ? `SELECT pause_draft_atomic((SELECT id FROM drafts WHERE league_id=${quote(league)}),${quote(users[0])});` : ''}
@@ -93,6 +93,7 @@ for (const state of cases.filter(value => !selectedCase || value === selectedCas
     assert.equal(due[0].error, undefined)
     assert.ok(due[0].actions.includes('rookie-draft-auto-completed'))
     assert.equal(await sql(`SELECT count(*) FROM snake_draft_picks WHERE draft_id IN(SELECT id FROM drafts WHERE league_id=${quote(league)}) AND player_id IS NOT NULL`), '12')
+    if (state === 'missing') assert.equal(await sql(`SELECT pick_timer_seconds FROM drafts WHERE league_id=${quote(league)}`), '60', 'The boundary must use the supported rookie timer minimum')
     const repeated = await runSeasonBoundary(new Date('2026-10-20T04:00:01Z'), league)
     assert.ok(repeated.every(report => !report.error))
     assert.equal(await sql(`SELECT count(*) FROM drafts WHERE league_id=${quote(league)}`), '1')

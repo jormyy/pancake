@@ -34,7 +34,7 @@ export default function CommissionerSettingsScreen() {
     const {
         adjustSlot, authorityReady, busyAction, draft, hasDraft, handleAddCountOverride, handleDeleteLeague,
         handleFaabOverride, isCommissioner, lifecycle, loadError, loadState, lowerPriorityActions,
-        members, playoffCalendar, playoffRoundsNeedReview, navigateBack, overrideAdds, overrideFaab, overrideMemberId,
+        members, playoffCalendar, playoffFitMessage, playoffFitStatus, playoffRoundsNeedReview, navigateBack, overrideAdds, overrideFaab, overrideMemberId,
         overrideSaving, retryLoad, save, saving, setOverrideAdds, setOverrideFaab,
         setOverrideMemberId, tradeVetoModeDescription, updateField, updateScoring,
     } = useCommissionerSettingsController()
@@ -271,12 +271,7 @@ export default function CommissionerSettingsScreen() {
 
                     <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Playoffs</Text>
                     <View style={styles.card}>
-                        <Text style={styles.settingHint}>
-                            {playoffCalendar?.weeks.length
-                                ? `Season ${playoffCalendar.seasonYear} has calendar weeks ${playoffCalendar.weeks[0]}–${playoffCalendar.weeks[playoffCalendar.weeks.length - 1]}. Every week through the final must exist.`
-                                : 'The season calendar is unavailable. New playoff settings cannot be saved until it loads.'}
-                            {' Choose positive whole weeks for each round. Changes rebuild an unstarted schedule. Settings cannot change after its first week starts.'}
-                        </Text>
+                        <Text style={styles.settingHint} accessibilityRole={playoffFitStatus === 'fit' ? undefined : 'alert'}>{playoffFitMessage}</Text>
                         {playoffRoundsNeedReview && (
                             <Text style={styles.settingHint}>
                                 The team count changed. Review the round lengths and total before starting a draft or generating the schedule.

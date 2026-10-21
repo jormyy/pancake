@@ -1546,12 +1546,12 @@
   {
     "id": "post-sw-01",
     "area": "skipped-week",
-    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
-    "line": 1769,
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 39,
     "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
     "operator": "NEG",
-    "original": "AND v_week=ANY(skipped_weeks)",
-    "mutated": "AND NOT v_week=ANY(skipped_weeks)",
+    "original": "      IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_season_id AND v_week=ANY(skipped_weeks)) THEN CONTINUE; END IF;",
+    "mutated": "      IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_season_id AND NOT v_week=ANY(skipped_weeks)) THEN CONTINUE; END IF;",
     "oracles": [
       {
         "name": "rookie-skipped-week",
@@ -1562,11 +1562,11 @@
   {
     "id": "post-sw-02",
     "area": "skipped-week",
-    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
-    "line": 1771,
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 41,
     "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
     "operator": "STMT-DEL",
-    "original": "v_played := v_played + 1;",
+    "original": "      v_played := v_played + 1;",
     "mutated": "",
     "oracles": [
       {
@@ -2068,6 +2068,159 @@
       {
         "name": "calendar-all-star",
         "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-01",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 29,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "ARG-SWAP",
+    "original": "md5(p_season_id::text || ':' || id::text)",
+    "mutated": "md5(p_league_id::text || ':' || id::text)",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-02",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 40,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_order[1 + v_played % (v_count - 1)]",
+    "mutated": "v_order[1]",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-03",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 83,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_seen[v_code] % 2 = 0",
+    "mutated": "v_seen[v_code] % 2 = 1",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-04",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 54,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_counts[v_code] % 2 = 1",
+    "mutated": "v_counts[v_code] % 2 = 0",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-05",
+    "area": "playoff-fit",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 216,
+    "symbol": "playoffFit",
+    "operator": "ROR",
+    "original": "endWeek <= lastAvailableWeek && complete ? 'fit'",
+    "mutated": "endWeek < lastAvailableWeek && complete ? 'fit'",
+    "oracles": [
+      {
+        "name": "playoff-fit",
+        "command": "node scripts/mutation/post/check.mjs supabase/tests/db/matchup-order-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-06",
+    "area": "playoff-fit",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 208,
+    "symbol": "playoffFit",
+    "operator": "CONST",
+    "original": "weeks.length ? Math.max(...weeks) : null",
+    "mutated": "weeks.length ? Math.max(...weeks) + 1 : null",
+    "oracles": [
+      {
+        "name": "playoff-fit",
+        "command": "node scripts/mutation/post/check.mjs supabase/tests/db/matchup-order-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-07",
+    "area": "playoff-fit",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 209,
+    "symbol": "playoffFit",
+    "operator": "CONST",
+    "original": "rounds.reduce((sum, length) => sum + length, 0)",
+    "mutated": "rounds.reduce((sum, length) => sum + 1, 0)",
+    "oracles": [
+      {
+        "name": "playoff-fit",
+        "command": "node scripts/mutation/post/check.mjs supabase/tests/db/matchup-order-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-08",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 127,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "CONST",
+    "original": "p_pick_timer_seconds: 60",
+    "mutated": "p_pick_timer_seconds: 30",
+    "oracles": [
+      {
+        "name": "rookie-draft",
+        "command": "POST_ROOKIE_CASE=missing node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-09",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 92,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "STMT-DEL",
+    "original": " AND NOT is_voided",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
         "timeout": 120000
       }
     ]
