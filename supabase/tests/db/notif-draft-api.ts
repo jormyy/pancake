@@ -8,7 +8,7 @@ assert.match(port, /^\d+$/)
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname) && new URL(db).port === port)
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname) && new URL(api).port === String(Number(port) - 1))
 const secret = Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY')!
-const publicKey = Deno.env.get('PANCAKE_SUPABASE_PUBLISHABLE_KEY')!
+const publicKey = (Deno.env.get('PANCAKE_SUPABASE_PUBLISHABLE_KEY') ?? Deno.env.get('E2E_SUPABASE_PUBLISHABLE_KEY'))!
 assert.ok(secret && publicKey)
 const admin = createClient(api, secret, { auth: { persistSession: false, autoRefreshToken: false } })
 const users: string[] = []
