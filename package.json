@@ -311,6 +311,7 @@
     "evidence:db:notif-pause-resume": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1,0.0.0.0 --allow-run=psql,docker supabase/tests/db/notif-pause-resume.ts",
     "evidence:db:rookie-skipped-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts",
     "evidence:db:playoff-stale-boundary": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts",
+    "evidence:db:season-boundary-http": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/post-t10-boundary-http.ts",
     "evidence:db:identity-rookies": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost,0.0.0.0 --allow-read --allow-write=evidence --allow-run=psql supabase/tests/db/identity-rookies.ts",
     "evidence:db:identity-continuity": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost,0.0.0.0 --allow-read --allow-write=evidence --allow-run=psql supabase/tests/db/identity-continuity.ts",
     "evidence:db:identity-game-membership": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost,0.0.0.0 --allow-read --allow-write=evidence --allow-run=psql supabase/tests/db/identity-game-membership.ts",

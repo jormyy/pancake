@@ -94,6 +94,8 @@
         "supabase/tests/db/live-score-overlap.ts",
         "supabase/tests/db/live-score-tick-recovery.ts",
         "supabase/tests/db/live-t10-season-chain.ts",
+        "supabase/tests/db/post-t10-boundary-http.ts",
+        "scripts/mutation/post/rerun-t10.mjs",
         "supabase/tests/db/scoring-skip-first-week.ts",
         "supabase/tests/db/makeup-scoring.ts",
         "supabase/tests/db/scoring-all-star-week.ts",
