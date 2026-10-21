@@ -10,6 +10,11 @@ const envFile = `${lane}/edge.env`
 const pidFile = `${lane}/edge.pid`
 const container = 'supabase_edge_runtime_pt4bapost'
 const endpoint = 'http://127.0.0.1:57421/functions/v1/season-boundary'
+// The served sync-schedule worker reads the NBA schedule from the fake CDN that
+// post-t11-schedule-http.ts listens on (the API port + 70 on the mini's loopback,
+// reached from the Lima VM through its host alias). No served function in this
+// lane reaches the real NBA CDN.
+const nbaCdn = 'http://host.lima.internal:57491/static/json'
 const toolEnv = { ...process.env, PATH: `${lane}/bin:${process.env.PATH}`, DOCKER_CONFIG: `${lane}/docker-config` }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -66,7 +71,7 @@ export async function stopEdge() {
 export async function startEdge() {
   assert.equal(ownEdgePid(), null, 'Stop the running Edge server first')
   mkdirSync(`${lane}/evidence`, { recursive: true })
-  writeFileSync(envFile, 'PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token\n')
+  writeFileSync(envFile, `PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token\nNBA_CDN_BASE_URL=${nbaCdn}\n`)
   const log = openSync(`${lane}/evidence/edge.log`, 'a')
   const edge = spawn('supabase', ['functions', 'serve', '--env-file', envFile], { env: toolEnv, detached: true, stdio: ['ignore', log, log] })
   writeFileSync(pidFile, String(edge.pid))
