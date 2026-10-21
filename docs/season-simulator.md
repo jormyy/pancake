@@ -807,3 +807,37 @@ The corrected oracle sums integer cents and rounds the rational average away fro
 Positive and negative half-cent controls fail before the change and pass after it.
 The original protected export and its failure remain unchanged.
 This classification does not convert the running replay to a pass or authorize a restart.
+## Queued dispatches and stall evidence
+
+The clock driver checks the real `net.http_request_queue` before it advances past an unstarted worker.
+pg_net can leave a later request queued while an earlier request waits for its HTTP response.
+A sleeping live poll must finish its business ticks before that batch can finish.
+The driver therefore permits queued requests while every started worker sleeps and no fetch is active.
+It still waits for a request that has left the queue but has not registered its worker.
+It also waits when no worker is active and queued work has not started.
+Every intervening cron minute and worker deadline still runs.
+HTTP failures, timeouts and failed worker outcomes remain fatal.
+
+The November 4, 2024 overlap check reproduces the old deadlock at 00:13 UTC on November 5.
+The live poll sleeps until 00:13:20 while the 00:15 pre-tipoff optimizer remains queued.
+The old driver freezes the clock and receives the thirty-second HTTP timeout.
+The corrected driver reaches 00:21:50 with both workers successful.
+This uses a prepared synthetic league and pinned historical inputs, not the retained full replay database.
+The retained failure's queue counters and timing match this mechanism; its original queue rows were not exported.
+
+Future runs record `evidence/stall-probes.jsonl` after a production dispatch exceeds ten real seconds.
+The watchdog uses a native timer, separate from the paused business clock and the driver's SQL connection.
+It records bounded Edge health, per-request fetch/sample/timer waits, database activity, blocking pids, locks and queued requests.
+It also records host `uptime` and `vm_stat` output.
+It excludes SQL text, request bodies, headers and credentials.
+Fetch wait entries cover headers; an active worker can still await an unlisted response-body or library operation.
+Native abort deadlines are not counted as business sleeps.
+
+Each dispatch receives one sample, with at most 128 records per monitor and 32 KiB per record.
+The shared output file stops at 4 MiB, including existing content.
+Health and host reads have one-second limits; the separate read-only database query has a 1.5-second process limit.
+Collection has a two-second outer limit, and output waiting has a further 100-millisecond limit.
+Probe errors do not change worker outcomes or move the business clock.
+
+A bounded live-window check must let the current worker finish through the cadence driver before it calls `drain`.
+`drain` waits for responses at its supplied clock time; it does not advance that clock.

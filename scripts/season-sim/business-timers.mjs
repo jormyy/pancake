@@ -19,5 +19,6 @@ export function businessTimers({ timeout, interval, clear, now, context = () => 
     interval: (callback, ms, ...args) => install(callback, ms, args, true),
     clear: id => { pending.get(id)?.owner.waiters.delete(id); pending.delete(id); clear(id) },
     next: () => pending.size ? Math.min(...[...pending.values()].map(entry => entry.due)) : null,
+    inspect: owner => [...pending.values()].filter(entry=>entry.owner===owner).slice(0,16).map(({due,repeat,ms})=>({kind:repeat?'business-interval':'business-sleep',due,repeat,ms})),
   }
 }

@@ -3,6 +3,7 @@ import { appendFile } from 'node:fs/promises'
 import path from 'node:path'
 import { delay, miniRoot } from './common.mjs'
 import { sql } from './local-stack.mjs'
+import { createStallProbe } from './stall-probe.mjs'
 
 export async function dispatch(statement, { optional = false, allowFailure = false, defer = false } = {}, execute = sql) {
   if (process.env.SEASON_SIM_PRODUCTION_ONLY === '1') {
@@ -29,19 +30,23 @@ SELECT current_setting('season_sim.dispatch_ids')`))
   assert.ok(optional || ids.length > 0, `Dispatcher produced no invocation: ${statement}`)
   if (defer) return ids.map(id => ({ id, statement }))
   const outcomes = []
-  for (const id of ids) {
+  const probe=createStallProbe()
+  probe.watch(ids.map(id=>({id})))
+  try{for (const id of ids) {
     let result
     for (let attempt = 0; attempt < 150; attempt++) {
       result = JSON.parse(await sql(`SELECT row_to_json(r) FROM (SELECT i.id,i.function_name,i.worker_status,i.error_message,n.status_code,n.timed_out,n.error_msg,n.content FROM public.edge_invocations i LEFT JOIN net._http_response n ON n.id=i.request_id WHERE i.id=${Number(id)}) r`))
+      probe.watch([result])
       if (result.status_code != null || result.error_msg != null) break
       await delay(400)
     }
     await appendFile(path.join(miniRoot, 'evidence/dispatch.jsonl'), `${JSON.stringify({ statement, ...result })}\n`)
+    probe.finish(id)
     if (!allowFailure) {
       assert.equal(result.status_code, 200, JSON.stringify(result))
       assert.equal(result.worker_status, 'success', JSON.stringify(result))
     }
     outcomes.push(result)
-  }
+  }}finally{await probe.close()}
   return outcomes
 }

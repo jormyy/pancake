@@ -32,3 +32,14 @@ test('fractional retry delays round up to a representable business millisecond',
   timers.timeout(() => {}, 432.8425)
   assert.equal(timers.next(), 1433)
 })
+
+test('health exposes interval deadlines without counting them as worker sleeps',()=>{
+  const owner={waiters:new Set()}
+  let sequence=0
+  const timers=businessTimers({timeout:()=>++sequence,interval:()=>++sequence,clear:()=>{},now:()=>1000,context:()=>owner})
+  timers.interval(()=>{},15000)
+  timers.timeout(()=>{},20000)
+  assert.equal(owner.waiters.size,1)
+  assert.deepEqual(timers.inspect(owner).map(row=>row.kind),['business-interval','business-sleep'])
+  assert.equal(timers.next(),16000)
+})
