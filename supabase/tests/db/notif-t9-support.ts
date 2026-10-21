@@ -134,6 +134,8 @@ export class Transport {
   fake: Deno.HttpServer<Deno.NetAddr> | undefined
   worker: Deno.HttpServer<Deno.NetAddr> | undefined
   aux: Deno.HttpServer<Deno.NetAddr>[] = []
+  extra: Deno.HttpServer<Deno.NetAddr>[] = []
+  origins: string[] = []
   nativeFetch = globalThis.fetch.bind(globalThis)
   async start() {
     const token = Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')!
@@ -156,7 +158,7 @@ export class Transport {
     assert.ok(this.worker)
     globalThis.fetch = (input, init) => {
       const origin = new URL(input instanceof Request ? input.url : input).origin
-      assert.ok([new URL(api).origin, `http://127.0.0.1:${this.fake!.addr.port}`, `http://127.0.0.1:${this.worker!.addr.port}`, ...this.aux.map(server => `http://127.0.0.1:${server.addr.port}`)].includes(origin), 'Only own local services receive requests')
+      assert.ok([new URL(api).origin, `http://127.0.0.1:${this.fake!.addr.port}`, `http://127.0.0.1:${this.worker!.addr.port}`, ...[...this.aux, ...this.extra].map(server => `http://127.0.0.1:${server.addr.port}`), ...this.origins].includes(origin), 'Only own local services receive requests')
       return this.nativeFetch(input, init)
     }
   }
@@ -173,12 +175,28 @@ export class Transport {
     const response = await fetch(`http://127.0.0.1:${this.aux[0].addr.port}`, { method: 'POST', headers: { 'x-internal-function-token': Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')! }, body: '{}' })
     assert.equal(response.status, 200, await response.text())
   }
+  async serve(load: () => Promise<unknown>) {
+    let server: Deno.HttpServer<Deno.NetAddr> | undefined
+    const serve = Deno.serve, descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
+    Object.defineProperty(Deno, 'serve', { value: (handler: Deno.ServeHandler) => {
+      server = serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, handler)
+      return server
+    } })
+    try { await load() } finally { Object.defineProperty(Deno, 'serve', descriptor) }
+    assert.ok(server, 'The worker module must start exactly one local server')
+    this.extra.push(server)
+    return server
+  }
+  async invoke(server: Deno.HttpServer<Deno.NetAddr>) {
+    const response = await fetch(`http://127.0.0.1:${server.addr.port}`, { method: 'POST', headers: { 'x-internal-function-token': Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')! }, body: '{}' })
+    return { status: response.status, body: await response.json() as Record<string, unknown> }
+  }
   async drain() {
     assert.ok(this.worker)
     const response = await fetch(`http://127.0.0.1:${this.worker.addr.port}`, { method: 'POST', headers: { 'x-internal-function-token': Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')! }, body: '{}' })
     assert.equal(response.status, 200, await response.text())
   }
-  async prove(f: Fixture, batch: OutboxRow[], sourceTest: string) {
+  async prove(f: Fixture, batch: OutboxRow[], sourceTest: string, proofPath?: string) {
     assert.ok(batch.length)
     assert.ok(batch.every(row => row.suppressed_at === null && row.delivered_at === null), 'Real source rows must be pending before any preference changes')
     const events = [...new Set(batch.map(row => row.event_type))]
@@ -213,7 +231,7 @@ export class Transport {
     for (const event of events) {
       const eventRows = batch.filter(row => row.event_type === event)
       assert.deepEqual([...new Set(eventRows.map(row => f.users.indexOf(f.memberUsers.get(row.member_id)!)))].sort(), [0, 1, 2, 3], `${event}: all three independent switches and control must be represented`)
-      const observation = { event, test: sourceTest, source: 'SPECIFIC', recipients: 'SPECIFIC', dedupe: 'SPECIFIC', optOut: { event: 'SPECIFIC', category: 'SPECIFIC', master: 'SPECIFIC' }, sendTime: true, receipt: 'SPECIFIC', rows: eventRows.map(row => row.id) }
+      const observation = { event, test: sourceTest, ...(proofPath ? { path: proofPath } : {}), source: 'SPECIFIC', recipients: 'SPECIFIC', dedupe: 'SPECIFIC', optOut: { event: 'SPECIFIC', category: 'SPECIFIC', master: 'SPECIFIC' }, sendTime: true, receipt: 'SPECIFIC', rows: eventRows.map(row => row.id) }
       console.log(JSON.stringify(observation))
       const folder = Deno.env.get('NOTIF_EVIDENCE')
       if (folder) {
@@ -227,7 +245,7 @@ export class Transport {
   }
   async close() {
     globalThis.fetch = this.nativeFetch
-    for (const server of this.aux) await server.shutdown()
+    for (const server of [...this.aux, ...this.extra]) await server.shutdown()
     await this.fake?.shutdown()
     await this.worker?.shutdown()
   }
