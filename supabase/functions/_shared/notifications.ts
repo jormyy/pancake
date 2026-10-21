@@ -1,9 +1,29 @@
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.98.0'
+import type { Database } from './database.ts'
 import { supabase } from './supabase.ts'
 import { createNotifyMember, createNotifyMembers } from './notificationDelivery.ts'
 import type { VapidKeys } from './webPush.ts'
 import { createWebPushFanout, type WebPushSnapshot } from './webPushDelivery.ts'
 
 export type { NotificationMessage, NotifyMembers } from './notificationDelivery.ts'
+
+
+type NotificationDatabase = Omit<Database, 'public'> & {
+  public: Omit<Database['public'], 'Functions'> & {
+    Functions: Database['public']['Functions'] & {
+      notif_begin_web_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: string }
+      notif_finish_web_atomic: { Args: { p_id: string; p_claim_token: string; p_sent: boolean }; Returns: boolean }
+      notif_suppress_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: boolean }
+    }
+  }
+}
+const notificationClient = supabase as SupabaseClient<NotificationDatabase>
+
+export async function suppressNotification(id: string, claimToken: string) {
+  const { data, error } = await notificationClient.rpc('notif_suppress_atomic', { p_id: id, p_claim_token: claimToken })
+  if (error) throw error
+  if (!data) throw new Error('Notification lease lost before suppression')
+}
 
 const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
 
@@ -51,7 +71,7 @@ export const notifyMember = createNotifyMember({
   preferences: async (userId) => {
     const { data, error } = await supabase
       .from('notification_preferences')
-      .select('trade_enabled, waiver_enabled, draft_enabled, activity_enabled')
+      .select('*')
       .eq('user_id', userId)
       .maybeSingle()
     return { data, error }
@@ -80,7 +100,7 @@ export const notifyMembers = createNotifyMembers({
   preferences: async (userIds) => {
     const { data, error } = await supabase
       .from('notification_preferences')
-      .select('user_id, trade_enabled, waiver_enabled, draft_enabled, activity_enabled')
+      .select('*')
       .in('user_id', userIds)
     return { data, error }
   },
@@ -90,6 +110,25 @@ export const notifyMembers = createNotifyMembers({
       .select('id, push_token')
       .in('id', userIds)
     return { data, error }
+  },
+  beginWebDelivery: async (message, userId) => {
+    if (!webPushVapidKeys()) return 'attempted'
+    const subscriptions = await supabase.from('web_push_subscriptions').select('endpoint').eq('user_id', userId).limit(1)
+    if (subscriptions.error) throw subscriptions.error
+    if (!subscriptions.data?.length) return 'attempted'
+    const { data, error } = await notificationClient.rpc('notif_begin_web_atomic', {
+      p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken,
+    })
+    if (error) throw error
+    if (data !== 'send' && data !== 'delivered' && data !== 'attempted') throw new Error('Notification web lease lost')
+    return data
+  },
+  finishWebDelivery: async (message, sent) => {
+    const { data, error } = await notificationClient.rpc('notif_finish_web_atomic', {
+      p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken, p_sent: sent,
+    })
+    if (error) throw error
+    if (!data) throw new Error('Notification web outcome persistence failed')
   },
   invalidateToken: async (userId, token) => {
     const { data, error } = await supabase.rpc('clear_push_token_for_user_atomic', {

@@ -1,5 +1,6 @@
 import type { Json } from '../_shared/database.ts'
 import type { NotificationMessage, NotifyMembers } from '../_shared/notifications.ts'
+import { notificationCategories } from '../_shared/notificationsPreferences.ts'
 import { notificationFailureDisposition } from '../_shared/notificationDelivery.ts'
 import { runBounded } from '../_shared/runBounded.ts'
 
@@ -28,7 +29,7 @@ type RecordTicket = (row: TradeNotificationOutboxRow, ticketId: string, pushToke
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
 function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
-  if (row.category !== 'trade' && row.category !== 'activity') throw new Error(`Unsupported notification outbox category: ${row.category}`)
+  if (row.category !== 'activity' && !Object.hasOwn(notificationCategories, row.category)) throw new Error(`Unsupported notification outbox category: ${row.category}`)
   const data = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
     ? row.data as Record<string, unknown>
     : {}
@@ -37,7 +38,8 @@ function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
     title: row.title,
     body: row.body,
     data,
-    category: row.category,
+    category: row.category as NotificationMessage['category'],
+    delivery: { id: row.id, claimToken: row.claim_token },
   }
 }
 
@@ -48,6 +50,7 @@ export async function deliverTradeNotificationOutbox(
   complete: Complete,
   fail: Fail,
   deadLetter: DeadLetter,
+  suppress?: Complete,
 ): Promise<DeliveryCounts> {
   if (rows.length === 0) return { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
 
@@ -58,7 +61,13 @@ export async function deliverTradeNotificationOutbox(
   await runBounded(rows.map((row) => async () => {
     try {
       const [result] = await notify([messageFor(row)])
-      if (result?.status === 'skipped') {
+      if (result?.status === 'skipped' && result.reason === 'preferences_disabled') {
+        if (!suppress) throw new Error('Suppression persistence is required')
+        await suppress(row)
+        discarded += 1
+        return
+      }
+      if (result?.status === 'sent' && result.channel === 'web') {
         await complete(row)
         discarded += 1
         return

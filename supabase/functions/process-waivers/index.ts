@@ -1,11 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import type { Database } from '../_shared/database.ts'
-import { notifyMember } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
-import { runBounded, type AsyncJob } from '../_shared/runBounded.ts'
 import { drainDueClaims, PROCESS_BATCH_LIMIT } from './drain.ts'
-
-const NOTIFICATION_CONCURRENCY = 10
 
 type WaiverProcessRow = Database['public']['Functions']['process_due_waiver_claims_atomic']['Returns'][number]
 
@@ -13,61 +9,6 @@ serveInternal('process-waivers', async () => {
   const processed = await processWaiverClaims()
   return Response.json({ ok: true, processed })
 })
-
-async function playerNames(playerIds: string[]): Promise<Map<string, string>> {
-  const names = new Map<string, string>()
-  if (playerIds.length === 0) return names
-
-  const { data, error } = await supabase
-    .from('players')
-    .select('id, display_name')
-    .in('id', [...new Set(playerIds)])
-
-  if (error) {
-    console.error('[process-waivers] failed to load player names', error)
-    return names
-  }
-
-  for (const player of data ?? []) {
-    if (player.display_name) names.set(player.id, player.display_name)
-  }
-  return names
-}
-
-function notificationJob(row: WaiverProcessRow, names: Map<string, string>): AsyncJob | null {
-  if (!row.member_id || !row.player_id || !row.status) return null
-  const memberId = row.member_id
-  const playerId = row.player_id
-  const name = names.get(playerId) ?? 'Unknown'
-
-  if (row.status === 'succeeded') {
-    return async () => {
-      await notifyMember(memberId, 'Waiver Claim Succeeded', `${name} has been added to your roster.`, undefined, 'waiver')
-    }
-  }
-
-  if (row.status !== 'failed_priority' && row.status !== 'failed_roster') {
-    return null
-  }
-
-  const reason = row.failure_reason ?? 'The claim could not be completed.'
-  return async () => {
-    await notifyMember(memberId, 'Waiver Claim Failed', `Your claim for ${name} failed: ${reason}`, undefined, 'waiver')
-  }
-}
-
-async function notifyClaimResults(rows: WaiverProcessRow[]): Promise<void> {
-  const playerIds = rows.flatMap((row) => row.player_id ? [row.player_id] : [])
-  const names = await playerNames(playerIds)
-  const jobs = rows.flatMap((row) => {
-    const job = notificationJob(row, names)
-    return job ? [job] : []
-  })
-  if (jobs.length > 0) {
-    await runBounded(jobs, NOTIFICATION_CONCURRENCY)
-      .catch((error) => console.error('[process-waivers] notification failed', error))
-  }
-}
 
 async function processWaiverClaims(): Promise<number> {
   const today = new Intl.DateTimeFormat('en-CA', {
@@ -84,7 +25,7 @@ async function processWaiverClaims(): Promise<number> {
     })
     if (error) throw error
     return data ?? []
-  }, notifyClaimResults)
+  }, async () => {})
 
   const { error: expiredErr } = await supabase.rpc('expire_waiver_wire_logs')
   if (expiredErr) throw expiredErr

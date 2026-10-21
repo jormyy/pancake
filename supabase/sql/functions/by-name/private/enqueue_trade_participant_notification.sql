@@ -39,11 +39,11 @@ BEGIN
     END;
 
     INSERT INTO public.notification_outbox (dedupe_key, member_id, event_type, title, body, data, category)
-    VALUES (
+    SELECT
       format('%s:%s:%s', v_event_type, v_trade.id, NEW.member_id),
       NEW.member_id, v_event_type, v_title, v_body,
-      jsonb_build_object('tradeId', v_trade.id), 'trade'
-    )
+      jsonb_build_object('tradeId', v_trade.id, 'leagueId', v_trade.league_id), 'trade'
+    WHERE EXISTS (SELECT 1 FROM public.league_members member WHERE member.id = NEW.member_id AND member.league_id = v_trade.league_id)
     ON CONFLICT (dedupe_key) DO NOTHING;
     RETURN NEW;
   END IF;
@@ -70,7 +70,7 @@ BEGIN
   SELECT
     format('%s:%s:%s:%s', v_event_type, v_trade.id, NEW.member_id, recipient.member_id),
     recipient.member_id, v_event_type, v_title, v_body,
-    jsonb_build_object('tradeId', v_trade.id), 'trade'
+    jsonb_build_object('tradeId', v_trade.id, 'leagueId', v_trade.league_id), 'trade'
   FROM (
     SELECT participant.member_id
       FROM public.trade_participants AS participant
@@ -79,6 +79,7 @@ BEGIN
        AND v_all_accepted
     UNION SELECT v_trade.proposer_member_id WHERE NOT v_all_accepted AND v_trade.proposer_member_id <> NEW.member_id
   ) AS recipient
+  WHERE EXISTS (SELECT 1 FROM public.league_members member WHERE member.id = recipient.member_id AND member.league_id = v_trade.league_id)
   ON CONFLICT (dedupe_key) DO NOTHING;
 
   RETURN NEW;
