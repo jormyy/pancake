@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import {
@@ -201,11 +202,14 @@ export function DraftBoardPanel({
     onReseedRookiePicks: () => void
 }) {
     const { width, height } = useWindowDimensions()
+    const [timerValid, setTimerValid] = useState(true)
     const { padX } = usePageMetrics()
-    const compactRookieSetup = height < 500
+    const compactRookieSetup = width < 600 || height < 500
     const constrainBoardTop = width < 600 || height < 500
     const compactRookiePrepNotice = constrainBoardTop
-    const boardTopMaxHeight = draftBoardSetupMaxHeight(width, height)
+    const boardTopMaxHeight = currentLeagueStatus === 'offseason' && isCommissioner
+        ? Math.max(draftBoardSetupMaxHeight(width, height), Math.min(360, height - 300))
+        : draftBoardSetupMaxHeight(width, height)
     const activeDraftReady = !activeDraftLoading && !activeDraftError
     const hasActiveRookieDraft = activeDraftReady && activeDraft?.draftType === 'snake'
     const canStartRookieDraft = activeDraftReady && currentLeagueStatus === 'offseason' && isCommissioner
@@ -217,13 +221,13 @@ export function DraftBoardPanel({
         <Pressable
             style={[panelStyles.draftButton, compactRookieSetup && styles.rookieCompactStartButton]}
             onPress={onStartRookieDraft}
-            disabled={draftLoading}
+            disabled={draftLoading || !timerValid}
             role="button"
             aria-label={startRookieAccessibilityLabel}
-            aria-disabled={draftLoading}
+            aria-disabled={draftLoading || !timerValid}
             accessibilityRole="button"
             accessibilityLabel={startRookieAccessibilityLabel}
-            accessibilityState={{ disabled: draftLoading }}
+            accessibilityState={{ disabled: draftLoading || !timerValid }}
         >
             <Text style={panelStyles.draftButtonText}>Start Rookie Draft</Text>
         </Pressable>
@@ -243,7 +247,7 @@ export function DraftBoardPanel({
             />
             {canStartRookieDraft ? (
                 <View style={[panelStyles.panelCard, compactRookieSetup && panelStyles.panelCardCompact]}>
-                    {compactRookieSetup ? null : <Text style={panelStyles.panelTitle}>Rookie Draft</Text>}
+                    <Text style={panelStyles.panelTitle}>Rookie Draft</Text>
                     {compactRookieSetup ? (
                         <>
                             <View style={styles.rookieCompactStartRow}>
@@ -254,6 +258,7 @@ export function DraftBoardPanel({
                                         onSelect={onRookieRoundsChange}
                                         groupLabel="Rookie draft rounds"
                                         accessibilityLabelForOption={rookieRoundChipLabel}
+                                        dense
                                         compact
                                     />
                                 </View>
@@ -264,6 +269,8 @@ export function DraftBoardPanel({
                                 selectedValue={draftTimerSeconds}
                                 onSelect={onDraftTimerSecondsChange}
                                 groupLabel="Rookie draft timer"
+                                rookie
+                                onValidityChange={setTimerValid}
                                 compact
                             />
                             <Text style={panelStyles.nominationModeLabel}>Timeout behavior</Text>
@@ -282,6 +289,8 @@ export function DraftBoardPanel({
                                 selectedValue={draftTimerSeconds}
                                 onSelect={onDraftTimerSecondsChange}
                                 groupLabel="Rookie draft timer"
+                                rookie
+                                onValidityChange={setTimerValid}
                             />
                             <Text style={panelStyles.nominationModeLabel}>Rookie rounds</Text>
                             <DraftChips

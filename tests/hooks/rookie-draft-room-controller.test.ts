@@ -617,3 +617,36 @@ it('paints a saved rookie room and prospect pool throughout remount revalidation
     expect(latest.actionsReady).toBe(false)
     await act(async () => renderer.unmount())
 })
+
+describe('rookie countdown deadlines', () => {
+    it.each([
+        ['2026-03-08T01:30:00-05:00', '2026-03-08T03:30:00-04:00', 3600],
+        ['2026-11-01T01:30:00-04:00', '2026-11-01T01:30:00-05:00', 3600],
+        ['2026-03-08T01:30:00-08:00', '2026-03-08T03:30:00-07:00', 3600],
+        ['2026-11-01T01:30:00-07:00', '2026-11-01T01:30:00-08:00', 3600],
+        ['2026-10-31T12:00:00Z', '2026-11-07T12:00:00Z', 604800],
+    ])('rebuilds the persisted deadline from %s', async (now, deadline, expected) => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date(now))
+        const board = draftState('timer-draft')
+        board.draft.pickTimerSeconds = 604800
+        board.nextPick = { overallPick: 1, round: 1, pickInRound: 1, memberId: 'other', teamName: 'Other',
+            pickedAt: null, skippedAt: null, skipReason: null, timerExpiresAt: deadline, player: null }
+        mocks.getState.mockResolvedValue(board)
+        let latest!: ReturnType<typeof useRookieDraftRoomController>
+        let renderer!: ReactTestRenderer
+        const Probe = () => {
+            latest = useRookieDraftRoomController({ draftId: 'timer-draft', memberId: 'member', leagueId: 'league', rosterSize: 1 })
+            return null
+        }
+        try {
+            await act(async () => { renderer = create(React.createElement(Probe)) })
+            expect(latest.secondsLeft).toBe(expected)
+            await act(async () => { await vi.advanceTimersByTimeAsync(1250) })
+            expect(latest.secondsLeft).toBe(expected - 1)
+            await act(async () => { renderer.unmount() })
+            await act(async () => { renderer = create(React.createElement(Probe)) })
+            expect(latest.secondsLeft).toBe(expected - 1)
+        } finally { await act(async () => { renderer?.unmount() }); vi.useRealTimers() }
+    })
+})

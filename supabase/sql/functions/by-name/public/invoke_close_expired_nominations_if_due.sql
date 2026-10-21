@@ -17,7 +17,7 @@ BEGIN
   -- Nothing can be due without an in-progress draft. Checking that first keeps
   -- an idle tick, which runs in a fresh pg_cron session, to one small plan.
   IF NOT EXISTS (
-    SELECT 1 FROM public.drafts WHERE status = 'in_progress'::public.draft_status
+    SELECT 1 FROM public.drafts WHERE status IN ('in_progress'::public.draft_status, 'paused'::public.draft_status)
   ) THEN
     RETURN;
   END IF;
@@ -25,6 +25,13 @@ BEGIN
   -- Mirrors the candidate queries of close_expired_auction_nominations_atomic
   -- and process_expired_snake_picks_atomic.
   IF EXISTS (
+    SELECT 1 FROM public.drafts AS draft
+    JOIN public.league_seasons AS season ON season.id = draft.league_season_id AND season.is_current
+    WHERE draft.draft_type = 'snake' AND NOT draft.is_mock
+      AND draft.status IN ('in_progress', 'paused')
+      AND private.draft_timer_opening_night_completion_enabled()
+      AND private.draft_timer_opening_night_cutoff(season.season_year) < v_horizon
+  ) OR EXISTS (
     SELECT 1
       FROM public.nominations AS nomination
       JOIN public.drafts AS draft

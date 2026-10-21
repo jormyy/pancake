@@ -54,7 +54,7 @@ BEGIN
      AND pick.player_id IS NULL
      AND pick.skipped_at IS NULL
      AND pick.timer_expires_at IS NOT NULL
-     AND pick.timer_expires_at < v_now
+     AND pick.timer_expires_at <= v_now
      AND NOT EXISTS (
        SELECT 1
          FROM snake_draft_picks AS earlier
