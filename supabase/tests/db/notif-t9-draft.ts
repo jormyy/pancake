@@ -50,10 +50,37 @@ try {
     for (const room of rooms) await sql(`SELECT resume_draft_atomic(${q(room.draft)},${q(fixture.memberUsers.get(room.league.members[0])!)})`)
     await broadcast('draft_resumed', resumedBefore, async () => { for (const room of rooms) await rejected(`SELECT resume_draft_atomic(${q(room.draft)})`) })
   }
+  const auctionRooms: Room[] = []
+  for (let rotation = 0; rotation < 4; rotation++) {
+    const league = await fixture.league('setup', rotation)
+    const draft = JSON.parse(await sql(`SELECT row_to_json(d) FROM start_auction_draft_atomic(${q(league.id)},'user_nominated',false,60,200) d`)).id
+    auctionRooms.push({ league, draft })
+  }
+  const auctionScope = `data->>'draftId' IN (${auctionRooms.map(room => q(room.draft))})`
+  for (let cycle = 0; cycle < 2; cycle++) {
+    const pausedBefore = (await rows('draft_paused', auctionScope)).map(row => row.id)
+    const pause = async () => { for (const room of auctionRooms) await sql(`SELECT pause_draft_for_absence_atomic(${q(room.draft)},${q(fixture.memberUsers.get(room.league.members[0])!)})`) }
+    await pause()
+    const paused = await expectRows('draft_paused', auctionScope + (pausedBefore.length ? ` AND id NOT IN (${pausedBefore.map(q)})` : ''), auctionRooms.flatMap(room => room.league.members), pause)
+    await transport.prove(fixture, paused, 'supabase/tests/db/notif-t9-draft.ts:65')
+    const resumedBefore = (await rows('draft_resumed', auctionScope)).map(row => row.id)
+    const rejoin = async () => { for (const room of auctionRooms) await sql(`SELECT resume_draft_if_absent_atomic(${q(room.draft)},${q(fixture.memberUsers.get(room.league.members[0])!)})`) }
+    await rejoin()
+    const resumed = await expectRows('draft_resumed', auctionScope + (resumedBefore.length ? ` AND id NOT IN (${resumedBefore.map(q)})` : ''), auctionRooms.flatMap(room => room.league.members), rejoin)
+    const audits = JSON.parse(await sql(`SELECT json_agg(row_to_json(a)) FROM (SELECT id,draft_id,metadata FROM draft_audit_logs WHERE draft_id IN (${auctionRooms.map(room => q(room.draft))}) AND action='resume') a`)) as { id: string; draft_id: string; metadata: Record<string, unknown> }[]
+    assert.equal(audits.length, (cycle + 1) * auctionRooms.length, 'Rejoin retry must not create another resume occurrence')
+    for (const audit of audits) {
+      assert.equal(audit.metadata.reason, 'member_absent_rejoined')
+      assert.equal(audit.metadata.previousStatus, undefined)
+      const room = auctionRooms.find(room => room.draft === audit.draft_id)!
+      assert.deepEqual((await rows('draft_resumed', `dedupe_key LIKE ${q('draft_resumed:' + audit.id + ':%')}`)).map(row => row.member_id).sort(), [...room.league.members].sort(), 'Each rejoin audit notifies only its league members')
+    }
+    await transport.prove(fixture, resumed, 'supabase/tests/db/notif-t9-draft.ts:69')
+  }
   for (const room of rooms) await sql(`UPDATE snake_draft_picks SET timer_expires_at=clock_timestamp()+interval '30 seconds' WHERE id=${q((await current(room)).id)}`)
   await sql(clock.minute)
   const expiry = await expectRows('draft_timer_expiring', roomScope(), await Promise.all(rooms.map(async room => (await current(room)).member_id)), () => sql(clock.minute))
-  await transport.prove(fixture, expiry, 'supabase/tests/db/notif-t9-draft.ts:56')
+  await transport.prove(fixture, expiry, 'supabase/tests/db/notif-t9-draft.ts:83')
   let clockBefore = await known('draft_on_clock'), soonBefore = await known('draft_coming_soon')
   const firstOwners: string[] = []
   for (const room of rooms) {
@@ -85,7 +112,7 @@ try {
     const auto = await expectRows('draft_auto_picked', freshScope(autoBefore), owners, retry)
     if (overall === 8) {
       const finished = await expectRows('draft_finished', roomScope(), rooms.flatMap(room => room.league.members), retry)
-      await transport.prove(fixture, [...auto, ...finished], 'supabase/tests/db/notif-t9-draft.ts:88')
+      await transport.prove(fixture, [...auto, ...finished], 'supabase/tests/db/notif-t9-draft.ts:115')
     } else await turns(clockBefore, soonBefore, retry, auto)
   }
   for (const room of rooms) await rejected(`SELECT auto_pick_snake_pick_atomic(${q(room.draft)},${q(room.league.members[0])},'manual')`)
@@ -101,7 +128,7 @@ try {
     rollover.push(...await expectRows('season_rollover', `data->>'leagueSeasonId'=${q(next.new_season_id)}`, room.league.members, () => rejected(`SELECT * FROM advance_season_atomic(${q(room.league.id)})`)))
     room.league.season = next.new_season_id; room.league.year = next.new_year
   }
-  await transport.prove(fixture, rollover, 'supabase/tests/db/notif-t9-draft.ts:104')
+  await transport.prove(fixture, rollover, 'supabase/tests/db/notif-t9-draft.ts:131')
   for (const room of rooms) {
     room.draft = JSON.parse(await sql(`SELECT start_rookie_draft_atomic(${q(room.league.id)},1,false,60)`)).id
     await sql(`SELECT pause_draft_atomic(${q(room.draft)})`)
@@ -113,9 +140,9 @@ try {
   if ((await known('draft_resumed')).length) spurious.push('Opening-night completion broadcasts a human draft_resumed event')
   const auto = await expectRows('draft_auto_picked', freshScope(autoBefore), rooms.flatMap(room => room.league.members), backstop)
   const finished = await expectRows('draft_finished', freshScope(finishedBefore), rooms.flatMap(room => room.league.members), backstop)
-  await transport.prove(fixture, [...auto, ...finished], 'supabase/tests/db/notif-t9-draft.ts:116')
+  await transport.prove(fixture, [...auto, ...finished], 'supabase/tests/db/notif-t9-draft.ts:143')
   assert.deepEqual(spurious, [], 'Only an explicit resume action broadcasts draft_resumed')
-  console.log('SYNTHETIC: real rookie sources, exact owners and foreign/non-member negatives, two human pause/resume cycles, commissioner pick, normal pick, two rounds, rollover, paused opening-night backstop, source retries, all send-time switches and receipts')
+  console.log('SYNTHETIC: real rookie sources, exact owners and foreign/non-member negatives, two human pause/resume cycles, two real auction absence/rejoin cycles, commissioner pick, normal pick, two rounds, rollover, paused opening-night backstop, source retries, all send-time switches and receipts')
 } finally {
   await transport.close()
   await fixture.cleanup()
