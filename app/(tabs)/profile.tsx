@@ -8,28 +8,21 @@ import {
     Platform,
     ActivityIndicator,
 } from 'react-native'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useAuth } from '@/hooks/use-auth'
 import { updateProfile, uploadAvatar, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
-import {
-    createNotificationPreferenceWriter,
-    updateNotificationPreferences,
-    type NotificationPreferences,
-} from '@/lib/notification-preferences'
 import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
 import { colors, fontSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
-import { WebPushSettings } from '@/components/WebPushSettings'
-import { SettingsGroup, SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
+import { SettingsGroup, SettingsRow } from '@/components/settings/SettingsGroup'
 import { Button, ErrorBanner, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import type { WebPushStatus } from '@/lib/web-push'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useGoBack } from '@/components/ui/useGoBack'
 import { DEFAULT_THEME, readThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme-preference'
@@ -58,16 +51,9 @@ export default function ProfileScreen() {
     const [avatarOwners, setAvatarOwners] = useState<Set<string>>(() => new Set())
     const pickingAvatarOwnersRef = useRef(new Set<string>())
     const avatarUploading = avatarOwners.has(user?.id ?? '')
-    const pushOwner = `${user?.id ?? ''}:${sessionGeneration()}`
-    const [webPushState, setWebPushState] = useState<{ owner: string; status: WebPushStatus } | null>(null)
-    const setWebPushStatus = useCallback((status: WebPushStatus) => {
-        setWebPushState({ owner: pushOwner, status })
-    }, [pushOwner])
     // Read after mount: the prerendered page cannot know this device's choice.
     const [theme, setTheme] = useState<ThemePreference>(DEFAULT_THEME)
     useEffect(() => { setTheme(readThemePreference()) }, [])
-    const showPreferenceToggles = Platform.OS !== 'web' ||
-        (webPushState?.owner === pushOwner && webPushState.status === 'on')
     const preferenceUserId = user?.id
     const activeUserIdRef = useRef(preferenceUserId)
     activeUserIdRef.current = preferenceUserId
@@ -75,25 +61,8 @@ export default function ProfileScreen() {
         activeUserIdRef.current = preferenceUserId
         return () => { activeUserIdRef.current = undefined }
     }, [preferenceUserId])
-    const { profile, profileLoaded, profileError, preferences, retryProfile, setProfile, setPreferences } =
+    const { profile, profileLoaded, profileError, retryProfile, setProfile } =
         useProfileResource(preferenceUserId)
-    const preferencesRef = useRef(preferences)
-    preferencesRef.current = preferences
-    const preferenceSessionRef = useRef({
-        ownerId: preferenceUserId,
-        writer: createNotificationPreferenceWriter(
-            preferenceUserId ? (next) => updateNotificationPreferences(preferenceUserId, next) : async () => undefined,
-        ),
-    })
-    if (preferenceSessionRef.current.ownerId !== preferenceUserId) {
-        preferenceSessionRef.current = {
-            ownerId: preferenceUserId,
-            writer: createNotificationPreferenceWriter(
-                preferenceUserId ? (next) => updateNotificationPreferences(preferenceUserId, next) : async () => undefined,
-            ),
-        }
-    }
-
     useEffect(() => {
         setEditing(false)
         setDisplayName('')
@@ -216,31 +185,7 @@ export default function ProfileScreen() {
         }, 'Sign out')
     }
 
-    async function togglePreference(key: keyof NotificationPreferences) {
-        if (!user || !profileLoaded) return
-        const session = preferenceSessionRef.current
-        const previous = preferencesRef.current
-        const next = { ...previous, [key]: !previous[key] }
-        preferencesRef.current = next
-        setPreferences(next)
-        const task = session.writer.enqueue(next)
-        try {
-            await task
-        } catch (e) {
-            if (preferenceSessionRef.current === session && preferencesRef.current === next) {
-                await retryProfile()
-            }
-            if (preferenceSessionRef.current === session) showAlert('Error', getErrorMessage(e))
-        }
-    }
     const showTeamSection = Boolean(current) || leagueLoading
-
-    const notificationRows: [keyof NotificationPreferences, string][] = [
-        ['tradeEnabled', 'Trades'],
-        ['waiverEnabled', 'Waivers'],
-        ['draftEnabled', 'Drafts'],
-        ['activityEnabled', 'League activity'],
-    ]
 
     return (
         <Page title="Profile">
@@ -338,20 +283,7 @@ export default function ProfileScreen() {
                 ) : null}
 
                 <SettingsGroup title="Notifications">
-                    {/* Web delivers through standards Web Push; the category toggles only
-                        matter once this device is subscribed. */}
-                    {Platform.OS === 'web' ? <WebPushSettings key={pushOwner} onStatusChange={setWebPushStatus} /> : null}
-                    {showPreferenceToggles ? notificationRows.map(([key, label]) => (
-                        <SettingsRow
-                            key={key}
-                            label={label}
-                            role="switch"
-                            checked={preferences[key]}
-                            disabled={!profileLoaded}
-                            onPress={() => togglePreference(key)}
-                            accessory={<SettingsToggle on={preferences[key]} />}
-                        />
-                    )) : null}
+                    <SettingsRow label="Notification settings" onPress={() => router.push('/(modals)/notification-settings')} />
                 </SettingsGroup>
 
                 {/* Native screens are light only, so Appearance is a web setting. */}

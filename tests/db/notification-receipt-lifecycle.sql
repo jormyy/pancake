@@ -43,9 +43,9 @@ BEGIN
       dedupe_key, member_id, event_type, title, body, category
     ) VALUES (
       'unsupported-category', '00000000-0000-0000-0000-000000091201',
-      'waiver_processed', 'Waiver', 'Waiver body', 'waiver'
+      'waiver_processed', 'Waiver', 'Waiver body', 'unknown'
     );
-    RAISE EXCEPTION 'Notification outbox accepted a non-trade category';
+    RAISE EXCEPTION 'Notification outbox accepted a unknown category';
   EXCEPTION WHEN check_violation THEN
     NULL;
   END;

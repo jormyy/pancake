@@ -1,5 +1,5 @@
 import type { Database } from '../_shared/database.ts'
-import { notifyMembers } from '../_shared/notifications.ts'
+import { notifyMembers, suppressNotification } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
@@ -127,6 +127,7 @@ function deliverNotificationOutbox(rows: OutboxRow[]) {
       if (deadLetterError) throw deadLetterError
       if (!deadLettered) throw new Error(`Notification outbox lease ${row.id} was lost before dead-lettering`)
     },
+    (row) => suppressNotification(row.id, row.claim_token),
   )
 }
 
