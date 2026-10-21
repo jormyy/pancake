@@ -103,3 +103,29 @@ Deno.test('web state failure retains a successful Expo ticket', async () => {
     data: { notificationEvent: 'trade_offered' }, delivery: { id: 'outbox', claimToken: 'lease' } }])
   assert.ok(result.status === 'sent' && result.ticketId === 'accepted-ticket')
 })
+
+Deno.test('send admission rechecks draft state after profile lookup and blocks both transports', async () => {
+  let live = true
+  let lookups = 0
+  let sends = 0
+  const notify = createNotifyMembers({
+    members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
+    preferences: async () => ({ data: [{ user_id: 'user', master_enabled: false, trade_enabled: true, waiver_enabled: true, draft_enabled: true, activity_enabled: true }], error: null }),
+    profiles: async () => {
+      lookups++
+      live = false
+      return { data: [{ id: 'user', push_token: 'fake-token' }], error: null }
+    },
+    admitDelivery: async () => {
+      assert.equal(lookups, 1)
+      return live
+    },
+    send: async () => { sends++; throw new Error('Stale Expo send') },
+    webPush: async () => { sends++; throw new Error('Stale Web Push send') },
+    pushUrl: 'http://127.0.0.1:57880/send',
+  })
+  assert.deepEqual(await notify([{ memberId: 'member', title: 'Turn', body: 'Turn', category: 'draft',
+    data: { notificationEvent: 'draft_on_clock' }, delivery: { id: 'outbox', claimToken: 'lease' } }]),
+  [{ memberId: 'member', status: 'skipped', reason: 'durably_suppressed' }])
+  assert.equal(sends, 0)
+})

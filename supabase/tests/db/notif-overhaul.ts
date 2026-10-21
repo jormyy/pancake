@@ -3,7 +3,9 @@ import { strict as assert } from 'node:assert'
 const db = Deno.env.get('SUPABASE_DB_URL')
 assert.ok(db, 'SUPABASE_DB_URL is required')
 const target = new URL(db)
-assert.ok(['127.0.0.1', 'localhost'].includes(target.hostname) && target.port === '57822', 'Only the notification lane database is allowed')
+const port = Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322'
+assert.match(port, /^\d+$/)
+assert.ok(['127.0.0.1', 'localhost'].includes(target.hostname) && target.port === port, 'Only the configured loopback test database is allowed')
 const result = await new Deno.Command('psql', { args: [db, '-XqAt', '--set', 'ON_ERROR_STOP=1', '-f', 'tests/db/notif-overhaul.sql'], stdout: 'piped', stderr: 'piped' }).output()
 const output = new TextDecoder().decode(result.stdout)
 console.log(output)
