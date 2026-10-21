@@ -10,6 +10,11 @@ SET search_path = public
 AS $$
   -- A lineup slot locks once the player's game that day has started: the feed
   -- says so, its scheduled tip-off has passed, or a start time is recorded.
+  WITH participation AS (
+    SELECT game_id FROM player_game_stats WHERE player_id = p_player_id
+    UNION
+    SELECT game_id FROM private.player_game_memberships WHERE player_id = p_player_id
+  )
   SELECT EXISTS (
     SELECT 1
       FROM players AS p
@@ -18,13 +23,13 @@ AS $$
        AND (
          ((g.home_team = p.nba_team OR g.away_team = p.nba_team)
            AND NOT EXISTS (
-             SELECT 1 FROM player_game_stats AS observed
+             SELECT 1 FROM participation AS observed
              JOIN nba_games AS actual ON actual.id = observed.game_id
-             WHERE observed.player_id = p.id AND actual.game_date = p_game_date
+             WHERE actual.game_date = p_game_date
            ))
          OR EXISTS (
-           SELECT 1 FROM player_game_stats AS stats
-            WHERE stats.player_id = p.id AND stats.game_id = g.id
+           SELECT 1 FROM participation AS stats
+            WHERE stats.game_id = g.id
          )
        )
      WHERE p.id = p_player_id

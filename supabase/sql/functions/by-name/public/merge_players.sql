@@ -186,6 +186,11 @@ BEGIN
   UPDATE roster_transactions SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE snake_draft_picks   SET player_id = winner_id WHERE player_id = loser_id;
 
+  INSERT INTO private.player_game_memberships(player_id, game_id, first_seen_at)
+    SELECT winner_id, game_id, first_seen_at FROM private.player_game_memberships WHERE player_id = loser_id
+    ON CONFLICT (player_id, game_id) DO UPDATE
+      SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at);
+
   DELETE FROM player_game_stats
     WHERE player_id = loser_id
       AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = winner_id);
