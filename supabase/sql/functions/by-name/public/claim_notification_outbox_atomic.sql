@@ -40,6 +40,7 @@ BEGIN
     WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
       AND queued.suppressed_at IS NULL AND queued.expo_ticket_id IS NULL
       AND queued.available_at <= now()
+      AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
       AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - make_interval(secs => v_lease_seconds))
       AND NOT private.notif_preference_enabled(member.user_id,queued.event_type,queued.category)
     ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
@@ -53,6 +54,7 @@ BEGIN
      WHERE queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
        AND queued.suppressed_at IS NULL
        AND NOT private.notif_is_stale(queued.event_type,queued.data)
+       AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
        AND private.notif_preference_enabled((SELECT member.user_id FROM public.league_members member WHERE member.id = queued.member_id),queued.event_type,queued.category)
        AND queued.delivered_at IS NULL
        AND queued.dead_lettered_at IS NULL

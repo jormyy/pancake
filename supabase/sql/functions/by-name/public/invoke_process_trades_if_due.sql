@@ -26,6 +26,7 @@ BEGIN
       AND queued.dead_lettered_at IS NULL
       AND queued.expo_ticket_id IS NULL
       AND queued.available_at <= now()
+      AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
       AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - interval '60 seconds')
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued
