@@ -47,7 +47,7 @@ export function NotificationAnnouncementComposer() {
 const styles = StyleSheet.create({
     group: { gap: spacing.xs, marginBottom: spacing.md },
     row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    input: { flex: 1, minWidth: 0, minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.sm, color: colors.textPrimary, fontSize: 14 },
+    input: { flex: 1, minWidth: 0, minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.sm, color: colors.textPrimary, fontSize: 16 },
     action: { minHeight: 44, paddingHorizontal: spacing.md, justifyContent: 'center', borderRadius: radii.md, backgroundColor: colors.primary },
     actionText: { color: colors.textWhite, fontWeight: '600' },
     disabled: { opacity: 0.5 },
