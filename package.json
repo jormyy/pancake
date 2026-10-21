@@ -240,6 +240,8 @@
     "evidence:db:live-score-tick-recovery": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/live-score-tick-recovery.ts",
     "evidence:db:scoring-skip-first-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-skip-first-week.ts",
     "evidence:db:waiver-season-end": "node tests/e2e/waiver-season-end-db.mjs",
+    "evidence:db:makeup-scoring": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/makeup-scoring.ts",
+    "evidence:db:scoring-all-star-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-all-star-week.ts",
     "evidence:db:rookie-skipped-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts",
     "evidence:db:playoff-stale-boundary": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
   },
