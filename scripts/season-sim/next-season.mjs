@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { appendFile, readFile } from 'node:fs/promises'
-import { season, fixtureDirectory, dates, etDate, miniRoot, sha256, writeGzip, writeJson } from './common.mjs'
+import { season, fixtureDirectory, dates, etDate, sha256, writeGzip, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { planDay } from './planner.mjs'
 import { prepareLineups, checkLineups } from './lineups.mjs'
