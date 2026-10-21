@@ -46,7 +46,7 @@ BEGIN
   SELECT * INTO f FROM notif_fixture;
   DELETE FROM notification_outbox WHERE member_id IN (f.member,f.other_member);
   FOREACH event IN ARRAY ARRAY['draft_on_clock','draft_coming_soon','draft_timer_expiring'] LOOP
-    FOREACH state IN ARRAY ARRAY['made','skipped','paused','finished','expired','missing_deadline'] LOOP
+    FOREACH state IN ARRAY ARRAY['made','skipped','finished','expired','missing_deadline'] LOOP
       d := gen_random_uuid(); p := gen_random_uuid(); n := gen_random_uuid();
       INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds,pick_timer_seconds)
       VALUES(d,f.league,f.season,'snake','pending',false,1,60);
@@ -59,7 +59,6 @@ BEGIN
       PERFORM private.notif_enqueue(event,state || d,f.league,f.member,jsonb_build_object('draftId',d,'pickId',p));
       IF state = 'made' THEN UPDATE snake_draft_picks SET picked_at = now() WHERE id = p;
       ELSIF state = 'skipped' THEN UPDATE snake_draft_picks SET skipped_at = now() WHERE id = p;
-      ELSIF state = 'paused' THEN PERFORM pause_draft_atomic(d);
       ELSIF state = 'finished' THEN UPDATE drafts SET status = 'completed' WHERE id = d;
       ELSIF state = 'expired' THEN UPDATE snake_draft_picks SET timer_expires_at = clock_timestamp()-interval '1 second' WHERE id = p;
       ELSE UPDATE snake_draft_picks SET timer_expires_at = NULL WHERE id = p;
@@ -82,7 +81,7 @@ BEGIN
     END LOOP;
   END LOOP;
   UPDATE notification_preferences SET master_enabled=true WHERE user_id=f.owner;
-  UPDATE drafts SET status='completed' WHERE league_id=f.league AND status='paused';
+  UPDATE drafts SET status='completed' WHERE id=d;
   d := gen_random_uuid(); p := gen_random_uuid();
   INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds,pick_timer_seconds)
   VALUES(d,f.league,f.season,'snake','in_progress',false,1,60);
@@ -94,11 +93,17 @@ BEGIN
   PERFORM pause_draft_atomic(d);
   UPDATE notification_preferences SET master_enabled=false WHERE user_id=f.owner;
   IF notif_admit_delivery_atomic(r.id,r.claim_token) THEN RAISE EXCEPTION 'pause after claim escaped send-time gate'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM notification_outbox WHERE id = r.id AND suppression_reason = 'stale' AND suppressed_at IS NOT NULL) THEN
-    RAISE EXCEPTION 'send-time suppression is not durable';
+  IF NOT EXISTS (SELECT 1 FROM notification_outbox WHERE id = r.id AND suppression_reason IS NULL AND suppressed_at IS NULL AND claim_token IS NULL) THEN
+    RAISE EXCEPTION 'pause after claim must release the lease without terminal suppression';
+  END IF;
+  PERFORM resume_draft_atomic(d);
+  UPDATE notification_outbox SET available_at=now() WHERE id=r.id;
+  PERFORM * FROM claim_notification_outbox_atomic(200,60);
+  IF NOT EXISTS (SELECT 1 FROM notification_outbox WHERE id=r.id AND suppression_reason='preferences_disabled' AND suppressed_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'resume must still apply send-time opt-out durably';
   END IF;
   UPDATE notification_preferences SET master_enabled=true WHERE user_id=f.owner;
-  UPDATE drafts SET status='completed' WHERE league_id=f.league AND status='paused';
+  UPDATE drafts SET status='completed' WHERE id=d;
   d := gen_random_uuid(); p := gen_random_uuid();
   INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds,pick_timer_seconds)
   VALUES(d,f.league,f.season,'snake','in_progress',false,1,60);
@@ -123,7 +128,7 @@ BEGIN
   END IF;
   UPDATE notification_preferences SET master_enabled=true WHERE user_id=f.owner;
   IF notif_admit_delivery_atomic(r.id,r.claim_token) THEN RAISE EXCEPTION 'suppressed admission resurrected'; END IF;
-  RAISE NOTICE '18 stale states, durable resume, changes after claim, and scanner boundaries pass';
+  RAISE NOTICE '15 terminal stale states, temporary pause, durable opt-out after resume, changes after claim, and scanner boundaries pass';
 END $$;
 SET LOCAL ROLE authenticated;
 DO $$
