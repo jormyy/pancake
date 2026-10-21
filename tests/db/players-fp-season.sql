@@ -1,9 +1,9 @@
 \set ON_ERROR_STOP on
 \getenv players_db_url SUPABASE_DB_URL
-\getenv players_db_port PLAYERS_DB_PORT
+\getenv players_db_port PANCAKE_TEST_DB_PORT
 \if :{?players_db_port}
 \else
-  \set players_db_port 58022
+  \set players_db_port 54322
 \endif
 SELECT :'players_db_port' ~ '^[0-9]{4,5}$'
   AND :'players_db_url' ~ ('^postgres(ql)?://[^/]+@(127\.0\.0\.1|localhost):' || :'players_db_port' || '/[^?]+$') AS players_local \gset

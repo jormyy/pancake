@@ -273,6 +273,42 @@ it('joins a covered source refresh and follows a changed source without certifyi
 
 
 describe('automatic player average season', () => {
+    it('does not poll when Auto already returns the current season', async () => {
+        vi.useFakeTimers()
+        const owned = new Map()
+        const waivers = new Set<string>()
+        mocks.searchPlayers.mockReset().mockResolvedValue([{ ...player('current'), stats_season_year: 2027 }])
+        const Probe = () => { usePlayerSearch('league', owned, waivers, 'member'); return null }
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+            expect(mocks.searchPlayers).toHaveBeenCalledOnce()
+            await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
+            expect(mocks.searchPlayers).toHaveBeenCalledOnce()
+        } finally { await act(async () => { renderer.unmount() }) }
+    })
+
+    it('stops polling when Auto switches from the fallback to the current season', async () => {
+        vi.useFakeTimers()
+        const owned = new Map()
+        const waivers = new Set<string>()
+        let latest!: ReturnType<typeof usePlayerSearch>
+        mocks.searchPlayers.mockReset()
+            .mockResolvedValueOnce([{ ...player('prior'), stats_season_year: 2026 }])
+            .mockResolvedValue([{ ...player('current'), stats_season_year: 2027 }])
+        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
+            expect(latest.results.players[0].stats_season_year).toBe(2026)
+            await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+            expect(latest.results.players[0].stats_season_year).toBe(2027)
+            expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
+            await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
+            expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
+        } finally { await act(async () => { renderer.unmount() }) }
+    })
+
     it('refreshes an active automatic search after play begins and keeps explicit seasons fixed', async () => {
         vi.useFakeTimers()
         const owned = new Map()
