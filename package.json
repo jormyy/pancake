@@ -297,6 +297,7 @@
     "evidence:db:draft-timer-cutoff": "node tests/db/draft-timer-cutoff.mjs",
     "evidence:db:draft-timer-restart-real": "node tests/e2e/draft-timer-restart-real.mjs",
     "evidence:db:draft-mock-expiry": "node tests/db/draft-mock-expiry.mjs",
+    "evidence:ui:draft-timer": "node tests/e2e/draft-timer-ui.mjs",
     "evidence:db:identity-projections": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/identity-projections.ts",
     "evidence:db:identity-rankings": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/identity-rankings.ts",
     "evidence:db:scoring-eliminated-lineups": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-eliminated-lineups.ts",
