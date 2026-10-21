@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 
 export const productionJobs = [
+  ['notification-dispatch-minute','* * * * *','SELECT public.invoke_process_trades_if_due()'],
+  ['refresh-player-search-caches','40 12 * * *','SELECT public.refresh_player_search_caches()'],
   ['nba-live-poll', '*/2 * * * *', 'SELECT public.invoke_live_poll_if_due()'],
   ['season-boundary', '*/15 * * * *', 'SELECT public.invoke_season_boundary_if_due()'],
   ['nba-process-trades', '*/5 * * * *', 'SELECT public.invoke_process_trades_if_due()'],

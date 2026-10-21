@@ -51,3 +51,15 @@ test('two-season live acceptance requires a subscription result in each season',
   assert.equal(acceptanceAreas(measured)['live streams'],'not measured')
   assert.equal(acceptanceAreas({...measured,realtimeSecond:{passed:true}})['live streams'],'pass')
 })
+
+
+test('recorded feature failures do not hide a later fatal replay failure',()=>{
+  const result=summarizeRun({...run,failures:[{name:'AssertionError',message:'F1'}],failure:{name:'AssertionError',message:'fatal'}})
+  assert.equal(result.invariantFailures,2)
+})
+
+
+test('structured extractor failures are counted even in older checkpoints',()=>{
+  const result=summarizeRun({...run,featureCheckpoints:[{year:2025,label:'week-1',f1:{status:'FAILED',error:'unbalanced'}}],playersEvidence:[{year:2025,label:'after-first-final',status:'FAILED',error:'missing average'}]})
+  assert.equal(result.invariantFailures,2)
+})

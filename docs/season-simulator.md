@@ -505,7 +505,7 @@ The complete board becomes available on June 28 under an explicit conservative S
 Earlier requests receive 503, with the actual failed worker and sync-run error recorded.
 Only that declared source-unavailable failure may continue; unrelated failures remain fatal.
 The commissioner starts the fantasy rookie draft after the production draft-board cron succeeds.
-At least one five-second pick timer expires through the production expiry gate.
+At least one sixty-second pick timer expires through the production expiry gate.
 
 ### Independent checks
 
@@ -595,3 +595,118 @@ The full two-season replay and its new late-season manager scenarios remain unme
 The automatic unstarted-rookie backstop remains outside this scenario.
 Three additional postponed rows remain explicit gaps beyond the six required examples.
 See the published `shared/sim2/README.md`, input manifests and `postponements.gaps` before launch.
+
+
+### Feature evidence and sixty-second rookie timers
+
+The rookie launch uses a sixty-second timer and rejects values outside 60–604800 seconds.
+No launch path writes a pick deadline directly.
+The commissioner pauses each current pick and resumes it before a production notification window.
+This coordinated commissioner workflow is SYNTHETIC.
+The first pick expires through the real minute expiry gate; managers make the remaining selections through the API.
+Every pause checks the exact remaining seconds.
+A receipt wait drives each intervening cron minute and fails after seventy business minutes.
+It reads real outbox availability times instead of assuming immediate Expo receipts.
+
+The origin records fake Expo requests at `/push` and `/receipts` in `evidence/expo-transport.jsonl`.
+It accepts only synthetic replay tokens.
+Owners and one outside user register through `/profile/push-token`.
+The Edge fetch guard refuses every non-task host, HTTPS target, wrong port and embedded credential.
+The transport returns SYNTHETIC tickets and receipts; it does not prove native-device display.
+Each on-clock push records its recipient, event, durable dedupe key and business time.
+`F6-rookie-picks.json` joins those records to actual picks, automatic-pick audits and delivered outbox rows.
+An omitted, duplicate or misdirected event fails the check.
+
+The real replay captures F1 and F2 at week one, mid-season and the champion checkpoint in each season.
+`feature-input-<year>-<checkpoint>.json` contains read-only product-table observations and the independent calendar.
+F1 emits the full week, pair and home/away table, plus fairness, balance, stability and next-season checks.
+The oracle compares actual first-cycle pairings with independently built joined-order round-robin rotations.
+When present, a persisted season member-order array receives an additional check.
+A shuffled metadata value cannot hide an unchanged pairing order.
+F2 checks configured fit, independent standings seeds, byes, round spans, elimination, settled scores and the champion.
+The four-team launch has zero byes; a real nonzero-bye scenario remains unmeasured.
+The settings warning record describes independent fit; rendered settings-warning UI remains unmeasured here.
+Those UI and bye gaps must not be read as completed browser coverage.
+
+The Players extractor reads every `search_players` page with the default sort.
+It independently averages stored played-game stats with the league scoring settings.
+It checks the shown statistics year, descending FP/game and null values last.
+The second season samples preseason, opening day before played state, and after the first final.
+The first season samples opening day and after its first final.
+`F3-<year>-<sample>.json` retains all rows and the independent expected values.
+Failed feature samples enter the final failure count and prevent full acceptance.
+A read-only offline F1/F2 extraction returns exit 1 when either oracle fails:
+
+```sh
+node scripts/season-sim/index.mjs --extract-features "$SEASON_SIM_ROOT/path/to/feature-input.json"
+```
+
+The cron driver also runs the installed notification minute gate and the daily 12:40 UTC Players-cache refresh.
+Four housekeeping jobs remain outside the measured scope: inventory hints, mock-room expiry, response vacuum and retention pruning.
+No mock rooms exist; score and history checks read primary tables.
+The report lists those omissions instead of claiming coverage for them.
+Rankings and projections remain separate input-quality gaps.
+
+### Bounded feature results on ff349d6c
+
+These results use an application archive and a working harness overlay, not a committed fresh replay.
+The calendar gate passes for both seasons with 24 weeks, replacing the earlier 25-week baseline result.
+Opening dates are October 22, 2024 and October 21, 2025.
+Merged week 17 is February 10–23, 2025 and February 9–22, 2026.
+The two-date check uses no calendar-failure deferral.
+It verifies two then ten NBA games in 240.478 and 363.412 seconds.
+Its early overlay omits the later-added cache and notification cron entries.
+A corrected-cadence opening-date rerun takes 242.450 seconds and repeats the live and final checks.
+
+F1 is RED on this base: the observed full cycle does not balance home and away.
+The pending postseason implementation owns that change.
+F2 configured fit passes; no playoff phase runs in this opening diagnostic.
+Full F2 seeds, byes, elimination and champion evidence remains required from the two-season leg.
+
+F3 changes to the correct current-season label after played state appears.
+Its averages remain null while stored played stats already imply nonzero FP/game.
+The strict extractor reports FAILED at October 23, 2024, 09:00 UTC.
+The real daily cache refresh at 12:40 UTC makes all 576 rows pass, including 42 players with stats.
+No manual cache refresh produces that green result.
+This is an application cache-lag candidate; the final integration must resolve or explicitly accept the failing expectation.
+A prepared 2025–26 preseason sample verifies the fallback label with empty prior statistics.
+A nonempty 2024–25 fallback pool remains wired but unmeasured until the real continuation runs.
+
+The bounded sixty-second draft passes eight per-pick push checks, including one automatic pick and eight pause/resume checks.
+It takes 22.381 seconds after preparation, including twelve business minutes of final receipt waiting.
+The complete isolated command takes 68.908 seconds with database setup and cleanup.
+The skip-on-expiry choice is not measured by this bounded auto-pick scenario.
+
+The separate opening-cutoff scenario warns before starting its seven-day timer.
+At October 21, 2025, 09:00 ET, the expiry worker auto-picks all eight unfinished picks.
+Read-only retained rows confirm completion and no remaining pick timer.
+The simultaneous season-boundary worker reports `Draft is not in progress`, so the scenario remains RED.
+The suspected race is the backstop's auto-pick call after the cutoff worker completes the draft.
+The strict worker-status check stays enabled.
+
+Run either bounded draft phase on a disposable admitted lane stack:
+
+```sh
+node scripts/season-sim/index.mjs --probe-rookie-draft --draft-probe-phase turns
+node scripts/season-sim/index.mjs --probe-rookie-draft --draft-probe-phase cutoff
+```
+
+These commands clear only the configured project's inspected backup and rebuild its database.
+They create declared SYNTHETIC offseason fixture state, then use the real board, API and production gates.
+They restore the clock and stop the configured stack in `finally`.
+They do not constitute a continuous two-season replay.
+`evidence/draft-probe.json` records phase times, worker responses and the cutoff state after failure.
+
+The new oracle families each have corrupted-row negative controls in `feature-oracles.test.mjs`.
+Those controls test harness detection; they are not application mutants.
+The mini passes 161 harness tests, changed-file ESLint, the e2e type check and both generated-source checks.
+Plain knip still reports four notification-owned entries and one notification-owned unused export on this base.
+No simulator entry registration is needed for the new imported modules.
+
+Budget about forty hours for the final two-season launch, with a broad 31–50 hour load range.
+Ordinary measured game dates take 363–387 seconds; the earlier playoff sample takes 509.463 seconds.
+The sixty-second rookie phase adds about one minute of wall-time allowance after setup.
+The idle offseason has not been remeasured in this feature round.
+This is a projection, not a completed-run duration.
+The exact full-launch command above stays unchanged: use the final integration SHA, its archive and no overlay.
+Resolve the F1 implementation, cutoff race, Players-cache finding and notification knip residue before claiming readiness.

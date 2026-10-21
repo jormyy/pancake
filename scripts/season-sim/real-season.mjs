@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import {captureSeasonFeatures,capturePlayers} from './feature-evidence.mjs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fixtureDirectory, dates } from './common.mjs'
@@ -51,12 +52,15 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
   c.seasonYear = profile.year
   c.firstDate = profile.start
   c.seasonEnd = profile.end
+  await capturePlayers(c,'preseason',report)
   report.skippedWeekSettings = { route: '/rest/v1/rpc/update_league_configuration_atomic', weeks: [1], at: `${profile.startYear}-08-16T14:00:00Z` }
   const standings = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${c.leagueSeasonId}`)
   assert.equal(standings.length, 0, 'The real second season starts without prior standings')
   await move(`${profile.start}T14:00:00Z`)
   await c.api(c.users[0], '/sync/matchups', { leagueId: c.leagueId })
   report.secondCalendar = await assertTwoCalendar(c, profile)
+  await captureSeasonFeatures(c,profile,'week-1',report)
+  await capturePlayers(c,'opening-before-played',report)
   await changeProbe()
   await snapshot('next-season-start', profile.start, dates(profile.start,profile.end).length)
   const store = await fixtureStore(fixtureDirectory), games = JSON.parse(await readFile(path.join(fixtureDirectory,'games.json'),'utf8')).games
@@ -97,6 +101,8 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     if (week&&!skipped) await assertClientScores(c,{week:week.week_number})
     day.weekly = await assertClosedWeeks(c,next,checked)
     await verifyWaivers(c,report)
+    if(!report.playersEvidence.some(row=>row.year===profile.year&&row.label==='after-first-final'))await capturePlayers(c,'after-first-final',report)
+    if(!report.featureCheckpoints.some(row=>row.year===profile.year&&row.label==='mid-season')&&week?.week_number>=Math.floor(profile.playoffStart/2))await captureSeasonFeatures(c,profile,'mid-season',report)
     day.realInputs = await assertTwoDay(c,date,report,plan,store,today)
     if (report.realRookieActions?.bench && day.realInputs.identities.some(row => row.playerId===report.realRookieActions.bench.playerId && row.started===false)) report.realRookieActions.bench.measured=true
     day.skippedWeek = await assertSkippedWeek(c,1)
@@ -107,7 +113,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     console.log(JSON.stringify({realSeasonDate:date,games:day.finals.games,wallSeconds:day.wallSeconds}))
     await checkpoint(`${date}:real-second-season-verified`)
   }
-  const ending = { actions: {}, phaseTimings: [] }
+  const ending = { actions: {}, phaseTimings: [], featureCheckpoints:report.featureCheckpoints }
   report.secondSeasonEnd = await finishSeason(c,move,ending,checkpoint,{ stopAfterChampion:true,snapshot:async(name,...args)=>snapshot(`season-${profile.year}-${name}`,...args) })
   report.secondChampion = ending.champion
   report.secondPlayoffs=checkPlayoffShape(await c.rest(c.users[0],`matchups?select=*&league_season_id=eq.${c.leagueSeasonId}&matchup_type=neq.regular_season&is_voided=eq.false`),c.users.length,profile.playoffStart,[1,2])
