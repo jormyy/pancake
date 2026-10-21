@@ -4,6 +4,7 @@ import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
 import { fetchAllPages } from './scoreShared.ts'
 import { syncScores } from './syncScores.ts'
+import { isRegularSeasonGameId } from './gameId.ts'
 
 // NBA stat corrections land 1-2 days after games. Bracket generation,
 // advancement, and rollover wait this long after the prerequisite week
@@ -177,6 +178,7 @@ async function processLeagueBoundary(
   leagueStatus: string,
   playoffStartWeek: number,
   referenceDate: Date,
+  allowUnavailableRefresh = true,
 ): Promise<string[]> {
   const actions: string[] = []
   const matchups = await fetchAllPages<BoundaryMatchup>((from, to) => supabase
@@ -202,6 +204,12 @@ async function processLeagueBoundary(
   const bracketExists = quarterfinals.length > 0 || semifinals.length > 0 || finals.length > 0
 
   if (!bracketExists) {
+    if (!allFinalized(regular)) {
+      if (!allowUnavailableRefresh) throw new Error('Regular-season scores remain incomplete after confirmed-unavailability refresh')
+      if (await refreshUnavailableRegularSeason(leagueId, leagueSeasonId, regular, referenceDate)) {
+        return await processLeagueBoundary(leagueId, leagueSeasonId, leagueStatus, playoffStartWeek, referenceDate, false)
+      }
+    }
     if (playoffStartWeek > 1 && (!allFinalized(regular) || !graceElapsed(regular, referenceDate))) return actions
     const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'generate', referenceDate, regular)
     if (result.applied === true) actions.push('bracket-generated')
@@ -362,4 +370,29 @@ export async function runSeasonBoundary(
   })
   await runBounded(jobs, BOUNDARY_CONCURRENCY)
   return reports
+}
+
+async function refreshUnavailableRegularSeason(
+  leagueId: string,
+  seasonId: string,
+  matchups: BoundaryMatchup[],
+  referenceDate: Date,
+): Promise<boolean> {
+  const weekNumbers = [...new Set(matchups.map((matchup) => matchup.week_number))]
+  if (weekNumbers.length === 0) return false
+  const { data: season, error: seasonError } = await supabase.from('league_seasons')
+    .select('season_year').eq('id', seasonId).single()
+  if (seasonError) throw seasonError
+  const { data: lastWeek, error: weekError } = await supabase.from('season_weeks')
+    .select('week_end').eq('season_year', season.season_year).eq('week_number', Math.max(...weekNumbers)).maybeSingle()
+  if (weekError) throw weekError
+  if (!lastWeek || toETDate(referenceDate) <= lastWeek.week_end) return false
+  const games = await fetchAllPages<{ nba_game_id: string | null; status: string; game_status_text: string | null; stats_synced_at: string | null }>((from, to) => supabase
+    .from('nba_games').select('nba_game_id,status,game_status_text,stats_synced_at')
+    .eq('season_year', season.season_year).in('week_number', weekNumbers).order('id').range(from, to))
+  const regularGames = games.filter((game) => isRegularSeasonGameId(game.nba_game_id))
+  const unavailable = (game: typeof regularGames[number]) => /postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? '')
+  if (!regularGames.some(unavailable) || regularGames.some((game) => !unavailable(game) && (game.status !== 'Final' || !game.stats_synced_at))) return false
+  await syncScores(leagueId, referenceDate, { recoverStats: false })
+  return true
 }

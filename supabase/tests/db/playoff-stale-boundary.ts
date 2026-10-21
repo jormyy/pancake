@@ -27,7 +27,7 @@ const sql = async (statement: string): Promise<string> => {
   return new TextDecoder().decode(result.stdout).trim()
 }
 const q = (value: string) => `'${value.replaceAll("'", "''")}'`
-const cases = ['rollover', 'bracket', 'advance', 'current', 'refresh_failure', 'correction', 'refresh_error']
+const cases = ['rollover', 'bracket', 'advance', 'current', 'refresh_failure', 'correction', 'refresh_error', 'bracket_unavailable', 'bracket_unavailable_recheck']
 const selected = Deno.env.get('POST_STALE_CASE')
 assert.ok(!selected || cases.includes(selected))
 const failures: string[] = []
@@ -39,8 +39,9 @@ try {
     const members = users.map(() => crypto.randomUUID())
     const players = Array.from({ length: count + 1 }, () => crypto.randomUUID())
     const games = [crypto.randomUUID(), crypto.randomUUID()]
+    const unavailable = crypto.randomUUID()
     const year = 9130 + cases.indexOf(state) * 2
-    const expected = state === 'bracket' ? 'bracket-generated' : state === 'advance' ? 'final-created' : 'season-advanced'
+    const expected = state.startsWith('bracket') ? 'bracket-generated' : state === 'advance' ? 'final-created' : 'season-advanced'
     const stale = () => sql(`SELECT count(*) FROM get_stale_score_weeks(${q(season)},3)`)
     const tick = async (offset = 0) => {
       const report = await runSeasonBoundary(new Date(Date.now()+offset*3600000), league)
@@ -68,14 +69,47 @@ try {
         INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team) VALUES(${q(players[count])},'Synthetic','No game free agent','PG',ARRAY['PG'],'Active','XST');
         SELECT replace_regular_season_matchups_atomic(${q(league)},${q(season)},false,private.regular_season_matchup_payload(${q(league)},${q(season)},1));
         COMMIT;`)
+      if (state === 'bracket_unavailable_recheck') {
+        await sql(`INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+          VALUES(${q('002-unavailable-'+unavailable)},${year},1,current_date-25,now()-interval '25 days','XSU','XST','Scheduled')`)
+        await syncScores(league, new Date(), { recoverStats: false })
+        assert.equal(await sql(`SELECT bool_and(is_finalized) FROM matchups WHERE league_season_id=${q(season)} AND matchup_type='regular_season'`), 'f')
+        await sql(`SELECT publish_nba_schedule_atomic(${year},jsonb_build_array(jsonb_build_object('nba_game_id',${q('002-unavailable-'+unavailable)},'season_year',${year},
+          'game_date',current_date-25,'week_number',1,'home_team','XSU','away_team','XST','status','Scheduled','game_status_text','Postponed')),'[]')`)
+        scoreCalls = 0
+        await sql(`UPDATE nba_games SET status='InProgress',stats_synced_at=NULL WHERE id=${q(games[0])}`)
+        assert.deepEqual((await tick()).actions, [], 'A legitimate live game cannot be treated as unavailable')
+        assert.equal(scoreCalls, 0)
+        await sql(`UPDATE nba_games SET status='Final',stats_synced_at=NULL WHERE id=${q(games[0])}`)
+        assert.deepEqual((await tick()).actions, [], 'Missing Final stats remain a provider outage')
+        assert.equal(scoreCalls, 0)
+        await sql(`UPDATE nba_games SET stats_synced_at=now() WHERE id=${q(games[0])}`)
+        const reports = [await tick(), await tick(24), await tick(49), await tick(73)]
+        assert.deepEqual(reports[0].actions, [], 'Fresh finalization still waits for the 48-hour grace')
+        assert.deepEqual(reports[1].actions, [])
+        assert.ok(reports[2].actions.includes('bracket-generated'), 'Confirmed unavailability must trigger a score refresh and then an on-time bracket')
+        assert.deepEqual(reports[3].actions, [])
+        assert.ok(reports.every(report => !report.error))
+        assert.equal(scoreCalls, 1, 'Only the due unfinalized regular season needs one score refresh')
+        continue
+      }
+      if (state === 'bracket_unavailable') await sql(`
+        SELECT publish_nba_schedule_atomic(${year},jsonb_build_array(jsonb_build_object('nba_game_id',${q('002-unavailable-'+unavailable)},'season_year',${year},
+          'game_date',current_date-25,'week_number',1,'home_team','XSU','away_team','XST','status','Scheduled','game_status_text','Postponed','game_time',now()-interval '25 days')),'[]');
+        SELECT publish_nba_schedule_atomic(${year},jsonb_build_array(jsonb_build_object('nba_game_id',${q('002-unavailable-'+unavailable)},'season_year',${year},
+          'game_date',current_date-25,'week_number',1,'home_team','XSU','away_team','XST','status','Scheduled','game_status_text','','game_time',now()-interval '25 days 1 hour')),'[]');`)
       await syncScores(league, new Date(), { recoverStats: false })
-      if (state !== 'bracket') await sql(`SELECT generate_playoff_bracket_atomic(${q(league)}); UPDATE leagues SET status='playoffs' WHERE id=${q(league)}`)
+      if (!state.startsWith('bracket')) await sql(`SELECT generate_playoff_bracket_atomic(${q(league)}); UPDATE leagues SET status='playoffs' WHERE id=${q(league)}`)
       await syncScores(league, new Date(), { recoverStats: false })
       await sql(`UPDATE matchups SET finalized_at=now()-interval '73 hours' WHERE league_season_id=${q(season)}`)
       await syncScores(league, new Date(), { recoverStats: false })
+      if (state === 'bracket_unavailable' && await sql(`SELECT bool_and(is_finalized) FROM matchups WHERE league_season_id=${q(season)} AND matchup_type='regular_season'`) !== 't') {
+        const blocked = [await tick(73), await tick(97)]
+        assert.ok(blocked[0].actions.includes('bracket-generated'), 'A confirmed-unavailable final-week game must not stall two daily boundary runs')
+      }
       assert.equal(await stale(), '0', 'Initial real score certificates are current')
       const decision = await sql(`SELECT jsonb_agg(jsonb_build_object('id',id,'winner',winner_member_id,'grace',finalized_at) ORDER BY id) FROM matchups WHERE league_season_id=${q(season)}`)
-      assert.equal(await sql(`SELECT count(*) FROM nba_games WHERE season_year=${year} AND nba_game_id LIKE '002%' AND (status<>'Final' OR stats_synced_at IS NULL)`), '0', 'No NBA ingestion work remains')
+      assert.equal(await sql(`SELECT count(*) FROM nba_games WHERE season_year=${year} AND nba_game_id LIKE '002%' AND private.lineup_game_available(status,game_status_text) AND (status<>'Final' OR stats_synced_at IS NULL)`), '0', 'No NBA ingestion work remains')
       if (state !== 'current') {
         await sql(`BEGIN; SELECT set_config('request.jwt.claim.sub',${q(users[0])},true); SELECT add_free_agent_atomic(${q(members[0])},${q(league)},${q(players[count])}); COMMIT;`)
         assert.ok(Number(await stale()) > 0, 'One real free-agent add invalidates the certificates')
@@ -118,14 +152,14 @@ try {
       assert.ok(reports[0].actions.includes(expected), `Same-run ${expected} must follow stale recovery`)
       assert.deepEqual(reports[1].actions, [], 'The next daily period does nothing')
       assert.equal(scoreCalls, state === 'current' ? 0 : 1, 'Only a due stale league calls the actual scorer once')
-      assert.equal(await sql(`SELECT jsonb_agg(jsonb_build_object('id',id,'winner',winner_member_id,'grace',finalized_at) ORDER BY id) FROM matchups WHERE league_season_id=${q(season)} ${state==='bracket'?"AND matchup_type='regular_season'":state==='advance'?"AND matchup_type<>'playoff_final'":''}`), decision, 'Unchanged decisions preserve the original 48-hour grace')
+      assert.equal(await sql(`SELECT jsonb_agg(jsonb_build_object('id',id,'winner',winner_member_id,'grace',finalized_at) ORDER BY id) FROM matchups WHERE league_season_id=${q(season)} ${state.startsWith('bracket')?"AND matchup_type='regular_season'":state==='advance'?"AND matchup_type<>'playoff_final'":''}`), decision, 'Unchanged decisions preserve the original 48-hour grace')
       console.log(`PASS ${state}: same-run recovery, current-certificate skip, preserved grace, and daily idempotence`)
     } catch (error) {
       failures.push(`${state}: ${(error as Error).message}`)
     } finally {
       failScoreRead = false
       await sql(`DELETE FROM leagues WHERE id=${q(league)};
-        DELETE FROM player_game_stats WHERE game_id IN(${games.map(q).join(',')}); DELETE FROM nba_games WHERE id IN(${games.map(q).join(',')});
+        DELETE FROM player_game_stats WHERE game_id IN(${games.map(q).join(',')}); DELETE FROM nba_games WHERE id IN(${games.map(q).join(',')}) OR nba_game_id=${q('002-unavailable-'+unavailable)};
         DELETE FROM players WHERE id IN(${players.map(q).join(',')}); DELETE FROM auth.users WHERE id IN(${users.map(q).join(',')});
         DELETE FROM season_weeks WHERE season_year IN(${year},${year+1});`)
     }

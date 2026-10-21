@@ -1,6 +1,7 @@
 import { assertGameUnambiguous } from './gameIdentity.ts'
 import { saveGameStats } from './syncStats.ts'
 import { supabase } from './supabase.ts'
+import { fantasyCalendar, completeSeasonSchedule } from './schedule.ts'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, sleep } from './bbref.ts'
 import { errorMessage } from './responses.ts'
 import {
@@ -42,6 +43,7 @@ type GameRecord = {
   status: 'Final'
   week_number: number
   updated_at: string
+  schedule_complete?: boolean
 }
 
 /** Returns true when the next chunk was queued with this run's claim. */
@@ -138,12 +140,8 @@ function buildGameRecords(
   scheduleGames: Awaited<ReturnType<typeof fetchBBRefSchedule>>,
   seasonYear: number,
 ): GameRecord[] {
-  const dateCounts = new Map<string, number>()
-  for (const game of scheduleGames) dateCounts.set(game.gameDate, (dateCounts.get(game.gameDate) ?? 0) + 1)
-  const bulkStart = [...dateCounts.entries()].filter(([, count]) => count >= 5).map(([date]) => date).sort()[0]
-  const seasonStart = bulkStart ?? scheduleGames.map((game) => game.gameDate).sort()[0]
-  const startMs = new Date(seasonStart).getTime()
-  const weekNumber = (date: string) => Math.max(1, Math.floor((new Date(date).getTime() - startMs) / 86_400_000 / 7) + 1)
+  const calendar = fantasyCalendar(scheduleGames.map((game) => game.gameDate))
+  const weekNumber = (date: string) => calendar.find((week) => week.week_start <= date && week.week_end >= date)!.week_number
 
   return scheduleGames.map((game) => ({
     nba_game_id: game.bbrefId,
@@ -155,6 +153,7 @@ function buildGameRecords(
     away_team: game.awayTeam,
     status: 'Final',
     week_number: weekNumber(game.gameDate),
+    schedule_complete: completeSeasonSchedule(scheduleGames),
     updated_at: new Date().toISOString(),
   }))
 }

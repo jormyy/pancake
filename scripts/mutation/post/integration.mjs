@@ -4,6 +4,16 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
+if (process.argv.includes('--calendar-red')) {
+  const { runCalendarRed } = await import('./calendar-red.mjs')
+  await runCalendarRed()
+  process.exit(0)
+}
+if (process.argv.includes('--calendar')) {
+  const { runCalendarReview } = await import('./calendar-review.mjs')
+  await runCalendarReview()
+  process.exit(0)
+}
 const lane = path.join(homedir(), 'pancake-t_4ba51e0d/lanes/post')
 assert.equal(process.cwd(), path.join(lane, 'repo'))
 const evidence = path.join(lane, 'evidence/review5')

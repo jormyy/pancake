@@ -191,3 +191,51 @@ The gate recipe temporarily archives other league states inside its rolled-back 
 This isolates the drafting-only fleet without changing committed leagues.
 Its dispatch counts include only rows from its own transaction.
 The deadline recipe drains expiry batches until its own offer appears and checks only that offer's result.
+
+## Opening night, All-Star weeks, and unavailable games
+
+```sh
+python3 scripts/mutation/post/pin-calendar.py
+python3 scripts/mutation/post/calendar-catalog.py
+node scripts/mutation/post/integration.mjs --calendar-red
+node scripts/mutation/post/integration.mjs --calendar
+POST_EVIDENCE="$TASK/lanes/post/evidence/review7/mutations" node scripts/mutation/post/run.mjs opening-night all-star-week postponement nba-cup
+```
+
+Run these commands only on the admitted local stack.
+The pinning script reads existing shared fixtures without modifying them.
+It pins missing ESPN daily scoreboards under the lane evidence directory.
+Each source records its URL, retrieval time, and uncompressed SHA-256.
+The small season fixtures are REAL-DERIVED and retain source hashes.
+Cup final IDs join the pinned official NBA game pages.
+The other IDs retain ESPN identities; they do not claim NBA identity mapping.
+The fixtures retain the original postponed events separately from played events.
+Isolated database years, synthetic IDs, and synthetic missing-day controls remain SYNTHETIC.
+
+Opening night is the earliest regular-season date.
+A complete thirty-team season supplies at least 1,200 games and 80 appearances per team, from October through April.
+The full-schedule caller must also attest the snapshot explicitly.
+A filtered helper input cannot infer `schedule_complete` from its game count.
+An interior gap with at least four empty days across adjacent NBA weeks identifies the All-Star merge.
+Single empty days do not qualify.
+Multiple qualifying gaps require source review.
+The merged row spans actual pre-break and post-break game dates.
+Later fantasy numbers decrease by one.
+
+The publisher keeps an existing calendar's numbers and maps complete incoming schedules to those saved ranges.
+It keeps finalized matchup history and permits daily retries.
+A new season receives the merged calendar on its first complete publication.
+Existing seasons require a separate reviewed migration to change their numbering.
+This change does not migrate production calendars.
+
+Known unavailable markers survive blank text and stale clock changes.
+A new dated tipoff or actual InProgress/Final state clears them.
+Only complete game sets can establish absence; finalized game rows and retained BBRef rows remain.
+Partial snapshots do not cancel unseen games.
+The boundary refreshes due regular-season scores when confirmed unavailability is their remaining blocker.
+It uses persisted stats, preserves the grace, and leaves live games and provider outages open.
+
+The red helper needs `base-schedule.ts`, `base-nba.ts`, `base-boundary.ts`, and `base-publish.sql` from 454cf583 under `evidence/review7/`.
+It restores every changed runtime file and function by SHA-256.
+CDN discovery keeps an unresolved week-one placeholder until a complete calendar remaps it; scoring refuses unresolved ranges.
+The four new Deno recipes require explicit Knip entries and package scripts at integration.
