@@ -84,6 +84,8 @@
         "supabase/tests/db/scoring-skip-first-week.ts",
         "supabase/tests/db/makeup-scoring.ts",
         "supabase/tests/db/scoring-all-star-week.ts",
+        "supabase/tests/db/identity-rookies.ts",
+        "supabase/tests/db/identity-continuity.ts",
         "supabase/tests/db/playoff-stale-boundary.ts",
         "supabase/tests/db/rookie-backstop.ts",
         "supabase/tests/db/rookie-skipped-week.ts",
