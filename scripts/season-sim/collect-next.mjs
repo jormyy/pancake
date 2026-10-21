@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
-import { laneDirectory, miniRoot, sha256, writeJson } from './common.mjs'
+import { laneDirectory, miniRoot, season, sha256, writeJson } from './common.mjs'
 
 export async function collectNextSchedule() {
   const directory = await laneDirectory(path.join(miniRoot, 'fixtures'))
@@ -15,8 +15,8 @@ export async function collectNextSchedule() {
   evidence.seasonYear = payload.leagueSchedule?.seasonYear
   evidence.file = `next-schedule-${evidence.sha256}.json`
   await writeJson(path.join(directory, 'next-schedule-source.json'), evidence)
-  assert.equal(evidence.seasonYear, '2026-27', 'Refuse a different NBA schedule year')
-  assert.ok(payload.leagueSchedule.gameDates.flatMap(day => day.games).some(game => game.gameId.startsWith('00226')), 'Next season requires published regular-season games')
+  assert.equal(evidence.seasonYear, `${season.year}-${String(season.year + 1).slice(-2)}`, 'Refuse a different NBA schedule year')
+  assert.ok(payload.leagueSchedule.gameDates.flatMap(day => day.games).some(game => game.gameId.startsWith(`002${String(season.year).slice(-2)}`)), 'Next season requires published regular-season games')
   return evidence
 }
 

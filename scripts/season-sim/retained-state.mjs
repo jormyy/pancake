@@ -1,3 +1,4 @@
+import { season } from './common.mjs'
 import assert from 'node:assert/strict'
 
 export function retainedChampionCursor({ snapshot, retained, clock, currentSeason, final, stage = 'automatic-champion' }) {
@@ -17,5 +18,5 @@ export function retainedChampionCursor({ snapshot, retained, clock, currentSeaso
   const latest = context.waiverScenarios.filter(row => row.checked).sort((a, b) => Date.parse(b.checkedAt) - Date.parse(a.checkedAt))[0]
   if (latest) { context.expectedWaiverPriorities = latest.expected.priorities; context.expectedWaiverBudgets = latest.expected.budgets }
   if (stage === 'post-rollover') { context.previousSeasonId = retained.leagueSeasonId; context.previousChampionId = final.id; context.leagueSeasonId = currentSeason }
-  return { date: '2026-04-12', clock: clock.simMs, verifiedWeeks: snapshot.cursor.verifiedWeeks ?? [], context, actions: retained.actions, options: { days: 1 }, evidence: { retainedCheckpoint: { phase: retained.phase, completedDates: retained.days.length, failure: retained.failure, source: retained.source, savedAt: retained.savedAt } } }
+  return { date: context.seasonEnd ?? season.end, clock: clock.simMs, verifiedWeeks: snapshot.cursor.verifiedWeeks ?? [], context, actions: retained.actions, options: { days: 1 }, evidence: { retainedCheckpoint: { phase: retained.phase, completedDates: retained.days.length, failure: retained.failure, source: retained.source, savedAt: retained.savedAt } } }
 }

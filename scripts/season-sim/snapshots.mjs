@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict'
 import { courtTime, minutesIso } from './court.mjs'
+import { courtSequence } from './court-sequence.mjs'
 
 export const countingStats = ['points', 'assists', 'blocks', 'reboundsTotal', 'reboundsOffensive', 'reboundsDefensive', 'steals', 'turnovers', 'foulsPersonal', 'fieldGoalsAttempted', 'fieldGoalsMade', 'threePointersAttempted', 'threePointersMade', 'freeThrowsAttempted', 'freeThrowsMade']
 
+const orderedCache = new WeakMap()
+
 export function orderedActions(payload) {
+  if (orderedCache.has(payload)) return orderedCache.get(payload)
   const actions = payload.game?.actions
   assert.ok(Array.isArray(actions) && actions.length > 0, 'Play-by-play actions are required')
   assert.equal(new Set(actions.map(action => action.actionNumber)).size, actions.length, 'Duplicate historical action numbers')
   for (const action of actions) assert.ok(Number.isFinite(Date.parse(action.timeActual)), `Missing historical action time: ${action.actionNumber}`)
-  return [...actions].sort((a, b) => a.orderNumber - b.orderNumber)
+  const ordered = [...actions].sort((a, b) => a.orderNumber - b.orderNumber)
+  orderedCache.set(payload, ordered)
+  return ordered
 }
 
 export function gameEndTime(actions) {
@@ -17,11 +23,13 @@ export function gameEndTime(actions) {
   return Date.parse(end.timeActual)
 }
 
-export function snapshot(box, playbyplay, at, withCourt = true) {
+export function snapshot(box, playbyplay, at, withCourt = true, summary = null) {
   assert.equal(playbyplay.game.gameId, box.game.gameId)
   const cutoff = Date.parse(at)
   assert.ok(Number.isFinite(cutoff))
-  const allActions = orderedActions(playbyplay)
+  const ordered = orderedActions(playbyplay)
+  const sequence = withCourt ? courtSequence(box, ordered, summary) : { actions: ordered, removed: [], reassigned: [] }
+  const allActions = sequence.actions
   const actions = allActions.filter(action => Date.parse(action.timeActual) <= cutoff)
   const court = withCourt ? courtTime(box, allActions, actions) : null
   const players = new Map()
@@ -93,7 +101,7 @@ export function snapshot(box, playbyplay, at, withCourt = true) {
   delete game.attendance
   delete game.sellout
   return {
-    meta: { provenance: 'REAL-DERIVED', sources: [`boxscore-${game.gameId}`, `playbyplay-${game.gameId}`], at, limitations: ['Final corrected play-by-play is time-sliced; original live revisions are unavailable.', 'Minutes and plus-minus derive from PBP substitutions, period starters, clocks, and scores.'], lastAction: last?.actionNumber ?? null },
+    meta: { provenance: 'REAL-DERIVED', sources: [`boxscore-${game.gameId}`, `playbyplay-${game.gameId}`], at, limitations: ['Final corrected play-by-play is time-sliced; original live revisions are unavailable.', 'Minutes and plus-minus derive from PBP substitutions, period starters, clocks, and scores.'], removedConflictingSubstitutions: sequence.removed, reassignedSubstitutions: sequence.reassigned, finalMinuteConflicts: sequence.minuteEvidence ?? [], lastAction: last?.actionNumber ?? null },
     game,
   }
 }

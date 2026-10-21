@@ -5,6 +5,9 @@ Its generated evidence establishes coverage.
 Earlier reports and fixture facts do not establish a new run's result.
 See the [command guide](../scripts/season-sim/README.md).
 
+The [real two-season leg](#real-two-season-leg) runs 2024–25 followed by 2025–26.
+The earlier synthetic next-season mode remains available separately.
+
 ## Inputs
 
 | Class | Inputs |
@@ -403,3 +406,192 @@ No roster-size or add-limit setting changes to make the scenario pass.
 A manager who uses the weekly add on a refill cannot submit another claim that week.
 The harness checks the real API rejection and proves that no pending claim is stored.
 Only accepted claims enter the processing oracle; rejected proposals remain in the scenario evidence.
+
+## Real two-season leg
+
+This mode supersedes the synthetic 2026–27 continuation for the new card scope.
+It replays real 2024–25, its automatic champion and rollover, the real 2025 NBA draft board, then real 2025–26 through its champion.
+The synthetic continuation remains an explicit legacy operation.
+Real mode refuses synthetic remapping and legacy segment continuation.
+
+Set these variables before starting Node:
+
+```sh
+export SEASON_SIM_ROOT="$TASK/lanes/sim"
+export SEASON_SIM_PROJECT=pt4basim
+export SEASON_SIM_PORT_PREFIX=572
+export SEASON_SIM_YEAR=2025
+export SEASON_SIM_MODE=two-season
+export SEASON_SIM_FIXTURES="$TASK/shared/sim2/replay"
+```
+
+The root, exact loopback ports, project, container and Docker socket guards still apply.
+Real-mode snapshots default to `shared/sim2`, and refuse the protected `shared/sim` folder.
+Snapshot metadata hashes the selected fixture manifest and two-season plan.
+The second champion has a separate snapshot name.
+
+The source archive must contain the final integrated application and harness.
+The orchestrator supplies the committed source SHA and records its archive hash in `application-source.json`.
+Its `harnessSha256` must equal `harnessManifest()` on that extracted tree.
+`integration.tar` must hold that exact archive.
+A full launcher refuses a harness overlay.
+After the existing replay ends, the orchestrator runs:
+
+```sh
+cd "$SEASON_SIM_ROOT/repo"
+nohup sh -c 'node scripts/season-sim/fresh-run.mjs --source-sha "$SEASON_SIM_SOURCE_SHA"; result=$?; echo "$result" > "$SEASON_SIM_ROOT/two-season.exit"; exit "$result"' \
+  > "$SEASON_SIM_ROOT/two-season.log" 2>&1 &
+echo $! > "$SEASON_SIM_ROOT/two-season.pid"
+```
+
+`SEASON_SIM_SOURCE_SHA` is the final 40-character integration SHA.
+The launcher creates a fresh database and disables native cron.
+It drives every production cron minute, real workers, and authenticated manager actions.
+It restores the native clock and stops only its configured project after success or failure.
+`evidence/replay-checkpoint.json` holds progress.
+`evidence/final-run.json` and `evidence/exit.json` hold the final outcome and cleanup.
+The existing replay, its export and `shared/sim` must remain untouched.
+This document does not authorize another process to launch the new leg.
+
+### Input preparation
+
+Collection writes only into the lane folder.
+Publish completed inputs into the new `shared/sim2` folder after validation.
+Never replace the existing `shared/sim` store.
+
+```sh
+SEASON_SIM_YEAR=2025 node scripts/season-sim/index.mjs --collect \
+  --fixtures "$SEASON_SIM_ROOT/t3-inputs/2025" \
+  --evidence "$SEASON_SIM_ROOT/r9-evidence/2025"
+node scripts/season-sim/index.mjs --collect-two-sources
+node scripts/season-sim/index.mjs --collect-rosters
+node scripts/season-sim/index.mjs --prepare-two
+SEASON_SIM_MODE=two-season SEASON_SIM_YEAR=2025 \
+  SEASON_SIM_FIXTURES="$SEASON_SIM_ROOT/t3-inputs/replay" \
+  node scripts/season-sim/plan-audit.mjs
+```
+
+The 2025–26 raw fixtures reuse the lane's pinned store and preserve its response hashes.
+`prepare-two` rejects synthetic game inputs and non-final boxes.
+Every fetch attempt records URL, time, status, bytes, hash and provenance.
+The published `sources` folder retains failed attempts and empty archive results.
+The prepared `replay/manifest.jsonl` selects the latest record per source key.
+`derived-manifest.json` hashes the calendar, schedule, roster history and publication policies.
+
+NBA Stats supplies both historical NBA-format schedules.
+Their `gameId`, `weekNumber`, `postponedStatus`, `gameLabel` and `gameSubtype` remain source metadata when present.
+Reconstructed original dates use a derived NBA week number instead of the later makeup week.
+NBA final boxes, PBP, ESPN scoreboards, summaries, draft HTML and draft JSON are REAL-RAW.
+The calendar, matched game identities, roster projection and live reconstruction are REAL-DERIVED.
+Fantasy users, bids, lineup choices, trades, and source-availability timing are SYNTHETIC.
+No real-mode route returns a `Synthetic Prospect` row.
+
+Dated preseason observations supply the opening roster without exposing future NBA players.
+Preseason boxes supply roster evidence only; they never enter scoring games or fantasy weeks.
+A camp-only person needs a prior/current NBA career in the pinned registry.
+Unknown camp registrations remain excluded and are listed in `roster-source-audit.json`.
+The roster and NBA index contain one row per observed NBA person.
+A stable first-observed ESPN alias carries later dated NBA team observations from all source aliases.
+Historical experience uses the season offset from the NBA first-year field.
+This establishes the zero/nonzero rookie fence; it is not an exact career service-year count.
+Exact historical roster-cut instants remain unverified.
+
+The startup managers spend their remaining auction budget on their last active slot.
+This follows the real rule that an auction stays open while managers can still buy eligible taxi players.
+It leaves taxi capacity for the later rookie draft.
+
+The origin serves the pinned 2025 NBA news, draft page and Stats draft response through the product's normal routes.
+The complete board becomes available on June 28 under an explicit conservative SYNTHETIC availability policy.
+Earlier requests receive 503, with the actual failed worker and sync-run error recorded.
+Only that declared source-unavailable failure may continue; unrelated failures remain fatal.
+The commissioner starts the fantasy rookie draft after the production draft-board cron succeeds.
+At least one five-second pick timer expires through the production expiry gate.
+
+### Independent checks
+
+The oracle uses the first `002` game day as opening night.
+It groups the raw regular schedule into NBA weeks and derives the All-Star merge from the single long no-game gap.
+Week ranges use actual first and last regular game dates.
+A Cup gap cannot invent Monday games.
+Later fantasy week numbers shift down one after the merged week.
+Both `006` Cup finals and every exhibition are excluded; `002` Cup games count.
+
+The first league has no skipped opening week.
+The second league sets `skipped_weeks={1}` through the commissioner configuration RPC before opening.
+The first eligible matchup and all later weeks retain their independent calendar ranges.
+The pre-break and post-break add checks share one merged-week count and reset time.
+
+The six required postponements retain their original date, confirmed unavailable phase, and makeup date.
+Official NBA announcements supplement the two wildfire scoreboards that lack makeup notes.
+Original NBA snapshot IDs and exact announcement instants remain unproven.
+IDs use a unique raw team/date correlation.
+When publication timing is unknown, a declared SYNTHETIC policy retains cross-week postponements through original-week closure.
+The two wildfire reschedules use their official announcement dates, with a declared synthetic noon availability time.
+This tests confirmed-unavailability handling; it does not reconstruct exact historical publication times.
+The original week must finalize on time while that marker persists.
+The makeup must retain one game row and one stat row per player in the independently derived played week.
+Daily raw-point and weekly matchup checks also apply to those games.
+
+The real draft board identifies rookies independently by NBA person ID and draft number.
+Each raw rookie box appearance requires one canonical player, one stat row, and independently correct fantasy points.
+A selected rookie must keep its original draft player row.
+Started and benched rookie preferences must reach locked lineups.
+A genuine midseason fantasy trade must produce later nonzero starter points for the new owner.
+A genuine drop and waiver re-add must keep the player identity.
+Missing rookie games are failed assertions, never successful or unmeasured coverage.
+
+Anthony Davis in 2025 and James Harden in 2026 are the NBA-deadline continuity subjects.
+Their old/new teams and first played appearances for their new teams come from pinned NBA boxes and official announcements.
+Managers acquire them before the NBA trade.
+The oracle checks the same player row, new NBA team, same fantasy owner, locked starts, and continued points.
+These are representative NBA deadline trades, not an audit of every NBA transaction.
+
+Both seasons retain live, final, weekly, bracket, champion, trade, waiver and pick checks.
+The second season preserves settled first-season stats, matchups, standings and used picks.
+Future traded picks retain their owners during second-season scoring.
+Rankings/projection input quality and historical career totals remain explicit gaps.
+No full-run timing is inferred from a partial or resumed segment.
+A wall-time budget applies only when the run declares one; twelve hours is not an implicit two-season acceptance rule.
+
+A two-date diagnostic may defer the full-calendar failure until its requested dates finish.
+It still returns that failure and cannot claim acceptance.
+The full launcher never enables this diagnostic option.
+
+
+The real-mode launcher audits all 2,460 court sequences before it starts the database.
+Raw source bodies remain unchanged.
+One 2024 opening-night sequence needs a derived substitution identity correction.
+The original event names an absent player.
+The unique correction agrees with the other NBA minutes and ESPN's rounded minutes.
+NBA's team-minute total is impossible for that game, so ESPN corroborates the conflicting player's minutes.
+`court-source-audit.json` records the original identity, correction, and source-minute conflict.
+Unresolved or ambiguous corrections fail the audit.
+Overtime starter inference ignores at most 1.1 seconds of source rounding residue.
+
+The final historical schedules contain later information, including Cup opponents.
+Only the six declared postponement timelines reconstruct changing availability.
+Earlier complete NBA schedule snapshots remain unavailable.
+This is a historical replay with declared publication policies, not a raw archive of every original schedule release.
+
+
+### Bounded evidence before integration
+
+The baseline application is `454cf583`; the harness is a working overlay.
+The production draft cron imports all 59 real picks in 69.809 seconds.
+The board check verifies names, numbers, rookie experience and unlinked NBA identities.
+Opening night and its following date verify 12 final games and 4,390 live score samples.
+Their replay times are 247.656 and 386.846 seconds.
+The diagnostic exits on the baseline calendar mismatch after those dates pass.
+It does not bypass that mismatch for a full launch.
+The baseline publishes 25 weeks; the independent oracle requires 24.
+The baseline planner also returns opening dates one day late under its five-game rule.
+Its stored opening week and opening-night scoring remain correct in this bounded check.
+
+Using 386.846 seconds for ordinary dates and the earlier 509.463-second playoff sample projects about 40 hours.
+The broader measured range projects 31–50 hours, including the idle offseason.
+These are projections, not a completed-run duration or a promised runtime budget.
+The 138 harness tests, changed-file lint, dead-code check and e2e type check pass on the mini.
+The full two-season replay and its new late-season manager scenarios remain unmeasured.
+The automatic unstarted-rookie backstop remains outside this scenario.
+Three additional postponed rows remain explicit gaps beyond the six required examples.
+See the published `shared/sim2/README.md`, input manifests and `postponements.gaps` before launch.

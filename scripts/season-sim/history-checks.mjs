@@ -27,8 +27,8 @@ export async function verifyTimelineHistory(replay) {
   for (const pick of picks) assert.equal(pick.current_owner_id, pick.expected, 'Pick ownership follows completed trades only')
   const newsRows = Number(await sql('SELECT count(*) FROM dynasty_news'))
   const nbaTeamChanges = replay.days.flatMap(day => day.nbaTeams?.changes ?? []).length
-  if (replay.fullAcceptance) {
-    assert.ok(replay.wallSeconds <= 43200, 'Full replay must finish within twelve hours')
+  if (replay.fullAcceptance && replay.wallBudgetSeconds != null) {
+    assert.ok(replay.wallSeconds <= replay.wallBudgetSeconds, 'Full replay must fit its declared wall-time budget')
   }
   return { preferenceComparisons, processedMemberDates: processed.length, faabComparisons: balances.length, pickChainComparisons: picks.length, newsRows, nbaTeamChanges, cronJobs, finalSimulatedTime: now, passed: true }
 }

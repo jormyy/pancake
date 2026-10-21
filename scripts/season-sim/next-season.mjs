@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { appendFile, readFile } from 'node:fs/promises'
-import { dates, etDate, miniRoot, sha256, writeGzip, writeJson } from './common.mjs'
+import { season, fixtureDirectory, dates, etDate, miniRoot, sha256, writeGzip, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { planDay } from './planner.mjs'
 import { prepareLineups, checkLineups } from './lineups.mjs'
@@ -35,13 +35,14 @@ export async function nextSeasonMorning(date, move, current = async () => Number
 }
 
 export async function prepareNextFixtures() {
-  const directory = path.join(miniRoot, 'fixtures')
+  assert.notEqual(process.env.SEASON_SIM_MODE,'two-season','Real two-season mode refuses synthetic remapping')
+  const directory = fixtureDirectory
   const source = JSON.parse(await readFile(path.join(directory, 'next-schedule-source.json'), 'utf8'))
   const bytes = await readFile(path.join(directory, source.file))
   assert.equal(sha256(bytes), source.sha256)
   const schedule = JSON.parse(bytes.toString())
-  assert.equal(schedule.leagueSchedule.seasonYear, '2026-27')
-  const published = schedule.leagueSchedule.gameDates.flatMap(day => day.games).filter(game => game.gameId.startsWith('00226') && game.homeTeam.teamTricode && game.awayTeam.teamTricode)
+  assert.equal(schedule.leagueSchedule.seasonYear, `${season.year}-${String(season.year + 1).slice(-2)}`)
+  const published = schedule.leagueSchedule.gameDates.flatMap(day => day.games).filter(game => game.gameId.startsWith(`002${String(season.year).slice(-2)}`) && game.homeTeam.teamTricode && game.awayTeam.teamTricode)
     .map(game => ({ id: game.gameId, date: etDate(game.gameDateTimeUTC), time: game.gameDateTimeUTC, home: game.homeTeam.teamTricode, away: game.awayTeam.teamTricode, provenance: 'SYNTHETIC' })).sort((a, b) => a.time.localeCompare(b.time))
   assert.ok(published.length > 0)
   const first = published[0].date
@@ -51,7 +52,7 @@ export async function prepareNextFixtures() {
   const selected = published.filter(game => game.date <= end)
   const store = await fixtureStore(directory)
   const original = JSON.parse(await readFile(path.join(directory, 'games.json'), 'utf8'))
-  const history = original.games.filter(game => game.id.startsWith('00225'))
+  const history = original.games.filter(game => game.id.startsWith(season.prefix))
   const mapping = []
   for (const target of selected) {
     const template = history.find(game => game.home === target.home && game.away === target.away)
@@ -70,35 +71,35 @@ export async function prepareNextFixtures() {
 }
 
 async function historyDigest(c, oldSeason) {
-  return sql(`SELECT json_build_object('stats',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.season_year=2026),'matchups',(SELECT md5(string_agg(row_to_json(m)::text,'' ORDER BY m.id)) FROM matchups m WHERE league_season_id='${oldSeason}'),'standings',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM standings s WHERE league_season_id='${oldSeason}'),'usedPicks',(SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM draft_picks p WHERE league_id='${c.leagueId}' AND is_used))`)
+  return sql(`SELECT json_build_object('stats',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.season_year=${season.year}),'matchups',(SELECT md5(string_agg(row_to_json(m)::text,'' ORDER BY m.id)) FROM matchups m WHERE league_season_id='${oldSeason}'),'standings',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM standings s WHERE league_season_id='${oldSeason}'),'usedPicks',(SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM draft_picks p WHERE league_id='${c.leagueId}' AND is_used))`)
 }
 
 export async function runNextSeason(c, oldSeason, move, report, snapshot, checkpoint = async (..._args) => {}, liveCoverage) {
   const began = Date.now()
-  const mapping = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/next-season-mapping.json'), 'utf8'))
+  const mapping = JSON.parse(await readFile(path.join(fixtureDirectory, 'next-season-mapping.json'), 'utf8'))
   const history = await historyDigest(c, oldSeason)
-  c.seasonYear = 2027
+  const playoffStart = await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`)
+  c.seasonYear = season.year + 1
   const existing = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${c.leagueSeasonId}`)
   assert.ok(existing.every(row => row.wins === 0 && row.losses === 0 && row.ties === 0 && Number(row.points_for) === 0), 'Next-season standings start fresh')
   if (!c.skippedWeeks?.includes(1)) {
-    await move('2026-07-01T10:06:00Z')
-    assert.equal(await sql("SELECT count(*) FROM season_weeks WHERE season_year=2027 AND week_number=1"), '1', 'Published next-season calendar is available before commissioner changes')
+    await move(`${season.year}-07-01T10:06:00Z`)
+    assert.equal(await sql(`SELECT count(*) FROM season_weeks WHERE season_year=${c.seasonYear} AND week_number=1`), '1', 'Published next-season calendar is available before commissioner changes')
     await c.rpc(c.users[0], 'update_league_configuration_atomic', { p_league_id: c.leagueId, p_settings: { skipped_weeks: [1] } })
     c.skippedWeeks = [1]
-    report.skippedWeekSettings = { route: '/rest/v1/rpc/update_league_configuration_atomic', at: '2026-07-01T10:06:00Z', weeks: [1] }
+    report.skippedWeekSettings = { route: '/rest/v1/rpc/update_league_configuration_atomic', at: `${season.year}-07-01T10:06:00Z`, weeks: [1] }
   }
   c.firstDate = mapping.first
-  const playoffStart = await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`)
-  assert.equal(playoffStart, '23', 'Skipping week one does not change the configured calendar playoff week')
+  assert.equal(await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`),playoffStart,'Skipping week one does not change the configured calendar playoff week')
   await nextSeasonMorning(mapping.first, move)
   await snapshot('next-season-start', mapping.first, 21)
-  const rows = await sqlJson(`SELECT coalesce(json_agg(w ORDER BY week_number),'[]') FROM season_weeks w WHERE season_year=2027 AND week_number IN (1,2,3)`, 'Next-season calendar')
+  const rows = await sqlJson(`SELECT coalesce(json_agg(w ORDER BY week_number),'[]') FROM season_weeks w WHERE season_year=${c.seasonYear} AND week_number IN (1,2,3)`, 'Next-season calendar')
   assert.equal(rows.length, 3, 'Production schedule ingestion creates three calendar weeks')
   const matchups = await c.rest(c.users[0], `matchups?select=*&league_season_id=eq.${c.leagueSeasonId}`)
   report.nextSeasonSchedule = checkNextSchedule(matchups, c.users.map(user => user.memberId), Number(playoffStart), [1])
   await assertSkippedWeek(c, 1)
-  const checked = [], store = await fixtureStore(path.join(miniRoot, 'fixtures'))
-  const { games } = JSON.parse(await readFile(path.join(miniRoot, 'fixtures/games.json'), 'utf8'))
+  const checked = [], store = await fixtureStore(fixtureDirectory)
+  const { games } = JSON.parse(await readFile(path.join(fixtureDirectory, 'games.json'), 'utf8'))
   let previous = {}
   const days = []
   report.nextSeasonProgress = { beganAt: new Date(began).toISOString(), days }
@@ -147,7 +148,7 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot, checkp
   }
   assert.deepEqual(checked, [2, 3], 'Both eligible next-season weeks close and pass')
   assert.equal(await sql(`SELECT playoff_start_week FROM leagues WHERE id='${c.leagueId}'`), playoffStart, 'Skipped weeks preserve the calendar playoff boundary')
-  report.nextSeason = { passed: true, days, checked, skippedWeeks: [1], playoffRule: 'Configured calendar week 23 remains week 23; skipped regular weeks are omitted, never renumbered.', historyPreserved: true, provenance: 'Published REAL-RAW schedule; SYNTHETIC game data' }
+  report.nextSeason = { passed: true, days, checked, skippedWeeks: [1], playoffRule: `Configured calendar playoff week ${playoffStart} stays unchanged; skipped regular weeks are omitted, never renumbered.`, historyPreserved: true, provenance: 'Published REAL-RAW schedule; SYNTHETIC game data' }
   report.phaseTimings ??= []
   report.phaseTimings.push({ phase: 'next-season', seconds: (Date.now() - began) / 1000, businessAt: new Date(Number(await sql('SELECT extract(epoch FROM now())*1000'))).toISOString() })
   return report.nextSeason

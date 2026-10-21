@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
 import { readFile, mkdir, realpath, rename, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { config, miniRoot, sha256, writeJson } from './common.mjs'
+import { config, fixtureDirectory, miniRoot, season, sha256, writeJson } from './common.mjs'
 import { sourceEvidence } from './source-manifest.mjs'
 import { clearOwnBackup, localKeys, setupStack, sql } from './local-stack.mjs'
 import { replay } from './replay.mjs'
@@ -12,6 +12,8 @@ import { launcherCheck } from './launcher-check.mjs'
 
 const { values } = parseArgs({ options: { 'source-sha': { type: 'string' }, 'check-first-date': { type: 'boolean' }, 'check-through': { type: 'string' } } })
 const check = launcherCheck(values)
+const real = process.env.SEASON_SIM_MODE === 'two-season'
+if (real) { assert.equal(season.year,2025); assert.ok(!path.resolve(fixtureDirectory).startsWith(path.resolve(miniRoot,'../../shared/sim') + '/'),'The new leg cannot read or write the running replay input folder') }
 assert.match(values['source-sha'] ?? '', /^[a-f0-9]{40}$/, 'A committed integration SHA is required')
 assert.equal(await realpath(process.cwd()), path.join(miniRoot, 'repo'))
 const source = await sourceEvidence()
@@ -22,10 +24,11 @@ const runId = new Date().toISOString().replaceAll(':', '-')
 const evidence = path.join(miniRoot, 'evidence')
 try { await rename(evidence, path.join(miniRoot, `evidence-before-${runId}`)) } catch (error) { if (error.code !== 'ENOENT') throw error }
 await mkdir(evidence)
-process.env.SEASON_SIM_SNAPSHOT_ROOT = path.resolve(miniRoot, '../../shared/sim', `snapshots-${runId}`)
-await writeJson(path.join(evidence, 'launch.json'), { source, runId, pid: process.pid, command: process.argv, startedAt: new Date().toISOString(), snapshots: process.env.SEASON_SIM_SNAPSHOT_ROOT, mode: check?.scope ?? 'Fresh full replay', check })
+process.env.SEASON_SIM_SNAPSHOT_ROOT = path.resolve(miniRoot, real ? '../../shared/sim2' : '../../shared/sim', `snapshots-${runId}`)
+await writeJson(path.join(evidence, 'launch.json'), { source, runId, pid: process.pid, command: process.argv, startedAt: new Date().toISOString(), snapshots: process.env.SEASON_SIM_SNAPSHOT_ROOT, mode: check?.scope ?? (real ? 'Fresh real two-season replay' : 'Fresh full replay'), inputDirectory: fixtureDirectory, check })
 let exit = 1, ready = false
 try {
+  if (real) execFileSync(process.execPath, ['scripts/season-sim/plan-audit.mjs'], { env: process.env, stdio: 'inherit' })
   execFileSync(config.cli, ['stop', '--project-id', config.project, '--no-backup'], { stdio: ['ignore', 'ignore', 'inherit'] })
   const backupRemoved = await clearOwnBackup()
   await writeJson(path.join(evidence, 'fresh-reset.json'), { project: config.project, backupRemoved })

@@ -4,12 +4,19 @@ import { chmod, cp, mkdir, readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import { setClock } from './clock.mjs'
 import { functionFingerprint } from './overlay.mjs'
-import { config, delay, miniRoot, originUrl, sha256, writeJson } from './common.mjs'
+import { config, delay, fixtureDirectory, miniRoot, originUrl, sha256, writeJson } from './common.mjs'
 import { databaseEnvironment, localKeys, sql, sqlJson } from './local-stack.mjs'
 
 export const segmentNames = ['automatic-champion', 'live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start', 'waiver-week']
 export function snapshotRoot() {
-  return process.env.SEASON_SIM_SNAPSHOT_ROOT ?? path.resolve(miniRoot, '../../shared/sim/snapshots')
+  const root=process.env.SEASON_SIM_SNAPSHOT_ROOT ?? path.resolve(miniRoot, '../../shared',process.env.SEASON_SIM_MODE==='two-season'?'sim2':'sim','snapshots')
+  const protectedRoot=path.resolve(miniRoot,'../../shared/sim')
+  if(process.env.SEASON_SIM_MODE==='two-season')assert.ok(path.resolve(root)!==protectedRoot&&!path.resolve(root).startsWith(protectedRoot+'/'),'The two-season leg cannot write the running replay snapshot folder')
+  return root
+}
+
+export function validSnapshotName(name){
+  return segmentNames.includes(name)||/^season-\d{4}-automatic-champion$/.test(name)
 }
 
 async function snapshotActivity() {
@@ -51,7 +58,7 @@ export async function waitForSnapshotWorkers({ read = snapshotActivity, wait = d
 }
 
 async function snapshotDirectory(name) {
-  assert.ok(segmentNames.includes(name), 'Unknown snapshot segment')
+  assert.ok(validSnapshotName(name), 'Unknown snapshot segment')
   const root = snapshotRoot()
   assert.ok(path.isAbsolute(root) && !root.startsWith(`${process.cwd()}/`), 'Snapshots must stay outside the repository')
   await mkdir(root, { recursive: true, mode: 0o700 })
@@ -72,7 +79,7 @@ export async function saveSnapshot(name, cursor) {
   await cp(path.join(miniRoot, 'evidence/upstream-summary.json'), path.join(directory, 'upstream-summary.json'))
   await cp(path.join(miniRoot, 'state'), path.join(directory, 'state'), { recursive: true })
   const tables = await sqlJson("SELECT coalesce(json_agg(format('%I.%I',schemaname,tablename)),'[]') FROM pg_tables WHERE schemaname IN ('public','private','auth','season_sim')", 'Snapshot tables')
-  const metadata = { name, createdAt: new Date().toISOString(), project: config.project, clock, cursor, tables, quiescence, dumpSha256: sha256(await readFile(file)), fixtures: { directory: path.join(miniRoot, 'fixtures'), manifestSha256: sha256(await readFile(path.join(miniRoot, 'fixtures/manifest.jsonl'))) }, measuredSeconds: null }
+  const metadata = { name, createdAt: new Date().toISOString(), project: config.project, clock, cursor, tables, quiescence, dumpSha256: sha256(await readFile(file)), fixtures: { directory: fixtureDirectory, manifestSha256: sha256(await readFile(path.join(fixtureDirectory, 'manifest.jsonl'))),planSha256:process.env.SEASON_SIM_MODE==='two-season'?sha256(await readFile(path.join(fixtureDirectory,'two-season-plan.json'))):null }, measuredSeconds: null }
   await writeJson(path.join(directory, 'snapshot.json'), metadata)
   await chmod(path.join(directory, 'snapshot.json'), 0o600)
   return { name, createdAt: metadata.createdAt, dumpSha256: metadata.dumpSha256, quiescence }
@@ -83,7 +90,8 @@ export async function restoreSnapshot(name) {
   const metadata = JSON.parse(await readFile(path.join(directory, 'snapshot.json'), 'utf8'))
   assert.equal(metadata.name, name)
   assert.equal(sha256(await readFile(path.join(directory, 'database.dump'))), metadata.dumpSha256, 'Snapshot dump checksum')
-  assert.equal(sha256(await readFile(path.join(miniRoot, 'fixtures/manifest.jsonl'))), metadata.fixtures.manifestSha256, 'Segment must use the pinned fixture manifest')
+  assert.equal(sha256(await readFile(path.join(fixtureDirectory, 'manifest.jsonl'))), metadata.fixtures.manifestSha256, 'Segment must use the pinned fixture manifest')
+  if(metadata.fixtures.planSha256)assert.equal(sha256(await readFile(path.join(fixtureDirectory,'two-season-plan.json'))),metadata.fixtures.planSha256,'Segment must use the pinned calendar and publication policies')
   const keys = localKeys()
   process.env.SUPABASE_DB_URL = keys.DB_URL
   process.env.SUPABASE_URL = keys.API_URL

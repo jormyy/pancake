@@ -5,6 +5,23 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import * as checkpoints from './checkpoints.mjs'
+import {miniRoot} from './common.mjs'
+
+test('two-season snapshots cannot use the running replay folder',()=>{
+  const saved={mode:process.env.SEASON_SIM_MODE,root:process.env.SEASON_SIM_SNAPSHOT_ROOT}
+  try{
+    process.env.SEASON_SIM_MODE='two-season'
+    delete process.env.SEASON_SIM_SNAPSHOT_ROOT
+    assert.equal(checkpoints.snapshotRoot(),path.resolve(miniRoot,'../../shared/sim2/snapshots'))
+    process.env.SEASON_SIM_SNAPSHOT_ROOT=path.resolve(miniRoot,'../../shared/sim/snapshots')
+    assert.throws(()=>checkpoints.snapshotRoot(),/running replay/)
+    assert.ok(checkpoints.validSnapshotName('season-2026-automatic-champion'))
+    assert.equal(checkpoints.validSnapshotName('../automatic-champion'),false)
+  }finally{
+    if(saved.mode==null)delete process.env.SEASON_SIM_MODE;else process.env.SEASON_SIM_MODE=saved.mode
+    if(saved.root==null)delete process.env.SEASON_SIM_SNAPSHOT_ROOT;else process.env.SEASON_SIM_SNAPSHOT_ROOT=saved.root
+  }
+})
 
 test('snapshots wait for API-created dispatch and the worker response to finish', async () => {
   const states = [
