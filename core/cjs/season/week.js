@@ -1,7 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.calculateWeekNumberFromDate = calculateWeekNumberFromDate;
-function calculateWeekNumberFromDate(dateStr, week1StartStr, week1EndStr) {
+function calculateWeekNumberFromDate(dateStr, week1StartStr, week1EndStr, weeks) {
+    if (weeks) {
+        const week = weeks.find((row) => row.week_start <= dateStr && row.week_end >= dateStr);
+        if (!week)
+            throw new Error(`No published fantasy week contains ${dateStr}`);
+        return week.week_number;
+    }
     const date = dateOrdinal(dateStr);
     const week1Start = dateOrdinal(week1StartStr);
     const week1End = dateOrdinal(week1EndStr);

@@ -6,6 +6,8 @@ exports.etDateKey = etDateKey;
 exports.seasonEndYearFromScheduleLabel = seasonEndYearFromScheduleLabel;
 exports.assertScheduleFresh = assertScheduleFresh;
 exports.buildSeasonWeekRows = buildSeasonWeekRows;
+exports.fantasyCalendar = fantasyCalendar;
+exports.completeSeasonSchedule = completeSeasonSchedule;
 exports.buildScheduleSyncPlan = buildScheduleSyncPlan;
 const gameId_1 = require("./gameId");
 function seasonYearForGameDate(gameDate) {
@@ -89,17 +91,35 @@ function buildSeasonWeekRows(games, seasonYear) {
         week_end: range.end,
     }));
 }
-function buildScheduleSyncPlan(raw, now = new Date()) {
-    const regularSeason = raw.filter((game) => (0, gameId_1.isRegularSeasonGameId)(game.gameId));
-    const dateCounts = new Map();
-    for (const game of regularSeason) {
-        dateCounts.set(game.gameDate, (dateCounts.get(game.gameDate) ?? 0) + 1);
+function fantasyCalendar(dates) {
+    const ordered = [...new Set(dates)].sort();
+    if (ordered.length === 0)
+        return [];
+    const ordinal = (date) => Date.parse(`${date}T00:00:00Z`) / 86_400_000;
+    const opening = ordinal(ordered[0]);
+    const monday = opening - (new Date(`${ordered[0]}T00:00:00Z`).getUTCDay() + 6) % 7;
+    const nbaWeek = (date) => Math.floor((ordinal(date) - monday) / 7) + 1;
+    const breaks = ordered.slice(1).filter((date, index) => ordinal(date) - ordinal(ordered[index]) >= 5
+        && nbaWeek(date) === nbaWeek(ordered[index]) + 1);
+    if (breaks.length > 1)
+        throw new Error('The complete schedule has multiple long breaks; verify the calendar before publication');
+    const postBreakWeek = breaks[0] ? nbaWeek(breaks[0]) : Infinity;
+    const rows = ordered.map((game_date) => ({ game_date, week_number: nbaWeek(game_date) - (nbaWeek(game_date) >= postBreakWeek ? 1 : 0) }));
+    return buildSeasonWeekRows(rows, 0).map(({ week_number, week_start, week_end }) => ({ week_number, week_start, week_end }));
+}
+function completeSeasonSchedule(games) {
+    const appearances = new Map();
+    for (const game of games) {
+        for (const team of [game.homeTeam, game.awayTeam])
+            appearances.set(team, (appearances.get(team) ?? 0) + 1);
     }
-    const bulkStartDates = [...dateCounts.entries()]
-        .filter(([, count]) => count >= 5)
-        .map(([date]) => date)
-        .sort();
-    const seasonStart = bulkStartDates[0] ?? regularSeason.map((game) => game.gameDate).sort()[0] ?? null;
+    const dates = games.map((game) => game.gameDate).sort();
+    return games.length >= 1200 && appearances.size === 30 && [...appearances.values()].every((count) => count >= 80)
+        && dates[0]?.slice(5, 7) === '10' && dates.at(-1)?.slice(5, 7) === '04';
+}
+function buildScheduleSyncPlan(raw, now = new Date(), completeSnapshot = false) {
+    const regularSeason = raw.filter((game) => (0, gameId_1.isRegularSeasonGameId)(game.gameId));
+    const seasonStart = regularSeason.map((game) => game.gameDate).sort()[0] ?? null;
     if (!seasonStart) {
         return { regularSeason, seasonStart: null, seasonYear: null, rows: [], weeks: [] };
     }
@@ -107,6 +127,8 @@ function buildScheduleSyncPlan(raw, now = new Date()) {
     if (assertScheduleFresh(regularSeason, seasonYear, now) === 'offseason-stale') {
         return { regularSeason, seasonStart, seasonYear, rows: [], weeks: [], offseasonStale: true };
     }
+    const complete = completeSeasonSchedule(regularSeason);
+    const calendar = complete ? fantasyCalendar(regularSeason.map((game) => game.gameDate)) : [];
     const updatedAt = now.toISOString();
     const rows = regularSeason
         .filter((game) => game.homeTeam && game.awayTeam)
@@ -121,7 +143,8 @@ function buildScheduleSyncPlan(raw, now = new Date()) {
         started_at: normalizedScheduleTimestamp(game.startedAt),
         game_time: normalizedScheduleTimestamp(game.startedAt),
         ended_at: null,
-        week_number: game.weekNumber ?? 0,
+        week_number: calendar.find((week) => week.week_start <= game.gameDate && week.week_end >= game.gameDate)?.week_number ?? game.weekNumber ?? 1,
+        schedule_complete: complete && completeSnapshot,
         updated_at: updatedAt,
     }));
     return {
