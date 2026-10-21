@@ -62,11 +62,46 @@ UPDATE public.nba_games SET status='Final' WHERE id='00000000-0000-4000-8000-000
 SELECT public.refresh_player_search_caches();
 SELECT pg_temp.assert_players(ARRAY['A Missing Season','B Negative Season','R Rookie Season','T Tie Season','Y Zero Season','Z High Season'],NULL,'fpts','desc',2091);
 SELECT pg_temp.assert_players(ARRAY['T Tie Season','Z High Season','Y Zero Season','B Negative Season','A Missing Season','R Rookie Season'],2090);
+INSERT INTO public.player_game_stats (player_id,game_id,season_year,week_number,points,turnovers,minutes_played,did_not_play)
+VALUES ('00000000-0000-4000-8000-000000230106','00000000-0000-4000-8000-000000230202',2091,1,90,0,30,false);
+DO $$
+DECLARE found record;
+BEGIN
+  SELECT * INTO STRICT found FROM public.search_players(p_league_id=>'00000000-0000-4000-8000-000000230002',p_include_player_ids=>ARRAY['00000000-0000-4000-8000-000000230106']::uuid[]);
+  IF found.stats_season_year IS DISTINCT FROM 2091 OR found.avg_fantasy_points IS DISTINCT FROM 90::numeric
+    OR found.avg_points IS DISTINCT FROM 90::numeric OR found.games_played IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'Final-game cache lag: season %, FP %, points %, games %, expected 2091 / 90 / 90 / 1',found.stats_season_year,found.avg_fantasy_points,found.avg_points,found.games_played;
+  END IF;
+END $$;
+SELECT pg_temp.assert_players(ARRAY['R Rookie Season','A Missing Season','B Negative Season','T Tie Season','Y Zero Season','Z High Season'],NULL,'fpts','desc',2091);
+SELECT public.refresh_player_search_caches();
+DELETE FROM public.player_game_stats WHERE player_id='00000000-0000-4000-8000-000000230106';
 INSERT INTO public.nba_games (id,nba_game_id,season_year,game_date,week_number,home_team,away_team,status)
 VALUES ('00000000-0000-4000-8000-000000230203','002players-midseason',2091,'2091-01-02',12,'BOS','NYK','Final');
 INSERT INTO public.player_game_stats (player_id,game_id,season_year,week_number,points,turnovers,minutes_played,did_not_play)
 VALUES ('00000000-0000-4000-8000-000000230103','00000000-0000-4000-8000-000000230203',2091,12,3,1,30,false);
+INSERT INTO public.player_game_stats (player_id,game_id,season_year,week_number,points,minutes_played,did_not_play)
+VALUES ('00000000-0000-4000-8000-000000230103','00000000-0000-4000-8000-000000230202',2091,1,7000,0,true),
+       ('00000000-0000-4000-8000-000000230103','00000000-0000-4000-8000-000000230215',2091,1,8000,30,false);
+DO $$
+DECLARE found record;
+BEGIN
+  SELECT * INTO STRICT found FROM public.search_players(p_league_id=>'00000000-0000-4000-8000-000000230002',p_include_player_ids=>ARRAY['00000000-0000-4000-8000-000000230103']::uuid[]);
+  IF found.avg_fantasy_points IS DISTINCT FROM -2::numeric OR found.avg_points IS DISTINCT FROM 3::numeric OR found.games_played IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'Partial cache or ineligible stats: FP %, points %, games %, expected -2 / 3 / 1',found.avg_fantasy_points,found.avg_points,found.games_played;
+  END IF;
+END $$;
+SELECT pg_temp.assert_players(ARRAY['B Negative Season','A Missing Season','R Rookie Season','T Tie Season','Y Zero Season','Z High Season'],NULL,'fpts','desc',2091);
 SELECT public.refresh_player_search_caches();
+UPDATE public.player_game_stats SET points=13 WHERE player_id='00000000-0000-4000-8000-000000230103' AND game_id='00000000-0000-4000-8000-000000230203';
+DO $$
+DECLARE found record;
+BEGIN
+  SELECT * INTO STRICT found FROM public.search_players(p_league_id=>'00000000-0000-4000-8000-000000230002',p_include_player_ids=>ARRAY['00000000-0000-4000-8000-000000230103']::uuid[]);
+  IF found.avg_fantasy_points IS DISTINCT FROM 8::numeric OR found.avg_points IS DISTINCT FROM 13::numeric OR found.games_played IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'Warm-cache correction lag: FP %, points %, games %, expected 8 / 13 / 1',found.avg_fantasy_points,found.avg_points,found.games_played;
+  END IF;
+END $$;
 SELECT pg_temp.assert_players(ARRAY['B Negative Season','A Missing Season','R Rookie Season','T Tie Season','Y Zero Season','Z High Season'],NULL,'fpts','desc',2091);
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000230001","role":"authenticated"}',true);

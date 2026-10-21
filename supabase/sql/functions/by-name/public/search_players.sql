@@ -110,18 +110,78 @@ WITH args AS (
     LEAST(GREATEST(COALESCE(p_limit, 20), 1), 100) AS page_limit,
     GREATEST(COALESCE(p_offset, 0), 0) AS page_offset
 ),
+current_averages AS MATERIALIZED (
+  SELECT
+    s.player_id,
+    v_stats_season AS season_year,
+    ROUND(AVG(fp.fantasy_points)::numeric, 2) AS avg_fantasy_points,
+    ROUND(AVG(s.points)::numeric, 1) AS avg_points,
+    ROUND(AVG(s.rebounds)::numeric, 1) AS avg_rebounds,
+    ROUND(AVG(s.assists)::numeric, 1) AS avg_assists,
+    ROUND(AVG(s.steals)::numeric, 2) AS avg_steals,
+    ROUND(AVG(s.blocks)::numeric, 2) AS avg_blocks,
+    ROUND(AVG(s.turnovers)::numeric, 2) AS avg_turnovers,
+    ROUND(AVG(s.three_pointers_made)::numeric, 2) AS avg_three_pointers_made,
+    ROUND(AVG(s.minutes_played)::numeric, 1) AS avg_minutes_played,
+    count(*)::int AS games_played
+  FROM public.player_game_stats s
+  JOIN public.nba_games g ON g.id = s.game_id
+    AND public.is_regular_season_game_id(g.nba_game_id)
+  LEFT JOIN public.v_fantasy_points fp ON fp.stat_id = s.id
+    AND fp.league_id = p_league_id
+    AND fp.season_year = v_stats_season
+  WHERE v_stats_season = v_current_season
+    AND s.season_year = v_stats_season
+    AND NOT s.did_not_play
+    AND (p_include_player_ids IS NULL OR s.player_id = ANY(p_include_player_ids))
+  GROUP BY s.player_id
+),
+season_averages AS (
+  SELECT
+    player_id,
+    season_year,
+    avg_points,
+    avg_rebounds,
+    avg_assists,
+    avg_steals,
+    avg_blocks,
+    avg_turnovers,
+    avg_three_pointers_made,
+    avg_minutes_played,
+    games_played
+  FROM current_averages
+  UNION ALL
+  SELECT
+    player_id,
+    season_year,
+    avg_points,
+    avg_rebounds,
+    avg_assists,
+    avg_steals,
+    avg_blocks,
+    avg_turnovers,
+    avg_three_pointers_made,
+    avg_minutes_played,
+    games_played
+  FROM public.mv_player_season_averages
+  WHERE season_year = v_stats_season AND v_stats_season <> v_current_season
+),
 league_scores AS MATERIALIZED (
   SELECT fp.player_id, fp.avg_fantasy_points
   FROM public.v_player_avg_fantasy_points AS fp
   WHERE fp.league_id = p_league_id
     AND fp.season_year = v_stats_season
+    AND v_stats_season <> v_current_season
     AND (p_include_player_ids IS NULL OR fp.player_id = ANY(p_include_player_ids))
 ),
 score_source AS (
+  SELECT player_id, avg_fantasy_points FROM current_averages
+  UNION ALL
   SELECT fp.player_id, fp.avg_fantasy_points
   FROM public.v_player_avg_fantasy_points AS fp
   WHERE fp.league_id = p_league_id
     AND fp.season_year = v_stats_season
+    AND v_stats_season <> v_current_season
     AND NOT COALESCE(p_health IN ('healthy', 'gtd', 'out', 'ir'), false)
   UNION ALL
   SELECT fp.player_id, fp.avg_fantasy_points
@@ -152,7 +212,7 @@ filtered_base AS (
     avg.games_played::int AS games_played
   FROM args
   JOIN public.players AS p ON true
-  LEFT JOIN public.mv_player_season_averages AS avg
+  LEFT JOIN season_averages AS avg
     ON avg.player_id = p.id
    AND avg.season_year = v_stats_season
   LEFT JOIN score_source AS fp
