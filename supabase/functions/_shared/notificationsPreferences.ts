@@ -332,6 +332,34 @@ export type NotificationPreferenceRow = {
   event_settings?: Partial<Record<NotificationEvent, boolean>>
 }
 
+type StoredNotificationPreferenceRow = Omit<NotificationPreferenceRow, 'category_settings' | 'event_settings'> & {
+  category_settings?: unknown
+  event_settings?: unknown
+}
+
+function booleanSettings<Key extends string>(value: unknown, keys: readonly Key[]): Partial<Record<Key, boolean>> {
+  const settings: Partial<Record<Key, boolean>> = {}
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return settings
+  for (const key of keys) {
+    if (!Object.hasOwn(value, key)) continue
+    const enabled: unknown = Reflect.get(value, key)
+    if (typeof enabled === 'boolean') settings[key] = enabled
+  }
+  return settings
+}
+
+export function normalizeNotificationPreferences(row: StoredNotificationPreferenceRow): NotificationPreferenceRow {
+  return {
+    trade_enabled: row.trade_enabled,
+    waiver_enabled: row.waiver_enabled,
+    draft_enabled: row.draft_enabled,
+    activity_enabled: row.activity_enabled,
+    master_enabled: row.master_enabled,
+    category_settings: booleanSettings(row.category_settings, notificationEvents.map(event => event.category)),
+    event_settings: booleanSettings(row.event_settings, notificationEvents.map(event => event.key)),
+  }
+}
+
 export function notificationEnabled(
   preferences: NotificationPreferenceRow | null | undefined,
   category: NotificationCategory | 'activity',

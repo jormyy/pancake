@@ -1,4 +1,4 @@
-import { notificationEvents, notificationCategories, notificationEnabled, type NotificationCategory, type NotificationEvent } from '@/supabase/functions/_shared/notificationsPreferences'
+import { notificationEvents, notificationCategories, notificationEnabled, normalizeNotificationPreferences, type NotificationCategory, type NotificationEvent } from '@/supabase/functions/_shared/notificationsPreferences'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 
@@ -36,16 +36,6 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     events: {},
 }
 
-type PreferenceRow = {
-    trade_enabled: boolean
-    waiver_enabled: boolean
-    draft_enabled: boolean
-    activity_enabled: boolean
-    master_enabled?: boolean
-    category_settings?: NotificationPreferences['categories']
-    event_settings?: NotificationPreferences['events']
-}
-
 export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
     const { data, error } = await supabase
         .from('notification_preferences')
@@ -54,7 +44,7 @@ export async function getNotificationPreferences(userId: string): Promise<Notifi
         .maybeSingle()
     if (error) throw error
     if (!data) return DEFAULT_NOTIFICATION_PREFERENCES
-    const row = data as PreferenceRow
+    const row = normalizeNotificationPreferences(data)
     return {
         tradeEnabled: row.trade_enabled,
         waiverEnabled: row.waiver_enabled,

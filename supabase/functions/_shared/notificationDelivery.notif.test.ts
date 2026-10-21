@@ -1,5 +1,5 @@
 import { createNotifyMembers } from './notificationDelivery.ts'
-import { notificationEvents } from './notificationsPreferences.ts'
+import { notificationEvents, normalizeNotificationPreferences } from './notificationsPreferences.ts'
 import { strict as assert } from 'node:assert'
 import { deliverTradeNotificationOutbox } from '../process-trades/outbox.ts'
 
@@ -128,4 +128,34 @@ Deno.test('send admission rechecks draft state after profile lookup and blocks b
     data: { notificationEvent: 'draft_on_clock' }, delivery: { id: 'outbox', claimToken: 'lease' } }]),
   [{ memberId: 'member', status: 'skipped', reason: 'durably_suppressed' }])
   assert.equal(sends, 0)
+})
+
+
+Deno.test('stored JSON validation keeps malformed settings from enabling default-off push events', async () => {
+  const malformed: unknown[] = [null, [true], 'true', 1, true,
+    { draft: 1, trade: 'false', draft_timer_expiring: 'true', owned_player_ruled_out: 1 },
+    { unknown: true, constructor: true, toString: true }]
+  for (const value of malformed) {
+    const settings = normalizeNotificationPreferences({
+      trade_enabled: true, waiver_enabled: true, draft_enabled: true, activity_enabled: true,
+      category_settings: value, event_settings: value,
+    })
+    assert.deepEqual(settings.category_settings, {})
+    assert.deepEqual(settings.event_settings, {})
+    const sent: string[] = []
+    const notify = createNotifyMembers({
+      members: async ids => ({ data: ids.map(id => ({ id, user_id: 'user' })), error: null }),
+      preferences: async () => ({ data: [{ user_id: 'user', ...settings }], error: null }),
+      profiles: async () => ({ data: [{ id: 'user', push_token: 'fake-token' }], error: null }),
+      pushUrl: 'http://127.0.0.1:57880/send',
+      send: async (_, init) => {
+        const messages = JSON.parse(String(init.body))
+        sent.push(...messages.map((message: { data: { notificationEvent: string } }) => message.data.notificationEvent))
+        return Response.json({ data: messages.map(() => ({ status: 'ok', id: crypto.randomUUID() })) })
+      },
+    })
+    await notify(notificationEvents.map(event => ({ memberId: event.key, category: event.category,
+      title: event.label, body: 'Synthetic JSON oracle', data: { notificationEvent: event.key } })))
+    assert.deepEqual(sent, notificationEvents.filter(event => event.defaultEnabled).map(event => event.key))
+  }
 })
