@@ -106,4 +106,50 @@ SELECT pg_temp.assert_players(ARRAY['B Negative Season','A Missing Season','R Ro
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000230001","role":"authenticated"}',true);
 SELECT pg_temp.assert_players(ARRAY['B Negative Season','A Missing Season','R Rookie Season','T Tie Season','Y Zero Season','Z High Season'],NULL,'fpts','desc',2091);
+RESET ROLE;
+DELETE FROM public.player_game_stats s USING public.nba_games g
+WHERE s.game_id=g.id AND s.season_year=2091 AND NOT s.did_not_play
+  AND public.is_regular_season_game_id(g.nba_game_id)
+  AND s.player_id::text LIKE '00000000-0000-4000-8000-00000023010%';
+INSERT INTO public.nba_games (id,nba_game_id,season_year,game_date,week_number,home_team,away_team,status)
+SELECT ('00000000-0000-4000-8000-'||lpad((230300+n)::text,12,'0'))::uuid,
+  '002910010'||n,2091,('2090-12-01'::date+n),7,'BOS','NYK',status
+FROM (VALUES (1,'Final'),(2,'Final'),(3,'InProgress'),(4,'Scheduled'),(5,'Final')) f(n,status);
+INSERT INTO public.player_game_stats (player_id,game_id,season_year,week_number,points,turnovers,minutes_played,did_not_play)
+SELECT ('00000000-0000-4000-8000-'||lpad((230100+player)::text,12,'0'))::uuid,
+  ('00000000-0000-4000-8000-'||lpad((230300+game)::text,12,'0'))::uuid,2091,7,pts,tov,30,false
+FROM (VALUES
+  (2,1,12,0),(2,2,14,0),(2,3,17,1),(2,4,19,1),(2,5,21,1),
+  (6,1,23,0),(6,3,24,1),(6,4,25,0),
+  (5,1,18,1),(5,2,13,0),(5,3,16,1),(5,4,17,0),
+  (4,1,2,1),(4,3,3,1)
+) f(player,game,pts,tov);
+INSERT INTO public.player_game_stats (player_id,game_id,season_year,week_number,points,minutes_played,did_not_play)
+VALUES ('00000000-0000-4000-8000-000000230106','00000000-0000-4000-8000-000000230211',2091,7,9000,30,false),
+       ('00000000-0000-4000-8000-000000230106','00000000-0000-4000-8000-000000230215',2091,7,10000,30,false),
+       ('00000000-0000-4000-8000-000000230104','00000000-0000-4000-8000-000000230305',2091,7,12000,0,true);
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.assert_players(ARRAY['R Rookie Season','Z High Season','T Tie Season','Y Zero Season','A Missing Season','B Negative Season'],NULL,'fpts','desc',2091);
+DO $$
+DECLARE actual jsonb;
+BEGIN
+  SELECT jsonb_agg(jsonb_build_array(r.display_name,r.avg_fantasy_points,round(r.avg_fantasy_points,1),r.games_played,r.stats_season_year))
+    INTO actual
+    FROM public.search_players(
+      p_league_id=>'00000000-0000-4000-8000-000000230002',
+      p_include_player_ids=>ARRAY(SELECT id FROM public.players WHERE id::text LIKE '00000000-0000-4000-8000-00000023010%'),
+      p_sort_by=>'fpts',p_sort_dir=>'desc',p_season_year=>NULL
+    ) r;
+  IF actual IS DISTINCT FROM '[
+    ["R Rookie Season",22.33,22.3,3,2091],
+    ["Z High Season",13.60,13.6,5,2091],
+    ["T Tie Season",13.50,13.5,4,2091],
+    ["Y Zero Season",-2.50,-2.5,2,2091],
+    ["A Missing Season",null,null,null,2091],
+    ["B Negative Season",null,null,null,2091]
+  ]'::jsonb THEN
+    RAISE EXCEPTION 'Multi-game current-season averages/order/season: %',actual;
+  END IF;
+  RAISE NOTICE 'Multi-game current-season averages/order/season: %',actual;
+END $$;
 ROLLBACK;
