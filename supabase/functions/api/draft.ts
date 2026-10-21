@@ -552,11 +552,11 @@ async function reseedRookieDraftPicks(draftId: string): Promise<{ reseeded: numb
 }
 
 async function rookieStartWarning(leagueId: string, options: RookieDraftStartOptions): Promise<Json | null> {
-  const { data, error } = await supabase.rpc('draft_timer_start_warning' as never, {
+  const { data, error } = await supabase.rpc('draft_timer_start_warning', {
     p_league_id: leagueId,
     p_rounds: options.rounds,
     p_pick_timer_seconds: options.timerSeconds,
-  } as never)
+  })
   if (error) throwDb(error)
   return data
 }

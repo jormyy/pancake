@@ -9,6 +9,7 @@ exports.buildSeasonWeekRows = buildSeasonWeekRows;
 exports.fantasyCalendar = fantasyCalendar;
 exports.completeSeasonSchedule = completeSeasonSchedule;
 exports.buildScheduleSyncPlan = buildScheduleSyncPlan;
+exports.playoffFit = playoffFit;
 const gameId_1 = require("./gameId");
 function seasonYearForGameDate(gameDate) {
     const [yearText, monthText] = gameDate.split('-');
@@ -154,4 +155,16 @@ function buildScheduleSyncPlan(raw, now = new Date(), completeSnapshot = false) 
         rows,
         weeks: buildSeasonWeekRows(rows, seasonYear),
     };
+}
+function playoffFit(weeks, start, rounds) {
+    const lastAvailableWeek = weeks.length ? Math.max(...weeks) : null;
+    const requiredWeeks = rounds.reduce((sum, length) => sum + length, 0);
+    const endWeek = start + requiredWeeks - 1;
+    if (lastAvailableWeek == null)
+        return { status: 'calendar-unpublished', lastAvailableWeek, requiredWeeks, endWeek };
+    if (!Number.isSafeInteger(start) || start < 1 || rounds.length === 0 || rounds.some(length => !Number.isSafeInteger(length) || length < 1)) {
+        return { status: 'invalid-settings', lastAvailableWeek, requiredWeeks, endWeek };
+    }
+    const complete = Array.from({ length: Math.min(endWeek, lastAvailableWeek) }, (_, index) => index + 1).every(week => weeks.includes(week));
+    return { status: endWeek <= lastAvailableWeek && complete ? 'fit' : 'does-not-fit', lastAvailableWeek, requiredWeeks, endWeek };
 }
