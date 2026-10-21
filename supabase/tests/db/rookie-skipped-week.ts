@@ -32,6 +32,7 @@ try {
     ON CONFLICT(season_year,week_number) DO UPDATE SET week_start=EXCLUDED.week_start,week_end=EXCLUDED.week_end`)
   for (const mode of ['paused', 'offseason', 'before', 'after'].filter(mode => !selected || (selected === 'timing') === ['paused', 'offseason'].includes(mode))) {
     const league = crypto.randomUUID(), season = crypto.randomUUID()
+    const openingGame = '002' + String(crypto.getRandomValues(new Uint32Array(1))[0] % 10_000_000).padStart(7,'0')
     const users = Array.from({ length: 4 }, () => crypto.randomUUID())
     const members = users.map(() => crypto.randomUUID())
     const players = Array.from({ length: 12 }, () => crypto.randomUUID())
@@ -93,17 +94,27 @@ try {
       if (['paused', 'offseason'].includes(mode)) {
         if (mode === 'paused') await sql(`SELECT start_rookie_draft_atomic(${quote(league)},3,false);
           SELECT pause_draft_atomic((SELECT id FROM drafts WHERE league_id=${quote(league)}),${quote(users[0])});`)
-        for (const at of ['2026-10-20T04:00:00Z', '2026-10-23T16:00:00Z', '2026-10-26T03:59:59Z']) {
+        await tick('2026-10-23T16:00:00Z')
+        await check(`NOT EXISTS(SELECT 1 FROM snake_draft_picks p JOIN drafts d ON d.id=p.draft_id WHERE d.league_id=${quote(league)} AND p.player_id IS NOT NULL)
+          AND (SELECT count(*)=${mode === 'paused'?1:0} FROM drafts WHERE league_id=${quote(league)})`, `${mode}: unpublished opening night retains the first-eligible-week fallback`)
+        await sql(`INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+          VALUES(${quote(openingGame)},2027,1,'2026-10-20','2026-10-20T23:30:00Z','SYN','SYN','Scheduled')`)
+        for (const at of ['2026-10-20T04:00:00Z', '2026-10-20T12:59:59Z']) {
           await tick(at)
           await check(`(SELECT status='${mode === 'paused'?'drafting':'offseason'}' FROM leagues WHERE id=${quote(league)})
             AND NOT EXISTS(SELECT 1 FROM snake_draft_picks p JOIN drafts d ON d.id=p.draft_id WHERE d.league_id=${quote(league)} AND p.player_id IS NOT NULL)
             AND (SELECT count(*)=${mode === 'paused'?1:0} FROM drafts WHERE league_id=${quote(league)})
             ${mode === 'paused'?`AND (SELECT bool_and(status='paused' AND pause_reason='manual') FROM drafts WHERE league_id=${quote(league)})`:''}`, `${mode}: skipped week does not force rookie completion at ${at}`)
         }
-        const actions = await tick('2026-10-26T04:00:00Z')
+        const actions = await tick('2026-10-20T13:00:00Z')
         assert.ok(actions.includes('rookie-draft-auto-completed'))
         await check(`(SELECT status='active' FROM leagues WHERE id=${quote(league)}) AND
-          (SELECT count(*)=12 FROM snake_draft_picks p JOIN drafts d ON d.id=p.draft_id WHERE d.league_id=${quote(league)} AND p.player_id IS NOT NULL)`, `${mode}: backstop completes at first eligible week two`)
+          (SELECT count(*)=12 FROM snake_draft_picks p JOIN drafts d ON d.id=p.draft_id WHERE d.league_id=${quote(league)} AND p.player_id IS NOT NULL)`, `${mode}: shared opening-night cutoff completes the draft while week one stays skipped`)
+        await tick('2026-10-20T13:00:01Z')
+        await check(`NOT EXISTS(SELECT 1 FROM matchups WHERE league_season_id=${quote(season)} AND week_number=1 AND NOT is_voided)
+          AND (SELECT min(week_number)=2 FROM matchups WHERE league_season_id=${quote(season)} AND NOT is_voided)`, `${mode}: first matchup stays in week two`)
+        await tick('2026-10-26T04:00:00Z')
+        await check(`(SELECT count(*)=1 FROM drafts WHERE league_id=${quote(league)})`, `${mode}: week-two retry creates no second draft`)
         continue
       }
       await sql(`UPDATE leagues SET status='active' WHERE id=${quote(league)}`)
@@ -162,7 +173,7 @@ try {
         DELETE FROM draft_picks WHERE league_id=${quote(league)}; DELETE FROM drafts WHERE league_id=${quote(league)};
         DELETE FROM leagues WHERE id=${quote(league)};
         DELETE FROM player_game_stats WHERE game_id IN(SELECT id FROM nba_games WHERE nba_game_id LIKE ${quote('002-skip-'+league+'-%')});
-        DELETE FROM nba_games WHERE nba_game_id LIKE ${quote('002-skip-'+league+'-%')};
+        DELETE FROM nba_games WHERE nba_game_id LIKE ${quote('002-skip-'+league+'-%')} OR nba_game_id=${quote(openingGame)};
         DELETE FROM players WHERE id IN(${players.map(quote).join(',')});
         DELETE FROM auth.users WHERE id IN(${users.map(quote).join(',')}); COMMIT;`)
     }

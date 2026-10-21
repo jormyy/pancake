@@ -17,15 +17,16 @@ const sql = async (statement: string): Promise<string> => {
 }
 const quote = (value: string) => `'${value.replaceAll("'", "''")}'`
 const failures: string[] = []
-const cases = ['in_progress', 'paused', 'mock', 'auction', 'commissioner_early', 'mock_resume', 'missing']
+const cases = ['in_progress', 'paused', 'mock', 'auction', 'commissioner_early', 'mock_resume', 'missing', 'cutoff_race', 'cutoff_error', 'cutoff_failure', 'cutoff_publish']
 const selectedCase = Deno.env.get('POST_ROOKIE_CASE')
 assert.ok(!selectedCase || cases.includes(selectedCase))
 for (const state of cases.filter(value => !selectedCase || value === selectedCase)) {
   const league = crypto.randomUUID(), season = crypto.randomUUID()
   const users = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
   const members = users.map(() => crypto.randomUUID())
-  const players = Array.from({ length: 12 }, () => crypto.randomUUID())
+  const players = Array.from({ length: state.startsWith('cutoff_') ? 13 : 12 }, () => crypto.randomUUID())
   const year = 8831 + cases.indexOf(state)
+  const nativeFetch = globalThis.fetch
   try {
     await sql(`BEGIN;
       ${users.map(user => `INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) VALUES(${quote(user)},'authenticated','authenticated',${quote(user+'@example.test')},'x',now(),'{}','{}',now(),now());`).join('\n')}
@@ -41,6 +42,74 @@ for (const state of cases.filter(value => !selectedCase || value === selectedCas
       ${['commissioner_early', 'mock_resume'].includes(state) ? `SELECT pause_draft_atomic((SELECT id FROM drafts WHERE league_id=${quote(league)}),${quote(users[0])});` : ''}
       ${['in_progress', 'paused', 'mock'].includes(state) ? `UPDATE snake_draft_picks SET timer_expires_at=now()-interval '1 minute' WHERE draft_id IN(SELECT id FROM drafts WHERE league_id=${quote(league)}) AND overall_pick=1;` : ''}
       COMMIT;`)
+    if (state.startsWith('cutoff_')) {
+      if (state !== 'cutoff_publish') await sql(`INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+        VALUES('002${String(year).padStart(7,'0')}',${year},1,'2026-10-20','2026-10-20T23:30:00Z','SYN','SYN','Scheduled')`)
+      await sql(`SELECT pause_draft_atomic((SELECT id FROM drafts WHERE league_id=${quote(league)}),${quote(users[0])});`)
+      const draftId = await sql(`SELECT id FROM drafts WHERE league_id=${quote(league)}`)
+      if (state === 'cutoff_failure') {
+        globalThis.fetch = (input, init) => {
+          const url = new URL(input instanceof Request ? input.url : input)
+          return url.pathname.endsWith('/process_expired_snake_picks_atomic')
+            ? Promise.resolve(Response.json({ code: '40001', message: 'Synthetic retryable cutoff failure' }, { status: 409 }))
+            : nativeFetch(input, init)
+        }
+        const failed = await runSeasonBoundary(new Date('2026-10-20T13:00:00Z'), league)
+        assert.equal(failed[0]?.error, 'Synthetic retryable cutoff failure')
+        assert.equal(await sql(`SELECT status FROM drafts WHERE id=${quote(draftId)}`), 'paused')
+        assert.equal(await sql(`SELECT count(*) FROM snake_draft_picks WHERE draft_id=${quote(draftId)} AND player_id IS NOT NULL`), '0')
+        globalThis.fetch = nativeFetch
+        const retried = await runSeasonBoundary(new Date('2026-10-20T13:00:01Z'), league)
+        assert.equal(retried[0]?.error, undefined)
+        assert.ok(retried[0]?.actions.includes('rookie-draft-auto-completed'))
+        assert.equal(await sql(`SELECT status FROM drafts WHERE id=${quote(draftId)}`), 'completed')
+        console.log('PASS cutoff_failure: an incomplete draft reports the error and a retry completes it')
+        continue
+      }
+      let gated = false, loopReads = 0, loopPicks = 0, delegated = 0
+      const complete = async () => {
+        if (state === 'cutoff_publish') await sql(`INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+          VALUES('002${String(year).padStart(7,'0')}',${year},1,'2026-10-20','2026-10-20T23:30:00Z','SYN','SYN','Scheduled')`)
+        const result = await nativeFetch(`${api}/rest/v1/rpc/process_expired_snake_picks_atomic`, {
+          method: 'POST', headers: { apikey: Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY')!,
+            Authorization: `Bearer ${Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY')!}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_limit: 500 }),
+        })
+        assert.equal(result.status, 200, await result.clone().text())
+        const rows = await result.json()
+        assert.equal(rows.filter((row: { draft_id: string; picked: boolean }) => row.draft_id === draftId && row.picked).length, 12)
+        assert.equal(await sql(`SELECT status FROM drafts WHERE id=${quote(draftId)}`), 'completed')
+      }
+      globalThis.fetch = async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : input)
+        if (url.pathname.endsWith('/auto_pick_snake_pick_atomic')) loopPicks++
+        if (url.pathname.endsWith('/process_expired_snake_picks_atomic')) {
+          delegated++
+          if (!gated) { gated = true; await complete() }
+          if (state === 'cutoff_error') return Response.json({ code: '40001', message: 'Synthetic lost response after concurrent completion' }, { status: 409 })
+        }
+        const response = await nativeFetch(input, init)
+        if (url.pathname.endsWith('/snake_draft_picks') && url.searchParams.get('draft_id') === `eq.${draftId}` && url.searchParams.has('order')) {
+          loopReads++
+          if (!gated) { gated = true; await complete() }
+        }
+        return response
+      }
+      const due = await runSeasonBoundary(new Date('2026-10-20T13:00:00Z'), league)
+      console.log(JSON.stringify({ provenance: 'SYNTHETIC', state, gated, loopReads, loopPicks, delegated, due }))
+      assert.ok(gated, 'The real cutoff worker must complete at the fixed gate')
+      assert.equal(await sql(`SELECT count(*) FROM snake_draft_picks WHERE draft_id=${quote(draftId)} AND player_id IS NOT NULL AND timer_expires_at IS NULL`), '12')
+      assert.equal(due[0]?.error, undefined, 'A concurrent cutoff completion must succeed')
+      assert.ok(due[0]?.actions.includes('rookie-draft-auto-completed'))
+      assert.equal(delegated, state === 'cutoff_publish' ? 0 : 1, 'Published opening night delegates to the locked cutoff owner')
+      assert.equal(loopReads, state === 'cutoff_publish' ? 1 : 0, 'Individual pick reads occur only before opening night is published')
+      assert.equal(loopPicks, state === 'cutoff_publish' ? 1 : 0, 'The unpublished fallback accepts concurrent completion')
+      globalThis.fetch = nativeFetch
+      const retry = await runSeasonBoundary(new Date('2026-10-20T13:00:00Z'), league)
+      assert.ok(retry.every(row => !row.error && !row.actions.includes('rookie-draft-auto-completed')))
+      console.log(`PASS ${state}: gated concurrent completion, locked delegation, null timers and idempotence`)
+      continue
+    }
     const snapshot = () => sql(`SELECT jsonb_build_object(
       'league',(SELECT to_jsonb(l) FROM leagues l WHERE id=${quote(league)}),
       'drafts',(SELECT jsonb_agg(to_jsonb(d) ORDER BY id) FROM drafts d WHERE league_id=${quote(league)}),
@@ -101,6 +170,8 @@ for (const state of cases.filter(value => !selectedCase || value === selectedCas
   } catch (error) {
     failures.push(`${state}: ${(error as Error).message}`)
   } finally {
+    globalThis.fetch = nativeFetch
+    await sql(`DELETE FROM nba_games WHERE season_year=${year}`)
     await sql(`BEGIN;
       DELETE FROM snake_draft_picks WHERE draft_id IN(SELECT id FROM drafts WHERE league_id=${quote(league)});
       DELETE FROM draft_picks WHERE league_id=${quote(league)};

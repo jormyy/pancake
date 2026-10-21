@@ -4,6 +4,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
+if (process.argv.some(arg => arg.startsWith('--cutoff-'))) {
+  const { runCutoffReview } = await import('./cutoff-review.mjs')
+  runCutoffReview()
+  process.exit(0)
+}
 if (process.argv.includes('--features-ui')) {
   const { runFeatureBrowser } = await import('./feature-browser.mjs')
   const started = performance.now()
