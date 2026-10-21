@@ -200,6 +200,8 @@ BEGIN
     ON CONFLICT(league_id,member_id,player_id) DO UPDATE SET exited_at=LEAST(league_member_taxi_exits.exited_at,EXCLUDED.exited_at);
   DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND source='merge' AND related_id=loser_id;
 
+  UPDATE dynasty_rankings SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE fantasypros_projection_rows SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE dynasty_news SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE league_activity SET related_player_id = winner_id WHERE related_player_id = loser_id;
 

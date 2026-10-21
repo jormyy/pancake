@@ -16,7 +16,12 @@ AS $$
       JOIN nba_games AS g
         ON g.game_date = p_game_date
        AND (
-         g.home_team = p.nba_team OR g.away_team = p.nba_team
+         ((g.home_team = p.nba_team OR g.away_team = p.nba_team)
+           AND NOT EXISTS (
+             SELECT 1 FROM player_game_stats AS observed
+             JOIN nba_games AS actual ON actual.id = observed.game_id
+             WHERE observed.player_id = p.id AND actual.game_date = p_game_date
+           ))
          OR EXISTS (
            SELECT 1 FROM player_game_stats AS stats
             WHERE stats.player_id = p.id AND stats.game_id = g.id
