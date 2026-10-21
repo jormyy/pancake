@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WebPushSettings } from '@/components/WebPushSettings'
+import { notificationSwitchKeyboardProps } from '@/components/settings/NotificationSwitchKeyboard'
 import { Button } from '@/components/ui'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 import { showAlert } from '@/lib/alert'
@@ -140,4 +141,37 @@ it.each(['needs-install', 'unsupported', 'denied'] as const)('does not read push
     } finally {
         await act(async () => { renderer.unmount() })
     }
+})
+
+
+describe('web switch keyboard handling', () => {
+    it('toggles Space once and prevents page scrolling', () => {
+        const press = vi.fn(), preventDefault = vi.fn()
+        notificationSwitchKeyboardProps(press).onKeyDown?.({ key: ' ', preventDefault })
+        expect(press).toHaveBeenCalledOnce()
+        expect(preventDefault).toHaveBeenCalledOnce()
+    })
+
+    it.each(['Enter', 'Tab', 'ArrowDown'])('leaves %s to the existing Pressable behavior', key => {
+        const press = vi.fn(), preventDefault = vi.fn()
+        notificationSwitchKeyboardProps(press).onKeyDown?.({ key, preventDefault })
+        expect(press).not.toHaveBeenCalled()
+        expect(preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('ignores held Space repeats and prevents their default scroll', () => {
+        const press = vi.fn(), preventDefault = vi.fn()
+        const props = notificationSwitchKeyboardProps(press)
+        props.onKeyDown?.({ key: ' ', repeat: false, preventDefault })
+        props.onKeyDown?.({ key: ' ', repeat: true, preventDefault })
+        expect(press).toHaveBeenCalledOnce()
+        expect(preventDefault).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not toggle a disabled switch', () => {
+        const press = vi.fn(), preventDefault = vi.fn()
+        notificationSwitchKeyboardProps(press, true).onKeyDown?.({ key: ' ', preventDefault })
+        expect(press).not.toHaveBeenCalled()
+        expect(preventDefault).toHaveBeenCalledOnce()
+    })
 })

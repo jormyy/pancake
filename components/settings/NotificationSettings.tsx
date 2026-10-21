@@ -11,6 +11,7 @@ import {
     type NotificationPreferences,
 } from '@/lib/notification-preferences'
 import { SettingsGroup, SettingsRow, SettingsToggle } from './SettingsGroup'
+import { notificationSwitchKeyboardProps } from './NotificationSwitchKeyboard'
 
 const legacyKeys = { trade: 'tradeEnabled', waiver: 'waiverEnabled', draft: 'draftEnabled' } as const
 
@@ -50,7 +51,8 @@ export function NotificationSettings({ preferences, disabled, onChange }: {
                         <Pressable style={styles.categorySwitch} role="switch" aria-checked={categoryEnabled(category)}
                             accessibilityLabel={`All ${notificationCategories[category].toLowerCase()} notifications`}
                             accessibilityState={{ disabled: disabled || !master, checked: categoryEnabled(category) }}
-                            disabled={disabled || !master} onPress={() => toggleCategory(category)}>
+                            disabled={disabled || !master} onPress={() => toggleCategory(category)}
+                            {...notificationSwitchKeyboardProps(() => toggleCategory(category), disabled || !master)}>
                             <SettingsToggle on={categoryEnabled(category)} />
                         </Pressable>
                     </View>
@@ -60,6 +62,7 @@ export function NotificationSettings({ preferences, disabled, onChange }: {
                             accessibilityLabel={`${notificationCategories[category]}: ${event.label}`}
                             accessibilityState={{ disabled: disabled || !master || !categoryEnabled(category), checked: eventEnabled(preferences, event.key) }}
                             disabled={disabled || !master || !categoryEnabled(category)}
+                            {...notificationSwitchKeyboardProps(() => onChange(current => ({ ...current, events: { ...current.events, [event.key]: !eventEnabled(current, event.key) } })), disabled || !master || !categoryEnabled(category))}
                             onPress={() => onChange(current => ({ ...current, events: { ...current.events, [event.key]: !eventEnabled(current, event.key) } }))}>
                             <Text style={[textStyles.body, styles.label]} numberOfLines={1}>{event.label}</Text>
                             <SettingsToggle on={eventEnabled(preferences, event.key)} />
