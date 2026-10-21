@@ -69,3 +69,27 @@ test('the supplemental stack accepts only its exact assigned root, project and b
     {SEASON_SIM_ROOT:root,SEASON_SIM_PROJECT:'pt4basimx',SEASON_SIM_PORT_PREFIX:'582'},
   ])assert.throws(()=>configuration(env))
 })
+
+test('the replacement replay accepts only its exact separate root, project and block',()=>{
+  const root=config.root.replace(/\/lanes\/[^/]+$/,'/lanes/sim-t6')
+  const env={SEASON_SIM_ROOT:root,SEASON_SIM_PROJECT:'pt4basim6',SEASON_SIM_PORT_PREFIX:'582'}
+  const result=configuration(env)
+  assert.equal(result.ports.api,58221)
+  assert.equal(result.ports.db,58222)
+  assert.equal(result.container,'supabase_db_pt4basim6')
+  for(const invalid of [
+    {...env,SEASON_SIM_ROOT:root.replace('/lanes/sim-t6','/lanes/sim')},
+    {...env,SEASON_SIM_PROJECT:'pt4basim'},
+    {...env,SEASON_SIM_PORT_PREFIX:'572'},
+    {...env,SEASON_SIM_PROJECT:'pt4basim',SEASON_SIM_PORT_PREFIX:'572'},
+    {...env,SEASON_SIM_CONTAINER:'supabase_db_pt4basim'},
+  ])assert.throws(()=>configuration(invalid))
+})
+
+test('fresh replay snapshots stay in their configured root, outside shared inputs',()=>{
+  for(const name of ['sim','sim-t6']){
+    const root=config.root.replace(/\/lanes\/[^/]+$/,`/lanes/${name}`)
+    const env={SEASON_SIM_ROOT:root,SEASON_SIM_PROJECT:name==='sim'?'pt4basim':'pt4basim6',SEASON_SIM_PORT_PREFIX:name==='sim'?'572':'582'}
+    assert.equal(configuration(env).snapshots,`${root}/snapshots`)
+  }
+})
