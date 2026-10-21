@@ -1,8 +1,10 @@
 import { parseManualDateFilter } from '../lineup-optimizer/manual.ts'
+import { playoffFit } from '../_shared/schedule.ts'
 import { todayET } from '../_shared/date.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
   booleanField,
+  integerField,
   invokeInternalFunction,
   json,
   NotFoundError,
@@ -128,6 +130,23 @@ async function toggleRosterFlag(
 
 export async function handleLeagueRoute(req: Request, path: string): Promise<Response | null> {
   if (req.method !== 'POST') return null
+
+  if (path === '/league/playoff-fit') {
+    const body = await readJsonObject(req)
+    const userId = await requireUser(req)
+    const leagueId = uuidField(body, 'leagueId')
+    await requireCommissioner(userId, leagueId)
+    const start = integerField(body, 'start', { min: 1 })
+    const rounds = body.rounds
+    if (!Array.isArray(rounds) || rounds.length === 0 || rounds.some(length => !Number.isSafeInteger(length) || length < 1)) {
+      throw new ValidationError('Enter positive whole weeks for each playoff round.')
+    }
+    const { data: season, error: seasonError } = await supabase.from('league_seasons').select('season_year').eq('league_id', leagueId).eq('is_current', true).single()
+    if (seasonError) throwDb(seasonError)
+    const { data: weeks, error } = await supabase.from('season_weeks').select('week_number').eq('season_year', season!.season_year)
+    if (error) throwDb(error)
+    return json(playoffFit((weeks ?? []).map(week => week.week_number), start, rounds))
+  }
 
   if (path === '/league/advance-season') {
     const body = await readJsonObject(req)

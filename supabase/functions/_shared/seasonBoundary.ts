@@ -124,7 +124,7 @@ async function runRookieDraftBackstop(
       p_league_id: leagueId,
       p_rounds: 3,
       p_is_mock: false,
-      p_pick_timer_seconds: 30,
+      p_pick_timer_seconds: 60,
       p_timer_expiry_behavior: 'auto_pick',
     })
     if (startError) throw startError

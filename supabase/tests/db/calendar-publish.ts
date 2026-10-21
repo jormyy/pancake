@@ -4,6 +4,10 @@ const db = Deno.env.get('SUPABASE_DB_URL')!
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname))
 assert.equal(new URL(db).port, Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322')
 const requested = Deno.env.get('POST_CALENDAR_CASE')
+if (requested === 'matchup-order') {
+  await import('./matchup-order-seasons.ts')
+  Deno.exit(0)
+}
 const cases = requested ? [requested] : ['missing', 'published', 'contract']
 for (const selected of cases) {
 assert.ok(['missing', 'published', 'contract'].includes(selected))

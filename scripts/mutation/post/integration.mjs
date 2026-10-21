@@ -4,6 +4,18 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
+if (process.argv.includes('--features-ui')) {
+  const { runFeatureBrowser } = await import('./feature-browser.mjs')
+  const started = performance.now()
+  await runFeatureBrowser()
+  console.log(JSON.stringify({ command: 'node scripts/mutation/post/integration.mjs --features-ui', exit: 0, seconds: Math.round((performance.now()-started)/10)/100 }))
+  process.exit(0)
+}
+if (process.argv.some(arg => arg.startsWith('--features'))) {
+  const { runFeatureReview } = await import('./feature-review.mjs')
+  await runFeatureReview()
+  process.exit(0)
+}
 if (process.argv.includes('--calendar-red')) {
   const { runCalendarRed } = await import('./calendar-red.mjs')
   await runCalendarRed()
