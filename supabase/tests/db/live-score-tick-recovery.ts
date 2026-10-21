@@ -16,6 +16,7 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: 57380, onListen() {} 
 Deno.env.set('NBA_CDN_BASE_URL', `${origin}/static/json`)
 const { supabase } = await import('../../functions/_shared/supabase.ts')
 const { runLivePoll } = await import('../../functions/live-poll/runner.ts')
+const { syncScores } = await import('../../functions/_shared/syncScores.ts')
 const { runEdgeInvocation } = await import('../../functions/_shared/syncRuns.ts')
 const league = crypto.randomUUID(), season = crypto.randomUUID(), game = crypto.randomUUID()
 const members = [crypto.randomUUID(), crypto.randomUUID()]
@@ -131,12 +132,30 @@ try {
   assert.ok(sameTickRecoveryMs >= 0 && sameTickRecoveryMs < 18_000)
   assert.deepEqual(outcome, { worker_status: 'success', status_code: 200, reconciled: true,
     dispatch_job_key: null, sync_status: 'success', sync_error: null })
-  const final = await q(supabase.from('matchups').select('home_points,away_points,is_finalized').eq('league_season_id', season).single())
-  assert.deepEqual(final, { home_points: 12, away_points: 1, is_finalized: true })
+  const live = await q(supabase.from('matchups').select('home_points,away_points,is_finalized').eq('league_season_id', season).single())
+  assert.deepEqual(live, { home_points: 12, away_points: 1, is_finalized: false })
+  assert.equal(await sql(`SELECT count(*) FROM private.score_week_certificates WHERE league_season_id='${season}'`), '0')
+  assert.equal((await q(supabase.from('standings').select('id').eq('league_season_id', season)))?.length, 0)
   const recoveryMs = Date.now() - rejectedAt
   assert.ok(rejectedAt && recoveryMs >= 18_000 && recoveryMs < 25_000)
   console.log(JSON.stringify({ provenance: 'SYNTHETIC', worker: 'actual runLivePoll', elapsedMs: Date.now() - started,
-    recoveryMs, sameTickRecoveryMs, ticks: result.ticks, failures: result.failures.length, final, outcome }))
+    recoveryMs, sameTickRecoveryMs, ticks: result.ticks, failures: result.failures.length, live, outcome }))
+  const lastDayReference = new Date(`${day(5)}T16:00:00Z`)
+  await syncScores(league, lastDayReference, { recoverStats: false })
+  assert.deepEqual(await q(supabase.from('matchups').select('home_points,away_points,is_finalized').eq('league_season_id', season).single()), live,
+    'The last stored ET day must end before finalization')
+  const closedWeekReference = new Date(`${day(6)}T16:00:00Z`)
+  await syncScores(league, closedWeekReference, { recoverStats: false })
+  const final = await q(supabase.from('matchups').select('home_points,away_points,is_finalized').eq('league_season_id', season).single())
+  assert.deepEqual(final, { home_points: 12, away_points: 1, is_finalized: true })
+  assert.equal(await sql(`SELECT count(*) FROM private.score_week_certificates WHERE league_season_id='${season}'
+    AND week_number=1 AND input_token=private.score_input_token('${season}',1)`), '1')
+  const standings = await q(supabase.from('standings').select('member_id,week_number,points_for,points_against').eq('league_season_id', season))
+  assert.equal(standings?.length, 2)
+  const home = standings!.find(row => row.member_id === members[0])!
+  assert.deepEqual([home.week_number, Number(home.points_for), Number(home.points_against)], [1, 12, 1])
+  console.log(JSON.stringify({ provenance: 'SYNTHETIC', lastDayReference: lastDayReference.toISOString(),
+    closedWeekReference: closedWeekReference.toISOString(), final, certificate: 'current', standings }))
   await q(supabase.from('matchups').update({ home_points: 0 }).eq('league_season_id', season))
   await q(supabase.from('nba_games').update({ stats_synced_at: null }).eq('id', game))
   await sql(`UPDATE private.live_poll_game_state SET stats_attempted_at=NULL WHERE game_id='${game}'`)
