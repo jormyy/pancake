@@ -7,14 +7,15 @@ import { lane } from './lane.mjs'
 import { restartEdge, servedFileSha } from './edge.mjs'
 
 // Current-head reruns of changed post targets (common-t10 protocol). The plan
-// comes from t10-scan.py. Usage:
+// comes from t10-scan.py, or from t11-plan.py with POST_PLAN. Usage:
 //   node scripts/mutation/post/rerun-t10.mjs --baseline
 //   node scripts/mutation/post/rerun-t10.mjs [id|area|sql|ts ...]
 // Every oracle in the selection first runs once on the unmutated build; a
 // mutant counts as killed only when an oracle fails behaviorally. Each target
 // is restored and hash-verified before the next mutant; served-path mutants
-// restart the real Edge runtime after the mutation and after the restore.
-const plan = JSON.parse(readFileSync('scripts/mutation/post/t10-plan.json', 'utf8'))
+// restart the real Edge runtime after the mutation and after the restore (a SQL
+// overlay is live in the database without a restart).
+const plan = JSON.parse(readFileSync(process.env.POST_PLAN ?? 'scripts/mutation/post/t10-plan.json', 'utf8'))
 const evidence = process.env.POST_EVIDENCE ?? resolve(lane, 'evidence/t10')
 assert.ok(evidence.startsWith(`${lane}/evidence/`))
 mkdirSync(`${evidence}/logs`, { recursive: true })
@@ -50,7 +51,7 @@ const crashed = (exit, output) => exit === 125 || exit > 128 || /^exit=null .*si
 const selection = process.argv.slice(2).filter(arg => !arg.startsWith('--'))
 const selected = plan.mutants.filter(mutant => selection.length === 0 || selection.includes(mutant.id) || selection.includes(mutant.area) || selection.includes(mutant.kind))
 assert.ok(selected.length, 'No mutant matches the selection')
-const usesHttp = mutant => mutant.oracles.some(name => plan.oracles[name].kind === 'edge-http')
+const usesHttp = mutant => mutant.kind === 'ts' && mutant.oracles.some(name => plan.oracles[name].kind === 'edge-http')
 
 const runOracle = (name, prefix) => {
   const oracle = plan.oracles[name]
@@ -96,6 +97,7 @@ for (const mutant of selected) {
   }
   const notes = []
   if (mutant.retarget_reason) notes.push(mutant.retarget_reason)
+  if (mutant.note) notes.push(mutant.note)
   const before = readDefinition()
   const beforeHash = hash(before)
   try {

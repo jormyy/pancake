@@ -262,3 +262,17 @@ Type-check failures are recorded but never count as kills.
 Served-path mutants restart the Edge runtime after the mutation and after the restore.
 The container's file hash must match each time.
 The Edge runtime does not type-check, so it can kill mutants whose module-level oracles fail only at `deno run --check`.
+
+### Served schedule path
+
+`post-t11-schedule-http.ts` publishes calendars only through the served `sync-schedule` function and reads playoff fit only from the served `api` function (`/league/playoff-fit`, with a synthetic GoTrue commissioner).
+A fake NBA CDN listens on the API port + 70 and serves the pinned REAL-DERIVED schedules in the CDN format. `edge.mjs` points `NBA_CDN_BASE_URL` at it through the Lima host alias.
+The worker checks freshness against the real clock, so the schedules move by whole weeks into seasons 2028-2030. Expected dates are the pinned real values moved by the same number of days.
+Cases (`POST_SCHEDULE_CASE`): `calendar` (opening night, merged All-Star week, NBA Cup final), `sunday-gap` (a SYNTHETIC missing Sunday is not a second break), `fit` (one fitting and one non-fitting playoff span), `republish` (a calendar published from a partial snapshot stays exact when the complete schedule arrives).
+
+```sh
+python3 scripts/mutation/post/t11-plan.py <post results.jsonl> <post t10 results.jsonl> <base sha>
+POST_PLAN=scripts/mutation/post/t11-plan.json POST_EVIDENCE=<lane>/evidence/t11 node scripts/mutation/post/rerun-t10.mjs
+```
+
+SQL overlays are live without an Edge restart; only TypeScript mutants restart the served runtime.
