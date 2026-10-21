@@ -109,3 +109,17 @@ export function setNotificationCategory(
     }
     return next
 }
+
+export async function setPlayerWatch(leagueId: string, playerId: string, enabled: boolean): Promise<void> {
+    await withPwaMutation('player watch', async () => {
+        const { error } = await supabase.rpc('notif_set_player_watch_atomic', { p_league_id: leagueId, p_player_id: playerId, p_enabled: enabled })
+        if (error) throw error
+    })
+}
+
+export async function publishLeagueAnnouncement(leagueId: string, body: string, requestId: string): Promise<void> {
+    await withPwaMutation('league announcement', async () => {
+        const { error } = await supabase.rpc('notif_publish_announcement_atomic', { p_league_id: leagueId, p_body: body, p_request_id: requestId })
+        if (error) throw error
+    })
+}

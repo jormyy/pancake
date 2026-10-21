@@ -159,3 +159,66 @@ Deno.test('stored JSON validation keeps malformed settings from enabling default
     assert.deepEqual(sent, notificationEvents.filter(event => event.defaultEnabled).map(event => event.key))
   }
 })
+
+Deno.test('web-only success counts as delivered and never discarded', async () => {
+  const result = await deliverTradeNotificationOutbox([
+    { id: 'web', claim_token: 'lease', member_id: 'member', title: 'Title', body: 'Body', data: {}, category: 'trade' },
+  ], async () => [{ memberId: 'member', status: 'sent', channel: 'web' }],
+  async () => { throw new Error('No Expo ticket expected') }, async () => {},
+  async (_, error) => { throw new Error(error) }, async (_, error) => { throw new Error(error) })
+  assert.equal(result.discarded, 0)
+  assert.equal('webDelivered' in result ? result.webDelivered : 0, 1)
+})
+
+Deno.test('Expo ticket persists before an unfinished Web Push call', async () => {
+  let recorded = false
+  let finishWeb: (() => void) | undefined
+  const waiting = new Promise<void>(resolve => { finishWeb = resolve })
+  const dependencies = {
+    members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
+    preferences: async () => ({ data: [], error: null }),
+    profiles: async () => ({ data: [{ id: 'user', push_token: 'fake' }], error: null }),
+    pushUrl: 'http://127.0.0.1/fake',
+    send: async () => Response.json({ data: [{ status: 'ok', id: 'durable-ticket' }] }),
+    persistExpoTicket: async () => { recorded = true },
+    webPush: async () => { await waiting; return { sent: 1, failed: 0, pruned: 0 } },
+  }
+  const pending = createNotifyMembers(dependencies)([{ memberId: 'member', title: 'Title', body: 'Body', category: 'trade', delivery: { id: 'outbox', claimToken: 'lease' } }])
+  try {
+    await new Promise(resolve => setTimeout(resolve, 10))
+    assert.equal(recorded, true, 'Known Expo acceptance must persist before Web Push finishes')
+  } finally {
+    finishWeb?.()
+    await pending
+  }
+})
+
+Deno.test('outbox does not record an already persisted Expo ticket twice', async () => {
+  let writes = 0
+  await deliverTradeNotificationOutbox([{ id: 'expo', claim_token: 'lease', member_id: 'member', title: 'Title', body: 'Body', data: {}, category: 'trade' }],
+    async () => [{ memberId: 'member', status: 'sent', ticketId: 'ticket', pushToken: 'token', ticketRecorded: true }],
+    async () => { writes++ }, async () => {}, async () => {}, async () => {})
+  assert.equal(writes, 0)
+})
+
+Deno.test('Web Push reserves its attempt before Expo can clear the lease', async () => {
+  let expoStarted = false
+  let release: (() => void) | undefined
+  const reservation = new Promise<void>(resolve => { release = resolve })
+  const pending = createNotifyMembers({
+    members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
+    preferences: async () => ({ data: [], error: null }),
+    profiles: async () => ({ data: [{ id: 'user', push_token: 'fake' }], error: null }),
+    beginWebDelivery: async () => { await reservation; return 'send' },
+    webPush: async () => ({ sent: 1, failed: 0, pruned: 0 }),
+    send: async () => { expoStarted = true; return Response.json({ data: [{ status: 'ok', id: 'ticket' }] }) },
+    pushUrl: 'http://127.0.0.1/fake',
+  })([{ memberId: 'member', title: 'Title', body: 'Body', category: 'trade', delivery: { id: 'outbox', claimToken: 'lease' } }])
+  try {
+    await new Promise(resolve => setTimeout(resolve, 10))
+    assert.equal(expoStarted, false, 'Expo must wait for the Web Push reservation')
+  } finally {
+    release?.()
+    await pending
+  }
+})

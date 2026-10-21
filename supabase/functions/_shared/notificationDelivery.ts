@@ -23,7 +23,7 @@ export type NotificationDeliveryFailureCode =
   | 'expo_status'
 
 type NotificationDeliveryResult =
-  | { status: 'sent'; ticketId?: string; pushToken?: string; channel?: 'web' }
+  | { status: 'sent'; ticketRecorded?: boolean; ticketId?: string; pushToken?: string; channel?: 'web' }
   | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' | 'durably_suppressed' }
 
 export type NotificationMessage = {
@@ -116,6 +116,7 @@ export type NotificationBatchDependencies = {
   members: (memberIds: string[]) => Promise<LookupResult<Array<{ id: string; user_id: string }>>>
   preferences: (userIds: string[]) => Promise<LookupResult<Array<NotificationPreferences & { user_id: string }>>>
   profiles: (userIds: string[]) => Promise<LookupResult<Array<{ id: string; push_token: string | null }>>>
+  persistExpoTicket?: (message: NotificationMessage, ticketId: string, pushToken: string) => Promise<void>
   admitDelivery?: (message: NotificationMessage) => Promise<boolean>
   beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted'>
   finishWebDelivery?: (message: NotificationMessage, sent: boolean) => Promise<void>
@@ -258,9 +259,12 @@ const sendBatch = async (
           userId: message.userId,
         }))
       } else {
+        const ticketRecorded = !!(message.delivery && dependencies.persistExpoTicket)
+        if (ticketRecorded) await dependencies.persistExpoTicket!(message, ticket.id, message.token)
         results.push({
           memberId: message.memberId,
           status: 'sent',
+          ...(ticketRecorded ? { ticketRecorded } : {}),
           ticketId: ticket.id,
           pushToken: message.token,
         })
@@ -352,14 +356,24 @@ export function createNotifyMembers(
       prepared.push({ ...message, userId, token })
     }
 
-    const webDelivery = Promise.all(webMessages.map(async ({ message, ...webMessage }) => {
+    const webReservations = await Promise.all(webMessages.map(async ({ message, ...webMessage }) => {
+      if (!dependencies.webPush) return null
       try {
-        if (!dependencies.webPush) return
         const state = message.delivery && dependencies.beginWebDelivery
           ? await dependencies.beginWebDelivery(message, webMessage.userId) : 'send'
+        return { message, webMessage, state }
+      } catch (error) {
+        console.error('Web notification reservation failed', error)
+        return null
+      }
+    }))
+    const webDelivery = Promise.all(webReservations.map(async reservation => {
+      if (!reservation) return
+      const { message, webMessage, state } = reservation
+      try {
         let sent = state === 'delivered'
         if (state === 'send') {
-          const summary = await dependencies.webPush([webMessage])
+          const summary = await dependencies.webPush!([webMessage])
           sent = summary.sent > 0
           if (message.delivery && dependencies.finishWebDelivery) await dependencies.finishWebDelivery(message, sent)
         }

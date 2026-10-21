@@ -1013,6 +1013,52 @@ export type Database = {
           },
         ]
       }
+      league_announcements: {
+        Row: {
+          author_member_id: string | null
+          body: string
+          id: string
+          league_id: string
+          published_at: string
+        }
+        Insert: {
+          author_member_id?: string | null
+          body: string
+          id: string
+          league_id: string
+          published_at?: string
+        }
+        Update: {
+          author_member_id?: string | null
+          body?: string
+          id?: string
+          league_id?: string
+          published_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_announcements_author_member_id_fkey"
+            columns: ["author_member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_announcements_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_announcements_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+        ]
+      }
       league_audit_logs: {
         Row: {
           action: string
@@ -1924,6 +1970,7 @@ export type Database = {
       }
       notification_outbox: {
         Row: {
+          admitted_at: string | null
           attempt_count: number
           available_at: string
           body: string
@@ -1946,11 +1993,13 @@ export type Database = {
           suppression_reason: string | null
           ticketed_at: string | null
           title: string
+          web_attempt_claim_token: string | null
           web_attempted_at: string | null
           web_delivered_at: string | null
           web_failed_at: string | null
         }
         Insert: {
+          admitted_at?: string | null
           attempt_count?: number
           available_at?: string
           body: string
@@ -1973,11 +2022,13 @@ export type Database = {
           suppression_reason?: string | null
           ticketed_at?: string | null
           title: string
+          web_attempt_claim_token?: string | null
           web_attempted_at?: string | null
           web_delivered_at?: string | null
           web_failed_at?: string | null
         }
         Update: {
+          admitted_at?: string | null
           attempt_count?: number
           available_at?: string
           body?: string
@@ -2000,6 +2051,7 @@ export type Database = {
           suppression_reason?: string | null
           ticketed_at?: string | null
           title?: string
+          web_attempt_claim_token?: string | null
           web_attempted_at?: string | null
           web_delivered_at?: string | null
           web_failed_at?: string | null
@@ -2236,6 +2288,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "player_projections_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      player_watches: {
+        Row: {
+          created_at: string
+          league_id: string
+          member_id: string
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          league_id: string
+          member_id: string
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          league_id?: string
+          member_id?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_watches_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_watches_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "player_watches_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_watches_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
@@ -4754,7 +4856,31 @@ export type Database = {
         Args: { p_claim_token: string; p_id: string; p_sent: boolean }
         Returns: boolean
       }
+      notif_list_announcements: {
+        Args: { p_league_id: string }
+        Returns: {
+          author_member_id: string | null
+          body: string
+          id: string
+          league_id: string
+          published_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "league_announcements"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      notif_publish_announcement_atomic: {
+        Args: { p_body: string; p_league_id: string; p_request_id: string }
+        Returns: string
+      }
       notif_scan_due_atomic: { Args: { p_now?: string }; Returns: undefined }
+      notif_set_player_watch_atomic: {
+        Args: { p_enabled: boolean; p_league_id: string; p_player_id: string }
+        Returns: boolean
+      }
       notif_suppress_atomic: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean

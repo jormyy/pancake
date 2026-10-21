@@ -1,5 +1,5 @@
 import type { Database } from '../_shared/database.ts'
-import { notifyMembers, suppressNotification } from '../_shared/notifications.ts'
+import { notifyMembers, suppressNotification, notificationReceiptDelaySeconds } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
@@ -20,10 +20,6 @@ import {
 const PROCESS_BATCH_LIMIT = 50
 const RECEIPT_BATCH_LIMIT = 200
 const EXPO_RECEIPTS_URL = Deno.env.get('EXPO_RECEIPTS_URL') ?? 'https://exp.host/--/api/v2/push/getReceipts'
-const configuredReceiptDelay = Number(Deno.env.get('EXPO_RECEIPT_DELAY_SECONDS') ?? 900)
-const RECEIPT_DELAY_SECONDS = Number.isInteger(configuredReceiptDelay) && configuredReceiptDelay >= 0
-  ? Math.min(configuredReceiptDelay, 3600)
-  : 900
 
 type ProcessedTradeRow = Database['public']['Functions']['process_due_accepted_trades_atomic']['Returns'][number]
 type OutboxRow = Database['public']['Functions']['claim_notification_outbox_atomic']['Returns'][number]
@@ -65,7 +61,7 @@ async function processAcceptedTrades(): Promise<{
     deferred: partitioned.deferred.length,
     failed: partitioned.terminalFailures.length,
     failures: partitioned.terminalFailures.map(tradeFailureMessage),
-    notificationsDelivered: receiptResult.delivered,
+    notificationsDelivered: receiptResult.delivered + (deliveryResult.webDelivered ?? 0),
     notificationsTicketed: deliveryResult.ticketed,
     notificationsDeferred: deliveryResult.failed + receiptResult.retried + receiptResult.deferred,
     notificationsDiscarded: deliveryResult.discarded + receiptResult.discarded,
@@ -73,7 +69,7 @@ async function processAcceptedTrades(): Promise<{
   }
 }
 
-async function drainNotificationOutbox(): Promise<{ ticketed: number; failed: number; discarded: number; deadLettered: number }> {
+async function drainNotificationOutbox(): Promise<{ webDelivered?: number; ticketed: number; failed: number; discarded: number; deadLettered: number }> {
   return drainTradeNotificationOutbox(claimNotificationOutbox, deliverNotificationOutbox)
 }
 
@@ -96,7 +92,7 @@ function deliverNotificationOutbox(rows: OutboxRow[]) {
         p_claim_token: row.claim_token,
         p_expo_ticket_id: ticketId,
         p_push_token: pushToken,
-        p_receipt_delay_seconds: RECEIPT_DELAY_SECONDS,
+        p_receipt_delay_seconds: notificationReceiptDelaySeconds,
       })
       if (recordError) throw recordError
       if (!recorded) throw new Error(`Notification outbox lease ${row.id} was lost before ticket persistence`)
