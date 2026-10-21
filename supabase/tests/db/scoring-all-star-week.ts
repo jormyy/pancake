@@ -25,10 +25,16 @@ async function mergedSeason(season: number, skipped: boolean) {
       const signedIn = await f.userClient.auth.signInWithPassword({ email: `makeup-${f.members[0]}@example.test`, password: f.password })
       if (signedIn.error) throw signedIn.error
     }
-    channel = f.userClient.channel(`merged-${f.league}`).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matchups', filter: `id=eq.${matchupId}` }, (payload: any) => events.push(payload.new))
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Merged-week subscription did not start')), 10000)
-      channel.subscribe((status: string) => { streamStates.push(status); if (status === 'SUBSCRIBED') { clearTimeout(timer); resolve() } })
+      let joined = false, postgresReady = false
+      const timer = setTimeout(() => reject(new Error('Merged-week PostgreSQL subscription did not start')), 10000)
+      const ready = () => { if (joined && postgresReady) { clearTimeout(timer); resolve() } }
+      channel = f.userClient.channel(`merged-${f.league}`)
+        .on('system', {}, (payload: any) => {
+          if (payload.extension === 'postgres_changes' && payload.status === 'ok') { postgresReady = true; ready() }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matchups', filter: `id=eq.${matchupId}` }, (payload: any) => events.push(payload.new))
+      channel.subscribe((status: string) => { streamStates.push(status); if (status === 'SUBSCRIBED') { joined = true; ready() } })
     })
     const first = await f.game(merged.week_start, 'InProgress', 'Q4', [1, 2, 3])
     await f.lineup(merged.week_start)

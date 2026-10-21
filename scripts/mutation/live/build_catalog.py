@@ -218,6 +218,12 @@ ts('all-star-week', 'supabase/functions/_shared/scoreLineups.ts', [
 ts('all-star-week', 'supabase/functions/_shared/syncScores.ts', [
     ('toETDate(referenceDate) <= endDate && matchups.some', 'toETDate(referenceDate) < endDate && matchups.some'),
 ], [db('scoring-all-star-week') + ' single'], 'ROR')
+sql('postponement', 'public.save_live_scoreboard_atomic', '(uuid,text,text,integer,integer,text,numeric)', [
+    ("AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)", "AND p_status<>'Scheduled' AND private.lineup_game_available(p_status,p_status_text)"),
+], [recipe('calendar-live-marker')], 'NEG')
+sql('postponement', 'public.save_live_scoreboard_atomic', '(uuid,text,text,integer,integer,text,numeric)', [
+    ("AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)", "AND private.lineup_game_available(p_status,p_status_text)"),
+], [recipe('calendar-live-marker')], 'STMT-DEL')
 legacy_operators = {
     'L': ['ROR', 'STMT-DEL', 'ROR', 'ROR', 'STMT-DEL', 'ARG-SWAP', 'ARG-SWAP', 'CONST', 'CONST', 'NEG',
           'CONST', 'ROR', 'STMT-DEL', 'CONST', 'CONST', 'AOR', 'ROR', 'STMT-DEL', 'STMT-DEL', 'STMT-DEL',

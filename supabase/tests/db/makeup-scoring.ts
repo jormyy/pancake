@@ -69,6 +69,10 @@ async function makeup(sameWeek: boolean) {
     if (sameWeek) await q(supabase.from('leagues').update({ playoff_start_week: 23 }).eq('id', f.league))
     await f.matchup(week)
     const entry = await f.game(original, 'Scheduled', 'PPD - confirmed')
+    const board = (text: string) => q(supabase.rpc('save_live_scoreboard_atomic', { p_game_id: entry.game, p_provider_game_id: entry.provider,
+      p_status: 'Scheduled', p_home_score: 0, p_away_score: 0, p_status_text: text, p_elapsed_seconds: 0 }))
+    await board('')
+    assert.equal((await q(supabase.from('nba_games').select('game_status_text').eq('id', entry.game).single())).game_status_text, 'PPD - confirmed', 'A stale scoreboard must preserve confirmed unavailability')
     await syncScores(f.league, new Date(sameWeek ? '2026-01-26T12:00:00Z' : '2026-01-12T12:00:00Z'))
     let originalToken = await f.capture(week)
     const reconciliationCount = () => finalizedWeeks.filter(row => row.season === f.seasonId && row.week === week).length
@@ -83,8 +87,17 @@ async function makeup(sameWeek: boolean) {
       const final = (await f.read()).find((row: any) => row.matchup_type === 'playoff_final')
       assert.equal(final.week_number, 14); assert.equal(final.end_week_number, 15)
     }
-    await q(supabase.from('nba_games').update({ game_date: played, week_number: makeupWeek, game_time: `${played}T23:00:00Z`,
-      status: 'Scheduled', game_status_text: '7:00 PM ET' }).eq('id', entry.game))
+    await board('7:00 PM ET')
+    assert.equal((await q(supabase.from('nba_games').select('game_status_text').eq('id', entry.game).single())).game_status_text, 'PPD - confirmed')
+    assert.ok(!(await q(supabase.rpc('get_live_poll_work', { p_now: `${played}T23:00:00Z` }))).some((row: any) => row.id === entry.game), 'Tipoff text cannot replace the publisher reschedule')
+    const teams = await q(supabase.from('nba_games').select('home_team,away_team').eq('id', entry.game).single())
+    await q(supabase.rpc('publish_nba_schedule_atomic', { p_season_year: f.year, p_games: [{ nba_game_id: entry.provider, season_year: f.year,
+      game_date: played, week_number: makeupWeek, game_time: `${played}T23:00:00Z`, home_team: teams.home_team, away_team: teams.away_team,
+      status: 'Scheduled', game_status_text: '7:00 PM ET' }], p_weeks: [] }))
+    const resumed = await q(supabase.from('nba_games').select('id,game_date,week_number,game_status_text').eq('nba_game_id', entry.provider).single())
+    assert.deepEqual(resumed, { id: entry.game, game_date: played, week_number: makeupWeek, game_status_text: '7:00 PM ET' })
+    await board('7:00 PM ET')
+    assert.ok((await q(supabase.rpc('get_live_poll_work', { p_now: `${played}T23:00:00Z` }))).some((row: any) => row.id === entry.game && row.needs_scoreboard), 'The published makeup must become board-due before tipoff')
     await f.lineup(played)
     if (!sameWeek) {
       const cancellation = await f.game('2026-01-30', 'Scheduled', 'Cancelled - never played')
