@@ -1,0 +1,56 @@
+CREATE OR REPLACE FUNCTION private.draft_timer_complete_opening_night(
+  p_limit int DEFAULT 100,
+  p_at timestamptz DEFAULT clock_timestamp()
+)
+RETURNS TABLE (
+  pick_id uuid, draft_id uuid, member_id uuid, player_id uuid,
+  picked boolean, error_code text, error_message text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_draft record;
+  v_pick record;
+  v_result jsonb;
+  v_results jsonb;
+BEGIN
+  IF NOT private.draft_timer_opening_night_completion_enabled() THEN RETURN; END IF;
+  FOR v_draft IN
+    SELECT draft.id
+      FROM drafts AS draft
+      JOIN league_seasons AS season ON season.id = draft.league_season_id AND season.is_current
+     WHERE draft.draft_type = 'snake' AND NOT draft.is_mock
+       AND draft.status IN ('in_progress', 'paused')
+       AND private.draft_timer_opening_night_cutoff(season.season_year) <= p_at
+     ORDER BY draft.id
+     LIMIT LEAST(GREATEST(COALESCE(p_limit, 100), 0), 500)
+  LOOP
+    BEGIN
+      v_results := '[]'::jsonb;
+      IF NOT pg_try_advisory_xact_lock(hashtext(v_draft.id::text), 0) THEN CONTINUE; END IF;
+      PERFORM 1 FROM drafts WHERE id = v_draft.id AND status IN ('in_progress', 'paused') FOR UPDATE;
+      IF NOT FOUND THEN CONTINUE; END IF;
+      FOR v_pick IN
+        SELECT pick.id, pick.member_id FROM snake_draft_picks AS pick
+         WHERE pick.draft_id = v_draft.id AND pick.player_id IS NULL AND pick.skipped_at IS NULL
+         ORDER BY pick.overall_pick
+      LOOP
+        v_result := public.auto_pick_snake_pick_atomic(v_draft.id, v_pick.member_id, 'season_boundary_backstop');
+        v_results := v_results || jsonb_build_array(jsonb_build_object('pick_id',v_pick.id,
+          'draft_id',v_draft.id,'member_id',v_pick.member_id,'player_id',v_result->>'player_id'));
+      END LOOP;
+      PERFORM private.complete_rookie_draft_if_ready(v_draft.id, p_at);
+      INSERT INTO draft_audit_logs(draft_id, league_id, action, metadata)
+        SELECT id, league_id, 'opening_night_completion', jsonb_build_object('cutoff', p_at)
+          FROM drafts WHERE id = v_draft.id;
+      RETURN QUERY SELECT result.pick_id, result.draft_id, result.member_id, result.player_id,
+        true, NULL::text, NULL::text
+        FROM jsonb_to_recordset(v_results) AS result(pick_id uuid, draft_id uuid, member_id uuid, player_id uuid);
+    EXCEPTION WHEN OTHERS THEN
+      RETURN QUERY SELECT NULL::uuid, v_draft.id, NULL::uuid, NULL::uuid, false, SQLSTATE::text, SQLERRM::text;
+    END;
+  END LOOP;
+END;
+$$;

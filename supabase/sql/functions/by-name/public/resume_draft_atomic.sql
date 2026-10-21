@@ -29,17 +29,17 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  v_remaining_seconds := COALESCE(v_draft.timer_paused_remaining_seconds, v_draft.pick_timer_seconds, 30);
+  v_remaining_seconds := COALESCE(v_draft.timer_paused_remaining_seconds, v_draft.pick_timer_seconds, CASE WHEN v_draft.draft_type = 'snake' THEN 60 ELSE 30 END);
 
   IF v_draft.draft_type = 'auction' THEN
     UPDATE nominations
-       SET countdown_expires_at = now() + make_interval(secs => v_remaining_seconds)
+       SET countdown_expires_at = clock_timestamp() + make_interval(secs => v_remaining_seconds)
      WHERE draft_id = p_draft_id
        AND status = 'open';
   ELSE
     PERFORM private.arm_next_snake_pick_timer(
       p_draft_id,
-      now() + make_interval(secs => v_remaining_seconds)
+      clock_timestamp() + make_interval(secs => v_remaining_seconds)
     );
   END IF;
 

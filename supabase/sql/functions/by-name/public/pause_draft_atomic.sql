@@ -14,6 +14,7 @@ AS $$
 DECLARE
   v_draft drafts%ROWTYPE;
   v_remaining_seconds int;
+  v_now timestamptz;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_draft_id::text), 0);
 
@@ -25,8 +26,10 @@ BEGIN
     RAISE EXCEPTION 'Only an in-progress draft can be paused.';
   END IF;
 
+  v_now := clock_timestamp();
+
   IF v_draft.draft_type = 'auction' THEN
-    SELECT GREATEST(CEIL(EXTRACT(EPOCH FROM (countdown_expires_at - now())))::int, 0)
+    SELECT GREATEST(CEIL(EXTRACT(EPOCH FROM (countdown_expires_at - v_now)))::int, 0)
       INTO v_remaining_seconds
       FROM nominations
      WHERE draft_id = p_draft_id
@@ -41,7 +44,7 @@ BEGIN
      WHERE draft_id = p_draft_id
        AND status = 'open';
   ELSE
-    SELECT GREATEST(CEIL(EXTRACT(EPOCH FROM (timer_expires_at - now())))::int, 0)
+    SELECT GREATEST(CEIL(EXTRACT(EPOCH FROM (timer_expires_at - v_now)))::int, 0)
       INTO v_remaining_seconds
       FROM snake_draft_picks
      WHERE draft_id = p_draft_id
@@ -61,7 +64,7 @@ BEGIN
 
   UPDATE drafts
      SET status = 'paused',
-         paused_at = now(),
+         paused_at = v_now,
          timer_paused_remaining_seconds = v_remaining_seconds,
          pause_reason = 'manual'
    WHERE id = p_draft_id;
