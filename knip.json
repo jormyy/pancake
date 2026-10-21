@@ -134,6 +134,7 @@
         "tests/db/draft-timer-cutoff.mjs",
         "tests/e2e/draft-timer-restart-real.mjs",
         "tests/db/draft-mock-expiry.mjs",
+        "tests/e2e/players-notification-scroll.mjs",
         "scripts/mutation/draft/mock-expiry.mjs"
       ],
       "project": [
