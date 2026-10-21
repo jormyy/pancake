@@ -937,6 +937,32 @@
       "canonical": "supabase/sql/functions/by-name/private/current_add_week.sql",
       "occurrence": 0,
       "notes": "Advance post-schedule buckets every fourteen days after the shortened season"
+    },
+    {
+      "id": "waiv-trade-deadline-01",
+      "area": "trade-deadline",
+      "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+      "line": 1180,
+      "symbol": "private.create_trade_offer",
+      "operator": "ROR",
+      "original": "v_league.trade_deadline < (now() AT TIME ZONE 'America/New_York')::date",
+      "mutated": "v_league.trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date",
+      "canonical": "supabase/sql/functions/by-name/private/create_trade_offer.sql",
+      "occurrence": 0,
+      "notes": "Lock proposals on the deadline date instead of the next New York date"
+    },
+    {
+      "id": "waiv-trade-deadline-02",
+      "area": "trade-deadline",
+      "file": "supabase/migrations/20260708000001_trade_window_feedback_rules.sql",
+      "line": 788,
+      "symbol": "public.prevent_trade_acceptance_after_deadline",
+      "operator": "ROR",
+      "original": "v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date",
+      "mutated": "v_trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date",
+      "canonical": "supabase/sql/functions/by-name/public/prevent_trade_acceptance_after_deadline.sql",
+      "occurrence": 0,
+      "notes": "Lock acceptance on the deadline date instead of the next New York date"
     }
   ]
 }
