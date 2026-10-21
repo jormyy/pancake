@@ -82,6 +82,7 @@
     "private.notif_announcement_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_draft_audit_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_draft_clock(uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.notif_draft_deferred_until(text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_draft_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_enqueue(text,text,uuid,uuid,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_is_stale(text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

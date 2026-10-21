@@ -49,6 +49,8 @@
         "supabase/tests/db/notif-crash-worker.ts",
         "tests/e2e/notif-product-surfaces.mjs",
         "tests/e2e/notif-webkit.mjs",
+        "scripts/mutation/notif/pause.ts",
+        "supabase/tests/db/notif-pause-resume.ts",
         "supabase/tests/db/playoff-spans.ts",
         "supabase/tests/db/playoff-consumption.ts",
         "supabase/tests/db/playoff-boundary-races.ts",
