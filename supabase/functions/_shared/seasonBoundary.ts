@@ -76,8 +76,8 @@ async function ensureSeasonMatchups(
   return ['matchups-generated']
 }
 
-// Rookie-draft backstop: if the league's first eligible week has begun and the
-// league's rookie draft still has not run, start it and complete every pick
+// Rookie-draft backstop: at the shared opening-night cutoff, or the first
+// eligible week when opening night is unpublished, complete every pick
 // best-available (auto_pick uses nba_draft_number order). Completing the last
 // pick activates the league, so the season-boundary loop resumes normally.
 // Rookies land on rosters, never silently on waivers.
@@ -103,7 +103,20 @@ async function runRookieDraftBackstop(
     .order('week_number')
   if (weekError) throw weekError
   const firstEligibleWeek = weeks?.find((week) => !season.skipped_weeks.includes(week.week_number))
-  if (!firstEligibleWeek || toETDate(referenceDate) < firstEligibleWeek.week_start) return []
+  if (!firstEligibleWeek) return []
+  const { data: warning, error: warningError } = await supabase.rpc('draft_timer_start_warning', {
+    p_league_id: leagueId,
+    p_rounds: 3,
+    p_pick_timer_seconds: 60,
+  })
+  if (warningError) throw warningError
+  const cutoff = warning && typeof warning === 'object' && !Array.isArray(warning) &&
+      typeof warning.openingNightCutoff === 'string'
+    ? warning.openingNightCutoff
+    : null
+  if (cutoff
+    ? referenceDate.getTime() < Date.parse(cutoff)
+    : toETDate(referenceDate) < firstEligibleWeek.week_start) return []
 
   const actions: string[] = []
   const { data: drafts, error: draftError } = await supabase
@@ -133,6 +146,18 @@ async function runRookieDraftBackstop(
   }
   if (!draft || !['in_progress', 'paused'].includes(draft.status)) return actions
 
+  if (cutoff) {
+    const { data: completed, error: completionError } = await supabase.rpc('process_expired_snake_picks_atomic', { p_limit: 500 })
+    const { data: current, error: currentError } = await supabase.from('drafts')
+      .select('status').eq('id', draft.id).single()
+    if (currentError) throw currentError
+    if (current.status === 'completed') return [...actions, 'rookie-draft-auto-completed']
+    if (completionError) throw completionError
+    const failure = completed?.find((row) => row.draft_id === draft.id && row.error_message)
+    if (failure) throw new Error(failure.error_message!)
+    return [...actions, 'rookie-draft-backstop-partial']
+  }
+
   for (let picks = 0; picks < MAX_BACKSTOP_PICKS; picks += 1) {
     const { data: nextPick, error: nextError } = await supabase
       .from('snake_draft_picks')
@@ -150,7 +175,13 @@ async function runRookieDraftBackstop(
       p_member_id: nextPick.member_id,
       p_reason: 'season_boundary_backstop',
     })
-    if (pickError) throw pickError
+    if (pickError) {
+      const { data: current, error: currentError } = await supabase.from('drafts')
+        .select('status').eq('id', draft.id).single()
+      if (currentError) throw currentError
+      if (current.status !== 'completed') throw pickError
+      break
+    }
   }
   const { count: unfilled, error: unfilledError } = await supabase
     .from('snake_draft_picks')

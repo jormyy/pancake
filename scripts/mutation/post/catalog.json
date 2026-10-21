@@ -2224,5 +2224,69 @@
         "timeout": 120000
       }
     ]
+  },
+  {
+    "id": "post-cutoff-01",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 154,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "LCR",
+    "original": "if (current.status === 'completed')",
+    "mutated": "if (current.status === 'completed' && !completionError)",
+    "oracles": [
+      {
+        "name": "rookie-cutoff-error",
+        "command": "POST_ROOKIE_CASE=cutoff_error node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-cutoff-02",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 149,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "NEG",
+    "original": "if (cutoff) {",
+    "mutated": "if (!cutoff) {",
+    "oracles": [
+      {
+        "name": "rookie-cutoff-race",
+        "command": "POST_ROOKIE_CASE=cutoff_race node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-cutoff-03",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 118,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "ROR",
+    "original": "referenceDate.getTime() < Date.parse(cutoff)",
+    "mutated": "referenceDate.getTime() <= Date.parse(cutoff)",
+    "oracles": [
+      {
+        "name": "rookie-timing",
+        "command": "POST_SKIP_PHASE=timing node scripts/mutation/post/check.mjs supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-cutoff-04",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 182,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "ROR",
+    "original": "if (current.status !== 'completed') throw pickError",
+    "mutated": "if (current.status === 'completed') throw pickError",
+    "oracles": [
+      {
+        "name": "rookie-cutoff-publish",
+        "command": "POST_ROOKIE_CASE=cutoff_publish node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
   }
 ]
