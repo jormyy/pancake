@@ -45,7 +45,7 @@ export const REQUIRED_FULL_SWEEP_LABELS = [
   'home', 'players', 'roster', 'trades', 'league', 'dynasty', 'profile',
   'create-league', 'join-league', 'commissioner-settings', 'lineup', 'bracket',
   'claim-player', 'player-detail', 'propose-trade', 'team-roster',
-  'draft-room', 'rookie-draft-room', 'draft-launcher', 'change-password', 'not-found',
+  'draft-room', 'rookie-draft-room', 'draft-launcher', 'change-password', 'notification-settings', 'not-found',
 ]
 
 export const assertFullSweepRoutes = (visited) => {
@@ -632,6 +632,7 @@ const fetchSweepContext = async (env, state, user) => {
     ['join-league', '/join-league'],
     ['commissioner-settings', '/commissioner-settings'],
     ['change-password', '/change-password'],
+    ['notification-settings', '/notification-settings'],
     ['lineup', '/lineup'],
     ['bracket', '/bracket'],
     ['draft-launcher', '/draft'],

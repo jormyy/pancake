@@ -30,9 +30,10 @@ export default function NotificationSettingsScreen() {
     const activeOwner = useRef<string | null>(owner)
     activeOwner.current = owner
     useEffect(() => () => { activeOwner.current = null }, [])
-    function change(next: NotificationPreferences) {
+    function change(update: (current: NotificationPreferences) => NotificationPreferences) {
         if (!user || !profileLoaded) return
         const session = state.current
+        const next = update(session.preferences)
         session.preferences = next
         setPreferences(next)
         void session.writer.enqueue(next).catch(async error => {
@@ -47,7 +48,7 @@ export default function NotificationSettingsScreen() {
             <ModalScreen title="Notifications" onBack={back}>
                 <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: padX }]}>
                     {profileError ? <ErrorBanner message={profileError} onRetry={retryProfile} /> : null}
-                    <NotificationSettings preferences={preferences} disabled={!profileLoaded} onChange={change} />
+                    {profileLoaded ? <NotificationSettings preferences={preferences} disabled={false} onChange={change} /> : null}
                     {Platform.OS === 'web' ? <WebPushSettings key={owner} /> : null}
                 </ScrollView>
             </ModalScreen>

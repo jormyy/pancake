@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ProfileScreen from '@/app/(tabs)/profile'
+import NotificationSettingsScreen from '@/app/(modals)/notification-settings'
 
 const mocks = vi.hoisted(() => ({
     userId: 'user', memberId: 'member', teamName: 'Team', serverTeam: 'Team', platform: 'web',
@@ -23,7 +24,7 @@ vi.mock('react-native', () => ({
     }, Pressable: 'Pressable', ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator',
     StyleSheet: { create: (value: unknown) => value },
 }))
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }), Stack: { Screen: 'Stack.Screen' } }))
 vi.mock('expo-image-picker', () => ({ requestMediaLibraryPermissionsAsync: mocks.permission, launchImageLibraryAsync: mocks.pickImage }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
@@ -53,6 +54,7 @@ vi.mock('@/components/settings/SettingsGroup', () => ({
     SettingsRow: (props: { accessory?: React.ReactNode }) => React.createElement('SettingsRow', props, props.accessory),
 }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
+vi.mock('@/components/ui/ModalScreen', () => ({ ModalScreen: 'ModalScreen' }))
 vi.mock('@/components/WebPushSettings', () => ({ WebPushSettings: 'WebPushSettings' }))
 vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'ScreenErrorFallback' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -242,9 +244,9 @@ it('hides old league form text before the membership effect runs', async () => {
 it.each([[false, false], [true, false], [false, true], [true, true]])(
     'reconciles queued preferences when saves succeed as %s then %s', async (firstSucceeds, secondSucceeds) => {
         mocks.platform = 'ios'
-        await act(async () => { screen.update(React.createElement(ProfileScreen)) })
-        const setting = (label: string) => screen.root.findAllByType('SettingsRow' as React.ElementType)
-            .find(node => node.props.label === label)!
+        await act(async () => { screen.update(React.createElement(NotificationSettingsScreen)) })
+        const setting = (category: string) => screen.root.findAllByType('Pressable' as React.ElementType)
+            .find(node => node.props.accessibilityLabel === `All ${category.toLowerCase()} notifications`)!
         const persisted = { ...mocks.preferences }
         mocks.getPreferences.mockImplementation(async () => ({ ...persisted }))
         let finishFirst!: () => void
@@ -260,17 +262,15 @@ it.each([[false, false], [true, false], [false, true], [true, true]])(
                 else reject(new Error('Second save failed'))
             }
         }))
-        let first!: Promise<void>
-        let second!: Promise<void>
-        await act(async () => { first = setting('Trades').props.onPress(); second = setting('Waivers').props.onPress() })
+        await act(async () => { setting('Trades').props.onPress(); setting('Waivers').props.onPress() })
         expect(mocks.updatePreferences).toHaveBeenCalledTimes(1)
-        expect(setting('Trades').props.checked).toBe(false)
-        expect(setting('Waivers').props.checked).toBe(false)
-        await act(async () => { finishFirst(); await first })
+        expect(setting('Trades').props['aria-checked']).toBe(false)
+        expect(setting('Waivers').props['aria-checked']).toBe(false)
+        await act(async () => { finishFirst(); await Promise.resolve() })
         expect(mocks.updatePreferences).toHaveBeenCalledTimes(2)
-        await act(async () => { finishSecond(); await second })
-        expect(setting('Trades').props.checked).toBe(!(firstSucceeds || secondSucceeds))
-        expect(setting('Waivers').props.checked).toBe(!secondSucceeds)
+        await act(async () => { finishSecond(); await Promise.resolve() })
+        expect(setting('Trades').props['aria-checked']).toBe(!(firstSucceeds || secondSucceeds))
+        expect(setting('Waivers').props['aria-checked']).toBe(!secondSucceeds)
     },
 )
 

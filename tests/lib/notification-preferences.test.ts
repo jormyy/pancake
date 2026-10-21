@@ -93,7 +93,7 @@ describe('stored notification preference JSON', () => {
     const row = {
         trade_enabled: true, waiver_enabled: true, draft_enabled: true, activity_enabled: true, master_enabled: true,
     }
-    const malformed = [
+    const malformed: { label: string; value: unknown }[] = [
         { label: 'null', value: null },
         { label: 'array', value: [true, false] },
         { label: 'string', value: 'true' },
