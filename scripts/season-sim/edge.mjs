@@ -7,6 +7,7 @@ import path from 'node:path'
 import { config, originUrl, assertTarget, laneDirectory, miniRoot } from './common.mjs'
 import { virtualDate } from './virtual-clock.mjs'
 import { virtualTimers } from './timers.mjs'
+import { trackWorkerWait, workerHealth } from './worker-waits.mjs'
 
 const Deno = globalThis['Deno']
 assert.equal(Deno.version.deno, '2.7.14', 'Use the task-local Deno runtime')
@@ -37,10 +38,10 @@ if (discrete) {
 Object.defineProperty(globalThis, 'setTimeout', { value: timers.timeout, configurable: true })
 Object.defineProperty(globalThis, 'setInterval', { value: timers.interval, configurable: true })
 AbortSignal.timeout = legacyTimers.abortTimeout
-const sampleLive = async phase => {
+const sampleLive = (phase,owner=requestContext.getStore()) => trackWorkerWait(owner,'harness-sample','/__sim/live-sample',async()=>{
   const response = await nativeFetch(`${originUrl('replay')}/__sim/live-sample?phase=${phase}`, { headers: { 'x-sim-probe-token': Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN') }, redirect: 'error' })
   assert.ok(response.ok, `Internal live score sample fails: ${await response.text()}`)
-}
+})
 globalThis.fetch = async (input, init) => {
   const url = assertFetchTarget(input instanceof Request ? input.url : input)
   if (url.port === String(config.ports.api) && url.pathname.startsWith('/functions/v1/')) {
@@ -50,7 +51,7 @@ globalThis.fetch = async (input, init) => {
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
   if (url.pathname === '/rest/v1/rpc/get_live_poll_work' && headers.has('x-pancake-live-holder')) await sampleLive('before-work')
   fetches++
-  try { return await nativeFetch(input, { ...init, redirect: 'error' }) } finally { fetches-- }
+  try { return await trackWorkerWait(requestContext.getStore(),'fetch-headers',url.pathname,()=>nativeFetch(input, { ...init, redirect: 'error' })) } finally { fetches-- }
 }
 for (const [name, suffix] of Object.entries({
   NBA_CDN_BASE_URL: '/static/json', ESPN_SITE_BASE_URL: '/espn', ESPN_CAREER_BASE_URL: '/career',
@@ -69,25 +70,26 @@ try {
   }
 } finally { Object.defineProperty(Deno, 'serve', descriptor) }
 let active = 0
+let sequence=0
 nativeServe({ hostname: '127.0.0.1', port: config.ports.edge }, async request => {
   const url = new URL(request.url)
   if (['host.lima.internal', '192.168.5.2', 'host.docker.internal'].includes(url.hostname)) {
     assert.equal(url.port, String(config.ports.edge))
     assert.equal(request.headers.get('x-internal-function-token'), Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN'))
   } else assertTarget(url.origin, 'edge')
-  if (url.pathname === '/health') return Response.json({ active, fetches, sleeping: [...requests].filter(state => state.waiters.size > 0).length, nextAt: discrete ? timers.next() : null, at: new Date().toISOString(), functions: [...handlers.keys()] })
+  if (url.pathname === '/health') return Response.json({ active, fetches, sleeping: [...requests].filter(state => state.waiters.size > 0).length, nextAt: discrete ? timers.next() : null, at: new Date().toISOString(), requests:workerHealth(requests,timers,performance.now()),functions: [...handlers.keys()] })
   const name = url.pathname.split('/')[3]
   const handler = handlers.get(name)
   if (!handler) return Response.json({ error: 'Unknown function' }, { status: 404 })
   active++
-  const state = { waiters: new Set() }
+  const state = { id:++sequence,function:name,invocation:request.headers.get('x-pancake-invocation-id'),started:performance.now(),waiters: new Set(),io:new Map() }
   requests.add(state)
   const started = performance.now()
   let status = 500
   try {
     const response = await requestContext.run(state, () => handler(request))
     status = response.status
-    if (name === 'live-poll' && response.ok) await sampleLive('worker-finished')
+    if (name === 'live-poll' && response.ok) await sampleLive('worker-finished',state)
     return response
   } finally {
     active--
