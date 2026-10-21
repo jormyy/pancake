@@ -246,7 +246,7 @@ async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number):
   if (!gameDate || !homeTeam || !awayTeam) throw new Error(`CDN game ${gameId} is missing date or teams`)
   const calendar = await mustSupabase('locate CDN game week', supabase.from('season_weeks')
     .select('week_number').eq('season_year', seasonYear).lte('week_start', gameDate).gte('week_end', gameDate).maybeSingle())
-  const weekNumber = calendar?.week_number ?? estimateCdnWeekNumber(seasonYear, gameDate)
+  const weekNumber = calendar?.week_number ?? 1
   await assertGameImports([{ nba_game_id: gameId, season_year: seasonYear, game_date: gameDate, home_team: homeTeam, away_team: awayTeam }])
 
   await mustSupabase(
@@ -272,12 +272,6 @@ async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number):
       .single(),
   )
   return dbGame as DbGame
-}
-
-function estimateCdnWeekNumber(seasonYear: number, gameDate: string): number {
-  const seasonStart = `${seasonYear - 1}-10-15`
-  const daysDiff = Math.floor((new Date(gameDate).getTime() - new Date(seasonStart).getTime()) / 86_400_000)
-  return Math.max(1, Math.floor(daysDiff / 7) + 1)
 }
 
 function buildCandidateGameIds(seasonYear: number): string[] {

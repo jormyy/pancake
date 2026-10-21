@@ -45,9 +45,9 @@ assert.ok(baseline.every(result => result.exit === 0), `Baseline fails: ${baseli
 if (process.argv.includes('--baseline')) process.exit(0)
 for (const mutant of selected) {
   const { oracles: commands, ...metadata } = mutant
-  const row = { ...metadata, applied: false, outcome: 'invalid', oracles: [], killed_by: [], notes: 'SYNTHETIC fixtures; application mutation; baseline green.' }
+  const row = { ...metadata, applied: false, outcome: 'invalid', oracles: [], killed_by: [], notes: 'Provenance is identified by each oracle: SYNTHETIC isolated fixtures and, for calendar checks, REAL-DERIVED pinned schedules. Application mutation; baseline green.' }
   const isTypeScript = mutant.file.endsWith('.ts')
-  if (isTypeScript) assert.equal(mutant.file, 'supabase/functions/_shared/seasonBoundary.ts')
+  if (isTypeScript) assert.ok(['supabase/functions/_shared/seasonBoundary.ts', 'supabase/functions/_shared/schedule.ts', 'supabase/functions/_shared/nba.ts'].includes(mutant.file))
   const readDefinition = () => isTypeScript ? readFileSync(mutant.file, 'utf8') : definition(mutant.symbol)
   const applyDefinition = value => isTypeScript ? writeFileSync(mutant.file, value) : sql(value)
   const before = readDefinition()

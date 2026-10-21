@@ -1782,5 +1782,294 @@
         "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
       }
     ]
+  },
+  {
+    "id": "post-t3-01",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 164,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "ORDER",
+    "original": "regularSeason.map((game) => game.gameDate).sort()[0] ?? null",
+    "mutated": "regularSeason.map((game) => game.gameDate).sort().at(-1) ?? null",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-02",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 56,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "return month >= 10 ? year + 1 : year",
+    "mutated": "return month >= 11 ? year + 1 : year",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-03",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 142,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "getUTCDay() + 6) % 7",
+    "mutated": "getUTCDay() + 5) % 7",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-04",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 143,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "Math.floor((ordinal(date) - monday) / 7) + 1",
+    "mutated": "Math.floor((ordinal(date) - monday) / 7) + 2",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-05",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 144,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "ordinal(date) - ordinal(ordered[index]) >= 5",
+    "mutated": "ordinal(date) - ordinal(ordered[index]) >= 2",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-06",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 145,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "nbaWeek(date) === nbaWeek(ordered[index]) + 1",
+    "mutated": "nbaWeek(date) === nbaWeek(ordered[index]) + 2",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-07",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 148,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "ROR",
+    "original": "nbaWeek(game_date) >= postBreakWeek",
+    "mutated": "nbaWeek(game_date) > postBreakWeek",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-08",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 148,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "nbaWeek(game_date) >= postBreakWeek ? 1 : 0",
+    "mutated": "nbaWeek(game_date) >= postBreakWeek ? 0 : 0",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-09",
+    "area": "all-star-week",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 40,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "STMT-DEL",
+    "original": "IF v_complete THEN p_weeks:='[]'::jsonb; END IF;",
+    "mutated": "IF v_complete THEN NULL; END IF;",
+    "oracles": [
+      {
+        "name": "calendar-published",
+        "command": "POST_CALENDAR_CASE=published node scripts/mutation/post/check.mjs supabase/tests/db/calendar-publish.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-10",
+    "area": "nba-cup",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 163,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "NEG",
+    "original": "raw.filter((game) => isRegularSeasonGameId(game.gameId))",
+    "mutated": "raw.filter((game) => !isRegularSeasonGameId(game.gameId))",
+    "oracles": [
+      {
+        "name": "calendar-cup",
+        "command": "POST_CALENDAR_CASE=cup node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-11",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/nba.ts",
+    "line": 133,
+    "symbol": "parseNBAScheduleGame",
+    "operator": "CONST",
+    "original": "['Y', '1', 'true', 'PPD']",
+    "mutated": "['1', 'true', 'PPD']",
+    "oracles": [
+      {
+        "name": "calendar-postponed-status",
+        "command": "POST_CALENDAR_CASE=postponed-status node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-12",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 100,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "ARG-SWAP",
+    "original": "WHEN NOT private.lineup_game_available(stored.status,stored.game_status_text) THEN stored.game_status_text",
+    "mutated": "WHEN NOT private.lineup_game_available(stored.status,stored.game_status_text) THEN EXCLUDED.game_status_text",
+    "oracles": [
+      {
+        "name": "calendar-durable",
+        "command": "POST_CALENDAR_CASE=durable node scripts/mutation/post/check.mjs supabase/tests/db/calendar-ingestion.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-13",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 108,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "ROR",
+    "original": "stored.status<>'Final'",
+    "mutated": "stored.status='Final'",
+    "oracles": [
+      {
+        "name": "calendar-missing",
+        "command": "POST_CALENDAR_CASE=missing node scripts/mutation/post/check.mjs supabase/tests/db/calendar-publish.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-14",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 97,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "ROR",
+    "original": "EXCLUDED.game_date IS DISTINCT FROM stored.game_date",
+    "mutated": "EXCLUDED.game_date IS NOT DISTINCT FROM stored.game_date",
+    "oracles": [
+      {
+        "name": "calendar-outside",
+        "command": "POST_CALENDAR_CASE=outside node scripts/mutation/post/check.mjs supabase/tests/db/calendar-ingestion.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-15",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 207,
+    "symbol": "processLeagueBoundary",
+    "operator": "NEG",
+    "original": "if (!allFinalized(regular)) {",
+    "mutated": "if (allFinalized(regular)) {",
+    "oracles": [
+      {
+        "name": "boundary-unavailable-recheck",
+        "command": "POST_STALE_CASE=bracket_unavailable_recheck node scripts/mutation/post/check.mjs supabase/tests/db/playoff-stale-boundary.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-16",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 389,
+    "symbol": "processLeagueBoundary",
+    "operator": "ROR",
+    "original": "toETDate(referenceDate) <= lastWeek.week_end",
+    "mutated": "toETDate(referenceDate) >= lastWeek.week_end",
+    "oracles": [
+      {
+        "name": "boundary-unavailable-recheck",
+        "command": "POST_STALE_CASE=bracket_unavailable_recheck node scripts/mutation/post/check.mjs supabase/tests/db/playoff-stale-boundary.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-17",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 190,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "STMT-DEL",
+    "original": "schedule_complete: complete && completeSnapshot",
+    "mutated": "schedule_complete: complete",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
   }
 ]

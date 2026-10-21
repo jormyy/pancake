@@ -51,21 +51,13 @@ export async function getCurrentWeekNumber(seasonYear: number): Promise<number |
     return resolveSeasonWeekNumber(await getSeasonWeeks(seasonYear, today), today, 'current-or-next')
 }
 
-/** The ET start date of a seeded week, from the same memoized season weeks. */
-async function getSeasonWeekStart(seasonYear: number, weekNumber: number): Promise<string | null> {
-    const weeks = await getSeasonWeeks(seasonYear, todayET())
-    return weeks.find((week) => week.week_number === weekNumber)?.week_start ?? null
-}
-
 export async function getSeasonWeekDates(seasonYear: number, weekNumber: number): Promise<string[]> {
-    const weekStart = await getSeasonWeekStart(seasonYear, weekNumber)
-    if (!weekStart) return []
-    const start = new Date(`${weekStart}T12:00:00Z`)
-    const day = start.getUTCDay()
-    start.setUTCDate(start.getUTCDate() + (day === 0 ? -6 : 1 - day))
-    return Array.from({ length: 7 }, (_, index) => {
-        const date = new Date(start)
-        date.setUTCDate(date.getUTCDate() + index)
-        return date.toISOString().split('T')[0]
-    })
+    const weeks = await getSeasonWeeks(seasonYear, todayET())
+    const week = weeks.find((row) => row.week_number === weekNumber)
+    if (!week) return []
+    let start = Date.parse(`${week.week_start}T12:00:00Z`)
+    if (weekNumber === 1) start -= (new Date(start).getUTCDay() + 6) % 7 * 86_400_000
+    const end = Date.parse(`${week.week_end}T12:00:00Z`)
+    return Array.from({ length: Math.floor((end - start) / 86_400_000) + 1 }, (_, index) =>
+        new Date(start + index * 86_400_000).toISOString().slice(0, 10))
 }
