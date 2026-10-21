@@ -151,4 +151,24 @@ The helper runs the thirteen round-nine neighbors twice without a reset.
 New mutation areas use live-pp-01–04 and live-as-01–03 identifiers.
 The complete postponed recipe includes a native timeout fault and belongs in evidence checks.
 The merged-week recipe asserts data and stream delivery, with no wall-clock performance threshold.
-It remains an evidence check after one delivery wait times out; that cause is unproven.
+It remains an evidence check because it requires native stream delivery within a deadline.
+
+
+The live scoreboard keeps a confirmed unavailable marker when a Scheduled snapshot has available-looking text.
+Blank, null and tipoff text cannot establish a new game date.
+InProgress or Final snapshots still clear that marker when their incoming text permits play.
+The schedule publisher can re-date the same provider ID and clear the marker before the makeup tipoff.
+The marker recipe verifies that the resulting Scheduled game becomes board-due immediately.
+The makeup recipe now uses the actual schedule publisher instead of a direct date update.
+Its same provider ID retains one database game, three player stat IDs and one played-week score.
+
+`tests/db/calendar-live-marker.sql` uses an unused fixture year and checks only its own game.
+Every fixture write rolls back. Its polling times are explicit, and it asserts no wall-clock threshold.
+It can join the database CI chain after the orchestrator registers the command.
+`marker-proposal.py` belongs only on the pre-fix stack: it trials the proposal with native oracles,
+then restores the deployed function and verifies its original definition hash.
+live-pp-05 reverses Scheduled eligibility; live-pp-06 removes that condition and blocks a real resumption.
+
+The merged-week evidence recipe now waits for the native PostgreSQL subscription confirmation and the channel join.
+The join alone can precede registration and miss early scoring writes on a cold local stack.
+Every score, certificate and final event assertion stays in place.

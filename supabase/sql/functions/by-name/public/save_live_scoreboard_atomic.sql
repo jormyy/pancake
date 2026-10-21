@@ -20,7 +20,9 @@ BEGIN
   IF p_status<>'Final' AND (v_game.status='Final' OR v_game.live_scoreboard_elapsed_seconds>p_elapsed_seconds
     OR (v_game.status='InProgress' AND p_status='Scheduled')) THEN RETURN false; END IF;
   UPDATE public.nba_games SET status=p_status,home_score=p_home_score,away_score=p_away_score,
-    game_status_text=p_status_text,live_scoreboard_elapsed_seconds=p_elapsed_seconds,updated_at=clock_timestamp()
+    game_status_text=CASE WHEN NOT private.lineup_game_available(v_game.status,v_game.game_status_text)
+      AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)
+      THEN v_game.game_status_text ELSE p_status_text END,live_scoreboard_elapsed_seconds=p_elapsed_seconds,updated_at=clock_timestamp()
     WHERE id=p_game_id;
   RETURN true;
 END;

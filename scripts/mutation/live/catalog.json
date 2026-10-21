@@ -41,8 +41,8 @@
   {
     "id": "L04",
     "area": "live-streams",
-    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
-    "line": 49,
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 20,
     "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
     "operator": "ROR",
     "original": "v_game.live_scoreboard_elapsed_seconds>p_elapsed_seconds",
@@ -54,8 +54,8 @@
   {
     "id": "L05",
     "area": "live-streams",
-    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
-    "line": 49,
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 20,
     "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
     "operator": "STMT-DEL",
     "original": "v_game.status='Final' OR ",
@@ -67,8 +67,8 @@
   {
     "id": "L06",
     "area": "live-streams",
-    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
-    "line": 51,
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 22,
     "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
     "operator": "ARG-SWAP",
     "original": "home_score=p_home_score,away_score=p_away_score",
@@ -512,8 +512,8 @@
   {
     "id": "L22",
     "area": "live-streams",
-    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
-    "line": 50,
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 21,
     "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
     "operator": "STMT-DEL",
     "original": "OR (v_game.status='InProgress' AND p_status='Scheduled')",
@@ -525,8 +525,8 @@
   {
     "id": "L23",
     "area": "live-streams",
-    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
-    "line": 49,
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 20,
     "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
     "operator": "ROR",
     "original": "v_game.live_scoreboard_elapsed_seconds>p_elapsed_seconds",
@@ -538,8 +538,8 @@
   {
     "id": "L24",
     "area": "live-streams",
-    "file": "supabase/migrations/20261019000001_live_snapshot_progress.sql",
-    "line": 46,
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 17,
     "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
     "operator": "CONST",
     "original": "v_game.nba_game_id IS DISTINCT FROM p_provider_game_id",
@@ -1027,6 +1027,32 @@
     "mutated": "toETDate(referenceDate) < endDate && matchups.some",
     "oracles": [
       "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-all-star-week.ts single"
+    ]
+  },
+  {
+    "id": "live-pp-05",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 24,
+    "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
+    "operator": "NEG",
+    "original": "AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)",
+    "mutated": "AND p_status<>'Scheduled' AND private.lineup_game_available(p_status,p_status_text)",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/calendar-live-marker.sql"
+    ]
+  },
+  {
+    "id": "live-pp-06",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000035_preserve_live_unavailable_markers.sql",
+    "line": 24,
+    "symbol": "public.save_live_scoreboard_atomic(uuid,text,text,integer,integer,text,numeric)",
+    "operator": "STMT-DEL",
+    "original": "AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)",
+    "mutated": "AND private.lineup_game_available(p_status,p_status_text)",
+    "oracles": [
+      "psql \"$SUPABASE_DB_URL\" -X --set ON_ERROR_STOP=1 -f tests/db/calendar-live-marker.sql"
     ]
   }
 ]
