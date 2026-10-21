@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+// eslint-disable-next-line import/no-unresolved
 import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from '../../functions/_shared/database.ts'
 
@@ -110,13 +111,22 @@ try {
   channel = userClient.channel(`skip-${league}`).on<MatchupRow>('postgres_changes', {
     event: 'UPDATE', schema: 'public', table: 'matchups', filter: `league_season_id=eq.${season}`,
   }, payload => events.push(payload.new))
+  const streamStates: unknown[] = []
   await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Matchup stream subscription timed out')), 10_000)
+    let joined = false, postgresReady = false
+    const timeout = setTimeout(() => reject(new Error(`Matchup PostgreSQL subscription timed out: ${JSON.stringify(streamStates)}`)), 10_000)
+    const ready = () => { if (joined && postgresReady) { clearTimeout(timeout); resolve() } }
+    channel!.on('system', {}, payload => {
+      streamStates.push(payload)
+      if (payload.extension === 'postgres_changes' && payload.status === 'ok') { postgresReady = true; ready() }
+    })
     channel!.subscribe(status => {
-      if (status === 'SUBSCRIBED') { clearTimeout(timeout); resolve() }
+      streamStates.push(status)
+      if (status === 'SUBSCRIBED') { joined = true; ready() }
       else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { clearTimeout(timeout); reject(new Error(status)) }
     })
   })
+  console.log(JSON.stringify({ provenance: 'SYNTHETIC', streamStates }))
   assert.deepEqual((await q(supabase.from('league_seasons').select('skipped_weeks').eq('id', season).single()))?.skipped_weeks, [1])
   assert.equal(await q(supabase.rpc('update_score_points_atomic', { p_league_id: league, p_league_season_id: season, p_week_number: 1,
     p_matchups: [{ id: matchups[0], home_points: 9999, away_points: 0 }] })), 0)
