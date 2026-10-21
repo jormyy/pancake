@@ -97,6 +97,7 @@
         "tests/e2e/notif-settings.mjs",
         "scripts/mutation/notif/run.ts",
         "scripts/mutation/notif/round2.ts",
+        "supabase/tests/db/identity-import-concurrency.ts",
         "supabase/tests/db/calendar-seasons.ts",
         "supabase/tests/db/calendar-ingestion.ts",
         "supabase/tests/db/calendar-publish.ts",
