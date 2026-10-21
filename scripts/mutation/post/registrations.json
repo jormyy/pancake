@@ -14,7 +14,8 @@
     "test:db:rollover-year-gap": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql",
     "test:db:rookie-backstop": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts",
     "test:db:rookie-drafting-gate": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql",
-    "test:db:live-poll-delayed-tipoff": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql"
+    "test:db:live-poll-delayed-tipoff": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql",
+    "test:db:scoring-idempotent-finalization": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X --set ON_ERROR_STOP=1 -f tests/db/scoring-idempotent-finalization.sql"
   },
   "evidence only": {
     "evidence:db:weekly-idle-load": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/weekly-idle-load.sql",
@@ -23,6 +24,7 @@
     "evidence:db:scoring-skip-first-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-skip-first-week.ts",
     "evidence:db:waiver-season-end": "node tests/e2e/waiver-season-end-db.mjs",
     "evidence:db:rookie-skipped-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts",
-    "evidence:db:playoff-stale-boundary": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+    "evidence:db:playoff-stale-boundary": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts",
+    "evidence:db:scoring-eliminated-lineups": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-eliminated-lineups.ts"
   }
 }
