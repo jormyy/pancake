@@ -18,7 +18,16 @@ BEGIN
         NEW.league_id,NEW.member_id,jsonb_build_object('leagueSeasonId',NEW.league_season_id));
     END IF;
   END IF;
-  IF NEW.status = 'failed_priority' AND NEW.failure_reason ILIKE '%higher FAAB bid%' THEN
+  IF NEW.status = 'failed_priority' AND EXISTS (
+    SELECT 1 FROM public.waiver_wire_log settled
+    JOIN public.waiver_claims winner ON winner.id=settled.claimed_by_claim_id
+    JOIN public.leagues league ON league.id=settled.league_id AND league.waiver_mode='faab'
+    WHERE settled.league_id=NEW.league_id AND settled.league_season_id=NEW.league_season_id
+      AND settled.player_id=NEW.player_id AND settled.cleared_at=NEW.processed_at
+      AND winner.league_id=NEW.league_id AND winner.league_season_id=NEW.league_season_id
+      AND winner.player_id=NEW.player_id AND winner.status='succeeded'
+      AND winner.processed_at=NEW.processed_at AND winner.bid_amount>NEW.bid_amount
+  ) THEN
     PERFORM private.notif_enqueue('faab_outbid',NEW.id::text,NEW.league_id,NEW.member_id,
       jsonb_build_object('claimId',NEW.id,'playerId',NEW.player_id));
   END IF;
