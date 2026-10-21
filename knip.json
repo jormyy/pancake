@@ -86,6 +86,7 @@
         "supabase/tests/db/scoring-all-star-week.ts",
         "supabase/tests/db/identity-rookies.ts",
         "supabase/tests/db/identity-continuity.ts",
+        "supabase/tests/db/identity-game-membership.ts",
         "supabase/tests/db/calendar-seasons.ts",
         "supabase/tests/db/calendar-ingestion.ts",
         "supabase/tests/db/calendar-publish.ts",
