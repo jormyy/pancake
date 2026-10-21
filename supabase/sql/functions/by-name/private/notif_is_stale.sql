@@ -24,6 +24,18 @@ BEGIN
         AND abs(m.home_points-m.away_points)<=greatest(10,(m.home_points+m.away_points)*0.025));
   END IF;
   IF p_event NOT IN ('draft_on_clock','draft_coming_soon','draft_timer_expiring') THEN RETURN false; END IF;
+  IF p_data ? 'draftId' AND p_data ? 'nominationOrder' THEN
+    SELECT * INTO d FROM public.drafts WHERE id::text = p_data->>'draftId';
+    IF d.id IS NULL OR d.is_mock OR d.draft_type <> 'auction' OR d.status NOT IN ('in_progress','paused')
+      OR p_event = 'draft_timer_expiring'
+      OR (SELECT count(*) FROM public.draft_audit_logs WHERE draft_id = d.id AND action = 'reset')::text IS DISTINCT FROM p_data->>'resets'
+      THEN RETURN true; END IF;
+    IF p_event = 'draft_coming_soon' THEN
+      RETURN (d.current_nomination_order + 1)::text IS DISTINCT FROM p_data->>'nominationOrder';
+    END IF;
+    RETURN d.current_nomination_order::text IS DISTINCT FROM p_data->>'nominationOrder'
+      OR EXISTS (SELECT 1 FROM public.nominations WHERE draft_id = d.id AND status = 'open');
+  END IF;
   IF NOT (p_data ? 'draftId' AND p_data ? 'pickId') THEN RETURN true; END IF;
   SELECT * INTO d FROM public.drafts WHERE id::text = p_data->>'draftId';
   IF d.id IS NULL OR d.is_mock OR d.status NOT IN ('in_progress','paused') THEN RETURN true; END IF;
