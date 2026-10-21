@@ -210,6 +210,11 @@ BEGIN
   UPDATE dynasty_news SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE league_activity SET related_player_id = winner_id WHERE related_player_id = loser_id;
 
+  INSERT INTO player_watches(league_id, member_id, player_id, created_at)
+    SELECT league_id, member_id, winner_id, created_at FROM player_watches
+    WHERE player_id = loser_id ORDER BY member_id
+    ON CONFLICT (member_id, player_id) DO NOTHING;
+
   DELETE FROM players WHERE id = loser_id;
 END;
 $$;
