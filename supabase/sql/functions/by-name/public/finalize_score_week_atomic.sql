@@ -160,6 +160,12 @@ BEGIN
       FROM locked
      WHERE matchup.id = locked.id
        AND NOT private.playoff_matchup_is_consumed(locked.id)
+       AND (NOT locked.is_finalized
+         OR (locked.home_points, locked.away_points, locked.winner_member_id,
+           locked.home_max_possible_points, locked.away_max_possible_points) IS DISTINCT FROM
+           (COALESCE(locked.requested_home_points, locked.home_points),
+             COALESCE(locked.requested_away_points, locked.away_points), locked.requested_winner_member_id,
+             locked.requested_home_max_possible_points, locked.requested_away_max_possible_points))
      RETURNING
        matchup.id,
        locked.is_finalized AS was_finalized,
@@ -259,7 +265,11 @@ BEGIN
     points_for = EXCLUDED.points_for,
     points_against = EXCLUDED.points_against,
     max_possible_points = EXCLUDED.max_possible_points,
-    waiver_priority = EXCLUDED.waiver_priority;
+    waiver_priority = EXCLUDED.waiver_priority
+  WHERE (standings.wins, standings.losses, standings.ties, standings.points_for, standings.points_against,
+    standings.max_possible_points, standings.waiver_priority) IS DISTINCT FROM
+    (EXCLUDED.wins, EXCLUDED.losses, EXCLUDED.ties, EXCLUDED.points_for, EXCLUDED.points_against,
+      EXCLUDED.max_possible_points, EXCLUDED.waiver_priority);
 
   IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_league_season_id AND cardinality(skipped_weeks)>0) THEN
     PERFORM private.rebuild_regular_standings(p_league_id,p_league_season_id);
@@ -267,7 +277,8 @@ BEGIN
 
   INSERT INTO private.score_week_certificates(league_season_id, week_number, input_token)
     VALUES(p_league_season_id, p_week_number, private.score_input_token(p_league_season_id, p_week_number))
-    ON CONFLICT(league_season_id, week_number) DO UPDATE SET input_token = EXCLUDED.input_token;
+    ON CONFLICT(league_season_id, week_number) DO UPDATE SET input_token = EXCLUDED.input_token
+    WHERE score_week_certificates.input_token IS DISTINCT FROM EXCLUDED.input_token;
 
   RETURN '[]'::jsonb;
 END;

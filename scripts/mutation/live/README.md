@@ -172,3 +172,50 @@ live-pp-05 reverses Scheduled eligibility; live-pp-06 removes that condition and
 The merged-week evidence recipe now waits for the native PostgreSQL subscription confirmation and the channel join.
 The join alone can precede registration and miss early scoring writes on a cold local stack.
 Every score, certificate and final event assertion stays in place.
+
+
+## Eliminated teams and persisted lineups
+
+`supabase/tests/db/scoring-eliminated-lineups.ts` exercises the actual live tick, stat importer, scorer,
+auto-set service RPC, automatic bracket boundaries, PostgreSQL certificates and authenticated Realtime.
+The two pinned ESPN calendars are REAL-DERIVED. League members, players, games and stat lines are SYNTHETIC.
+It derives 24 fantasy weeks with the production calendar function, keeps merged week 17, and uses rounds [1,2,2] from week 20.
+An eight-team league has six playoff entrants, two byes and two non-playoff teams.
+All eight teams retain explicit and real auto-set lineups throughout the playoff dates.
+Excluded players receive large later stat lines; the final loser also receives two post-champion corrections.
+
+Run each variant twice on the assigned isolated stack:
+
+```sh
+for year in 2024 2025; do
+  for variant in full skip; do
+    for repeat in 1 2; do
+      bash scripts/mutation/live/with-stack.sh deno run --no-lock --check --allow-env \
+        --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql \
+        supabase/tests/db/scoring-eliminated-lineups.ts "$year" "$variant"
+    done
+  done
+done
+```
+
+Expected ports default to CI values 54321/54322 and accept PANCAKE_TEST_API_PORT/PANCAKE_TEST_DB_PORT overrides.
+The live wrapper selects the assigned ports 57321/57322. It reuses the repository's season-sim clock installation and restoration SQL.
+It saves and restores its own stack's cron jobs, restores the native clock and removes its owned fixtures in finally.
+The JavaScript clock uses the existing virtualDate helper. Each ingestTick acquires and releases the actual live lease.
+Games before bracket creation use the actual completed-box importer; later dates use live and final ticks.
+It never changes the replay stack, its clock, source or shared files.
+Realtime checks wait for the actual PostgreSQL subscription and a real score publication before measuring later events.
+The final check combines unchanged physical rows with a WebSocket acknowledgement after the final-loser imports.
+
+The client-visible check uses authenticated PostgREST with the same week-span filters as lib/scoring.ts.
+Certificates and result revisions are season/week records. The checks freeze consumed-round records and forbid phantom continuation-week certificates.
+Global NBA stat rows and their input revisions continue to change for real imported players; these are not fantasy results for a member.
+
+`tests/db/scoring-idempotent-finalization.sql` separately checks row preservation, real corrections and stale-token rejection.
+It compares tuple locations because all writes occur in one rollback-only transaction.
+It has no clock change, network provider or wall-clock correctness threshold and can join the CI database chain.
+
+Append the five new mutations with `python3 scripts/mutation/live/eliminated-catalog.py`.
+Their IDs are live-elim-01 through live-elim-05. Use the existing runner's baseline and tier1 phases with those IDs.
+The first two remove the actual finalizer's unchanged-row guards; the third permits playoff standings;
+the fourth reverses max-points roster eligibility; the fifth removes the certificate redelivery guard.

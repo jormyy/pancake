@@ -31,7 +31,7 @@ async function stampAttempts(holder: string, checkedIds: string[], statIds: stri
   if (error) throw error
 }
 
-async function ingestTick(holder: string): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number }> {
+export async function ingestTick(holder: string): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number }> {
   let work = await loadWork()
   if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0 }
   const boardGames = work.filter(game => game.needs_scoreboard)
