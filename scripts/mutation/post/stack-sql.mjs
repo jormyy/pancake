@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import path from 'node:path'
 import { homedir } from 'node:os'
+import './lane.mjs'
 
 const container = 'supabase_db_pt4bapost'
 
@@ -25,7 +26,6 @@ async function docker(method, resource, body) {
 }
 
 export async function sql(statement) {
-  assert.equal(process.cwd(), path.join(homedir(), 'pancake-t_4ba51e0d/lanes/post/repo'))
   const inspected = JSON.parse((await docker('GET', `/containers/${container}/json`)).toString())
   assert.equal(inspected.Name, `/${container}`)
   assert.ok(inspected.NetworkSettings.Ports['5432/tcp'].some(binding => binding.HostPort === '57422'))
