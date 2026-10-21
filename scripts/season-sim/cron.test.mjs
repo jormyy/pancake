@@ -54,7 +54,7 @@ test('discrete cron preserves minute gates while waking internal ticks between t
 test('reusing a stack preserves its captured cron catalog and detects changed migration jobs', () => {
   assert.deepEqual(mergeCronCatalog([], productionJobs), [...productionJobs].sort((a, b) => a.jobname.localeCompare(b.jobname)))
   assert.throws(() => mergeCronCatalog([]), /Missing production cron/)
-  assert.throws(() => mergeCronCatalog([{ ...productionJobs[0], schedule: '* * * * *' }], productionJobs), /Changed production cadence/)
+  assert.throws(() => mergeCronCatalog([{ ...productionJobs.find(row=>row.jobname==='nba-live-poll'), schedule: '* * * * *' }], productionJobs), /Changed production cadence/)
 })
 
 test('cadence profiles retain each real production minute and internal wake', async () => {
@@ -66,4 +66,12 @@ test('cadence profiles retain each real production minute and internal wake', as
   assert.equal(rows.filter(row => row.minute).length, 2)
   assert.equal(rows.filter(row => !row.minute).length, 1)
   assert.ok(rows.every(row => row.wallSeconds >= 0))
+})
+
+test('the Players averages production refresh runs at its installed daily cadence',()=>{
+  assert.ok(cronCommands(Date.parse('2024-10-22T12:40:00Z')).some(row=>row.jobname==='refresh-player-search-caches'))
+})
+
+test('the notification outbox uses the real per-minute production gate',()=>{
+  assert.ok(cronCommands(Date.parse('2025-06-28T13:02:00Z')).some(row=>row.jobname==='notification-dispatch-minute'&&row.command.includes('invoke_process_trades_if_due')))
 })

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { assertFetchTarget } from './fetch-guard.mjs'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { businessTimers } from './business-timers.mjs'
 import { appendFileSync, readFileSync } from 'node:fs'
@@ -41,9 +42,7 @@ const sampleLive = async phase => {
   assert.ok(response.ok, `Internal live score sample fails: ${await response.text()}`)
 }
 globalThis.fetch = async (input, init) => {
-  const url = new URL(input instanceof Request ? input.url : input)
-  const kind = Object.entries(config.ports).find(([, port]) => String(port) === url.port)?.[0]
-  assertTarget(url.origin, kind)
+  const url = assertFetchTarget(input instanceof Request ? input.url : input)
   if (url.port === String(config.ports.api) && url.pathname.startsWith('/functions/v1/')) {
     url.port = String(config.ports.edge)
     input = input instanceof Request ? new Request(url, input) : url

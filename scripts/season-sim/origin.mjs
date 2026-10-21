@@ -4,6 +4,8 @@ import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { fixtureDirectory, config, assertTarget, delay, etDate, historicalSummary, laneDirectory, miniRoot, season, sha256, teamCode, writeJson } from './common.mjs'
+import { fakeExpoRecorder } from './push-origin.mjs'
+import { sqlJson } from './local-stack.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { orderedActions, snapshot, gameEndTime } from './snapshots.mjs'
 import { clockTime } from './virtual-clock.mjs'
@@ -86,10 +88,23 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
   function rosterAt(at) {
     return rosterForDate([...people.values()], etDate(new Date(at).toISOString()))
   }
+  const expo=await fakeExpoRecorder(evidence,now,async(token,_data,outboxId)=>{
+    const quoted=value=>"'"+value.replaceAll("'","''")+"'"
+    return sqlJson(`SELECT coalesce(json_agg(o),'[]') FROM (SELECT o.dedupe_key FROM notification_outbox o JOIN league_members m ON m.id=o.member_id JOIN profiles p ON p.id=m.user_id WHERE p.push_token=${quoted(token)} AND o.id::text=${quoted(String(outboxId??''))} AND o.delivered_at IS NULL) o`,'Recorded fake-push outbox identity')
+  })
   const server = /** @type {http.Server & { historicalRoster: () => { espnId: string, nbaTeam: string }[], coverage: typeof recorder.report, flushCoverage: typeof recorder.save, onLiveSample?: (sample: { phase: string }) => Promise<void> }} */ (http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${request.headers.host}`)
     try {
       assertTarget(url.origin, 'replay')
+      if(['/push','/receipts'].includes(url.pathname)){
+        assert.equal(request.method,'POST')
+        const chunks=[]
+        for await(const chunk of request)chunks.push(chunk)
+        const result=await expo(url.pathname,JSON.parse(Buffer.concat(chunks).toString()))
+        response.setHeader('Content-Type','application/json')
+        response.end(JSON.stringify(result))
+        return
+      }
       assert.equal(request.method, 'GET')
       if (url.pathname === '/__sim/live-sample') {
         assert.ok(probeToken && request.headers['x-sim-probe-token'] === probeToken, 'Internal live sampling requires the local runtime token')

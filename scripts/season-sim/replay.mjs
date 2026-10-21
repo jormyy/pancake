@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import {captureSeasonFeatures,capturePlayers} from './feature-evidence.mjs'
+import {registerPushOwners} from './push-evidence.mjs'
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { assertFinals, assertLeaguePoints, captureLoad, resetLoad } from './assertions.mjs'
@@ -15,7 +17,7 @@ import { fixtureStore } from './fixtures.mjs'
 import { clockTime } from './virtual-clock.mjs'
 import { planDay } from './planner.mjs'
 import { finishSeason, finishRookieDraft } from './season-end.mjs'
-import { advanceCron, verifyCronCatalog } from './cron.mjs'
+import { advanceCron, verifyCronCatalog, productionJobs } from './cron.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
 import { startRealtimeProbe } from './realtime-probe.mjs'
 import { saveSnapshot, waitForSnapshotWorkers } from './checkpoints.mjs'
@@ -137,6 +139,7 @@ export async function replay(options = {}) {
     if (options.afterRestoreSql) report.overlay = await applyOverlay(options.afterRestoreSql)
     verifyCronCatalog(JSON.parse(await readFile(path.join(miniRoot, 'cron-jobs.json'), 'utf8')))
     report.triggerFidelity.catalog = 'cron-jobs.json; migrated rows and any previously captured rows'
+    report.triggerFidelity.omittedJobs=JSON.parse(await readFile(path.join(miniRoot,'cron-jobs.json'),'utf8')).filter(row=>!productionJobs.some(job=>job.jobname===row.jobname)).map(row=>({...row,scope:'Ancillary housekeeping gap: inventory change hints, mock-room cleanup, response vacuum or retention. No mocks exist; two-season score/history oracles use primary tables. No claimed coverage for these jobs.'}))
     try { report.triggerFidelity.catalogEvidence = JSON.parse(await readFile(path.join(miniRoot, 'cron-catalog-evidence.json'), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error; report.triggerFidelity.catalogEvidence = { scope: 'Pinned stack catalog; capture metadata unavailable' } }
     await writeJson(path.join(miniRoot, 'state/fault.json'), {})
     baseline = await resetLoad()
@@ -165,6 +168,11 @@ export async function replay(options = {}) {
     }
     report.leagueId = context.leagueId
     report.leagueSeasonId = context.leagueSeasonId
+    if(realPlan&&!options.resume){
+      report.pushRegistration=await registerPushOwners(context,runtime.keys)
+      await captureSeasonFeatures(context,profile,'week-1',report)
+      await capturePlayers(context,'opening-before-played',report)
+    }
     report.diagnosticSkippedWeeks = context.diagnosticSkippedWeeks ?? null
     probe = await startRealtimeProbe(context, runtime.keys)
     if (options.resume?.actions) { report.actions = options.resume.actions; report.retainedActions = true }
@@ -233,6 +241,8 @@ export async function replay(options = {}) {
       await verifyWaivers(context, report)
       day.weekly = await assertClosedWeeks(context, next, verifiedWeeks)
       day.coverage = assertLiveCoverage(runtime.origin.coverage, today, plan)
+      if(realPlan&&!report.featureCheckpoints.some(row=>row.year===context.seasonYear&&row.label==='mid-season')&&profile.calendar.weeks.find(row=>row.week_start<=date&&row.week_end>=date)?.week_number>=Math.floor(profile.playoffStart/2))await captureSeasonFeatures(context,profile,'mid-season',report)
+      if(realPlan&&!report.playersEvidence.some(row=>row.year===context.seasonYear&&row.label==='after-first-final'))await capturePlayers(context,'after-first-final',report)
       day.domain = await assertDomain(context, previous)
       previous = day.domain
       day.wallSeconds = (Date.now() - began) / 1000
@@ -275,4 +285,5 @@ export async function replay(options = {}) {
       try { await captureLoad('replay', baseline) } finally { await runtime.close() }
     }
   }
+  return report
 }

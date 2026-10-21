@@ -9,11 +9,16 @@ import { replay } from './replay.mjs'
 import { lifecycle } from './lifecycle.mjs'
 import { setClock } from './clock.mjs'
 import { probeDelayedTipoff } from './delayed-tipoff.mjs'
+import { probeRookieDraft } from './draft-probe.mjs'
+import { extractFeatureFile } from './feature-evidence.mjs'
 import { collectTwoSources } from './collect-two.mjs'
 import { prepareTwoInputs } from './prepare-two.mjs'
 import { collectRosterHistory } from './collect-rosters.mjs'
 
 const { values } = parseArgs({ options: {
+  'draft-probe-phase':{type:'string'},
+  'probe-rookie-draft':{type:'boolean'},
+  'extract-features':{type:'string'},
   'collect-two-sources': { type: 'boolean' },
   'prepare-two': { type: 'boolean' },
   'collect-rosters': { type: 'boolean' },
@@ -27,12 +32,17 @@ const { values } = parseArgs({ options: {
 } })
 for (const key of ['days', 'games']) if (values[key] != null && (!/^\d+$/.test(values[key]) || Number(values[key]) < 1)) throw new Error(`Invalid --${key}`)
 if (Number(values.days ?? 1) > dates(season.start,season.end).length || Number(values.games ?? 1) > 1300) throw new Error('Requested range exceeds this season')
-if ([values['collect-rosters'],values['prepare-two'], values['collect-two-sources'], values['probe-delayed-tipoff'], values['compare-pinned'], values.collect, values.audit, values.clock, values.replay, values.lifecycle, values.segment, values['collect-next'], values['prepare-next']].filter(Boolean).length > 1) throw new Error('Choose one operation')
+if ([values['probe-rookie-draft'],values['extract-features'],values['collect-rosters'],values['prepare-two'], values['collect-two-sources'], values['probe-delayed-tipoff'], values['compare-pinned'], values.collect, values.audit, values.clock, values.replay, values.lifecycle, values.segment, values['collect-next'], values['prepare-next']].filter(Boolean).length > 1) throw new Error('Choose one operation')
+if(values['draft-probe-phase']&&!values['probe-rookie-draft'])throw new Error('--draft-probe-phase requires --probe-rookie-draft')
 if (values['after-restore-sql'] && !values.segment) throw new Error('--after-restore-sql requires --segment')
 if (values.replay && (values.games || values.fixtures || values.evidence)) throw new Error('Replay uses the complete lane fixture store; use --start and --days to select dates')
 if (values.lifecycle && values.days) throw new Error('--days applies to collection or replay, not lifecycle probes')
 if (values.help) {
   console.log(`npm run e2e:season-sim -- --compare-pinned /absolute/manifest.jsonl\nnpm run e2e:season-sim -- --collect|--audit [--days 2] [--games 20] [--fixtures PATH] [--evidence PATH] [--retry-missing]\nnpm run e2e:season-sim -- --clock --install --at ${season.start}T12:00:00Z [--rate 0]\nnpm run e2e:season-sim -- --collect-next|--prepare-next\nnpm run e2e:season-sim -- --segment NAME [--after-restore-sql /absolute/mutant.sql]\nnpm run e2e:season-sim -- --replay [--late-season] [--start ${season.start}] [--days 2]\nnpm run e2e:season-sim -- --lifecycle [--start ${dates(season.start,season.end)[7]}]\nAll writes stay in the lane or its declared new artifact folder.`)
+} else if(values['probe-rookie-draft']){
+  const result=await probeRookieDraft({phase:values['draft-probe-phase']??'both'});process.exitCode=result.exit
+} else if(values['extract-features']){
+  const result=await extractFeatureFile(values['extract-features']);console.log(JSON.stringify(result));process.exitCode=[result.f1,result.f2].some(row=>row.status==='FAILED')?1:0
 } else if (values['collect-rosters']) {
   console.log(JSON.stringify(await collectRosterHistory()))
 } else if (values['prepare-two']) {
@@ -52,7 +62,7 @@ if (values.help) {
 } else if (values.lifecycle) {
   await lifecycle(values.start)
 } else if (values.replay) {
-  await replay(values)
+  const result=await replay(values);process.exitCode=result.failures?.length?1:0
 } else if (values.audit) {
   await audit({ ...values, games: values.games ? Number(values.games) : undefined })
 } else if (values.clock) {

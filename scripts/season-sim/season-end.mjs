@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import {captureSeasonFeatures} from './feature-evidence.mjs'
+import {captureDraftPushes} from './push-evidence.mjs'
+import { rookieDraftOptions } from './draft-options.mjs'
 import { createHash } from 'node:crypto'
 import { assertPendingWaivers, assertWaiverRollover, verifyWaivers } from './waiver-scenarios.mjs'
 import { completeOffseasonTrade } from './trade-scenarios.mjs'
@@ -8,7 +11,7 @@ import { assertDomain } from './invariants.mjs'
 import { checkChampion, checkAllocation, rookieOrder, checkDraftOrder,checkRealDraftBoard } from './post-oracle.mjs'
 import {twoPlan} from './two-checks.mjs'
 import { maintenanceTick, rolloverDeadline, waitForRollover } from './maintenance.mjs'
-import { expiryCronTick } from './cron.mjs'
+import { playRookieTurns } from './rookie-turns.mjs'
 import { season } from './common.mjs'
 import { shiftDay } from './season-model.mjs'
 import { checkSeasonHistory } from './history-oracle.mjs'
@@ -27,6 +30,7 @@ export async function finishSeason(c, move, report, checkpoint, { snapshot = asy
   const championRead = await c.rest(c.users[0], `matchups?select=*&league_id=eq.${c.leagueId}&league_season_id=eq.${oldSeason}&matchup_type=eq.playoff_final`)
   await assertClientScores(c)
   report.champion = checkChampion(final, championRead[0])
+  if(process.env.SEASON_SIM_MODE==='two-season')await captureSeasonFeatures(c,(await twoPlan()).seasons.find(row=>row.year===c.seasonYear),'final',report)
   await snapshot('automatic-champion', c.seasonEnd ?? season.end, 1)
   if (stopAfterChampion) return { passed: true, oldSeason, champion: report.champion, playoffGames: Number(await sql(`SELECT count(*) FROM matchups WHERE league_season_id='${oldSeason}' AND matchup_type<>'regular_season' AND is_finalized`)) }
   const pendingWaivers = c.waiverScenarios?.find(row => row.name === 'postseason-pending')
@@ -125,7 +129,7 @@ export async function finishRookieDraft(c, move, report, checkpoint, { snapshot 
   if(process.env.SEASON_SIM_MODE==='two-season')report.realDraftBoard=checkRealDraftBoard((await twoPlan()).draft.rookies,JSON.parse(await sql('SELECT json_agg(p) FROM players p WHERE nba_draft_number IS NOT NULL')))
   await c.rpc(commissioner, 'update_league_settings_atomic', { p_league_id: c.leagueId, p_settings: { waiver_mode: 'rolling' } })
   report.waiverModeChange = { route: '/rest/v1/rpc/update_league_settings_atomic', from: 'faab', to: 'rolling', reason: 'One retained league covers both waiver modes and the same cross-season assets.' }
-  const { draft } = await c.api(commissioner, '/draft/start-rookie', { leagueId: c.leagueId, rounds: 2, timerSeconds: 5, timerExpiryBehavior: 'auto_pick' })
+  const { draft } = await c.api(commissioner, '/draft/start-rookie', { leagueId: c.leagueId, ...rookieDraftOptions() })
   const draftId = draft.id ?? draft.draft_id ?? draft.draftId
   assert.ok(draftId, JSON.stringify(draft))
   const picks = JSON.parse(await sql(`SELECT json_agg(p ORDER BY overall_pick) FROM snake_draft_picks p WHERE draft_id='${draftId}'`))
@@ -138,19 +142,8 @@ export async function finishRookieDraft(c, move, report, checkpoint, { snapshot 
   checkDraftOrder({ picks, assets, expectedOrder, rounds: 2 })
   const order = JSON.parse(await sql(`SELECT json_agg(member_id ORDER BY position) FROM draft_orders WHERE draft_id='${draftId}'`))
   assert.deepEqual(order, expectedOrder, 'Draft order agrees with independently sorted prior standings')
-  await move(expiryCronTick(picks[0].timer_expires_at))
-  const expired = JSON.parse(await sql(`SELECT row_to_json(p) FROM snake_draft_picks p WHERE draft_id='${draftId}' AND overall_pick=1`))
-  assert.ok(expired.player_id && expired.picked_at, 'Production expiry gate must make the timed-out rookie pick')
-  report.rookieAutoPick = { draftId, pick: expired, passed: true }
-  for (const pick of picks.slice(1)) {
-    const already = await sql(`SELECT player_id FROM snake_draft_picks WHERE id='${pick.id}'`)
-    if (already) continue
-    const user = c.users.find(user => user.memberId === pick.member_id)
-    const playerId = await sql(`SELECT id FROM players WHERE ${process.env.SEASON_SIM_MODE === 'two-season' ? 'nba_draft_number IS NOT NULL AND years_exp=0' : `display_name LIKE 'Synthetic Prospect ${c.seasonYear - 1} %'`} AND NOT EXISTS(SELECT 1 FROM roster_players r WHERE r.league_id='${c.leagueId}' AND r.player_id=players.id) ORDER BY nba_draft_number,id LIMIT 1`)
-    assert.ok(playerId)
-    await c.api(user, `/draft/${draftId}/snake-pick`, { memberId: user.memberId, playerId, toTaxi: true })
-  }
-  assert.equal(await sql(`SELECT status FROM drafts WHERE id='${draftId}'`), 'completed')
+  await playRookieTurns(c,draftId,move,report)
+  if(c.pushOwners)await captureDraftPushes(c,draftId,report)
   const after = await sql(`SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s`)
   assert.equal(after, history, 'Rollover and rookie draft must preserve all game stat rows exactly')
   assert.equal(await sql(`SELECT is_current FROM league_seasons WHERE id='${oldSeason}'`), 'f')
