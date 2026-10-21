@@ -59,3 +59,13 @@ test('task projects accept configured blocks and refuse remote sockets or foreig
   assert.throws(() => configuration({ SEASON_SIM_PROJECT: 'ceeytbfmwsnzalxlkalc' }))
   assert.throws(() => configuration({ SEASON_SIM_PORT_PREFIX: '543' }))
 })
+
+test('the supplemental stack accepts only its exact assigned root, project and block',()=>{
+  const root=config.root.replace(/\/lanes\/[^/]+$/,'/lanes/sim-supp')
+  assert.equal(configuration({SEASON_SIM_ROOT:root,SEASON_SIM_PROJECT:'pt4basimx',SEASON_SIM_PORT_PREFIX:'581'}).ports.api,58121)
+  for(const env of [
+    {SEASON_SIM_ROOT:root,SEASON_SIM_PROJECT:'pt4basim',SEASON_SIM_PORT_PREFIX:'581'},
+    {SEASON_SIM_ROOT:root.replace('/lanes/sim-supp','/lanes/sim'),SEASON_SIM_PROJECT:'pt4basimx',SEASON_SIM_PORT_PREFIX:'581'},
+    {SEASON_SIM_ROOT:root,SEASON_SIM_PROJECT:'pt4basimx',SEASON_SIM_PORT_PREFIX:'582'},
+  ])assert.throws(()=>configuration(env))
+})

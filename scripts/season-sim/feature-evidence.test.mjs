@@ -1,6 +1,6 @@
 import assert from'node:assert/strict'
 import test from'node:test'
-import{observedSeasonOrder,playerAverages}from'./feature-evidence.mjs'
+import{observedSeasonOrder,playerAverages,playerEvidence}from'./feature-evidence.mjs'
 
 test('persisted season ordering is observed without importing product shuffle code',()=>{
   const members=[{id:'a'},{id:'b'}]
@@ -15,4 +15,16 @@ test('F3 averages rebuild from played stat lines and ignore DNP rows',()=>{
 
 test('negative half-cent Players averages round away from zero',()=>{
   assert.equal(playerAverages([{player_id:'p',points:1},{player_id:'p',points:2}],{points:-0.01}).p,-0.02)
+})
+
+
+test('four-game positive and negative half-cent averages round away from zero',()=>{
+  const stats=[1,2,3,1].map(rebounds=>({player_id:'p',points:40,rebounds}))
+  assert.equal(playerAverages(stats,{points:1,rebounds:0.1}).p,40.18)
+  assert.equal(playerAverages(stats,{points:-1,rebounds:-0.1}).p,-40.18)
+})
+
+test('the Players checkpoint label survives a successful display-season result',()=>{
+  const row=playerEvidence(2025,'after-first-final','at',{status:'PASS',label:'2024-25'})
+  assert.equal(row.label,'after-first-final')
 })

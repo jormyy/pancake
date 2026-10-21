@@ -710,3 +710,100 @@ The idle offseason has not been remeasured in this feature round.
 This is a projection, not a completed-run duration.
 The exact full-launch command above stays unchanged: use the final integration SHA, its archive and no overlay.
 Resolve the F1 implementation, cutoff race, Players-cache finding and notification knip residue before claiming readiness.
+
+
+## Supplemental criteria audit
+
+The protected two-season replay stays unchanged.
+Its evidence folder and log are read-only inputs to the progress command.
+The command never queries the running database or calls its API.
+It writes only under the separate supplemental evidence root and rejects symlink escapes.
+It hashes each observed JSON export and records the source archive and harness from the checkpoint.
+
+```sh
+. ~/pancake-t_4ba51e0d/env.sh
+export SEASON_SIM_ROOT="$TASK/lanes/sim-supp"
+export SEASON_SIM_PROJECT=pt4basimx
+export SEASON_SIM_PORT_PREFIX=581
+export SEASON_SIM_YEAR=2025
+export SEASON_SIM_MODE=two-season
+export SEASON_SIM_FIXTURES="$TASK/shared/sim2/replay"
+cd "$SEASON_SIM_ROOT/repo"
+node scripts/season-sim/index.mjs \
+  --progress "$TASK/lanes/sim/evidence" \
+  --progress-output "$SEASON_SIM_ROOT/evidence/r11"
+```
+
+`criteria.json` and `criteria.md` map the brief, all 44 events, the five new producers and each prior gap.
+Each entry names an oracle, expected business phase, lane recipe or explicit limitation.
+`fullRunOnly` identifies checks that remain provisional until the full uninterrupted replay passes.
+A green early sample does not close those entries.
+Lane recipe mappings do not become passes merely because a source file exists.
+The dependency audit remains a pinned FAILED required check, awaiting Michael's decision.
+
+ETAs extrapolate measured completed-date times across remaining business dates.
+The JSON includes the sample count, mean, observed timing range and model assumption.
+Idle offseason throughput can differ, so these projections are not completion deadlines.
+A stopped replay receives no continuation ETA.
+A continuing run with recorded invariant failures receives data-collection ETAs and an explicit blocked-acceptance flag.
+A missing late-phase proof never becomes a pass because its expected date has elapsed.
+
+The supplemental root is fixed to `lanes/sim-supp`, project `pt4basimx`, block `581`.
+The harness refuses any mismatched member of that triple before starting a stack.
+The existing committed-harness rule for a future fresh launch remains unchanged.
+Build this separate copy from the candidate archive, then overlay only the supplemental harness.
+Never copy these changes into the protected running checkout.
+
+```sh
+node scripts/season-sim/index.mjs --supplemental
+node scripts/season-sim/index.mjs --supplemental --supplemental-scenario paused-notification
+```
+
+Both commands require capacity admission and clear only the supplemental project's inspected backup.
+They restore the clock and stop that project in `finally`.
+The first command uses declared SYNTHETIC prepared states and real authenticated APIs and production gates.
+It tests a normal skipped pick, its later turns, and automatic startup of an unstarted rookie draft.
+The published opening date makes the backstop due at the first 09:00 ET production boundary.
+The unpublished-calendar fallback has a separate existing `rookie-backstop` recipe.
+
+The SQL supplement derives both real calendars independently from the pinned game list.
+Six entrants receive two real byes on each calendar.
+After the first round advances, a later 99,999-point source input cannot alter consumed results or give eliminated teams another matchup.
+This is a transactional SQL publication-guard check, not another full Edge ingestion replay.
+The general-bracket recipe also covers larger and odd team counts.
+
+The four omitted housekeeping jobs run as separate smoke checks against primary-table fingerprints.
+VACUUM runs outside a transaction; the other commands roll back their local diagnostic transactions.
+These checks do not prove expired mock-room behavior or a retention backlog.
+The matrix keeps that broader housekeeping coverage partial.
+
+An on-clock notification regression is reproduced on the candidate application.
+The minute dispatcher marks a paused pick's unsent event stale.
+Resume makes the current pick valid again, but the dedupe conflict leaves its only event suppressed.
+The minimal scenario checks the next minute while thirty seconds remain on the pick.
+The broader supplement records this strict failure and continues only its independent areas.
+Its overall exit remains nonzero; this is not a workaround for a fresh replay.
+The protected replay has the same pause pattern and its later draft push check is at risk.
+
+One observed send per pick in a normal run is not an exactly-once transport guarantee.
+The notification owner records Expo and Web Push retry/crash windows separately.
+The five new producers and send-time reliability work need their own real-transition evidence.
+The immutable running candidate cannot prove code added after its archive.
+Chromium screenshots do not prove WebKit, native Safari or an installed iOS PWA.
+The matrix preserves those browser and device limits explicitly.
+Later lane restart, cutoff and clinch evidence can appear as `LANE EVIDENCE`, with pinned logs and source manifests.
+That status does not imply those later changes exist in the immutable replay.
+
+
+The read-only audit also exposes two Players-evidence harness defects in the running candidate.
+A successful result's display-season label overwrites its checkpoint label.
+That causes repeated samples to overwrite the file named `after-first-final` and prevents the summary from finding successful phases.
+Future harness records keep the checkpoint label and store display text separately as `statsLabel`.
+
+The old average calculation also rounds positive half cents down through binary multiplication.
+At business October 29, 2024, seven displayed averages differ from that oracle by one cent.
+Independent pinned NBA box scores confirm the application's values for all seven.
+The corrected oracle sums integer cents and rounds the rational average away from zero.
+Positive and negative half-cent controls fail before the change and pass after it.
+The original protected export and its failure remain unchanged.
+This classification does not convert the running replay to a pass or authorize a restart.
