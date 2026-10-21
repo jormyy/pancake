@@ -63,6 +63,14 @@ export async function syncStatsByDate(
     try {
       statCount += await syncStatsGameWithResolver(game, resolver, isPast)
     } catch (e) {
+      const { data: remaining, error } = await supabase
+        .rpc('get_score_sync_games', { p_start_date: dateStr, p_end_date: dateStr })
+        .select('id').eq('id', game.id)
+      if (error) throw error
+      if (!remaining?.length) {
+        console.log(`[sync-stats] Game ${game.nba_game_id} left the available score inputs during recovery.`)
+        continue
+      }
       console.error(`[sync-stats] Error for ${game.nba_game_id}:`, errorMessage(e))
       syncFailures.push(`${game.nba_game_id}: ${errorMessage(e)}`)
     }

@@ -451,7 +451,9 @@ async function finalizeWeekIfComplete(
         : await loadMatchupWeeks(seasonYear, weekNumber, endWeek)
     const endDate = weeks[weeks.length - 1].week_end
     if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
-    if (matchups.some((matchup) => isPlayoffMatchupType(matchup.matchup_type)) && toETDate(referenceDate) <= endDate) return
+    if (toETDate(referenceDate) <= endDate && matchups.some((matchup) =>
+        !matchup.is_finalized || isPlayoffMatchupType(matchup.matchup_type)
+    )) return
     const { data: pendingGames, error: pendingGamesError } = await supabase
         .rpc('get_score_sync_games', { p_start_date: weekData.week_start, p_end_date: endDate, p_season_year: seasonYear })
         .select('id, nba_game_id')

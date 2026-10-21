@@ -87,14 +87,22 @@ describe('getCurrentWeekNumber', () => {
         expect(mockFrom).toHaveBeenCalledTimes(1)
     })
 
-    it('shares cached Monday-to-Sunday dates for a partial opening week', async () => {
+    it('shares the exact stored dates for a partial opening week', async () => {
         mockFrom.mockReturnValue(seasonWeekQuery([{ week_number: 1, week_start: '2025-10-21', week_end: '2025-10-26' }]))
         await expect(getCurrentWeekNumber(2026)).resolves.toBe(1)
         await expect(getSeasonWeekDates(2026, 1)).resolves.toEqual([
-            '2025-10-20', '2025-10-21', '2025-10-22', '2025-10-23', '2025-10-24', '2025-10-25', '2025-10-26',
+            '2025-10-21', '2025-10-22', '2025-10-23', '2025-10-24', '2025-10-25', '2025-10-26',
         ])
         expect(mockFrom).toHaveBeenCalledTimes(1)
         await expect(getSeasonWeekDates(2026, 99)).resolves.toEqual([])
+    })
+
+    it('returns every stored day of the merged All-Star week', async () => {
+        mockFrom.mockReturnValue(seasonWeekQuery([{ week_number: 17, week_start: '2026-02-09', week_end: '2026-02-22' }]))
+        const dates = await getSeasonWeekDates(2025, 17)
+        expect(dates).toHaveLength(14)
+        expect(dates.at(0)).toBe('2026-02-09')
+        expect(dates.at(-1)).toBe('2026-02-22')
     })
 
     it('uses the ET date key when querying season weeks', async () => {

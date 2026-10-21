@@ -12,6 +12,11 @@ BEGIN
   IF TG_OP = 'UPDATE' THEN
     SELECT jsonb_object_agg(key, value) INTO v_old_fields FROM jsonb_each(v_old) WHERE key = ANY(v_fields);
     SELECT jsonb_object_agg(key, value) INTO v_new_fields FROM jsonb_each(v_new) WHERE key = ANY(v_fields);
+    IF TG_ARGV[0] = 'nba' AND TG_TABLE_NAME = 'nba_games'
+        AND v_old->>'stats_synced_at' IS NOT NULL AND v_new->>'stats_synced_at' IS NOT NULL THEN
+      v_old_fields := v_old_fields - 'stats_synced_at';
+      v_new_fields := v_new_fields - 'stats_synced_at';
+    END IF;
     IF v_old_fields IS NOT DISTINCT FROM v_new_fields THEN RETURN NEW; END IF;
   END IF;
   FOR v_row IN SELECT value FROM jsonb_array_elements(jsonb_build_array(v_old, v_new)) WHERE value <> 'null'::jsonb LOOP
