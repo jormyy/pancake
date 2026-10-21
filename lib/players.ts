@@ -24,6 +24,7 @@ export type PlayerRow = {
     headshot_url: string | null
     nba_id: string | null
     years_exp: number | null
+    stats_season_year?: number | null
     avg_fantasy_points?: number | null
     avg_points?: number | null
     avg_rebounds?: number | null
@@ -291,7 +292,7 @@ export async function searchPlayers(
     sortDirArg: PlayerSearchSortDir = 'desc',
 ): Promise<PlayerRow[]> {
     const hasSearchOptions = typeof sortByOrOptions === 'object' && sortByOrOptions !== null
-    const season = (hasSearchOptions ? sortByOrOptions.seasonYear : null) ?? currentSeasonYear()
+    const season = (hasSearchOptions ? sortByOrOptions.seasonYear : null) ?? undefined
     const sortBy = hasSearchOptions ? (sortByOrOptions.sortMode ?? 'fpts') : sortByOrOptions
     const sortDir = hasSearchOptions ? (sortByOrOptions.sortDir ?? 'desc') : sortDirArg
     const pageSize = hasSearchOptions ? (sortByOrOptions.pageSize ?? DEFAULT_PLAYER_SEARCH_PAGE_SIZE) : DEFAULT_PLAYER_SEARCH_PAGE_SIZE

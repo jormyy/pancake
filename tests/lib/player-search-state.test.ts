@@ -5,6 +5,7 @@ import {
     DEFAULT_PLAYER_SEARCH_PARAMS,
     playerSearchParamsKey,
     playerSeasonFilterOptions,
+    playerAverageLabel,
 } from '@/lib/player-search-state'
 import type { OwnedEntry } from '@/lib/roster'
 
@@ -15,6 +16,7 @@ function owned(memberId: string, teamName = 'Team'): OwnedEntry {
 describe('player search state helpers', () => {
     it('treats the stats season as its own filter and cache identity', () => {
         expect(playerSeasonFilterOptions(2027)).toEqual([
+            { key: 'auto', label: 'Auto' },
             { key: '2027', label: '2026–27' },
             { key: '2026', label: '2025–26' },
             { key: '2025', label: '2024–25' },
@@ -28,6 +30,16 @@ describe('player search state helpers', () => {
         }
         expect(activePlayerFilterCount({ ...filters, seasonYear: null })).toBe(0)
         expect(activePlayerFilterCount({ ...filters, position: 'C', seasonYear: 2026 })).toBe(2)
+    })
+
+    it('labels the actual returned average season before and after opening night', () => {
+        expect(playerAverageLabel(2025)).toBe('2024–25 avg')
+        expect(playerAverageLabel(2026)).toBe('2025–26 avg')
+        expect(playerAverageLabel(null)).toBe('')
+        expect(playerAverageLabel(undefined)).toBe('')
+        expect(DEFAULT_PLAYER_SEARCH_PARAMS.sortBy).toBe('fpts')
+        expect(DEFAULT_PLAYER_SEARCH_PARAMS.sortDir).toBe('desc')
+        expect(DEFAULT_PLAYER_SEARCH_PARAMS.seasonYear).toBeNull()
     })
 
     it('builds deterministic cache keys for array order and duplicate churn', () => {

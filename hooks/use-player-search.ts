@@ -36,7 +36,7 @@ type CachedPage = {
     offset: number
     savedAt?: number
 }
-const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
+const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v2:'
 const ROOKIE_SEARCH_MAX_PAGES = 20
 const MAX_MEMORY_PAGES = 12
 const EMPTY_TEAMS: string[] = []
@@ -250,13 +250,14 @@ export function usePlayerSearch(
         // the rookie pool spans a handful of pages and serial awaits made the
         // filter feel sluggish.
         const players = [...firstPage]
+        const pageParams = { ...params, seasonYear: firstPage[0]?.stats_season_year ?? params.seasonYear }
         const BATCH_SIZE = 4
         let page = 1
         while (page < ROOKIE_SEARCH_MAX_PAGES) {
             if (!canRead()) throw new Error('Search read is no longer active')
             const batchPages = Math.min(BATCH_SIZE, ROOKIE_SEARCH_MAX_PAGES - page)
             const batch = await Promise.all(Array.from({ length: batchPages }, (_, i) =>
-                fetchPage(params, (page + i) * PLAYER_SEARCH_PAGE_SIZE)))
+                fetchPage(pageParams, (page + i) * PLAYER_SEARCH_PAGE_SIZE)))
             if (!canRead()) throw new Error('Search read is no longer active')
             let done = false
             for (const nextPage of batch) {
@@ -394,6 +395,10 @@ export function usePlayerSearch(
         try {
             const results = await fetchPage(params, nextOffset)
             if (loadMoreSeqRef.current !== requestId || renderedKeyRef.current !== paramsKey || !activeRef.current) return
+            if (results.length > 0 && results[0].stats_season_year !== playersRef.current[0]?.stats_season_year) {
+                setRetryToken(token => token + 1)
+                return
+            }
             if (results.length > 0) {
                 offsetRef.current = nextOffset
                 const merged = [...playersRef.current, ...results]
@@ -417,6 +422,12 @@ export function usePlayerSearch(
             }
         }
     }, [cachePage, enabled, admitted, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
+
+    useEffect(() => {
+        if (!enabled || !admitted || !online || !focused || !visible || seasonYear !== null) return
+        const timer = setInterval(() => setRetryToken(token => token + 1), 60_000)
+        return () => clearInterval(timer)
+    }, [enabled, admitted, online, focused, visible, seasonYear])
 
     const retry = useCallback(() => setRetryToken((token) => token + 1), [])
     const refreshIfChanged = useCallback(() => {

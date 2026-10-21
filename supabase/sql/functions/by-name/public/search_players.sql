@@ -15,7 +15,7 @@ CREATE OR REPLACE FUNCTION public.search_players(
   p_health text DEFAULT 'all',
   p_sort_by text DEFAULT 'fpts',
   p_sort_dir text DEFAULT 'desc',
-  p_season_year int DEFAULT public.current_season_year_et(),
+  p_season_year int DEFAULT NULL,
   p_limit int DEFAULT 20,
   p_offset int DEFAULT 0
 )
@@ -55,7 +55,8 @@ RETURNS TABLE (
   projection_blocks numeric,
   projection_three_pointers_made numeric,
   projection_turnovers numeric,
-  projection_status text
+  projection_status text,
+  stats_season_year int
 )
 LANGUAGE plpgsql
 STABLE
@@ -63,7 +64,25 @@ SET search_path = public, extensions
 SET plan_cache_mode = force_custom_plan
 AS $$
 #variable_conflict use_column
+DECLARE
+  v_stats_season int;
+  v_current_season int := public.current_season_year_et();
 BEGIN
+v_stats_season := COALESCE(p_season_year, CASE WHEN EXISTS (
+  SELECT 1
+  FROM public.nba_games g
+  WHERE g.season_year = v_current_season
+    AND public.is_regular_season_game_id(g.nba_game_id)
+    AND (g.status = 'Final' OR EXISTS (
+      SELECT 1 FROM public.player_game_stats s
+      WHERE s.game_id = g.id
+        AND NOT s.did_not_play
+        AND (s.minutes_played > 0 OR s.points > 0 OR s.rebounds > 0
+          OR s.assists > 0 OR s.steals > 0 OR s.blocks > 0
+          OR s.turnovers > 0 OR s.field_goals_attempted > 0
+          OR s.free_throws_attempted > 0)
+    ))
+) THEN v_current_season ELSE v_current_season - 1 END);
 RETURN QUERY
 WITH args AS (
   SELECT
@@ -95,14 +114,14 @@ league_scores AS MATERIALIZED (
   SELECT fp.player_id, fp.avg_fantasy_points
   FROM public.v_player_avg_fantasy_points AS fp
   WHERE fp.league_id = p_league_id
-    AND fp.season_year = p_season_year
+    AND fp.season_year = v_stats_season
     AND (p_include_player_ids IS NULL OR fp.player_id = ANY(p_include_player_ids))
 ),
 score_source AS (
   SELECT fp.player_id, fp.avg_fantasy_points
   FROM public.v_player_avg_fantasy_points AS fp
   WHERE fp.league_id = p_league_id
-    AND fp.season_year = p_season_year
+    AND fp.season_year = v_stats_season
     AND NOT COALESCE(p_health IN ('healthy', 'gtd', 'out', 'ir'), false)
   UNION ALL
   SELECT fp.player_id, fp.avg_fantasy_points
@@ -135,7 +154,7 @@ filtered_base AS (
   JOIN public.players AS p ON true
   LEFT JOIN public.mv_player_season_averages AS avg
     ON avg.player_id = p.id
-   AND avg.season_year = p_season_year
+   AND avg.season_year = v_stats_season
   LEFT JOIN score_source AS fp
     ON fp.player_id = p.id
   WHERE
@@ -165,8 +184,8 @@ paged_base AS (
       filtered_base.*,
       row_number() OVER (
         ORDER BY
-          CASE WHEN p_sort_by = 'fpts' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_fantasy_points, 0) END ASC,
-          CASE WHEN p_sort_by = 'fpts' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_fantasy_points, 0) END DESC,
+          CASE WHEN p_sort_by = 'fpts' AND p_sort_dir = 'asc' THEN filtered_base.avg_fantasy_points END ASC NULLS LAST,
+          CASE WHEN p_sort_by = 'fpts' AND p_sort_dir <> 'asc' THEN filtered_base.avg_fantasy_points END DESC NULLS LAST,
           CASE WHEN p_sort_by = 'min' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_minutes_played, 0) END ASC,
           CASE WHEN p_sort_by = 'min' AND p_sort_dir <> 'asc' THEN COALESCE(filtered_base.avg_minutes_played, 0) END DESC,
           CASE WHEN p_sort_by = 'pts' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_points, 0) END ASC,
@@ -198,7 +217,7 @@ projection AS (
   SELECT *
   FROM public.get_league_projection_rows(
     p_league_id,
-    p_season_year,
+    v_stats_season,
     (timezone('America/New_York', now()))::date,
     'today',
     COALESCE((SELECT array_agg(paged_base.id ORDER BY paged_base.id) FROM paged_base), ARRAY[]::uuid[]),
@@ -243,7 +262,8 @@ SELECT
   proj.projection_blocks,
   proj.projection_three_pointers_made,
   proj.projection_turnovers,
-  proj.projection_status
+  proj.projection_status,
+  v_stats_season
 FROM paged_base pb
 LEFT JOIN projection AS proj
   ON proj.player_id = pb.id

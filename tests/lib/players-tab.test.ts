@@ -162,6 +162,7 @@ describe('searchPlayers', () => {
                 headshot_url: null,
                 nba_id: '2',
                 years_exp: 2,
+                stats_season_year: 2024,
                 avg_fantasy_points: 18,
                 avg_points: 18,
                 games_played: 2,
@@ -191,21 +192,23 @@ describe('searchPlayers', () => {
             p_health: 'healthy',
             p_sort_by: 'fpts',
             p_sort_dir: 'desc',
-            p_season_year: 2025,
+            p_season_year: undefined,
             p_limit: 25,
             p_offset: 60,
         })
         expect(result.map((player) => player.id)).toEqual(['player-high'])
+        expect(result[0].stats_season_year).toBe(2024)
+        expect(result[0].avg_fantasy_points).toBe(18)
     })
 
-    it('asks for the chosen stats season and defaults to the current one', async () => {
+    it('asks for the chosen stats season and leaves automatic selection to the server', async () => {
         ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [], error: null })
 
         await searchPlayers('', 'ALL', [], 'league-1', null, false, 0, 'all', {}, { seasonYear: 2023 })
         expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: 2023 }))
 
         await searchPlayers('', 'ALL', [], 'league-1', null, false, 0, 'all', {}, { seasonYear: null })
-        expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: 2025 }))
+        expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: undefined }))
     })
 
     it('passes an explicit empty include scope so empty waiver/mine filters stay empty', async () => {
