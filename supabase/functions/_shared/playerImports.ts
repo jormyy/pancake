@@ -6,9 +6,14 @@ type PlayerImportSource = 'espn' | 'sleeper' | 'nba_cdn' | 'nba_index' | 'nba_dr
 type PlayerImportResult = { index: number; player_id: string | null; action: string }
 
 export async function resolvePlayerImports(source: PlayerImportSource, records: Json[]) {
-  const { data, error } = await supabase.rpc('resolve_player_imports_atomic', {
-    p_source: source, p_records: records,
-  })
+  const args = { p_source: source, p_records: records }
+  let response = await supabase.rpc('resolve_player_imports_atomic', args)
+  for (let retry = 0; retry < 3 && response.error && ['40P01', '40001'].includes(response.error.code); retry++) {
+    console.warn(`[player-imports] ${source}: retry ${response.error.code} ${retry + 1}/3`)
+    await new Promise(resolve => setTimeout(resolve, 50 * 2 ** retry))
+    response = await supabase.rpc('resolve_player_imports_atomic', args)
+  }
+  const { data, error } = response
   if (error) throw new Error(`Resolve ${source} players: ${errorMessage(error)}`)
   if (!data || typeof data !== 'object' || Array.isArray(data)
     || !Array.isArray(data.results) || data.results.length !== records.length

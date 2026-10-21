@@ -22,6 +22,9 @@ DECLARE
   v_pick int;
   v_cleared int := 0;
   v_index int := 0;
+  v_providers text[];
+  v_name_keys text[];
+  v_player_ids uuid[];
 BEGIN
   IF p_source IS NULL OR p_source NOT IN ('espn', 'sleeper', 'nba_cdn', 'nba_index', 'nba_draft')
      OR p_records IS NULL OR jsonb_typeof(p_records) <> 'array'
@@ -50,6 +53,28 @@ BEGIN
   -- Acquire before any name/provider read or player row lock. A subsequent
   -- READ COMMITTED statement sees the importer that just released this lock.
   PERFORM pg_advisory_xact_lock(1347174745, 1);
+
+  IF p_source = 'nba_cdn' THEN
+    PERFORM g.id FROM nba_games AS g
+      WHERE g.nba_game_id IN (SELECT r->>'nba_game_id' FROM jsonb_array_elements(p_records) AS r)
+      ORDER BY g.id FOR KEY SHARE;
+  END IF;
+  SELECT array_agg(r->>'provider_id'),
+    array_agg(private.player_import_name_key(CASE
+      WHEN p_source IN ('espn', 'sleeper') THEN concat_ws(' ', r->>'first_name', r->>'last_name')
+      WHEN p_source = 'nba_index' THEN r->>'expected_display_name'
+      ELSE r->>'display_name' END)),
+    array_agg(CASE WHEN p_source = 'nba_index' THEN (r->>'player_id')::uuid END)
+    INTO v_providers, v_name_keys, v_player_ids
+    FROM jsonb_array_elements(p_records) AS r;
+  PERFORM p.id FROM players AS p
+    WHERE (p_source = 'espn' AND p.espn_id = ANY(v_providers))
+      OR (p_source = 'sleeper' AND p.sleeper_id = ANY(v_providers))
+      OR (p_source IN ('nba_cdn', 'nba_index') AND p.nba_id = ANY(v_providers))
+      OR p.id = ANY(v_player_ids)
+      OR private.player_import_name_key(p.display_name) = ANY(v_name_keys)
+      OR (p_source = 'nba_draft' AND p.nba_draft_number IS NOT NULL)
+    ORDER BY p.id FOR UPDATE;
   FOR v_record IN SELECT value FROM jsonb_array_elements(p_records) LOOP
     v_index := v_index + 1;
     v_metadata := coalesce(v_record->'metadata', '{}'::jsonb);
