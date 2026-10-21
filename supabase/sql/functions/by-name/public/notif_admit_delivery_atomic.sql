@@ -22,6 +22,7 @@ BEGIN
       claimed_at = NULL, claim_token = NULL WHERE id = r.id;
     RETURN false;
   END IF;
+  UPDATE public.notification_outbox SET admitted_at=COALESCE(admitted_at,clock_timestamp()) WHERE id=r.id;
   RETURN true;
 END;
 $$;

@@ -6,6 +6,7 @@ DECLARE
   r record;
   v_today date := (p_now AT TIME ZONE 'America/New_York')::date;
 BEGIN
+  PERFORM private.notif_scan_lineups(p_now);
   FOR r IN SELECT pick.id,pick.member_id,draft.league_id,draft.id AS draft_id
     FROM public.snake_draft_picks pick JOIN public.drafts draft ON draft.id = pick.draft_id
     WHERE draft.status = 'in_progress' AND NOT draft.is_mock AND pick.picked_at IS NULL AND pick.skipped_at IS NULL

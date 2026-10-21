@@ -211,3 +211,9 @@ Deno.test('a durable send-time suppression does not acknowledge delivery or sche
   async () => { mutations += 1 }, async () => { mutations += 1 }, async () => { mutations += 1 })
   if (mutations !== 0 || result.discarded !== 1) throw new Error('Durable suppression changed delivery state')
 })
+
+Deno.test('drain preserves delivered Web Push counts', async () => {
+  const result = await drainTradeNotificationOutbox(async () => [row('web')],
+    async () => ({ ticketed: 0, failed: 0, discarded: 0, deadLettered: 0, webDelivered: 1 }))
+  if (result.webDelivered !== 1 || result.discarded !== 0) throw new Error('Web delivery count was lost')
+})

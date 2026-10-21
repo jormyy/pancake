@@ -1,3 +1,4 @@
+import { NotificationAnnouncementComposer } from '@/components/settings/NotificationAnnouncementComposer'
 import {
     View,
     Text,
@@ -132,6 +133,7 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
+                    <NotificationAnnouncementComposer />
                     <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Scoring</Text>
                     <View style={styles.card}>
                         {COMMISSIONER_SCORING_FIELDS.map(({ key, label }, i) => (

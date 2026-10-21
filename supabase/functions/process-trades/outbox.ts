@@ -20,7 +20,7 @@ export type TradeNotificationOutboxRow = {
   category: string
 }
 
-type DeliveryCounts = { ticketed: number; failed: number; discarded: number; deadLettered: number }
+type DeliveryCounts = { webDelivered?: number; ticketed: number; failed: number; discarded: number; deadLettered: number }
 type Complete = (row: TradeNotificationOutboxRow) => Promise<void>
 type Fail = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
 type DeadLetter = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
@@ -54,6 +54,7 @@ export async function deliverTradeNotificationOutbox(
 ): Promise<DeliveryCounts> {
   if (rows.length === 0) return { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
 
+  let webDelivered = 0
   let ticketed = 0
   let failed = 0
   let discarded = 0
@@ -73,13 +74,13 @@ export async function deliverTradeNotificationOutbox(
       }
       if (result?.status === 'sent' && result.channel === 'web') {
         await complete(row)
-        discarded += 1
+        webDelivered += 1
         return
       }
       if (result?.status !== 'sent' || !result.ticketId || !result.pushToken) {
         throw new Error('Expo push delivery did not return durable ticket evidence')
       }
-      await recordTicket(row, result.ticketId, result.pushToken)
+      if (!result.ticketRecorded) await recordTicket(row, result.ticketId, result.pushToken)
       ticketed += 1
     } catch (error) {
       const disposition = notificationFailureDisposition(error)
@@ -95,7 +96,7 @@ export async function deliverTradeNotificationOutbox(
       }
     }
   }), OUTBOX_MUTATION_CONCURRENCY)
-  return { ticketed, failed, discarded, deadLettered }
+  return { ticketed, failed, discarded, deadLettered, ...(webDelivered > 0 ? { webDelivered } : {}) }
 }
 
 // One claim per cron run left a burst of trade notifications waiting a full
@@ -112,6 +113,7 @@ export async function drainTradeNotificationOutbox(
   for (let claims = 0; claims < OUTBOX_MAX_CLAIMS_PER_RUN; claims += 1) {
     const rows = await claim()
     const result = await deliver(rows)
+    if (result.webDelivered) totals.webDelivered = (totals.webDelivered ?? 0) + result.webDelivered
     totals.ticketed += result.ticketed
     totals.failed += result.failed
     totals.discarded += result.discarded

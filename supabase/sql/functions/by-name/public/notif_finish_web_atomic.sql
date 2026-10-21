@@ -5,7 +5,7 @@ AS $$
 BEGIN
   UPDATE public.notification_outbox SET web_delivered_at = CASE WHEN p_sent THEN now() ELSE web_delivered_at END,
     web_failed_at = CASE WHEN NOT p_sent THEN now() ELSE web_failed_at END
-  WHERE id = p_id AND claim_token = p_claim_token AND web_attempted_at IS NOT NULL;
+  WHERE id = p_id AND (web_attempt_claim_token = p_claim_token OR claim_token = p_claim_token) AND web_attempted_at IS NOT NULL;
   RETURN FOUND;
 END;
 $$;

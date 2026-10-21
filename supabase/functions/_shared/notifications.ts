@@ -19,6 +19,10 @@ async function admitNotification(id: string, claimToken: string) {
   return data === true
 }
 
+const configuredReceiptDelay = Number(Deno.env.get('EXPO_RECEIPT_DELAY_SECONDS') ?? 900)
+export const notificationReceiptDelaySeconds = Number.isInteger(configuredReceiptDelay) && configuredReceiptDelay >= 0
+  ? Math.min(configuredReceiptDelay, 3600) : 900
+
 const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
 
 /** VAPID credentials for PWA push; null (web push disabled) until all three secrets are set. */
@@ -54,6 +58,14 @@ export const webPushFanout = createWebPushFanout({
 })
 
 export const notifyMembers = createNotifyMembers({
+  persistExpoTicket: async (message, ticketId, pushToken) => {
+    const { data, error } = await supabase.rpc('record_notification_outbox_ticket_atomic', {
+      p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken,
+      p_expo_ticket_id: ticketId, p_push_token: pushToken, p_receipt_delay_seconds: notificationReceiptDelaySeconds,
+    })
+    if (error) throw error
+    if (!data) throw new Error('Notification Expo ticket lease lost')
+  },
   admitDelivery: (message) => admitNotification(message.delivery!.id, message.delivery!.claimToken),
   members: async (memberIds) => {
     const { data, error } = await supabase
