@@ -344,7 +344,7 @@
     "id": "W10",
     "area": "weekly-scoring",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 474,
+    "line": 476,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "ROR",
     "original": "toETDate(referenceDate) > endDate",
@@ -357,7 +357,7 @@
     "id": "W11",
     "area": "weekly-scoring",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 477,
+    "line": 479,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "STMT-DEL",
     "original": "const maxPossiblePointsByMember = certifiedMaxPossiblePoints ?? new Map<string, number>()",
@@ -591,7 +591,7 @@
     "id": "L28",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 651,
+    "line": 653,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "STMT-DEL",
     "original": "input_token: liveInputToken,",
@@ -773,7 +773,7 @@
     "id": "L29",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 665,
+    "line": 667,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "NEG",
     "original": "updateErr.code === 'PT409'",
@@ -786,7 +786,7 @@
     "id": "L30",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 665,
+    "line": 667,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "LCR",
     "original": "updateErr.code === 'PT409' &&",
@@ -799,7 +799,7 @@
     "id": "L31",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 668,
+    "line": 670,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "STMT-DEL",
     "original": "onPublicationRetry?.()",
@@ -916,7 +916,7 @@
     "id": "L40",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 664,
+    "line": 666,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "LCR",
     "original": "if (retryPublication && (",
@@ -929,13 +929,104 @@
     "id": "L41",
     "area": "live-streams",
     "file": "supabase/functions/_shared/syncScores.ts",
-    "line": 670,
+    "line": 672,
     "symbol": "supabase/functions/_shared/syncScores.ts",
     "operator": "CONST",
     "original": "settings, onPublicationRetry, false)",
     "mutated": "settings, onPublicationRetry, true)",
     "oracles": [
       "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoreCertifiedMax.test.ts"
+    ]
+  },
+  {
+    "id": "live-pp-01",
+    "area": "postponement",
+    "file": "supabase/migrations/20261018000017_preserve_non_cdn_score_completion.sql",
+    "line": 12,
+    "symbol": "public.get_score_sync_games(date,date,integer)",
+    "operator": "STMT-DEL",
+    "original": "AND private.lineup_game_available(game.status,game.game_status_text)",
+    "mutated": "",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/makeup-scoring.ts controls"
+    ]
+  },
+  {
+    "id": "live-pp-02",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/syncStats.ts",
+    "line": 70,
+    "symbol": "supabase/functions/_shared/syncStats.ts",
+    "operator": "NEG",
+    "original": "if (!remaining?.length)",
+    "mutated": "if (remaining?.length)",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/makeup-scoring.ts 403"
+    ]
+  },
+  {
+    "id": "live-pp-03",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000034_ignore_stats_freshness_revisions.sql",
+    "line": 16,
+    "symbol": "private.track_score_input_revision()",
+    "operator": "NEG",
+    "original": "AND v_old->>'stats_synced_at' IS NOT NULL AND v_new->>'stats_synced_at' IS NOT NULL",
+    "mutated": "AND v_old->>'stats_synced_at' IS NULL AND v_new->>'stats_synced_at' IS NOT NULL",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/makeup-scoring.ts same"
+    ]
+  },
+  {
+    "id": "live-pp-04",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 285,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "CONST",
+    "original": "if (missingPrior.length > 0)",
+    "mutated": "if (false)",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/makeup-scoring.ts controls"
+    ]
+  },
+  {
+    "id": "live-as-01",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/scoreShared.ts",
+    "line": 42,
+    "symbol": "supabase/functions/_shared/scoreShared.ts",
+    "operator": "ROR",
+    "original": "gameDate <= row.week_end",
+    "mutated": "gameDate < row.week_end",
+    "oracles": [
+      "deno test --no-lock --node-modules-dir=none --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/_shared/scoringCalendar.test.ts"
+    ]
+  },
+  {
+    "id": "live-as-02",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/scoreLineups.ts",
+    "line": 354,
+    "symbol": "supabase/functions/_shared/scoreLineups.ts",
+    "operator": "ARG-SWAP",
+    "original": ".lte('game_date', weekEnd)",
+    "mutated": ".lte('game_date', weekStart)",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-all-star-week.ts single"
+    ]
+  },
+  {
+    "id": "live-as-03",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/syncScores.ts",
+    "line": 456,
+    "symbol": "supabase/functions/_shared/syncScores.ts",
+    "operator": "ROR",
+    "original": "toETDate(referenceDate) <= endDate && matchups.some",
+    "mutated": "toETDate(referenceDate) < endDate && matchups.some",
+    "oracles": [
+      "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-all-star-week.ts single"
     ]
   }
 ]

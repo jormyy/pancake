@@ -125,3 +125,30 @@ It temporarily omits the L-B2 input-token field, runs playoff-consumption, and r
 It does not remove any certificate check from the shipped scorer.
 L40 restores callback-gated retry. L41 re-enables a second retry.
 Their unit oracle checks default callers, callback counts, fresh tokens and points, strict error types, and the two-attempt bound.
+
+The postponed-game recipes use C1 availability from the deployed score-input query.
+Their provider commits confirmation during a native box request to reproduce recovery races.
+Available 500 responses, transport timeouts, live games, and unknown Scheduled games keep weeks open.
+The same-week and cross-week examples reconstruct pinned ESPN dates with synthetic players and points.
+They retain player stat IDs and require unchanged certificates on identical final redelivery.
+The cross-week case includes a two-week fantasy final and a never-played cancellation.
+
+The merged-week recipe seeds C2 ranges directly for 2024-25 and 2025-26.
+Four cases cover fourteen daily score updates, maxima, certificates, real Realtime delivery,
+and the next week, with and without skipped week 1 through the authenticated settings RPC.
+The fourteen daily games are synthetic stress inputs, including the calendar's no-game break days.
+They do not claim historical daily games during the All-Star break.
+Finalization waits until the stored end day ends, even before later schedule rows arrive.
+Already-finalized regular weeks retain their legacy correction path.
+
+```sh
+bash scripts/mutation/live/with-stack.sh deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/makeup-scoring.ts
+bash scripts/mutation/live/with-stack.sh deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-all-star-week.ts
+bash scripts/mutation/live/with-stack.sh python3 scripts/mutation/live/makeup-regressions.py
+```
+
+The helper runs the thirteen round-nine neighbors twice without a reset.
+New mutation areas use live-pp-01–04 and live-as-01–03 identifiers.
+The complete postponed recipe includes a native timeout fault and belongs in evidence checks.
+The merged-week recipe asserts data and stream delivery, with no wall-clock performance threshold.
+It remains an evidence check after one delivery wait times out; that cause is unproven.

@@ -20,7 +20,7 @@ def db(name):
 
 
 def add(area, file, line, symbol, original, mutated, oracles, operator='condition'):
-    prefix = 'L' if area == LIVE else 'live-sw-' if area == 'skipped-week' else 'W'
+    prefix = 'L' if area == LIVE else 'live-sw-' if area == 'skipped-week' else 'live-pp-' if area == 'postponement' else 'live-as-' if area == 'all-star-week' else 'W'
     rows.append(dict(id=prefix + str(1 + sum(r['area'] == area for r in rows)).zfill(2), area=area, file=file, line=line, symbol=symbol, operator=operator, original=original, mutated=mutated, oracles=oracles))
 
 
@@ -197,6 +197,27 @@ ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
 ts(LIVE, 'supabase/functions/_shared/syncScores.ts', [
     ('settings, onPublicationRetry, false)', 'settings, onPublicationRetry, true)'),
 ], [unit('scoreCertifiedMax')], 'CONST')
+sql('postponement', 'public.get_score_sync_games', '(date,date,integer)', [
+    ('AND private.lineup_game_available(game.status,game.game_status_text)', ''),
+], [db('makeup-scoring') + ' controls'], 'STMT-DEL')
+ts('postponement', 'supabase/functions/_shared/syncStats.ts', [
+    ('if (!remaining?.length)', 'if (remaining?.length)'),
+], [db('makeup-scoring') + ' 403'], 'NEG')
+sql('postponement', 'private.track_score_input_revision', '()', [
+    ("AND v_old->>'stats_synced_at' IS NOT NULL AND v_new->>'stats_synced_at' IS NOT NULL", "AND v_old->>'stats_synced_at' IS NULL AND v_new->>'stats_synced_at' IS NOT NULL"),
+], [db('makeup-scoring') + ' same'], 'NEG')
+ts('postponement', 'supabase/functions/_shared/syncScores.ts', [
+    ('if (missingPrior.length > 0)', 'if (false)'),
+], [db('makeup-scoring') + ' controls'], 'CONST')
+ts('all-star-week', 'supabase/functions/_shared/scoreShared.ts', [
+    ('gameDate <= row.week_end', 'gameDate < row.week_end'),
+], [unit('scoringCalendar')], 'ROR')
+ts('all-star-week', 'supabase/functions/_shared/scoreLineups.ts', [
+    (".lte('game_date', weekEnd)", ".lte('game_date', weekStart)"),
+], [db('scoring-all-star-week') + ' single'], 'ARG-SWAP')
+ts('all-star-week', 'supabase/functions/_shared/syncScores.ts', [
+    ('toETDate(referenceDate) <= endDate && matchups.some', 'toETDate(referenceDate) < endDate && matchups.some'),
+], [db('scoring-all-star-week') + ' single'], 'ROR')
 legacy_operators = {
     'L': ['ROR', 'STMT-DEL', 'ROR', 'ROR', 'STMT-DEL', 'ARG-SWAP', 'ARG-SWAP', 'CONST', 'CONST', 'NEG',
           'CONST', 'ROR', 'STMT-DEL', 'CONST', 'CONST', 'AOR', 'ROR', 'STMT-DEL', 'STMT-DEL', 'STMT-DEL',
@@ -209,4 +230,4 @@ for row in rows:
     if match and int(match[2]) <= len(legacy_operators[match[1]]):
         row['operator'] = legacy_operators[match[1]][int(match[2]) - 1]
 Path('scripts/mutation/live/catalog.json').write_text(json.dumps(rows, indent=2) + '\n')
-print({area: sum(r['area'] == area for r in rows) for area in (LIVE, WEEKLY, 'skipped-week')})
+print({area: sum(r['area'] == area for r in rows) for area in (LIVE, WEEKLY, 'skipped-week', 'postponement', 'all-star-week')})
