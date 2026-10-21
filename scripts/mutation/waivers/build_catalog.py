@@ -93,6 +93,11 @@ rows.append(dict(id='waiv-waiver-order-19', area='waiver-order',
 add('waiver-order', 'public.expire_waiver_wire_logs', 'season.is_current = true', 'season.is_current = false', 'NEG', 'Current playoff holds never expire')
 add('waiver-order', 'public.expire_waiver_wire_logs', 'wwl.clears_at < now()', 'wwl.clears_at > now()', 'ROR', 'Clear future holds and retain mature holds')
 
+add('waiver-limits', 'private.current_add_week', 'weeks.week_start <= v_today', 'weeks.week_start >= v_today', 'ROR', 'Select the next week while inside the merged All-Star range', 0)
+add('waiver-limits', 'private.current_add_week', 'SELECT weeks.week_number, weeks.week_end', 'SELECT weeks.week_number, LEAST(weeks.week_end, weeks.week_start + 6)', 'CONST', 'Cap the selected C2 range at seven days, resetting halfway through All-Star', 0)
+add('waiver-limits', 'private.current_add_week', '(v_week_end + 1)::timestamp', '(v_week_end + 7)::timestamp', 'CONST', 'Reset six days after the actual merged-week boundary')
+add('waiver-limits', 'private.current_add_week', 'v_elapsed_weeks := (v_today - v_last_end - 1) / 7;', 'v_elapsed_weeks := (v_today - v_last_end - 1) / 14;', 'CONST', 'Advance post-schedule buckets every fourteen days after the shortened season', 0)
+
 oracles = {
     'initial': [
         ['preference', ['psql', '{db}', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/waiver-preference-order.sql']],
@@ -107,5 +112,6 @@ oracles['boundary'] = [
     ['season-end', ['node', 'tests/e2e/waiver-season-end-db.mjs']],
     ['dst', ['psql', '{db}', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/waiver-dst-boundaries.sql']],
 ]
+oracles['allstar'] = [['merged-limits', ['psql', '{db}', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/limits-all-star-week.sql']]]
 (ROOT / 'scripts/mutation/waivers/catalog.json').write_text(json.dumps({'provenance':'SYNTHETIC', 'oracles':oracles,'mutants':rows},indent=2)+'\n')
 print(f'{len(rows)} mutants')

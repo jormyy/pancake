@@ -30,6 +30,11 @@ turn5 = {}
 if (evidence/'turn5/boundary-results.jsonl').exists():
     turn5 = {r['id']:r for r in rows('turn5/boundary-results.jsonl')}
     final.update(turn5)
+turn6 = {}
+if (evidence/'turn6/allstar-results.jsonl').exists():
+    initial.update({r['id']:r for r in rows('turn6/initial-results.jsonl')})
+    turn6 = {r['id']:r for r in rows('turn6/allstar-results.jsonl')}
+    final.update(turn6)
 retired = {r['id']:r for r in catalog['mutants'] if r.get('retired')}
 for key, mutant in retired.items():
     row = {k:mutant[k] for k in ('id','area','file','line','symbol','operator','original','mutated')}
@@ -55,15 +60,15 @@ for key, row in final.items():
     if key in unreached:
         row['notes'] += ' | classification=' + unreached[key]
     for oracle in row['oracles']:
-        oracle['log'] = ('turn5/' if key in turn5 else 'turn3/' if key in turn3 else 'turn2/' if key in boundary else '') + Path(oracle['log']).name
+        oracle['log'] = ('turn6/' if key in turn6 else 'turn5/' if key in turn5 else 'turn3/' if key in turn3 else 'turn2/' if key in boundary else '') + Path(oracle['log']).name
         oracle['command'] = oracle['command'].replace("'$SUPABASE_DB_URL'", '"$SUPABASE_DB_URL"')
 current = [final[m['id']] for m in catalog['mutants']]
 result_path = evidence/'results.jsonl'
-if turn5 and result_path.exists():
+if (turn5 or turn6) and result_path.exists():
     history = rows('results.jsonl')
     with result_path.open('a') as log:
         for row in current:
-            if row['id'] in turn5 and row not in history:
+            if row['id'] in (turn5.keys() | turn6.keys()) and row not in history:
                 log.write(json.dumps(row)+'\n')
     latest = {row['id']: row for row in rows('results.jsonl')}
     assert latest == final
@@ -91,6 +96,8 @@ scores += ['', f'Overall: {initial_kills}/{initial_denominator} initially; {fina
            'These results do not prove all waiver behavior through a full season. They measure the catalog and targeted cases only.']
 if turn5:
     scores += ['', 'Round 5 integration hygiene: five selected mutants rerun against the residue-tolerant DST recipe. All five remain killed by DST assertions. The 58-entry denominator is unchanged. results.jsonl appends rerun history; latest-results.jsonl has one current verdict per ID. See turn5/boundary-results.jsonl.']
+if turn6:
+    scores += ['', 'Round 6: four waiver-limits mutants target C2 merged-week range selection, seven-day truncation, reset date and shortened-season fallback. Initial = existing SQL recipes; final adds limits-all-star-week.sql. See turn6/ for measured baselines and kills. All calendars are REAL-DERIVED C2 rows; users and uniform date translations are SYNTHETIC.']
 (evidence/'scores.md').write_text('\n'.join(scores)+'\n')
 survivors = ['# Every initial survivor', '', '| Mutant | Initial classification | Final result | Killing check or remaining limit |', '|---|---|---|---|']
 for mutant in catalog['mutants']:
@@ -133,6 +140,9 @@ if turn5:
         green_name = 'waiver-dst' if recipe == 'dst' else 'faab-worker'
         shutil.copyfile(evidence/f'turn5/old-{recipe}-red.log', evidence/f'red/residue-{recipe}.log')
         shutil.copyfile(evidence/f'turn5/green-1-{green_name}.log', evidence/f'green/residue-{recipe}.log')
+if turn6:
+    shutil.copyfile(evidence/'turn6/allstar-waiv-waiver-limits-16-merged-limits.log', evidence/'red/all-star-seven-day-cap.log')
+    shutil.copyfile(evidence/'turn6/baseline-allstar-merged-limits.log', evidence/'green/all-star-week.log')
 (evidence/'red'/'README.md').write_text(
     'The current rollover-stall red/green logs come from round3: the integrated boundary fix passes without worker refresh; restoring the old boundary source fails. Historical worker-fix logs remain under turn2/. Other red logs are mutation negative controls.\n'
     if boundary else 'These failures are mutation negative controls. No real application bug is reproduced or fixed. Baseline green logs exercise the same checks without the overlay.\n')
