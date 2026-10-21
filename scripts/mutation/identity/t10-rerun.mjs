@@ -62,7 +62,7 @@ function oracleRunner(stack, evidence, baseSha) {
     const log = join(evidence, 'logs', `${label}.log`)
     writeFileSync(log, `$ ${display(oracle.command, stack)}\n${result.stdout ?? ''}${result.stderr ?? ''}`)
     const record = { label, oracle: oracle.name, command: display(oracle.command, stack), exit: result.status ?? 124,
-      timedOut: result.error?.code === 'ETIMEDOUT', seconds: Number(((performance.now() - started) / 1000).toFixed(3)), log: relative(evidence, log), baseSha }
+      timedOut: /** @type {NodeJS.ErrnoException | undefined} */ (result.error)?.code === 'ETIMEDOUT', seconds: Number(((performance.now() - started) / 1000).toFixed(3)), log: relative(evidence, log), baseSha }
     appendFileSync(join(evidence, 'commands.jsonl'), JSON.stringify(record) + '\n')
     console.log(JSON.stringify(record))
     return { ...record, output: `${result.stdout ?? ''}${result.stderr ?? ''}` }
