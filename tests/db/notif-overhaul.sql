@@ -45,7 +45,7 @@ BEGIN
     PERFORM private.notif_enqueue(e.event_type,'disabled',f.league,f.member);
   END LOOP;
   PERFORM * FROM claim_notification_outbox_atomic(200,60);
-  IF EXISTS (SELECT 1 FROM notification_outbox WHERE dedupe_key LIKE '%:disabled:%' AND (suppressed_at IS NULL OR suppression_reason <> 'preferences_disabled' OR delivered_at IS NOT NULL)) THEN
+  IF EXISTS (SELECT 1 FROM notification_outbox WHERE dedupe_key LIKE '%:disabled:%' AND (suppressed_at IS NULL OR suppression_reason NOT IN ('preferences_disabled','stale') OR delivered_at IS NOT NULL)) THEN
     RAISE EXCEPTION 'suppression was not durably recorded';
   END IF;
   UPDATE notification_preferences SET event_settings = (SELECT jsonb_object_agg(event_type,true) FROM notif_event_catalog) WHERE user_id = f.owner;

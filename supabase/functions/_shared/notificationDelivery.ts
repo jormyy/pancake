@@ -24,7 +24,7 @@ export type NotificationDeliveryFailureCode =
 
 type NotificationDeliveryResult =
   | { status: 'sent'; ticketId?: string; pushToken?: string; channel?: 'web' }
-  | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' }
+  | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' | 'durably_suppressed' }
 
 export type NotificationMessage = {
   memberId: string
@@ -116,6 +116,7 @@ export type NotificationBatchDependencies = {
   members: (memberIds: string[]) => Promise<LookupResult<Array<{ id: string; user_id: string }>>>
   preferences: (userIds: string[]) => Promise<LookupResult<Array<NotificationPreferences & { user_id: string }>>>
   profiles: (userIds: string[]) => Promise<LookupResult<Array<{ id: string; push_token: string | null }>>>
+  admitDelivery?: (message: NotificationMessage) => Promise<boolean>
   beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted'>
   finishWebDelivery?: (message: NotificationMessage, sent: boolean) => Promise<void>
   invalidateToken?: (userId: string, token: string) => Promise<LookupResult<boolean>>
@@ -334,6 +335,10 @@ export function createNotifyMembers(
     for (const message of messages) {
       const userId = memberById.get(message.memberId)!.user_id
       const category = message.category ?? 'activity'
+      if (message.delivery && dependencies.admitDelivery && !await dependencies.admitDelivery(message)) {
+        results.push({ memberId: message.memberId, status: 'skipped', reason: 'durably_suppressed' })
+        continue
+      }
       if (!notificationEnabled(preferencesByUserId.get(userId), category, typeof message.data?.notificationEvent === 'string' ? message.data.notificationEvent : undefined)) {
         results.push({ memberId: message.memberId, status: 'skipped', reason: 'preferences_disabled' })
         continue

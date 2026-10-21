@@ -202,3 +202,12 @@ Deno.test('trade notification drain propagates claim and delivery errors', async
     if (!['claim failed', 'lease lost'].includes(message)) throw new Error(`error was swallowed: ${message}`)
   }
 })
+
+Deno.test('a durable send-time suppression does not acknowledge delivery or schedule a retry', async () => {
+  let mutations = 0
+  const result = await deliverTradeNotificationOutbox([row('stale')], async messages => messages.map(message => ({
+    memberId: message.memberId, status: 'skipped', reason: 'durably_suppressed',
+  })), async () => { mutations += 1 }, async () => { mutations += 1 },
+  async () => { mutations += 1 }, async () => { mutations += 1 }, async () => { mutations += 1 })
+  if (mutations !== 0 || result.discarded !== 1) throw new Error('Durable suppression changed delivery state')
+})

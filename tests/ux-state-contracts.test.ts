@@ -222,10 +222,13 @@ describe('edge job bookkeeping', () => {
         expect(source).toContain('failure: summarizeBoundaryFailures(reports)')
     })
 
-    it('process-waivers notifies each committed batch instead of buffering the whole drain', async () => {
+    it('process-waivers leaves notifications to committed database transitions', async () => {
         const source = await read('supabase/functions/process-waivers/index.ts')
-        expect(source).toMatch(/drainDueClaims<WaiverProcessRow>\([\s\S]*\}, notifyClaimResults\)/)
-        expect(source).not.toContain('notifyClaimResults(rows)')
+        expect(source).not.toMatch(/notifyClaimResults|notifyMember|notifications\.ts/)
+        const producer = await read('supabase/sql/functions/by-name/private/notif_waiver_trigger.sql')
+        expect(producer).toContain("OLD.status IS NOT DISTINCT FROM NEW.status")
+        expect(producer).toContain("'waiver_claim_won'")
+        expect(producer).toContain("'waiver_claim_lost'")
         const drain = await read('supabase/functions/process-waivers/drain.ts')
         const loop = drain.slice(drain.indexOf('for (let batch = 0'), drain.indexOf('return rows'))
         expect(loop).toContain('await onBatch(batchRows)')

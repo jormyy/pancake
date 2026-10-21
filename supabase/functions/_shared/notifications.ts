@@ -1,7 +1,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from './database.ts'
 import { supabase } from './supabase.ts'
-import { createNotifyMember, createNotifyMembers } from './notificationDelivery.ts'
+import { createNotifyMembers } from './notificationDelivery.ts'
 import type { VapidKeys } from './webPush.ts'
 import { createWebPushFanout, type WebPushSnapshot } from './webPushDelivery.ts'
 
@@ -11,6 +11,7 @@ export type { NotificationMessage, NotifyMembers } from './notificationDelivery.
 type NotificationDatabase = Omit<Database, 'public'> & {
   public: Omit<Database['public'], 'Functions'> & {
     Functions: Database['public']['Functions'] & {
+      notif_admit_delivery_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: boolean }
       notif_begin_web_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: string }
       notif_finish_web_atomic: { Args: { p_id: string; p_claim_token: string; p_sent: boolean }; Returns: boolean }
       notif_suppress_atomic: { Args: { p_id: string; p_claim_token: string }; Returns: boolean }
@@ -23,6 +24,12 @@ export async function suppressNotification(id: string, claimToken: string) {
   const { data, error } = await notificationClient.rpc('notif_suppress_atomic', { p_id: id, p_claim_token: claimToken })
   if (error) throw error
   if (!data) throw new Error('Notification lease lost before suppression')
+}
+
+async function admitNotification(id: string, claimToken: string) {
+  const { data, error } = await notificationClient.rpc('notif_admit_delivery_atomic', { p_id: id, p_claim_token: claimToken })
+  if (error) throw error
+  return data === true
 }
 
 const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
@@ -59,37 +66,8 @@ export const webPushFanout = createWebPushFanout({
   prune: pruneWebPushSubscriptions,
 })
 
-export const notifyMember = createNotifyMember({
-  member: async (memberId) => {
-    const { data, error } = await supabase
-      .from('league_members')
-      .select('user_id')
-      .eq('id', memberId)
-      .single()
-    return { data, error }
-  },
-  preferences: async (userId) => {
-    const { data, error } = await supabase
-      .from('notification_preferences')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle()
-    return { data, error }
-  },
-  profile: async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('push_token')
-      .eq('id', userId)
-      .single()
-    return { data, error }
-  },
-  send: (url, init) => fetch(url, init),
-  pushUrl: EXPO_PUSH_URL,
-  webPush: webPushFanout,
-})
-
 export const notifyMembers = createNotifyMembers({
+  admitDelivery: (message) => admitNotification(message.delivery!.id, message.delivery!.claimToken),
   members: async (memberIds) => {
     const { data, error } = await supabase
       .from('league_members')

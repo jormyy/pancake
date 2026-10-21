@@ -4,8 +4,10 @@ import type { Database } from '../../../types/database.ts'
 
 const api = Deno.env.get('SUPABASE_URL')!
 const db = Deno.env.get('SUPABASE_DB_URL')!
-assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname) && new URL(api).port === '57821')
-assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname) && new URL(db).port === '57822')
+const port = Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322'
+assert.match(port, /^\d+$/)
+assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname) && new URL(api).port === String(Number(port) - 1))
+assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname) && new URL(db).port === port)
 const key = Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')
 assert.ok(key)
 const internalToken = Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')!

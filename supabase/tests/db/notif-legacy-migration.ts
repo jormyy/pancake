@@ -3,7 +3,9 @@ import { strict as assert } from 'node:assert'
 const db = Deno.env.get('SUPABASE_DB_URL')
 assert.ok(db)
 const target = new URL(db)
-assert.ok(['127.0.0.1', 'localhost'].includes(target.hostname) && target.port === '57822', 'Only the notification lane database is allowed')
+const port = Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322'
+assert.match(port, /^\d+$/)
+assert.ok(['127.0.0.1', 'localhost'].includes(target.hostname) && target.port === port, 'Only the configured loopback test database is allowed')
 const migration = await Deno.readTextFile('supabase/migrations/20261020000160_notification_preferences_delivery.sql')
 const sql = `BEGIN;
 CREATE TEMP TABLE notif_legacy_users(user_id uuid, mask int);

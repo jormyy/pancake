@@ -61,6 +61,10 @@ export async function deliverTradeNotificationOutbox(
   await runBounded(rows.map((row) => async () => {
     try {
       const [result] = await notify([messageFor(row)])
+      if (result?.status === 'skipped' && result.reason === 'durably_suppressed') {
+        discarded += 1
+        return
+      }
       if (result?.status === 'skipped' && result.reason === 'preferences_disabled') {
         if (!suppress) throw new Error('Suppression persistence is required')
         await suppress(row)

@@ -4,7 +4,8 @@ import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } f
 import path from 'node:path'
 
 const target = new URL(Deno.env.get('SUPABASE_DB_URL') ?? '')
-if (!['127.0.0.1', 'localhost'].includes(target.hostname) || target.port !== '57822') throw new Error('Only the notification lane database is allowed')
+const port = Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322'
+if (!/^\d+$/.test(port) || !['127.0.0.1', 'localhost'].includes(target.hostname) || target.port !== port) throw new Error('Only the configured loopback test database is allowed')
 const evidence = Deno.env.get('NOTIF_EVIDENCE')
 if (!evidence || !path.isAbsolute(evidence) || evidence.startsWith(`${Deno.cwd()}/`)) throw new Error('Evidence must point outside the repository')
 mkdirSync(evidence, { recursive: true })
