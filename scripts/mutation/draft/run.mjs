@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const root = resolve('evidence')
+const root = resolve(process.env.DRAFT_MUTATION_EVIDENCE_DIR ?? 'evidence')
 mkdirSync(root, { recursive: true })
 const keys = Object.fromEntries(execFileSync('supabase', ['status', '-o', 'env'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').flatMap(line => {
   const match = /^([A-Z_]+)="(.*)"$/.exec(line)
@@ -21,7 +21,9 @@ const targets = [
   { id: 'pause-rounding', symbol: 'public.pause_draft_atomic(uuid,uuid)', file: 'supabase/migrations/20261020000200_rookie_draft_long_timers.sql', original: 'CEIL(EXTRACT(EPOCH FROM (timer_expires_at - v_now)))::int', mutated: 'CEIL(EXTRACT(EPOCH FROM (timer_expires_at - v_now)))::int + 1', operator: 'arithmetic off-by-one + 1 second', oracle: 'tests/db/draft-timer-pause.sql' },
   { id: 'warning-multiply', symbol: 'public.draft_timer_start_warning(uuid,integer,integer)', file: 'supabase/migrations/20261020000200_rookie_draft_long_timers.sql', original: 'v_picks::double precision * p_pick_timer_seconds', mutated: 'v_picks::double precision + p_pick_timer_seconds', operator: 'arithmetic * -> +', oracle: 'tests/db/draft-timer-behavior.sql' },
   { id: 'warning-comparison', symbol: 'public.draft_timer_start_warning(uuid,integer,integer)', file: 'supabase/migrations/20261020000200_rookie_draft_long_timers.sql', original: 'v_finish >= v_cutoff', mutated: 'v_finish < v_cutoff', operator: 'relational >= -> <', oracle: 'tests/db/draft-timer-behavior.sql' },
-]
+  { id: 'mock-max', symbol: 'public.create_mock_draft_room_atomic(uuid,uuid,uuid,text,text,timestamp with time zone,text,integer,integer,integer,text)', file: 'supabase/migrations/20261020000204_mock_rookie_timer_range.sql', original: 'v_timer_seconds > 604800', mutated: 'v_timer_seconds >= 604800', operator: 'relational > -> >= (mock upper bound)', oracle: 'tests/db/draft-timer-mock.sql' },
+].filter(target => !process.argv[2] || target.id === process.argv[2])
+assert(targets.length > 0, 'Unknown mutant')
 const oracle = (file, name) => {
   const command = `node scripts/mutation/draft/check.mjs ${file}`
   const start = performance.now()
