@@ -163,6 +163,8 @@
         "supabase/tests/db/notif-t12-auction-pre280-reset.ts",
         "supabase/tests/db/notif-t12-snake-pick.ts",
         "supabase/tests/db/players-t14-release-sweep.ts",
+        "supabase/tests/db/players-t15-silent-omission.ts",
+        "supabase/tests/db/players-t15-release-evidence.ts",
         "supabase/tests/db/identity-projections.ts",
         "supabase/tests/db/identity-rankings.ts",
         "tests/e2e/notif-keyboard.mjs",

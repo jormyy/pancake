@@ -91,8 +91,12 @@ ESPN supplies names, teams, coarse positions, injuries, and news.
 The sync preserves finer existing position eligibility.
 NBA CDN supplies NBA identities. Existing Sleeper identities remain resolvable.
 Truncated master lists fail before replacement.
-ESPN roster pages name only signed players. A refresh that lists every NBA team once, each roster nonempty, every athlete identifiable and every record imported,
-clears the team of each teamed player it no longer names; the row, IDs, injury, status, ownership and lineups stay, and the next listing that names him sets his new team.
+ESPN roster pages name only signed players, but a page can answer 200 and still omit one.
+A structurally complete refresh (every NBA team once, each roster nonempty, every athlete identifiable, every record imported) is therefore not proof that anyone left.
+It clears the team of a player it no longer names only when ESPN claimed him and his team's latest Final game, played after ESPN last listed him on that team,
+has its complete box stored without him (no played, DNP, inactive or membership row in it or any later game).
+The row, IDs, injury, status, ownership and lineups stay, and the next listing that names him sets his new team.
+Every other omitted teamed player keeps his team and is counted in `releaseHeld` (`unproven`, or `unclaimed` for rows ESPN never claimed).
 Any listing gap or import failure releases nobody, and the run reports the reasons as `releaseSkipped`.
 Rookie eligibility uses zero experience; career-game taxi eligibility follows the [roster rules](roster-lifecycle.md).
 
