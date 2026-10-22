@@ -3,6 +3,23 @@
 -- alone. Rows ESPN never claimed keep their team; a claimed row is released only when his team's latest
 -- stored Final box, played after ESPN last listed him, does not list him either. The rest are held and
 -- reported.
+
+-- When ESPN last listed each player, and on which team. players.updated_at cannot say: its trigger moves
+-- it on every write, and the career-games refresh writes every claimed row on every run.
+CREATE TABLE private.player_espn_listings (
+  player_id uuid PRIMARY KEY REFERENCES public.players(id) ON DELETE CASCADE,
+  nba_team text,
+  listed_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+
+ALTER TABLE private.player_espn_listings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON private.player_espn_listings FROM PUBLIC, anon, authenticated, service_role;
+
+-- Rows listed before this table existed: each ESPN listing also wrote updated_at, so it dates the last
+-- listing or a later write, and a later anchor can only hold a release longer.
+INSERT INTO private.player_espn_listings(player_id, nba_team, listed_at)
+  SELECT id, nba_team, updated_at FROM public.players WHERE espn_id IS NOT NULL AND nba_team IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION public.resolve_player_imports_atomic(p_source text, p_records jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -68,7 +85,7 @@ BEGIN
   -- clears no team. A row ESPN never claimed (no espn_id) is beyond its reach and keeps its team. A
   -- claimed row loses its team only when the stored NBA boxes agree: his team's latest Final game has
   -- its complete box stored (stats_synced_at; the box lists active, DNP and inactive players), tipped off
-  -- after the row was last written (every ESPN listing writes it), and neither that box nor a later
+  -- after ESPN last listed him on that team (player_espn_listings), and neither that box nor a later
   -- one lists him. Every other omitted row is held and reported. A listed player who resolved to no
   -- row (an ambiguous name) could be any row with that name, so those rows are not candidates.
   IF p_source = 'espn_release' THEN
@@ -92,13 +109,14 @@ BEGIN
       UPDATE players AS p SET nba_team = NULL, updated_at = clock_timestamp()
       WHERE p.id = ANY(v_player_ids) AND p.espn_id IS NOT NULL
         AND EXISTS (
-          SELECT 1 FROM (
+          SELECT 1 FROM player_espn_listings AS l, (
             SELECT g.game_date, coalesce(g.game_time, g.started_at) AS tipoff, g.stats_synced_at
               FROM nba_games AS g
               WHERE g.status = 'Final' AND p.nba_team IN (g.home_team, g.away_team)
               ORDER BY g.game_date DESC, coalesce(g.game_time, g.started_at) DESC NULLS LAST
               LIMIT 1) AS latest
-          WHERE latest.stats_synced_at IS NOT NULL AND latest.tipoff > p.updated_at
+          WHERE l.player_id = p.id AND l.nba_team = p.nba_team
+            AND latest.stats_synced_at IS NOT NULL AND latest.tipoff > l.listed_at
             AND NOT EXISTS (
               SELECT 1 FROM player_game_stats AS s JOIN nba_games AS listed ON listed.id = s.game_id
               WHERE s.player_id = p.id AND listed.game_date >= latest.game_date)
@@ -294,6 +312,11 @@ BEGIN
               THEN v_row.eligible_positions ELSE ARRAY(SELECT jsonb_array_elements_text(coalesce(v_metadata->'eligible_positions', '[]'))) END,
             updated_at = clock_timestamp()
           WHERE id = v_id;
+          IF p_source = 'espn' THEN
+            INSERT INTO player_espn_listings(player_id, nba_team, listed_at)
+            VALUES (v_id, v_metadata->>'nba_team', clock_timestamp())
+            ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at;
+          END IF;
         ELSIF p_source = 'nba_cdn' THEN
           UPDATE players SET nba_id = v_provider WHERE id = v_id AND nba_id IS DISTINCT FROM v_provider;
           IF v_game_id IS NOT NULL THEN

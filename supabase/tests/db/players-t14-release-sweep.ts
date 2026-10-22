@@ -7,8 +7,10 @@ import { strict as assert } from 'node:assert'
 // optimizer stops starting him on MIN game days; a later listing re-teams him. ESPN absence alone is not
 // enough (players-t15-silent-omission.ts), so the box comes first, and an incomplete or failed refresh
 // (a team missing, a roster error, an injuries error, a failed import chunk) changes nothing for him
-// even with that box stored. X shares five PG-eligible starter slots with five playing BOS guards
-// and sorts first on ties, so while he keeps a team that plays he takes a slot from one of them.
+// even with that box stored. Those that reach the career-games step rewrite his row after the box, so
+// the release must date his last listing by ESPN's listing time, not players.updated_at. X shares five
+// PG-eligible starter slots with five playing BOS guards and sorts first on ties, so while he keeps a
+// team that plays he takes a slot from one of them.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx and 582xx are refused outright.
@@ -216,6 +218,9 @@ try {
     assert.equal(await sql(`SELECT count(*) FROM players WHERE espn_id LIKE ${q(`t14-${run}-%`)} AND nba_team IS NULL`), '0', `${label}: nobody is released`)
     observations.push({ case: `incomplete: ${label}`, status, released: body.released ?? null, releaseSkipped: body.releaseSkipped ?? null, failure: body.failure ?? body.error ?? null, x: await identity(xId) })
   }
+
+  assert.equal(await sql(`SELECT p.updated_at > g.game_time FROM players p, nba_games g WHERE p.id=${q(xId)} AND g.id=${q(final)}`), 't',
+    'The refreshes since the box rewrote his row, so updated_at no longer dates his last listing')
 
   // Refresh 2 is complete and successful without X.
   const second = await refresh('refresh 2', { athletes: withoutX }, 200)

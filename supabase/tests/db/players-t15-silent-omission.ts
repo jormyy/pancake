@@ -10,6 +10,8 @@ import { strict as assert } from 'node:assert'
 //   and no listing names him. He keeps MIN and keeps starting.
 // - Controls: R (BOS) is omitted by ESPN and by BOS's later final box, so he is released. H (CHI) is
 //   omitted by ESPN with no later CHI box, so his team is held until a CHI box without him arrives.
+//   Z (BOS) is omitted by BOS's box but listed again by refresh 2 (re-signed); when refresh 3 drops him
+//   the box predates his last listing, so his team is held.
 // X and W share five PG-eligible starter slots with five playing BOS guards and sort first on ties, so
 // each takes a guard's slot while he keeps a team that plays.
 //
@@ -50,7 +52,7 @@ async function sql(statement: string): Promise<string> {
 const json = async <T>(statement: string): Promise<T> => JSON.parse(await sql(statement))
 
 // The served ESPN origin: 30 teams of 17 synthetic athletes plus X (MIN, day-to-day), five BOS guards,
-// R (BOS) and H (CHI). W is never listed. Every athlete has an NBA person id for the served boxes.
+// R (BOS), H (CHI) and Z (BOS). W is never listed. Every athlete has an NBA person id for the served boxes.
 const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
 const run = crypto.randomUUID().slice(0, 8)
@@ -62,6 +64,7 @@ const x = athlete(`t15-${run}-x`, `T15${run}X`, 'MIN', 'Day-To-Day')
 const ys = Array.from({ length: 5 }, (_, index) => athlete(`t15-${run}-y${index}`, `T15${run}Y${index}`, 'BOS'))
 const r = athlete(`t15-${run}-r`, `T15${run}R`, 'BOS')
 const h = athlete(`t15-${run}-h`, `T15${run}H`, 'CHI')
+const z = athlete(`t15-${run}-z`, `T15${run}Z`, 'BOS')
 const wLast = `T15${run}W`, wPerson = ++person
 const on = (team: string) => fillers.filter(filler => filler.team === team)
 
@@ -197,8 +200,8 @@ try {
   const startedOn = (rows: { player_id: string }[], id: string) => rows.some(row => row.player_id === id)
   const guardsStarted = (rows: { player_id: string }[]) => yIds.filter(id => startedOn(rows, id)).length
 
-  // Refresh 1 lists X on MIN, R on BOS and H on CHI.
-  await refresh('refresh 1', [...fillers, x, ...ys, r, h])
+  // Refresh 1 lists X on MIN, R and Z on BOS and H on CHI.
+  await refresh('refresh 1', [...fillers, x, ...ys, r, h, z])
   // W: a teamed row ESPN never claimed. The CDN import creates bare rows (names only); the product's Sleeper
   // import gives this one his team; MIN's final box below gives him his nba_id and game membership.
   await sql(`INSERT INTO players(id,first_name,last_name) VALUES(${q(wId)},'Synthetic',${q(wLast)});`)
@@ -207,7 +210,7 @@ try {
   assert.deepEqual(claimed.results.map(result => [result.player_id, result.action]), [[wId, 'updated']])
   await sql(`INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(${q(league)},${q(season)},${q(member)},${q(wId)},'draft');`)
 
-  // MIN's final box lists X (inactive, injured) and W (played); BOS's side lists its guards but not R.
+  // MIN's final box lists X (inactive, injured) and W (played); BOS's side lists its guards but not R or Z.
   const minBox = await finalBox('MIN', 'BOS', [...on('MIN').map(played), line(x.person, x.last, false), line(wPerson, wLast, true)], [...on('BOS').map(played), ...ys.map(played)])
   const xBox = await boxRows(xId), wBox = await boxRows(wId)
   assert.deepEqual(xBox, [{ game: minBox, game_date: today, did_not_play: true, member: true }], 'The stored box keeps X as an inactive listing')
@@ -219,6 +222,7 @@ try {
   assert.deepEqual({ espn: wBefore.espn_id, nba: wBefore.nba_id, team: wBefore.nba_team }, { espn: null, nba: String(wPerson), team: 'MIN' }, 'W is teamed, NBA-identified and never claimed by ESPN')
   assert.equal((await byEspn(r.espn))?.nba_team, 'BOS')
   assert.equal((await byEspn(h.espn))?.nba_team, 'CHI')
+  assert.equal((await byEspn(z.espn))?.nba_team, 'BOS')
   const firstStarters = await optimize('optimizer before refresh 2')
   assert.ok(startedOn(firstStarters, xId) && startedOn(firstStarters, wId), `X and W start on MIN's game day ${gameDay}: ${JSON.stringify(firstStarters)}`)
   assert.equal(guardsStarted(firstStarters), 3)
@@ -227,9 +231,10 @@ try {
 
   // Refresh 2: HTTP 200 in every part, all 30 teams, more than 350 athletes. It drops X from MIN's page
   // only (silent omission), R (released: BOS's later box omits him) and H (no CHI box since). W is never named.
+  // Z, whom BOS's box omitted, is listed again (re-signed).
   const listed2 = [...fillers, ...ys]
   assert.ok(listed2.length > 350)
-  const second = await refresh('refresh 2', listed2)
+  const second = await refresh('refresh 2', [...listed2, z])
   const xAfter = await identity(xId), wAfter = await identity(wId), rAfter = await byEspn(r.espn), hAfter = await byEspn(h.espn)
   const xOwnedAfter = await ownership(xId), wOwnedAfter = await ownership(wId), xLinedAfter = await lineups(xId), wLinedAfter = await lineups(wId)
   const secondStarters = await optimize('optimizer after refresh 2')
@@ -248,20 +253,23 @@ try {
   assert.equal(guardsStarted(secondStarters), 3)
   assert.equal(rAfter?.nba_team, null, 'R, omitted by ESPN and by his team\'s later box, is released')
   assert.equal(hAfter?.nba_team, 'CHI', 'H, omitted by ESPN with no CHI box since, keeps his team for now')
+  assert.equal((await byEspn(z.espn))?.nba_team, 'BOS', 'Z, listed again, keeps BOS')
   assert.equal(second.released, 1)
   assert.deepEqual(second.releaseHeld, { unproven: 2, unclaimed: 1 })
 
-  // A CHI final box without H arrives; the next refresh that still omits him releases him. X stays held.
+  // A CHI final box without H arrives; the next refresh that still omits him releases him. X stays held,
+  // and so does Z, whom refresh 3 drops: the BOS box that omits him predates his last listing.
   await finalBox('CHI', 'ATL', on('CHI').map(played), on('ATL').map(played))
   const third = await refresh('refresh 3', listed2)
-  const hThird = await byEspn(h.espn)
-  observations.push({ case: 'refresh-3-after-chi-box', released: third.released ?? null, releaseHeld: third.releaseHeld ?? null, h: hThird, x: await identity(xId), w: await identity(wId) })
+  const hThird = await byEspn(h.espn), zThird = await byEspn(z.espn)
+  observations.push({ case: 'refresh-3-after-chi-box', released: third.released ?? null, releaseHeld: third.releaseHeld ?? null, h: hThird, z: zThird, x: await identity(xId), w: await identity(wId) })
   assert.equal(hThird?.nba_team, null, 'H is released once a CHI box played after his last listing omits him')
   assert.deepEqual({ ...hThird, nba_team: 'CHI' }, { ...hAfter }, 'H keeps his row, ids, injury and status')
   assert.deepEqual(await identity(xId), xBefore)
   assert.deepEqual(await identity(wId), wBefore)
+  assert.equal(zThird?.nba_team, 'BOS', 'Z keeps BOS: no BOS box has been played since his last listing')
   assert.equal(third.released, 1)
-  assert.deepEqual(third.releaseHeld, { unproven: 1, unclaimed: 1 })
+  assert.deepEqual(third.releaseHeld, { unproven: 2, unclaimed: 1 })
   console.log(JSON.stringify({ provenance: 'SYNTHETIC', recipe: 'players-t15-silent-omission', run, gameDay, today, observations }))
 } finally {
   try {
