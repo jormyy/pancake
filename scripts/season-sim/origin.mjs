@@ -9,7 +9,7 @@ import { sqlJson } from './local-stack.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { orderedActions, snapshot, gameEndTime } from './snapshots.mjs'
 import { clockTime } from './virtual-clock.mjs'
-import { rosterForDate, playerIndexAt, openingRosters, rosterSourceAudit } from './origin-people.mjs'
+import { rosterForDate, playerIndexAt, openingRosters, boxTransfers, rosterSourceAudit } from './origin-people.mjs'
 import { scheduleObservation } from './schedule-view.mjs'
 import { upstreamRecorder } from './recorder.mjs'
 
@@ -33,7 +33,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
   const rosterHistory=plan?JSON.parse(await readFile(path.join(directory,'roster-history.json'),'utf8')).games:[]
   const nbaTeams=new Set(games.flatMap(game=>[game.home,game.away]))
   const summaries = new Map()
-  const boxes = new Map(), plays = new Map(), people = new Map(), teams = new Map(), articles = [], bounds = new Map()
+  const boxes = new Map(), plays = new Map(), people = new Map(), teams = new Map(), articles = [], bounds = new Map(), transfers = []
   const now = () => clockTime(JSON.parse(readFileSync(path.join(miniRoot, 'state/clock.json'), 'utf8')), Date.now())
   for (const game of [...games,...rosterHistory].sort((a, b) => a.time.localeCompare(b.time))) {
     const box = await store.json(`${game.rosterOnly?'roster-boxscore':'boxscore'}-${game.id}`)
@@ -61,6 +61,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         else people.set(String(athlete.id), { id: String(athlete.id), firstName: match.firstName, lastName: match.familyName, fullName: match.name, nbaId: match.personId, fromYear: plan?.firstYears[String(match.personId)] ?? null, observations: [observation] })
       }
     }
+    transfers.push(...boxTransfers(people, game, box))
   }
   const openings = openingRosters(games, game => boxes.get(game.id))
   const postponements = new Map()
@@ -224,7 +225,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
       console.error(error)
     }
   }))
-  await writeJson(path.join(evidence,'roster-source-audit.json'),{businessAt:new Date(now()).toISOString(),provenance:'REAL-DERIVED from dated NBA/ESPN boxes, opening-night NBA boxes and historical NBA first-season metadata',people:people.size,...rosterSourceAudit([...people.values()],etDate(new Date(now()).toISOString()),openings)})
+  await writeJson(path.join(evidence,'roster-source-audit.json'),{businessAt:new Date(now()).toISOString(),provenance:'REAL-DERIVED from dated NBA/ESPN boxes, opening-night NBA boxes, NBA box listings of moved players and historical NBA first-season metadata',people:people.size,...rosterSourceAudit([...people.values()],etDate(new Date(now()).toISOString()),openings),boxTransfers:transfers})
   await new Promise(resolve => server.listen(config.ports.replay, '127.0.0.1', () => resolve(undefined)))
   console.log(JSON.stringify({ event: 'origin-ready', games: games.length, people: people.size, teams: teams.size }))
   server.historicalRoster = () => rosterAt(now()).map(player => ({ espnId: player.id, nbaTeam: player.team }))

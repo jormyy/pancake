@@ -15,6 +15,26 @@ export function openingRosters(games, boxOf) {
   return openings
 }
 
+// A real NBA box lists its team's game roster, inactive players included, and a player who has just changed teams is
+// listed by his new team (INACTIVE_TRADE) before he dresses; ESPN summaries list only the players who dressed. A real box
+// dated D that lists a known person for a team other than his latest observed one is a dated observation of that team
+// from D. A box never introduces a person.
+export function boxTransfers(people, game, box) {
+  if (game.rosterOnly || game.provenance === 'SYNTHETIC') return []
+  const aliases = new Map(), moves = []
+  for (const person of people.values()) aliases.set(person.nbaId, [...(aliases.get(person.nbaId) ?? []), person])
+  for (const [code, team] of [[game.home, box.game.homeTeam], [game.away, box.game.awayTeam]]) {
+    for (const player of team.players) {
+      const latest = (aliases.get(player.personId) ?? []).flatMap(person => person.observations.filter(item => (item.time ?? item.date) <= game.time).map(observation => ({ person, observation })))
+        .sort((a, b) => (a.observation.time ?? a.observation.date).localeCompare(b.observation.time ?? b.observation.date)).at(-1)
+      if (!latest || latest.observation.team === code) continue
+      latest.person.observations.push({ time: game.time, date: game.date, team: code, position: latest.observation.position, yearsExp: latest.observation.yearsExp, rosterOnly: false })
+      moves.push({ nbaId: player.personId, espnId: latest.person.id, from: latest.observation.team, to: code, date: game.date, gameId: game.id, reason: player.notPlayingReason ?? null })
+    }
+  }
+  return moves
+}
+
 // From each season's opener on, a dated observation older than the opener (a camp box or an earlier season) holds only
 // while that team's opening-night box lists the player.
 function supersedingBox(person, observation, date, openings) {
