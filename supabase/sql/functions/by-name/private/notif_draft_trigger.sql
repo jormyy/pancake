@@ -9,6 +9,10 @@ DECLARE
   m record;
 BEGIN
   IF NEW.is_mock THEN RETURN NEW; END IF;
+  IF TG_NARGS > 0 AND TG_ARGV[0] = 'turns' THEN
+    PERFORM private.notif_draft_clock(NEW.id);
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status THEN
     v_event := CASE WHEN NEW.status = 'in_progress' AND TG_OP = 'UPDATE' AND OLD.status = 'paused' THEN 'draft_resumed'
       WHEN NEW.status = 'in_progress' THEN 'draft_started'
@@ -20,7 +24,11 @@ BEGIN
       END LOOP;
     END IF;
   END IF;
-  PERFORM private.notif_draft_clock(NEW.id);
+  -- Auction turns are keyed by the reset generation, which a reset writes after
+  -- this statement; the deferred triggers compute them from the settled draft.
+  IF NEW.draft_type IS DISTINCT FROM 'auction' THEN
+    PERFORM private.notif_draft_clock(NEW.id);
+  END IF;
   IF v_event='draft_resumed' THEN
     SELECT timer_expires_at INTO deadline FROM public.snake_draft_picks
       WHERE draft_id=NEW.id AND picked_at IS NULL AND skipped_at IS NULL ORDER BY overall_pick LIMIT 1;

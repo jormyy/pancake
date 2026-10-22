@@ -11,6 +11,8 @@ import { Clock, Transport, expectRows, q, rows, sql, type League, type OutboxRow
 // nominator must get exactly one turn notice, with no duplicate from pause and
 // resume, worker runs or repeated drains. A repeated reset request starts a new
 // generation: the superseded turn row goes stale at send time and is never pushed.
+// An auction paused before 280 (no turn rows) and resumed through the API after
+// it puts the current nominator on the clock once.
 const clock = new Clock(), fixture = new SignedFixture(), transport = new Transport()
 const file = 'supabase/tests/db/notif-t12-auction-pre280-reset.ts'
 type Room = { league: League; draft: string }
@@ -50,8 +52,8 @@ try {
     const response = await post(api, `/draft/${room.draft}/${action}`, fixture.token(room.league.members[0]))
     assert.equal(response.status, 200, `${action}: ${JSON.stringify(response.body)}`)
   }
-  const pauseResume = async () => {
-    for (const room of rooms) { await commissioner(room, 'pause'); await commissioner(room, 'resume') }
+  const pauseResume = async (list = rooms) => {
+    for (const room of list) { await commissioner(room, 'pause'); await commissioner(room, 'resume') }
     await close()
   }
 
@@ -86,10 +88,10 @@ try {
     assert.equal(await sql(`SELECT status || ':' || current_nomination_order FROM drafts WHERE id=${q(room.draft)}`), 'in_progress:1')
     assert.equal(await sql(`SELECT count(*) FROM nominations WHERE draft_id=${q(room.draft)}`), '0', 'The reset cleared both nominations')
     assert.equal(await sql(`SELECT string_agg(actor_user_id::text, ',') FROM draft_audit_logs WHERE draft_id=${q(room.draft)} AND action='reset'`), user(room.league.members[0]), 'One reset, by the signed-in commissioner')
-    const [turn] = await expectRows('draft_on_clock', draftScope(room), [seat(room, 1)], pauseResume)
+    const [turn] = await expectRows('draft_on_clock', draftScope(room), [seat(room, 1)], () => pauseResume())
     assert.equal(turn.dedupe_key, `draft_on_clock:${room.draft}:nomination:1:1:${seat(room, 1)}`)
     assert.deepEqual([turn.data.resets, turn.data.nominationOrder, turn.data.body], [1, 1, 'You are on the clock to nominate a player.'])
-    const [soon] = await expectRows('draft_coming_soon', draftScope(room), [seat(room, 2)], pauseResume)
+    const [soon] = await expectRows('draft_coming_soon', draftScope(room), [seat(room, 2)], () => pauseResume())
     assert.equal(soon.dedupe_key, `draft_coming_soon:${room.draft}:nomination:1:2:${seat(room, 2)}`)
     notices.push(turn, soon)
   }
@@ -123,7 +125,36 @@ try {
       assert.equal(live.suppression_reason, 'preferences_disabled')
     }
   }
-  console.log('SYNTHETIC: pre-280 in-progress auctions (sold and open nominations, order 2, no turn rows) reset through the real API route by the signed-in commissioner; exactly one draft_on_clock for the restarted nominator and one draft_coming_soon for the next, keyed to the reset generation; pause/resume, worker and drain retries add nothing; foreign/non-member negatives; send-time switches and receipts; a repeated reset leaves the superseded generation stale and unsent')
+
+  // An auction paused before 280 shipped has no turn rows either. Resuming it
+  // through the API must put the current nominator on the clock exactly once.
+  const resumed: Room[] = []
+  for (let rotation = 0; rotation < 4; rotation++) {
+    const league = await fixture.league('setup', rotation)
+    const draft = JSON.parse(await sql(`SELECT row_to_json(d) FROM start_auction_draft_atomic(${q(league.id)},'user_nominated',false,5,200) d`)).id
+    resumed.push({ league, draft })
+  }
+  for (const room of resumed) await commissioner(room, 'pause')
+  for (const room of resumed) {
+    assert.equal(await sql(`SELECT count(*) FROM notification_outbox WHERE event_type='draft_paused' AND data->>'draftId'=${q(room.draft)}`), String(room.league.members.length),
+      'One pause notice per member: the deferred turn run adds no status events')
+  }
+  const pausedScope = `${turnEvents} AND data->>'draftId' IN (${resumed.map(room => q(room.draft))})`
+  assert.ok(Number(await sql(`WITH gone AS (DELETE FROM notification_outbox WHERE ${pausedScope} RETURNING 1) SELECT count(*) FROM gone`)) >= 2 * resumed.length, 'This build wrote turn rows before they were removed')
+  for (const room of resumed) await commissioner(room, 'resume')
+  const woken: OutboxRow[] = []
+  for (const room of resumed) {
+    assert.equal(await sql(`SELECT status || ':' || current_nomination_order FROM drafts WHERE id=${q(room.draft)}`), 'in_progress:1')
+    const [turn] = await expectRows('draft_on_clock', draftScope(room), [seat(room, 1)], () => pauseResume(resumed))
+    assert.equal(turn.dedupe_key, `draft_on_clock:${room.draft}:nomination:0:1:${seat(room, 1)}`)
+    assert.deepEqual([turn.data.resets, turn.data.nominationOrder], [0, 1])
+    const [soon] = await expectRows('draft_coming_soon', draftScope(room), [seat(room, 2)], () => pauseResume(resumed))
+    assert.equal(soon.dedupe_key, `draft_coming_soon:${room.draft}:nomination:0:2:${seat(room, 2)}`)
+    woken.push(turn, soon)
+  }
+  await fixture.negative(['draft_on_clock', 'draft_coming_soon'])
+  await transport.prove(fixture, woken, `${file}#resume-after-280`, 'edge-http:api /draft/:id/resume + deferred trigger')
+  console.log('SYNTHETIC: pre-280 in-progress auctions (sold and open nominations, order 2, no turn rows) reset through the real API route by the signed-in commissioner; exactly one draft_on_clock for the restarted nominator and one draft_coming_soon for the next, keyed to the reset generation; pause/resume, worker and drain retries add nothing; foreign/non-member negatives; send-time switches and receipts; a repeated reset leaves the superseded generation stale and unsent; pre-280 paused auctions resumed through the API put the nominator on the clock once')
 } finally {
   try {
     await transport.close()
