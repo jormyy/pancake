@@ -477,7 +477,9 @@ A stable first-observed ESPN alias carries later dated NBA team observations fro
 Historical experience uses the season offset from the NBA first-year field.
 This establishes the zero/nonzero rookie fence; it is not an exact career service-year count.
 Camp cuts therefore take effect at each team's first regular-season box, which can be up to two days after the league opener.
-Exact cut instants and mid-season releases without a later box remain unverified.
+A real regular-season box dated D that lists a known person for another team, inactive or not, moves him to that team from D (`boxTransfers` in `roster-source-audit.json`).
+Synthetic and preseason boxes move nobody, and a box never introduces a person.
+Exact cut instants and mid-season releases without a later other-team box remain unverified: the pinned inputs have no dated transactions feed, so such a player stays on his last team.
 
 The startup managers spend their remaining auction budget on their last active slot.
 This follows the real rule that an auction stays open while managers can still buy eligible taxi players.
