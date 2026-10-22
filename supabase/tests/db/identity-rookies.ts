@@ -68,6 +68,7 @@ try {
     if (!played.length) never.push([pick.pick, pick.name, identity?.name ?? '', pick.personId ?? '', pick.games?.length ? 'DNP only' : 'No box-score identity found'].join('\t'))
     else report.push([pick.pick, pick.name, identity!.name, pick.personId, byPick.get(pick.pick), played[0].gameId, pick.games!.length, played.length].join('\t'))
   }
+  await Deno.mkdir('evidence', { recursive: true })
   await Deno.writeTextFile('evidence/rookies.tsv', report.join('\n') + '\n')
   await Deno.writeTextFile('evidence/never-played.tsv', never.join('\n') + '\n')
   await sql(`UPDATE players SET nba_id=NULL WHERE id IN (${board.map(player => literal(player.id)).join(',')})`)

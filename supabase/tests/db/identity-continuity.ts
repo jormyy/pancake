@@ -202,6 +202,7 @@ try {
     assert.deepEqual(actual, expected, `Season totals lose a game for ${pick.name}`)
     evidence.push([pick.pick, pick.name, actual.id, actual.games, actual.played, actual.points, actual.rebounds, actual.assists].join('\t'))
   }
+  await Deno.mkdir('evidence', { recursive: true })
   await Deno.writeTextFile('evidence/rookie-season-totals.tsv', evidence.join('\n') + '\n')
   await sql('REFRESH MATERIALIZED VIEW analytics.mv_player_season_averages')
   for (const pick of picks.filter(pick => pick.games?.some(game => game.played === '1'))) {
