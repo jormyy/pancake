@@ -20,9 +20,9 @@ const ESPN_HEADERS = {
 const MIN_TEAMS = 28
 const MIN_PLAYERS = 350
 
-// The franchises a complete listing must cover, in players.nba_team codes.
-// Roster pages name only signed players, so a listing that covers every team
-// is also the evidence that an unnamed player is no longer on any of them.
+// The franchises a listing must cover before it can name anyone's absence,
+// in players.nba_team codes. Covering them is necessary, not sufficient: a
+// page can answer 200 and still omit a signed player.
 const NBA_TEAM_CODES = [
   'ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
   'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS',
@@ -144,9 +144,10 @@ type EspnRoster = { teamCode: string | null; athletes: EspnAthlete[] }
 const identified = (athlete: EspnAthlete) => athlete.id != null && Boolean(athlete.firstName || athlete.lastName)
 
 /**
- * Reasons the fetched rosters may not name every signed NBA player: a team
+ * Reasons the fetched rosters cannot name every signed NBA player: a team
  * missing, repeated or unknown, an empty roster page, or an athlete the
- * import cannot key. No reasons means the listing is complete.
+ * import cannot key. No reasons means only that no gap is visible; a page
+ * that silently omits a player looks the same.
  */
 export function espnListingGaps(rosters: EspnRoster[]): string[] {
   const gaps: string[] = []

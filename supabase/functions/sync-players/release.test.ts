@@ -1,9 +1,11 @@
 import { strict as assert } from 'node:assert'
 
-// The release decision through the real sync-players handler: only a complete
-// ESPN listing (every NBA team, identifiable athletes, every record imported)
+// The release decision through the real sync-players handler: only a listing
+// with no gaps (every NBA team, identifiable athletes, every record imported)
 // sends the espn_release call, after every import chunk; anything less
-// releases nobody.
+// releases nobody. The call's receipt names who it released and who it held
+// (ESPN omits them, but no stored box shows them leaving, or ESPN never
+// claimed them), and the run reports both.
 for (const [name, value] of Object.entries({
   SUPABASE_URL: 'http://database.invalid',
   PANCAKE_SUPABASE_SECRET_KEY: 'fixture-key',
@@ -28,7 +30,7 @@ const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
 const players = Array.from({ length: 634 }, (_, index) => ({ id: String(1000 + index), team: index % 30, last: `Player${index}` }))
 
-type Feed = { teams?: string[]; emptyRoster?: string; nameless?: string; failChunk?: boolean; conflict?: string; release?: 'error' | 'invalid' }
+type Feed = { teams?: string[]; emptyRoster?: string; nameless?: string; failChunk?: boolean; conflict?: string; release?: 'error' | 'invalid' | 'unheld' }
 
 async function runSync(feed: Feed = {}) {
   const originalFetch = globalThis.fetch
@@ -74,7 +76,8 @@ async function runSync(feed: Feed = {}) {
     if (body.p_source === 'espn_release') {
       assert.ok(body.p_records.every((row) => !('metadata' in row)), 'A release names players; it carries no metadata')
       if (feed.release === 'error') return Response.json({ code: '22023', message: 'A release needs the complete ESPN listing.' }, { status: 400 })
-      return Response.json(feed.release === 'invalid' ? { results: [] } : { released: ['released-1', 'released-2'] })
+      const released = ['released-1', 'released-2'], held = { unproven: ['held-1'], unclaimed: ['held-2', 'held-3'] }
+      return Response.json(feed.release === 'invalid' ? { results: [] } : feed.release === 'unheld' ? { released } : { released, held })
     }
     assert.equal(body.p_source, 'espn')
     if (feed.failChunk && calls.length === 1) return Response.json({ code: '22023', message: 'Player name is empty.' }, { status: 400 })
@@ -89,7 +92,7 @@ async function runSync(feed: Feed = {}) {
     const response = await handler!(new Request('http://function.invalid/sync-players', {
       method: 'POST', headers: { 'x-internal-function-token': 'fixture-internal-token' },
     }))
-    const body = await response.json() as { released?: number; releaseSkipped?: string[] }
+    const body = await response.json() as { released?: number; releaseSkipped?: string[]; releaseHeld?: { unproven: number; unclaimed: number } }
     return { status: response.status, body, calls, run: runs.at(-1) }
   } finally {
     globalThis.fetch = originalFetch
@@ -106,6 +109,7 @@ Deno.test('a complete refresh releases with every listed player after every impo
   assert.deepEqual(result.calls.map((call) => call.source), ['espn', 'espn', 'espn_release'])
   assert.deepEqual([...releases(result.calls)[0].ids].sort(), players.map((player) => player.id).sort())
   assert.equal(result.body.released, 2)
+  assert.deepEqual(result.body.releaseHeld, { unproven: 1, unclaimed: 2 })
   assert.deepEqual(result.body.releaseSkipped, [])
   assert.equal(result.run?.status, 'success')
   assert.equal(result.run?.rows_affected, 634 + 2)
@@ -126,10 +130,12 @@ for (const [label, feed, status, blocker] of incomplete) {
     assert.ok(result.calls.length > 0, 'the import itself still runs')
     assert.ok(result.body.releaseSkipped?.includes(blocker), JSON.stringify(result.body.releaseSkipped))
     assert.equal(result.body.released, 0)
+    assert.deepEqual(result.body.releaseHeld, { unproven: 0, unclaimed: 0 })
   })
 }
 
-for (const [label, release, error] of [['a refused release', 'error', /release: .*complete ESPN listing/], ['an invalid release receipt', 'invalid', /release: Invalid release receipt/]] as const) {
+for (const [label, release, error] of [['a refused release', 'error', /release: .*complete ESPN listing/], ['an invalid release receipt', 'invalid', /release: Invalid release receipt/],
+  ['a receipt without its held players', 'unheld', /release: Invalid release receipt/]] as const) {
   Deno.test(`${label} fails the run after a complete import`, async () => {
     const result = await runSync({ release })
     assert.equal(result.status, 500)

@@ -1,11 +1,13 @@
 import { strict as assert } from 'node:assert'
 
-// A player absent from every roster of a complete ESPN refresh, through the real sync-players and
-// lineup-optimizer handlers against a served synthetic ESPN origin. Refresh 1 lists X on MIN; a complete
-// refresh without X must leave him a free agent (no team) with his row, ids, injury, ownership and
-// lineups, so the optimizer stops starting him on MIN game days; a later listing re-teams him. An
-// incomplete or failed refresh (a team missing, a roster error, an injuries error, a failed import
-// chunk) changes nothing for him. X shares five PG-eligible starter slots with five playing BOS guards
+// A player absent from every roster of a complete ESPN refresh, through the real sync-players, sync-stats
+// (syncStatsGame) and lineup-optimizer code against a served synthetic ESPN and NBA CDN origin. Refresh 1
+// lists X on MIN; MIN then plays a final game whose stored box omits him. A complete refresh without X
+// must then leave him a free agent (no team) with his row, ids, injury, ownership and lineups, so the
+// optimizer stops starting him on MIN game days; a later listing re-teams him. ESPN absence alone is not
+// enough (players-t15-silent-omission.ts), so the box comes first, and an incomplete or failed refresh
+// (a team missing, a roster error, an injuries error, a failed import chunk) changes nothing for him
+// even with that box stored. X shares five PG-eligible starter slots with five playing BOS guards
 // and sorts first on ties, so while he keeps a team that plays he takes a slot from one of them.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
@@ -54,9 +56,10 @@ const x: Athlete = { espn: `t14-${run}-x`, last: `T14${run}X`, team: 'MIN', inju
 const ys: Athlete[] = Array.from({ length: 5 }, (_, index) => ({ espn: `t14-${run}-y${index}`, last: `T14${run}Y${index}`, team: 'BOS' }))
 type Feed = { athletes: Athlete[]; teams?: string[]; failRoster?: string; failInjuries?: boolean; blankName?: boolean }
 let feed: Feed = { athletes: [...fillers, x, ...ys] }
+const boxes = new Map<string, unknown>()
 const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen() {} }, request => {
   const route = new URL(request.url).pathname
-  const roster = route.match(/^\/site\/teams\/(\d+)\/roster$/)
+  const roster = route.match(/^\/site\/teams\/(\d+)\/roster$/), box = route.match(/^\/cdn\/liveData\/boxscore\/boxscore_(.+)\.json$/)
   const teams = feed.teams ?? codes
   if (route === '/site/teams') return Response.json({ sports: [{ leagues: [{ teams: teams.map(abbreviation => ({ team: { id: String(codes.indexOf(abbreviation) + 1), abbreviation } })) }] }] })
   if (roster) {
@@ -73,6 +76,7 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen(
   }
   if (route === '/site/news') return Response.json({ articles: [] })
   if (route === '/cdn/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
+  if (box && boxes.has(box[1])) return Response.json({ game: boxes.get(box[1]) })
   if (route.startsWith('/career/')) return Response.json({})
   return new Response('synthetic provider has no such route', { status: 404 })
 })
@@ -111,7 +115,7 @@ const etDate = (offset: number) => {
 }
 const today = etDate(0), gameDay = etDate(2), pastDay = etDate(-2)
 const user = crypto.randomUUID(), league = crypto.randomUUID(), season = crypto.randomUUID(), member = crypto.randomUUID()
-const xId = `00000000-0000-4000-8000-${crypto.randomUUID().slice(-12)}`, game = crypto.randomUUID()
+const xId = `00000000-0000-4000-8000-${crypto.randomUUID().slice(-12)}`, game = crypto.randomUUID(), final = crypto.randomUUID()
 const yIds = ys.map(() => `8${crypto.randomUUID().slice(1)}`)
 const started = new Date().toISOString()
 let year = 0
@@ -145,6 +149,7 @@ try {
       VALUES(${q(member)},${q(league)},${q(season)},${q(xId)},1,${q(pastDay)},'PG',false,now());`)
   const sync = await serve(() => import('../../functions/sync-players/index.ts'))
   const optimizer = await serve(() => import('../../functions/lineup-optimizer/index.ts'))
+  const { syncStatsGame } = await import('../../functions/_shared/syncStats.ts')
   const refresh = async (label: string, next: Feed, status: number) => {
     feed = next
     const response = await invoke(sync)
@@ -177,6 +182,20 @@ try {
   assert.equal(owned.length, 1)
   assert.equal(lined.length, 2, 'X keeps a past lineup row and the auto-set row for the game day')
   observations.push({ case: 'refresh-1-lists-x', x: baseline, starters: firstStarters })
+
+  // MIN plays a final game now, after X's last listing; its box, stored through the real CDN import, omits him.
+  const finalId = `002t14${run}f`, person = 7_000_000 + Math.floor(Math.random() * 1_000_000) * 10
+  const boxed = [...fillers.filter(filler => filler.team === 'MIN'), ...fillers.filter(filler => filler.team === 'BOS'), ...ys]
+  const lines = boxed.map((listed, index) => ({ personId: person + index, name: `Synthetic ${listed.last}`, played: '1', status: 'ACTIVE',
+    statistics: { minutes: 'PT20M00.00S', points: 10, reboundsTotal: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
+      foulsPersonal: 0, fieldGoalsMade: 0, fieldGoalsAttempted: 0, threePointersMade: 0, threePointersAttempted: 0, freeThrowsMade: 0, freeThrowsAttempted: 0, plusMinusPoints: 0 } }))
+  await sql(`INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status,home_score,away_score,game_status_text)
+    VALUES(${q(final)},${q(finalId)},${year},1,${q(today)},clock_timestamp(),'MIN','BOS','Final',100,90,'Final')`)
+  boxes.set(finalId, { gameId: finalId, gameStatus: 3, gameStatusText: 'Final', homeTeam: { teamTricode: 'MIN', score: 100, players: lines.slice(0, 17) },
+    awayTeam: { teamTricode: 'BOS', score: 90, players: lines.slice(17) } })
+  assert.equal(await syncStatsGame({ id: final, nba_game_id: finalId, season_year: year, week_number: 1, status: 'Final', home_score: 100, away_score: 90, game_status_text: 'Final' }), boxed.length)
+  assert.equal(await sql(`SELECT count(*) FROM player_game_stats WHERE game_id=${q(final)} AND player_id=${q(xId)}`), '0', 'MIN\'s stored box omits X')
+  assert.deepEqual(await identity(xId), baseline)
 
   // Incomplete or failed refreshes without X change nothing for him.
   const withoutX = [...fillers, ...ys]
@@ -212,6 +231,7 @@ try {
   assert.deepEqual(afterOwned, owned, 'The release keeps his fantasy ownership')
   assert.deepEqual(afterLined, lined, 'The release keeps his lineups')
   assert.equal(second.released, 1, 'Only X is released')
+  assert.deepEqual(second.releaseHeld, { unproven: 0, unclaimed: 0 }, 'Nobody else is omitted')
   assert.deepEqual(await teamsOf(`t14-${run}-`), { ...Object.fromEntries(codes.map(code => [({ GS: 'GSW', NO: 'NOP', NY: 'NYK', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' } as Record<string, string>)[code] ?? code, 17])), BOS: 17 + ys.length, none: 1 })
   assert.ok(!startedOn(secondStarters, xId), `A released player is not auto-started: ${JSON.stringify(secondStarters)}`)
   assert.equal(guardsStarted(secondStarters), 5, 'Every playing guard starts once X is released')
@@ -234,7 +254,8 @@ try {
     await provider.shutdown()
   } finally {
     await sql(`DELETE FROM leagues WHERE id=${q(league)};
-      DELETE FROM nba_games WHERE id=${q(game)};
+      DELETE FROM player_game_stats WHERE game_id=${q(final)};
+      DELETE FROM nba_games WHERE id IN (${q(game)},${q(final)});
       ${year ? `DELETE FROM season_weeks WHERE season_year=${year};` : ''}
       DELETE FROM players WHERE id IN (${[xId, ...yIds].map(q)}) OR espn_id LIKE ${q(`t14-${run}-%`)};
       DELETE FROM profiles WHERE id=${q(user)};
