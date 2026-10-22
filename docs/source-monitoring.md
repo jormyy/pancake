@@ -48,6 +48,8 @@ Live polling targets twenty-second ingestion intervals. Each tick budgets eighte
 An abort guard stops work at 115 seconds. A ninety-second lease renews every thirty seconds.
 Lease loss stops further writes. One scoring pass follows each batch of game updates.
 Missing final-game stats remain eligible for recovery. Failed provider requests back off without marking the game complete.
+A final NBA CDN box score with valid team scores also saves them and its status text as the game's Final scoreboard sample.
+Later non-final scoreboard samples cannot overwrite that final score.
 
 The response-table maintenance job uses ordinary vacuum to reclaim expired response space.
 It preserves live responses and requires no table rewrite.

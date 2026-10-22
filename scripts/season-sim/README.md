@@ -24,7 +24,7 @@ Only loopback HTTP and PostgreSQL targets in the configured block pass the guard
 The production project reference always fails.
 The database helper checks the configured container and its database port before its first query.
 Port suffixes are API 21, database 22, origin 80, router 81, inspector 83, and fault target 89.
-Assigned blocks are 572, 573, 574, and 575.
+Assigned blocks are 572–575. Block 581 belongs only to the supplemental project and 582 only to the replacement replay.
 The installer changes configuration only inside the mini copy.
 It disables cron launch before applying migrations.
 It saves the installed cron catalog before unscheduling jobs.

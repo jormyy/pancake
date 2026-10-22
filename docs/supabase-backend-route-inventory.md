@@ -45,14 +45,15 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | `/draft` | Shared active-draft lookup in [launcher](../hooks/use-draft-room-launcher.ts) | Inline auction room, rookie room navigation, or empty state |
 | `/draft-room?draftId=:id` | Draft, nominations, bids, budgets and pool in [auction controller](../hooks/useAuctionDraftRoomController.ts) | Draft Edge actions; room Realtime |
 | `/rookie-draft-room?draftId=:id` | Draft, order, picks and prospects in [rookie controller](../hooks/useRookieDraftRoomController.ts) | Pick and timer Edge actions; room Realtime |
-| `/profile` | Shared owner profile, preferences and push status in [profile resource](../hooks/use-profile-resource.ts) | Profile/preferences writes, Storage avatar upload, push configuration and subscription, sign-out |
-| `/player/:id` | Player, seasons, averages, game log, fantasy points, transactions and projection in [player detail](../hooks/use-player-screen-data.ts) | Pickup controls; paged history and game log |
+| `/profile` | Shared owner profile in [profile resource](../hooks/use-profile-resource.ts) | Profile and team-name writes, Storage avatar upload, sign-out |
+| `/notification-settings` | Shared notification preferences in [profile resource](../hooks/use-profile-resource.ts) | Master, category and event preference writes; web push configuration and subscription |
+| `/player/:id` | Player, seasons, averages, game log, fantasy points, transactions and projection in [player detail](../hooks/use-player-screen-data.ts) | Pickup controls; player watch (`notif_set_player_watch_atomic`); paged history and game log |
 | `/lineup` | Actor, season/week, schedule, optimizer settings, slots, lineup and roster in [lineup reads](../lib/lineup/read.ts) | Slot RPCs, optimizer settings, Edge rest-of-season optimization |
 | `/team-roster?memberId=:id` | Selected roster and averages in [team roster](../app/%28modals%29/team-roster.tsx) | Player navigation |
 | `/claim-player?playerId=:id` | Player, roster, priority, transaction limits and waiver clearance in [claim modal](../app/%28modals%29/claim-player.tsx) | Edge waiver claim |
 | `/propose-trade` | Members, participant assets and stats in [trade composer](../hooks/use-multi-team-trade-composer.ts) | Edge proposal, counter or edit |
 | `/bracket` | Current season and playoff matchups in [bracket](../lib/bracket.ts) | Commissioner playoff actions |
-| `/commissioner-settings` | Slots, members and playoff calendar in [settings resource](../hooks/use-commissioner-settings-resource.ts) | League configuration and commissioner RPCs |
+| `/commissioner-settings` | Slots, members and playoff calendar in [settings resource](../hooks/use-commissioner-settings-resource.ts) | League configuration and commissioner RPCs; league announcement (`notif_publish_announcement_atomic`); playoff fit check |
 | `/create-league`, `/join-league` | Shared session context | `create_league`, `join_league_by_invite_code` in [league](../lib/league.ts) |
 | `/change-password` | Shared session context | Auth password change |
 | Unknown route | No route-owned server data | Shared shell traffic can still occur |
@@ -101,6 +102,7 @@ JWT routes also apply the actor, league, draft, or trade checks in their handler
 | `/profile/push-token/revoke` | profile | Token-specific revocation credential; `revoke_push_token_atomic` |
 | `/league/roster/ir`, `/league/roster/taxi` | [league](../supabase/functions/api/league.ts) | JWT and roster ownership; `toggle_ir_atomic`, `toggle_taxi_atomic` |
 | `/league/advance-season` | league | Commissioner; `advance_season_atomic` |
+| `/league/playoff-fit` | league | Commissioner; read-only playoff span check against the current season's weeks |
 | `/league/lineup/auto-set-season` | league | Own member in league; internal `lineup-optimizer` |
 | `/waivers/claims` | [waivers](../supabase/functions/api/waivers.ts) | Own member; `create_waiver_claim_atomic` |
 | `/waivers/claims/:claimId/cancel`, `/edit`, `/reorder` | waivers | Own member; `cancel_waiver_claim_atomic`, `edit_waiver_claim_atomic`, `reorder_waiver_claim_atomic` |
@@ -112,6 +114,7 @@ JWT routes also apply the actor, league, draft, or trade checks in their handler
 | `/trades/:tradeId/roster-plan`, `/taxi-destinations` | trades | Own member; `set_trade_roster_plan_atomic`, `set_trade_taxi_destinations_atomic` |
 | `/trades/block`, `/trades/block/:itemId/remove` | trades | Own member; `add_trade_block_item_atomic`, `remove_trade_block_item_atomic` |
 | `/draft/start`, `/draft/start-rookie` | [draft](../supabase/functions/api/draft.ts) | Commissioner; `start_auction_draft_atomic`, `start_rookie_draft_atomic` |
+| `/draft/rookie-start-warning` | draft | Commissioner; read-only `draft_timer_start_warning` opening-night estimate |
 | `/draft/mock-room/create` | draft | Own member; `create_mock_draft_room_atomic` |
 | `/draft/:draftId/join-mock-room`, `/leave-mock-room`, `/start-mock-room`, `/delete-mock-room` | draft | Own member and room rules; corresponding mock-room atomic RPC |
 | `/draft/:draftId/stop`, `/reset`, `/pause`, `/resume` | draft | Commissioner; corresponding draft atomic RPC |
