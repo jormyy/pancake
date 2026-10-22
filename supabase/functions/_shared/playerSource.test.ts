@@ -1,8 +1,15 @@
+import { strict as assert } from 'node:assert'
+
 // Degraded-source contract for the ESPN player source: a broken, truncated,
 // or reshaped payload is refused outright (no writes possible), and a
 // recovered source works again on the next run with no manual action.
+// Completeness contract: only a listing that covers every NBA team with
+// identifiable athletes has no gaps, so only it can release unlisted players.
 
-let mode: 'good' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' = 'good'
+let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' = 'good'
+
+const ESPN_LEAGUE = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
+  'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
 
 const goodTeams = {
   sports: [{
@@ -42,6 +49,9 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
     if (mode === 'few-teams') {
       return Response.json({ sports: [{ leagues: [{ teams: goodTeams.sports[0].leagues[0].teams.slice(0, 5) }] }] })
     }
+    if (mode === 'league') {
+      return Response.json({ sports: [{ leagues: [{ teams: ESPN_LEAGUE.map((abbreviation, index) => ({ team: { id: String(index + 1), abbreviation } })) }] }] })
+    }
     return Response.json(goodTeams)
   }
   if (url.pathname.includes('/roster')) {
@@ -64,11 +74,11 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
 
 Deno.env.set('ESPN_SITE_BASE_URL', `http://127.0.0.1:${(upstream.addr as Deno.NetAddr).port}`)
 
-const { fetchEspnPlayerRecords, mapEspnTeam } = await import('./playerSource.ts')
+const { espnListingGaps, fetchEspnPlayerListing, mapEspnTeam } = await import('./playerSource.ts')
 
 async function expectRefusal(label: string, pattern: RegExp) {
   try {
-    await fetchEspnPlayerRecords()
+    await fetchEspnPlayerListing()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (!pattern.test(message)) {
@@ -81,7 +91,7 @@ async function expectRefusal(label: string, pattern: RegExp) {
 
 Deno.test('a healthy source produces mapped records with name-joined injuries', async () => {
   mode = 'good'
-  const records = await fetchEspnPlayerRecords()
+  const { records } = await fetchEspnPlayerListing()
   if (records.length !== 450) throw new Error(`expected 450 records, got ${records.length}`)
   const gsw = records.find((record) => record.nba_team === 'GSW')
   if (!gsw) throw new Error('ESPN GS team code was not mapped to GSW')
@@ -108,7 +118,7 @@ Deno.test('a garbage (non-JSON) payload is refused', async () => {
   mode = 'garbage'
   let threw = false
   try {
-    await fetchEspnPlayerRecords()
+    await fetchEspnPlayerListing()
   } catch {
     threw = true
   }
@@ -132,8 +142,33 @@ Deno.test({
 
 Deno.test('the source recovers with no manual action', async () => {
   mode = 'good'
-  const records = await fetchEspnPlayerRecords()
+  const { records } = await fetchEspnPlayerListing()
   if (records.length !== 450) throw new Error('recovered source did not produce a full payload')
+})
+
+Deno.test('a listing of every NBA team is complete; any other team set has gaps', async () => {
+  mode = 'league'
+  const league = await fetchEspnPlayerListing()
+  assert.equal(league.records.length, 450)
+  assert.deepEqual(league.gaps, [])
+  mode = 'good'
+  const partial = await fetchEspnPlayerListing()
+  assert.equal(partial.records.length, 450, 'gaps do not block the import itself')
+  assert.ok(partial.gaps.includes('unexpected team T1') && partial.gaps.includes('missing roster BOS'), partial.gaps.join('; '))
+})
+
+const athlete = (id: string | undefined, firstName = 'First', lastName = 'Last') => ({ id, firstName, lastName })
+const league = (codes = ESPN_LEAGUE.map(mapEspnTeam)) => codes.map((teamCode) => ({ teamCode, athletes: [athlete(`${teamCode}-1`)] }))
+
+Deno.test('listing gaps name each way a refresh can miss a signed player', () => {
+  assert.deepEqual(espnListingGaps(league()), [])
+  assert.deepEqual(espnListingGaps(league().filter((roster) => roster.teamCode !== 'MIN')), ['missing roster MIN'])
+  assert.deepEqual(espnListingGaps([...league(), { teamCode: 'MIN', athletes: [athlete('again')] }]), ['2 rosters for MIN'])
+  assert.deepEqual(espnListingGaps([...league(), { teamCode: 'EST', athletes: [athlete('star')] }]), ['unexpected team EST'])
+  assert.deepEqual(espnListingGaps(league().map((roster) => roster.teamCode === 'UTA' ? { ...roster, athletes: [] } : roster)), ['empty roster UTA'])
+  assert.deepEqual(espnListingGaps(league().map((roster) => roster.teamCode === 'GSW'
+    ? { ...roster, athletes: [...roster.athletes, athlete(undefined), athlete('nameless', '', '')] } : roster)), ['2 unidentified athlete(s) on GSW'])
+  assert.equal(espnListingGaps([]).length, 30)
 })
 
 Deno.test('team-code mapping covers the divergent abbreviations', () => {

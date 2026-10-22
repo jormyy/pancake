@@ -1,4 +1,4 @@
--- Resolve absence and provider ownership under the same lock as identity merges.
+-- Resolve absence and provider ownership under the same lock as identity merges; release players a complete ESPN listing omits.
 CREATE OR REPLACE FUNCTION public.resolve_player_imports_atomic(p_source text, p_records jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -25,11 +25,15 @@ DECLARE
   v_providers text[];
   v_name_keys text[];
   v_player_ids uuid[];
+  v_released jsonb;
 BEGIN
-  IF p_source IS NULL OR p_source NOT IN ('espn', 'sleeper', 'nba_cdn', 'nba_index', 'nba_draft')
+  IF p_source IS NULL OR p_source NOT IN ('espn', 'espn_release', 'sleeper', 'nba_cdn', 'nba_index', 'nba_draft')
      OR p_records IS NULL OR jsonb_typeof(p_records) <> 'array'
-     OR jsonb_array_length(p_records) > 500 THEN
+     OR jsonb_array_length(p_records) > (CASE WHEN p_source = 'espn_release' THEN 1000 ELSE 500 END) THEN
     RAISE EXCEPTION 'Invalid player import source or records.' USING ERRCODE = '22023';
+  END IF;
+  IF p_source = 'espn_release' AND jsonb_array_length(p_records) < 350 THEN
+    RAISE EXCEPTION 'A release needs the complete ESPN listing.' USING ERRCODE = '22023';
   END IF;
   IF p_source = 'nba_draft' AND jsonb_array_length(p_records) NOT BETWEEN 50 AND 60 THEN
     RAISE EXCEPTION 'A complete NBA draft board requires 50 to 60 picks.' USING ERRCODE = '22023';
@@ -53,6 +57,36 @@ BEGIN
   -- Acquire before any name/provider read or player row lock. A subsequent
   -- READ COMMITTED statement sees the importer that just released this lock.
   PERFORM pg_advisory_xact_lock(1347174745, 1);
+
+  -- espn_release carries every player of a complete ESPN refresh (all teams, every record imported).
+  -- Roster pages list only signed players, so a teamed row it does not name has left the league: clear
+  -- only its team and keep its identity, injury, status, ownership and lineups. A listed player who
+  -- resolved to no row (an ambiguous name) could be any row with that name, so those rows keep theirs.
+  IF p_source = 'espn_release' THEN
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_records) AS r
+      WHERE jsonb_typeof(r->'provider_id') IS DISTINCT FROM 'string' OR btrim(r->>'provider_id') = ''
+        OR jsonb_typeof(r->'first_name') IS DISTINCT FROM 'string' OR jsonb_typeof(r->'last_name') IS DISTINCT FROM 'string'
+        OR EXISTS (SELECT 1 FROM jsonb_object_keys(r) AS k WHERE NOT k = ANY(ARRAY['provider_id', 'first_name', 'last_name']))) THEN
+      RAISE EXCEPTION 'Unsupported player import field.' USING ERRCODE = '22023';
+    END IF;
+    SELECT array_agg(r->>'provider_id'),
+      coalesce(array_agg(private.player_import_name_key(concat_ws(' ', r->>'first_name', r->>'last_name')))
+        FILTER (WHERE p.id IS NULL), '{}')
+      INTO v_providers, v_name_keys
+      FROM jsonb_array_elements(p_records) AS r
+      LEFT JOIN players AS p ON p.espn_id = r->>'provider_id';
+    PERFORM p.id FROM players AS p
+      WHERE p.nba_team IS NOT NULL AND (p.espn_id IS NULL OR NOT p.espn_id = ANY(v_providers))
+        AND NOT coalesce(private.player_import_name_key(p.display_name) = ANY(v_name_keys), false)
+      ORDER BY p.id FOR UPDATE;
+    WITH released AS (
+      UPDATE players AS p SET nba_team = NULL, updated_at = clock_timestamp()
+      WHERE p.nba_team IS NOT NULL AND (p.espn_id IS NULL OR NOT p.espn_id = ANY(v_providers))
+        AND NOT coalesce(private.player_import_name_key(p.display_name) = ANY(v_name_keys), false)
+      RETURNING p.id)
+    SELECT coalesce(jsonb_agg(id ORDER BY id), '[]') INTO v_released FROM released;
+    RETURN jsonb_build_object('released', v_released);
+  END IF;
 
   IF p_source = 'nba_cdn' THEN
     PERFORM g.id FROM nba_games AS g

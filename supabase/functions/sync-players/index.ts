@@ -2,11 +2,12 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
-import { fetchEspnNews, fetchEspnPlayerRecords } from '../_shared/playerSource.ts'
+import { fetchEspnNews, fetchEspnPlayerListing } from '../_shared/playerSource.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { syncCareerGames } from './career.ts'
 import { importPlayerChunk } from './imports.ts'
 import { syncNBAIds } from './nbaIds.ts'
+import { releaseUnlistedPlayers } from './release.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
@@ -32,6 +33,8 @@ serveInternal('sync-players', async (req) => {
       result: {
         updated: players.updated,
         inserted: players.inserted,
+        released: players.released,
+        releaseSkipped: players.releaseSkipped,
         ambiguousSkipped: players.ambiguousSkipped,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
@@ -40,16 +43,20 @@ serveInternal('sync-players', async (req) => {
         newsFailures: news.failures,
         failure,
       },
-      rowsAffected: players.updated + players.inserted + nbaIds.mapped + nbaIds.merged + news.upserted,
+      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + news.upserted,
       failure,
     }
   }, req)
   return Response.json({ ok: !result.failure, ...result }, { status: result.failure ? 500 : 200 })
 })
 
-async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: number; ambiguousSkipped: number; failures: string[] }> {
+type PlayerSyncTotals = {
+  updated: number; inserted: number; released: number; releaseSkipped: string[]; ambiguousSkipped: number; failures: string[]
+}
+
+async function syncPlayersFromEspn(): Promise<PlayerSyncTotals> {
   console.log('[sync-players] Fetching from ESPN...')
-  const records = await fetchEspnPlayerRecords()
+  const { records, gaps } = await fetchEspnPlayerListing()
 
   let updated = 0
   let inserted = 0
@@ -68,12 +75,14 @@ async function syncPlayersFromEspn(): Promise<{ updated: number; inserted: numbe
       failures.push(...result.failures)
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
-  console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, failures }
+  const release = await releaseUnlistedPlayers(records, gaps, failures)
+  console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${release.released} released, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
+  if (release.blockers.length > 0) console.log(`[sync-players] ESPN release skipped: ${release.blockers.join('; ')}`)
+  return { updated, inserted, released: release.released, releaseSkipped: release.blockers, ambiguousSkipped, failures: [...failures, ...release.failures] }
 }
 
 // Dormant Sleeper fallback path (PLAYER_SYNC_SOURCE=sleeper).
-async function syncPlayers(): Promise<{ updated: number; inserted: number; ambiguousSkipped: number; failures: string[] }> {
+async function syncPlayers(): Promise<PlayerSyncTotals> {
   console.log('[sync-players] Fetching from Sleeper...')
   const res = await fetchWithRetry(SLEEPER_URL)
   if (!res.ok) throw new Error(`Sleeper API ${res.status}`)
@@ -107,7 +116,8 @@ async function syncPlayers(): Promise<{ updated: number; inserted: number; ambig
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
   console.log(`[sync-players] Sleeper: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, failures }
+  // Sleeper's master list names free agents with no team, so it needs no release sweep.
+  return { updated, inserted, released: 0, releaseSkipped: [], ambiguousSkipped, failures }
 }
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null
