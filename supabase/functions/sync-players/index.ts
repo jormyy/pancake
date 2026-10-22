@@ -7,7 +7,7 @@ import { errorMessage } from '../_shared/responses.ts'
 import { syncCareerGames } from './career.ts'
 import { importPlayerChunk } from './imports.ts'
 import { syncNBAIds } from './nbaIds.ts'
-import { releaseUnlistedPlayers } from './release.ts'
+import { releaseUnlistedPlayers, type HeldReleases } from './release.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
@@ -35,6 +35,7 @@ serveInternal('sync-players', async (req) => {
         inserted: players.inserted,
         released: players.released,
         releaseSkipped: players.releaseSkipped,
+        releaseHeld: players.releaseHeld,
         ambiguousSkipped: players.ambiguousSkipped,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
@@ -51,7 +52,8 @@ serveInternal('sync-players', async (req) => {
 })
 
 type PlayerSyncTotals = {
-  updated: number; inserted: number; released: number; releaseSkipped: string[]; ambiguousSkipped: number; failures: string[]
+  updated: number; inserted: number; released: number; releaseSkipped: string[]; releaseHeld: HeldReleases
+  ambiguousSkipped: number; failures: string[]
 }
 
 async function syncPlayersFromEspn(): Promise<PlayerSyncTotals> {
@@ -78,7 +80,11 @@ async function syncPlayersFromEspn(): Promise<PlayerSyncTotals> {
   const release = await releaseUnlistedPlayers(records, gaps, failures)
   console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${release.released} released, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
   if (release.blockers.length > 0) console.log(`[sync-players] ESPN release skipped: ${release.blockers.join('; ')}`)
-  return { updated, inserted, released: release.released, releaseSkipped: release.blockers, ambiguousSkipped, failures: [...failures, ...release.failures] }
+  if (release.held.unproven + release.held.unclaimed > 0) {
+    console.log(`[sync-players] ESPN omits ${release.held.unproven} claimed player(s) no stored box shows leaving and ${release.held.unclaimed} it never claimed; their teams are held.`)
+  }
+  return { updated, inserted, released: release.released, releaseSkipped: release.blockers, releaseHeld: release.held, ambiguousSkipped,
+    failures: [...failures, ...release.failures] }
 }
 
 // Dormant Sleeper fallback path (PLAYER_SYNC_SOURCE=sleeper).
@@ -117,7 +123,7 @@ async function syncPlayers(): Promise<PlayerSyncTotals> {
   }
   console.log(`[sync-players] Sleeper: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
   // Sleeper's master list names free agents with no team, so it needs no release sweep.
-  return { updated, inserted, released: 0, releaseSkipped: [], ambiguousSkipped, failures }
+  return { updated, inserted, released: 0, releaseSkipped: [], releaseHeld: { unproven: 0, unclaimed: 0 }, ambiguousSkipped, failures }
 }
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null
