@@ -169,17 +169,17 @@ It records the source SHA, archive hash, command, process ID, start, and end.
 It restores native database clocks and stops its own stack after success or failure.
 The final JSON exit file records cleanup failures too.
 
-On the editing Mac:
+On the editing host:
 
 ```sh
 SHA=<final-committed-integration-sha>
-EVIDENCE=/Users/michaelchen/.hermes/kanban/workspaces/t_4ba51e0d/evidence/sim
+EVIDENCE=<evidence-folder-outside-the-checkout>
 git archive "$SHA" --output="$EVIDENCE/integration.tar" -- . ':!.env*' ':!**/.env*'
-rsync -a -e /Users/michaelchen/.hermes/kanban/workspaces/t_4ba51e0d/bin/ssh-via-mbp \
-  "$EVIDENCE/integration.tar" mini:pancake-t_4ba51e0d/lanes/sim/integration.tar
+rsync -a -e <ssh-wrapper> \
+  "$EVIDENCE/integration.tar" <simulator-host>:pancake-t_4ba51e0d/lanes/sim/integration.tar
 ```
 
-After capacity admission, run the following on the mini through the required SSH wrapper.
+After capacity admission, run the following on the simulator host through the required SSH wrapper.
 First ensure the diagnostic has exited and its evidence has been copied.
 Keep its source copy under the same lane folder.
 
@@ -255,12 +255,8 @@ Dates after October 27 and conflicting check flags fail before stack startup.
 
 ## Delayed-tipoff reproduction
 
-The retained March 26 diagnostic on `21f5a3bb` misses quarter one of game `0022501063`.
-The pinned play-by-play starts at 23:11:00.200 UTC and ends quarter one at 23:39:12.800 UTC.
-The game is scheduled for 23:00 UTC.
-The last pre-tipoff worker finishes at 23:10:20 UTC.
-No live worker runs during quarter one.
-The next worker starts at 23:40 UTC, when the first stored stat rows appear.
+Game `0022501063` is scheduled for 23:00 UTC.
+Its pinned play-by-play starts at 23:11:00.200 UTC and ends quarter one at 23:39:12.800 UTC.
 
 The old `get_live_poll_work` stops frequent checks ten minutes after the scheduled tipoff.
 Its late-game branch waits thirty minutes after the previous check.
@@ -284,25 +280,9 @@ Its synthetic probe state is separate from its real-derived fixture snapshots.
 The report is `evidence/delayed-tipoff-probe.json`.
 It exits nonzero when every first-quarter cron tick has no work.
 It checks that the retained game and attempt rows remain unchanged.
-The `cb74d8f7` integration returns no work at all fourteen ticks from 23:12 through 23:38 UTC.
-The unchanged probe on `658dd95c` returns work at all fourteen ticks and exits zero.
-The fixture and oracle hashes match across that red/green pair.
 
-The earlier retained diagnostic stops at the March 26 coverage check.
-The corrected diagnostic completes March 23 through April 12 on the integrated application.
-It passes the strict quarter checks and proves the automatic champion on April 13.
-Its first season-end assertion then reads only one of six pending claims.
-The database retains all six claims without processing or cancellation.
-The corrected harness reads each pending claim through its authenticated owner.
-Later outcomes require their generated continuation evidence.
 Next-season morning steps preserve any worker time advanced during snapshot preparation.
 Rookie expiry waits for the first cron minute strictly after the recorded pick expiry.
-
-Measured game-date times are 259.369 seconds for October 21 and 416.999–509.463 seconds for March 23–25.
-These measurements use earlier retained source copies, rather than the running fresh replay.
-An idle offseason date has not run.
-At 450 seconds per game date, 194 selected historical and next-season dates take about 24.25 hours.
-This estimate excludes offseason cadence and setup; the complete duration remains unmeasured.
 
 
 ## Pending claims and season-end recovery
@@ -577,29 +557,6 @@ Earlier complete NBA schedule snapshots remain unavailable.
 This is a historical replay with declared publication policies, not a raw archive of every original schedule release.
 
 
-### Bounded evidence before integration
-
-The baseline application is `454cf583`; the harness is a working overlay.
-The production draft cron imports all 59 real picks in 69.809 seconds.
-The board check verifies names, numbers, rookie experience and unlinked NBA identities.
-Opening night and its following date verify 12 final games and 4,390 live score samples.
-Their replay times are 247.656 and 386.846 seconds.
-The diagnostic exits on the baseline calendar mismatch after those dates pass.
-It does not bypass that mismatch for a full launch.
-The baseline publishes 25 weeks; the independent oracle requires 24.
-The baseline planner also returns opening dates one day late under its five-game rule.
-Its stored opening week and opening-night scoring remain correct in this bounded check.
-
-Using 386.846 seconds for ordinary dates and the earlier 509.463-second playoff sample projects about 40 hours.
-The broader measured range projects 31–50 hours, including the idle offseason.
-These are projections, not a completed-run duration or a promised runtime budget.
-The 138 harness tests, changed-file lint, dead-code check and e2e type check pass on the mini.
-The full two-season replay and its new late-season manager scenarios remain unmeasured.
-The automatic unstarted-rookie backstop remains outside this scenario.
-Three additional postponed rows remain explicit gaps beyond the six required examples.
-See the published `shared/sim2/README.md`, input manifests and `postponements.gaps` before launch.
-
-
 ### Feature evidence and sixty-second rookie timers
 
 The rookie launch uses a sixty-second timer and rejects values outside 60–604800 seconds.
@@ -650,44 +607,7 @@ No mock rooms exist; score and history checks read primary tables.
 The report lists those omissions instead of claiming coverage for them.
 Rankings and projections remain separate input-quality gaps.
 
-### Bounded feature results on ff349d6c
-
-These results use an application archive and a working harness overlay, not a committed fresh replay.
-The calendar gate passes for both seasons with 24 weeks, replacing the earlier 25-week baseline result.
-Opening dates are October 22, 2024 and October 21, 2025.
-Merged week 17 is February 10–23, 2025 and February 9–22, 2026.
-The two-date check uses no calendar-failure deferral.
-It verifies two then ten NBA games in 240.478 and 363.412 seconds.
-Its early overlay omits the later-added cache and notification cron entries.
-A corrected-cadence opening-date rerun takes 242.450 seconds and repeats the live and final checks.
-
-F1 is RED on this base: the observed full cycle does not balance home and away.
-The pending postseason implementation owns that change.
-F2 configured fit passes; no playoff phase runs in this opening diagnostic.
-Full F2 seeds, byes, elimination and champion evidence remains required from the two-season leg.
-
-F3 changes to the correct current-season label after played state appears.
-Its averages remain null while stored played stats already imply nonzero FP/game.
-The strict extractor reports FAILED at October 23, 2024, 09:00 UTC.
-The real daily cache refresh at 12:40 UTC makes all 576 rows pass, including 42 players with stats.
-No manual cache refresh produces that green result.
-This is an application cache-lag candidate; the final integration must resolve or explicitly accept the failing expectation.
-A prepared 2025–26 preseason sample verifies the fallback label with empty prior statistics.
-A nonempty 2024–25 fallback pool remains wired but unmeasured until the real continuation runs.
-
-The bounded sixty-second draft passes eight per-pick push checks, including one automatic pick and eight pause/resume checks.
-It takes 22.381 seconds after preparation, including twelve business minutes of final receipt waiting.
-The complete isolated command takes 68.908 seconds with database setup and cleanup.
-The skip-on-expiry choice is not measured by this bounded auto-pick scenario.
-
-The separate opening-cutoff scenario warns before starting its seven-day timer.
-At October 21, 2025, 09:00 ET, the expiry worker auto-picks all eight unfinished picks.
-Read-only retained rows confirm completion and no remaining pick timer.
-The simultaneous season-boundary worker reports `Draft is not in progress`, so the scenario remains RED.
-The suspected race is the backstop's auto-pick call after the cutoff worker completes the draft.
-The strict worker-status check stays enabled.
-
-Run either bounded draft phase on a disposable admitted lane stack:
+Run the bounded rookie-draft turn or opening-cutoff phase on a disposable admitted lane stack:
 
 ```sh
 node scripts/season-sim/index.mjs --probe-rookie-draft --draft-probe-phase turns
@@ -702,17 +622,6 @@ They do not constitute a continuous two-season replay.
 
 The new oracle families each have corrupted-row negative controls in `feature-oracles.test.mjs`.
 Those controls test harness detection; they are not application mutants.
-The mini passes 161 harness tests, changed-file ESLint, the e2e type check and both generated-source checks.
-Plain knip still reports four notification-owned entries and one notification-owned unused export on this base.
-No simulator entry registration is needed for the new imported modules.
-
-Budget about forty hours for the final two-season launch, with a broad 31–50 hour load range.
-Ordinary measured game dates take 363–387 seconds; the earlier playoff sample takes 509.463 seconds.
-The sixty-second rookie phase adds about one minute of wall-time allowance after setup.
-The idle offseason has not been remeasured in this feature round.
-This is a projection, not a completed-run duration.
-The exact full-launch command above stays unchanged: use the final integration SHA, its archive and no overlay.
-Resolve the F1 implementation, cutoff race, Players-cache finding and notification knip residue before claiming readiness.
 
 
 ## Supplemental criteria audit
@@ -742,7 +651,6 @@ Each entry names an oracle, expected business phase, lane recipe or explicit lim
 `fullRunOnly` identifies checks that remain provisional until the full uninterrupted replay passes.
 A green early sample does not close those entries.
 Lane recipe mappings do not become passes merely because a source file exists.
-The dependency audit remains a pinned FAILED required check, awaiting Michael's decision.
 
 ETAs extrapolate measured completed-date times across remaining business dates.
 The JSON includes the sample count, mean, observed timing range and model assumption.
@@ -780,36 +688,18 @@ VACUUM runs outside a transaction; the other commands roll back their local diag
 These checks do not prove expired mock-room behavior or a retention backlog.
 The matrix keeps that broader housekeeping coverage partial.
 
-An on-clock notification regression is reproduced on the candidate application.
-The minute dispatcher marks a paused pick's unsent event stale.
-Resume makes the current pick valid again, but the dedupe conflict leaves its only event suppressed.
-The minimal scenario checks the next minute while thirty seconds remain on the pick.
-The broader supplement records this strict failure and continues only its independent areas.
-Its overall exit remains nonzero; this is not a workaround for a fresh replay.
-The protected replay has the same pause pattern and its later draft push check is at risk.
-
 One observed send per pick in a normal run is not an exactly-once transport guarantee.
 The notification owner records Expo and Web Push retry/crash windows separately.
-The five new producers and send-time reliability work need their own real-transition evidence.
 The immutable running candidate cannot prove code added after its archive.
 Chromium screenshots do not prove WebKit, native Safari or an installed iOS PWA.
 The matrix preserves those browser and device limits explicitly.
 Later lane restart, cutoff and clinch evidence can appear as `LANE EVIDENCE`, with pinned logs and source manifests.
 That status does not imply those later changes exist in the immutable replay.
 
+Players evidence records keep the checkpoint label and store display text separately as `statsLabel`.
+The average oracle sums integer cents and rounds the rational average away from zero.
+Positive and negative half-cent controls cover that rounding.
 
-The read-only audit also exposes two Players-evidence harness defects in the running candidate.
-A successful result's display-season label overwrites its checkpoint label.
-That causes repeated samples to overwrite the file named `after-first-final` and prevents the summary from finding successful phases.
-Future harness records keep the checkpoint label and store display text separately as `statsLabel`.
-
-The old average calculation also rounds positive half cents down through binary multiplication.
-At business October 29, 2024, seven displayed averages differ from that oracle by one cent.
-Independent pinned NBA box scores confirm the application's values for all seven.
-The corrected oracle sums integer cents and rounds the rational average away from zero.
-Positive and negative half-cent controls fail before the change and pass after it.
-The original protected export and its failure remain unchanged.
-This classification does not convert the running replay to a pass or authorize a restart.
 ## Queued dispatches and stall evidence
 
 The clock driver checks the real `net.http_request_queue` before it advances past an unstarted worker.
@@ -820,13 +710,6 @@ It still waits for a request that has left the queue but has not registered its 
 It also waits when no worker is active and queued work has not started.
 Every intervening cron minute and worker deadline still runs.
 HTTP failures, timeouts and failed worker outcomes remain fatal.
-
-The November 4, 2024 overlap check reproduces the old deadlock at 00:13 UTC on November 5.
-The live poll sleeps until 00:13:20 while the 00:15 pre-tipoff optimizer remains queued.
-The old driver freezes the clock and receives the thirty-second HTTP timeout.
-The corrected driver reaches 00:21:50 with both workers successful.
-This uses a prepared synthetic league and pinned historical inputs, not the retained full replay database.
-The retained failure's queue counters and timing match this mechanism; its original queue rows were not exported.
 
 Future runs record `evidence/stall-probes.jsonl` after a production dispatch exceeds ten real seconds.
 The watchdog uses a native timer, separate from the paused business clock and the driver's SQL connection.
