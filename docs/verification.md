@@ -61,7 +61,12 @@ Use negative controls to prove that a gate detects the protected failure.
 | Optimizer ownership | `npm run test:db:optimizer-context` |
 | History retention | `npm run test:db:retention`, `npm run test:db:retention-scoring` |
 | Live snapshot order | `npm run test:db:live-snapshot-order` |
+| Final scores from final box scores | `npm run evidence:db:live-t12-final-score` |
 | Certified scoring | `npm run test:db:skipped-week-certificates` |
+| Fantasy calendar publication | `npm run test:db:calendar-publish`, `npm run test:db:calendar-seasons` |
+| Draft timers | `npm run test:db:draft-timer-range`, `npm run test:db:draft-timer-pause` |
+| Notification preferences and producers | `npm run test:db:notif-overhaul`, `npm run test:db:notif-producers-enabled`, `npm run test:db:notif-round3` |
+| Auction turn notices, computed at commit from the settled draft | `npm run test:db:notif-t10-auction`, `npm run test:db:notif-t12-auction-pre280-reset` |
 
 These checks use controlled fixtures. They do not establish hosted latency or physical-device behavior.
 

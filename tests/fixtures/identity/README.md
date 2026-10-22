@@ -21,14 +21,15 @@ Its SHA256 is `b07024982ea4c9093827d89b31a96849d7aa0e5fe67771a3f540d28cbf9a8a13`
 The index arrives on 2026-10-21 at 05:54:55 UTC. Its SHA256 is `535d3e59be84f9dd6ff194bc968b6d6cbb4f8cd5fa30380012bf7cd02110c966`.
 The index request without the query returns 403. The query supplies an unchanged real response, not a historical index.
 
-The borrowed boxes remain unchanged under the simulation's shared fixture folder on the mini.
+The borrowed boxes were pinned from the NBA CDN and are kept unchanged outside the repository.
 Their original retrieval times are unavailable here. Each decompressed SHA256 matches its source filename.
-The external evidence folder records each URL, source path, byte count, and hash.
+Acquisition provenance (URL, source path, byte count, and hash) is kept outside the repository.
 The acquisition script regenerates derived files from those boxes and the pinned raw inputs.
 
 The resolver checks 57 box-score identities. Only 55 drafted players play.
 Sorber and Toohey have DNP rows. Marković and Niang have no box-score identity in these inputs.
 Those four picks do not count as played coverage. Other observed players appear in the external undrafted report.
+The rookie and continuity recipes write their TSV reports to `evidence/` in the checkout and create that ignored folder when it is missing.
 
 The scoring recipe uses one long test week to isolate identity from calendar behavior.
 It preserves real game dates, IDs, points, names, and teams. It does not prove the real fantasy calendar.
