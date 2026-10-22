@@ -165,6 +165,8 @@
         "supabase/tests/db/players-t14-release-sweep.ts",
         "supabase/tests/db/players-t15-silent-omission.ts",
         "supabase/tests/db/players-t15-release-evidence.ts",
+        "supabase/tests/db/players-t16-real-omission.ts",
+        "supabase/tests/db/players-t16-release-history.ts",
         "supabase/tests/db/identity-projections.ts",
         "supabase/tests/db/identity-rankings.ts",
         "tests/e2e/notif-keyboard.mjs",
