@@ -96,6 +96,7 @@
         "supabase/tests/db/live-t10-season-chain.ts",
         "supabase/tests/db/post-t10-boundary-http.ts",
         "supabase/tests/db/post-t11-schedule-http.ts",
+        "supabase/tests/db/live-t12-final-score.ts",
         "scripts/mutation/post/rerun-t10.mjs",
         "supabase/tests/db/scoring-skip-first-week.ts",
         "supabase/tests/db/makeup-scoring.ts",
