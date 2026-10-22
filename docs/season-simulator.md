@@ -487,6 +487,8 @@ Fantasy users, bids, lineup choices, trades, and source-availability timing are 
 No real-mode route returns a `Synthetic Prospect` row.
 
 Dated preseason observations supply the opening roster without exposing future NBA players.
+From each season's opener on, an observation dated before it (a camp box or an earlier season) holds only while that team's first real regular-season box lists the player; opening boxes list the whole roster, inactive players included.
+`roster-source-audit.json` names each superseded observation and the opening box that omits it.
 Preseason boxes supply roster evidence only; they never enter scoring games or fantasy weeks.
 A camp-only person needs a prior/current NBA career in the pinned registry.
 Unknown camp registrations remain excluded and are listed in `roster-source-audit.json`.
@@ -494,7 +496,8 @@ The roster and NBA index contain one row per observed NBA person.
 A stable first-observed ESPN alias carries later dated NBA team observations from all source aliases.
 Historical experience uses the season offset from the NBA first-year field.
 This establishes the zero/nonzero rookie fence; it is not an exact career service-year count.
-Exact historical roster-cut instants remain unverified.
+Camp cuts therefore take effect at each team's first regular-season box, which can be up to two days after the league opener.
+Exact cut instants and mid-season releases without a later box remain unverified.
 
 The startup managers spend their remaining auction budget on their last active slot.
 This follows the real rule that an auction stays open while managers can still buy eligible taxi players.
