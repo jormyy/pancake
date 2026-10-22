@@ -9,7 +9,9 @@ export type HeldReleases = { unproven: number; unclaimed: number }
  * still omit one, so even a listing with no gaps does not prove anyone left.
  * A listing with gaps or import failures sends nothing. A clean one names its
  * players to espn_release, which clears a team only when the stored NBA boxes
- * agree and reports every other omitted row as held.
+ * agree and reports every other omitted row as held. Real boxes omit signed
+ * inactive players too, so a box omission counts only after a box that showed
+ * the player playing.
  */
 function releaseBlockers(listingGaps: string[], importFailures: string[]): string[] {
   return [...listingGaps, ...importFailures.length > 0 ? [`${importFailures.length} import failure(s)`] : []]
