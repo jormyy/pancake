@@ -15,7 +15,7 @@ import type { Database } from './database.ts'
 export type StatsSyncGame = Pick<
   Database['public']['Tables']['nba_games']['Row'],
   'id' | 'nba_game_id' | 'week_number' | 'season_year' | 'status'
->
+> & Partial<Pick<Database['public']['Tables']['nba_games']['Row'], 'home_score' | 'away_score' | 'game_status_text'>>
 
 // How long a Final game's synced stats stay fresh before we re-fetch its box
 // score. Live-poll calls syncStatsForDates every minute during live windows;
@@ -156,6 +156,7 @@ async function syncStatsGameWithResolver(
     const resolved = await resolveBoxScorePlayers(boxScore, providerGameId, resolver)
     const stats = resolved.map(({ player, playerId }) =>
       buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
+    if (boxScore.gameStatus === 3) await saveFinalScore(game, providerGameId, boxScore)
     const changed = await saveGameStats(game.id, providerGameId, stats, boxScore.gameStatus === 3, boxScore.gameStatus === 3 ? undefined : gameElapsedSeconds(boxScore))
     if (changed > 0) console.log(`[sync-stats] Game ${providerGameId}: ${changed}/${stats.length} stat line(s) changed.`)
     return stats.length
@@ -178,6 +179,34 @@ type BoxScorePlayers = {
   gameStatus?: number
   homeTeam?: { players?: NBABoxScorePlayer[] }
   awayTeam?: { players?: NBABoxScorePlayer[] }
+}
+
+type FinalBoxScore = BoxScorePlayers & {
+  gameStatusText?: unknown
+  homeTeam?: { score?: unknown }
+  awayTeam?: { score?: unknown }
+}
+
+const isTeamScore = (score: unknown): score is number => Number.isSafeInteger(score) && (score as number) >= 0
+
+// The scoreboard is the only other writer of nba_games scores, and it stops
+// polling a game once it is Final or drops it from todaysScoreboard, so the
+// last mid-game sample would otherwise stay as the final score. A Final
+// sample always applies and every later non-final sample is refused.
+// Feeds without team scores keep the earlier behavior. Live-poll work rows
+// carry the stored score, so a settled final is not rewritten on each recheck.
+async function saveFinalScore(game: StatsSyncGame, providerGameId: string, boxScore: FinalBoxScore): Promise<void> {
+  const home = boxScore.homeTeam?.score
+  const away = boxScore.awayTeam?.score
+  if (!isTeamScore(home) || !isTeamScore(away)) return
+  if (game.status === 'Final' && game.home_score === home && game.away_score === away &&
+      /^final/i.test(game.game_status_text ?? '')) return
+  const text = typeof boxScore.gameStatusText === 'string' && boxScore.gameStatusText.trim() ? boxScore.gameStatusText : 'Final'
+  const { error } = await supabase.rpc('save_live_scoreboard_atomic', {
+    p_game_id: game.id, p_provider_game_id: providerGameId, p_status: 'Final',
+    p_home_score: home, p_away_score: away, p_status_text: text, p_elapsed_seconds: 0,
+  })
+  if (error) throw error
 }
 
 export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameId: string): NBABoxScorePlayer[] {
