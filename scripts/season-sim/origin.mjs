@@ -9,7 +9,7 @@ import { sqlJson } from './local-stack.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { orderedActions, snapshot, gameEndTime } from './snapshots.mjs'
 import { clockTime } from './virtual-clock.mjs'
-import { rosterForDate, playerIndexAt } from './origin-people.mjs'
+import { rosterForDate, playerIndexAt, openingRosters, rosterSourceAudit } from './origin-people.mjs'
 import { scheduleObservation } from './schedule-view.mjs'
 import { upstreamRecorder } from './recorder.mjs'
 
@@ -62,6 +62,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
       }
     }
   }
+  const openings = openingRosters(games, game => boxes.get(game.id))
   const postponements = new Map()
   for (const entry of (plan ? [] : schedule).filter(row => row.status === 'STATUS_POSTPONED')) {
     const note = entry.notes.map(note => note.headline).join(' ')
@@ -86,7 +87,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
     return { payload: snapshot(boxes.get(game.id), pbp, new Date(at).toISOString(), withCourt, summaries.get(game.espnId)), provenance: fault?.gameId === game.id || game.provenance === 'SYNTHETIC' ? 'SYNTHETIC' : 'REAL-DERIVED', key: `playbyplay-${game.id}` }
   }
   function rosterAt(at) {
-    return rosterForDate([...people.values()], etDate(new Date(at).toISOString()))
+    return rosterForDate([...people.values()], etDate(new Date(at).toISOString()), openings)
   }
   const expo=await fakeExpoRecorder(evidence,now,async(token,_data,outboxId)=>{
     const quoted=value=>"'"+value.replaceAll("'","''")+"'"
@@ -178,7 +179,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         }
         payload = { injuries: [{ injuries: [...latest.values()].filter(player => player.notPlayingReason?.includes('INJURY')).map(player => ({ status: 'Out', athlete: { displayName: player.name }, details: player.notPlayingReason })) }] }
       } else if (url.pathname === '/espn/news') payload = { articles: articles.filter(article => Date.parse(article.published) <= at).sort((a, b) => b.published.localeCompare(a.published)).slice(0, Number(url.searchParams.get('limit') ?? 50)) }
-      else if (url.pathname === '/static/json/staticData/playerIndex.json') payload = playerIndexAt([...people.values()], date)
+      else if (url.pathname === '/static/json/staticData/playerIndex.json') payload = playerIndexAt([...people.values()], date, openings)
       else if (url.pathname.startsWith('/career/')) {
         payload = { unavailable: 'Historical career totals have not been collected. Unknown remains null.' }
         source = 'documented source gap'
@@ -223,8 +224,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
       console.error(error)
     }
   }))
-  const initialRoster=rosterAt(now())
-  await writeJson(path.join(evidence,'roster-source-audit.json'),{businessAt:new Date(now()).toISOString(),provenance:'REAL-DERIVED from dated NBA/ESPN boxes and historical NBA first-season metadata',people:people.size,served:initialRoster.length,aliases:initialRoster.filter(row=>row.sourceAliases.length>1).map(row=>({nbaId:row.nbaId,selectedEspnId:row.id,aliases:row.sourceAliases})),unserved:[...people.values()].filter(person=>person.observations.some(row=>row.date<=etDate(new Date(now()).toISOString()))&&!initialRoster.some(row=>row.nbaId===person.nbaId)).map(row=>({nbaId:row.nbaId,name:row.fullName,fromYear:row.fromYear,reason:'Only preseason observations without a prior/current NBA career in the pinned registry'}))})
+  await writeJson(path.join(evidence,'roster-source-audit.json'),{businessAt:new Date(now()).toISOString(),provenance:'REAL-DERIVED from dated NBA/ESPN boxes, opening-night NBA boxes and historical NBA first-season metadata',people:people.size,...rosterSourceAudit([...people.values()],etDate(new Date(now()).toISOString()),openings)})
   await new Promise(resolve => server.listen(config.ports.replay, '127.0.0.1', () => resolve(undefined)))
   console.log(JSON.stringify({ event: 'origin-ready', games: games.length, people: people.size, teams: teams.size }))
   server.historicalRoster = () => rosterAt(now()).map(player => ({ espnId: player.id, nbaTeam: player.team }))
