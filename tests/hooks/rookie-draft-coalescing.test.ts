@@ -491,6 +491,8 @@ it.each(['no-op', 'error'])('retries an early expiry %s until the server accepts
     expect(latest.prospects.map(player => player.id)).toEqual(['b'])
 })
 
+// 110 s of fake time in 5 ms act() steps is 22,000 round-trips: about 0.6 s on an idle laptop, 3.2 s and over 5 s on a
+// loaded CI host. The 30 s limit (50x idle, 6x the 5 s default it hit) covers that harness cost; a hang still fails.
 it('caps retry frequency without permanently latching a very fast device clock', async () => {
     boundary.board!.draft.timerExpiryBehavior = 'auto_pick'
     boundary.board!.picks[0].timerExpiresAt = new Date(Date.now() - 1000).toISOString()
@@ -506,4 +508,4 @@ it('caps retry frequency without permanently latching a very fast device clock',
     expect(boundary.expire.mock.calls.length).toBeGreaterThan(5)
     expect(boundary.expire.mock.calls.length).toBeLessThanOrEqual(7)
     expect(latest.state?.nextPick?.overallPick).toBe(2)
-})
+}, 30_000)
