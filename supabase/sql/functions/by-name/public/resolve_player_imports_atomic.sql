@@ -1,4 +1,4 @@
--- Resolve absence and provider ownership under the same lock as identity merges; release a player ESPN omits only when his team's latest stored box omits him too.
+-- Resolve absence and provider ownership under the same lock as identity merges; release a player ESPN omits only when his team's latest stored box omits him too and the last box that listed him showed him playing.
 CREATE OR REPLACE FUNCTION public.resolve_player_imports_atomic(p_source text, p_records jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -65,8 +65,12 @@ BEGIN
   -- claimed row loses its team only when the stored NBA boxes agree: his team's latest Final game has
   -- its complete box stored (stats_synced_at; the box lists active, DNP and inactive players), tipped off
   -- after ESPN last listed him on that team (player_espn_listings), and neither that box nor a later
-  -- one lists him. Every other omitted row is held and reported. A listed player who resolved to no
-  -- row (an ambiguous name) could be any row with that name, so those rows are not candidates.
+  -- one lists him. Real boxes omit signed players too: an injured, two-way or assigned player listed
+  -- inactive can drop out of his team's boxes for a game or for months and then be listed again. So
+  -- the omission counts only when the latest box that lists him shows him playing, or no stored box
+  -- lists him at all; after an inactive, DNP or membership-only listing it proves nothing. Every other
+  -- omitted row is held and reported. A listed player who resolved to no row (an ambiguous name)
+  -- could be any row with that name, so those rows are not candidates.
   IF p_source = 'espn_release' THEN
     IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_records) AS r
       WHERE jsonb_typeof(r->'provider_id') IS DISTINCT FROM 'string' OR btrim(r->>'provider_id') = ''
@@ -102,6 +106,18 @@ BEGIN
             AND NOT EXISTS (
               SELECT 1 FROM private.player_game_memberships AS m JOIN nba_games AS listed ON listed.id = m.game_id
               WHERE m.player_id = p.id AND listed.game_date >= latest.game_date))
+        AND coalesce((
+          SELECT listing.played FROM (
+            SELECT g.game_date, coalesce(g.game_time, g.started_at) AS tipoff, s.did_not_play IS FALSE AS played
+              FROM player_game_stats AS s JOIN nba_games AS g ON g.id = s.game_id
+              WHERE s.player_id = p.id
+            UNION ALL
+            SELECT g.game_date, coalesce(g.game_time, g.started_at), false
+              FROM private.player_game_memberships AS m JOIN nba_games AS g ON g.id = m.game_id
+              WHERE m.player_id = p.id AND NOT EXISTS (
+                SELECT 1 FROM player_game_stats AS s WHERE s.player_id = m.player_id AND s.game_id = m.game_id)) AS listing
+          ORDER BY listing.game_date DESC, listing.tipoff DESC NULLS LAST
+          LIMIT 1), true)
       RETURNING p.id)
     SELECT coalesce(jsonb_agg(id ORDER BY id), '[]') INTO v_released FROM released;
     RETURN jsonb_build_object('released', v_released, 'held', (
