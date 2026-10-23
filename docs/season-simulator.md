@@ -532,6 +532,10 @@ Their old/new teams and first played appearances for their new teams come from p
 Managers acquire them before the NBA trade.
 The oracle checks the same player row, new NBA team, same fantasy owner, locked starts, and continued points.
 These are representative NBA deadline trades, not an audit of every NBA transaction.
+Every 2025 draftee whose 2025-26 NBA box listings move him to a second team is also a continuity subject (Walter Clayton Jr. UTA to MEM, John Tonje UTA to BOS).
+Each such subject joins a different fantasy member on January 1, starts on his first new-team dates, and must keep his row and owner, follow his new NBA team, and score.
+The run fails if one stays unverified at the end of the season.
+Season ranges and opening-night clock jumps come from the first and last regular-season (002) game days of the pinned NBA schedule.
 
 Both seasons retain live, final, weekly, bracket, champion, trade, waiver and pick checks.
 The second season preserves settled first-season stats, matchups, standings and used picks.
