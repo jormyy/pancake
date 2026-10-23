@@ -48,25 +48,57 @@ export async function activateRealRookies(c, plan, report) {
   report.realRookieActivation = { passed: true, rookies: c.draftedRookies, provenance: 'REAL-RAW NBA draft identities; SYNTHETIC authenticated fantasy selections and roster actions' }
 }
 
-export async function nbaTradeSetup(c, date, plan) {
-  if (date !== `${c.seasonYear}-01-01`) return
-  const subject = plan.nbaTrades.find(row => row.year === c.seasonYear)
-  assert.ok(subject, 'A raw-box-confirmed NBA deadline trade subject exists')
-  const player = (await c.rest(c.users[0], `players?select=id,nba_id&nba_id=eq.${subject.nbaId}`))[0]
-  assert.ok(player, 'NBA deadline subject exists before the real trade')
-  let roster = await activeRoster(c), owned = roster.find(row => row.player_id === player.id)
-  if (!owned) {
-    const drop = roster.find(row => !c.draftedRookies?.some(rookie => rookie.playerId === row.player_id))
-    assert.ok(drop, 'NBA trade continuity uses a genuine veteran roster slot')
-    const user = c.users.find(row => row.memberId === drop.member_id)
-    await c.rpc(user, 'drop_player_atomic', { p_roster_player_id: drop.id, p_expected_league_season_id: c.leagueSeasonId })
-    await c.rpc(user, 'add_free_agent_atomic', { p_member_id: user.memberId, p_league_id: c.leagueId, p_player_id: player.id })
-    roster = await activeRoster(c)
-    owned = roster.find(row => row.player_id === player.id)
+// Every real NBA box listing of a real draftee: his team is the box side that lists him, inactive listings included.
+export async function rookieListings(rookies, games, boxOf) {
+  const ids = new Set(rookies.flatMap(rookie => rookie.gameIds)), listings = []
+  for (const game of games.filter(row => ids.has(row.id))) {
+    const box = await boxOf(game.id)
+    for (const [team, side] of [[game.home, box.game.homeTeam], [game.away, box.game.awayTeam]]) for (const player of side.players) {
+      if (rookies.some(rookie => rookie.nbaId === String(player.personId))) listings.push({ nbaId: String(player.personId), gameId: game.id, date: game.date, time: game.time, team, played: player.played })
+    }
   }
-  assert.ok(owned)
+  return listings
+}
+
+// A draftee whose real boxes list him for a second team (Walter Clayton Jr. UTA to MEM on 2026-02-04, INACTIVE_TRADE; John
+// Tonje UTA to BOS on 2026-02-06, two-way) moves like a deadline trade subject: his fantasy owner keeps the same row and he
+// scores for the new team. The move is his first listing for another team; firstAfter is his first played game for it.
+export function rookieMoves(rookies, listings, year) {
+  const moves = []
+  for (const rookie of rookies) {
+    const rows = listings.filter(row => row.nbaId === rookie.nbaId).sort((a, b) => a.time.localeCompare(b.time))
+    const at = rows.findIndex((row, index) => index > 0 && row.team !== rows[index - 1].team)
+    if (at < 0) continue
+    const to = rows[at].team, stay = rows.slice(at), end = stay.findIndex(row => row.team !== to)
+    const firstAfter = (end < 0 ? stay : stay.slice(0, end)).find(row => row.played === '1')?.date
+    if (firstAfter) moves.push({ year, nbaId: rookie.nbaId, name: rookie.name, from: rows[at - 1].team, to, movedOn: rows[at].date, firstAfter, source: `boxscore-${rows[at].gameId}`, provenance: 'REAL-RAW NBA box listings of a real draftee' })
+  }
+  return moves
+}
+
+export async function nbaTradeSetup(c, date, plan, moves = []) {
+  if (date !== `${c.seasonYear}-01-01`) return
+  const subjects = [...plan.nbaTrades, ...moves].filter(row => row.year === c.seasonYear)
+  assert.ok(plan.nbaTrades.some(row => row.year === c.seasonYear), 'A raw-box-confirmed NBA deadline trade subject exists')
   c.nbaTradeSubjects ??= []
-  c.nbaTradeSubjects.push({ ...subject, playerId: player.id, owner: owned.member_id, at: date })
+  for (const subject of subjects) {
+    const player = (await c.rest(c.users[0], `players?select=id,nba_id&nba_id=eq.${subject.nbaId}`))[0]
+    assert.ok(player, 'NBA deadline subject exists before the real trade')
+    let roster = await activeRoster(c), owned = roster.find(row => row.player_id === player.id)
+    if (!owned) {
+      // Each subject goes to a member who holds no other subject this season, so no two compete for one owner's starts.
+      const held = c.nbaTradeSubjects.filter(row => row.year === c.seasonYear), veteran = row => !c.draftedRookies?.some(rookie => rookie.playerId === row.player_id) && !held.some(subject => subject.playerId === row.player_id)
+      const drop = roster.find(row => veteran(row) && !held.some(subject => subject.owner === row.member_id)) ?? roster.find(veteran)
+      assert.ok(drop, 'NBA trade continuity uses a genuine veteran roster slot')
+      const user = c.users.find(row => row.memberId === drop.member_id)
+      await c.rpc(user, 'drop_player_atomic', { p_roster_player_id: drop.id, p_expected_league_season_id: c.leagueSeasonId })
+      await c.rpc(user, 'add_free_agent_atomic', { p_member_id: user.memberId, p_league_id: c.leagueId, p_player_id: player.id })
+      roster = await activeRoster(c)
+      owned = roster.find(row => row.player_id === player.id)
+    }
+    assert.ok(owned)
+    c.nbaTradeSubjects.push({ ...subject, playerId: player.id, owner: owned.member_id, at: date })
+  }
 }
 
 export async function allStarLimit(c, date, profile, report) {
@@ -137,6 +169,13 @@ export async function realRookieActions(c, date, move, report) {
   }
 }
 
+// Two starters: an NBA-moved subject due for its first start for the new team first, then the listed watched players, then
+// other NBA players; the measured bench rookie sits.
+export function rookieStarters(rookies, active, bench, due = []) {
+  const listed = rookies.filter(row => row.player_id !== bench)
+  return [...listed.filter(row => due.includes(row.player_id)), ...listed.filter(row => !due.includes(row.player_id)), ...active.filter(row => !rookies.includes(row) && row.players?.nba_id != null)].slice(0, 2)
+}
+
 export async function rookieLineups(c, date, week, today, store, report) {
   const watched=[...(c.draftedRookies??[]),...(c.nbaTradeSubjects??[]).filter(row=>row.year===c.seasonYear&&!row.verified)]
   if (!watched.length) return
@@ -157,7 +196,7 @@ export async function rookieLineups(c, date, week, today, store, report) {
     if (!rookies.length) continue
     await c.restWrite(user, `lineup_optimizer_settings?league_season_id=eq.${c.leagueSeasonId}&member_id=eq.${user.memberId}`, { enabled: false }, 'PATCH')
     const bench = !report.realRookieActions?.bench ? rookies.find(row=>c.draftedRookies?.some(rookie=>rookie.playerId===row.player_id))?.player_id??null : null
-    const starters = [...rookies.filter(row => row.player_id !== bench),...active.filter(row => !rookies.includes(row) && row.players?.nba_id != null)].slice(0,2)
+    const starters = rookieStarters(rookies, active, bench, (c.nbaTradeSubjects ?? []).filter(row => row.year === c.seasonYear && !row.verified && date >= row.firstAfter).map(row => row.playerId))
     await c.rpc(user, 'set_player_slot_moves_atomic', { p_member_id: user.memberId, p_league_id: c.leagueId, p_league_season_id: c.leagueSeasonId, p_game_date: date, p_week_number: week, p_moves: active.map(row => ({ player_id: row.player_id, slot_type: starters.includes(row) ? 'UTIL' : 'BE' })) })
     for (const row of rookies) c.rookiePreferences.push({ date, playerId: row.player_id, nbaId: watched.find(rookie => rookie.playerId === row.player_id).nbaId, owner: user.memberId, starter: starters.includes(row) })
     if (bench) { report.realRookieActions ??= {}; report.realRookieActions.bench = { date, playerId: bench, measured: false } }

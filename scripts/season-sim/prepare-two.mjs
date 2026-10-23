@@ -18,7 +18,9 @@ export async function prepareTwoInputs() {
   const stores = [path.join(miniRoot, 't3-inputs/2025'), path.join(miniRoot, 'fixtures')]
   const manifest = new Map(), games = [], entries = [], seasons = [], artifacts = []
   for (const [index, directory] of stores.entries()) {
-    const profile = seasonProfile(2025 + index)
+    // Each season's range comes from its raw NBA schedule: first to last regular-season game day.
+    const raw = await sourceStore.json(`schedule-${2025 + index}-stats`), rows = raw.leagueSchedule.gameDates.flatMap(day => day.games)
+    const dated = rows.map(row => ({ ...row, id: row.gameId, date: row.gameDateEst.slice(0, 10) })), profile = seasonProfile(2025 + index, dated)
     const input = JSON.parse(await readFile(path.join(directory, 'games.json'), 'utf8'))
     const selected = input.games.filter(game => game.id.startsWith(profile.prefix) && game.provenance !== 'SYNTHETIC')
     assert.equal(selected.length, profile.games, `Complete ${profile.label} real boxes are required`)
@@ -32,10 +34,8 @@ export async function prepareTwoInputs() {
       await copyFile(path.join(directory, row.file), path.join(destination, row.file))
       manifest.set(row.key, row)
     }
-    const raw = await sourceStore.json(`schedule-${profile.year}-stats`)
     assert.equal(raw.leagueSchedule.seasonYear, profile.label)
-    const rows = raw.leagueSchedule.gameDates.flatMap(day => day.games)
-    const calendar = calendarOracle(rows.map(row => ({ ...row, id: row.gameId, date: row.gameDateEst.slice(0, 10) })))
+    const calendar = calendarOracle(dated)
     assert.equal(calendar.regularGames, selected.length)
     assert.equal(calendar.opening, profile.start)
     assert.equal(calendar.end, profile.end)

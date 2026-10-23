@@ -72,3 +72,12 @@ test('output guards reject observed directories and symlink escapes before writi
   const linked=path.join(output,'escape');await symlink(input,linked)
   await assert.rejects(()=>assertOutput(input,path.join(linked,'new'),output))
 })
+
+test('NBA trades pass only when every raw-box rookie move of the season is verified too',()=>{
+  const nbaTrades=[{year:2025,nbaId:'203076',passed:true},{year:2026,nbaId:'201935',passed:true}]
+  const run={fullAcceptance:true,nbaTrades,rookieNbaMoves:[{year:2026,nbaId:'1642383'}]}
+  assert.equal(criterionStatus(find('nba-trades'),{run,exports:[]}),'PARTIAL')
+  run.nbaTrades=[...nbaTrades,{year:2026,nbaId:'1642383',passed:true}]
+  assert.equal(criterionStatus(find('nba-trades'),{run,exports:[]}),'PASS')
+  assert.equal(criterionStatus(find('nba-trades'),{run:{fullAcceptance:true,nbaTrades},exports:[]}),'PASS','A run without planned rookie moves keeps the deadline-trade rule')
+})
