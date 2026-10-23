@@ -83,7 +83,7 @@ for (const [index, testCase] of cases.entries()) {
       'display_name',${q(`${last} Yongxi`)},'nba_game_id',${q(game)},'nba_team','T')))::text;
     SELECT 'after:'||json_build_object('rows',(SELECT count(*) FROM players WHERE last_name ILIKE ${q(last)} OR first_name ILIKE ${q(last)}),
       'owner',(SELECT CASE id WHEN ${q(espnRow)}::uuid THEN 'L' WHEN ${q(sleeperRow)}::uuid THEN 'S' ELSE 'a new row' END FROM players WHERE nba_id=${q(person)}),
-      'side',(SELECT nba_team FROM private.player_game_memberships m JOIN players p ON p.id=m.player_id WHERE p.nba_id=${q(person)}))::text;
+      'side',(SELECT m.nba_team FROM private.player_game_memberships m JOIN players p ON p.id=m.player_id WHERE p.nba_id=${q(person)}))::text;
     ROLLBACK;`)
   assert.equal(result.code, 0, result.stderr)
   const lines = result.stdout.split('\n'), value = (tag: string) => JSON.parse(lines.find(row => row.startsWith(`${tag}:`))!.slice(tag.length + 1))
