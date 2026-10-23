@@ -26,6 +26,8 @@ test('a real draftee listed for a second team midseason is an NBA move from that
   ])
   assert.ok(moves.every(row => row.year === 2026))
   assert.deepEqual(rookieMoves(draftees, [...flagg, ...tonje.slice(0, -1)], 2026), [], 'One team, or no game played for the new team, is not a move')
+  const back = [...tonje.slice(0, -1), { ...tonje.at(-1), team: 'UTA' }]
+  assert.deepEqual(rookieMoves(draftees, back, 2026), [], 'A game played after returning to the old team is not a game for the new team')
 })
 
 test('draftee listings take the box side that lists him, inactive listings included, from his listed games only', async () => {

@@ -20,7 +20,7 @@ const realSchedule = year => JSON.parse(readFileSync(new URL(`../../tests/fixtur
   .filter(game => !game.cupFinal).map((game, index) => ({ id: `002${String(year - 1).slice(-2)}${String(index + 1).padStart(5, '0')}`, date: game.gameDate }))
 
 test('a schedule gives a season its first and last regular-season game day, whatever the fallback table says', () => {
-  const late = realSchedule(2026).filter(row => row.date !== '2025-10-21')
+  const late = realSchedule(2026).filter(row => row.date !== '2025-10-21').reverse()
   assert.deepEqual([seasonProfile(2026, late).start, seasonProfile(2026, late).end], ['2025-10-22', '2026-04-12'])
   const rows = [{ gameId: '0012700001', gameDateEst: '2027-10-02T00:00:00Z' }, { gameId: '0022700001', gameDateEst: '2027-10-26T00:00:00Z' }, { gameId: '0062700001', gameDateEst: '2027-12-18T00:00:00Z' }, { gameId: '0022701230', gameDateEst: '2028-04-16T00:00:00Z' }, { gameId: '0022600001', date: '2026-10-20' }]
   assert.deepEqual(seasonProfile(2028, rows), { year: 2028, startYear: 2027, label: '2027-28', prefix: '00227', start: '2027-10-26', end: '2028-04-16', games: 1230 })
