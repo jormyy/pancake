@@ -11,6 +11,9 @@ import { strict as assert } from 'node:assert'
 // - merge_players(S, L) (the Sleeper row survives with L's ESPN id and listing): the listing keeps team_since,
 //   so the box links to S. Without team_since the link reads listed_at (1 hour ago, after the tipoff), refuses
 //   the box, and the box creates a second row for him.
+// - Planted, as live-t19-box-sides plants it (no product path lists two rows of one person, since only the ESPN
+//   import writes a listing, on the row it gives that ESPN id): S also carries an older listing, on A since 200
+//   hours ago, last 100 hours ago. merge_players(S, L) keeps the later listing, L's, whole: on T since 72 hours.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx, 577xx and 582xx are refused outright.
@@ -50,11 +53,12 @@ const year = Number(await sql(`SELECT y FROM generate_series(23000,29999) y WHER
   AND NOT EXISTS(SELECT 1 FROM season_weeks WHERE season_year=y) LIMIT 1`))
 assert.ok(year)
 
-type Case = { name: string; merge: 'none' | 'espn survives' | 'sleeper survives'; expect: { rows: number; linkedTo: 'L' | 'S'; since: number | null } }
+type Case = { name: string; merge: 'none' | 'espn survives' | 'sleeper survives'; planted?: boolean; expect: { rows: number; linkedTo: 'L' | 'S'; since: number | null } }
 const cases: Case[] = [
   { name: 'no merge: the box links to the listed ESPN row', merge: 'none', expect: { rows: 2, linkedTo: 'L', since: 72 } },
   { name: 'the ESPN row survives the merge: the box links to it', merge: 'espn survives', expect: { rows: 1, linkedTo: 'L', since: 72 } },
   { name: 'the Sleeper row survives with the ESPN listing: the box links to it', merge: 'sleeper survives', expect: { rows: 1, linkedTo: 'S', since: 72 } },
+  { name: 'both rows listed (planted): the later listing moves whole', merge: 'sleeper survives', planted: true, expect: { rows: 1, linkedTo: 'S', since: 72 } },
 ]
 const results: Record<string, unknown>[] = []
 for (const [index, testCase] of cases.entries()) {
@@ -69,6 +73,7 @@ for (const [index, testCase] of cases.entries()) {
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team,years_exp,sleeper_id)
       VALUES(${q(sleeperRow)},'Yongxi',${q(last)},'SG',ARRAY['SG'],'Active','T',1,${q(`t20s-${run}-s${index}`)});
     INSERT INTO private.player_espn_listings(player_id,nba_team,listed_at,team_since) VALUES(${q(espnRow)},'T',now()-interval '1 hour',now()-interval '72 hours');
+    ${testCase.planted ? `INSERT INTO private.player_espn_listings(player_id,nba_team,listed_at,team_since) VALUES(${q(sleeperRow)},'A',now()-interval '100 hours',now()-interval '200 hours');` : ''}
     INSERT INTO nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
       VALUES(${q(game)},${year},1,(now()-interval '48 hours')::date,now()-interval '48 hours','T','R','Final');
     ${merge}
@@ -83,7 +88,7 @@ for (const [index, testCase] of cases.entries()) {
   assert.equal(result.code, 0, result.stderr)
   const lines = result.stdout.split('\n'), value = (tag: string) => JSON.parse(lines.find(row => row.startsWith(`${tag}:`))!.slice(tag.length + 1))
   const listing = value('listing') as { since: number | null } | null, after = value('after') as { rows: number; owner: string | null; side: string | null }
-  results.push({ case: testCase.name, merge: testCase.merge, expect: testCase.expect, listing, import: value('import'), after,
+  results.push({ case: testCase.name, merge: testCase.merge, planted: testCase.planted ?? false, expect: testCase.expect, listing, import: value('import'), after,
     got: { rows: after.rows, linkedTo: after.owner, since: listing?.since ?? null } })
 }
 
