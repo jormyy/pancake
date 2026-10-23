@@ -95,6 +95,58 @@ describe('player decision summary', () => {
         expect(screen.root.findAllByType(type('Pressable')).map(node => node.props.accessibilityLabel)).toEqual(labels)
     })
 
+    it('restores dynasty rank and shows experience only when the identity line has room', async () => {
+        await render(React.createElement(PlayerHeader, {
+            player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'GTD' }),
+            rosterStatus: { status: 'free_agent' }, leagueActive: true, actionLoading: false, compact: true, ...actions,
+        }))
+        const labels = () => screen.root.findAllByType(type('Badge')).map(node => node.props.label)
+        expect(labels()).toContain('Dynasty #8')
+        expect(labels()).not.toContain('Yr 7')
+        const name = screen.root.findAllByType(type('Text')).find(node => node.props.children === 'Player A')
+        expect(name?.props.numberOfLines).toBe(1)
+        const measured = screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')
+        expect(measured).toHaveLength(2)
+        await act(async () => {
+            measured[0].props.onLayout({ nativeEvent: { layout: { width: 260 } } })
+            measured[1].props.onLayout({ nativeEvent: { layout: { width: 230 } } })
+        })
+        expect(labels()).not.toContain('Yr 7')
+        await act(async () => measured[1].props.onLayout({ nativeEvent: { layout: { width: 150 } } }))
+        expect(labels()).toContain('Yr 7')
+        await act(async () => measured[0].props.onLayout({ nativeEvent: { layout: { width: 190 } } }))
+        expect(labels()).not.toContain('Yr 7')
+        expect(labels()).toContain('Dynasty #8')
+    })
+
+    it.each([
+        { status: { status: 'free_agent' as const }, label: 'Free agent', injury: null, action: 'Add Player A' },
+        { status: { status: 'mine' as const, rosterPlayerId: 'roster' }, label: 'On your roster', injury: null, action: 'Drop Player A' },
+        { status: { status: 'on_waivers' as const, logId: 'waiver', clearsAt: '2099-01-01' }, label: 'On waivers', injury: null, action: 'Claim Player A' },
+        { status: { status: 'free_agent' as const }, label: 'Free agent', injury: 'OUT', action: 'Add Player A' },
+    ])('aligns $label and its action with the name, including injury $injury', async ({ status, label, injury, action }) => {
+        const onAdd = vi.fn()
+        await render(React.createElement(PlayerHeader, {
+            player: headerPlayer({ injury_status: injury }), rosterStatus: status, leagueActive: true,
+            actionLoading: false, compact: true, ...actions, onAdd,
+            addBlockedReason: status.status === 'free_agent' ? 'Add limit reached' : null,
+            addBlockedCaption: 'Adds 7/7',
+        }))
+        const name = screen.root.findAllByType(type('Text')).find(node => node.props.children === 'Player A')!
+        const roster = screen.root.findAllByType(type('Text')).find(node => node.props.children === label)!
+        expect(roster.parent?.parent === name.parent).toBe(true)
+        const styles = Object.assign({}, ...[roster.parent?.props.style].flat(Infinity).filter(Boolean))
+        expect(styles.alignItems).toBe('center')
+        const button = screen.root.findByProps({ accessibilityLabel: action })
+        expect(roster.parent?.findAllByProps({ accessibilityLabel: action })).toHaveLength(1)
+        if (status.status === 'free_agent') {
+            const caption = screen.root.findByProps({ children: 'Adds 7/7' })
+            expect(caption.parent === name.parent).toBe(true)
+            await act(async () => button.props.onPress())
+            expect(onAdd).toHaveBeenCalledOnce()
+        }
+    })
+
     it('keeps ten decision stats, with fantasy points first and one season control', async () => {
         await render(React.createElement(StatsOverview, {
             averages, seasonYear: 2027, avgFantasyPoints: 42.3, columns: 5,
