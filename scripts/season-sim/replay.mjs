@@ -12,7 +12,7 @@ import { sourceEvidence } from './source-manifest.mjs'
 import { cronDispatcher } from './cron-dispatcher.mjs'
 import { sql } from './local-stack.mjs'
 import { setClock } from './clock.mjs'
-import { fixtureDirectory, dates, etDate, miniRoot, season, writeJson } from './common.mjs'
+import { fixtureDirectory, dates, etDate, miniRoot, season as fallbackSeason, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { clockTime } from './virtual-clock.mjs'
 import { planDay } from './planner.mjs'
@@ -35,6 +35,8 @@ import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
 
 export async function replay(options = {}) {
   const realPlan = await twoPlan(), profile = realPlan?.seasons[0]
+  // A real launch replays season one over the range its pinned schedule gives (prepare-two.mjs), not the fallback table.
+  const season = profile ?? fallbackSeason
   assert.ok(!realPlan||!options.resume,'Legacy synthetic segments cannot resume a real two-season launch')
   const start = options.resume?.date ?? options.start ?? (options['late-season'] ? shiftDay(season.end,-27) : season.start)
   assert.match(start, /^\d{4}-\d{2}-\d{2}$/)

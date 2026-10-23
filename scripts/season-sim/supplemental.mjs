@@ -9,12 +9,13 @@ import{startRuntime}from'./runtime.mjs'
 import{setClock}from'./clock.mjs'
 import{advanceCron}from'./cron.mjs'
 import{cronDispatcher}from'./cron-dispatcher.mjs'
-import{scenarioLeague}from'./draft-probe.mjs'
+import{scenarioLeague,openingJumps}from'./draft-probe.mjs'
 import{rookieDraftOptions}from'./draft-options.mjs'
 import{playRookieTurns}from'./rookie-turns.mjs'
 import{registerPushOwners,captureDraftPushes}from'./push-evidence.mjs'
 import{sourceEvidence}from'./source-manifest.mjs'
 import{calendarOracle}from'./calendar-oracle.mjs'
+import{twoPlan}from'./two-checks.mjs'
 
 export function assertSupplemental(configuration=config){
   assert.equal(configuration.root,path.join(homedir(),'pancake-t_4ba51e0d/lanes/sim-supp'))
@@ -129,11 +130,12 @@ export async function runSupplemental({scenario='all'}={}){
     report.checks.push({id:'skip-expiry',...report.skip,seconds:(Date.now()-phaseBegan)/1000})
     assert.ok(unstarted)
     assert.equal(Number(await sql(`SELECT count(*) FROM drafts WHERE league_id='${unstarted.leagueId}'`)),0,'No commissioner starts the backstop league draft')
-    await jump('2025-10-20T09:59:00Z')
-    await move('2025-10-20T10:10:00Z')
-    await jump('2025-10-21T12:59:00Z')
+    const jumps=openingJumps((await twoPlan()).seasons[1].start)
+    await jump(jumps.eve)
+    await move(jumps.eveSettled)
+    await jump(jumps.beforeBoundary)
     const backstopBegan=Date.now()
-    await move('2025-10-21T13:16:00Z');await dispatcher.drain(clock)
+    await move(jumps.afterBoundary);await dispatcher.drain(clock)
     const draftId=await sql(`SELECT id FROM drafts WHERE league_id='${unstarted.leagueId}'`)
     assert.ok(draftId,'The production boundary starts the missing rookie draft')
     const backstop=await readDraft(draftId)

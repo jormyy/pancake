@@ -17,12 +17,20 @@ import{checkDraftCutoff}from'./feature-oracles.mjs'
 import{capturePlayers}from'./feature-evidence.mjs'
 import{twoPlan}from'./two-checks.mjs'
 import{sourceEvidence}from'./source-manifest.mjs'
+import{shiftDay}from'./season-model.mjs'
 
 export function openingCutoff(date){
   let at=Date.parse(`${date}T09:00:00Z`)
   const hour=Number(new Date(at).toLocaleString('en-US',{timeZone:'America/New_York',hour:'numeric',hour12:false}))
   at+=(9-hour)*3600000
   return at
+}
+
+// The opening-night scenarios jump to the eve of the first 002 game day (05:59, settled 06:10 ET) and to one minute before that
+// day's 09:00 ET boundary (settled 09:16 ET). Wall times follow ET, so an opening after the November clock change keeps them.
+export function openingJumps(opening){
+  const eve=openingCutoff(shiftDay(opening,-1)),boundary=openingCutoff(opening),at=value=>new Date(value).toISOString().replace('.000Z','Z')
+  return {eve:at(eve-181*60000),eveSettled:at(eve-170*60000),beforeBoundary:at(boundary-60000),afterBoundary:at(boundary+16*60000)}
 }
 
 export async function scenarioLeague(keys){
@@ -85,10 +93,10 @@ export async function probeRookieDraft({phase='both'}={}){
     await dispatcher.drain(clock)
     }
     if(cutoffLeague){
-    clock=Date.parse('2025-10-20T09:59:00Z');await setClock({at:new Date(clock).toISOString(),rate:0,quiet:true})
+    const profile=(await twoPlan()).seasons[1],jumps=openingJumps(profile.start)
+    clock=Date.parse(jumps.eve);await setClock({at:new Date(clock).toISOString(),rate:0,quiet:true})
     report.cutoffSetupClockJump='SYNTHETIC independent prepared-state scenario; no intervening cadence coverage claimed'
-    await move('2025-10-20T10:10:00Z')
-    const profile=(await twoPlan()).seasons[1]
+    await move(jumps.eveSettled)
     await capturePlayers(cutoffLeague,'prepared-preseason',report)
     const cutoff=openingCutoff(profile.start)
     const body={leagueId:cutoffLeague.leagueId,...rookieDraftOptions(604800)}
