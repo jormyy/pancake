@@ -97,6 +97,8 @@ Stored NBA boxes are not proof either: real boxes omit signed players for a game
 No feed the product reads states, with a date, that a player is no longer rostered.
 An omitted player's team changes (`released`) only when his latest stored box since ESPN last listed him on that team is of a regular-season or postseason game his team did not play.
 He moves to the side that box lists him under, so he stays startable on its game days; without a stored side his team is cleared.
+Every path that stores a box (sync-stats, the live poll and both CDN backfills) records its sides before the box's own import.
+A merge of two player rows keeps each stored side and the later of their ESPN listings.
 The next listing names his team either way.
 Otherwise a team changes only when an ESPN listing names him on another team; his row, IDs, injury, status, ownership and lineups stay either way.
 Every other omitted teamed player keeps his team and is counted in `releaseHeld` (`unproven`, or `unclaimed` for rows ESPN never claimed).
