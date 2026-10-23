@@ -10,7 +10,7 @@ import { assertFinals, assertLeaguePoints } from './assertions.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
 import { assertLiveCoverage } from './invariants.mjs'
 import { assertTwoCalendar, assertTwoDay } from './two-checks.mjs'
-import { activateRealRookies, nbaTradeSetup, allStarLimit, realRookieActions, rookieLineups } from './two-actions.mjs'
+import { activateRealRookies, nbaTradeSetup, allStarLimit, realRookieActions, rookieLineups, rookieListings, rookieMoves } from './two-actions.mjs'
 import { assertSkippedWeek } from './skipped-week.mjs'
 import { beginWaivers, verifyWaivers, assertWaiverReset } from './waiver-scenarios.mjs'
 import { waiverResetAt } from './waiver-oracle.mjs'
@@ -65,6 +65,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
   await snapshot('next-season-start', profile.start, dates(profile.start,profile.end).length)
   const store = await fixtureStore(fixtureDirectory), games = JSON.parse(await readFile(path.join(fixtureDirectory,'games.json'),'utf8')).games
   const days = [], checked = [], began = Date.now()
+  report.rookieNbaMoves = rookieMoves(plan.draft.rookies, await rookieListings(plan.draft.rookies, games.filter(row => row.id.startsWith(profile.prefix)), id => store.json(`boxscore-${id}`)), profile.year)
   report.nextSeasonProgress = { beganAt: new Date(began).toISOString(), days, provenance: 'REAL-RAW final boxes and PBP; REAL-DERIVED historical live snapshots' }
   for (const date of dates(profile.start,profile.end)) {
     const dayBegan = Date.now(), today = games.filter(row => row.date === date), week = realSeasonDay(profile,date,today)
@@ -78,7 +79,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
       report.waiverWeekResets.push(await assertWaiverReset(c,week.week_number,waiverResetAt(week.week_end)))
       if (week.week_number === 2) await beginWaivers(c,'eligible-week-rolling',report)
     }
-    await nbaTradeSetup(c,date,plan)
+    await nbaTradeSetup(c,date,plan,report.rookieNbaMoves)
     await allStarLimit(c,date,profile,report)
     await realRookieActions(c,date,move,report)
     if (week&&!skipped) {
@@ -122,6 +123,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
   const traded=report.realRookieActions?.trade
   assert.ok(traded&&report.realInputChecks.flatMap(row=>row.identities).some(row=>row.playerId===traded.playerId&&row.owner===traded.owner&&row.started===true&&row.points!==0&&row.date>new Date(traded.at).toISOString().slice(0,10)),'A fantasy-traded rookie scores for its new owner in later games')
   assert.ok(report.realRookieActions?.bench?.measured && report.realRookieActions?.trade?.passed && report.realRookieActions?.readd?.passed,'All real rookie manager actions must be measured')
+  assert.deepEqual((c.nbaTradeSubjects ?? []).filter(row => row.year === profile.year && !row.verified).map(row => row.nbaId), [], 'Every raw-box NBA move of a fantasy-held player keeps its row and owner and scores for the new team')
   const afterCounts = await sqlJson(`SELECT json_agg(json_build_object('year',season_year,'games',count)) FROM (SELECT season_year,count(*) AS count FROM nba_games WHERE status='Final' GROUP BY season_year) q`,'Two-season final counts')
   for (const row of plan.seasons) assert.equal(afterCounts.find(value=>value.year===row.year)?.games,row.games)
   return { passed:true,days,checked,historyPreserved:true,skippedWeeks:[1],provenance:'Two real NBA regular seasons; historical live reconstruction is REAL-DERIVED; manager actions are SYNTHETIC' }

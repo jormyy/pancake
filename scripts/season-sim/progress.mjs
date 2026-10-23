@@ -34,7 +34,7 @@ function witness(key,run,exports){
     case'cup':return[(run.firstCalendar?.cupFinalsExcluded??[]).length===1,(run.secondCalendar?.cupFinalsExcluded??[]).length===1]
     case'rookie-identity':return flags('realRookieCoverage.passed')
     case'rookie-actions':return flags('realRookieActions.trade.passed','realRookieActions.bench.measured','realRookieActions.readd.passed')
-    case'nba-trades':return everyYear(run.nbaTrades??[],row=>row.passed)
+    case'nba-trades':return everyYear(run.nbaTrades??[],row=>row.passed).concat((run.rookieNbaMoves??[]).map(move=>(run.nbaTrades??[]).some(row=>row.year===move.year&&row.nbaId===move.nbaId&&row.passed)))
     case'postponements':return[new Set((run.realInputChecks??[]).flatMap(day=>(day.postponements??[]).filter(row=>day.date>=(run.inputPostponements??[]).find(input=>input.id===row.gameId)?.makeupDate).map(row=>row.gameId))).size>=6]
     case'allstar':return flags('firstCalendar.passed','secondCalendar.passed')
     case'allstar-policy':return[(run.allStarLimits??[]).length===2&&(run.allStarLimits??[]).every(row=>row.passed)]

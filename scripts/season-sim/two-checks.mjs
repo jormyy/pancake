@@ -53,13 +53,13 @@ export async function assertTwoDay(c, date, report, plan, store, today) {
     results.push(areaCheck('postponement', () => checkPostponement({ timeline, calendar: profile.calendar, originalMatchups: matchups.filter(row => row.week_number === week && !row.is_voided), storedGames, stats, date, closedThrough: shiftDay(date,1) })))
   }
   const rookies = c.seasonYear === plan.seasons[1].year ? plan.draft.rookies : []
-  const subject = c.nbaTradeSubjects?.find(row => row.year === c.seasonYear)
+  const subjects = (c.nbaTradeSubjects ?? []).filter(row => row.year === c.seasonYear)
   const expected = []
   for (const game of today) {
     const box = await store.json(`boxscore-${game.id}`)
     for (const player of [...box.game.homeTeam.players, ...box.game.awayTeam.players]) {
       const rookie = rookies.find(row => row.nbaId === String(player.personId))
-      if (!rookie && String(player.personId) !== subject?.nbaId) continue
+      if (!rookie && !subjects.some(subject => subject.nbaId === String(player.personId))) continue
       const drafted = c.draftedRookies?.find(row => row.nbaId === String(player.personId))
       const preference = c.rookiePreferences?.find(row => row.date === date && row.nbaId === String(player.personId))
       expected.push({ nbaId: String(player.personId), name: rookie?.name ?? player.name, gameId: game.id, date, raw: player, draftPlayerId: drafted?.playerId, ...preference })
@@ -71,7 +71,7 @@ export async function assertTwoDay(c, date, report, plan, store, today) {
     assert.ok(input.stats && input.fantasy, 'Expected real rookie/traded-player rows must exist')
     for (const row of expected) identities.push(areaCheck('rookie-identity', () => checkIdentityGame({ expected: row, ...input })))
   }
-  if (subject && !subject.verified) {
+  for (const subject of subjects.filter(row => !row.verified)) {
     const game = today.find(game => [game.home,game.away].includes(subject.to))
     const appeared = identities.some(row => row.nbaId === subject.nbaId && row.points !== 0 && row.started===true)
     if (game && appeared && date >= subject.firstAfter) {
