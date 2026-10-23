@@ -130,7 +130,7 @@ export async function realRookieActions(c, date, move, report) {
   if (!c.draftedRookies) return
   c.identityMoves ??= []
   report.realRookieActions ??= {}
-  if (date === `${c.seasonYear}-01-07`) {
+  if (date === (c.rookieActionDates?.trade??`${c.seasonYear}-01-07`)) {
     const roster = await activeRoster(c), offer = roster.find(row => c.draftedRookies.some(rookie => rookie.playerId === row.player_id))
     assert.ok(offer,'A real rookie remains available for its planned mid-season trade')
     const counter = roster.find(row => row.member_id !== offer.member_id && !c.draftedRookies.some(rookie => rookie.playerId === row.player_id) && !c.nbaTradeSubjects?.some(subject=>subject.playerId===row.player_id))
@@ -145,7 +145,7 @@ export async function realRookieActions(c, date, move, report) {
     assert.equal((await activeRoster(c)).find(row => row.player_id === offer.player_id)?.member_id, to.memberId)
     report.realRookieActions.trade = { passed: true, tradeId: proposed.tradeId, playerId: offer.player_id, owner: to.memberId, at }
   }
-  if (date === `${c.seasonYear}-01-09`) {
+  if (date === (c.rookieActionDates?.drop??`${c.seasonYear}-01-09`)) {
     const roster = await activeRoster(c), drop = roster.find(row => c.draftedRookies.some(rookie => rookie.playerId === row.player_id) && row.player_id !== report.realRookieActions.trade?.playerId)
     assert.ok(drop, 'A second real rookie exercises drop and waiver re-add')
     const user = c.users.find(row => row.memberId === drop.member_id), at = await now()

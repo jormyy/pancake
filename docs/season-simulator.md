@@ -53,6 +53,33 @@ Tier 2 segment baselines are dropped. Ancillary ranking and projection quality s
 Published segment durations stay unknown until measured.
 A short or resumed diagnostic run never counts as a fresh full replay.
 
+## Recovery from a real-season checkpoint
+
+Keep the failed run, its volumes, and its inputs unchanged.
+Restore a private copy at its original schema, then apply the candidate migrations.
+The recovery command requires the snapshot and receipts under the private run root.
+It checks all earlier dates and the stored game count before replay.
+It checks settled stats, lineups, and finalized matchups after every replayed date.
+Each verified date creates a new recovery snapshot for the next date.
+
+```sh
+node scripts/season-sim/recovery-run.mjs \
+  --snapshot "$SEASON_SIM_ROOT/source-snapshots/pre-playoffs" \
+  --receipt "$SEASON_SIM_ROOT/source-receipt.json" \
+  --days 1 --refresh-players
+```
+
+The optional player refresh runs through the product importer before scheduled playback.
+Its receipt compares scoring history before and after the refresh.
+The replay keeps its production dispatch guards.
+Retained evidence stays separate from dates measured by the new segment.
+
+After the one-date comparison passes, restore its new snapshot and use `--through 2025-11-09`.
+Omit `--days` to finish the first season and continue through the draft and the requested next-season dates.
+The bounded path trades a rookie in week two and drops another in week three.
+It requires the waiver return and later scoring for the traded rookie's new owner.
+It never claims second-season playoffs or a fresh full replay.
+
 ## Discrete clock and internal samples
 
 The replay pauses business time during database and HTTP work.
@@ -535,11 +562,11 @@ These are representative NBA deadline trades, not an audit of every NBA transact
 Every 2025 draftee whose 2025-26 NBA box listings move him to a second team is also a continuity subject (Walter Clayton Jr. UTA to MEM, John Tonje UTA to BOS).
 Each such subject joins a different fantasy member on January 1, starts on his first new-team dates, and must keep his row and owner, follow his new NBA team, and score.
 The run fails if one stays unverified at the end of the season.
-`scripts/season-sim/january-adds.mjs` checks that January 1 setup on a fresh local stack with the season-2 settings (weekly add limit 1, roster size 3): each subject joins a different member through drop_player_atomic and add_free_agent_atomic, the dropped veterans clear waivers after 48 hours, and a second add (PA001) or an add to a full roster (PA003) is refused.
+`scripts/season-sim/january-adds.mjs` checks that January 1 setup on a fresh local stack with the season-2 settings (weekly add limit 1, roster size 3): each subject joins a different member through drop_player_atomic and add_free_agent_atomic, the dropped veterans receive waiver holds scheduled to clear after 48 hours, and a second add (PA001) or an add to a full roster (PA003) is refused.
 It seeds rosters, players and the calendar by SQL, so it does not replace the replay.
 Season ranges and opening-night clock jumps come from the first and last regular-season (002) game days of the pinned NBA schedule.
 
-Both seasons retain live, final, weekly, bracket, champion, trade, waiver and pick checks.
+The full two-season mode retains live, final, weekly, bracket, champion, trade, waiver and pick checks in both seasons.
 The second season preserves settled first-season stats, matchups, standings and used picks.
 Future traded picks retain their owners during second-season scoring.
 Rankings/projection input quality and historical career totals remain explicit gaps.

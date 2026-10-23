@@ -11,7 +11,7 @@ import { sourceEvidence } from './source-manifest.mjs'
 import { startRuntime } from './runtime.mjs'
 import { dispatch } from './dispatch.mjs'
 
-const { values } = parseArgs({ options: { snapshot: { type: 'string' }, receipt: { type: 'string' }, days: { type: 'string' }, 'refresh-players': { type: 'boolean' } } })
+const { values } = parseArgs({ options: { snapshot: { type: 'string' }, receipt: { type: 'string' }, days: { type: 'string' }, through: { type: 'string' }, 'refresh-players': { type: 'boolean' } } })
 assert.ok(path.resolve(values.snapshot).startsWith(`${miniRoot}/`), 'Recovery uses a private snapshot copy')
 assert.ok(path.resolve(values.receipt).startsWith(`${miniRoot}/`), 'Recovery uses a private receipt copy')
 if (values.days) assert.match(values.days, /^[1-9]\d*$/)
@@ -19,6 +19,9 @@ const snapshot = JSON.parse(await readFile(path.join(values.snapshot, 'snapshot.
 assert.equal(sha256(await readFile(path.join(values.snapshot, 'database.dump'))), snapshot.dumpSha256)
 const receipt = JSON.parse(await readFile(values.receipt, 'utf8'))
 const plan = await twoPlan()
+const through=values.through??plan.seasons[1].calendar.weeks.find(row=>row.week_number===3).week_end
+assert.match(through,/^\d{4}-\d{2}-\d{2}$/)
+assert.ok(through>=plan.seasons[1].start&&through<=plan.seasons[1].end)
 const evidence = recoveryEvidence(snapshot, receipt, plan.seasons[0])
 assert.equal((await sourceEvidence()).committedHarness, true, 'Recovery requires committed harness source')
 process.env.SUPABASE_DB_URL = localKeys().DB_URL
@@ -34,7 +37,7 @@ if (values['refresh-players']) {
     await writeJson(path.join(miniRoot, 'evidence/recovery-player-refresh.json'), evidence.recovery.playerRefresh)
   } finally { await runtime.close() }
 }
-const result = await replay({ resume: snapshot.cursor, recoveryEvidence: evidence, segment: snapshot.name, days: values.days })
+const result = await replay({ resume: snapshot.cursor, recoveryEvidence: evidence, segment: snapshot.name, days: values.days, secondSeasonThrough: through })
 assert.equal(result.complete, true)
 assert.equal(result.fullAcceptance, false, 'A recovered segment never claims a fresh full run')
 assert.ok(!result.failure && !result.failures?.length)

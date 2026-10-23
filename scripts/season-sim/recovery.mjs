@@ -19,6 +19,11 @@ export function recoveryEvidence(snapshot, receipt, profile) {
     featureCheckpoints: (receipt.featureCheckpoints ?? []).filter(before),
     playersEvidence: (receipt.playersEvidence ?? []).filter(before),
     realInputChecks: (receipt.realInputChecks ?? []).filter(row => row.date < cursor.date),
+    nbaTrades: (receipt.nbaTrades ?? []).filter(row => row.firstAfter < cursor.date),
+    waivers: (receipt.waivers ?? []).filter(row => Date.parse(row.checkedAt) <= cursor.clock),
+    allStarLimits: (receipt.allStarLimits ?? []).filter(row => row.checked < cursor.date),
+    realtime: receipt.realtime,
+    retainedRealtime: !!receipt.realtime,
     recovery: { date: cursor.date, clock: cursor.clock, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0), retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256 },
   }
 }
