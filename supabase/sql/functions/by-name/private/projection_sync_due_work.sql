@@ -25,7 +25,6 @@ AS $$
   SELECT 'pt:sleeper-day',today::text||':'||CASE WHEN hour>=15 THEN '15' WHEN hour>=12 THEN '12' ELSE '08' END,
     'sync-sleeper-projections'
   FROM calendar WHERE hour>=8 AND first_tipoff>p_now
-    AND EXISTS (SELECT 1 FROM public.sleeper_projection_rows r WHERE r.game_date>=calendar.monday AND r.game_date<calendar.monday+7)
   UNION ALL
   SELECT 'pt:fantasypros',today::text||':'||CASE WHEN hour>=15 THEN '15' ELSE '08' END,'sync-projections'
   FROM calendar WHERE hour>=8;

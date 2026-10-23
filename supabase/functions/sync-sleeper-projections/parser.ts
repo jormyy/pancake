@@ -12,33 +12,60 @@ export type SleeperProjection = {
   stats: Record<string, number>
 }
 
-const REQUIRED_STATS = ['pts', 'reb', 'ast', 'stl', 'blk', 'to', 'fgm', 'fga', 'ftm', 'fta', 'tpm', 'tpa', 'gp', 'sp']
+const STORED_STATS = ['pts', 'reb', 'ast', 'stl', 'blk', 'to', 'fgm', 'fga', 'ftm', 'fta', 'tpm', 'tpa', 'sp', 'dd', 'td']
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+const id = (value: unknown): value is string => typeof value === 'string' && /^\d+$/.test(value)
+
+export class SleeperProjectionParseError extends Error {
+  constructor(message: string, readonly inputRowCount: number, readonly rejectedRowCount: number) {
+    super(message)
+    this.name = 'SleeperProjectionParseError'
+  }
+}
+
+function projectionStats(raw: Record<string, unknown>): Record<string, number> | null {
+  const games = raw.gp === undefined ? 0 : raw.gp
+  if (typeof games !== 'number' || !Number.isFinite(games) || games < 0) return null
+  const stats: Record<string, number> = {}
+  for (const key of STORED_STATS) {
+    const value = games === 0 || raw[key] === undefined ? 0 : raw[key]
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null
+    stats[key] = value
+  }
+  stats.fga = Math.max(stats.fga, stats.fgm)
+  stats.fta = Math.max(stats.fta, stats.ftm)
+  stats.tpa = Math.max(stats.tpa, stats.tpm)
+  return stats
+}
 
 export function parseSleeperProjections(value: unknown, context: {
   seasonYear: number; sleeperWeek: number; weekStart: string; weekEnd: string
-}): SleeperProjection[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 10000) throw new Error('Sleeper projections must be a nonempty array of at most 10000 rows')
+}): { rows: SleeperProjection[]; inputRowCount: number; rejectedRowCount: number } {
+  if (!Array.isArray(value)) throw new SleeperProjectionParseError('Sleeper projections must be an array', 0, 0)
   const seen = new Set<string>()
-  return value.map((row: unknown, index) => {
-    const fail = () => { throw new Error(`Invalid Sleeper projection at row ${index + 1}`) }
-    if (!object(row) || !text(row.player_id) || !text(row.game_id) || !text(row.team) || !text(row.opponent) ||
+  const rows: SleeperProjection[] = []
+  for (const row of value) {
+    if (!object(row) || !id(row.player_id) || !id(row.game_id) || !text(row.team) || !text(row.opponent) ||
       !text(row.date) || !/^\d{4}-\d{2}-\d{2}$/.test(row.date) ||
       !Number.isFinite(Date.parse(`${row.date}T00:00:00Z`)) || new Date(`${row.date}T00:00:00Z`).toISOString().slice(0, 10) !== row.date ||
       row.date < context.weekStart || row.date > context.weekEnd || row.week !== context.sleeperWeek ||
       row.season !== String(context.seasonYear - 1) || row.season_type !== 'regular' || row.sport !== 'nba' ||
       row.category !== 'proj' || row.company !== 'rotowire' ||
       typeof row.last_modified !== 'number' || !Number.isSafeInteger(row.last_modified) || row.last_modified <= 0 ||
-      !object(row.player) || !text(row.player.first_name) || !text(row.player.last_name) || !object(row.stats)) return fail()
-    const stats = row.stats
-    if (REQUIRED_STATS.some((key) => typeof stats[key] !== 'number') ||
-      Object.values(stats).some((stat) => typeof stat !== 'number' || !Number.isFinite(stat) || stat < 0) ||
-      stats.gp !== 1 || Number(stats.sp) > 48 * 60 + 6 * 5 * 60 ||
-      Number(stats.fgm) > Number(stats.fga) || Number(stats.ftm) > Number(stats.fta) || Number(stats.tpm) > Number(stats.tpa)) return fail()
+      !object(row.player) || !text(row.player.first_name) || !text(row.player.last_name) || !object(row.stats)) continue
     const key = `${row.player_id}:${row.game_id}`
-    if (seen.has(key)) throw new Error(`Duplicate Sleeper player-game at row ${index + 1}`)
+    const stats = projectionStats(row.stats)
+    if (!stats || seen.has(key)) continue
     seen.add(key)
-    return row as SleeperProjection
-  })
+    rows.push({
+      player_id: row.player_id, game_id: row.game_id, date: row.date, team: row.team, opponent: row.opponent,
+      week: context.sleeperWeek, season: String(context.seasonYear - 1), company: 'rotowire',
+      last_modified: row.last_modified, player: { first_name: row.player.first_name, last_name: row.player.last_name }, stats,
+    })
+  }
+  const rejectedRowCount = value.length - rows.length
+  if (rows.length === 0) throw new SleeperProjectionParseError('No valid Sleeper projections', value.length, rejectedRowCount)
+  if (rejectedRowCount * 5 > value.length) throw new SleeperProjectionParseError('More than 20% of Sleeper projections are invalid', value.length, rejectedRowCount)
+  return { rows, inputRowCount: value.length, rejectedRowCount }
 }

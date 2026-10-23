@@ -147,11 +147,12 @@ The local benchmark proves no production lock availability or device performance
 
 ## Sleeper and cleanup candidate
 
-The next additive changes use `20261020000001` through `20261020000003`.
+The projection changes use `20261020000001` through `20261020000004`.
 They create the Sleeper player-game store, update projection readers and scheduling, and bound operational cleanup.
 They do not change the historical alias attestations above.
 The function catalog records the new completion and cleanup helpers.
 League history and NBA source tables retain their existing storage rules.
 Apply the schema before deploying `sync-sleeper-projections`.
 The scheduler uses the existing dispatch claims and invocation reconciliation.
+Migration `20261020000004` keeps game-day recovery independent of Monday and fixes compaction trigger permissions.
 A frontend rollback keeps these compatible database changes applied.

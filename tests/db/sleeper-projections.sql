@@ -124,5 +124,21 @@ BEGIN
   PERFORM pg_temp.check_sleeper(fingerprint=private.pre_tipoff_input_fingerprint(d),'past cleanup preserves optimizer fingerprint');
 END;
 $$;
+DO $$
+DECLARE old_run uuid:=gen_random_uuid(); new_run uuid:=gen_random_uuid();
+BEGIN
+  INSERT INTO public.projection_sync_runs(id,source,projection_type,source_url,season_year,projection_date,status,started_at,completed_at) VALUES
+    (old_run,'fantasypros','daily','https://www.fantasypros.com/nba/projections/daily-overall.php',2096,'2200-01-01','success',now(),now()),
+    (new_run,'fantasypros','daily','https://www.fantasypros.com/nba/projections/daily-overall.php',2096,'2200-01-01','running',now()+interval '1 second',NULL);
+  INSERT INTO public.fantasypros_projection_rows(run_id,projection_type,source_url,source_row_number,fetched_at,source_player_name,normalized_player_name,match_status)
+    VALUES(old_run,'daily','https://www.fantasypros.com/nba/projections/daily-overall.php',1,now(),'Service fixture','service fixture','unmatched');
+  SET LOCAL ROLE service_role;
+  UPDATE public.projection_sync_runs SET status='success',completed_at=now() WHERE id=new_run;
+  RESET ROLE;
+  PERFORM pg_temp.check_sleeper(NOT EXISTS(SELECT 1 FROM public.projection_sync_runs WHERE id=old_run)
+    AND NOT EXISTS(SELECT 1 FROM public.fantasypros_projection_rows WHERE run_id=old_run),
+    'service-role completion compacts superseded FantasyPros rows through the private helper');
+END;
+$$;
 SELECT count(*) AS passed FROM sleeper_checks;
 ROLLBACK;

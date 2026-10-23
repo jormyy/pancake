@@ -1,6 +1,7 @@
 CREATE OR REPLACE FUNCTION private.compact_fantasypros_runs()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE v_ids uuid[];

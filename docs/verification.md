@@ -111,7 +111,7 @@ Read these settings only from that local project's CLI status.
 The database Deno tests require the explicit `--local-db` argument, supplied by their npm commands.
 Ordinary Edge checks ignore those database tests.
 
-The fixture test pulls three recorded rows twice and verifies stable IDs, updated values, reader precedence, and failure recovery.
+The fixture test pulls four recorded rows twice and verifies stable IDs, updated values, reader precedence, projected sits, and failure recovery.
 The SQL checks cover mixed weekly fallback, makes and attempts, next-game data, fingerprint stability, permissions, and deletion hints.
 Schedule checks cover Pacific midnight, both daylight saving transitions, late checks, claims, and injury refresh windows.
 Retention checks protect all league and NBA tables with write-rejecting triggers.
@@ -119,30 +119,24 @@ Index checks run the actual log deletion statements against 50,400-row fixtures 
 They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.
 All fixture writes use the isolated local project. SQL checks roll back.
 
-### Local evidence, 2026-10-23
+### Local verification, 2026-10-23
 
-A fresh isolated install applies all 427 migrations through `20261020000003`.
-All nine focused database commands above pass.
-The projection SQL records 23 assertions. Retention records 20. Scheduling records 15.
-The fixture records eight assertions and keeps three player-game rows after its second pull.
-The index check verifies eight indexed execution plans.
-The concurrency check verifies four assertions, including one skipped locked row and a concurrent write.
-The historical-scoring check preserves saved results, replay guards, and current corrections.
-The original retention function fails the updated expiration assertion. The replacement passes it.
+A fresh isolated install applies 428 migrations through `20261020000004`.
+`npm run test:db` passes all 144 commands with the database job's settings from `.github/workflows/test.yml`.
+The focused projection, schedule, fixture, index, and concurrency commands also pass after that run.
+Projection SQL verifies 24 cases. Scheduling verifies 18, including recovery without stored rows after Monday retries fail.
+The fixture keeps four player-game rows after a second pull and returns zero for a sit despite a FantasyPros projection of 100.
+The index check verifies eight execution plans. Concurrency checks confirm cleanup skips locked rows while new writes continue.
+The lifecycle catalog and resource-hint checks verify service-role compaction permissions.
 
-`check:quality`, `check:edge-functions`, `check:edge-shared`, `check:core-cjs`, `check:db-function-sources`,
-`check:db-function-catalog`, and `check:database-types` pass.
-The Edge check passes 247 tests. Its three local database tests pass separately through their focused commands.
-Source recovery passes 53 tests across seven configured sources.
-Selected source-name, source-health, release, catalog, inventory, and surface contracts pass 111 tests.
-The generated database enum check passes one core test.
-The test selector marks SQL and documentation as unmapped and package changes as a full-suite trigger.
-The focused database commands cover those SQL changes. Catalog, release, and quality checks cover their contracts.
-The full root suite remains for integration.
+The parser accepts all 2,330 recorded rows from two full weeks without rejection.
+Parser tests cover missing zeros, projected sits, rounding, duplicate rows, and the 20% rejection limit.
+The Edge check passes 252 tests. Its three local database tests pass separately through their focused commands.
+Source recovery passes 58 tests across seven configured sources. Selected Vitest checks pass 56 tests.
+`check:quality`, `check:edge-functions`, `check:db-function-sources`, `check:database-types`, and `check:db-function-catalog` pass.
+`security:audit` passes after lockfile updates and removal of the stale braces exception.
+The original parser, refresh gate, trigger permissions, and audit state reproduce their reported failures before repair.
+
+The test selector leaves SQL unmapped. The focused SQL commands and full database run cover those changes.
+The full frontend suite and release build remain for integration.
 No production operation runs. The isolated stack stops, and the normal project ID and ports are restored.
-
-Changed areas: three additive migrations; canonical projection, schedule, hint, and cleanup functions;
-the Sleeper Edge function and recorded tests; generated types and function catalog; source labels;
-source-health and recovery reports; focused database scripts; and the five related documents.
-The integration owner commits these changes and runs the full root suite.
-Do not repeat the live fixture request. The recorded fixture is sufficient.

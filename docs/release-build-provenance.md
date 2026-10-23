@@ -83,6 +83,6 @@ Metro can change the entry script's lazy-route map without changing its filename
 
 The Sleeper backend adds `sync-sleeper-projections` to the configured Edge inventory.
 Include it in the same stamped Edge artifact as the other functions.
-Apply migrations `20261020000001` through `20261020000003` before that artifact.
+Apply migrations `20261020000001` through `20261020000004` before that artifact.
 Existing projection RPC shapes remain compatible with the current frontend and its rollback artifact.
 Source-health evidence includes the active Sleeper projection source and the separate dormant Sleeper player fallback.

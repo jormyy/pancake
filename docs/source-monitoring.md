@@ -117,7 +117,7 @@ Later weeks run Monday through Sunday.
 
 The due-work gate checks every fifteen minutes.
 It claims each Pacific week from Monday at 00:00, including a late first deployment.
-On game days, it also claims 08:00, 12:00, and 15:00 Pacific refresh windows before the first tipoff.
+Game-day refreshes run at 08:00, 12:00, and 15:00 Pacific before the first tipoff, even when Monday fails.
 A late check catches the latest elapsed window. Pacific dates handle daylight saving changes.
 The existing dispatch reconciler retries failed claims, with its existing three-attempt limit.
 FantasyPros refreshes at 08:00 and 15:00 Pacific.
@@ -125,10 +125,14 @@ FantasyPros refreshes at 08:00 and 15:00 Pacific.
 Sleeper stores one row per matched player and source game.
 A pull updates that row only when its source revision is at least as new.
 Player matching uses Sleeper IDs first, then a unique normalized name and team when the player lacks an ID.
-Runs record total, matched, and unmatched counts. Up to thirty unmatched identities aid diagnosis.
-Invalid shapes and failed HTTP responses fail the run before replacement.
+Runs record parsed, matched, and unmatched counts. Metadata includes input and rejected row counts.
+Up to thirty unmatched identities aid diagnosis.
+Missing stats become zero. Projected sits store zero lines and suppress backup projections.
+Rounding raises attempts to makes. Unused stats do not affect validation.
+Malformed rows are skipped and counted in run metadata. More than 20% rejected rows fails the pull.
+Invalid bodies, zero valid rows, and failed HTTP responses preserve the last good rows.
 All writes from a valid pull commit together.
-The recorded fixture contains three unchanged rows from the 2026-10-23 public response.
+Recorded fixtures retain both complete public weeks fetched on 2026-10-23.
 Tests make no live provider requests.
 
 Readers prefer Sleeper for each game, including the player screen's next game.
