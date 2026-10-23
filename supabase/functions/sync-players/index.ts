@@ -81,7 +81,7 @@ async function syncPlayersFromEspn(): Promise<PlayerSyncTotals> {
   console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${release.released} released, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
   if (release.blockers.length > 0) console.log(`[sync-players] ESPN release skipped: ${release.blockers.join('; ')}`)
   if (release.held.unproven + release.held.unclaimed > 0) {
-    console.log(`[sync-players] ESPN omits ${release.held.unproven} claimed player(s) no stored box shows leaving and ${release.held.unclaimed} it never claimed; their teams are held.`)
+    console.log(`[sync-players] ESPN omits ${release.held.unproven} claimed player(s) and ${release.held.unclaimed} it never claimed, and no stored box shows them on another team, so their teams are held.`)
   }
   return { updated, inserted, released: release.released, releaseSkipped: release.blockers, releaseHeld: release.held, ambiguousSkipped,
     failures: [...failures, ...release.failures] }

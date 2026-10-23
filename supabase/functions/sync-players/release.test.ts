@@ -3,9 +3,10 @@ import { strict as assert } from 'node:assert'
 // The release decision through the real sync-players handler: only a listing
 // with no gaps (every NBA team, identifiable athletes, every record imported)
 // sends the espn_release call, after every import chunk; anything less
-// releases nobody. The call's receipt names who it released and who it held
-// (ESPN omits them, but no stored box shows them leaving, or ESPN never
-// claimed them), and the run reports both.
+// releases nobody. The call's receipt names who it released (a stored box
+// placed them in a game their team did not play) and who it held (ESPN omits
+// them: unproven if ESPN claimed them, unclaimed if not), and the run reports
+// both.
 for (const [name, value] of Object.entries({
   SUPABASE_URL: 'http://database.invalid',
   PANCAKE_SUPABASE_SECRET_KEY: 'fixture-key',

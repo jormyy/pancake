@@ -2,15 +2,15 @@ import { strict as assert } from 'node:assert'
 
 // A player absent from every roster of a complete ESPN refresh, through the real sync-players, sync-stats
 // (syncStatsGame) and lineup-optimizer code against a served synthetic ESPN and NBA CDN origin. Refresh 1
-// lists X on MIN; MIN then plays a final game whose stored box omits him. A complete refresh without X
-// must then leave him a free agent (no team) with his row, ids, injury, ownership and lineups, so the
-// optimizer stops starting him on MIN game days; a later listing re-teams him. ESPN absence alone is not
-// enough (players-t15-silent-omission.ts), so the box comes first, and an incomplete or failed refresh
-// (a team missing, a roster error, an injuries error, a failed import chunk) changes nothing for him
-// even with that box stored. Those that reach the career-games step rewrite his row after the box, so
-// the release must date his last listing by ESPN's listing time, not players.updated_at. X shares five
-// PG-eligible starter slots with five playing BOS guards and sorts first on ties, so while he keeps a
-// team that plays he takes a slot from one of them.
+// lists X on MIN; MIN then plays a final game whose stored box omits him. Neither omission proves he left
+// (players-t17-silent-omission.ts), so a complete refresh without X holds him: he keeps MIN, his row, ids,
+// injury, ownership and lineups, the optimizer keeps starting him on MIN game days, and the run reports
+// him as held (unproven). A later listing on BOS, positive evidence of a move, re-teams the same row. An
+// incomplete or failed refresh (a team missing, a roster error, an injuries error, a failed import chunk)
+// skips the sweep and says why. Those that reach the career-games step rewrite his row after the box, so
+// nothing may date his last listing by players.updated_at. X shares five PG-eligible starter slots with
+// five playing BOS guards and sorts first on ties, so while he keeps a team that plays he takes a slot
+// from one of them.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx and 582xx are refused outright.
@@ -206,17 +206,20 @@ try {
     assert.deepEqual(await ownership(xId), owned, `${label}: X's ownership is unchanged`)
     assert.deepEqual(await lineups(xId), lined, `${label}: X's lineups are unchanged`)
   }
-  const incomplete: [string, Feed, number][] = [
-    ['a team missing from the teams payload', { athletes: withoutX, teams: codes.filter(code => code !== 'UTAH') }, 200],
-    ['a roster error', { athletes: withoutX, failRoster: 'DEN' }, 500],
-    ['an injuries error', { athletes: withoutX, failInjuries: true }, 500],
-    ['a failed import chunk', { athletes: withoutX, blankName: true }, 500],
+  // A roster or injuries error fails the run before any import, so it reports no receipt at all.
+  const incomplete: [string, Feed, number, string[] | undefined][] = [
+    ['a team missing from the teams payload', { athletes: withoutX, teams: codes.filter(code => code !== 'UTAH') }, 200, ['missing roster UTA']],
+    ['a roster error', { athletes: withoutX, failRoster: 'DEN' }, 500, undefined],
+    ['an injuries error', { athletes: withoutX, failInjuries: true }, 500, undefined],
+    ['a failed import chunk', { athletes: withoutX, blankName: true }, 500, ['1 import failure(s)']],
   ]
-  for (const [label, next, status] of incomplete) {
+  for (const [label, next, status, skipped] of incomplete) {
     const body = await refresh(label, next, status)
     await unchanged(label)
     assert.equal(await sql(`SELECT count(*) FROM players WHERE espn_id LIKE ${q(`t14-${run}-%`)} AND nba_team IS NULL`), '0', `${label}: nobody is released`)
     observations.push({ case: `incomplete: ${label}`, status, released: body.released ?? null, releaseSkipped: body.releaseSkipped ?? null, failure: body.failure ?? body.error ?? null, x: await identity(xId) })
+    assert.deepEqual(body.releaseSkipped, skipped, `${label}: the sweep is skipped and the run says why`)
+    if (skipped) assert.deepEqual([body.released, body.releaseHeld], [0, { unproven: 0, unclaimed: 0 }], `${label}: a skipped sweep reports nobody`)
   }
 
   assert.equal(await sql(`SELECT p.updated_at > g.game_time FROM players p, nba_games g WHERE p.id=${q(xId)} AND g.id=${q(final)}`), 't',
@@ -228,20 +231,19 @@ try {
   const after = await identity(xId), afterOwned = await ownership(xId), afterLined = await lineups(xId)
   assert.ok(after, 'X keeps his players row')
   const secondStarters = await optimize('optimizer after refresh 2')
-  observations.push({ case: 'refresh-2-complete-without-x', released: second.released ?? null, x: after, roster: afterOwned, lineupsBeforeOptimizer: afterLined,
+  observations.push({ case: 'refresh-2-complete-without-x', released: second.released ?? null, releaseHeld: second.releaseHeld ?? null, x: after, roster: afterOwned, lineupsBeforeOptimizer: afterLined,
     starters: secondStarters, xAutoStarted: startedOn(secondStarters, xId), playingGuardsStarted: guardsStarted(secondStarters) })
   console.log(JSON.stringify(observations.at(-1)))
-  assert.equal(after.nba_team, null, 'A complete refresh that omits X releases him (no NBA team)')
-  assert.deepEqual({ ...after, nba_team: baseline.nba_team }, baseline, 'The release keeps his row, ids, names, injury and status')
-  assert.deepEqual(afterOwned, owned, 'The release keeps his fantasy ownership')
-  assert.deepEqual(afterLined, lined, 'The release keeps his lineups')
-  assert.equal(second.released, 1, 'Only X is released')
-  assert.deepEqual(second.releaseHeld, { unproven: 0, unclaimed: 0 }, 'Nobody else is omitted')
-  assert.deepEqual(await teamsOf(`t14-${run}-`), { ...Object.fromEntries(codes.map(code => [({ GS: 'GSW', NO: 'NOP', NY: 'NYK', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' } as Record<string, string>)[code] ?? code, 17])), BOS: 17 + ys.length, none: 1 })
-  assert.ok(!startedOn(secondStarters, xId), `A released player is not auto-started: ${JSON.stringify(secondStarters)}`)
-  assert.equal(guardsStarted(secondStarters), 5, 'Every playing guard starts once X is released')
+  assert.deepEqual(after, baseline, 'A complete refresh that omits X, after MIN\'s box omits him too, holds his row, ids, names, injury, status and team')
+  assert.deepEqual(afterOwned, owned, 'He keeps his fantasy ownership')
+  assert.deepEqual(afterLined, lined, 'He keeps his lineups')
+  assert.equal(second.released, 0, 'Nobody is released')
+  assert.deepEqual(second.releaseHeld, { unproven: 1, unclaimed: 0 }, 'X is reported as held, unproven')
+  assert.deepEqual(await teamsOf(`t14-${run}-`), { ...Object.fromEntries(codes.map(code => [({ GS: 'GSW', NO: 'NOP', NY: 'NYK', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' } as Record<string, string>)[code] ?? code, 17])), BOS: 17 + ys.length, MIN: 18 })
+  assert.ok(startedOn(secondStarters, xId), `A held player keeps starting on his team's game day: ${JSON.stringify(secondStarters)}`)
+  assert.equal(guardsStarted(secondStarters), 4, 'X still takes one of the five guard slots')
 
-  // A later listing gives him his new team, on the same row.
+  // A later listing on BOS is positive evidence of a move: it gives him his new team, on the same row.
   const third = await refresh('refresh 3', { athletes: [...fillers, { ...x, team: 'BOS' }, ...ys] }, 200)
   assert.equal(third.ok, true)
   assert.equal(third.released, 0)

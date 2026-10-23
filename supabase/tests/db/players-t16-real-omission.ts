@@ -9,11 +9,12 @@ import { strict as assert } from 'node:assert'
 //   inactive with the same injury: he was signed throughout, so that refresh must hold his team.
 // - Hyland (MIN): the same with his two-way boxes of 2025-02-27, 2025-02-28 (omitted; ESPN's own summary of
 //   that game lists him for MIN) and 2025-03-02.
-// - Control, Bassey (MEM): his last MEM box (2025-11-05) lists him playing, MEM's next box omits him and PHI's
-//   box of 2026-01-26 lists him. The refresh that omits him releases him; a listing on PHI re-teams him.
+// - Bassey (MEM): his last MEM box (2025-11-05) lists him playing, MEM's next box omits him and PHI's box of
+//   2026-01-26 lists him. He had left, but neither omission proves it, so that refresh holds him too; the
+//   positive-evidence control is the ESPN listing on PHI, which re-teams him.
 // The real dates are kept in the observations. The stored schedule puts each first box two days back, each
-// second box after ESPN's listing and each third box after the refresh, because the release compares
-// tip-offs with ESPN's listing time on this clock. Identity, ownership and lineups must not change.
+// second box after ESPN's listing and each third box after the refresh, the order a release would compare
+// with ESPN's listing time on this clock. Identity, ownership and lineups must not change.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx and 582xx are refused outright.
@@ -80,10 +81,10 @@ const listedIn = (gameId: string, person: number) => {
 }
 
 // Each real player: his three boxes (listed, omitted, listed again) and where the third lists him.
-type Real = { label: string; person: number; first: string; last: string; team: string; boxes: [string, string, string]; again: string; injury?: string; signed: boolean }
-const lillard: Real = { label: 'Lillard', person: 203081, first: 'Damian', last: 'Lillard', team: 'POR', boxes: ['0022500810', '0022500826', '0022500841'], again: 'POR', injury: 'Out', signed: true }
-const hyland: Real = { label: 'Hyland', person: 1630538, first: 'Bones', last: 'Hyland', team: 'MIN', boxes: ['0022400849', '0022400858', '0022400873'], again: 'MIN', signed: true }
-const bassey: Real = { label: 'Bassey', person: 1629646, first: 'Charles', last: 'Bassey', team: 'MEM', boxes: ['0022500176', '0022500034', '0022500657'], again: 'PHI', signed: false }
+type Real = { label: string; person: number; first: string; last: string; team: string; boxes: [string, string, string]; again: string; injury?: string }
+const lillard: Real = { label: 'Lillard', person: 203081, first: 'Damian', last: 'Lillard', team: 'POR', boxes: ['0022500810', '0022500826', '0022500841'], again: 'POR', injury: 'Out' }
+const hyland: Real = { label: 'Hyland', person: 1630538, first: 'Bones', last: 'Hyland', team: 'MIN', boxes: ['0022400849', '0022400858', '0022400873'], again: 'MIN' }
+const bassey: Real = { label: 'Bassey', person: 1629646, first: 'Charles', last: 'Bassey', team: 'MEM', boxes: ['0022500176', '0022500034', '0022500657'], again: 'PHI' }
 const reals = [lillard, hyland, bassey]
 for (const real of reals) {
   const [first, omitted, again] = real.boxes.map(gameId => listedIn(gameId, real.person))
@@ -240,18 +241,16 @@ try {
     teams: Object.fromEntries(reals.map(real => [real.label, after[real.label].nba_team])),
     boxRows: Object.fromEntries(await Promise.all(reals.map(async real => [real.label, await boxRows(ids[real.label])]))) })
   console.log(JSON.stringify(observations.at(-1)))
-  for (const real of reals.filter(real => real.signed)) {
-    assert.equal(after[real.label].nba_team, real.team, `${real.label}: one real box that omits a signed player must not release him`)
+  for (const real of reals) {
+    assert.equal(after[real.label].nba_team, real.team, `${real.label}: a real box and ESPN that omit him do not prove he left, whatever his last box showed`)
     assert.deepEqual(after[real.label], before[real.label], `${real.label}: his row is unchanged`)
   }
-  assert.equal(after.Bassey.nba_team, null, 'Bassey, whose last box lists him playing, is released when his team\'s next box and ESPN both omit him')
-  assert.deepEqual({ ...after.Bassey, nba_team: bassey.team }, before.Bassey, 'The release keeps his row, ids, names, injury and status')
   for (const real of reals) {
     assert.deepEqual(await ownership(ids[real.label]), owned[real.label], `${real.label}: ownership is unchanged`)
     assert.deepEqual(await lineups(ids[real.label]), lined[real.label], `${real.label}: lineups are unchanged`)
   }
-  assert.equal(second.released, 1)
-  assert.deepEqual(second.releaseHeld, { unproven: 2, unclaimed: 0 })
+  assert.equal(second.released, 0)
+  assert.deepEqual(second.releaseHeld, { unproven: 3, unclaimed: 0 }, 'All three are held as unproven')
 
   // The third real boxes: POR and MIN list Lillard and Hyland again (still signed); PHI lists Bassey.
   // POR's box of 2026-02-24 is against MIN and also lists Hyland, playing for MIN a season later.
@@ -269,12 +268,12 @@ try {
   assert.equal((await identity(hyland.person))!.nba_team, 'MIN', 'MIN\'s next real box lists Hyland: he kept MIN')
   observations.push({ case: 'third-boxes', players: third })
 
-  // Refresh 3 lists Lillard and Hyland on their teams and Bassey on PHI: the released row is re-teamed.
+  // Refresh 3 lists Lillard and Hyland on their teams and Bassey on PHI: positive evidence re-teams his row.
   const last = await refresh('refresh 3', [...fillers, espnOf(lillard), espnOf(hyland), espnOf(bassey, 'PHI')])
   const final = Object.fromEntries(await Promise.all(reals.map(async real => [real.label, await identity(real.person)])))
   observations.push({ case: 'refresh-3', released: last.released ?? null, releaseHeld: last.releaseHeld ?? null,
     teams: Object.fromEntries(reals.map(real => [real.label, final[real.label]?.nba_team])) })
-  assert.deepEqual(final.Bassey, { ...before.Bassey, nba_team: 'PHI' }, 'A listing on PHI re-teams the same row')
+  assert.deepEqual(final.Bassey, { ...before.Bassey, nba_team: 'PHI' }, 'A listing on PHI re-teams the same row from MEM')
   assert.deepEqual(final.Lillard, before.Lillard)
   assert.deepEqual(final.Hyland, before.Hyland)
   assert.equal(last.released, 0)

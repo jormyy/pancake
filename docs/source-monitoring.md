@@ -93,12 +93,12 @@ NBA CDN supplies NBA identities. Existing Sleeper identities remain resolvable.
 Truncated master lists fail before replacement.
 ESPN roster pages name only signed players, but a page can answer 200 and still omit one.
 A structurally complete refresh (every NBA team once, each roster nonempty, every athlete identifiable, every record imported) is therefore not proof that anyone left.
-It clears the team of a player it no longer names only when ESPN claimed him and his team's latest Final game, played after ESPN last listed him on that team,
-has its complete box stored without him (no played, DNP, inactive or membership row in it or any later game).
-Real boxes omit signed inactive players too, so the omission counts only when the latest box that lists him shows him playing, or no stored box lists him.
-The row, IDs, injury, status, ownership and lineups stay, and the next listing that names him sets his new team.
+Stored NBA boxes are not proof either: real boxes omit signed players for a game or for months, whether their last listing showed them playing, inactive or not at all.
+No feed the product reads states, with a date, that a player is no longer rostered.
+An omitted player's team is cleared (`released`) only when his latest stored box since ESPN last listed him on that team is of a regular-season or postseason game his team did not play; the next listing names his new team.
+Otherwise a team changes only when an ESPN listing names him on another team; his row, IDs, injury, status, ownership and lineups stay either way.
 Every other omitted teamed player keeps his team and is counted in `releaseHeld` (`unproven`, or `unclaimed` for rows ESPN never claimed).
-Any listing gap or import failure releases nobody, and the run reports the reasons as `releaseSkipped`.
+Any listing gap or import failure skips the sweep, and the run reports the reasons as `releaseSkipped`.
 Rookie eligibility uses zero experience; career-game taxi eligibility follows the [roster rules](roster-lifecycle.md).
 
 `npm run parity:players` compares the two public feeds.

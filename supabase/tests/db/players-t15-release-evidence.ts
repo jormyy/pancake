@@ -3,11 +3,14 @@ import { strict as assert } from 'node:assert'
 // The espn_release decision, case by case, through resolve_player_imports_atomic itself. Each case is one
 // transaction that is rolled back: a structurally complete 350-player listing that names nobody below (or
 // names P where the case says so), one candidate row P on its own team, and that team's stored games.
-// ESPN absence alone never clears a team: P is released only when he is claimed (espn_id) and his team's
-// latest Final game has its complete box stored, tipped off after ESPN last listed him on that team, and
-// neither it nor any later box lists him (played, DNP/inactive or as a game member). Everyone else ESPN
-// omits is held. P's row is always written just now, as the career-games refresh writes every claimed row
-// on every run, so the decision cannot lean on players.updated_at.
+// An omission never clears a team, whatever his team's stored games show: the cases vary the box evidence
+// the turn-15 rule read (the latest Final game's box stored, tipped off after ESPN last listed him on that
+// team, and neither it nor a later box listing him), and P is held in every one, reported as unproven when
+// ESPN claimed him (espn_id) and as unclaimed when not. One case holds positive evidence instead: a live box
+// of a game his team did not play lists him after ESPN last listed him, so his team is cleared and reported
+// as released (players-t17-departure-evidence.ts). A listing that names him, a listed namesake that
+// resolved to no row, or no team leaves him out of the report. P's row is always written just now, as the
+// career-games refresh writes every claimed row on every run, so nothing may lean on players.updated_at.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx and 582xx are refused outright.
@@ -48,9 +51,9 @@ type Case = { name: string; games: Game[]; claimed?: boolean; listed?: boolean; 
   listing?: 'other' | 'none'; expect: 'released' | 'unproven' | 'unclaimed' | 'none' }
 const latest: Game = { days: -1, hours: -20, synced: true }
 const cases: Case[] = [
-  { name: 'his team\'s latest stored box, played after ESPN last listed him, omits him', games: [latest], expect: 'released' },
-  { name: 'the same evidence with his team away', games: [{ ...latest, away: true }], expect: 'released' },
-  { name: 'an earlier box lists him and the latest omits him', games: [{ days: -3, hours: -68, synced: true, lists: 'played' }, latest], listedHoursAgo: 72, expect: 'released' },
+  { name: 'his team\'s latest stored box, played after ESPN last listed him, omits him', games: [latest], expect: 'unproven' },
+  { name: 'the same evidence with his team away', games: [{ ...latest, away: true }], expect: 'unproven' },
+  { name: 'an earlier box lists him and the latest omits him', games: [{ days: -3, hours: -68, synced: true, lists: 'played' }, latest], listedHoursAgo: 72, expect: 'unproven' },
   { name: 'ESPN never claimed the row (a stale listing on file changes nothing)', games: [latest], claimed: false, expect: 'unclaimed' },
   { name: 'the latest box lists him as played', games: [{ ...latest, lists: 'played' }], expect: 'unproven' },
   { name: 'the latest box lists him inactive (DNP row)', games: [{ ...latest, lists: 'dnp' }], expect: 'unproven' },
@@ -59,7 +62,7 @@ const cases: Case[] = [
   { name: 'ESPN last listed him on another team', games: [latest], listing: 'other', expect: 'unproven' },
   { name: 'no ESPN listing time is on file for him (a merge winner)', games: [latest], listing: 'none', expect: 'unproven' },
   { name: 'the latest Final game has no stored box yet', games: [{ days: -2, hours: -44, synced: true }, { days: -1, hours: -20, synced: false }], listedHoursAgo: 72, expect: 'unproven' },
-  { name: 'a later live box lists him, on another team', games: [latest, { days: 0, hours: -1, status: 'InProgress', other: true, lists: 'played' }], expect: 'unproven' },
+  { name: 'a later live box lists him, on another team', games: [latest, { days: 0, hours: -1, status: 'InProgress', other: true, lists: 'played' }], expect: 'released' },
   { name: 'his team has no Final game', games: [{ days: 1, hours: 28, status: 'InProgress' }], expect: 'unproven' },
   { name: 'the listing names him', games: [latest], listed: true, expect: 'none' },
   { name: 'a listed player of his name resolved to no row (ambiguous)', games: [latest], namesake: true, expect: 'none' },
@@ -87,19 +90,21 @@ for (const [index, testCase] of cases.entries()) {
         VALUES(${q(player)},${q(id)},${year},1,${q(etDate(game.days))},${game.lists === 'played' ? 10 : 0},${game.lists === 'dnp'});` : ''}
       ${game.lists === 'played' || game.lists === 'member' ? `INSERT INTO private.player_game_memberships(player_id,game_id) VALUES(${q(player)},${q(id)});` : ''}`
   })
-  const receipt = await sql(`BEGIN;
+  const [receipt, kept] = (await sql(`BEGIN;
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team,years_exp,espn_id)
       VALUES(${q(player)},'Synthetic',${q(last)},'PG',ARRAY['PG'],'Active',${testCase.untamed ? 'NULL' : q(team)},4,${espn ? q(espn) : 'NULL'});
     ${testCase.listing === 'none' || !listings ? '' : `INSERT INTO private.player_espn_listings(player_id,nba_team,listed_at)
       VALUES(${q(player)},${q(testCase.listing === 'other' ? `R${index}` : team)},now()-interval '${testCase.listedHoursAgo ?? 48} hours');`}
     ${testCase.games.length ? statements.join('\n') : ''}
     SELECT resolve_player_imports_atomic('espn_release',${q(JSON.stringify(names))}::jsonb);
-    ROLLBACK;`)
+    SELECT coalesce(nba_team, 'none') FROM players WHERE id=${q(player)};
+    ROLLBACK;`)).split('\n')
   const decision = JSON.parse(receipt) as { released: string[]; held: { unproven: string[]; unclaimed: string[] } }
-  const outcome = decision.released.includes(player) ? 'released' : decision.held?.unproven?.includes(player) ? 'unproven'
+  // A team the call cleared or changed counts as released, whatever the receipt says.
+  const outcome = decision.released.includes(player) || kept !== (testCase.untamed ? 'none' : team) ? 'released' : decision.held?.unproven?.includes(player) ? 'unproven'
     : decision.held?.unclaimed?.includes(player) ? 'unclaimed' : 'none'
   const others = [...decision.released, ...decision.held?.unproven ?? [], ...decision.held?.unclaimed ?? []].filter(id => id !== player)
-  results.push({ case: testCase.name, expect: testCase.expect, outcome, others: others.length })
+  results.push({ case: testCase.name, expect: testCase.expect, outcome, team: kept, others: others.length })
   assert.deepEqual(others, [], `${testCase.name}: the release reads only this case's rows`)
 }
 console.log(JSON.stringify({ provenance: 'SYNTHETIC', recipe: 'players-t15-release-evidence', run, listings, results }))

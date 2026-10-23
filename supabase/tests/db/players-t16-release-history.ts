@@ -1,14 +1,15 @@
 import { strict as assert } from 'node:assert'
 
 // Real NBA CDN boxes omit signed players: the players-t16 census of 2,460 pinned regular-season boxes found
-// injured, two-way and assigned players listed inactive, then absent from their team's boxes for 1 to 46
-// games, then listed again by the same team (players-t16-real-omission.ts serves two of those boxes). So
-// the espn_release decision now also reads the latest stored box that lists P, through
-// resolve_player_imports_atomic itself, one rolled-back transaction per case. In every case ESPN omits P
-// (a structurally complete 350-player listing), P is claimed, ESPN last listed him on his team 48 hours
-// ago, and his team's latest Final game tipped off 20 hours ago with its box stored and P absent from it:
-// the turn-15 evidence. P is released only when the latest box that lists him shows him playing, or no
-// box lists him at all. A DNP/inactive row or a bare game membership as his latest listing holds him.
+// players absent from their team's boxes for 1 to 46 games, then listed again by the same team, whether
+// their last listing was inactive (players-t16-real-omission.ts) or showed them playing
+// (players-t17-real-played-last.ts). Through resolve_player_imports_atomic itself, one rolled-back
+// transaction per case: ESPN omits P (a structurally complete 350-player listing), P is claimed, ESPN last
+// listed him on his team 48 hours ago, and his team's latest Final game tipped off 20 hours ago with its
+// box stored and P absent from it: the turn-15 evidence. Whatever the latest box that lists him shows, or
+// when no box lists him at all, P keeps his team and is reported as unproven. Every earlier box here, his
+// team's or another team's, tipped off before that ESPN listing, so none is departure evidence
+// (players-t17-departure-evidence.ts).
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx and 582xx are refused outright.
@@ -40,21 +41,21 @@ async function sql(statement: string): Promise<string> {
 // store names P for it: 'played' and 'inactive' are what the CDN box import writes (a box row and the game
 // membership), 'dnp' is a DNP box row alone (as stored before memberships existed), 'member' a membership alone.
 type Earlier = { days: number; hours: number; lists: 'played' | 'inactive' | 'dnp' | 'member'; other?: boolean }
-type Case = { name: string; earlier: Earlier[]; expect: 'released' | 'unproven' }
+type Case = { name: string; earlier: Earlier[]; expect: 'unproven' }
 const played = (days: number, hours: number, other?: boolean): Earlier => ({ days, hours, lists: 'played', other })
 const inactive = (days: number, hours: number, other?: boolean): Earlier => ({ days, hours, lists: 'inactive', other })
 const cases: Case[] = [
-  { name: 'no stored box has ever listed him', earlier: [], expect: 'released' },
-  { name: 'the last box that listed him shows him playing', earlier: [played(-3, -68)], expect: 'released' },
+  { name: 'no stored box has ever listed him', earlier: [], expect: 'unproven' },
+  { name: 'the last box that listed him shows him playing', earlier: [played(-3, -68)], expect: 'unproven' },
   { name: 'the last box that listed him lists him inactive (Lillard, Hyland)', earlier: [inactive(-3, -68)], expect: 'unproven' },
   { name: 'the last box that listed him has a DNP row alone', earlier: [{ days: -3, hours: -68, lists: 'dnp' }], expect: 'unproven' },
   { name: 'the last game that names him records only his membership', earlier: [{ days: -3, hours: -68, lists: 'member' }], expect: 'unproven' },
   { name: 'he played, then a later box lists him inactive', earlier: [played(-5, -116), inactive(-3, -68)], expect: 'unproven' },
-  { name: 'he was inactive, then a later box shows him playing', earlier: [inactive(-5, -116), played(-3, -68)], expect: 'released' },
+  { name: 'he was inactive, then a later box shows him playing', earlier: [inactive(-5, -116), played(-3, -68)], expect: 'unproven' },
   { name: 'two listings on one date: the later tip-off is inactive', earlier: [played(-3, -70), inactive(-3, -66, true)], expect: 'unproven' },
-  { name: 'two listings on one date: the later tip-off shows him playing', earlier: [inactive(-3, -70, true), played(-3, -66)], expect: 'released' },
+  { name: 'two listings on one date: the later tip-off shows him playing', earlier: [inactive(-3, -70, true), played(-3, -66)], expect: 'unproven' },
   { name: 'his last listing is inactive on another team', earlier: [played(-7, -164), inactive(-3, -68, true)], expect: 'unproven' },
-  { name: 'his last listing shows him playing on another team', earlier: [inactive(-7, -164), played(-3, -68, true)], expect: 'released' },
+  { name: 'his last listing shows him playing on another team', earlier: [inactive(-7, -164), played(-3, -68, true)], expect: 'unproven' },
 ]
 
 const etDate = (offset: number) => new Date(Date.now() + offset * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
@@ -79,18 +80,20 @@ for (const [index, testCase] of cases.entries()) {
     ...testCase.earlier.map((earlier, gameIndex) => game(gameIndex, earlier.days, earlier.hours, ...(earlier.other ? [`O${index}`, `Q${index}`] : [team, `R${index}`]) as [string, string], earlier.lists)),
     game(testCase.earlier.length, -1, -20, team, `R${index}`),
   ]
-  const receipt = await sql(`BEGIN;
+  const [receipt, kept] = (await sql(`BEGIN;
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team,years_exp,espn_id)
       VALUES(${q(player)},'Synthetic',${q(`T16h${run}P${index}`)},'PG',ARRAY['PG'],'Active',${q(team)},4,${q(espn)});
     INSERT INTO private.player_espn_listings(player_id,nba_team,listed_at) VALUES(${q(player)},${q(team)},now()-interval '48 hours');
     ${statements.join('\n')}
     SELECT resolve_player_imports_atomic('espn_release',${q(JSON.stringify(listing))}::jsonb);
-    ROLLBACK;`)
+    SELECT coalesce(nba_team, 'none') FROM players WHERE id=${q(player)};
+    ROLLBACK;`)).split('\n')
   const decision = JSON.parse(receipt) as { released: string[]; held: { unproven: string[]; unclaimed: string[] } }
-  const outcome = decision.released.includes(player) ? 'released' : decision.held?.unproven?.includes(player) ? 'unproven'
+  // A team the call cleared or changed counts as released, whatever the receipt says.
+  const outcome = decision.released.includes(player) || kept !== (team) ? 'released' : decision.held?.unproven?.includes(player) ? 'unproven'
     : decision.held?.unclaimed?.includes(player) ? 'unclaimed' : 'none'
   const others = [...decision.released, ...decision.held?.unproven ?? [], ...decision.held?.unclaimed ?? []].filter(id => id !== player)
-  results.push({ case: testCase.name, expect: testCase.expect, outcome, others: others.length })
+  results.push({ case: testCase.name, expect: testCase.expect, outcome, team: kept, others: others.length })
   assert.deepEqual(others, [], `${testCase.name}: the release reads only this case's rows`)
 }
 console.log(JSON.stringify({ provenance: 'SYNTHETIC', recipe: 'players-t16-release-history', run, results }))
