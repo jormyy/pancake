@@ -90,6 +90,8 @@ Sleeper remains dormant. Its data does not count toward active-source health.
 ESPN supplies names, teams, coarse positions, injuries, and news.
 The sync preserves finer existing position eligibility.
 NBA CDN supplies NBA identities. Existing Sleeper identities remain resolvable.
+A box player whom no NBA id or name joins links to an existing ESPN row only when the box lists him under its side and ESPN lists exactly one row on that side with the same name words in any order, has listed it there since before tip-off and on no other team since, that row has no NBA id, and no other player on that side has those words; a CDN-only row an earlier box made for his NBA id then merges into it.
+No jersey, nickname, prefix or spelling distance is used.
 Truncated master lists fail before replacement.
 ESPN roster pages name only signed players, but a page can answer 200 and still omit one.
 A structurally complete refresh (every NBA team once, each roster nonempty, every athlete identifiable, every record imported) is therefore not proof that anyone left.

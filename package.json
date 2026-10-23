@@ -304,6 +304,7 @@
     "test:db:players-t19-corroborated-identity": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/players-t19-corroborated-identity.ts",
     "test:db:live-t19-box-paths-backfill": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/live-t19-box-paths.ts --case=backfill",
     "test:db:live-t19-box-paths-merge": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/live-t19-box-paths.ts --case=merge",
+    "test:db:live-t19-box-paths-second-move": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/live-t19-box-paths.ts --case=second-move",
     "test:db:live-t19-box-sides": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/live-t19-box-sides.ts",
     "mutation:notif-t9": "deno run --no-lock --check --allow-env --allow-read --allow-write --allow-run=psql,deno scripts/mutation/notif/t9.ts",
     "mutation:notif-t9-follow-up-1": "deno run --no-lock --check --allow-env --allow-read --allow-write --allow-run=psql,deno scripts/mutation/notif/t9-follow-up-1.ts",
