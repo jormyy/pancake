@@ -12,8 +12,8 @@ import { strict as assert } from 'node:assert'
 // starting them on their teams' game day, and that game's box rows score for their fantasy team.
 // - Control, R: refresh 2 lists him on CHI, positive dated evidence of a move, so his row is re-teamed.
 // - Control, D (ATL): MIN-BOS's box, played after refresh 1, lists him for BOS, a game ATL did not play, and
-//   refresh 2 drops him: positive dated evidence that he left ATL, so his team alone is cleared and reported
-//   as released. Refresh 3 lists him on BOS and sets his new team.
+//   refresh 2 drops him: positive dated evidence that he left ATL, so his team alone moves to BOS, the side
+//   that box lists him under, and is reported as released. Refresh 3 lists him on BOS and keeps his new team.
 // X and N share five PG-eligible starter slots with five playing BOS guards and sort first on ties, so each
 // takes a guard's slot while he keeps a team that plays.
 //
@@ -245,7 +245,7 @@ try {
   assert.deepEqual([xOwnedAfter, nOwnedAfter], [xOwned, nOwned], 'Ownership is unchanged')
   assert.deepEqual([xLinedAfter, nLinedAfter], [xLined, nLined], 'Lineups are unchanged')
   assert.deepEqual(rAfter, { ...rBefore, nba_team: 'CHI' }, 'R: a listing on CHI is positive evidence, so the same row moves to CHI')
-  assert.deepEqual(dAfter, { ...dBefore, nba_team: null }, 'D: a box of a game ATL did not play, after his last ATL listing, clears his team alone')
+  assert.deepEqual(dAfter, { ...dBefore, nba_team: 'BOS' }, 'D: a box of a game ATL did not play, after his last ATL listing, moves his team alone to the side it lists him under')
   assert.equal(second.released, 1, 'Only D, on positive evidence, is released')
   assert.deepEqual(second.releaseHeld, { unproven: 2, unclaimed: 0 }, 'X and N are reported as held, unproven')
   assert.ok(startedOn(secondStarters, xId) && startedOn(secondStarters, nId), `X and N still start on their teams' game day: ${JSON.stringify(secondStarters)}`)
@@ -271,7 +271,7 @@ try {
   assert.deepEqual(await identity(xId), xBefore)
   assert.deepEqual(await identity(nId), nBefore)
   assert.deepEqual(await byEspn(r.espn), { ...rBefore, nba_team: 'CHI' })
-  assert.deepEqual(await identity(dId), { ...dBefore, nba_team: 'BOS' }, 'D: the listing on BOS sets his new team on the same row')
+  assert.deepEqual(await identity(dId), { ...dBefore, nba_team: 'BOS' }, 'D: the listing on BOS keeps his new team on the same row')
   assert.equal(third.released, 0)
   assert.deepEqual(third.releaseHeld, { unproven: 0, unclaimed: 0 })
   console.log(JSON.stringify({ provenance: 'SYNTHETIC', recipe: 'players-t17-silent-omission', run, gameDay, today, observations }))
