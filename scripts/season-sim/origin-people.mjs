@@ -15,6 +15,54 @@ export function openingRosters(games, boxOf) {
   return openings
 }
 
+// ESPN summaries carry no NBA person id and spell some names differently from NBA boxes (Luka Doncic / Luka Dončić,
+// Jimmy Butler III / Jimmy Butler, RJ Davis / R.J. Davis, Jakob Poeltl / Jakob Pöltl, Yongxi Cui / Cui Yongxi). A name key
+// ignores case, accents, punctuation, generational suffixes and word order.
+const SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv']), LETTERS = { ø: 'o', đ: 'd', ł: 'l', ß: 'ss', æ: 'ae', ı: 'i' }, UMLAUTS = { ä: 'ae', ö: 'oe', ü: 'ue' }
+const nameWords = name => name.normalize('NFD').replace(/\p{M}/gu, '').replace(/[øđłßæı]/g, letter => LETTERS[letter]).split(/[\s-]+/).map(word => word.replace(/[^a-z0-9]/g, '')).filter(word => word && !SUFFIXES.has(word))
+const spellings = name => {
+  const lower = String(name ?? '').normalize('NFC').toLowerCase()
+  return [lower, lower.replace(/[äöü]/g, letter => UMLAUTS[letter])].map(nameWords).filter(words => words.length)
+}
+export const nameKeys = name => new Set(spellings(name).map(words => words.toSorted().join(' ')))
+// ESPN also lists some players by a nickname (Alex Sarr / Alexandre Sarr, Bub Carrington / Carlton Carrington); on one side a
+// surname and a jersey number name one player.
+const surnames = name => new Set(spellings(name).map(words => words.at(-1)))
+const jersey = value => value == null || value === '' ? null : String(value)
+const TIERS = [
+  { athlete: athlete => nameKeys(athlete.displayName), player: player => new Set([...nameKeys(player.name), ...nameKeys(`${player.firstName} ${player.familyName}`)]), agrees: () => true },
+  { athlete: athlete => surnames(athlete.displayName), player: player => surnames(player.familyName), agrees: (athlete, player) => jersey(athlete.jersey) != null && jersey(athlete.jersey) === jersey(player.jerseyNum) },
+]
+
+// A summary athlete links to a box player of the same game and team side: by exact name, otherwise by a name key, otherwise
+// by surname and jersey number, each time only when exactly one box player and no other unlinked athlete on that side carry
+// the key. A box player links at most once.
+function linkAthletes(players, athletes) {
+  const links = athletes.map(athlete => players.find(player => player.name === athlete.displayName || player.name === athlete.fullName || `${player.firstName} ${player.familyName}` === athlete.displayName) ?? null)
+  const claimed = new Set(links.filter(Boolean).map(player => player.personId))
+  for (const tier of TIERS) {
+    const open = athletes.map((athlete, index) => ({ athlete, index, keys: tier.athlete(athlete) })).filter(row => !links[row.index])
+    for (const row of open) {
+      const shares = keys => [...keys].some(key => row.keys.has(key)), candidates = players.filter(player => shares(tier.player(player)))
+      if (candidates.length !== 1 || claimed.has(candidates[0].personId) || !tier.agrees(row.athlete, candidates[0]) || open.some(other => other !== row && shares(other.keys))) continue
+      links[row.index] = candidates[0]
+      claimed.add(candidates[0].personId)
+    }
+  }
+  return links
+}
+
+// Each linked summary athlete is a dated observation of his box team; his first one makes him a person.
+export function observeSide(people, game, code, players, athletes, firstYears = {}) {
+  linkAthletes(players, athletes).forEach((match, index) => {
+    if (!match) return
+    const athlete = athletes[index], existing = people.get(String(athlete.id))
+    const observation = { time: game.time, date: game.date, team: code, position: athlete.position?.abbreviation ?? match.position ?? null, yearsExp: athlete.experience?.years ?? null, rosterOnly: game.rosterOnly === true }
+    if (existing) existing.observations.push(observation)
+    else people.set(String(athlete.id), { id: String(athlete.id), firstName: match.firstName, lastName: match.familyName, fullName: match.name, nbaId: match.personId, fromYear: firstYears[String(match.personId)] ?? null, observations: [observation] })
+  })
+}
+
 // A real NBA box lists its team's game roster, inactive players included, and a player who has just changed teams is
 // listed by his new team (INACTIVE_TRADE) before he dresses; ESPN summaries list only the players who dressed. A real box
 // dated D that lists a known person for a team other than his latest observed one is a dated observation of that team
