@@ -32,12 +32,13 @@ import { runRealSeason } from './real-season.mjs'
 import { shiftDay } from './season-model.mjs'
 import { waiverBoundaryDeferral } from './maintenance.mjs'
 import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
+import { recoveryHistoryQuery } from './recovery.mjs'
 
 export async function replay(options = {}) {
   const realPlan = await twoPlan(), profile = realPlan?.seasons[0]
   // A real launch replays season one over the range its pinned schedule gives (prepare-two.mjs), not the fallback table.
   const season = profile ?? fallbackSeason
-  assert.ok(!realPlan||!options.resume,'Legacy synthetic segments cannot resume a real two-season launch')
+  assert.ok(!realPlan||!options.resume||options.recoveryEvidence,'A real-season resume requires validated recovery evidence')
   const start = options.resume?.date ?? options.start ?? (options['late-season'] ? shiftDay(season.end,-27) : season.start)
   assert.match(start, /^\d{4}-\d{2}-\d{2}$/)
   assert.ok(options.segment === 'next-season-start' || start >= season.start && start <= season.end)
@@ -56,6 +57,9 @@ export async function replay(options = {}) {
     triggerFidelity: { verified: false, cadence: 'Every intervening UTC minute, plus worker timer deadlines; clock stays paused during I/O; no scoring/stat maintenance overrides', counts: {}, unsupportedInputs: [] },
     requestedSecondDates: realPlan&&selected.at(-1)===season.end?dates(realPlan.seasons[1].start,realPlan.seasons[1].end).length:0, inputPostponements:realPlan?.postponements.timelines??[], historicalRange: { start: season.start, end: season.end, dates: dates(season.start,season.end).length }, realTwoSeasons: !!realPlan, inputPlan: realPlan ? { provenance: realPlan.provenance, gaps: realPlan.gaps, postponementGaps: realPlan.postponements.gaps, draft: { availableAt: realPlan.draft.availableAt, availabilityProvenance: realPlan.draft.availabilityProvenance } } : null, acceptanceGaps: [], ancillaryGaps: ['Rankings and projections use incomplete fixture inputs. They do not determine the asserted locked-starter scores, waiver rules, playoff rules, draft order, or pick ownership. Projection quality and optimal lineup selection remain unverified.'] }
   if(realPlan) report.ancillaryGaps.push('This scenario starts a commissioner rookie draft; the automatic unstarted-draft backstop is not measured.')
+  if (options.recoveryEvidence) Object.assign(report, options.recoveryEvidence)
+  report.featureCheckpoints ??= []
+  report.playersEvidence ??= []
   const checkpoint = async phase => {
     report.phase = phase
     await writeJson(path.join(miniRoot, 'evidence/replay-checkpoint.json'), { ...report, savedAt: new Date().toISOString() })
@@ -179,6 +183,11 @@ export async function replay(options = {}) {
     probe = await startRealtimeProbe(context, runtime.keys)
     if (options.resume?.actions) { report.actions = options.resume.actions; report.retainedActions = true }
     if (options.resume?.evidence) Object.assign(report, options.resume.evidence)
+    if (report.recovery) {
+      report.recovery.historyBefore = await sql(recoveryHistoryQuery(start))
+      assert.equal(JSON.parse(report.recovery.historyBefore).games, report.recovery.retainedGames, 'Restored finals must match retained receipts')
+      assert.equal(await sql("SELECT count(*) FROM edge_invocations WHERE worker_status IN ('pending','running')"), '0', 'Recovery cannot inherit unfinished workers')
+    }
     if (['automatic-champion', 'pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start'].includes(options.segment)) {
       if (options.segment === 'automatic-champion') {
         report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
@@ -258,6 +267,10 @@ export async function replay(options = {}) {
       runtime.origin.flushCoverage()
       console.log(JSON.stringify({ date, games: day.finals.games, wallSeconds: day.wallSeconds, liveSamples: report.liveSamples }))
       await checkpoint(`${date}:verified`)
+      if (report.recovery) {
+        assert.equal(await sql(recoveryHistoryQuery(start)), report.recovery.historyBefore, 'Continuation preserves settled scoring history')
+        if (next <= season.end) await snapshot(`recovery-${next}`, next, dates(next, season.end).length)
+      }
     }
     const current = await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`)
     if (!report.realtime) report.realtime = await probe.verify(current)
