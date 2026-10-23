@@ -84,3 +84,65 @@ Vercel also enables deployments from main in `vercel.json`.
 
 The [migration history](production-migration-history.md), [catalog contract](database-readiness-catalog.md), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.
+
+## Sleeper projections and weekly cleanup
+
+Use an isolated local Supabase project and ports. Restore the normal config before handoff.
+Never reset the shared Pancake stack.
+The focused commands are:
+
+```sh
+deno test --allow-env --allow-net --allow-read supabase/functions/sync-sleeper-projections supabase/functions/sync-projections supabase/functions/_shared/retry.test.ts
+npm run test:db:sleeper-fixture
+npm run test:db:sleeper-projections
+npm run test:db:projection-schedule
+npm run test:db:retention-indexes
+npm run test:db:retention-concurrency
+npm run test:db:retention
+npm run test:db:retention-scoring
+npm run test:db:pre-tipoff
+npm run test:db:fantasypros-projections
+```
+
+Database commands require the isolated local database URL.
+The fixture command also requires its local API URL and service-role key.
+The scoring check requires its local backend secret key.
+Read these settings only from that local project's CLI status.
+The database Deno tests require the explicit `--local-db` argument, supplied by their npm commands.
+Ordinary Edge checks ignore those database tests.
+
+The fixture test pulls three recorded rows twice and verifies stable IDs, updated values, reader precedence, and failure recovery.
+The SQL checks cover mixed weekly fallback, makes and attempts, next-game data, fingerprint stability, permissions, and deletion hints.
+Schedule checks cover Pacific midnight, both daylight saving transitions, late checks, claims, and injury refresh windows.
+Retention checks protect all league and NBA tables with write-rejecting triggers.
+Index checks run the actual log deletion statements against 50,400-row fixtures and inspect their execution plans.
+They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.
+All fixture writes use the isolated local project. SQL checks roll back.
+
+### Local evidence, 2026-10-23
+
+A fresh isolated install applies all 427 migrations through `20261020000003`.
+All nine focused database commands above pass.
+The projection SQL records 23 assertions. Retention records 20. Scheduling records 15.
+The fixture records eight assertions and keeps three player-game rows after its second pull.
+The index check verifies eight indexed execution plans.
+The concurrency check verifies four assertions, including one skipped locked row and a concurrent write.
+The historical-scoring check preserves saved results, replay guards, and current corrections.
+The original retention function fails the updated expiration assertion. The replacement passes it.
+
+`check:quality`, `check:edge-functions`, `check:edge-shared`, `check:core-cjs`, `check:db-function-sources`,
+`check:db-function-catalog`, and `check:database-types` pass.
+The Edge check passes 247 tests. Its three local database tests pass separately through their focused commands.
+Source recovery passes 53 tests across seven configured sources.
+Selected source-name, source-health, release, catalog, inventory, and surface contracts pass 111 tests.
+The generated database enum check passes one core test.
+The test selector marks SQL and documentation as unmapped and package changes as a full-suite trigger.
+The focused database commands cover those SQL changes. Catalog, release, and quality checks cover their contracts.
+The full root suite remains for integration.
+No production operation runs. The isolated stack stops, and the normal project ID and ports are restored.
+
+Changed areas: three additive migrations; canonical projection, schedule, hint, and cleanup functions;
+the Sleeper Edge function and recorded tests; generated types and function catalog; source labels;
+source-health and recovery reports; focused database scripts; and the five related documents.
+The integration owner commits these changes and runs the full root suite.
+Do not repeat the live fixture request. The recorded fixture is sufficient.

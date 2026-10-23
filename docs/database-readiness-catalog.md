@@ -34,3 +34,13 @@ Compare the upgraded catalog with a fresh install at the same candidate version.
 Do not regenerate pins from an unexplained live difference.
 The [production history record](production-migration-history.md) owns historical alias attestations.
 A catalog pass does not waive compatibility, artifact, source-health, or release-soak gates.
+
+## Sleeper projection contract
+
+The additive Sleeper migration retains every existing projection RPC signature and result column.
+Authenticated clients can read the new store. Only the backend can complete a projection pull.
+The completion RPC writes a whole pull in one transaction.
+Private cleanup helpers retain backend-only access.
+The canonical function catalog includes their owners and grants.
+The schedule keeps the existing cron job name and changes its command's due-work logic.
+See the focused projection and retention checks in [verification](verification.md).

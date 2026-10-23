@@ -766,11 +766,11 @@ BEGIN
       0
     );
 
-  IF v_row.projection_source <> 'internal'
-     OR v_row.projection_points <> 16
-     OR v_row.projection_rebounds <> 16
-     OR v_row.projection_fantasy_points <> 32 THEN
-    RAISE EXCEPTION 'Newer skipped weekly-total run should suppress older rows without deriving internal DD/TD bonuses from scaled totals, got %', row_to_json(v_row);
+  IF v_row.projection_source <> 'fantasypros_weekly_total'
+     OR v_row.projection_points <> 40
+     OR v_row.projection_rebounds <> 20
+     OR v_row.projection_fantasy_points <> 60 THEN
+    RAISE EXCEPTION 'Newer skipped weekly-total run preserves the latest successful projection, got %', row_to_json(v_row);
   END IF;
 
   UPDATE public.player_projections
@@ -827,8 +827,8 @@ BEGIN
       0
     );
 
-  IF v_row.projection_source <> 'season_avg' OR v_row.projection_fantasy_points <> 30 THEN
-    RAISE EXCEPTION 'Newer skipped weekly-average run should suppress older FantasyPros weekly-average rows, got %', row_to_json(v_row);
+  IF v_row.projection_source <> 'fantasypros_weekly_avg_total' OR v_row.projection_fantasy_points <> 44 THEN
+    RAISE EXCEPTION 'Newer skipped weekly-average run preserves the latest successful projection, got %', row_to_json(v_row);
   END IF;
 END $$;
 
@@ -1002,8 +1002,8 @@ BEGIN
       0
     );
 
-  IF v_row.projection_source <> 'internal' OR v_row.projection_fantasy_points <> 40 THEN
-    RAISE EXCEPTION 'Newer skipped daily run should suppress older FantasyPros daily rows, got %', row_to_json(v_row);
+  IF v_row.projection_source <> 'fantasypros_daily' OR v_row.projection_fantasy_points <> 124.5 THEN
+    RAISE EXCEPTION 'Newer skipped daily run preserves the latest successful projection, got %', row_to_json(v_row);
   END IF;
 END $$;
 

@@ -78,3 +78,11 @@ Stamping first emits content-addressed public-file copies and rewrites exported 
 The stamper normalizes the document release marker and worker version before computing identity. It then stamps both, rebuilds shell digests, and records the final artifact digest. Repeated stamping of unchanged inputs produces the same release digest. Public copies and document markers belong to the artifact manifest. Do not modify them after stamping.
 
 Metro can change the entry script's lazy-route map without changing its filename. The stamper also gives that boot entry a digest-based URL. A returning browser cannot reuse an older route map under that unchanged Metro name.
+
+## Sleeper projection release
+
+The Sleeper backend adds `sync-sleeper-projections` to the configured Edge inventory.
+Include it in the same stamped Edge artifact as the other functions.
+Apply migrations `20261020000001` through `20261020000003` before that artifact.
+Existing projection RPC shapes remain compatible with the current frontend and its rollback artifact.
+Source-health evidence includes the active Sleeper projection source and the separate dormant Sleeper player fallback.

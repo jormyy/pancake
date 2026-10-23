@@ -69,7 +69,7 @@ league AS (
   WHERE id = p_league_id
 ),
 week_ctx AS (
-  SELECT sw.week_number
+  SELECT sw.week_number, sw.week_start, sw.week_end
   FROM args
   JOIN public.season_weeks sw
     ON sw.season_year = p_season_year
@@ -139,7 +139,7 @@ latest_daily_run AS (
     ON latest_run.source = 'fantasypros'
    AND latest_run.projection_type = 'daily'
    AND latest_run.projection_date = args.game_date
-   AND latest_run.status IN ('success', 'failed', 'skipped')
+   AND latest_run.status = 'success'
    AND latest_run.completed_at IS NOT NULL
   ORDER BY latest_run.started_at DESC, latest_run.id DESC
   LIMIT 1
@@ -153,7 +153,7 @@ latest_weekly_avg_run AS (
    AND latest_run.projection_type = 'weekly_avg'
    AND latest_run.season_year = p_season_year
    AND (wc.week_number IS NULL OR latest_run.week_number IS NULL OR latest_run.week_number = wc.week_number)
-   AND latest_run.status IN ('success', 'failed', 'skipped')
+   AND latest_run.status = 'success'
    AND latest_run.completed_at IS NOT NULL
   ORDER BY latest_run.week_number DESC NULLS LAST, latest_run.started_at DESC, latest_run.id DESC
   LIMIT 1
@@ -167,7 +167,7 @@ latest_weekly_total_run AS (
    AND latest_run.projection_type = 'weekly_total'
    AND latest_run.season_year = p_season_year
    AND (wc.week_number IS NULL OR latest_run.week_number IS NULL OR latest_run.week_number = wc.week_number)
-   AND latest_run.status IN ('success', 'failed', 'skipped')
+   AND latest_run.status = 'success'
    AND latest_run.completed_at IS NOT NULL
   ORDER BY latest_run.week_number DESC NULLS LAST, latest_run.started_at DESC, latest_run.id DESC
   LIMIT 1
@@ -517,11 +517,79 @@ candidate_union AS (
   UNION ALL SELECT * FROM internal_candidates
   UNION ALL SELECT * FROM season_avg_candidates
 ),
-best AS (
+fallback_best AS (
   SELECT DISTINCT ON (cu.player_id) cu.*
   FROM candidate_union cu
   ORDER BY cu.player_id, cu.priority ASC, cu.projection_fetched_at DESC NULLS LAST
+),
+sleeper_games AS (
+  SELECT r.*, public.projection_stat_fantasy_points(
+    r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
+    r.field_goals_made, r.field_goals_attempted, r.free_throws_made, r.free_throws_attempted,
+    r.double_doubles, r.triple_doubles, l.scoring_settings
+  ) AS fantasy_points
+  FROM public.sleeper_projection_rows r
+  JOIN base_players bp ON bp.id = r.player_id
+  LEFT JOIN next_games ng ON ng.player_id=bp.id
+  JOIN league l ON true
+  CROSS JOIN args
+  LEFT JOIN week_ctx wc ON true
+  WHERE r.season_year = p_season_year
+    AND (args.view_name = 'today' AND r.game_date = COALESCE(ng.next_game_date,args.game_date)
+      OR args.view_name <> 'today' AND r.week_number = wc.week_number
+        AND EXISTS (SELECT 1 FROM public.nba_games g WHERE g.season_year=p_season_year
+          AND g.game_date=r.game_date AND public.is_regular_season_game_id(g.nba_game_id)
+          AND (g.home_team=r.team AND g.away_team=r.opponent OR g.away_team=r.team AND g.home_team=r.opponent)))
+),
+sleeper_totals AS (
+  SELECT player_id, count(*)::integer AS games, sum(fantasy_points) AS fantasy_points,
+    sum(points) AS points, sum(rebounds) AS rebounds, sum(assists) AS assists,
+    sum(steals) AS steals, sum(blocks) AS blocks, sum(three_pointers_made) AS three_pointers_made,
+    sum(turnovers) AS turnovers, sum(minutes) AS minutes,
+    100 * sum(field_goals_made) / NULLIF(sum(field_goals_attempted),0) AS field_goal_pct,
+    100 * sum(free_throws_made) / NULLIF(sum(free_throws_attempted),0) AS free_throw_pct,
+    max(fetched_at) AS fetched_at, min(game_date) AS game_date, min(week_number) AS week_number
+  FROM sleeper_games GROUP BY player_id
+),
+sleeper_candidates AS (
+  SELECT s.player_id, 'sleeper'::text AS projection_source, 'Sleeper (RotoWire)'::text AS projection_source_label,
+    args.view_name AS projection_view,
+    ROUND((s.fantasy_points + COALESCE(b.projection_fantasy_points * m.missing_fraction,0)) / m.divisor,2) AS projection_fantasy_points,
+    (s.minutes + COALESCE(b.projection_minutes * m.missing_fraction,0)) / m.divisor AS projection_minutes,
+    (s.points + COALESCE(b.projection_points * m.missing_fraction,0)) / m.divisor AS projection_points,
+    (s.rebounds + COALESCE(b.projection_rebounds * m.missing_fraction,0)) / m.divisor AS projection_rebounds,
+    (s.assists + COALESCE(b.projection_assists * m.missing_fraction,0)) / m.divisor AS projection_assists,
+    (s.steals + COALESCE(b.projection_steals * m.missing_fraction,0)) / m.divisor AS projection_steals,
+    (s.blocks + COALESCE(b.projection_blocks * m.missing_fraction,0)) / m.divisor AS projection_blocks,
+    (s.three_pointers_made + COALESCE(b.projection_three_pointers_made * m.missing_fraction,0)) / m.divisor AS projection_three_pointers_made,
+    (s.turnovers + COALESCE(b.projection_turnovers * m.missing_fraction,0)) / m.divisor AS projection_turnovers,
+    s.games + CASE WHEN b.player_id IS NOT NULL THEN m.missing_games ELSE 0 END AS projection_games_played,
+    (COALESCE(s.field_goal_pct,0)*s.games + COALESCE(b.projection_field_goal_pct,0)*m.missing_games) /
+      NULLIF(s.games + CASE WHEN b.projection_field_goal_pct IS NOT NULL THEN m.missing_games ELSE 0 END,0) AS projection_field_goal_pct,
+    (COALESCE(s.free_throw_pct,0)*s.games + COALESCE(b.projection_free_throw_pct,0)*m.missing_games) /
+      NULLIF(s.games + CASE WHEN b.projection_free_throw_pct IS NOT NULL THEN m.missing_games ELSE 0 END,0) AS projection_free_throw_pct,
+    NULL::text AS projection_status, s.fetched_at AS projection_fetched_at,
+    CASE WHEN args.view_name='today' THEN s.game_date ELSE NULL::date END AS projection_date,
+    s.week_number AS projection_week_number, true AS projection_is_fresh, 0 AS priority
+  FROM sleeper_totals s CROSS JOIN args
+  LEFT JOIN fallback_best b ON b.player_id=s.player_id
+  LEFT JOIN week_game_counts wgc ON wgc.player_id=s.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE WHEN args.view_name='today' THEN 0 ELSE GREATEST(COALESCE(wgc.scheduled_games,0)-s.games,0) END AS missing_games
+  ) missing
+  CROSS JOIN LATERAL (
+    SELECT missing.missing_games,
+      CASE WHEN args.view_name='week_total' THEN missing.missing_games::numeric / NULLIF(b.projection_games_played,0)
+        ELSE missing.missing_games::numeric END AS missing_fraction,
+      CASE WHEN args.view_name='week_avg' THEN s.games + CASE WHEN b.player_id IS NOT NULL THEN missing.missing_games ELSE 0 END
+        ELSE 1 END::numeric AS divisor
+  ) m
+),
+best AS (
+  SELECT * FROM sleeper_candidates
+  UNION ALL SELECT b.* FROM fallback_best b WHERE NOT EXISTS(SELECT 1 FROM sleeper_candidates s WHERE s.player_id=b.player_id)
 )
+
 SELECT
   bp.id AS player_id,
   bp.display_name,

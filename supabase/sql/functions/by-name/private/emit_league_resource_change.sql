@@ -3,13 +3,15 @@ RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_rows text; v_details text; v_change record;
 BEGIN
+  IF TG_OP='DELETE' AND TG_TABLE_NAME IN ('projection_sync_runs','fantasypros_projection_rows','sleeper_projection_rows')
+    AND current_setting('pancake.projection_cleanup',true)='on' THEN RETURN NULL; END IF;
   IF TG_OP='INSERT' THEN v_rows := 'SELECT * FROM resource_new_rows';
   ELSIF TG_OP='DELETE' THEN v_rows := 'SELECT * FROM resource_old_rows';
   ELSE
     v_rows := $rows$SELECT n.* FROM resource_new_rows n JOIN resource_old_rows o USING(id)
-      WHERE (to_jsonb(n)-'updated_at') IS DISTINCT FROM (to_jsonb(o)-'updated_at')
+      WHERE (to_jsonb(n)-ARRAY['updated_at','fetched_at','last_modified']) IS DISTINCT FROM (to_jsonb(o)-ARRAY['updated_at','fetched_at','last_modified'])
       UNION ALL SELECT o.* FROM resource_old_rows o JOIN resource_new_rows n USING(id)
-      WHERE (to_jsonb(n)-'updated_at') IS DISTINCT FROM (to_jsonb(o)-'updated_at')$rows$;
+      WHERE (to_jsonb(n)-ARRAY['updated_at','fetched_at','last_modified']) IS DISTINCT FROM (to_jsonb(o)-ARRAY['updated_at','fetched_at','last_modified'])$rows$;
   END IF;
   CASE TG_TABLE_NAME
     WHEN 'leagues' THEN
@@ -29,11 +31,16 @@ BEGIN
       v_details := $details$SELECT season.league_id,
         jsonb_build_object('resource','projections','season_id',season.id) AS detail
         FROM changed projection JOIN public.league_seasons season ON season.season_year=projection.season_year$details$;
+    WHEN 'sleeper_projection_rows' THEN
+      v_details := $details$SELECT season.league_id,
+        jsonb_build_object('resource','projections','season_id',season.id) AS detail
+        FROM changed projection JOIN public.league_seasons season ON season.season_year=projection.season_year
+        WHERE projection.game_date>=date_trunc('week',timezone('America/Los_Angeles',now()))::date$details$;
     WHEN 'projection_sync_runs' THEN
       v_details := $details$SELECT season.league_id,
         jsonb_build_object('resource','projections','season_id',season.id) AS detail
         FROM changed run JOIN public.league_seasons season ON run.season_year IS NULL OR season.season_year=run.season_year
-        WHERE run.status IN ('success','failed','skipped') AND run.completed_at IS NOT NULL$details$;
+        WHERE run.source='fantasypros' AND run.status IN ('success','failed','skipped') AND run.completed_at IS NOT NULL$details$;
     WHEN 'fantasypros_projection_rows' THEN
       v_details := $details$SELECT season.league_id,
         jsonb_build_object('resource','projections','season_id',season.id) AS detail

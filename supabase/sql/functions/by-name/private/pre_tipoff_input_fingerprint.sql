@@ -18,7 +18,7 @@ AS $$
     FROM teams t JOIN public.roster_players rp ON rp.league_id = t.league_id
       AND rp.league_season_id = t.league_season_id AND rp.member_id = t.member_id
     JOIN public.players p ON p.id = rp.player_id
-  ), ids AS MATERIALIZED (SELECT DISTINCT player_id FROM roster)
+  )
   SELECT md5(jsonb_build_object(
     'teams', (SELECT jsonb_agg(to_jsonb(t) ORDER BY league_id, member_id) FROM teams t),
     'roster', (SELECT jsonb_agg(to_jsonb(r) ORDER BY league_id, member_id, player_id) FROM roster r),
@@ -27,19 +27,10 @@ AS $$
     'games', (SELECT jsonb_agg(jsonb_build_array(g.id, g.game_date, g.game_time, g.home_team,
         g.away_team, private.lineup_game_available(g.status, g.game_status_text)) ORDER BY g.id)
       FROM public.nba_games g WHERE g.game_date = p_game_date),
-    'fantasypros', (SELECT jsonb_agg(jsonb_build_array(to_jsonb(r),
-        r.fetched_at >= now() - interval '36 hours', r.fetched_at >= now() - interval '8 days') ORDER BY r.id)
-      FROM public.fantasypros_projection_rows r JOIN ids ON ids.player_id = r.player_id
-      WHERE r.projection_date = p_game_date OR r.projection_type <> 'daily'
-        AND r.season_year IN (SELECT season_year FROM teams)),
-    'runs', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM public.projection_sync_runs r
-      WHERE r.projection_date = p_game_date OR r.projection_type <> 'daily'
-        AND r.season_year IN (SELECT season_year FROM teams)),
-    'internal', (SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id)
-      FROM public.player_projections p JOIN ids ON ids.player_id = p.player_id
-      WHERE p.season_year IN (SELECT season_year FROM teams)),
-    'averages', (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.player_id, a.season_year)
-      FROM public.mv_player_season_averages a JOIN ids ON ids.player_id = a.player_id
-      WHERE a.season_year IN (SELECT season_year FROM teams))
+    'projections', (SELECT jsonb_agg(jsonb_build_array(t.league_id,
+        to_jsonb(p)-'projection_fetched_at') ORDER BY t.league_id,p.player_id)
+      FROM (SELECT DISTINCT league_id,season_year FROM teams) t CROSS JOIN LATERAL public.get_league_projection_rows(t.league_id,t.season_year,
+        p_game_date,'today',ARRAY(SELECT DISTINCT r.player_id FROM roster r
+          WHERE r.league_id=t.league_id),1000,0) p)
   )::text);
 $$;
