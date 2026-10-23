@@ -134,7 +134,7 @@
         "scripts/mutation/post/verify-stale-boundary.mjs",
         "tests/e2e/{faab-worker,waiver-season,waiver-season-end}-db.mjs",
         "scripts/mutation/waivers/targets.test.mjs",
-        "scripts/season-sim/{fresh-run,gate-probe,retained-check}.mjs",
+        "scripts/season-sim/{fresh-run,gate-probe,january-adds,retained-check}.mjs",
         "scripts/mutation/draft/round3.mjs",
         "tests/db/draft-timer-cutoff.mjs",
         "tests/e2e/draft-timer-restart-real.mjs",

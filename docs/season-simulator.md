@@ -535,6 +535,8 @@ These are representative NBA deadline trades, not an audit of every NBA transact
 Every 2025 draftee whose 2025-26 NBA box listings move him to a second team is also a continuity subject (Walter Clayton Jr. UTA to MEM, John Tonje UTA to BOS).
 Each such subject joins a different fantasy member on January 1, starts on his first new-team dates, and must keep his row and owner, follow his new NBA team, and score.
 The run fails if one stays unverified at the end of the season.
+`scripts/season-sim/january-adds.mjs` checks that January 1 setup on a fresh local stack with the season-2 settings (weekly add limit 1, roster size 3): each subject joins a different member through drop_player_atomic and add_free_agent_atomic, the dropped veterans clear waivers after 48 hours, and a second add (PA001) or an add to a full roster (PA003) is refused.
+It seeds rosters, players and the calendar by SQL, so it does not replace the replay.
 Season ranges and opening-night clock jumps come from the first and last regular-season (002) game days of the pinned NBA schedule.
 
 Both seasons retain live, final, weekly, bracket, champion, trade, waiver and pick checks.
