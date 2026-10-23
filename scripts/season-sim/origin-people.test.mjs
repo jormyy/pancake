@@ -171,6 +171,7 @@ const slices = {
   tor: { game: { id: '0022400067', date: '2024-10-23', time: '2024-10-23T23:30:00Z', home: 'TOR', away: 'CLE' }, code: 'TOR', players: boxSide([[1630567, 'Scottie Barnes', 'Scottie', 'Barnes', '4', 'ACTIVE', null, 'SF'], [1627751, 'Jakob Pöltl', 'Jakob', 'Pöltl', '19', 'ACTIVE', null, 'C']]), athletes: espnSide([['4433134', 'Scottie Barnes', '4', 'F'], ['3134908', 'Jakob Poeltl', '19', 'C']]) },
   atl: { game: { id: '0012500014', date: '2025-10-06', time: '2025-10-07T00:00:00Z', home: 'HOU', away: 'ATL', rosterOnly: true }, code: 'ATL', players: boxSide([[1629027, 'Trae Young', 'Trae', 'Young', '11', 'ACTIVE', null, 'PG'], [1642365, 'Nikola Đurišić', 'Nikola', 'Đurišić', '22']]), athletes: espnSide([['4277905', 'Trae Young', '11', 'G'], ['5144067', 'Nikola Durisic', '22', 'F']]) },
   mil: { game: { id: '0012500002', date: '2025-10-06', time: '2025-10-06T23:30:00Z', home: 'MIA', away: 'MIL', rosterOnly: true }, code: 'MIL', players: boxSide([[203648, 'Thanasis Antetokounmpo', 'Thanasis', 'Antetokounmpo', '43']]), athletes: espnSide([['3102533', 'Thanasis Antetokounmpo', '43', 'F'], ['3032977', 'Giannis Antetokounmpo', '34', 'F']]) },
+  was: { game: { id: '0022400073', date: '2024-10-24', time: '2024-10-24T23:00:00Z', home: 'WAS', away: 'BOS' }, code: 'WAS', players: boxSide([[1628398, 'Kyle Kuzma', 'Kyle', 'Kuzma', '33', 'ACTIVE', null, 'PF'], [1642259, 'Alexandre Sarr', 'Alexandre', 'Sarr', '20', 'ACTIVE', null, 'C'], [1629673, 'Jordan Poole', 'Jordan', 'Poole', '13', 'ACTIVE', null, 'SG'], [1642267, 'Carlton Carrington', 'Carlton', 'Carrington', '8', 'ACTIVE', null, 'PG']]), athletes: espnSide([['3134907', 'Kyle Kuzma', '33', 'F'], ['5160992', 'Alex Sarr', '20', 'C'], ['4277956', 'Jordan Poole', '13', 'G'], ['4845374', 'Bub Carrington', '8', 'G']]) },
   chi: { game: { id: '0022500271', date: '2025-11-22', time: '2025-11-23T01:00:00Z', home: 'CHI', away: 'WAS' }, code: 'CHI', players: boxSide([[1629632, 'Coby White', 'Coby', 'White', '0', 'ACTIVE', null, 'SG'], [1642950, 'Lachlan Olbrich', 'Lachlan', 'Olbrich', '47']]), athletes: [...espnSide([['4395651', 'Coby White', '0', 'G']]), { links: [], shortName: 'Olbrich' }] },
 }
 const observe = (slice, people = new Map(), override = {}) => { observeSide(people, slice.game, slice.code, override.players ?? slice.players, override.athletes ?? slice.athletes); return people }
@@ -215,4 +216,20 @@ test('a name key ignores case, accents, punctuation, suffixes and word order onl
   for(const [a,b] of [['Luka Dončić','LUKA DONCIC'],['Jakob Pöltl','Jakob Poeltl'],['Jakob Pöltl','Jakob Poltl'],['Cui Yongxi','Yongxi Cui'],['R.J. Davis','RJ Davis'],['Jimmy Butler III','Jimmy Butler'],['Derrick Jones Jr.','Derrick Jones'],['Nikola Đurišić','Nikola Durisic'],['Olivier-Maxence Prosper','Olivier Maxence Prosper'],["De'Anthony Melton",'DeAnthony Melton'],['Mason  Jones','Mason Jones']]) assert.ok(same(a,b),`${a} / ${b}`)
   for(const [a,b] of [['Jalen Williams','Jaylin Williams'],['Thanasis Antetokounmpo','Giannis Antetokounmpo'],['Bub Carrington','Carlton Carrington']]) assert.ok(!same(a,b),`${a} / ${b}`)
   assert.deepEqual([...nameKeys(null),...nameKeys(''),...nameKeys(' . ')],[])
+})
+
+test('a nickname links by surname and jersey number only when they name one player on the side',()=>{
+  const was={3134907:1628398,4277956:1629673}
+  assert.deepEqual(links(observe(slices.was)),{...was,5160992:1642259,4845374:1642267},'Alex Sarr #20 is Alexandre Sarr #20, Bub Carrington #8 is Carlton Carrington #8')
+  const sarr=observe(slices.was).get('5160992')
+  assert.deepEqual([sarr.fullName,sarr.nbaId,sarr.observations.map(row=>[row.date,row.team,row.position])],['Alexandre Sarr',1642259,[['2024-10-24','WAS','C']]])
+  assert.deepEqual(links(observe(slices.mil,new Map(),{athletes:slices.mil.athletes.filter(athlete=>athlete.id!=='3102533')})),{},'Giannis #34 is not the only box Antetokounmpo, #43')
+  const cam=espnSide([['3138196','Cam Johnson','2','F']])
+  assert.deepEqual(links(observe(slices.bkn,new Map(),{athletes:cam,players:slices.bkn.players.filter(player=>player.personId!==1630553)})),{3138196:1629661},'One Johnson #2 on the side')
+  assert.deepEqual(links(observe(slices.bkn,new Map(),{athletes:cam})),{},'Two box Johnsons link neither, even with the jersey')
+  assert.deepEqual(links(observe(slices.was,new Map(),{athletes:[...slices.was.athletes,...espnSide([['9999997','A. Sarr','20','C']])]})),{...was,4845374:1642267},'Two athletes named Sarr link neither')
+  assert.deepEqual(links(observe(slices.was,new Map(),{athletes:[...slices.was.athletes,...espnSide([['9999996','J. Poole','13','G']])]})),{...was,5160992:1642259,4845374:1642267},'Jordan Poole is linked already')
+  const noJersey=slices.was.athletes.map(athlete=>({...athlete,jersey:athlete.id==='5160992'?null:athlete.jersey}))
+  assert.deepEqual(links(observe(slices.was,new Map(),{athletes:noJersey})),{...was,4845374:1642267},'No ESPN jersey, no nickname link')
+  assert.deepEqual(links(observe(slices.was,new Map(),{athletes:noJersey.map(athlete=>({...athlete,jersey:athlete.jersey??''})),players:slices.was.players.map(player=>({...player,jerseyNum:player.personId===1642259?'':player.jerseyNum}))})),{...was,4845374:1642267},'Two blank jerseys are no number')
 })

@@ -19,23 +19,35 @@ export function openingRosters(games, boxOf) {
 // Jimmy Butler III / Jimmy Butler, RJ Davis / R.J. Davis, Jakob Poeltl / Jakob Pöltl, Yongxi Cui / Cui Yongxi). A name key
 // ignores case, accents, punctuation, generational suffixes and word order.
 const SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv']), LETTERS = { ø: 'o', đ: 'd', ł: 'l', ß: 'ss', æ: 'ae', ı: 'i' }, UMLAUTS = { ä: 'ae', ö: 'oe', ü: 'ue' }
-const nameKey = name => name.normalize('NFD').replace(/\p{M}/gu, '').replace(/[øđłßæı]/g, letter => LETTERS[letter]).split(/[\s-]+/).map(word => word.replace(/[^a-z0-9]/g, '')).filter(word => word && !SUFFIXES.has(word)).sort().join(' ')
-export function nameKeys(name) {
+const nameWords = name => name.normalize('NFD').replace(/\p{M}/gu, '').replace(/[øđłßæı]/g, letter => LETTERS[letter]).split(/[\s-]+/).map(word => word.replace(/[^a-z0-9]/g, '')).filter(word => word && !SUFFIXES.has(word))
+const spellings = name => {
   const lower = String(name ?? '').normalize('NFC').toLowerCase()
-  return new Set([lower, lower.replace(/[äöü]/g, letter => UMLAUTS[letter])].map(nameKey).filter(Boolean))
+  return [lower, lower.replace(/[äöü]/g, letter => UMLAUTS[letter])].map(nameWords).filter(words => words.length)
 }
+export const nameKeys = name => new Set(spellings(name).map(words => words.toSorted().join(' ')))
+// ESPN also lists some players by a nickname (Alex Sarr / Alexandre Sarr, Bub Carrington / Carlton Carrington); on one side a
+// surname and a jersey number name one player.
+const surnames = name => new Set(spellings(name).map(words => words.at(-1)))
+const jersey = value => value == null || value === '' ? null : String(value)
+const TIERS = [
+  { athlete: athlete => nameKeys(athlete.displayName), player: player => new Set([...nameKeys(player.name), ...nameKeys(`${player.firstName} ${player.familyName}`)]), agrees: () => true },
+  { athlete: athlete => surnames(athlete.displayName), player: player => surnames(player.familyName), agrees: (athlete, player) => jersey(athlete.jersey) != null && jersey(athlete.jersey) === jersey(player.jerseyNum) },
+]
 
-// A summary athlete links to a box player of the same game and team side: by exact name, otherwise by a name key that
-// exactly one box player and no other unlinked athlete on that side carry. A box player links at most once.
+// A summary athlete links to a box player of the same game and team side: by exact name, otherwise by a name key, otherwise
+// by surname and jersey number, each time only when exactly one box player and no other unlinked athlete on that side carry
+// the key. A box player links at most once.
 function linkAthletes(players, athletes) {
   const links = athletes.map(athlete => players.find(player => player.name === athlete.displayName || player.name === athlete.fullName || `${player.firstName} ${player.familyName}` === athlete.displayName) ?? null)
-  const claimed = new Set(links.filter(Boolean).map(player => player.personId)), keysOf = player => new Set([...nameKeys(player.name), ...nameKeys(`${player.firstName} ${player.familyName}`)])
-  const open = athletes.map((athlete, index) => ({ index, keys: nameKeys(athlete.displayName) })).filter(row => !links[row.index])
-  for (const row of open) {
-    const shares = keys => [...keys].some(key => row.keys.has(key)), candidates = players.filter(player => shares(keysOf(player)))
-    if (candidates.length !== 1 || claimed.has(candidates[0].personId) || open.some(other => other !== row && shares(other.keys))) continue
-    links[row.index] = candidates[0]
-    claimed.add(candidates[0].personId)
+  const claimed = new Set(links.filter(Boolean).map(player => player.personId))
+  for (const tier of TIERS) {
+    const open = athletes.map((athlete, index) => ({ athlete, index, keys: tier.athlete(athlete) })).filter(row => !links[row.index])
+    for (const row of open) {
+      const shares = keys => [...keys].some(key => row.keys.has(key)), candidates = players.filter(player => shares(tier.player(player)))
+      if (candidates.length !== 1 || claimed.has(candidates[0].personId) || !tier.agrees(row.athlete, candidates[0]) || open.some(other => other !== row && shares(other.keys))) continue
+      links[row.index] = candidates[0]
+      claimed.add(candidates[0].personId)
+    }
   }
   return links
 }
