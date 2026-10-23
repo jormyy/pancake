@@ -101,7 +101,7 @@ An omitted player's team changes (`released`) only when his latest stored box si
 He was last placed there by ESPN's latest listing of him on that team or his latest stored regular-season or postseason box under it, whichever is later, so a second move proven only by boxes is released too.
 He moves to the side that box lists him under, so he stays startable on its game days; without a stored side his team is cleared.
 Every path that stores a box (sync-stats, the live poll and both CDN backfills) records its sides before the box's own import.
-A merge of two player rows keeps each stored side and the later of their ESPN listings.
+A merge of two player rows keeps each stored side and the later of their ESPN listings whole, including since when ESPN has listed him on that team, so a box the listing corroborates still links to the survivor.
 The next listing names his team either way.
 Otherwise a team changes only when an ESPN listing names him on another team; his row, IDs, injury, status, ownership and lineups stay either way.
 Every other omitted teamed player keeps his team and is counted in `releaseHeld` (`unproven`, or `unclaimed` for rows ESPN never claimed).
