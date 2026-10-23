@@ -8,6 +8,7 @@ import {
   resolveCdnPlayers,
   type CdnPlayerResolver,
 } from './playerResolver.ts'
+import { resolvePlayerImports } from './playerImports.ts'
 import { dateFromETDate } from './scoreShared.ts'
 import { runBounded } from './runBounded.ts'
 import type { Database } from './database.ts'
@@ -153,6 +154,8 @@ async function syncStatsGameWithResolver(
 
   return await persist(() => retrySourceContention(async () => {
     await assertGameUnambiguous(game.id)
+    validateBoxScorePlayers(boxScore, providerGameId)
+    await recordBoxSides(boxScore, providerGameId)
     const resolved = await resolveBoxScorePlayers(boxScore, providerGameId, resolver)
     const stats = resolved.map(({ player, playerId }) =>
       buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
@@ -179,6 +182,23 @@ type BoxScorePlayers = {
   gameStatus?: number
   homeTeam?: { players?: NBABoxScorePlayer[] }
   awayTeam?: { players?: NBABoxScorePlayer[] }
+}
+
+// A box lists each player under his side. His game membership keeps it, so when this game is the stored
+// evidence that he left his team, the ESPN release sweep moves him to this side rather than to no team and
+// he stays startable on its game days (resolve_player_imports_atomic). It is recorded before the box's own
+// import, so no membership of this box is stored without its side.
+async function recordBoxSides(
+  boxScore: { homeTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] }; awayTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] } },
+  providerGameId: string,
+): Promise<void> {
+  const records = [boxScore.homeTeam, boxScore.awayTeam].flatMap((team) => {
+    const side = team?.teamTricode
+    return typeof side === 'string' && side.trim() ? (team?.players ?? []).map(player => ({
+      provider_id: String(player.personId), display_name: player.name ?? '', nba_game_id: providerGameId, nba_team: side,
+    })) : []
+  })
+  if (records.length > 0) await resolvePlayerImports('nba_cdn', records)
 }
 
 type FinalBoxScore = BoxScorePlayers & {

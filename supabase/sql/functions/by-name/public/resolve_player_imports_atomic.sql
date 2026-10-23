@@ -1,4 +1,4 @@
--- Resolve absence and provider ownership under the same lock as identity merges; an ESPN omission clears a team only when his latest stored box after ESPN last listed him there is of a game his team did not play, and every other omitted row is held.
+-- Resolve absence and provider ownership under the same lock as identity merges; an ESPN omission moves a team only when his latest stored box after ESPN last listed him there is of a game his team did not play (to the side that box lists him under, else to no team), and every other omitted row is held.
 CREATE OR REPLACE FUNCTION public.resolve_player_imports_atomic(p_source text, p_records jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -25,7 +25,7 @@ DECLARE
   v_providers text[];
   v_name_keys text[];
   v_player_ids uuid[];
-  v_released jsonb;
+  v_released uuid[];
 BEGIN
   IF p_source IS NULL OR p_source NOT IN ('espn', 'espn_release', 'sleeper', 'nba_cdn', 'nba_index', 'nba_draft')
      OR p_records IS NULL OR jsonb_typeof(p_records) <> 'array'
@@ -68,8 +68,10 @@ BEGIN
   -- was on one of the two teams in it. It counts when it is his latest stored listing in a regular-season,
   -- playoff, play-in or Cup final game (All-Star and preseason games have teams that are not NBA teams)
   -- and tipped off after ESPN last listed him on his team (player_espn_listings); a later listing in a
-  -- game of his own team wins, and so does an earlier ESPN listing time. The row does not say which side
-  -- he was on, so his team is cleared and the next listing that names him sets the new one. His team must
+  -- game of his own team wins, and so does an earlier ESPN listing time. A box lists him under his side,
+  -- which his game membership keeps (nba_cdn nba_team): he moves to that team, so he stays startable on its
+  -- game days until ESPN lists him. A stats row or membership without a side, or a side that is not a
+  -- team of that game, clears his team and the next listing that names him sets the new one. His team must
   -- play under that code in that season, so a code that matches no game cannot pass for a departure.
   -- Every other omitted teamed row is held and reported, unproven if ESPN claimed it (espn_id) and
   -- unclaimed if not. A listed player who resolved to no row (an ambiguous name) could be any row with
@@ -92,25 +94,29 @@ BEGIN
         AND NOT coalesce(private.player_import_name_key(p.display_name) = ANY(v_name_keys), false);
     PERFORM p.id FROM players AS p WHERE p.id = ANY(v_player_ids) ORDER BY p.id FOR UPDATE;
     WITH released AS (
-      UPDATE players AS p SET nba_team = NULL, updated_at = clock_timestamp()
-      WHERE p.id = ANY(v_player_ids) AND coalesce((
-        SELECT p.nba_team NOT IN (g.home_team, g.away_team) AND EXISTS (SELECT 1 FROM nba_games AS own
-            WHERE own.season_year = g.season_year AND p.nba_team IN (own.home_team, own.away_team))
+      UPDATE players AS p SET nba_team = evidence.side, updated_at = clock_timestamp()
+      FROM (SELECT c.id, e.departed, e.side FROM players AS c CROSS JOIN LATERAL (
+          SELECT c.nba_team NOT IN (g.home_team, g.away_team) AND EXISTS (SELECT 1 FROM nba_games AS own
+              WHERE own.season_year = g.season_year AND c.nba_team IN (own.home_team, own.away_team)) AS departed,
+            CASE WHEN side.nba_team IN (g.home_team, g.away_team) THEN side.nba_team END AS side
           FROM player_espn_listings AS l
-          JOIN (SELECT s.game_id FROM player_game_stats AS s WHERE s.player_id = p.id
-                UNION SELECT m.game_id FROM private.player_game_memberships AS m WHERE m.player_id = p.id) AS listed ON true
+          JOIN (SELECT s.game_id FROM player_game_stats AS s WHERE s.player_id = c.id
+                UNION SELECT m.game_id FROM private.player_game_memberships AS m WHERE m.player_id = c.id) AS listed ON true
           JOIN nba_games AS g ON g.id = listed.game_id
-          WHERE l.player_id = p.id AND l.nba_team = p.nba_team
+          LEFT JOIN private.player_game_memberships AS side ON side.player_id = c.id AND side.game_id = g.id
+          WHERE l.player_id = c.id AND l.nba_team = c.nba_team
             AND g.nba_game_id ~ '^00[2456]' AND coalesce(g.game_time, g.started_at) > l.listed_at
-          ORDER BY coalesce(g.game_time, g.started_at) DESC, p.nba_team IN (g.home_team, g.away_team) DESC
-          LIMIT 1), false)
+          ORDER BY coalesce(g.game_time, g.started_at) DESC, c.nba_team IN (g.home_team, g.away_team) DESC
+          LIMIT 1) AS e
+        WHERE c.id = ANY(v_player_ids)) AS evidence
+      WHERE p.id = evidence.id AND evidence.departed
       RETURNING p.id)
-    SELECT coalesce(jsonb_agg(id ORDER BY id), '[]') INTO v_released FROM released;
-    RETURN jsonb_build_object('released', v_released, 'held', (
+    SELECT coalesce(array_agg(id ORDER BY id), '{}') INTO v_released FROM released;
+    RETURN jsonb_build_object('released', to_jsonb(v_released), 'held', (
       SELECT jsonb_build_object(
         'unproven', coalesce(jsonb_agg(p.id ORDER BY p.id) FILTER (WHERE p.espn_id IS NOT NULL), '[]'),
         'unclaimed', coalesce(jsonb_agg(p.id ORDER BY p.id) FILTER (WHERE p.espn_id IS NULL), '[]'))
-      FROM players AS p WHERE p.id = ANY(v_player_ids) AND p.nba_team IS NOT NULL));
+      FROM players AS p WHERE p.id = ANY(v_player_ids) AND NOT p.id = ANY(v_released) AND p.nba_team IS NOT NULL));
   END IF;
 
   IF p_source = 'nba_cdn' THEN
@@ -147,7 +153,7 @@ BEGIN
       OR EXISTS (SELECT 1 FROM jsonb_object_keys(v_record) k WHERE NOT k = ANY(
         CASE WHEN p_source = 'nba_index' THEN ARRAY['provider_id', 'player_id', 'expected_display_name', 'name_match', 'metadata']
         WHEN p_source = 'nba_draft' THEN ARRAY['display_name', 'nba_draft_number', 'metadata']
-        WHEN p_source = 'nba_cdn' THEN ARRAY['provider_id', 'display_name', 'metadata', 'nba_game_id']
+        WHEN p_source = 'nba_cdn' THEN ARRAY['provider_id', 'display_name', 'metadata', 'nba_game_id', 'nba_team']
         ELSE ARRAY['provider_id', 'first_name', 'last_name', 'metadata'] END)) THEN
       RAISE EXCEPTION 'Unsupported player import field.' USING ERRCODE = '22023';
     END IF;
@@ -167,6 +173,10 @@ BEGIN
       IF NOT FOUND THEN
         RAISE EXCEPTION 'Unknown NBA game identity.' USING ERRCODE = '22023';
       END IF;
+    END IF;
+    IF p_source = 'nba_cdn' AND v_record ? 'nba_team' AND (v_game_id IS NULL
+        OR jsonb_typeof(v_record->'nba_team') IS DISTINCT FROM 'string' OR btrim(v_record->>'nba_team') = '') THEN
+      RAISE EXCEPTION 'A box side needs its NBA game and a team code.' USING ERRCODE = '22023';
     END IF;
     v_id := NULL;
     v_action := 'updated';
@@ -301,8 +311,10 @@ BEGIN
         ELSIF p_source = 'nba_cdn' THEN
           UPDATE players SET nba_id = v_provider WHERE id = v_id AND nba_id IS DISTINCT FROM v_provider;
           IF v_game_id IS NOT NULL THEN
-            INSERT INTO private.player_game_memberships(player_id, game_id)
-            VALUES (v_id, v_game_id) ON CONFLICT (player_id, game_id) DO NOTHING;
+            INSERT INTO private.player_game_memberships(player_id, game_id, nba_team)
+            VALUES (v_id, v_game_id, v_record->>'nba_team') ON CONFLICT (player_id, game_id) DO UPDATE
+              SET nba_team = EXCLUDED.nba_team
+              WHERE EXCLUDED.nba_team IS NOT NULL AND player_game_memberships.nba_team IS DISTINCT FROM EXCLUDED.nba_team;
           END IF;
         ELSE
           IF v_id = ANY(v_ids) THEN
