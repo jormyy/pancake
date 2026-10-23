@@ -7,12 +7,13 @@ import { strict as assert } from 'node:assert'
 //   structurally complete 350-player listing), ESPN last listed him on his team 48 hours ago, and his team
 //   played a Final game 20 hours ago that omits him. A stored game his team did not play, after that listing,
 //   moves him to the side its box lists him under, and the receipt reports him as released and not as held.
-//   A box row or membership without a side, or a side that is not a team of that game, clears his team. An
-//   All-Star, preseason or earlier game, or a later game of his own team, moves nothing.
+//   A box row or membership without a side, or a side that is not a team of that game, clears his team, and
+//   neither his side in an earlier box nor another player's side in that box counts. An All-Star, preseason
+//   or earlier game, or a later game of his own team, moves nothing.
 // - Import: the nba_cdn side needs its game and a team code, a later import without a side keeps it, a
 //   corrected side replaces it, and the same side does not rewrite the membership.
 // - Box: syncStatsGame records each side of a served synthetic box, writes nothing for a box it refuses, and
-//   skips a side without a team code.
+//   skips a side without a string team code while recording the other side.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx, 577xx and 582xx are refused outright.
@@ -62,8 +63,9 @@ const listing = Array.from({ length: 350 }, (_, index) => ({ provider_id: `t18s-
 
 // Release cases. Game 0 is a game his team did not play (home O, away Q) unless the case says otherwise;
 // `writes` is how the store names him in it: through the nba_cdn import with or without a side, as a
-// membership row written before this migration (no side), or as a box row alone.
-type Write = { game?: number; via: 'cdn' | 'member' | 'stats'; side?: 'home' | 'away' | 'own' | 'XXX' | '  ' }
+// membership row written before this migration (no side), or as a box row alone; `other` is another
+// player's membership in that game, with that side.
+type Write = { game?: number; via: 'cdn' | 'member' | 'stats' | 'other'; side?: 'home' | 'away' | 'own' | 'XXX' | '  ' }
 type Game = { hours: number; kind?: '001' | '002' | '003' | '004'; own?: boolean }
 type Case = { name: string; games: Game[]; writes: Write[]; expect: 'home' | 'away' | 'none' | 'held' }
 const away = (hours = -10, kind?: Game['kind']): Game => ({ hours, kind })
@@ -77,6 +79,8 @@ const cases: Case[] = [
   { name: 'a membership written without a side, then the box side', games: [away()], writes: [{ via: 'member' }, { via: 'cdn', side: 'away' }], expect: 'away' },
   { name: 'the box side, then the box import without a side', games: [away()], writes: [{ via: 'cdn', side: 'home' }, { via: 'cdn' }, { via: 'stats' }], expect: 'home' },
   { name: 'a corrected box names the other side', games: [away()], writes: [{ via: 'cdn', side: 'home' }, { via: 'cdn', side: 'away' }], expect: 'away' },
+  { name: 'an earlier box lists his side, his latest box row has none', games: [away(-30), away(-10)], writes: [{ via: 'cdn', side: 'home' }, { game: 1, via: 'stats' }], expect: 'none' },
+  { name: 'another player of his latest box has a side, his box row has none', games: [away()], writes: [{ via: 'other', side: 'home' }, { via: 'stats' }], expect: 'none' },
   { name: 'an All-Star box with a side', games: [away(-10, '003')], writes: [{ via: 'cdn', side: 'home' }], expect: 'held' },
   { name: 'a preseason box with a side', games: [away(-10, '001')], writes: [{ via: 'cdn', side: 'home' }], expect: 'held' },
   { name: 'the box tipped off before ESPN last listed him', games: [away(-68)], writes: [{ via: 'cdn', side: 'home' }], expect: 'held' },
@@ -96,6 +100,9 @@ for (const [index, testCase] of cases.entries()) {
     if (via === 'stats') return `INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,game_date,points,did_not_play)
       SELECT ${q(player)},id,${year},1,game_date,10,false FROM nba_games WHERE nba_game_id=${q(gameId)} ON CONFLICT DO NOTHING;`
     const code = side === 'home' ? teams[game][0] : side === 'away' ? teams[game][1] : side === 'own' ? team : side
+    if (via === 'other') return `WITH other AS (INSERT INTO players(first_name,last_name,position,eligible_positions,status,years_exp)
+        VALUES('Synthetic',${q(`${last}O`)},'PG',ARRAY['PG'],'Active',4) RETURNING id)
+      INSERT INTO private.player_game_memberships(player_id,game_id,nba_team) SELECT other.id,g.id,${q(code!)} FROM other,nba_games g WHERE g.nba_game_id=${q(gameId)};`
     const record = { provider_id: person, display_name: `Synthetic ${last}`, nba_game_id: gameId, ...(code === undefined ? {} : { nba_team: code }) }
     return `SELECT resolve_player_imports_atomic('nba_cdn',${q(JSON.stringify([record]))}::jsonb) IS NOT NULL;`
   }
@@ -153,6 +160,7 @@ const boxCases = [
   { name: 'each side of a final box', home: { teamTricode: 'H00', players: [line(base + 1)] }, away: { teamTricode: 'V00', players: [line(base + 2)] } },
   { name: 'a refused final box (an empty side)', home: { teamTricode: 'H01', players: [line(base + 3)] }, away: { teamTricode: 'V01', players: [] } },
   { name: 'sides without a team code', home: { teamTricode: '  ', players: [line(base + 4)] }, away: { players: [line(base + 5)] } },
+  { name: 'a team code that is not a string', home: { teamTricode: 7, players: [line(base + 6)] }, away: { teamTricode: 'V03', players: [line(base + 7)] } },
 ]
 const boxes = new Map<string, unknown>()
 const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen() {} }, request => {
@@ -206,4 +214,5 @@ assert.deepEqual(boxResults.map(result => [result.case, result.outcome, result.s
   [boxCases[0].name, 'stored', { [String(base + 1)]: 'H00', [String(base + 2)]: 'V00' }, 2],
   [boxCases[1].name, 'refused', {}, 0],
   [boxCases[2].name, 'stored', { [String(base + 4)]: '-', [String(base + 5)]: '-' }, 2],
-], 'The box import records each side, nothing for a refused box, and no side without a team code')
+  [boxCases[3].name, 'stored', { [String(base + 6)]: '-', [String(base + 7)]: 'V03' }, 2],
+], 'The box import records each side, nothing for a refused box, and no side without a string team code')
