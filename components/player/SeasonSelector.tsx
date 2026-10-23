@@ -1,9 +1,4 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
-
-function seasonLabel(year: number): string {
-    return `${year - 1}–${String(year).slice(2)}`
-}
+import { FilterSelect } from '@/components/ui'
 
 type Props = {
     seasons: number[]
@@ -15,40 +10,11 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
     if (seasons.length <= 1) return null
 
     return (
-        <View style={styles.row}>
-            {seasons.map((year) => {
-                const active = year === selectedSeason
-                return (
-                    <Pressable
-                        key={year}
-                        style={[styles.pill, active && styles.pillActive]}
-                        onPress={() => onSelect(year)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Show ${seasonLabel(year)} season`}
-                        accessibilityState={{ selected: active }}
-                    >
-                        <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                            {seasonLabel(year)}
-                        </Text>
-                    </Pressable>
-                )
-            })}
-        </View>
+        <FilterSelect
+            label="Season"
+            value={String(selectedSeason)}
+            options={seasons.map(year => ({ key: String(year), label: `${year - 1}–${String(year).slice(2)}` }))}
+            onChange={value => onSelect(Number(value))}
+        />
     )
 }
-
-const styles = StyleSheet.create({
-    // Wrap to a second row on narrow widths so the last season is never clipped.
-    row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    pill: {
-        minHeight: 36,
-        justifyContent: 'center',
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii.full,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-    },
-    pillActive: { backgroundColor: colors.primary },
-    pillText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    pillTextActive: { color: colors.textWhite },
-})

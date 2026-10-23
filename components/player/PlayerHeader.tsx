@@ -11,7 +11,7 @@ import {
 import { useState } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { INJURY_COLORS, colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { INJURY_COLORS, colors, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -60,7 +60,6 @@ export function PlayerHeader({
     actionLoading,
     actionsReady = true,
     dropDisabled = false,
-    playedToday = false,
     addBlockedReason = null,
     addBlockedCaption = null,
     onAdd,
@@ -101,94 +100,74 @@ export function PlayerHeader({
         )
     }
 
-    const metaParts = [
-        player.jersey_number ? `#${player.jersey_number}` : null,
-        player.nba_team,
-    ].filter(Boolean)
+    const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
+        : rosterStatus?.status === 'on_waivers' ? 'On waivers'
+        : rosterStatus?.status === 'mine' ? 'On your roster'
+        : rosterStatus?.status === 'taken' ? rosterStatus.ownerTeamName
+        : 'Roster status'
 
     return (
         <View style={styles.header}>
-            <View style={styles.avatarWrap}>
-                {headshotUri && !headshotError ? (
-                    <Image
-                        source={{ uri: headshotUri }}
-                        style={[styles.headshot, { width: headshotSize, height: headshotSize }]}
-                        onError={() => setHeadshotError(true)}
-                    />
-                ) : (
-                    <Avatar name={player.display_name} size={headshotSize} />
-                )}
-            </View>
-
-            <View style={styles.info}>
-                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2}>{player.display_name}</Text>
-                <View style={styles.metaRow}>
-                    {metaParts.length > 0 && <Text style={styles.meta}>{metaParts.join(' · ')}</Text>}
-                    {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                </View>
-                <View style={styles.badges}>
-                    {player.injury_status && (
-                        <Badge
-                            label={player.injury_status}
-                            color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
-                            variant="solid"
+            <View style={styles.identity}>
+                <View style={styles.avatarWrap}>
+                    {headshotUri && !headshotError ? (
+                        <Image
+                            source={{ uri: headshotUri }}
+                            style={[styles.headshot, { width: headshotSize, height: headshotSize }]}
+                            onError={() => setHeadshotError(true)}
                         />
-                    )}
-                    {player.dynasty_rank != null && (
-                        <Badge
-                            label={`Dynasty #${player.dynasty_rank}`}
-                            color={colors.textSecondary}
-                            variant="soft"
-                            textColor={colors.textSecondary}
-                        />
-                    )}
-                    {player.years_exp != null && (
-                        <Badge
-                            label={player.years_exp === 0 ? 'Rookie' : `Yr ${player.years_exp + 1}`}
-                            color={player.years_exp === 0 ? colors.success : colors.textMuted}
-                            variant="soft"
-                            textColor={player.years_exp === 0 ? colors.success : colors.textMuted}
-                        />
-                    )}
-                </View>
-            </View>
-
-            {leagueActive && (
-                <View style={styles.actionWrap} aria-busy={!actionsReady} accessibilityState={{ busy: !actionsReady }}>
-                    {!rosterStatus ? null : rosterStatus.status === 'free_agent' ? (
-                        renderPickupAction({ label: 'Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: [styles.action, styles.actionPrimary], textStyle: styles.actionPrimaryText, onPress: onAdd, blockedReason: addBlockedReason })
-                    ) : rosterStatus.status === 'on_waivers' ? (
-                        renderPickupAction({ label: claimPending ? 'Claim pending' : 'Claim', accessibilityLabel: claimPending ? `Claim pending for ${player.display_name}, view claims` : `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: [styles.actionPrimaryText, styles.actionClaimText], onPress: onClaim, blockedReason: null })
-                    ) : rosterStatus.status === 'mine' ? (
-                        <View style={styles.myActions}>
-                            <Pressable
-                                style={[styles.action, styles.actionPrimary]}
-                                onPress={onSetLineup}
-                                disabled={actionLoading || !actionsReady}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Move ${player.display_name} in lineup`}
-                                accessibilityState={{ disabled: actionLoading || !actionsReady }}
-                            >
-                                <Text style={styles.actionPrimaryText}>Lineup</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[styles.action, styles.actionDanger, dropDisabled && { opacity: 0.5 }]}
-                                onPress={onDrop}
-                                disabled={actionLoading || dropDisabled || !actionsReady}
-                                accessibilityRole="button"
-                                accessibilityLabel={`Drop ${player.display_name}`}
-                                accessibilityState={{ disabled: actionLoading || dropDisabled || !actionsReady }}
-                            >
-                                <Text style={styles.actionDangerText}>Drop</Text>
-                            </Pressable>
-                        </View>
                     ) : (
-                        <View style={styles.takenBadge}>
-                            <Text style={styles.takenText} numberOfLines={2}>
-                                {rosterStatus.ownerTeamName}
-                            </Text>
-                        </View>
+                        <Avatar name={player.display_name} size={headshotSize} />
                     )}
+                </View>
+                <View style={styles.info}>
+                    <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2}>{player.display_name}</Text>
+                    <View style={styles.metaRow}>
+                        {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
+                        {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                        {player.injury_status ? (
+                            <Badge
+                                label={player.injury_status}
+                                color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
+                                variant="solid"
+                            />
+                        ) : null}
+                    </View>
+                </View>
+            </View>
+            {leagueActive && (
+                <View style={styles.rosterRow}>
+                    <Text style={styles.rosterStatus}>{statusLabel}</Text>
+                    <View style={styles.actionWrap} aria-busy={!actionsReady} accessibilityState={{ busy: !actionsReady }}>
+                        {!rosterStatus ? null : rosterStatus.status === 'free_agent' ? (
+                            renderPickupAction({ label: 'Add', accessibilityLabel: `Add ${player.display_name}`, buttonStyle: [styles.action, styles.actionPrimary], textStyle: styles.actionPrimaryText, onPress: onAdd, blockedReason: addBlockedReason })
+                        ) : rosterStatus.status === 'on_waivers' ? (
+                            renderPickupAction({ label: claimPending ? 'Claim pending' : 'Claim', accessibilityLabel: claimPending ? `Claim pending for ${player.display_name}, view claims` : `Claim ${player.display_name}`, buttonStyle: [styles.action, styles.actionClaim], textStyle: [styles.actionPrimaryText, styles.actionClaimText], onPress: onClaim, blockedReason: null })
+                        ) : rosterStatus.status === 'mine' ? (
+                            <View style={styles.myActions}>
+                                <Pressable
+                                    style={[styles.action, styles.actionPrimary]}
+                                    onPress={onSetLineup}
+                                    disabled={actionLoading || !actionsReady}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Move ${player.display_name} in lineup`}
+                                    accessibilityState={{ disabled: actionLoading || !actionsReady }}
+                                >
+                                    <Text style={styles.actionPrimaryText}>Lineup</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.action, styles.actionDanger, dropDisabled && { opacity: 0.5 }]}
+                                    onPress={onDrop}
+                                    disabled={actionLoading || dropDisabled || !actionsReady}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Drop ${player.display_name}`}
+                                    accessibilityState={{ disabled: actionLoading || dropDisabled || !actionsReady }}
+                                >
+                                    <Text style={styles.actionDangerText}>Drop</Text>
+                                </Pressable>
+                            </View>
+                        ) : null}
+                    </View>
                 </View>
             )}
         </View>
@@ -199,7 +178,10 @@ const HEADSHOT = 64
 const HEADSHOT_COMPACT = 48
 
 const styles = StyleSheet.create({
-    header: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg },
+    header: { gap: spacing.md },
+    identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    rosterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+    rosterStatus: { ...textStyles.meta, flex: 1 },
     avatarWrap: { flexShrink: 0 },
     headshot: { borderRadius: radii.full, backgroundColor: colors.bgMuted },
 
@@ -208,17 +190,16 @@ const styles = StyleSheet.create({
     nameCompact: { fontSize: fontSize.xl, lineHeight: 24 },
     metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
-    badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 
-    actionWrap: { width: 100, minHeight: controlSize.button.sm.height * 2 + spacing.sm, flexShrink: 0, alignSelf: 'flex-start' },
-    myActions: { gap: spacing.sm, alignItems: 'stretch' },
+    actionWrap: { minWidth: 76, minHeight: 44, flexShrink: 0, justifyContent: 'center' },
+    myActions: { flexDirection: 'row', gap: spacing.sm, alignItems: 'stretch' },
     pickupAction: { alignItems: 'flex-end', gap: spacing.xs, maxWidth: 160 },
     pickupBlocked: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     pickupBlockedText: { color: colors.textPlaceholder },
     pickupCaption: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'right' },
 
     action: {
-        minHeight: controlSize.button.sm.height,
+        minHeight: 44,
         minWidth: 76,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.lg,
@@ -232,14 +213,4 @@ const styles = StyleSheet.create({
     actionDanger: { borderWidth: 1, borderColor: colors.danger },
     actionPrimaryText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
     actionDangerText: { color: colors.dangerDark, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-
-    takenBadge: {
-        maxWidth: 140,
-        backgroundColor: colors.bgMuted,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-    },
-    takenText: { color: colors.textMuted, fontSize: fontSize['2sm'], fontWeight: fontWeight.semibold, textAlign: 'center' },
 })
