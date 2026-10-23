@@ -473,6 +473,8 @@ Preseason boxes supply roster evidence only; they never enter scoring games or f
 A camp-only person needs a prior/current NBA career in the pinned registry.
 Unknown camp registrations remain excluded and are listed in `roster-source-audit.json`.
 The roster and NBA index contain one row per observed NBA person.
+An ESPN summary athlete links to the NBA box player of the same game and team side: by exact name, otherwise by a name key ignoring case, accents, punctuation, generational suffixes and word order, otherwise by surname and jersey number, each only when one box player and no other unlinked athlete on that side carry it.
+A person's names come from the box that first links him.
 A stable first-observed ESPN alias carries later dated NBA team observations from all source aliases.
 Historical experience uses the season offset from the NBA first-year field.
 This establishes the zero/nonzero rookie fence; it is not an exact career service-year count.
