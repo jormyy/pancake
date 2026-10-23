@@ -9,7 +9,7 @@ import { sqlJson } from './local-stack.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { orderedActions, snapshot, gameEndTime } from './snapshots.mjs'
 import { clockTime } from './virtual-clock.mjs'
-import { rosterForDate, playerIndexAt, openingRosters, boxTransfers, rosterSourceAudit } from './origin-people.mjs'
+import { rosterForDate, playerIndexAt, openingRosters, observeSide, boxTransfers, rosterSourceAudit } from './origin-people.mjs'
 import { scheduleObservation } from './schedule-view.mjs'
 import { upstreamRecorder } from './recorder.mjs'
 
@@ -50,16 +50,8 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
       const code = teamCode(side.team.abbreviation)
       if(!nbaTeams.has(code))continue
       teams.set(String(side.team.id), { id: String(side.team.id), abbreviation: code })
-      for (const group of side.statistics ?? []) for (const line of group.athletes ?? []) {
-        const athlete = line.athlete
-        const team = [box.game.homeTeam, box.game.awayTeam].find(team => team.teamTricode === code)
-        const match = team?.players.find(player => player.name === athlete.displayName || player.name === athlete.fullName || `${player.firstName} ${player.familyName}` === athlete.displayName)
-        if (!match) continue
-        const existing = people.get(String(athlete.id))
-        const observation = { time: game.time, date: game.date, team: code, position: athlete.position?.abbreviation ?? match.position ?? null, yearsExp: athlete.experience?.years ?? null,rosterOnly:game.rosterOnly===true }
-        if (existing) existing.observations.push(observation)
-        else people.set(String(athlete.id), { id: String(athlete.id), firstName: match.firstName, lastName: match.familyName, fullName: match.name, nbaId: match.personId, fromYear: plan?.firstYears[String(match.personId)] ?? null, observations: [observation] })
-      }
+      const team = [box.game.homeTeam, box.game.awayTeam].find(team => team.teamTricode === code)
+      observeSide(people, game, code, team?.players ?? [], (side.statistics ?? []).flatMap(group => group.athletes ?? []).map(line => line.athlete), plan?.firstYears)
     }
     transfers.push(...boxTransfers(people, game, box))
   }
