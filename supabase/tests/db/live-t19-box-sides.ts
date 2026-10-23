@@ -17,8 +17,8 @@ import { strict as assert } from 'node:assert'
 //   later of two listings is kept; then the product's path: the NBA index step merges an ESPN row into the row
 //   a box created, and the release moves the survivor to that box's side. ESPN's team_since through a merge:
 //   only the ESPN import writes a listing, on the row it gives that ESPN id, and a merge moves both together,
-//   so no merge pairs two listings (two ESPN ids are a conflict) and the listing that moves comes without
-//   team_since, so listed_at, never earlier than ESPN's first listing on that team, stands in for it.
+//   so no merge pairs two listings (two ESPN ids are a conflict) and the listing moves whole, team_since
+//   included (migration 350).
 // - Anchor (one rolled-back transaction per case): the release's anchor is his latest placement on his
 //   current team, ESPN's listing there or a stored regular-season box under it. A box that moved him anchors
 //   his next move (the second silent move); a teammate's box, a preseason box, a listing on another team and
@@ -286,7 +286,7 @@ try {
     assert.equal(product.code, 0, product.stderr)
     const tagged = (stdout: string, tag: string) => JSON.parse(stdout.split('\n').find(row => row.startsWith(`${tag}:`))!.slice(tag.length + 1))
     since.push({ case: 'the NBA index step merges a listed ESPN row into the box\'s row', before: tagged(product.stdout, 'before'), index: tagged(product.stdout, 'index'),
-      expect: { loser: 0, survivorNbaId: true, listing: { team: 'T', listed: 24, since: null, effective: 24 }, unclaimedListings: 0 }, got: tagged(product.stdout, 'after') })
+      expect: { loser: 0, survivorNbaId: true, listing: { team: 'T', listed: 24, since: 72, effective: 72 }, unclaimedListings: 0 }, got: tagged(product.stdout, 'after') })
     // Two listed rows: both carry an ESPN id, so the merge is refused and both listings stay.
     const both = mergeSetup(2, 's')
     const refused = await psql(`BEGIN; ${both.setup}
