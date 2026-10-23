@@ -10,9 +10,12 @@ import { strict as assert } from 'node:assert'
 //   2025-04-01 / 04-03 / 04-05): the same, each playing in his first box and listed again by his team.
 // No box lists any of them for another team in between: each stayed on his team. The complete refresh that
 // omits all four holds every team and reports each as unproven; his row, ids, injury and status, ownership
-// and lineups stay; his later box rows score for his fantasy team. The real dates are kept in the observations. The stored schedule puts each first box two days
+// and lineups stay; his return box scores for his fantasy team. The real dates are kept in the observations. The stored schedule puts each first box two days
 // back, each second box after ESPN's listing and each third box after the refresh, the order a release would
-// compare with ESPN's listing time on this clock.
+// compare with ESPN's listing time on this clock. The third boxes go on days of their own in real date order,
+// and each player is started only on his own return box's day: Bagley's return box (PHI against MIN,
+// 2025-04-05) also lists Conley playing for MIN, a real row of that game that scores on that game's day, where
+// he is not started. Conley's own return (MIN against DAL, 2026-02-20) lists him DNP and scores nothing.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx and 582xx are refused outright.
@@ -148,7 +151,7 @@ async function invoke(worker: Deno.HttpServer<Deno.NetAddr>, body: Record<string
 }
 
 const etDate = (offset: number) => new Date(Date.now() + offset * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-const pastDay = etDate(-2), today = etDate(0)
+const pastDay = etDate(-2)
 const user = crypto.randomUUID(), league = crypto.randomUUID(), season = crypto.randomUUID(), member = crypto.randomUUID()
 const games: string[] = []
 const people = [...new Set([...realBoxes.values()].flatMap(({ game }) => [...game.homeTeam.players, ...game.awayTeam.players].map(player => String(player.personId))))]
@@ -253,30 +256,45 @@ try {
   assert.equal(second.released, 0, 'The sweep releases nobody on an omission')
   assert.deepEqual(second.releaseHeld, { unproven: 4, unclaimed: 0 }, 'Each omitted claimed row is reported as held, unproven')
 
-  // The third real boxes list each of them again for his team; each box row joins his one row.
-  for (const real of reals) await storeBox(real.boxes[2], 0, 'clock_timestamp()')
+  // The third real boxes list each of them again for his team, each on a day of its own after the refresh in
+  // real date order; each box row joins his one row, and his latest stored listing is his own return box.
+  const returns = [...reals].sort((a, b) => realBoxes.get(a.boxes[2])!.game.gameEt.localeCompare(realBoxes.get(b.boxes[2])!.game.gameEt))
+  const returnDay = Object.fromEntries(returns.map((real, day) => [real.label, day]))
+  for (const real of returns) await storeBox(real.boxes[2], returnDay[real.label], `clock_timestamp()+interval '${returnDay[real.label]} days'`)
   const third: Record<string, unknown> = {}
   for (const real of reals) {
     const rows = await boxRows(ids[real.label])
     assert.deepEqual(rows.map(row => row.game), stored.filter(gameId => listedIn(gameId, real.person)), `${real.label}: he has a box row for every stored real box that lists him`)
-    assert.ok(rows.some(row => row.game === real.boxes[2]), `${real.label}: his third box lists him`)
+    assert.equal(rows.at(-1)?.game, real.boxes[2], `${real.label}: his latest stored listing is his own return box`)
     assert.ok(rows.every(row => row.member), `${real.label}: each box row is a game membership`)
-    third[real.label] = { team: (await identity(real.person))!.nba_team, rows }
+    const memberships = await json<string[]>(`SELECT coalesce(jsonb_agg(g.nba_game_id ORDER BY g.game_date,g.game_time),'[]')
+      FROM private.player_game_memberships m JOIN nba_games g ON g.id=m.game_id WHERE m.player_id=${q(ids[real.label])}`)
+    const stats = await json<{ game: string }[]>(`SELECT coalesce(jsonb_agg(jsonb_build_object('game',g.nba_game_id,'game_date',s.game_date,'home',g.home_team,
+      'away',g.away_team,'did_not_play',s.did_not_play,'points',s.points,'rebounds',s.rebounds,'assists',s.assists) ORDER BY g.game_date,g.game_time),'[]')
+      FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE s.player_id=${q(ids[real.label])}`)
+    third[real.label] = { team: (await identity(real.person))!.nba_team, memberships, rows: stats.map(row => ({ ...row,
+      real_date: realBoxes.get(row.game)!.game.gameEt.slice(0, 10), listed_for: listedIn(row.game, real.person)?.team, own_box: real.boxes.includes(row.game) })) }
   }
   observations.push({ case: 'third-boxes', players: third })
 
-  // His fantasy team starts him on the third box's date: those rows score for that team.
+  // His fantasy team starts him on his own return box's day only.
   await sql(`INSERT INTO weekly_lineups(member_id,league_id,league_season_id,player_id,week_number,game_date,slot_type,is_auto_set,set_at)
-    SELECT ${q(member)},${q(league)},${q(season)},id,1,${q(today)},'UTIL',false,now() FROM unnest(ARRAY[${reals.map(real => q(ids[real.label]))}]::uuid[]) id;`)
-  // Expected from the raw boxes: every stored box on that date that lists him, a DNP row scoring nothing.
-  const onToday = stored.filter(gameId => !reals.some(real => real.boxes[0] === gameId))
-  const expected = Object.fromEntries(reals.map(real => [real.label, onToday.map(gameId => listedIn(gameId, real.person))
-    .reduce((sum, row) => sum + (row?.played === '1' ? row.points + row.rebounds + row.assists : 0), 0)]))
+    VALUES ${reals.map(real => `(${q(member)},${q(league)},${q(season)},${q(ids[real.label])},1,${q(etDate(returnDay[real.label]))},'UTIL',false,now())`).join(',')};`)
+  // Expected from the raw boxes: his own return box's row alone, a DNP row scoring nothing.
+  const expected = Object.fromEntries(reals.map(real => {
+    const row = listedIn(real.boxes[2], real.person)!
+    return [real.label, row.played === '1' ? row.points + row.rebounds + row.assists : 0]
+  }))
+  const scoredOn = async (day: string) => (await calcWeekPointsByMember([member], season, year, 1, scoring, day, day)).get(member)
+  const byPlayer: Record<string, number | undefined> = {}
+  for (const real of reals) byPlayer[real.label] = await scoredOn(etDate(returnDay[real.label]))
   const points = (await calcWeekPointsByMember([member], season, year, 1, scoring, etDate(-3), etDate(3))).get(member)
   const total = Object.values(expected).reduce((sum, value) => sum + value, 0)
-  observations.push({ case: 'scoring', expected, total, points })
-  assert.ok(total > 0)
-  assert.equal(points, total, 'The later box rows of all four score for the fantasy team that starts them')
+  observations.push({ case: 'scoring', returnDays: Object.fromEntries(reals.map(real => [real.label, etDate(returnDay[real.label])])), expected, byPlayer, total, points })
+  assert.equal(expected.Conley, 0, 'Conley\'s return box lists him DNP')
+  assert.ok(Object.values(expected).some(value => value > 0), 'At least one return box shows him playing')
+  assert.deepEqual(byPlayer, expected, 'Each player scores his own return box on its day and nothing else')
+  assert.equal(points, total, 'The week totals the four return boxes')
   const linedNow = Object.fromEntries(await Promise.all(reals.map(async real => [real.label, await lineups(ids[real.label])])))
 
   // Refresh 3 lists all four again on their teams: nothing changes.

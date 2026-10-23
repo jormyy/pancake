@@ -33,7 +33,10 @@ What the boxes show, by game date (Eastern). Each player's last listing before t
 - Mike Conley, MIN. 2026-02-02 at MEM (0022500714) lists him playing (14:21). 2026-02-04 at TOR (0022500727)
   and MIN's next four boxes, through 2026-02-11, do not list him. 2026-02-20 against DAL (0022500806) lists
   him again, not playing. Bagley's third box (PHI against MIN, 2025-04-05) also lists Conley, playing for MIN
-  a season earlier.
+  a season earlier (24:58, 8 points, 4 rebounds, 4 assists; ESPN's summary of that game, event 401705696,
+  lists athlete 3195 Mike Conley for MIN with the same line). The recipe stores each third box on a day of its
+  own in real date order and starts each player only on his own return box's day, so that row scores on
+  Bagley's day, where Conley is not started, and Conley's DNP return scores nothing.
 - Marcus Bagley, PHI. 2025-04-01 at NYK (0022401098) lists him playing. 2025-04-03 against MIL
   (0022401115) does not list him. 2025-04-05 against MIN (0022401130) lists him playing.
 
