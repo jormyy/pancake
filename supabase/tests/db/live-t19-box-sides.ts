@@ -15,8 +15,16 @@ import { strict as assert } from 'node:assert'
 // - Merge (merge_players, one rolled-back transaction per case): a merged-away row's game membership keeps its
 //   side, a survivor's side is kept and a missing one filled, the ESPN listing moves to the survivor and the
 //   later of two listings is kept; then the product's path: the NBA index step merges an ESPN row into the row
-//   a box created, and the release moves the survivor to that box's side.
-// --only=sync|backfill|merge runs one group (sync-stats and live-poll, the two backfill paths, the merges).
+//   a box created, and the release moves the survivor to that box's side. ESPN's team_since through a merge:
+//   only the ESPN import writes a listing, on the row it gives that ESPN id, and a merge moves both together,
+//   so no merge pairs two listings (two ESPN ids are a conflict) and the listing that moves comes without
+//   team_since, so listed_at, never earlier than ESPN's first listing on that team, stands in for it.
+// - Anchor (one rolled-back transaction per case): the release's anchor is his latest placement on his
+//   current team, ESPN's listing there or a stored regular-season box under it. A box that moved him anchors
+//   his next move (the second silent move); a teammate's box, a preseason box, a listing on another team and
+//   a game before a later listing do not.
+// --only=sync|backfill|merge|anchor runs one group (sync-stats and live-poll, the two backfill paths, the
+// merges, the anchor).
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx, 577xx and 582xx are refused outright.
@@ -58,8 +66,8 @@ async function sql(statement: string): Promise<string> {
 }
 const log = (row: Record<string, unknown>) => console.log(JSON.stringify(row))
 const only = Deno.args.find(arg => arg.startsWith('--only='))?.slice('--only='.length)
-assert.ok(only === undefined || ['sync', 'backfill', 'merge'].includes(only), 'Pass --only= sync, backfill or merge, or nothing for every group')
-const runs = (group: 'sync' | 'backfill' | 'merge') => only === undefined || only === group
+assert.ok(only === undefined || ['sync', 'backfill', 'merge', 'anchor'].includes(only), 'Pass --only= sync, backfill, merge or anchor, or nothing for every group')
+const runs = (group: 'sync' | 'backfill' | 'merge' | 'anchor') => only === undefined || only === group
 
 const run = crypto.randomUUID().slice(0, 8)
 assert.equal(await sql('SELECT count(*) FROM players'), '0', 'Use an empty isolated stack: the release reads every teamed player')
@@ -123,7 +131,7 @@ async function invoke(worker: Deno.HttpServer<Deno.NetAddr>, body: Record<string
 }
 
 const jobs: string[] = []
-const results: Record<string, unknown>[] = [], merges: Record<string, unknown>[] = []
+const results: Record<string, unknown>[] = [], merges: Record<string, unknown>[] = [], since: Record<string, unknown>[] = [], anchors: Record<string, unknown>[] = []
 try {
   const backfill = await serve(() => import('../../functions/backfill/index.ts'))
   const { syncStatsGame, syncLiveStatsGames } = await import('../../functions/_shared/syncStats.ts')
@@ -260,6 +268,79 @@ try {
     merges.push({ case: 'the NBA index step merges the ESPN row into the box\'s row, then the release', code: 0, index: JSON.parse(value('index')), afterMerge: after,
       merged: after.winner === 1 && after.loser === 0, expect: { team: 'V', released: true, held: false, others: 0 }, got: { team: value('team'), released: receipt.released.includes(winner),
         held: [...receipt.held.unproven, ...receipt.held.unclaimed].includes(winner), others: [...receipt.released, ...receipt.held.unproven, ...receipt.held.unclaimed].filter(id => id !== winner).length } })
+
+    // team_since through the product's merge: ESPN has listed the ESPN row on T since 72 hours ago, last 24
+    // hours ago.
+    const listed = mergeSetup(1, 's')
+    const listedIndex = `SELECT 'index:'||resolve_player_imports_atomic('nba_index',jsonb_build_array(jsonb_build_object('player_id',${q(listed.loser)}::text,'provider_id',${q(listed.person)},
+      'expected_display_name',(SELECT display_name FROM players WHERE id=${q(listed.loser)}),'name_match','exact')))::text;`
+    const sinceOf = (id: string) => `(SELECT json_build_object('team',nba_team,'listed',round(extract(epoch FROM now()-listed_at)/3600),
+      'since',round(extract(epoch FROM now()-team_since)/3600),'effective',round(extract(epoch FROM now()-coalesce(team_since,listed_at))/3600)) FROM private.player_espn_listings WHERE player_id=${q(id)})`
+    const product = await psql(`BEGIN; ${listed.setup}
+      INSERT INTO private.player_espn_listings(player_id,nba_team,listed_at,team_since) VALUES(${q(listed.loser)},'T',now()-interval '24 hours',now()-interval '72 hours');
+      SELECT 'before:'||${sinceOf(listed.loser)}::text;
+      ${listedIndex}
+      SELECT 'after:'||json_build_object('loser',(SELECT count(*) FROM players WHERE id=${q(listed.loser)}),'survivorNbaId',(SELECT nba_id IS NOT NULL FROM players WHERE id=${q(listed.winner)}),
+        'listing',${sinceOf(listed.winner)},'unclaimedListings',(SELECT count(*) FROM private.player_espn_listings l JOIN players p ON p.id=l.player_id WHERE p.espn_id IS NULL))::text;
+      ROLLBACK;`)
+    assert.equal(product.code, 0, product.stderr)
+    const tagged = (stdout: string, tag: string) => JSON.parse(stdout.split('\n').find(row => row.startsWith(`${tag}:`))!.slice(tag.length + 1))
+    since.push({ case: 'the NBA index step merges a listed ESPN row into the box\'s row', before: tagged(product.stdout, 'before'), index: tagged(product.stdout, 'index'),
+      expect: { loser: 0, survivorNbaId: true, listing: { team: 'T', listed: 24, since: null, effective: 24 }, unclaimedListings: 0 }, got: tagged(product.stdout, 'after') })
+    // Two listed rows: both carry an ESPN id, so the merge is refused and both listings stay.
+    const both = mergeSetup(2, 's')
+    const refused = await psql(`BEGIN; ${both.setup}
+      UPDATE players SET espn_id=${q(`t19m-${run}-s2w`)} WHERE id=${q(both.winner)};
+      INSERT INTO private.player_espn_listings(player_id,nba_team,listed_at,team_since) VALUES(${q(both.winner)},'A',now()-interval '6 hours',now()-interval '96 hours'),
+        (${q(both.loser)},'T',now()-interval '2 hours',now()-interval '48 hours');
+      CREATE TEMP TABLE t19_outcome(code text) ON COMMIT DROP;
+      DO $do$ BEGIN PERFORM merge_players(${q(both.winner)},${q(both.loser)}); INSERT INTO t19_outcome VALUES('merged');
+        EXCEPTION WHEN OTHERS THEN INSERT INTO t19_outcome VALUES(SQLSTATE); END $do$;
+      SELECT 'after:'||json_build_object('outcome',(SELECT code FROM t19_outcome),'winner',${sinceOf(both.winner)},'loser',${sinceOf(both.loser)})::text;
+      ROLLBACK;`)
+    assert.equal(refused.code, 0, refused.stderr)
+    since.push({ case: 'two listed rows are not merged', expect: { outcome: '23514', winner: { team: 'A', listed: 6, since: 96, effective: 96 }, loser: { team: 'T', listed: 2, since: 48, effective: 48 } },
+      got: tagged(refused.stdout, 'after') })
+  }
+
+  // The anchor. P is on his current team, ESPN omits him now, and each box below lists him (or Q, a
+  // teammate without a team of his own) under a side, hours ago. G is a regular-season game unless preseason.
+  type AnchorGame = { home: string; away: string; hours: number; side: string; who?: 'Q'; preseason?: boolean }
+  type AnchorCase = { name: string; team: string; listing: [string, number]; games: AnchorGame[]; expect: string }
+  const anchorCases = ([
+    { name: 'the box that moved him to V anchors his move back to T (no listing on V)', team: 'V', listing: ['T', 72],
+      games: [{ home: 'O', away: 'V', hours: 30, side: 'V' }, { home: 'T', away: 'R', hours: 10, side: 'T' }], expect: 'T' },
+    { name: 'a teammate\'s later box under V is not his placement', team: 'V', listing: ['T', 72],
+      games: [{ home: 'O', away: 'V', hours: 30, side: 'V' }, { home: 'T', away: 'R', hours: 10, side: 'T' }, { home: 'V', away: 'Z', hours: 5, side: 'V', who: 'Q' }], expect: 'T' },
+    { name: 'a later listing on another team is not a placement on V', team: 'V', listing: ['T', 5],
+      games: [{ home: 'O', away: 'V', hours: 30, side: 'V' }, { home: 'T', away: 'R', hours: 10, side: 'T' }], expect: 'T' },
+    { name: 'a later preseason box under T is not a placement', team: 'T', listing: ['T', 48],
+      games: [{ home: 'O', away: 'V', hours: 10, side: 'V' }, { home: 'T', away: 'X', hours: 5, side: 'T', preseason: true }], expect: 'V' },
+    { name: 'a later listing on V outweighs his earlier box there', team: 'V', listing: ['V', 5],
+      games: [{ home: 'O', away: 'V', hours: 48, side: 'V' }, { home: 'T', away: 'R', hours: 20, side: 'T' }], expect: 'held' },
+  ] satisfies AnchorCase[] as AnchorCase[]).filter(() => runs('anchor'))
+  for (const [index, testCase] of anchorCases.entries()) {
+    const player = crypto.randomUUID(), teammate = crypto.randomUUID(), person = 80_000_000 + Math.floor(Math.random() * 100_000) * 100 + index
+    const games = testCase.games.map((game, number) => ({ ...game, id: crypto.randomUUID(), nba: `${game.preseason ? '001' : '002'}t19a${run}${index}g${number}` }))
+    const result = await psql(`BEGIN;
+      INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team,years_exp,espn_id,nba_id)
+        VALUES(${q(player)},'Synthetic',${q(`T19a${run}P${index}`)},'PG',ARRAY['PG'],'Active',${q(testCase.team)},4,${q(`t19a-${run}-p${index}`)},${q(String(person))}),
+          (${q(teammate)},'Synthetic',${q(`T19a${run}Q${index}`)},NULL,'{}','Active',NULL,NULL,NULL,${q(String(person + 50))});
+      INSERT INTO private.player_espn_listings(player_id,nba_team,listed_at) VALUES(${q(player)},${q(testCase.listing[0])},now()-interval '${testCase.listing[1]} hours');
+      INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status,stats_synced_at) VALUES
+        ${games.map(game => `(${q(game.id)},${q(game.nba)},${year},1,${q(etDate(-game.hours))},now()-interval '${game.hours} hours',${q(game.home)},${q(game.away)},'Final',now())`).join(',')};
+      INSERT INTO private.player_game_memberships(player_id,game_id,nba_team) VALUES
+        ${games.map(game => `(${q(game.who === 'Q' ? teammate : player)},${q(game.id)},${q(game.side)})`).join(',')};
+      SELECT 'receipt:'||resolve_player_imports_atomic('espn_release',${q(JSON.stringify(listing))}::jsonb)::text;
+      SELECT 'team:'||coalesce(nba_team,'none') FROM players WHERE id=${q(player)};
+      ROLLBACK;`)
+    assert.equal(result.code, 0, result.stderr)
+    const lines = result.stdout.split('\n'), value = (tag: string) => lines.find(row => row.startsWith(`${tag}:`))!.slice(tag.length + 1)
+    const receipt = JSON.parse(value('receipt')) as Receipt, team = value('team')
+    const released = receipt.released.includes(player), held = [...receipt.held.unproven, ...receipt.held.unclaimed].includes(player)
+    anchors.push({ case: testCase.name, team: testCase.team, listing: testCase.listing, games: testCase.games, expect: testCase.expect,
+      outcome: released && held ? 'released and held' : released ? team : held ? (team === testCase.team ? 'held' : 'held, team changed') : 'not a candidate',
+      others: [...receipt.released, ...receipt.held.unproven, ...receipt.held.unclaimed].filter(id => id !== player).length })
   }
 } finally {
   try {
@@ -280,7 +361,7 @@ try {
   }
 }
 
-log({ provenance: 'SYNTHETIC', recipe: 'live-t19-box-sides', run, only: only ?? 'all', year, enumYear, results, merges,
+log({ provenance: 'SYNTHETIC', recipe: 'live-t19-box-sides', run, only: only ?? 'all', year, enumYear, results, merges, since, anchors,
   residue: JSON.parse(await sql(`SELECT json_build_object('players',(SELECT count(*) FROM players),'games',(SELECT count(*) FROM nba_games WHERE season_year IN (${year},${enumYear})),
     'memberships',(SELECT count(*) FROM private.player_game_memberships),'listings',(SELECT count(*) FROM private.player_espn_listings),
     'jobs',(SELECT count(*) FROM sync_jobs WHERE id::text IN (${jobs.map(q).join(',') || 'NULL'})))`)) })
@@ -296,3 +377,7 @@ assert.deepEqual(results.filter(result => refusedBox(result) && (result.stats !=
   'A refused box writes nothing')
 assert.deepEqual(failed, [], 'On every path the release moves him to the side his box lists him under, or holds him without evidence')
 assert.deepEqual(failedMerges, [], 'A merge keeps the box side and the latest ESPN listing, and the release after the product\'s merge moves him to the box side')
+assert.deepEqual(since.filter(row => JSON.stringify(row.got) !== JSON.stringify(row.expect)).map(row => row.case), [],
+  'A merge moves no listing over another, and the one it moves is dated no earlier than ESPN listed him on that team')
+assert.deepEqual(anchors.filter(row => row.others !== 0 || row.outcome !== row.expect).map(row => row.case), [],
+  'The release counts a box after his latest placement on his current team, his own listing or regular-season box there')

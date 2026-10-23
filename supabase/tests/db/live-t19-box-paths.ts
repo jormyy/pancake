@@ -15,8 +15,8 @@ import { strict as assert } from 'node:assert'
 // - second-move: the rescinded February 2025 trade. Mark Williams (CHA) is in the Lakers' box of 02-08 and back in
 //   Charlotte's from 02-09; Dalton Knecht (LAL) is in Charlotte's box of 02-07 and back in the Lakers' from 02-10.
 //   ESPN omits both from 02-07 through 03-02 (constructed), so each second move is proven only by a box.
-// Every espn_release receipt and the subjects' rows are reported; ids, ownership and box rows must hold, and a
-// merge keeps them on the surviving row.
+// Every espn_release receipt and the subjects' rows are reported; ids, ownership and box rows must hold, a merge
+// keeps them on the surviving row, and every ESPN listing stays on a row that has an ESPN id.
 // - Auto-lineups: the product sets is_auto_set lineups only for today's ET date (the scheduled path refuses past
 //   dates; the pre-tipoff path claims only today's tipoffs). So each real game day is replayed at today's date in a
 //   mirror league that rosters the same player rows: that day's real games are inserted for today with future
@@ -24,10 +24,10 @@ import { strict as assert } from 'node:assert'
 //   worker and its game is started. The lineup the product leaves is copied to the real date in the main league,
 //   whose matchups sync-scores scores.
 // - Availability: a real game day of his team (the team of his latest pinned box) on which a rostered, healthy
-//   subject is not started although an open slot exists. Two kinds of day are reported and not failed: the day
-//   whose own box is the first to list him on that team (nothing stored proves the move before tipoff), and the
-//   day of the refresh whose release ran before its NBA index step merged his rows (sync-players runs the release
-//   first). The recipe fails on any other lost day, after reporting every decision.
+//   subject is not started although an open slot exists. One kind of day is reported and not failed: the day
+//   whose own box is the first to list him on that team (nothing stored proves the move before tipoff). The
+//   refresh that merges a split must also release him, so its own game day counts. The recipe fails on any other
+//   lost day, after reporting every decision.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx, 577xx and 582xx are refused outright.
@@ -208,13 +208,13 @@ const members = { A: crypto.randomUUID(), B: crypto.randomUUID() }
 const mirror = { league: crypto.randomUUID(), season: crypto.randomUUID(), members: { A: crypto.randomUUID(), B: crypto.randomUUID() }, year: 0 }
 const etNow = () => json<{ today: string; minutesLeft: number }>(`SELECT json_build_object('today',(now() AT TIME ZONE 'America/New_York')::date,
   'minutesLeft',floor(extract(epoch FROM date_trunc('day',now() AT TIME ZONE 'America/New_York')+interval '1 day'-(now() AT TIME ZONE 'America/New_York'))/60))`)
-const tipoffs: string[] = [], backfillJobs: string[] = []
+const tipoffs: string[] = [], backfillJobs: string[] = [], listingChecks: number[] = []
 const started = new Date().toISOString()
 let fresh = false, created = false, today = ''
 const ids = {} as Record<string, string>
 // A split person's second row (the one his box created) until the merge, and the refresh that merged them.
 const splitRow = {} as Record<string, string>
-const merges: { refresh: string; name: string; from: string; to: string; anchorBefore: unknown; anchorAfter: unknown; row: unknown }[] = []
+const merges: { refresh: string; name: string; from: string; to: string; releaseSaw: string | null; anchorBefore: unknown; anchorAfter: unknown; row: unknown }[] = []
 const espnList = names.map(name => q(espnOf[name])).join(',')
 type Row = { id: string; espn_id: string; nba_id: string | null; first_name: string; last_name: string; display_name: string; position: string | null
   status: string | null; injury_status: string | null; years_exp: number | null; nba_team: string | null }
@@ -306,8 +306,11 @@ try {
     const receipt = receipts.at(-1)!, after = await trackedRows()
     const labels = await json<Record<string, string>>(`SELECT coalesce(jsonb_object_agg(id, coalesce(display_name,'')||' ['||coalesce(nba_team,'-')||']'),'{}') FROM players
       WHERE id::text IN (${[...receipt.released, ...receipt.held.unproven, ...receipt.held.unclaimed].map(q).join(',') || 'NULL'})`)
+    // Only an ESPN import writes a listing, on the row it gives that ESPN id, and a merge moves both together.
+    const unclaimedListings = Number(await sql('SELECT count(*) FROM private.player_espn_listings l JOIN players p ON p.id=l.player_id WHERE p.espn_id IS NULL'))
+    listingChecks.push(unclaimedListings)
     log({ refresh: next.date, constructed: next.constructed.filter(row => row.espn), indexOmits: next.constructed.flatMap(row => row.indexOmits ? [row.indexOmits] : []),
-      response: response.body, releaseReceipt: receipt, receiptRows: labels, before, after })
+      response: response.body, releaseReceipt: receipt, receiptRows: labels, unclaimedListings, before, after })
     return { response: response.body, receipt, before, after, anchors }
   }
 
@@ -445,6 +448,18 @@ try {
   }
 
   const releases: { refresh: string; name: string; from: string | null; to: string | null; evidence: unknown; side: string | null; proven: boolean }[] = []
+  // A release may change only his team: to no team, or to the side the stored box that proves he left lists him
+  // under. It is not also reported as held. An unproven release is reported and fails the run after the
+  // availability receipts.
+  const recordRelease = async (name: string, from: string | null, row: Row, receipt: Receipt, date: string) => {
+    const evidence = await json<{ game: string; home: string; away: string } | null>(`SELECT coalesce((SELECT to_jsonb(e) FROM (SELECT g.nba_game_id AS game,
+      g.home_team AS home,g.away_team AS away FROM nba_games g WHERE g.season_year=${year} AND g.id IN (SELECT game_id FROM player_game_stats WHERE player_id=${q(ids[name])}
+      UNION SELECT game_id FROM private.player_game_memberships WHERE player_id=${q(ids[name])}) ORDER BY g.game_time DESC LIMIT 1) e),'null'::jsonb)`)
+    const side = evidence ? lineOf(boxes.get(evidence.game)!, persons[name])?.team ?? null : null
+    const proven = evidence !== null && ![evidence.home, evidence.away].includes(from!) && (row.nba_team === null || row.nba_team === side)
+    releases.push({ refresh: date, name, from, to: row.nba_team, evidence, side, proven })
+    assert.ok(![...receipt.held.unproven, ...receipt.held.unclaimed].includes(ids[name]), `${date}: ${name} is released, not held`)
+  }
   const constructedOmissions = new Map(names.map(name => [name, [] as string[]]))
   for (const [index, next] of listing.refreshes.entries()) {
     if (spec.scoring[next.date]) await score(spec.scoring[next.date])
@@ -457,19 +472,28 @@ try {
       if (omitted.has(espn)) constructedOmissions.get(name)!.push(next.date)
       if (row.id !== ids[name]) {
         // The NBA index step merged his ESPN row into the row his box created: that row survives with both ids, his
-        // ownership and lineups, and the ESPN row is gone. The release of this refresh ran before the merge.
+        // ownership and lineups, and the ESPN row is gone. The refresh's release reads the survivor when the index
+        // step runs first, and the merged-away ESPN row (two strangers, so he is held) when it runs after.
         assert.equal(name, spec.merged, `${next.date}: ${name} keeps his row`)
         assert.equal(row.id, splitRow[name], `${next.date}: ${name}'s box row survives the merge`)
         assert.equal(row.nba_id, String(persons[name]), `${next.date}: the survivor has his NBA id`)
         assert.equal(await sql(`SELECT count(*) FROM players WHERE id=${q(ids[name])}`), '0', `${next.date}: the merged-away ESPN row is gone`)
-        assert.ok(result.receipt.held.unproven.includes(ids[name]) || result.receipt.released.includes(ids[name]) || !omitted.has(espn),
-          `${next.date}: the release saw ${name}'s ESPN row before the merge`)
-        merges.push({ refresh: next.date, name, from: ids[name], to: row.id, anchorBefore: result.anchors?.[name] ?? null, anchorAfter: await anchor(row.id), row })
+        const named = (id: string) => [...result.receipt.released, ...result.receipt.held.unproven].includes(id)
+        const releaseSaw = named(row.id) ? 'survivor' : named(ids[name]) ? 'merged-away ESPN row' : null
+        assert.ok(releaseSaw || !omitted.has(espn), `${next.date}: the release saw one of ${name}'s rows`)
+        merges.push({ refresh: next.date, name, from: ids[name], to: row.id, releaseSaw, anchorBefore: result.anchors?.[name] ?? null, anchorAfter: await anchor(row.id), row })
         owned = repoint(owned, ids[name], row.id)
         saved = repoint(saved, ids[name], row.id)
         ids[name] = row.id
         delete splitRow[name]
         assert.equal(await sameness(name), '1', `${next.date}: one row is ${name} after the merge`)
+        if (result.receipt.released.includes(row.id)) {
+          // The merge gives the survivor the ESPN row's ids and attributes under the box row's names; the release
+          // then changes only his team.
+          const merged = { ...before, id: row.id, nba_id: row.nba_id, first_name: row.first_name, last_name: row.last_name, display_name: row.display_name }
+          assert.deepEqual({ ...row, nba_team: before.nba_team }, merged, `${next.date}: ${name}, merged and released, keeps everything but his team`)
+          await recordRelease(name, before.nba_team, row, result.receipt, next.date)
+        }
         continue
       }
       const indexedYet = merges.some(merge => merge.name === name) || listing.refreshes.slice(0, index + 1).some(earlier => earlier.index.includes(persons[name]))
@@ -479,17 +503,8 @@ try {
       if (omitted.has(espn) || !team) {
         assert.ok(omitted.has(espn) && !team, `${next.date}: ${name} is unlisted only by construction`)
         if (result.receipt.released.includes(ids[name])) {
-          // A release may change only his team: to no team, or to the side the stored box that proves he left
-          // lists him under. It is not also reported as held. An unproven release is reported and fails the run
-          // after the availability receipts.
           assert.deepEqual({ ...row, nba_team: before.nba_team }, before, `${next.date}: ${name}, released, keeps everything but his team`)
-          const evidence = await json<{ game: string; home: string; away: string } | null>(`SELECT coalesce((SELECT to_jsonb(e) FROM (SELECT g.nba_game_id AS game,
-            g.home_team AS home,g.away_team AS away FROM nba_games g WHERE g.season_year=${year} AND g.id IN (SELECT game_id FROM player_game_stats WHERE player_id=${q(ids[name])}
-            UNION SELECT game_id FROM private.player_game_memberships WHERE player_id=${q(ids[name])}) ORDER BY g.game_time DESC LIMIT 1) e),'null'::jsonb)`)
-          const side = evidence ? lineOf(boxes.get(evidence.game)!, persons[name])?.team ?? null : null
-          const proven = evidence !== null && ![evidence.home, evidence.away].includes(before.nba_team!) && (row.nba_team === null || row.nba_team === side)
-          releases.push({ refresh: next.date, name, from: before.nba_team, to: row.nba_team, evidence, side, proven })
-          assert.ok(![...result.receipt.held.unproven, ...result.receipt.held.unclaimed].includes(ids[name]), `${next.date}: ${name} is released, not held`)
+          await recordRelease(name, before.nba_team, row, result.receipt, next.date)
         } else if (before.nba_team === null) {
           assert.deepEqual(row, before, `${next.date}: ${name}, omitted with no team, keeps his row unchanged`)
         } else {
@@ -560,12 +575,11 @@ try {
       if (!plays(day, team)) return []
       const decision = decisions[day].find(row => row.name === name)!
       const lost = healthy(decision.injury) && decision.auto === null && decision.starters < slotCount
-      // Nothing stored before this day's own box lists him on this team, or this day's release ran before the merge.
+      // Nothing stored before this day's own box lists him on this team.
       const previous = lines.filter(line => line.date < day).at(-1)
       const unprovable = latest.date === day && previous?.team !== team
-      const orderCost = merges.some(merge => merge.name === name && merge.refresh === day)
       return [{ name, day, team, heldTeam: decision.team, injury: decision.injury, hasGame: decision.hasGame, fill: decision.fill, auto: decision.auto, starters: decision.starters,
-        box: decision.box, lost, pointsLost: lost ? decision.box?.points ?? 0 : 0, excused: lost && unprovable ? 'first box on this team is this day\'s own' : lost && orderCost ? 'release ran before the merge' : null }]
+        box: decision.box, lost, pointsLost: lost ? decision.box?.points ?? 0 : 0, excused: lost && unprovable ? 'first box on this team is this day\'s own' : null }]
     })
   })
   const falseStarts = spec.subjects.flatMap(name => Object.keys(decisions).sort().flatMap(day => {
@@ -581,7 +595,8 @@ try {
     finalAnchors: Object.fromEntries(await Promise.all(spec.subjects.map(async name => [name, await anchor(ids[name])]))), matchups: final,
     availability, lostDays: lostDays.map(row => `${row.name} ${row.day}`), pointsLost: lostDays.reduce((sum, row) => sum + row.pointsLost, 0),
     excused: availability.filter(row => row.excused).map(row => ({ name: row.name, day: row.day, points: row.pointsLost, why: row.excused })), falseStarts,
-    controlsBenched: controls.filter(row => row.auto === null) })
+    controlsBenched: controls.filter(row => row.auto === null), unclaimedListings: Math.max(...listingChecks) })
+  assert.deepEqual(listingChecks.filter(count => count !== 0), [], 'Every ESPN listing is on a row with that ESPN id')
   assert.deepEqual(controls.filter(row => row.auto === null), [], 'Every listed, healthy control is started on his team\'s game days')
   assert.ok(availability.filter(row => !row.excused).length >= 3, 'The replay covers game days of each subject\'s team after his move')
   assert.deepEqual(releases.filter(row => !row.proven), [], 'Every release is proven by a stored box of a game his team did not play')
