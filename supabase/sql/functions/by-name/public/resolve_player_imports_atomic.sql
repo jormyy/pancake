@@ -1,4 +1,4 @@
--- Resolve absence and provider ownership under the same lock as identity merges; an ESPN omission moves a team only when his latest stored box after ESPN last listed him there is of a game his team did not play (to the side that box lists him under, else to no team), and every other omitted row is held.
+-- Resolve absence and provider ownership under the same lock as identity merges; an ESPN omission moves a team only when his latest stored box after ESPN last listed him there is of a game his team did not play (to the side that box lists him under, else to no team), and every other omitted row is held; a box player that no NBA id or name joins links to the one ESPN row on his box side whose name has the same words, only on corroborated evidence.
 CREATE OR REPLACE FUNCTION public.resolve_player_imports_atomic(p_source text, p_records jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -26,6 +26,9 @@ DECLARE
   v_name_keys text[];
   v_player_ids uuid[];
   v_released uuid[];
+  v_words text[];
+  v_link uuid;
+  v_linked text;
 BEGIN
   IF p_source IS NULL OR p_source NOT IN ('espn', 'espn_release', 'sleeper', 'nba_cdn', 'nba_index', 'nba_draft')
      OR p_records IS NULL OR jsonb_typeof(p_records) <> 'array'
@@ -180,6 +183,7 @@ BEGIN
     END IF;
     v_id := NULL;
     v_action := 'updated';
+    v_linked := NULL;
 
     IF p_source = 'nba_index' THEN
       IF jsonb_typeof(v_record->'expected_display_name') IS DISTINCT FROM 'string'
@@ -272,6 +276,41 @@ BEGIN
         END IF;
       END IF;
 
+      -- A box can name a person differently from ESPN while the NBA index has no row for him (Yongxi Cui is
+      -- "Cui Yongxi" in every Brooklyn box), so neither his NBA id nor a name joins the box to the ESPN row
+      -- his fantasy team owns. The box links him to an ESPN row only when independent facts agree: the box
+      -- lists him under its side; ESPN lists exactly one row on that side whose name has the same words in
+      -- any order (no spelling distance, nickname or prefix), has listed it there since before this game
+      -- tipped off and on no other team since, and that row carries no NBA id; and no other player on that
+      -- side of this box has those words. A row an earlier box made for his NBA id, carrying no ESPN or
+      -- Sleeper id, merges into that ESPN row on the same evidence, as the NBA index step merges it. Nothing
+      -- links across teams or on a name alone; no import stores jersey numbers, so they cannot corroborate.
+      IF p_source = 'nba_cdn' AND v_action <> 'ambiguous' AND v_game_id IS NOT NULL AND v_record ? 'nba_team'
+         AND (v_id IS NULL OR EXISTS (SELECT 1 FROM players AS own WHERE own.id = v_id AND own.nba_id = v_provider
+           AND own.espn_id IS NULL AND own.sleeper_id IS NULL)) THEN
+        v_words := ARRAY(SELECT w FROM unnest(string_to_array(private.player_import_name_key(v_name), ' ')) AS w ORDER BY w);
+        SELECT array_agg(p.id) INTO v_matches FROM players AS p JOIN player_espn_listings AS l ON l.player_id = p.id
+          WHERE l.nba_team = v_record->>'nba_team'
+            AND ARRAY(SELECT w FROM unnest(string_to_array(private.player_import_name_key(p.display_name), ' ')) AS w ORDER BY w) = v_words;
+        v_link := NULL;
+        IF cardinality(v_matches) = 1 AND (SELECT count(*) FROM jsonb_array_elements(p_records) AS r
+            WHERE r->>'nba_game_id' = v_record->>'nba_game_id' AND r->>'nba_team' = v_record->>'nba_team'
+              AND ARRAY(SELECT w FROM unnest(string_to_array(private.player_import_name_key(r->>'display_name'), ' ')) AS w ORDER BY w) = v_words) = 1 THEN
+          SELECT p.id INTO v_link FROM players AS p JOIN player_espn_listings AS l ON l.player_id = p.id
+            JOIN nba_games AS g ON g.id = v_game_id
+            WHERE p.id = v_matches[1] AND p.nba_id IS NULL
+              AND coalesce(l.team_since, l.listed_at) < coalesce(g.game_time, g.started_at)
+            FOR UPDATE OF p;
+        END IF;
+        IF v_link IS NOT NULL AND v_id IS NULL THEN
+          v_id := v_link;
+          v_linked := 'bound';
+        ELSIF v_link IS NOT NULL THEN
+          v_id := public.assign_player_nba_id_atomic(v_link, v_provider);
+          v_linked := 'merged';
+        END IF;
+      END IF;
+
       IF v_action <> 'ambiguous' THEN
         IF v_id IS NOT NULL THEN
           SELECT * INTO STRICT v_row FROM players WHERE id = v_id FOR UPDATE;
@@ -304,9 +343,11 @@ BEGIN
             updated_at = clock_timestamp()
           WHERE id = v_id;
           IF p_source = 'espn' THEN
-            INSERT INTO player_espn_listings(player_id, nba_team, listed_at)
-            VALUES (v_id, v_metadata->>'nba_team', clock_timestamp())
-            ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at;
+            INSERT INTO player_espn_listings(player_id, nba_team, listed_at, team_since)
+            VALUES (v_id, v_metadata->>'nba_team', clock_timestamp(), clock_timestamp())
+            ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at,
+              team_since = CASE WHEN player_espn_listings.nba_team IS NOT DISTINCT FROM EXCLUDED.nba_team
+                THEN coalesce(player_espn_listings.team_since, player_espn_listings.listed_at) ELSE EXCLUDED.team_since END;
           END IF;
         ELSIF p_source = 'nba_cdn' THEN
           UPDATE players SET nba_id = v_provider WHERE id = v_id AND nba_id IS DISTINCT FROM v_provider;
@@ -330,7 +371,8 @@ BEGIN
         END IF;
       END IF;
     END IF;
-    v_results := v_results || jsonb_build_array(jsonb_build_object('index', v_index - 1, 'player_id', v_id, 'action', v_action));
+    v_results := v_results || jsonb_build_array(jsonb_build_object('index', v_index - 1, 'player_id', v_id, 'action', v_action)
+      || CASE WHEN v_linked IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('linked', v_linked) END);
   END LOOP;
   IF p_source = 'nba_draft' THEN
     UPDATE players SET nba_draft_number = NULL WHERE nba_draft_number IS NOT NULL AND NOT id = ANY(v_ids);
