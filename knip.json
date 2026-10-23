@@ -175,6 +175,8 @@
         "supabase/tests/db/live-t18-box-transfer-lineups.ts",
         "supabase/tests/db/live-t18-box-side.ts",
         "supabase/tests/db/players-t19-corroborated-identity.ts",
+        "supabase/tests/db/live-t19-box-paths.ts",
+        "supabase/tests/db/live-t19-box-sides.ts",
         "supabase/tests/db/identity-projections.ts",
         "supabase/tests/db/identity-rankings.ts",
         "tests/e2e/notif-keyboard.mjs",
