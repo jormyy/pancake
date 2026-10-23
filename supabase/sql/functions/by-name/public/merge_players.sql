@@ -194,11 +194,13 @@ BEGIN
       SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at),
         nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
 
-  -- The time ESPN last listed this person anchors the release sweep's departure evidence, so the survivor
-  -- keeps the later of the two listings rather than losing the merged-away one with its row.
-  INSERT INTO private.player_espn_listings(player_id, nba_team, listed_at)
-    SELECT winner_id, nba_team, listed_at FROM private.player_espn_listings WHERE player_id = loser_id
-    ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at
+  -- The time ESPN last listed this person anchors the release sweep's departure evidence, and the time it
+  -- has listed him on that team since gates the box-to-ESPN link, so the survivor keeps the later of the two
+  -- listings whole rather than losing the merged-away one with its row.
+  INSERT INTO private.player_espn_listings(player_id, nba_team, listed_at, team_since)
+    SELECT winner_id, nba_team, listed_at, team_since FROM private.player_espn_listings WHERE player_id = loser_id
+    ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at,
+        team_since = EXCLUDED.team_since
       WHERE EXCLUDED.listed_at > player_espn_listings.listed_at;
 
   DELETE FROM player_game_stats
