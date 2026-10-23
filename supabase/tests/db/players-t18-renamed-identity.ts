@@ -13,12 +13,13 @@ import { strict as assert } from 'node:assert'
 // Each plays in that box, and no name pair shares a player_import_name_key. The pinned index lists Poeltl, Sarr
 // and Carrington under ESPN's names and does not list Cui at all.
 // Case "pinned index": the index step binds each listed person's NBA id to his ESPN row before any box, so his
-// box row joins that row and his fantasy team scores it. Cui has no index row and no other evidence: the box
-// creates a CDN row of its own and the owned ESPN row gets nothing.
+// box row joins that row and his fantasy team scores it. Cui has no index row, but ESPN has listed one BKN row with
+// the words of his box name, in the other order, since before his box tipped off, and no other BKN row or BKN
+// player in the box has them: his box binds his NBA id to that owned row (players-t19-corroborated-identity).
 // Case "index without his row" (the pinned index minus the three rows; sync-players runs without a person's row,
 // as it does for Cui): each box creates a CDN row of its own and the owned ESPN rows score nothing. The next
 // sync-players with the pinned index binds each listed ESPN row, merges the CDN row into one identity, and the
-// box, the ownership and the lineup meet on it. Cui stays split.
+// box, the ownership and the lineup meet on it. Cui is bound by his box as in the first case and stays one row.
 //
 // Lane-bound: the stack must be this checkout's own (supabase/config.toml project and ports, loopback),
 // and the shared or protected blocks 543xx, 572xx, 574xx and 582xx are refused outright.
@@ -312,14 +313,16 @@ try {
     assert.deepEqual(joins.map(row => [row.player_id, row.membership]), [[pinned.espnRow[p.label], true]], `pinned index, ${p.label}: his box row joins the owned ESPN row`)
     assert.equal(at(pinned.afterBoxes, 'scored', p), expected[p.label], `pinned index, ${p.label}: his fantasy team scores his box`)
   }
-  // Cui has no index row and no other evidence: his box makes a CDN row of its own, and nothing is merged on a name guess.
+  // Cui has no index row: the corroborated BKN listing binds his box to the owned ESPN row, not a name alone.
   const cuiListed = at(pinnedListing, 'rows', cui) as Row[]
   assert.deepEqual(cuiListed.map(row => [row.espn_id, row.nba_id]), [[cui.espn, null]], 'pinned index, Cui: no index row, no NBA id')
   for (const result of [pinned, without]) {
     const rows = at(result.afterBoxes, 'rows', cui) as Row[]
-    assert.deepEqual(rows.map(row => [row.espn_id, row.nba_id, row.display_name]), [[cui.espn, null, 'Yongxi Cui'], [null, String(cui.person), 'Cui Yongxi']],
-      'Cui: the ESPN row and a CDN row of its own')
-    assert.equal(at(result.afterBoxes, 'scored', cui), 0, 'Cui: the owned ESPN row scores nothing')
+    assert.deepEqual(rows.map(row => [row.id, row.espn_id, row.nba_id, row.display_name]), [[result.espnRow.Cui, cui.espn, String(cui.person), 'Yongxi Cui']],
+      'Cui: his box binds his NBA id to the owned ESPN row')
+    const joins = at(result.afterBoxes, 'joins', cui) as Join[]
+    assert.deepEqual(joins.map(row => [row.player_id, row.membership]), [[result.espnRow.Cui, true]], 'Cui: his box row joins the owned ESPN row')
+    assert.equal(at(result.afterBoxes, 'scored', cui), expected.Cui, 'Cui: his fantasy team scores his box')
   }
 
   // Without his row: the box makes a CDN row of its own; the owned ESPN row scores nothing until the next sync-players.
@@ -343,7 +346,7 @@ try {
     assert.deepEqual(named.map(row => [row.id, row.display_name]), [[healed[0].id, `${p.first} ${p.last}`]], `index without his row, ${p.label}: the following listing names him as ESPN does`)
   }
   const cuiHealed = at(without.afterNames, 'rows', cui) as Row[]
-  assert.equal(cuiHealed.length, 2, 'Cui: still split after the pinned index, which does not list him')
+  assert.deepEqual(cuiHealed.map(row => row.id), [without.espnRow.Cui], 'Cui: still one row after the pinned index, which does not list him')
 } finally {
   globalThis.fetch = nativeFetch
   for (const worker of workers) await worker.shutdown()
