@@ -301,6 +301,7 @@
     "test:db:players-t18-renamed-identity": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/players-t18-renamed-identity.ts",
     "test:db:live-t18-box-transfer-lineups": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/live-t18-box-transfer-lineups.ts",
     "test:db:live-t18-box-side": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/live-t18-box-side.ts",
+    "test:db:players-t19-corroborated-identity": "deno run --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1 --allow-run=psql supabase/tests/db/players-t19-corroborated-identity.ts",
     "mutation:notif-t9": "deno run --no-lock --check --allow-env --allow-read --allow-write --allow-run=psql,deno scripts/mutation/notif/t9.ts",
     "mutation:notif-t9-follow-up-1": "deno run --no-lock --check --allow-env --allow-read --allow-write --allow-run=psql,deno scripts/mutation/notif/t9-follow-up-1.ts",
     "mutation:notif-keyboard": "node scripts/mutation/notif/keyboard.mjs",
