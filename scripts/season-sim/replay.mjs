@@ -187,6 +187,12 @@ export async function replay(options = {}) {
       report.recovery.historyBefore = await sql(recoveryHistoryQuery(start))
       assert.equal(JSON.parse(report.recovery.historyBefore).games, report.recovery.retainedGames, 'Restored finals must match retained receipts')
       assert.equal(await sql("SELECT count(*) FROM edge_invocations WHERE worker_status IN ('pending','running')"), '0', 'Recovery cannot inherit unfinished workers')
+      if (options.refreshPlayers) {
+        report.recovery.playerRefresh = { at: new Date(clock).toISOString(), scope: 'Explicit recovery refresh through the product importer; dated fixture rosters; separate from scheduled cadence' }
+        await dispatcher.enqueue("SELECT public.invoke_edge_function('sync-players')")
+        await dispatcher.drain(clock)
+        assert.equal(await sql(recoveryHistoryQuery(start)), report.recovery.historyBefore, 'Player refresh preserves settled scoring history')
+      }
     }
     if (['automatic-champion', 'pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start'].includes(options.segment)) {
       if (options.segment === 'automatic-champion') {

@@ -9,7 +9,7 @@ import { replay } from './replay.mjs'
 import { twoPlan } from './two-checks.mjs'
 import { sourceEvidence } from './source-manifest.mjs'
 
-const { values } = parseArgs({ options: { snapshot: { type: 'string' }, receipt: { type: 'string' }, days: { type: 'string' } } })
+const { values } = parseArgs({ options: { snapshot: { type: 'string' }, receipt: { type: 'string' }, days: { type: 'string' }, 'refresh-players': { type: 'boolean' } } })
 assert.ok(path.resolve(values.snapshot).startsWith(`${miniRoot}/`), 'Recovery uses a private snapshot copy')
 assert.ok(path.resolve(values.receipt).startsWith(`${miniRoot}/`), 'Recovery uses a private receipt copy')
 if (values.days) assert.match(values.days, /^[1-9]\d*$/)
@@ -20,7 +20,7 @@ const plan = await twoPlan()
 const evidence = recoveryEvidence(snapshot, receipt, plan.seasons[0])
 assert.equal((await sourceEvidence()).committedHarness, true, 'Recovery requires committed harness source')
 process.env.SUPABASE_DB_URL = localKeys().DB_URL
-const result = await replay({ resume: snapshot.cursor, recoveryEvidence: evidence, segment: snapshot.name, days: values.days })
+const result = await replay({ resume: snapshot.cursor, recoveryEvidence: evidence, segment: snapshot.name, days: values.days, refreshPlayers: values['refresh-players'] })
 assert.equal(result.complete, true)
 assert.equal(result.fullAcceptance, false, 'A recovered segment never claims a fresh full run')
 assert.ok(!result.failure && !result.failures?.length)

@@ -56,7 +56,7 @@ export async function assertHistoricalTeams(expected, previous = {}) {
   const stored = JSON.parse(await sql('SELECT json_object_agg(espn_id,nba_team) FROM players WHERE espn_id IS NOT NULL'))
   const changes = []
   for (const player of expected) {
-    assert.equal(stored[player.espnId], player.nbaTeam, 'Historical NBA roster observation must reach the player master')
+    assert.equal(stored[player.espnId], player.nbaTeam, `Historical NBA roster observation must reach the player master: ESPN ${player.espnId}`)
     if (previous[player.espnId] && previous[player.espnId] !== player.nbaTeam) changes.push({ espnId: player.espnId, from: previous[player.espnId], to: player.nbaTeam, provenance: 'REAL-DERIVED; first observed game date, announcement time unavailable' })
   }
   return { checked: expected.length, changes, teams: stored }
