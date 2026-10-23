@@ -1,6 +1,6 @@
 import { assertGameImports, assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
-import { buildStatRow, resolveBoxScorePlayers, saveGameStats, validateBoxScorePlayers } from './syncStats.ts'
+import { buildStatRow, recordBoxSides, resolveBoxScorePlayers, saveGameStats, validateBoxScorePlayers } from './syncStats.ts'
 import { errorMessage } from './responses.ts'
 import {
   type BackfillRun,
@@ -63,6 +63,10 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
       }
 
       await assertGameUnambiguous(dbGame.id)
+      // Each side is recorded before the box's own import, as sync-stats does, so the ESPN release sweep
+      // never reads one of this box's memberships without it.
+      validateBoxScorePlayers(game, gameId)
+      await recordBoxSides(game, gameId)
       const players = await resolveBoxScorePlayers(game, gameId, resolver)
       await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
       await markBackfillGameCompleted(jobId, 'cdn', seasonYear, gameId, dbGame.id)
@@ -159,6 +163,7 @@ async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'co
 
     validateBoxScorePlayers(game, gameId)
     const dbGame = await upsertCdnGame(gameId, game, seasonYear)
+    await recordBoxSides(game, gameId)
     const players = await resolveBoxScorePlayers(game, gameId, resolver)
     await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
     await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)

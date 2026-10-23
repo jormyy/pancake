@@ -187,8 +187,8 @@ type BoxScorePlayers = {
 // A box lists each player under his side. His game membership keeps it, so when this game is the stored
 // evidence that he left his team, the ESPN release sweep moves him to this side rather than to no team and
 // he stays startable on its game days (resolve_player_imports_atomic). It is recorded before the box's own
-// import, so no membership of this box is stored without its side.
-async function recordBoxSides(
+// import, so no membership of this box is stored without its side; every path that stores a box does so.
+export async function recordBoxSides(
   boxScore: { homeTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] }; awayTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] } },
   providerGameId: string,
 ): Promise<void> {
