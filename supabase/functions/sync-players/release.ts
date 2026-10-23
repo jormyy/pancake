@@ -7,11 +7,12 @@ export type HeldReleases = { unproven: number; unclaimed: number }
 /**
  * ESPN roster pages list only signed players, but a page can answer 200 and
  * still omit one, so even a listing with no gaps does not prove anyone left.
- * A listing with gaps or import failures sends nothing. A clean one names its
- * players to espn_release, which clears a team only when the stored NBA boxes
- * agree and reports every other omitted row as held. Real boxes omit signed
- * inactive players too, so a box omission counts only after a box that showed
- * the player playing.
+ * Real NBA boxes omit signed players too, and no feed the product reads says
+ * a player is no longer rostered. A listing with gaps or import failures sends
+ * nothing. A clean one names its players to espn_release, which clears an
+ * omitted player's team only when his latest stored box since ESPN last listed
+ * him there is of a game his team did not play, and reports every other
+ * omitted teamed row as held.
  */
 function releaseBlockers(listingGaps: string[], importFailures: string[]): string[] {
   return [...listingGaps, ...importFailures.length > 0 ? [`${importFailures.length} import failure(s)`] : []]

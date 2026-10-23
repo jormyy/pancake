@@ -8,10 +8,10 @@ import { strict as assert } from 'node:assert'
 // - Case B, never claimed: W is an owned teamed row ESPN never claimed (no espn_id; team from the
 //   product's Sleeper import, nba_id and game membership from the CDN box import), played in MIN's box,
 //   and no listing names him. He keeps MIN and keeps starting.
-// - Controls: R (BOS) is omitted by ESPN and by BOS's later final box, so he is released. H (CHI) is
-//   omitted by ESPN with no later CHI box, so his team is held until a CHI box without him arrives.
-//   Z (BOS) is omitted by BOS's box but listed again by refresh 2 (re-signed); when refresh 3 drops him
-//   the box predates his last listing, so his team is held.
+// - R (BOS) is omitted by ESPN and by BOS's later final box, and H (CHI) by ESPN and then by a later CHI
+//   box. Box omissions are not proof either (players-t17-real-played-last.ts), so both keep their teams.
+//   Z (BOS) is omitted by BOS's box but listed again by refresh 2; when refresh 3 drops him he is held too.
+//   Every held row is reported: unproven if ESPN claimed it, unclaimed (W) if not.
 // X and W share five PG-eligible starter slots with five playing BOS guards and sort first on ties, so
 // each takes a guard's slot while he keeps a team that plays.
 //
@@ -230,8 +230,8 @@ try {
   observations.push({ case: 'before-refresh-2', x: xBefore, w: wBefore, xBox, wBox, starters: firstStarters })
 
   // Refresh 2: HTTP 200 in every part, all 30 teams, more than 350 athletes. It drops X from MIN's page
-  // only (silent omission), R (released: BOS's later box omits him) and H (no CHI box since). W is never named.
-  // Z, whom BOS's box omitted, is listed again (re-signed).
+  // only (silent omission), R (BOS's later box omits him too) and H (no CHI box since). W is never named.
+  // Z, whom BOS's box omitted, is listed again.
   const listed2 = [...fillers, ...ys]
   assert.ok(listed2.length > 350)
   const second = await refresh('refresh 2', [...listed2, z])
@@ -251,25 +251,25 @@ try {
   assert.deepEqual(wLinedAfter, wLined, 'Case B: lineups are unchanged')
   assert.ok(startedOn(secondStarters, xId) && startedOn(secondStarters, wId), `X and W still start on MIN's game day: ${JSON.stringify(secondStarters)}`)
   assert.equal(guardsStarted(secondStarters), 3)
-  assert.equal(rAfter?.nba_team, null, 'R, omitted by ESPN and by his team\'s later box, is released')
-  assert.equal(hAfter?.nba_team, 'CHI', 'H, omitted by ESPN with no CHI box since, keeps his team for now')
+  assert.equal(rAfter?.nba_team, 'BOS', 'R, omitted by ESPN and by his team\'s later box, keeps his team: neither proves he left')
+  assert.equal(hAfter?.nba_team, 'CHI', 'H, omitted by ESPN with no CHI box since, keeps his team')
   assert.equal((await byEspn(z.espn))?.nba_team, 'BOS', 'Z, listed again, keeps BOS')
-  assert.equal(second.released, 1)
-  assert.deepEqual(second.releaseHeld, { unproven: 2, unclaimed: 1 })
+  assert.equal(second.released, 0)
+  assert.deepEqual(second.releaseHeld, { unproven: 3, unclaimed: 1 }, 'X, R and H are held as unproven; W, never claimed, as unclaimed')
 
-  // A CHI final box without H arrives; the next refresh that still omits him releases him. X stays held,
-  // and so does Z, whom refresh 3 drops: the BOS box that omits him predates his last listing.
+  // A CHI final box without H arrives; the next refresh still omits him and still holds him. X, R and W stay
+  // held, and so does Z, whom refresh 3 drops.
   await finalBox('CHI', 'ATL', on('CHI').map(played), on('ATL').map(played))
   const third = await refresh('refresh 3', listed2)
   const hThird = await byEspn(h.espn), zThird = await byEspn(z.espn)
   observations.push({ case: 'refresh-3-after-chi-box', released: third.released ?? null, releaseHeld: third.releaseHeld ?? null, h: hThird, z: zThird, x: await identity(xId), w: await identity(wId) })
-  assert.equal(hThird?.nba_team, null, 'H is released once a CHI box played after his last listing omits him')
-  assert.deepEqual({ ...hThird, nba_team: 'CHI' }, { ...hAfter }, 'H keeps his row, ids, injury and status')
+  assert.deepEqual(hThird, hAfter, 'H keeps CHI, his row, ids, injury and status after a CHI box played after his last listing omits him')
   assert.deepEqual(await identity(xId), xBefore)
   assert.deepEqual(await identity(wId), wBefore)
-  assert.equal(zThird?.nba_team, 'BOS', 'Z keeps BOS: no BOS box has been played since his last listing')
-  assert.equal(third.released, 1)
-  assert.deepEqual(third.releaseHeld, { unproven: 2, unclaimed: 1 })
+  assert.equal((await byEspn(r.espn))?.nba_team, 'BOS', 'R still keeps BOS')
+  assert.equal(zThird?.nba_team, 'BOS', 'Z keeps BOS')
+  assert.equal(third.released, 0)
+  assert.deepEqual(third.releaseHeld, { unproven: 4, unclaimed: 1 }, 'X, R, H and Z are held as unproven; W as unclaimed')
   console.log(JSON.stringify({ provenance: 'SYNTHETIC', recipe: 'players-t15-silent-omission', run, gameDay, today, observations }))
 } finally {
   try {
