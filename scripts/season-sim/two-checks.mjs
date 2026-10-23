@@ -41,15 +41,15 @@ export async function assertPublishedCalendar(profile){
   return areaCheck(area,()=>assert.deepEqual(observed,profile.calendar.weeks,'Calendar starts on the first 002 game day and merges the observed All-Star gap'))
 }
 
-export async function assertTwoDay(c, date, report, plan, store, today) {
+export async function assertTwoDay(c, date, report, plan, store, today, { query = sqlJson, write = writeJson } = {}) {
   const profile = plan.seasons.find(row => row.year === c.seasonYear)
   const timelines = plan.postponements.timelines.filter(row => row.originalDate <= date && row.originalDate >= profile.start && row.originalDate <= profile.end)
-  const storedGames = await sqlJson(`SELECT coalesce(json_agg(g),'[]') FROM nba_games g WHERE season_year=${c.seasonYear}`, 'Observed schedule identities')
+  const storedGames = await query(`SELECT coalesce(json_agg(g),'[]') FROM nba_games g WHERE season_year=${c.seasonYear}`, 'Observed schedule identities')
   const matchups = await c.rest(c.users[0], `matchups?select=*&league_season_id=eq.${c.leagueSeasonId}`)
   const results = []
   for (const timeline of timelines) {
     const week = profile.calendar.weeks.find(row => timeline.originalDate >= row.week_start && timeline.originalDate <= row.week_end).week_number
-    const stats = await sqlJson(`SELECT coalesce(json_agg(s),'[]') FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.nba_game_id='${timeline.id}'`, 'Makeup game stats')
+    const stats = await query(`SELECT coalesce(json_agg(s),'[]') FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.nba_game_id='${timeline.id}'`, 'Makeup game stats')
     results.push(areaCheck('postponement', () => checkPostponement({ timeline, calendar: profile.calendar, originalMatchups: matchups.filter(row => row.week_number === week && !row.is_voided), storedGames, stats, date, closedThrough: shiftDay(date,1) })))
   }
   const rookies = c.seasonYear === plan.seasons[1].year ? plan.draft.rookies : []
@@ -67,7 +67,7 @@ export async function assertTwoDay(c, date, report, plan, store, today) {
   }
   const identities = []
   if (expected.length) {
-    const input = await sqlJson(`SELECT json_build_object('players',(SELECT json_agg(p) FROM players p),'stats',(SELECT json_agg(q) FROM (SELECT s.*,g.nba_game_id FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.game_date='${date}') q),'fantasy',(SELECT json_agg(q) FROM (SELECT v.*,g.nba_game_id FROM v_fantasy_points v JOIN nba_games g ON g.id=v.game_id WHERE v.league_id='${c.leagueId}' AND g.game_date='${date}') q),'lineups',(SELECT coalesce(json_agg(l),'[]') FROM weekly_lineups l WHERE league_season_id='${c.leagueSeasonId}' AND game_date='${date}'),'settings',(SELECT scoring_settings FROM leagues WHERE id='${c.leagueId}'))`, 'Independent real-player continuity inputs')
+    const input = await query(`SELECT json_build_object('players',(SELECT json_agg(p) FROM players p),'stats',(SELECT json_agg(q) FROM (SELECT s.*,g.nba_game_id FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.game_date='${date}') q),'fantasy',(SELECT json_agg(q) FROM (SELECT v.*,g.nba_game_id FROM v_fantasy_points v JOIN nba_games g ON g.id=v.game_id WHERE v.league_id='${c.leagueId}' AND g.game_date='${date}') q),'lineups',(SELECT coalesce(json_agg(l),'[]') FROM weekly_lineups l WHERE league_season_id='${c.leagueSeasonId}' AND game_date='${date}'),'settings',(SELECT scoring_settings FROM leagues WHERE id='${c.leagueId}'))`, 'Independent real-player continuity inputs')
     assert.ok(input.stats && input.fantasy, 'Expected real rookie/traded-player rows must exist')
     for (const row of expected) identities.push(areaCheck('rookie-identity', () => checkIdentityGame({ expected: row, ...input })))
   }
@@ -86,6 +86,6 @@ export async function assertTwoDay(c, date, report, plan, store, today) {
   const result = { date, year: c.seasonYear, provenance: 'REAL-RAW boxes; REAL-DERIVED calendar; SYNTHETIC manager preferences', postponements: results, identities }
   report.realInputChecks ??= []
   report.realInputChecks.push(result)
-  await writeJson(path.join(miniRoot, `evidence/real-input-${date}.json`), result)
+  await write(path.join(miniRoot, `evidence/real-input-${date}.json`), result)
   return result
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { intendedOwner, nbaTradeSetup, rookieListings, rookieMoves, rookieStarters } from './two-actions.mjs'
+import { intendedOwner, nbaTradeSetup, rookieLineups, rookieListings, rookieMoves, rookieStarters } from './two-actions.mjs'
 
 test('rookie owner oracle follows intended trade, drop, and successful waiver actions only', () => {
   const c = { draftedRookies: [{ playerId: 'p', owner: 'a' }], identityMoves: [{ playerId: 'p', owner: 'b', at: 10 }, { playerId: 'p', owner: null, at: 20 }], waiverScenarios: [{ targets: [], input: { claims: [{ id: 'claim', player: 'p', member: 'c' }] }, expected: { claims: { claim: 'succeeded' } }, processAt: 30 }] }
@@ -68,4 +68,25 @@ test('an NBA-moved subject due for its first new-team start starts ahead of its 
   assert.deepEqual(rookieStarters([r1, r2, subject], active, null, ['clayton']), [subject, r1])
   assert.deepEqual(rookieStarters([r1, r2, subject], active, null, []), [r1, r2], 'Before it is due the listing order holds')
   assert.deepEqual(rookieStarters([r1, subject], active, 'r1', []), [subject, r2], 'The measured bench rookie sits')
+})
+
+test('an NBA-moved subject listed for the new team before his first game for it stays benched until the due date', async () => {
+  // REAL-RAW: boxscore-0022500731 (2026-02-04, MEM at SAC) lists Clayton for MEM as INACTIVE_TRADE; boxscore-0022500745 (2026-02-06,
+  // MEM at POR) is his first game for MEM. Owner b's two drafted rookies are SYNTHETIC listings in the same boxes.
+  const box = { game: { homeTeam: { players: [{ personId: 1 }, { personId: 2 }] }, awayTeam: { players: [{ personId: 1642383 }] } } }
+  const roster = [{ id: 'b-r1', player_id: 'b-r1', member_id: 'b', players: { nba_id: 1 } }, { id: 'b-r2', player_id: 'b-r2', member_id: 'b', players: { nba_id: 2 } }, { id: 'b-clayton', player_id: 'clayton', member_id: 'b', players: { nba_id: 1642383 } }]
+  const moves = [], preferences = []
+  const c = {
+    seasonYear: 2026, leagueId: 'L', leagueSeasonId: 'S', users: [{ memberId: 'b' }],
+    draftedRookies: [{ playerId: 'b-r1', nbaId: '1', owner: 'b' }, { playerId: 'b-r2', nbaId: '2', owner: 'b' }],
+    nbaTradeSubjects: [{ year: 2026, nbaId: '1642383', from: 'UTA', to: 'MEM', movedOn: '2026-02-04', firstAfter: '2026-02-06', playerId: 'clayton', owner: 'b', at: '2026-01-01' }],
+    rest: async () => roster.map(row => ({ ...row })), restWrite: async () => {},
+    rpc: async (_user, name, args) => { assert.equal(name, 'set_player_slot_moves_atomic'); moves.push([args.p_game_date, args.p_moves.map(row => `${row.player_id}:${row.slot_type}`)]) },
+  }
+  const report = { realRookieActions: { bench: { date: '2026-01-07', playerId: 'b-r2', measured: true } } }, store = { json: async () => box }
+  await rookieLineups(c, '2026-02-04', 16, [{ id: '0022500731', home: 'SAC', away: 'MEM' }], store, report, async () => Date.parse('2026-02-04T17:00:00Z'))
+  await rookieLineups(c, '2026-02-06', 16, [{ id: '0022500745', home: 'POR', away: 'MEM' }], store, report, async () => Date.parse('2026-02-06T17:00:00Z'))
+  assert.deepEqual(moves, [['2026-02-04', ['b-r1:UTIL', 'b-r2:UTIL', 'clayton:BE']], ['2026-02-06', ['b-r1:UTIL', 'b-r2:BE', 'clayton:UTIL']]])
+  for (const row of c.rookiePreferences) if (row.nbaId === '1642383') preferences.push([row.date, row.owner, row.starter])
+  assert.deepEqual(preferences, [['2026-02-04', 'b', false], ['2026-02-06', 'b', true]])
 })

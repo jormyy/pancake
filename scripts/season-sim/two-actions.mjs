@@ -176,10 +176,10 @@ export function rookieStarters(rookies, active, bench, due = []) {
   return [...listed.filter(row => due.includes(row.player_id)), ...listed.filter(row => !due.includes(row.player_id)), ...active.filter(row => !rookies.includes(row) && row.players?.nba_id != null)].slice(0, 2)
 }
 
-export async function rookieLineups(c, date, week, today, store, report) {
+export async function rookieLineups(c, date, week, today, store, report, clock = now) {
   const watched=[...(c.draftedRookies??[]),...(c.nbaTradeSubjects??[]).filter(row=>row.year===c.seasonYear&&!row.verified)]
   if (!watched.length) return
-  const at = await now(), roster = await activeRoster(c), playing = new Set()
+  const at = await clock(), roster = await activeRoster(c), playing = new Set()
   for (const game of today) {
     const box = await store.json(`boxscore-${game.id}`)
     for (const row of [...box.game.homeTeam.players,...box.game.awayTeam.players]) playing.add(String(row.personId))
