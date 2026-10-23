@@ -44,14 +44,14 @@ const rest = (user, query) => request(`/rest/v1/${query}`, user.token)
 const rpc = (user, name, body) => request(`/rest/v1/rpc/${name}`, user.token, body)
 
 assert.deepEqual(json("SELECT json_build_array((SELECT count(*) FROM leagues),(SELECT count(*) FROM players),(SELECT count(*) FROM auth.users),(SELECT count(*) FROM season_weeks))"), [0, 0, 0, 0], 'The stack is fresh')
-// The harness clock (clock.sql, installed the way setClock does it), held at the replay's morning move for the date.
-const clock = await readFile(new URL('./clock.sql', import.meta.url), 'utf8')
-sql(clock.slice(clock.indexOf('BEGIN;')).replaceAll(":'sim_ms'", String(at)).replaceAll(":'real_ms'", String(Date.now())).replaceAll(":'rate'", '0').replaceAll(":'cap_ms'", 'NULL'))
-const utc = column => `to_char(${column} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`
-assert.equal(sql(`SELECT ${utc('now()')}`), `${date}T14:00:00Z`, 'Business time is the replay morning of 2026-01-01')
-
 // REAL-RAW inputs: the plan's calendar and draft board, and the draftee moves derived from every 2025-26 box as runRealSeason does.
 const plan = JSON.parse(await readFile(path.join(inputs, 'two-season-plan.json'), 'utf8')), profile = plan.seasons[1]
+// The harness clock (clock.sql, installed the way setClock does it) at rate 0: the league is set up at the moment runRealSeason
+// applies the season-2 settings and activates it, before the 2026 schedule starts, then moves to the replay morning of the date.
+const utc = column => `to_char(${column} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`, setupAt = `${profile.startYear}-08-16T14:00:00Z`
+const clock = await readFile(new URL('./clock.sql', import.meta.url), 'utf8')
+sql(clock.slice(clock.indexOf('BEGIN;')).replaceAll(":'sim_ms'", String(Date.parse(setupAt))).replaceAll(":'real_ms'", String(Date.now())).replaceAll(":'rate'", '0').replaceAll(":'cap_ms'", 'NULL'))
+assert.equal(sql(`SELECT ${utc('now()')}`), setupAt, 'Business time is the season-2 setup moment')
 const games = JSON.parse(await readFile(path.join(inputs, 'games.json'), 'utf8')).games.filter(row => row.id.startsWith(profile.prefix))
 const store = await fixtureStore(inputs), listings = await rookieListings(plan.draft.rookies, games, id => store.json(`boxscore-${id}`))
 const moves = rookieMoves(plan.draft.rookies, listings, profile.year), subjects = [...plan.nbaTrades, ...moves].filter(row => row.year === profile.year)
@@ -82,10 +82,12 @@ for (let index = 0; index < 4; index++) {
 const league = await rpc(users[0], 'create_league', { p_name: `January adds ${run}`, p_team_name: 'Synthetic home', p_auction_budget: 20 })
 for (const [index, user] of users.slice(1).entries()) await rpc(user, 'join_league_by_invite_code', { p_invite_code: league.invite_code, p_team_name: `Synthetic away ${index + 1}` })
 const leagueId = league.id
-await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1, roster_size: 3, ir_slots: 2, taxi_slots: 4, taxi_rule: 'rookies_or_64_games', playoff_entrants: 4, playoff_start_week: 23, playoff_round_lengths: [1, 2] }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
+// createLeagueActions' integrated settings, except that the playoffs start in season 2's week (the 24-week 2026 calendar cannot
+// hold season 1's week-23 start with rounds of 1 and 2 weeks); then runRealSeason's season-2 call as it is.
+await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1, roster_size: 3, ir_slots: 2, taxi_slots: 4, taxi_rule: 'rookies_or_64_games', playoff_entrants: 4, playoff_start_week: profile.playoffStart, playoff_round_lengths: [1, 2] }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
 await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { skipped_weeks: [1], playoff_start_week: profile.playoffStart } })
 const leagueSeasonId = sql(`SELECT id FROM league_seasons WHERE league_id=${q(leagueId)} AND is_current AND season_year=${profile.year}`)
-assert.ok(leagueSeasonId, 'create_league opened the 2026 season on business date 2026-01-01')
+assert.ok(leagueSeasonId, 'create_league opened the 2026 season')
 const members = json(`SELECT json_object_agg(user_id,id) FROM league_members WHERE league_id=${q(leagueId)}`)
 for (const user of users) user.memberId = members[user.id]
 // Snake order: member n drafts picks n and 9-n.
@@ -93,6 +95,9 @@ const draftedRookies = rookies.map((row, index) => ({ playerId: row.id, pick: ro
 const held = users.map((user, index) => [...draftedRookies.filter(row => row.owner === user.memberId).map(row => [row.playerId, 'draft']), [veterans[index].id, 'draft']].map(([player, via]) => ({ member: user.memberId, player, via })))
 sql(`INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES ${held.flat().map(row => `(${q(leagueId)},${q(leagueSeasonId)},${q(row.member)},${q(row.player)},${q(row.via)})`).join(',')};
   UPDATE leagues SET status='active' WHERE id=${q(leagueId)};`)
+// setClock's move: the replay morning of 2026-01-01, when runRealSeason calls nbaTradeSetup.
+assert.equal(sql(`UPDATE season_sim.clock SET sim_ms=${at},real_ms=${Date.now()},rate=0,cap_ms=NULL WHERE singleton RETURNING singleton`), 't')
+assert.equal(sql(`SELECT ${utc('now()')}`), `${date}T14:00:00Z`, 'Business time is the replay morning of 2026-01-01')
 
 const state = () => json(`SELECT json_build_object('now',(SELECT ${utc('now()')}),
   'league',(SELECT row_to_json(l) FROM (SELECT status,waiver_mode,faab_starting_budget,weekly_add_limit,roster_size,ir_slots,taxi_slots,taxi_rule,playoff_entrants,playoff_start_week,playoff_round_lengths FROM leagues WHERE id=${q(leagueId)}) l),
