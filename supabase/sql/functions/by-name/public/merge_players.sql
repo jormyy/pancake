@@ -186,10 +186,20 @@ BEGIN
   UPDATE roster_transactions SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE snake_draft_picks   SET player_id = winner_id WHERE player_id = loser_id;
 
-  INSERT INTO private.player_game_memberships(player_id, game_id, first_seen_at)
-    SELECT winner_id, game_id, first_seen_at FROM private.player_game_memberships WHERE player_id = loser_id
+  -- A membership keeps the side its box lists him under (the ESPN release sweep moves him to it): the
+  -- survivor's side stays, and a merged-away side fills one the survivor lacks.
+  INSERT INTO private.player_game_memberships(player_id, game_id, first_seen_at, nba_team)
+    SELECT winner_id, game_id, first_seen_at, nba_team FROM private.player_game_memberships WHERE player_id = loser_id
     ON CONFLICT (player_id, game_id) DO UPDATE
-      SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at);
+      SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at),
+        nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
+
+  -- The time ESPN last listed this person anchors the release sweep's departure evidence, so the survivor
+  -- keeps the later of the two listings rather than losing the merged-away one with its row.
+  INSERT INTO private.player_espn_listings(player_id, nba_team, listed_at)
+    SELECT winner_id, nba_team, listed_at FROM private.player_espn_listings WHERE player_id = loser_id
+    ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at
+      WHERE EXCLUDED.listed_at > player_espn_listings.listed_at;
 
   DELETE FROM player_game_stats
     WHERE player_id = loser_id
