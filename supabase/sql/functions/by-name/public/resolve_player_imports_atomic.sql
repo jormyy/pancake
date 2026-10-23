@@ -1,4 +1,4 @@
--- Resolve absence and provider ownership under the same lock as identity merges; an ESPN omission moves a team only when his latest stored box after ESPN last listed him there is of a game his team did not play (to the side that box lists him under, else to no team), and every other omitted row is held; a box player that no NBA id or name joins links to the one ESPN row on his box side whose name has the same words, only on corroborated evidence.
+-- Resolve absence and provider ownership under the same lock as identity merges; an ESPN omission moves a team only when his latest stored box after he was last placed there (by ESPN's listing or a stored box under that team) is of a game his team did not play (to the side that box lists him under, else to no team), and every other omitted row is held; a box player that no NBA id or name joins links to the one ESPN row on his box side whose name has the same words, only on corroborated evidence.
 CREATE OR REPLACE FUNCTION public.resolve_player_imports_atomic(p_source text, p_records jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -70,8 +70,10 @@ BEGIN
   -- positive evidence the store holds is a box row or game membership in a game his team did not play: he
   -- was on one of the two teams in it. It counts when it is his latest stored listing in a regular-season,
   -- playoff, play-in or Cup final game (All-Star and preseason games have teams that are not NBA teams)
-  -- and tipped off after ESPN last listed him on his team (player_espn_listings); a later listing in a
-  -- game of his own team wins, and so does an earlier ESPN listing time. A box lists him under his side,
+  -- and tipped off after he was last placed on his team: ESPN's latest listing of him there
+  -- (player_espn_listings) or his latest stored box under that team, whichever is later, so a box that
+  -- moved him there anchors his next move as a listing would. A later box of a game his own team played
+  -- wins, and so does a later placement. Without a placement he is held. A box lists him under his side,
   -- which his game membership keeps (nba_cdn nba_team): he moves to that team, so he stays startable on its
   -- game days until ESPN lists him. A stats row or membership without a side, or a side that is not a
   -- team of that game, clears his team and the next listing that names him sets the new one. His team must
@@ -102,13 +104,16 @@ BEGIN
           SELECT c.nba_team NOT IN (g.home_team, g.away_team) AND EXISTS (SELECT 1 FROM nba_games AS own
               WHERE own.season_year = g.season_year AND c.nba_team IN (own.home_team, own.away_team)) AS departed,
             CASE WHEN side.nba_team IN (g.home_team, g.away_team) THEN side.nba_team END AS side
-          FROM player_espn_listings AS l
+          FROM (SELECT max(placement.placed_at) AS placed_at FROM (
+                SELECT l.listed_at AS placed_at FROM player_espn_listings AS l WHERE l.player_id = c.id AND l.nba_team = c.nba_team
+                UNION ALL SELECT coalesce(box_game.game_time, box_game.started_at) FROM private.player_game_memberships AS m
+                  JOIN nba_games AS box_game ON box_game.id = m.game_id
+                  WHERE m.player_id = c.id AND m.nba_team = c.nba_team AND box_game.nba_game_id ~ '^00[2456]') AS placement) AS anchor
           JOIN (SELECT s.game_id FROM player_game_stats AS s WHERE s.player_id = c.id
                 UNION SELECT m.game_id FROM private.player_game_memberships AS m WHERE m.player_id = c.id) AS listed ON true
           JOIN nba_games AS g ON g.id = listed.game_id
           LEFT JOIN private.player_game_memberships AS side ON side.player_id = c.id AND side.game_id = g.id
-          WHERE l.player_id = c.id AND l.nba_team = c.nba_team
-            AND g.nba_game_id ~ '^00[2456]' AND coalesce(g.game_time, g.started_at) > l.listed_at
+          WHERE g.nba_game_id ~ '^00[2456]' AND coalesce(g.game_time, g.started_at) > anchor.placed_at
           ORDER BY coalesce(g.game_time, g.started_at) DESC, c.nba_team IN (g.home_team, g.away_team) DESC
           LIMIT 1) AS e
         WHERE c.id = ANY(v_player_ids)) AS evidence
