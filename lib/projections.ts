@@ -111,17 +111,6 @@ export async function getProjectionMap({
     return new Map(rows.map((row) => [row.player_id, row]))
 }
 
-export function projectionFreshnessLabel(fetchedAt: string | null | undefined): string {
-    if (!fetchedAt) return ''
-    const ageMs = Date.now() - new Date(fetchedAt).getTime()
-    if (!Number.isFinite(ageMs) || ageMs < 0) return 'fresh'
-    const minutes = Math.floor(ageMs / 60000)
-    if (minutes < 60) return `${Math.max(1, minutes)}m`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 48) return `${hours}h`
-    return `${Math.floor(hours / 24)}d`
-}
-
 export function formatProjectionGame(row: Pick<LeagueProjectionRow, 'projection_date' | 'next_game_date' | 'next_game_opponent'>): string {
     const opponent = row.next_game_opponent
     const date = row.projection_date ?? row.next_game_date

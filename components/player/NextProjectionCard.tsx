@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
-import { formatProjectionGame, projectionFreshnessLabel, type LeagueProjectionRow } from '@/lib/projections'
+import type { LeagueProjectionRow } from '@/lib/projections'
 import { todayET } from '@/lib/shared/dates'
 import type { PlayerGame } from './season-data'
 
@@ -27,38 +27,23 @@ export function NextProjectionCard({ projection, loading = false, liveGame, live
     const unstarted = projection && projection.next_game_date && (tipoff != null && Number.isFinite(tipoff)
         ? tipoff > Date.now() : projection.next_game_date > todayET())
     const next = unstarted ? projection : null
-    const time = next?.next_game_time ? new Date(next.next_game_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
-    const meta = next ? [
-        formatProjectionGame({ ...next, projection_date: next.next_game_date }),
-        next.projection_status, next.projection_source_label,
-        next.projection_is_fresh === false ? 'Outdated' : null,
-        projectionFreshnessLabel(next.projection_fetched_at),
-    ].filter(Boolean).join(' · ') : loading ? '' : 'No upcoming game available.'
+    if (!liveGame && !next) return null
+    const date = next ? new Date(tipoff != null && Number.isFinite(tipoff) ? tipoff : `${next.next_game_date}T12:00:00`) : null
+    const weekday = date?.toLocaleDateString('en-US', { weekday: 'short' })
+    const time = next?.next_game_time && tipoff != null && Number.isFinite(tipoff)
+        ? date?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
+    const summary = liveGame
+        ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far`
+        : [next?.next_game_opponent, [weekday, time].filter(Boolean).join(' '), `${next?.projection_fantasy_points?.toFixed(1) ?? '—'} FP proj`].filter(Boolean).join(' · ')
     return (
         <View style={styles.card} aria-busy={loading}>
-            <View style={styles.row}>
-                <View style={styles.copy}>
-                    <Text style={textStyles.sectionLabel}>Next game projection</Text>
-                    <Text style={styles.meta} numberOfLines={2}>{meta}</Text>
-                </View>
-                <View style={styles.scoreBox}>
-                    <Text style={styles.score}>{next?.projection_fantasy_points != null ? next.projection_fantasy_points.toFixed(1) : '—'}</Text>
-                    <Text style={textStyles.meta}>FP</Text>
-                </View>
-            </View>
-            <Text style={[styles.note, liveGame && styles.live]} numberOfLines={1}>{liveGame
-                ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far` : time ? `Tipoff ${time}` : ' '}</Text>
+            <Text style={[styles.summary, liveGame && styles.live]} numberOfLines={1}>{summary}</Text>
         </View>
     )
 }
 
 const styles = StyleSheet.create({
-    card: { height: table.rowHeight * 2, padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous', justifyContent: 'space-between' },
-    row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    copy: { flex: 1, minWidth: 0 },
-    meta: { ...textStyles.meta, marginTop: spacing.xs, minHeight: textStyles.meta.lineHeight * 2 },
-    scoreBox: { alignItems: 'flex-end', width: spacing['4xl'] * 2 },
-    score: { width: '100%', textAlign: 'right', fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
-    note: { ...textStyles.meta, height: textStyles.meta.lineHeight },
-    live: { ...textStyles.meta, color: colors.success, fontWeight: fontWeight.semibold, height: textStyles.meta.lineHeight },
+    card: { padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
+    summary: { ...textStyles.meta, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+    live: { color: colors.success, fontWeight: fontWeight.semibold },
 })

@@ -13,8 +13,7 @@ import { FlashList } from '@shopify/flash-list'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
-import { ItemSeparator } from '@/components/ItemSeparator'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
@@ -109,8 +108,7 @@ function PlayerTableHeader({
     onColumnSort?: (mode: PlayerSearchSortMode) => void
 }) {
     return (
-        <View style={styles.tableHeader}>
-            <View style={styles.tableHeaderAddSpacer} />
+        <View style={[styles.tableHeader, { paddingRight: spacing.sm }]}>
             <View style={styles.tableHeaderCardRow}>
                 <View style={styles.tableHeaderHeadshotSpacer} />
                 <Text style={styles.tableHeaderPlayer}>Player</Text>
@@ -140,6 +138,7 @@ function PlayerTableHeader({
                     })}
                 </View>
             </View>
+            <View style={styles.tableHeaderAddSpacer} />
         </View>
     )
 }
@@ -248,7 +247,7 @@ function PlayerSearchSection() {
     const playerSupportReady = !leagueId || playerSupportForLeague != null
     const transactionState = playerSupportForLeague?.transactionState ?? null
 
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id })
+    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
     const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
         currentLeague?.scoring_settings, {
             enabled: focused && online && membershipValidated && !filtersOpen,
@@ -451,11 +450,11 @@ function PlayerSearchSection() {
                                     <Text style={localStyles.clearButtonText}>Clear</Text>
                                 </Pressable>
                             ) : null}
-                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: 20, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text>
+                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text>
                         </>
                     )}
                 </View>
-                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: 20, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
+                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
                 {addBlockedReason ? (
                     <Text
                         style={localStyles.addLimitNotice}
@@ -510,7 +509,6 @@ function PlayerSearchSection() {
                     extraData={playerListExtraData}
                     keyExtractor={(p: PlayerRow) => p.id}
                     contentContainerStyle={statusScroll.contentStyle(search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined)}
-                    ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showStatTable ? (
                         <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
                     ) : null}
@@ -669,12 +667,12 @@ const localStyles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: spacing.sm,
     },
-    searchWide: { flexGrow: 0, flexBasis: 280, minWidth: 220, height: 36 },
+    searchWide: { flexGrow: 0, flexBasis: 280, minWidth: 220, height: controlSize.minTouch },
     filterButton: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.lg,
         borderCurve: 'continuous',
@@ -685,16 +683,16 @@ const localStyles = StyleSheet.create({
     filterButtonActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     filterButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
     filterButtonTextActive: { color: colors.primaryDark },
-    clearButton: { minHeight: 36, justifyContent: 'center', paddingHorizontal: spacing.md },
+    clearButton: { minHeight: controlSize.minTouch, justifyContent: 'center', paddingHorizontal: spacing.md },
     clearButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     summary: { ...textStyles.meta },
     summaryWide: { marginLeft: 'auto', flexShrink: 0 },
     // Two fields per row; each field sets its own basis so the grid wraps evenly.
     sheetFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
     sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
-    sortDirInSheet: { flexGrow: 1, flexBasis: 140, minHeight: 44 },
+    sortDirInSheet: { flexGrow: 1, flexBasis: 140, minHeight: controlSize.minTouch },
     sheetClear: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         paddingHorizontal: spacing.xl,
         borderRadius: radii.md,
@@ -703,7 +701,7 @@ const localStyles = StyleSheet.create({
     },
     sheetDone: {
         flex: 1,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,

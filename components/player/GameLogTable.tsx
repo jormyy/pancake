@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
 import { memo } from 'react'
-import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
 
@@ -11,6 +11,7 @@ type Props = {
     loadingMore: boolean
     onLoadMore: () => void
     loading?: boolean
+    compact?: boolean
 }
 
 function fmtDate(dateStr: string): string {
@@ -43,75 +44,89 @@ export const GameLogTable = memo(function GameLogTable({
     loadingMore,
     onLoadMore,
     loading = false,
+    compact = false,
 }: Props) {
     const showFpts = fantasyPointsMap !== null
     const { fadeStyle, scrollProps } = useEdgeFade()
 
     const rows = [...games].sort((a, b) => b.gameDate.localeCompare(a.gameDate))
 
+    const dateCell = [styles.dateCell, compact && styles.compactDateCell]
+    const oppCell = [styles.oppCell, compact && styles.compactOppCell]
+    const fptsCell = [styles.fptsCell, compact && styles.compactFptsCell]
+    const numCell = [compact ? styles.compactNumCell : styles.numCell]
+    const content = (
+        <View style={styles.tableInner}>
+            {/* Header row */}
+            <View style={[styles.row, styles.headerRow]}>
+                <Text style={[...dateCell, styles.colHdr]}>DATE</Text>
+                <Text style={[...oppCell, styles.colHdr]}>OPP</Text>
+                {showFpts && <Text style={[...fptsCell, styles.colHdr]}>FP</Text>}
+                {!compact && <Text style={[...numCell, styles.colHdr]}>MIN</Text>}
+                <Text style={[...numCell, styles.colHdr]}>PTS</Text>
+                <Text style={[...numCell, styles.colHdr]}>REB</Text>
+                <Text style={[...numCell, styles.colHdr]}>AST</Text>
+                <Text style={[...numCell, styles.colHdr]}>STL</Text>
+                <Text style={[...numCell, styles.colHdr]}>BLK</Text>
+                <Text style={[...numCell, styles.colHdr]}>3PM</Text>
+                <Text style={[...numCell, styles.colHdr]}>TO</Text>
+                {!compact && <>
+                    <Text style={[styles.shotCell, styles.colHdr]}>FG</Text>
+                    <Text style={[styles.shotCell, styles.colHdr]}>FT</Text>
+                    <Text style={[...numCell, styles.colHdr]}>+/-</Text>
+                </>}
+            </View>
+
+            {/* Data rows */}
+            {rows.map((g, i) => {
+                const dnp = g.didNotPlay
+                const fpts = dnp ? undefined : fantasyPointsMap?.get(g.gameId)
+                return (
+                    <View
+                        key={g.gameId}
+                        style={[styles.row, i < games.length - 1 && styles.rowDivider]}
+                    >
+                        <Text style={dateCell}>{fmtDate(g.gameDate)}</Text>
+                        <Text style={oppCell} numberOfLines={1}>
+                            {g.opponent || '—'}
+                        </Text>
+                        {showFpts && (
+                            <Text style={[...fptsCell, fpts != null && styles.fptsValue]}>
+                                {dnp && compact ? 'DNP' : fpts != null ? fpts.toFixed(1) : ''}
+                            </Text>
+                        )}
+                        {!compact && <Text style={numCell}>
+                            {dnp ? 'DNP' : g.minutes.toFixed(1)}
+                        </Text>}
+                        <Text style={[...numCell, dnp && styles.dnpText]}>
+                            {dnp ? compact && !showFpts ? 'DNP' : '' : g.points}
+                        </Text>
+                        <Text style={numCell}>{fmtStat(g.rebounds, dnp)}</Text>
+                        <Text style={numCell}>{fmtStat(g.assists, dnp)}</Text>
+                        <Text style={numCell}>{fmtStat(g.steals, dnp)}</Text>
+                        <Text style={numCell}>{fmtStat(g.blocks, dnp)}</Text>
+                        <Text style={numCell}>{fmtStat(g.threeMade, dnp)}</Text>
+                        <Text style={numCell}>{fmtStat(g.turnovers, dnp)}</Text>
+                        {!compact && <>
+                            <Text style={styles.shotCell}>{fmtShot(g.fgMade, g.fgAttempted, dnp)}</Text>
+                            <Text style={styles.shotCell}>{fmtShot(g.ftMade, g.ftAttempted, dnp)}</Text>
+                            <Text style={numCell}>{fmtPM(g.plusMinus, dnp)}</Text>
+                        </>}
+                    </View>
+                )
+            })}
+            {rows.length === 0 ? <View style={[styles.row, styles.emptyRow]}><Text style={styles.emptyText}>{loading ? 'Loading recent games…' : 'No games available.'}</Text></View> : null}
+        </View>
+    )
+
     return (
         <View style={styles.section} aria-busy={loading}>
             <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Recent games</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} {...scrollProps}>
-                <View style={styles.tableInner}>
-                    {/* Header row */}
-                    <View style={[styles.row, styles.headerRow]}>
-                        <Text style={[styles.dateCell, styles.colHdr]}>DATE</Text>
-                        <Text style={[styles.oppCell, styles.colHdr]}>OPP</Text>
-                        {showFpts && <Text style={[styles.fptsCell, styles.colHdr]}>FP</Text>}
-                        <Text style={[styles.numCell, styles.colHdr]}>MIN</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>PTS</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>REB</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>AST</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>STL</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>BLK</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>3PM</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>TO</Text>
-                        <Text style={[styles.shotCell, styles.colHdr]}>FG</Text>
-                        <Text style={[styles.shotCell, styles.colHdr]}>FT</Text>
-                        <Text style={[styles.numCell, styles.colHdr]}>+/-</Text>
-                    </View>
-
-                    {/* Data rows */}
-                    {rows.map((g, i) => {
-                        const dnp = g.didNotPlay
-                        const fpts = dnp ? undefined : fantasyPointsMap?.get(g.gameId)
-                        return (
-                            <View
-                                key={g.gameId}
-                                style={[styles.row, i < games.length - 1 && styles.rowDivider]}
-                            >
-                                <Text style={styles.dateCell}>{fmtDate(g.gameDate)}</Text>
-                                <Text style={styles.oppCell} numberOfLines={1}>
-                                    {g.opponent || '—'}
-                                </Text>
-                                {showFpts && (
-                                    <Text style={[styles.fptsCell, fpts != null && styles.fptsValue]}>
-                                        {fpts != null ? fpts.toFixed(1) : ''}
-                                    </Text>
-                                )}
-                                <Text style={styles.numCell}>
-                                    {dnp ? 'DNP' : g.minutes.toFixed(1)}
-                                </Text>
-                                <Text style={[styles.numCell, dnp && styles.dnpText]}>
-                                    {dnp ? '' : g.points}
-                                </Text>
-                                <Text style={styles.numCell}>{fmtStat(g.rebounds, dnp)}</Text>
-                                <Text style={styles.numCell}>{fmtStat(g.assists, dnp)}</Text>
-                                <Text style={styles.numCell}>{fmtStat(g.steals, dnp)}</Text>
-                                <Text style={styles.numCell}>{fmtStat(g.blocks, dnp)}</Text>
-                                <Text style={styles.numCell}>{fmtStat(g.threeMade, dnp)}</Text>
-                                <Text style={styles.numCell}>{fmtStat(g.turnovers, dnp)}</Text>
-                                <Text style={styles.shotCell}>{fmtShot(g.fgMade, g.fgAttempted, dnp)}</Text>
-                                <Text style={styles.shotCell}>{fmtShot(g.ftMade, g.ftAttempted, dnp)}</Text>
-                                <Text style={styles.numCell}>{fmtPM(g.plusMinus, dnp)}</Text>
-                            </View>
-                        )
-                    })}
-                    {rows.length === 0 ? <View style={[styles.row, styles.emptyRow]}><Text style={styles.emptyText}>{loading ? 'Loading recent games…' : 'No games available.'}</Text></View> : null}
-                </View>
-            </ScrollView>
-
+            {compact ? <View style={styles.tableFrame} testID="recent-games-table">{content}</View> : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} {...scrollProps}>
+                    {content}
+                </ScrollView>
+            )}
             {hasMore && (
                 <Pressable
                     style={styles.loadMoreBtn}
@@ -130,7 +145,7 @@ export const GameLogTable = memo(function GameLogTable({
 
 const styles = StyleSheet.create({
     section: { gap: spacing.md },
-    emptyRow: { minHeight: 160 },
+    emptyRow: { minHeight: table.rowHeightCompact },
     emptyText: { ...textStyles.meta },
 
     tableFrame: {
@@ -139,6 +154,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgCard,
+        overflow: 'hidden',
     },
     // Fill the frame on wide screens; scroll sideways when the columns don't fit.
     tableContent: { flexGrow: 1 },
@@ -157,20 +173,24 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
 
-    dateCell: { ...textStyles.tableCell, width: 56 },
-    oppCell: { ...textStyles.tableCell, width: 60, flexGrow: 1 },
-    numCell: { ...textStyles.tableCell, width: 36, textAlign: 'center' },
-    shotCell: { ...textStyles.tableCell, width: 52, textAlign: 'center' },
-    fptsCell: { ...textStyles.tableCell, width: 48, textAlign: 'center', color: colors.textPlaceholder },
+    dateCell: { ...textStyles.tableCell, width: controlSize.minTouch + spacing.lg },
+    oppCell: { ...textStyles.tableCell, width: controlSize.minTouch + spacing.xl, flexGrow: 1 },
+    numCell: { ...textStyles.tableCell, width: spacing['4xl'] + spacing.xs, textAlign: 'center' },
+    shotCell: { ...textStyles.tableCell, width: controlSize.button.lg.height, textAlign: 'center' },
+    fptsCell: { ...textStyles.tableCell, width: controlSize.field.md, textAlign: 'center', color: colors.textPlaceholder },
     fptsValue: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
+    compactDateCell: { width: controlSize.minTouch, fontSize: fontSize['2sm'] },
+    compactOppCell: { width: controlSize.minTouch, flexGrow: 0, fontSize: fontSize['2sm'] },
+    compactFptsCell: { width: spacing['4xl'] + spacing.xs, fontSize: fontSize['2sm'] },
+    compactNumCell: { ...textStyles.tableCell, flex: 1, minWidth: 0, textAlign: 'center', fontSize: fontSize['2sm'] },
     colHdr: { ...textStyles.tableHeader },
     dnpText: { color: colors.textPlaceholder },
 
     loadMoreBtn: {
         alignSelf: 'center',
         minHeight: table.rowHeightCompact,
-        minWidth: 120,
+        minWidth: controlSize.minTouch * 2 + spacing['4xl'],
         paddingHorizontal: spacing['2xl'],
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,

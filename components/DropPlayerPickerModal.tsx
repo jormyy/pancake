@@ -64,7 +64,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                             <Button
                                 title="Drop"
                                 size="sm"
-                                variant="danger"
+                                variant="outline"
                                 onPress={() => onDrop(rp)}
                                 disabled={dropping !== null}
                                 loading={dropping === rp.id}

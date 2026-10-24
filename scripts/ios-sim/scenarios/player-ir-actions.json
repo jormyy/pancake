@@ -142,7 +142,7 @@
     "steps": [
       {
         "action": {
-          "tap": "Add to IR {{outPlayer.display_name}}"
+          "tap": "Add {{outPlayer.display_name}}"
         },
         "expected": {
           "text": "{{outPlayer.display_name}} added to IR."
