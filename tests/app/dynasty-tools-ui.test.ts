@@ -3,7 +3,11 @@ import { act, create } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DynastyHub } from '@/components/dynasty/DynastyHub'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
+import { analyzeDynastyTrade } from '@pancake/core'
+import type { TradeParticipantView } from '@/lib/trade-ui-model'
+import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 import {
+    dynastyEngineContext,
     dynastyAnalyzerLatestRouteCacheKey,
     dynastyAnalyzerLatestScopeCacheKey,
     dynastyAnalyzerSnapshotCacheKey,
@@ -18,7 +22,7 @@ const mocks = vi.hoisted(() => ({
     useDynastyRankings: vi.fn(),
     composer: {
         participantName: () => 'Team', reset: vi.fn(), participantIds: [] as string[], setParticipantIds: vi.fn(),
-        prefillFromTrade: vi.fn(), buildMultiTeamItems: () => [], assetsReady: true, participantViews: [],
+        prefillFromTrade: vi.fn(), buildMultiTeamItems: vi.fn<() => MultiTeamTradeItemPayload[]>(() => []), assetsReady: true, participantViews: [] as TradeParticipantView[],
         toggleParticipant: vi.fn(), selectedParticipantIds: new Set(), rosterError: null, rosterLoading: false,
         avgMap: new Map(), avgStatsMap: new Map(), retry: vi.fn(), toggleParticipantPlayer: vi.fn(),
         toggleParticipantPick: vi.fn(), setParticipantDestination: vi.fn(), setParticipantPlayerDestination: vi.fn(),
@@ -46,7 +50,6 @@ vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
 vi.mock('@/components/ItemSeparator', () => ({ ItemSeparator: () => null }))
 vi.mock('@/components/PosTag', () => ({ PosTag: () => null }))
 vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: () => null }))
-vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: () => null }))
 vi.mock('react-native', () => ({
     ActivityIndicator: 'ActivityIndicator', Image: 'Image', Modal: 'Modal', Pressable: 'Pressable',
     ScrollView: 'ScrollView', Text: 'Text', TextInput: 'TextInput', View: 'View',
@@ -90,6 +93,9 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
 
 beforeEach(() => {
     vi.clearAllMocks()
+    mocks.composer.participantIds = []
+    mocks.composer.participantViews = []
+    mocks.composer.buildMultiTeamItems.mockReturnValue([])
     mocks.getLeagueMembers.mockResolvedValue([])
     mocks.readPersistentCache.mockReturnValue(null)
     mocks.useOnlineStatus.mockReturnValue(true)
@@ -119,14 +125,40 @@ describe('dynasty tools UI', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('renders Trade Analyzer with one fixed 5-year outlook', async () => {
+    it('chooses a team before opening analysis with one fixed 5-year outlook', async () => {
+        mocks.getLeagueMembers.mockResolvedValue([{ id: 'other', team_name: 'Other Team' }])
         let renderer!: ReturnType<typeof create>
         await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
-        const rendered = JSON.stringify(renderer.toJSON())
-        const strategyControls = renderer.root.findAll((node) => node.props.accessibilityLabel === 'Trade strategy')
-
-        expect(rendered).toContain('5-year dynasty outlook')
-        expect(strategyControls).toHaveLength(0)
+        expect(JSON.stringify(renderer.toJSON())).toContain('Choose a team.')
+        expect(renderer.root.findAllByProps({ accessibilityLabel: 'View trade analysis' })).toHaveLength(0)
+        expect(renderer.root.findAllByProps({ accessibilityLabel: 'Trade strategy' })).toHaveLength(0)
+        await act(async () => {
+            renderer.root.findByProps({ accessibilityLabel: 'Analyze with Other Team' }).props.onPress()
+        })
+        expect(mocks.composer.setParticipantIds).toHaveBeenCalledWith(['member', 'other'])
+        const analysis = analyzeDynastyTrade(dynastyEngineContext('league', 2026, { points: 1 }), 'overall', [{
+            fromMemberId: 'member', toMemberId: 'other',
+            asset: { kind: 'faab', id: 'faab', label: '$5 FAAB', amount: 5, budget: 100, freeAgentQuality: 0.5 },
+        }])
+        mocks.composer.participantIds = ['member', 'other']
+        mocks.composer.participantViews = ['member', 'other'].map(memberId => ({
+            memberId, destinationIds: [], defaultDestinationId: '', roster: [], picks: [],
+            selectedPlayerIds: new Set(), selectedPickIds: new Set(),
+            playerDestinationIds: {}, pickDestinationIds: {}, faabInputs: {},
+        }))
+        mocks.composer.buildMultiTeamItems = vi.fn(() => [
+            { kind: 'faab' as const, fromMemberId: 'member', toMemberId: 'other', faabAmount: 5 },
+        ])
+        mocks.useDynastyTradeAnalysis.mockReturnValue({ analysis, seasonYear: 2026, loading: false, error: null })
+        await act(async () => { renderer.update(React.createElement(TradeAnalyzer)) })
+        expect(JSON.stringify(renderer.toJSON())).not.toContain('Choose a team.')
+        expect(JSON.stringify(renderer.toJSON())).not.toContain('5-year outlook')
+        await act(async () => {
+            renderer.root.findByProps({ accessibilityLabel: 'View trade analysis' }).props.onPress()
+        })
+        const outlooks = renderer.root.findAll(node => node.children.includes('5-year outlook'))
+        expect(outlooks).toHaveLength(1)
+        expect(renderer.root.findAllByProps({ accessibilityLabel: 'Trade strategy' })).toHaveLength(0)
         await act(async () => { renderer.unmount() })
     })
 
