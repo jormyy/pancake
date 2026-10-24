@@ -127,10 +127,10 @@ it('connects the activity list to the same temporary scroll inset', () => {
     expect(code).toContain('contentContainerStyle={statusScroll.contentStyle()}')
 })
 
-it('keeps trade action and label widths fixed while restoring its normal shadow', () => {
+it('keeps the propose action reachable at narrow widths', () => {
     const code = source('app/(tabs)/trades.tsx')
-    expect(code).toContain('style={{ width: usableWidth < 340 ? 44 : 112 }}')
-    expect(code).toContain("labelStyle={{ width: 56, textAlign: 'left' }}")
+    expect(code).toContain('style={{ minWidth: controlSize.minTouch }}')
+    expect(code).toContain("accessibilityLabel={!online ? 'Reconnect to propose a trade' : disabled ? 'Trades unavailable' : 'Propose trade'}")
     expect(code).not.toContain("boxShadow: 'none'")
 })
 

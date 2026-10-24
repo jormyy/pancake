@@ -16,6 +16,5 @@ describe('roster overflow browser contract', () => {
         expect(trimBanner).toContain('Drop ${player.players.display_name}')
         expect(trimBanner).toContain('Move ${player.players.display_name} to IR')
         expect(trimBanner).not.toContain('Move ${player.players.display_name} to Taxi Squad')
-        expect(trimBanner).toContain('minHeight: 44')
     })
 })

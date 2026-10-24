@@ -79,7 +79,7 @@ it.each(['overflow', 'trim'] as const)('leaves the %s dialog without changing th
     const exit = dialog!.findAllByType('MotionPressable' as React.ElementType).filter((node) => node.props.accessibilityLabel === 'Back to League')
     expect(exit).toHaveLength(1)
     await act(async () => exit[0].props.onPress())
-    expect(mocks.replace).toHaveBeenCalledWith('/league?tab=draftBoard')
+    expect(mocks.replace).toHaveBeenCalledWith('/league?tab=draft')
     await act(async () => dialog!.props.onRequestClose())
     expect(mocks.replace).toHaveBeenCalledTimes(2)
     expect(mocks.drop).not.toHaveBeenCalled()

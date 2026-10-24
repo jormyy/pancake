@@ -42,7 +42,7 @@ describe('trade screen realtime ownership', () => {
         ['offers', 'trades', 'trades'],
         ['history', 'trades', 'history'],
         ['block', 'tradeBlock', 'block'],
-        ['picks', 'draftPicks', 'picks'],
+        ['block', 'draftPicks', 'picks'],
     ] as const)('retries failed %s change-event reads without another event', async (tab, event, feed) => {
         vi.useFakeTimers()
         const reads = { trades: vi.fn().mockResolvedValue(true), history: vi.fn().mockResolvedValue(true),
@@ -128,7 +128,7 @@ describe('trade screen realtime ownership', () => {
             await act(async () => { renderer.update(React.createElement(Probe, { tab: 'offers' })) })
             await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
             expect(refreshDraftPicks).toHaveBeenCalledTimes(1)
-            await act(async () => { renderer.update(React.createElement(Probe, { tab: 'picks' })) })
+            await act(async () => { renderer.update(React.createElement(Probe, { tab: 'block' })) })
             expect(refreshDraftPicks).toHaveBeenCalledTimes(2)
             await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
             expect(refreshDraftPicks).toHaveBeenCalledTimes(2)
@@ -260,7 +260,7 @@ describe('trade screen realtime ownership', () => {
 it('reuses verified fresh picks only at the initial join and revalidates after a real gap', async () => {
     const picks = vi.fn().mockResolvedValue(true), trades = vi.fn().mockResolvedValue(true)
     const Probe = () => {
-        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: 'picks', draftPicksFresh: true,
+        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: 'block', draftPicksFresh: true,
             refreshDraftPicks: picks, refreshTrades: trades, refreshHistory: trades, refreshTradeBlock: trades })
         return null
     }

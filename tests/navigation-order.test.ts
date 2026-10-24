@@ -35,13 +35,10 @@ describe('primary navigation order', () => {
         expect(webPrimary).not.toContain("href: '/dynasty'")
     })
 
-    it('keeps profile access in league settings', async () => {
-        const [screenSource, panelSource] = await Promise.all([
-            readFile(path.join(ROOT, 'app/(tabs)/league.tsx'), 'utf8'),
-            readFile(path.join(ROOT, 'components/league/SettingsPanel.tsx'), 'utf8'),
-        ])
+    it('keeps profile access in the menu', async () => {
+        const shellSource = await readFile(path.join(ROOT, 'components/navigation/WebTabShell.tsx'), 'utf8')
 
-        expect(screenSource).toContain('onOpenProfile={screen.openProfile}')
-        expect(panelSource).toContain('accessibilityLabel="Open profile and settings"')
+        expect(shellSource).toContain('accessibilityLabel="Profile & settings"')
+        expect(shellSource).toContain("router.push('/profile')")
     })
 })

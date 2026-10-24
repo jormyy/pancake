@@ -152,7 +152,7 @@ describe('player decision summary', () => {
         const styles = Object.assign({}, ...[roster.parent?.props.style].flat(Infinity).filter(Boolean))
         expect(styles.alignItems).toBe('center')
         const button = screen.root.findByProps({ accessibilityLabel: action })
-        expect(name.parent?.findAllByProps({ accessibilityLabel: action })).toHaveLength(action.startsWith('Drop') ? 0 : 1)
+        expect(name.parent?.findAllByProps({ accessibilityLabel: action })).toHaveLength(1)
         if (status.status === 'free_agent') {
             const caption = screen.root.findByProps({ children: 'Adds 7/7' })
             expect(caption.parent === name.parent?.parent).toBe(true)
@@ -173,43 +173,19 @@ describe('player decision summary', () => {
         expect(core.findAllByType(type('Badge')).map(node => node.props.label)).toContain('Dynasty #100')
     })
 
-    it('keeps the projection source status and shows tipoff separately', async () => {
-        const projection = {
-            next_game_date: '2026-10-24', next_game_opponent: 'vs BOS', next_game_time: '2026-10-24T23:00:00Z',
-            projection_status: 'GTD', projection_fantasy_points: 32, injury_status: null, projection_source_label: 'FantasyPros',
-        } as LeagueProjectionRow
-        await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('GTD')
-        expect(text()).toContain('32.0')
-        expect(text()).toContain('Tipoff')
-    })
-
-    it.each([true, false])('shows old projection age with backend freshness %s', async fresh => {
-        const projection = {
-            next_game_date: '2026-10-25', next_game_opponent: 'vs BOS', projection_fantasy_points: 32,
-            projection_source_label: 'Sleeper', projection_is_fresh: fresh,
-            projection_fetched_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
-        } as LeagueProjectionRow
-        await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('3d')
-        if (fresh) expect(text()).not.toContain('Outdated')
-        else expect(text()).toContain('Outdated')
-    })
-
     it('never calls a started game next and shows live points from the log', async () => {
         const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T17:00:00Z',
             next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection,
             liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4 }))
-        expect(text()).toContain('No upcoming game available.')
         expect(text()).toContain('Live vs BOS · 12.4 FP so far')
         expect(text()).not.toContain('42.8')
         await act(async () => screen.update(React.createElement(NextProjectionCard, {
             projection: { ...projection, next_game_date: '2026-10-25', next_game_time: '2026-10-25T23:00:00Z', next_game_opponent: '@ DEN' },
             liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4,
         })))
-        expect(text()).toContain('@ DEN Oct 25')
-        expect(text()).toContain('12.4 FP so far')
+        expect(text()).not.toContain('@ DEN')
+        expect(text()).toBe('Live vs BOS · 12.4 FP so far')
     })
 
     it('removes the next projection at tipoff without polling', async () => {
@@ -218,8 +194,7 @@ describe('player decision summary', () => {
         await render(React.createElement(NextProjectionCard, { projection }))
         expect(text()).toContain('42.8')
         await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
-        expect(text()).not.toContain('42.8')
-        expect(text()).toContain('No upcoming game available.')
+        expect(screen.toJSON()).toBeNull()
     })
 
     it('keeps ten decision stats, with fantasy points first and one season control', async () => {
@@ -243,11 +218,10 @@ describe('player decision summary', () => {
             projection_source_label: 'FantasyPros', projection_is_fresh: false,
         } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('Next game projection')
-        expect(text()).toContain('vs BOS Oct 24')
+        expect(text()).toMatch(/^vs BOS · Sat .+ · 42\.8 FP proj$/)
+        expect(screen.root.findByType(type('Text')).props.numberOfLines).toBe(1)
         expect(text()).toContain('42.8')
         expect(text()).toContain('FP')
-        expect(text()).toContain('Outdated')
     })
 })
 

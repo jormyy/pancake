@@ -16,19 +16,19 @@ describe('player context helpers', () => {
         expect(playerEligiblePositions({ position: null, eligiblePositions: null })).toEqual([])
     })
 
-    it('formats experience labels without hiding rookies', () => {
+    it('shows experience labels only for rookies', () => {
         expect(playerYearsExperienceLabel(null)).toBeNull()
         expect(playerYearsExperienceLabel(0)).toBe('Rookie')
-        expect(playerYearsExperienceLabel(1)).toBe('Yr 2')
-        expect(playerYearsExperienceLabel(8)).toBe('Yr 9')
+        expect(playerYearsExperienceLabel(1)).toBeNull()
+        expect(playerYearsExperienceLabel(8)).toBeNull()
     })
 
-    it('combines fantasy points, minutes, and experience in a compact stat line', () => {
+    it('combines fantasy points and minutes without veteran year labels', () => {
         expect(playerSeasonContextText({
             avgFantasyPoints: 42.345,
             avgMinutesPlayed: 31,
             yearsExp: 3,
-        })).toBe('42.3 FP · 31.0 MIN · Yr 4')
+        })).toBe('42.3 FP · 31.0 MIN')
     })
 
     it('keeps partial and empty stats readable', () => {

@@ -41,8 +41,6 @@ type MotionPressableProps = Omit<PressableProps, 'style'> & {
     children: ReactNode
     disabled?: boolean
     disabledOpacity?: number
-    lift?: number
-    pressedScale?: number
     style?: StyleProp<ViewStyle>
 }
 
@@ -50,8 +48,6 @@ export function MotionPressable({
     children,
     disabled,
     disabledOpacity = 0.58,
-    lift: _lift,
-    pressedScale: _pressedScale,
     style,
     ...props
 }: MotionPressableProps) {

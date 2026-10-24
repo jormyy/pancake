@@ -1,10 +1,11 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { LineupPlayer } from '@/lib/lineup'
 import HomeScreen from '@/app/(tabs)/index'
 
 const mocks = vi.hoisted(() => ({
-    lineup: { starters: [{ slotType: 'PG', player: null }], bench: [], benchSlots: 3, ir: [], taxi: [] },
+    lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     setSelected: vi.fn(),
     saved: undefined as unknown,
@@ -62,8 +63,17 @@ afterEach(async () => { await act(async () => screen?.unmount()) })
 const mount = async () => { await act(async () => { screen = create(React.createElement(HomeScreen)) }) }
 const rows = (slot: string) => screen.root.findAllByType('MatchupRow' as React.ElementType).filter((node) => node.props.slotType === slot)
 
+const populatedStarters = () => {
+    mocks.lineup.starters = [{ slotType: 'PG', player: {
+        rosterPlayerId: 'roster', playerId: 'player', displayName: 'Player', position: 'PG',
+        eligiblePositions: ['PG'], nbaTeam: 'LAL', injuryStatus: null, nbaId: null,
+    } }]
+}
+
 it('shows the BE template count instead of deriving bench places from roster size', async () => {
     await mount()
+    expect(rows('PG')).toHaveLength(0)
+    expect(screen.root.findByProps({ accessibilityLabel: 'No lineups set this day' }).props.children).toBe('No lineups set this day')
     expect(rows('BE')).toHaveLength(3)
     expect(rows('IR')).toHaveLength(2)
     expect(rows('TX')).toHaveLength(2)
@@ -83,6 +93,7 @@ it('omits reserve sections with zero configured places', async () => {
 })
 
 it('shows the first matchup with complete game data and retains it through revalidation', async () => {
+    populatedStarters()
     mocks.freshness = 'refreshing'
     await mount()
     expect(rows('PG')).toHaveLength(0)
@@ -97,9 +108,10 @@ it('shows the first matchup with complete game data and retains it through reval
 })
 
 it('shows a recent complete game display during the initial live refresh', async () => {
+    populatedStarters()
     mocks.freshness = 'refreshing'
     mocks.saved = {
-        date: '2026-10-11', players: '[]', savedAt: Date.now(), games: [{ home_team: 'DEN', away_team: 'LAL', status: 'InProgress' }],
+        date: '2026-10-11', players: '["player"]', savedAt: Date.now(), games: [{ home_team: 'DEN', away_team: 'LAL', status: 'InProgress' }],
         stats: [], started: ['DEN', 'LAL'], matchups: [['DEN', { opponent: 'LAL', isHome: true }]],
     }
     await mount()

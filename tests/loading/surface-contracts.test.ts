@@ -30,7 +30,7 @@ it('keeps player and roster summaries width-stable without unknown counts', asyn
     expect(players).not.toContain('Waivers —')
     expect(players).toContain("resultCountLabel ? summaryLine : ''")
     expect(roster).toContain('data ? `${active.length}/${rosterSize} active')
-    expect(players).toContain('minWidth: 240, minHeight: 20')
+    expect(players).toContain('minWidth: 240, minHeight: textStyles.body.lineHeight')
     expect(players).toContain('opacity: listIsInitialLoading ? 0 : 1')
     expect(roster).toContain('opacity: !data ? 0 : 1')
     expect(roster).toContain('minWidth: 240, minHeight: 20')
