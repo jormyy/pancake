@@ -9,7 +9,6 @@ import {
 } from 'react-native'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { FlashList, FlashListRef } from '@shopify/flash-list'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import * as Haptics from 'expo-haptics'
@@ -283,7 +282,8 @@ export default function RosterScreen() {
         () => readRosterCache(current?.id, leagueId, snapshotScope),
         [current?.id, leagueId, snapshotScope],
     )
-    const listRef = useRef<FlashListRef<RosterListItem>>(null)
+    const listRef = useRef<ScrollView>(null)
+    const claimsOffsetRef = useRef(0)
     const [togglingId, setTogglingId] = useState<string | null>(null)
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
     const [cancellingId, setCancellingId] = useState<string | null>(null)
@@ -462,7 +462,7 @@ export default function RosterScreen() {
 
     const scrollToClaims = useCallback(() => {
         if (claimsHeaderIndex === -1) return
-        listRef.current?.scrollToIndex({ index: claimsHeaderIndex, animated: true })
+        listRef.current?.scrollTo({ y: claimsOffsetRef.current, animated: false })
     }, [claimsHeaderIndex])
 
     useEffect(() => {
@@ -871,8 +871,14 @@ export default function RosterScreen() {
         handleToggleIR, handleToggleTaxi, handleDropPrompt,
     ])
 
-    const renderRosterItem = useCallback(({ item }: { item: RosterListItem }) => (
+    const renderRosterItem = useCallback((item: RosterListItem) => (
         <View
+            key={item._isHeader ? `header-${item._section}`
+                : item._isEmpty ? `empty-${item._section}-${item._emptyIndex}`
+                : ('pickId' in item ? item.pickId : item.id)}
+            onLayout={item._isHeader && item._section === 'claims'
+                ? (event) => { claimsOffsetRef.current = event.nativeEvent.layout.y }
+                : undefined}
             style={[
                 styles.cardSlice,
                 item._isHeader && styles.cardTop,
@@ -983,18 +989,11 @@ export default function RosterScreen() {
             {roster.length === 0 && loading ? <View style={{ flex: 1, minHeight: 320 }} aria-busy accessibilityState={{ busy: true }} /> : (
                 <View style={[styles.body, twoPane && styles.bodyTwoPane, { paddingHorizontal: twoPane ? padX : 0 }]}>
                     <View style={styles.main}>
-                        <FlashList
+                        <ScrollView
                             ref={listRef}
-                            data={listData}
-                            keyExtractor={(item) =>
-                                item._isHeader ? `header-${item._section}`
-                                : item._isEmpty ? `empty-${item._section}-${'_emptyIndex' in item ? item._emptyIndex : 0}`
-                                : ('pickId' in item ? item.pickId : item.id)
-                            }
-                            contentContainerStyle={{ ...styles.listContent, paddingHorizontal: twoPane ? 0 : padX }}
-                            getItemType={(item) => item._isHeader ? 'header' : item._section}
-                            renderItem={renderRosterItem}
-                            ListHeaderComponent={roster.length === 0 ? (
+                            contentContainerStyle={[styles.listContent, { paddingHorizontal: twoPane ? 0 : padX }]}
+                        >
+                            {roster.length === 0 ? (
                                 <EmptyState
                                     fullScreen={false}
                                     framed
@@ -1010,7 +1009,8 @@ export default function RosterScreen() {
                                     }}
                                 />
                             ) : null}
-                        />
+                            {listData.map(renderRosterItem)}
+                        </ScrollView>
                     </View>
                     {twoPane ? (
                         <ScrollView style={styles.rail} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>

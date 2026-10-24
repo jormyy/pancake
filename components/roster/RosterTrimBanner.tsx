@@ -1,6 +1,7 @@
+import { useMemo } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Avatar } from '@/components/Avatar'
-import { colors, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, table, textStyles, tints, uiColors } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
 import { isIREligible, type RosterPlayer } from '@/lib/roster'
 
@@ -21,14 +22,17 @@ export function RosterTrimBanner({
     dropDisabled?: boolean
     onMoveToIR: (player: RosterPlayer) => void
 }) {
+    const recoveryPlayers = useMemo(() => [...players].sort((a, b) =>
+        Number(irAvailable && isIREligible(b.players.injury_status)) - Number(irAvailable && isIREligible(a.players.injury_status)),
+    ), [players, irAvailable])
     if (excess <= 0) return null
 
     return (
         <View style={styles.banner} accessibilityRole="alert" accessibilityLabel={`Roster is ${excess} over the active player limit`}>
             <Text style={styles.title}>Trim roster: {excess} over limit</Text>
-            <Text style={styles.detail}>Lineup changes are locked. Drop players or move eligible players to an open IR slot.</Text>
+            <Text style={styles.detail}>Drop a player or move one to IR to unlock lineup changes.</Text>
             <ScrollView style={styles.list} nestedScrollEnabled>
-                {players.map((player) => {
+                {recoveryPlayers.map((player) => {
                     const busy = busyId !== null
                     return (
                         <View key={player.id} style={styles.row}>
@@ -79,18 +83,18 @@ export function RosterTrimBanner({
 
 const styles = StyleSheet.create({
     banner: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
         backgroundColor: tints.dangerAction,
         borderBottomWidth: 1,
         borderBottomColor: colors.danger,
         gap: spacing.xs,
     },
-    title: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.dangerDark },
-    detail: { fontSize: fontSize.sm, color: uiColors.dangerText, lineHeight: 19 },
-    list: { maxHeight: 280, marginTop: spacing.sm },
+    title: { ...textStyles.rowTitle, color: colors.dangerDark },
+    detail: { ...textStyles.meta, color: uiColors.dangerText },
+    list: { maxHeight: table.rowHeight * 3, marginTop: spacing.xs },
     row: {
-        minHeight: 58,
+        minHeight: table.rowHeight,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,

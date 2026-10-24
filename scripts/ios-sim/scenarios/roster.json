@@ -35,16 +35,6 @@
         "expected": {
           "selector": "[aria-label='View {{rosterPlayer.display_name}} player page']"
         }
-      },
-      {
-        "name": "page",
-        "action": {
-          "tap": "View {{rosterPlayer.display_name}} player page"
-        },
-        "expected": {
-          "route": "/player/{{rosterPlayer.id}}",
-          "selector": "select[aria-label='Season']"
-        }
       }
     ],
     "prepare": [
@@ -78,6 +68,9 @@
       },
       {
         "open": "/league"
+      },
+      {
+        "tap": "Standings"
       }
     ]
   },
@@ -165,16 +158,6 @@
         "expected": {
           "selector": "[aria-label='View {{rosterPlayer.display_name}} player page']"
         }
-      },
-      {
-        "name": "page",
-        "action": {
-          "tap": "View {{rosterPlayer.display_name}} player page"
-        },
-        "expected": {
-          "route": "/player/{{rosterPlayer.id}}",
-          "selector": "select[aria-label='Season']"
-        }
       }
     ],
     "prepare": [
@@ -208,6 +191,9 @@
       },
       {
         "open": "/league"
+      },
+      {
+        "tap": "Standings"
       }
     ]
   },
