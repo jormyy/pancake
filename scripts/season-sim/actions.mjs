@@ -11,6 +11,7 @@ import {plannedAuctionBid} from './auction-plan.mjs'
 
 export function actionClient(keys) {
   assertTarget(keys.API_URL, 'api')
+  const tokenListeners = new Set()
   /**
    * @param {unknown} [body]
    * @param {number | number[]} [expected]
@@ -31,6 +32,7 @@ export function actionClient(keys) {
     assert.ok(response.ok, `Local session refresh: ${response.status}`)
     const session = await response.json()
     Object.assign(user, { token: session.access_token, refreshToken: session.refresh_token, expiresAt: Date.now() + session.expires_in * 1000 })
+    await Promise.all([...tokenListeners].map(listener => listener(user)))
     return user.token
   }
   /** @param {number | number[]} [expected] */
@@ -39,7 +41,11 @@ export function actionClient(keys) {
   const api = async (user, route, body, expected = 200) => request(originUrl('edge'), `/functions/v1/api${route}`, await refresh(user), body, expected)
   const rest = async (user, query) => request(keys.API_URL, `/rest/v1/${query}`, await refresh(user))
   const restWrite = async (user, query, body, method = 'POST') => request(keys.API_URL, `/rest/v1/${query}`, await refresh(user), body, 200, method)
-  return { rpc, api, rest, restWrite }
+  const onTokenRefresh = listener => {
+    tokenListeners.add(listener)
+    return () => tokenListeners.delete(listener)
+  }
+  return { rpc, api, rest, restWrite, onTokenRefresh }
 }
 
 export async function createLeagueActions(keys, date, teamCount = 2, options = {}) {
@@ -47,7 +53,7 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   const run = randomBytes(6).toString('hex')
   /** @type {ReplayUser[]} */
   const users = []
-  const { rpc, api, rest, restWrite } = actionClient(keys)
+  const { rpc, api, rest, restWrite, onTokenRefresh } = actionClient(keys)
   for (let index = 0; index < teamCount; index++) {
     const email = `season-sim-${run}-${index}@example.test`, password = randomBytes(24).toString('hex')
     const created = await fetch(`${keys.API_URL}/auth/v1/admin/users`, { method: 'POST', headers: { apikey: keys.SERVICE_ROLE_KEY, Authorization: `Bearer ${keys.SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, email_confirm: true }), redirect: 'error' })
@@ -96,5 +102,5 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   for (const user of users) await api(user, '/league/lineup/auto-set-season', { memberId: user.memberId, leagueId, leagueSeasonId, dates: [date] })
   const context = { leagueId, leagueSeasonId, seasonYear: season.year, seasonEnd:season.end, firstDate: date, diagnosticSkippedWeeks: skipped, draftId: draft.id, members, date }
   await writeJson(path.join(miniRoot, 'state/league.json'), context)
-  return { ...context, users, rpc, api, rest, restWrite }
+  return { ...context, users, rpc, api, rest, restWrite, onTokenRefresh }
 }

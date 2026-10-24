@@ -22,8 +22,9 @@ export async function startRealtimeProbe(c, keys) {
     await delay(100)
   }
   assert.equal(status, 'SUBSCRIBED', 'Client must join the private matchup Realtime channel')
-  const syncAuth = realtimeAuth(client.realtime, c.users[0].token)
+  const syncAuth = realtimeAuth(client.realtime, c.users[0].token, c)
   return { topic, events, syncAuth: () => syncAuth(c.users[0].token), async verify(matchups) {
+    assert.equal(status, 'SUBSCRIBED', 'Client Realtime channel must remain subscribed through verification')
     for (let attempt = 0; attempt < 50 && !events.length; attempt++) await delay(100)
     assert.ok(events.some(event => event.scoreChanged), 'Subscribed client must receive a real matchup score change')
     const current = new Map(matchups.map(row => [row.id, row]))
@@ -39,14 +40,16 @@ export async function startRealtimeProbe(c, keys) {
       for (const key of ['home_points', 'away_points', 'is_finalized', 'winner_member_id']) assert.equal(received[key], row[key], `Client Realtime ${key} agrees with authenticated matchup read`)
     }
     return { topic, status, events: events.length, passed: true, source: 'hooks/use-matchup-data.ts; lib/scoring.ts', sample: events.find(event => event.scoreChanged) }
-  }, close: () => client.removeAllChannels() }
+  }, close: () => { syncAuth.close(); return client.removeAllChannels() } }
 }
 
-export function realtimeAuth(client, initialToken) {
+export function realtimeAuth(client, initialToken, context) {
   let current = initialToken
-  return async token => {
+  const sync = async token => {
     if (token === current) return
     await client.setAuth(token)
     current = token
   }
+  sync.close = context?.onTokenRefresh(user => user === context.users[0] ? sync(user.token) : undefined) ?? (() => {})
+  return sync
 }

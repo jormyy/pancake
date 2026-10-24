@@ -796,3 +796,10 @@ Probe errors do not change worker outcomes or move the business clock.
 
 A bounded live-window check must let the current worker finish through the cadence driver before it calls `drain`.
 `drain` waits for responses at its supplied clock time; it does not advance that clock.
+
+The replay forwards each REST session renewal to its private Realtime channel immediately.
+Waiting for the next live sample can let the old token expire between game dates.
+A late token update does not reopen a channel that the server closes on expiry.
+The probe removes its renewal listener during cleanup and requires a live subscription at final verification.
+If terminal delivery fails after all dates pass, preserve that failure and reconcile the final state without replaying settled dates.
+An independent subscription proves only its recorded delivery window; it cannot certify the lost earlier stream.
