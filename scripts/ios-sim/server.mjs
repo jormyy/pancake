@@ -22,7 +22,7 @@ export async function resolveFile(root, pathname) {
 }
 
 export async function serve({ root, port }) {
-  const controls = new Set(), reports = new Map()
+  const controls = new Set(), reports = new Map(), acknowledgments = new Set()
   let current, offline = false
   const send = message => { for (const stream of controls) stream.write(`data: ${JSON.stringify(message)}\n\n`) }
   const server = createServer(async (request, response) => {
@@ -36,11 +36,15 @@ export async function serve({ root, port }) {
         request.once('close', () => controls.delete(response))
         return
       }
+      if (url.pathname === '/__ios/ack' && request.method === 'POST') {
+        acknowledgments.add(url.searchParams.get('id'))
+        response.writeHead(204); response.end(); return
+      }
       if (url.pathname === '/__ios/report' && request.method === 'POST') {
         let body = ''
         for await (const chunk of request) { body += chunk; assert.ok(body.length < 16000000, 'Report is too large') }
         const report = JSON.parse(body)
-        reports.set(report.id, report)
+        if (!reports.has(report.id)) reports.set(report.id, report)
         response.writeHead(204); response.end(); return
       }
       if (url.pathname === '/__ios/recorder.js') { response.writeHead(200, { 'content-type': types['.js'], 'cache-control': 'no-store' }); response.end(recorderSource); return }
@@ -56,7 +60,7 @@ export async function serve({ root, port }) {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', () => resolve(undefined)) })
   return {
     server, reports,
-    arm(spec) { current = { ...spec, startedAt: Date.now() }; send({ type: 'begin', spec: current }); return current },
+    arm(spec) { acknowledgments.delete(spec.id); reports.delete(spec.id); current = { ...spec, startedAt: Date.now() }; send({ type: 'begin', spec: current }); return current },
     disarm() { current = null; send({ type: 'finish' }) },
     prepare(url) { current = null; send({ type: 'prepare', url }) },
     navigate(url) { send({ type: 'prepare', url }) },
@@ -65,10 +69,21 @@ export async function serve({ root, port }) {
     offline(value) { offline = value },
     network(value) { send({ type: 'offline', value }) },
     connected() { return controls.size },
-    async result(id, timeout = 16000) {
+    async armed(id, timeout = 5000) {
       const started = Date.now()
-      while (Date.now() - started < timeout) { if (reports.has(id)) return reports.get(id); await pause(150) }
-      return null
+      while (Date.now() - started < timeout) { if (acknowledgments.has(id)) return; await pause(50) }
+      throw new Error(`Recorder did not acknowledge observation ${id}`)
+    },
+    async result(id, timeout = 16000) {
+      const wait = async duration => {
+        const started = Date.now()
+        while (Date.now() - started < duration) { if (reports.has(id)) return reports.get(id); await pause(50) }
+        return null
+      }
+      const observed = await wait(timeout)
+      if (observed) return observed
+      send({ type: 'finish', id, reason: 'Recorder exceeded the observation deadline' })
+      return await wait(2000) ?? { id, missingObservation: true, observationError: `No paint recording arrived for ${id} after the observation deadline and final collection attempt (${controls.size} recorder connections)`, firstContentMs: null, events: [] }
     },
     async close() { for (const stream of controls) stream.end(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) },
   }

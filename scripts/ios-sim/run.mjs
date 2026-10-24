@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdir, open, readFile } from 'node:fs/promises'
+import { mkdir, open, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { exportWeb } from './build.mjs'
+import { exportWeb, verifyBuild } from './build.mjs'
 import { args, digest, freePort, home, lock, pause, repo, run, stopChild } from './common.mjs'
 import { installPwa, simulator, startDriver } from './driver.mjs'
 import { failures, videoDifferences, writeReport } from './report.mjs'
@@ -41,6 +41,11 @@ async function waitFor(check, timeout = 20000) {
   throw new Error('The expected page did not become ready')
 }
 
+export function requireContent(step) {
+  const reasons = failures(step).filter(reason => reason !== 'The screen did not settle within the observation window')
+  assert.equal(reasons.length, 0, reasons.join('; '))
+}
+
 async function runSuite(options) {
   const report = { head: await run('git', ['rev-parse', 'HEAD']), startedAt: new Date().toISOString(), steps: [], options: { ...options, output: undefined } }
   let server, driver, device, recording, log, web = false
@@ -54,8 +59,10 @@ async function runSuite(options) {
     const stack = await startStack()
     const build = await exportWeb(stack, options.rebuild === true)
     report.build = build.hash
+    report.sourceFingerprint = build.sourceFingerprint
     server = await serve({ root: build.root, port: options.port })
     const origin = `http://127.0.0.1:${options.port}`
+    await verifyBuild(origin, build)
     device = await simulator(options.device)
     report.device = device
     driver = await startDriver({ device, port: options.appiumPort, directory: options.output })
@@ -107,13 +114,15 @@ async function runSuite(options) {
     await fill('Email', user.email)
     await fill('Password', stack.fixture.password)
     server.arm({ id: 'sign-in', expected: { text: user.teamName }, immediate: !web })
+    await server.armed('sign-in')
     await tap('Sign In')
     const signedIn = await server.result('sign-in', 20000)
     await driver.native()
     if (!await driver.optional('Never for This Website')) await driver.optional('Not Now')
     report.steps.push({ id: 'sign-in', metrics: signedIn })
     await driver.screenshot(path.join(options.output, 'sign-in.png'))
-    assert.equal(failures(report.steps[0]).length, 0, 'Seeded sign-in did not reach real league content')
+    await writeReport(options.output, report)
+    requireContent(report.steps[0])
     const index = options.manager * 22
     const offset = stack.fixture.players.slice(index, index + 10).findIndex(player => !['DEN', 'LAL'].includes(player.nba_team))
     const context = { displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
@@ -159,6 +168,7 @@ async function runSuite(options) {
           const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
           try {
             server.arm({ id, expected: step.expected, immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline || step.action.refresh) })
+            await server.armed(id)
             await action(step.action)
             result.metrics = await server.result(id)
           } catch (error) { result.error = error.message }
@@ -180,6 +190,7 @@ async function runSuite(options) {
   finally {
     if (server) { server.network(false); server.disarm() }
     await stopChild(recording, 'SIGINT')
+    if (recording && !(await stat(path.join(options.output, 'video.mp4')).catch(() => null))?.size) report.error ??= 'Simulator video recording is missing or empty'
     await log?.close()
     if (driver) await driver.close().catch(error => { report.cleanupError = error.message })
     if (device) await run('xcrun', ['simctl', 'shutdown', device.udid]).catch(error => { report.cleanupError = error.message })

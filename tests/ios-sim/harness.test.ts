@@ -9,8 +9,10 @@ import { test } from 'vitest'
 import { lock, localUrl, pause, stopChild } from '../../scripts/ios-sim/common.mjs'
 import { Driver } from '../../scripts/ios-sim/driver.mjs'
 import { recorderSource } from '../../scripts/ios-sim/recorder.mjs'
-import { failures } from '../../scripts/ios-sim/report.mjs'
+import { failures, writeReport } from '../../scripts/ios-sim/report.mjs'
+import * as runner from '../../scripts/ios-sim/run.mjs'
 import { resolveOptions } from '../../scripts/ios-sim/run.mjs'
+import { buildFixture } from './build-fixture.mjs'
 import { resolveFile, serve } from '../../scripts/ios-sim/server.mjs'
 import { stackConfig } from '../../scripts/ios-sim/stack.mjs'
 
@@ -23,10 +25,11 @@ class Element {
   getAttribute(name: string) { return name === 'role' ? 'heading' : null }
 }
 
-function recorder() {
+function recorder(failedUploads = 0) {
   let now = 0, counter = 0
   const queue = new Map<number, () => void>()
   const posted: Record<string, unknown>[] = []
+  const controls: { onmessage?: (event: { data: string }) => void }[] = []
   const elements = [new Element()]
   const handlers = new Map<string, () => void>()
   const storage = new Map()
@@ -41,15 +44,21 @@ function recorder() {
     requestAnimationFrame: (callback: () => void) => { queue.set(++counter, callback); return counter },
     cancelAnimationFrame: (id: number) => queue.delete(id),
     MutationObserver: class { observe() {} disconnect() {} },
-    EventSource: class { close() {} },
+    EventSource: class { constructor() { controls.push(this) } onmessage?: (event: { data: string }) => void; close() {} },
     XMLHttpRequest: class { open() {} send() {} },
-    fetch: async (_url: string, options: { body?: string }) => { if (options?.body) posted.push(JSON.parse(options.body)); return {} },
+    fetch: async (_url: string, options: { body?: string }) => {
+      if (options?.body) {
+        if (failedUploads-- > 0) throw new Error('Report connection lost')
+        posted.push(JSON.parse(options.body))
+      }
+      return { ok: true }
+    },
   }
   const scope = vm.createContext({ ...context, window: context })
   vm.runInContext(recorderSource, scope)
   const api = (context as typeof context & { __iosRecorder: { begin: (spec: object) => void, finish: (settled: boolean) => unknown } }).__iosRecorder
   const frame = (time: number) => { now = time; const jobs = [...queue.values()]; queue.clear(); for (const job of jobs) job() }
-  return { api, frame, elements, posted, handlers, document, queue }
+  return { api, frame, elements, posted, handlers, document, queue, message: (value: object) => controls[0].onmessage!({ data: JSON.stringify(value) }) }
 }
 
 test('recorder waits for real content and records appearance, loss, text, and movement', () => {
@@ -189,4 +198,122 @@ test('driver rejects W3C command errors instead of treating them as successful c
     const driver = new Driver(address.port)
     await assert.rejects(driver.click('Missing button'), /Target is absent/)
   } finally { await new Promise<void>(resolve => server.close(() => resolve())) }
+})
+
+test('the source lock covers snapshot through export across two checkouts', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-export-test-'))
+  try {
+    const a = await buildFixture(directory, 'lane-a')
+    const b = await buildFixture(directory, 'lane-b')
+    const stack = { url: 'http://127.0.0.1:57121', anonKey: 'local-fixture-key' }
+    const first = a.build.exportWeb(stack)
+    while (!await readFile(path.join(directory, 'shared/export-started')).catch(() => null)) await pause(10)
+    const [one, two] = await Promise.all([first, b.build.exportWeb(stack)])
+    assert.equal((await readFile(path.join(one.root, '_expo/static/js/web/app.js'), 'utf8')).split('\n').slice(0, 3).join(':'), 'lane-a:lane-a:core-lane-a')
+    assert.equal((await readFile(path.join(two.root, '_expo/static/js/web/app.js'), 'utf8')).split('\n').slice(0, 3).join(':'), 'lane-b:lane-b:core-lane-b')
+    assert.notEqual(one.hash, two.hash)
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
+
+test('the runner rejects a served fingerprint from another checkout or an edited source', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-fingerprint-test-'))
+  let server: Awaited<ReturnType<typeof serve>> | undefined
+  try {
+    const a = await buildFixture(directory, 'lane-a')
+    const b = await buildFixture(directory, 'lane-b')
+    const stack = { url: 'http://127.0.0.1:57121', anonKey: 'local-fixture-key' }
+    const build = await a.build.exportWeb(stack)
+    server = await serve({ root: build.root, port: 0 })
+    const address = server.server.address()
+    assert.ok(address && typeof address !== 'string')
+    const origin = `http://127.0.0.1:${address.port}`
+    await a.build.verifyBuild(origin, build)
+    await assert.rejects(b.build.verifyBuild(origin, build), /checkout/)
+    await writeFile(path.join(a.checkout, 'screen.tsx'), 'edited')
+    await assert.rejects(a.build.verifyBuild(origin, build), /checkout/)
+    const metadata = JSON.parse(await readFile(path.join(build.root, 'ios-build.json'), 'utf8'))
+    metadata.source = 'foreign-build'
+    await writeFile(path.join(build.root, 'ios-build.json'), JSON.stringify(metadata))
+    await assert.rejects(a.build.verifyBuild(origin, build), /fingerprint/)
+  } finally { await server?.close(); await rm(directory, { recursive: true, force: true }) }
+})
+
+test('an unsettled sign-in and step keep measurements and allow later steps', () => {
+  const r = recorder()
+  r.api.begin({ id: 'sign-in', expected: { text: 'Loading' }, immediate: true, maximumMs: 100 })
+  r.frame(1)
+  r.elements[0].y = 30
+  r.frame(50)
+  r.elements[0].y = 50
+  r.frame(110)
+  const metrics = JSON.parse(JSON.stringify(r.posted[0]))
+  assert.equal(metrics.settled, false)
+  assert.equal(metrics.events.length, 2)
+  assert.deepEqual(failures({ metrics }), ['The screen did not settle within the observation window'])
+  assert.doesNotThrow(() => runner.requireContent({ metrics }))
+  r.api.begin({ id: 'later-step', expected: { text: 'Loading' }, immediate: true, minimumMs: 10, quietMs: 5 })
+  r.frame(120)
+  r.frame(140)
+  assert.equal(r.posted.length, 2)
+  for (const bad of [{}, { metrics: { ...metrics, firstContentMs: null } }, { metrics: { ...metrics, standalone: false } }]) {
+    assert.throws(() => runner.requireContent(bad))
+  }
+})
+
+test('a deadline flush recovers a hidden page observation before reporting missing data', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'ios-observation-test-'))
+  const server = await serve({ root, port: 0 })
+  const address = server.server.address()
+  assert.ok(address && typeof address !== 'string')
+  const origin = `http://127.0.0.1:${address.port}`
+  const stream = await fetch(`${origin}/__ios/control?standalone=1`)
+  const reader = stream.body!.getReader()
+  try {
+    await server.arm({ id: 'hidden', immediate: true })
+    const pending = server.result('hidden', 20)
+    let messages = ''
+    const received = async () => {
+      while (!messages.includes('"type":"finish"')) {
+        const chunk = await reader.read()
+        if (chunk.done) return
+        messages += new TextDecoder().decode(chunk.value)
+      }
+    }
+    await Promise.race([received(), pause(800)])
+    assert.match(messages, /"type":"finish"/, 'The server must collect the unfinished observation before giving up')
+    await fetch(`${origin}/__ios/report`, { method: 'POST', body: JSON.stringify({ id: 'hidden', firstContentMs: 1, standalone: true, settled: false, events: [{ kind: 'rect' }] }) })
+    const metrics = await pending
+    assert.equal(metrics.events.length, 1)
+    const missing = await server.result('disconnected', 20)
+    assert.match(missing.observationError, /No paint recording arrived.*disconnected/)
+    assert.deepEqual(failures({ metrics: missing }), [missing.observationError])
+    await writeReport(root, { steps: [{ id: 'disconnected', metrics: missing }] })
+    assert.equal(JSON.parse(await readFile(path.join(root, 'report.json'), 'utf8')).failed, 1)
+    assert.ok((await readFile(path.join(root, 'report.md'), 'utf8')).includes(missing.observationError))
+  } finally { await reader.cancel(); await server.close(); await rm(root, { recursive: true, force: true }) }
+})
+
+
+test('the recorder retains a failed upload for final collection', async () => {
+  const r = recorder(1)
+  r.api.begin({ id: 'upload', expected: { text: 'Loading' }, immediate: true, minimumMs: 10, quietMs: 5 })
+  r.frame(1)
+  r.frame(20)
+  await Promise.resolve()
+  assert.equal(r.posted.length, 0)
+  r.message({ type: 'finish', id: 'upload' })
+  await Promise.resolve()
+  assert.equal(r.posted.length, 1)
+  assert.equal(r.posted[0].id, 'upload')
+  assert.equal(r.posted[0].firstContentMs, 1)
+})
+
+test('sampling errors produce a failed observation with a reason', () => {
+  const r = recorder()
+  r.api.begin({ id: 'sampling', expected: { text: 'Loading' }, immediate: true })
+  r.document.querySelectorAll = () => { throw new Error('Broken selector') }
+  assert.doesNotThrow(() => r.frame(1))
+  const metrics = JSON.parse(JSON.stringify(r.posted[0]))
+  assert.match(metrics.observationError, /Recorder sampling failed: Broken selector/)
+  assert.ok(failures({ metrics }).includes(metrics.observationError))
 })
