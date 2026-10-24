@@ -6,10 +6,13 @@ const root = process.cwd()
 const source = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
 
 describe('interactive accessibility contracts', () => {
-    it('announces season choices and their selected state', () => {
+    it('names the season picker and exposes its value through a native web select', () => {
         const seasonSelector = source('components/player/SeasonSelector.tsx')
-        expect(seasonSelector).toContain('accessibilityLabel={`Show ${seasonLabel(year)} season`}')
-        expect(seasonSelector).toContain('accessibilityState={{ selected: active }}')
+        const webSelector = source('components/player/SeasonSelector.web.tsx')
+        expect(seasonSelector).toContain('<FilterSelect')
+        expect(webSelector).toContain('<select')
+        expect(webSelector).toContain('aria-label="Season"')
+        expect(webSelector).toContain('value={selectedSeason}')
     })
 
     it('names roster rows and keeps desktop roster actions outside the navigation control', () => {

@@ -44,18 +44,11 @@ export function GameLogTable({
     const showFpts = fantasyPointsMap !== null
     const { fadeStyle, scrollProps } = useEdgeFade()
 
-    if (games.length === 0) {
-        return (
-            <View style={styles.section}>
-                <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Game Log</Text>
-                <Text style={styles.noData}>No games found.</Text>
-            </View>
-        )
-    }
+    if (games.length === 0) return null
 
     return (
         <View style={styles.section}>
-            <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Game Log</Text>
+            <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Recent games</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} {...scrollProps}>
                 <View style={styles.tableInner}>
                     {/* Header row */}
@@ -79,7 +72,7 @@ export function GameLogTable({
                     {/* Data rows */}
                     {games.map((g, i) => {
                         const dnp = g.didNotPlay
-                        const fpts = fantasyPointsMap?.get(g.gameId)
+                        const fpts = dnp ? undefined : fantasyPointsMap?.get(g.gameId)
                         return (
                             <View
                                 key={g.gameId}
@@ -122,8 +115,9 @@ export function GameLogTable({
                     disabled={loadingMore}
                     accessibilityRole="button"
                     accessibilityLabel="Load more games"
+                    accessibilityState={{ disabled: loadingMore, busy: loadingMore }}
                 >
-                    <Text style={styles.loadMoreText}>Load More</Text>
+                    <Text style={styles.loadMoreText}>{loadingMore ? 'Loading…' : 'Load more games'}</Text>
                 </Pressable>
             )}
         </View>
@@ -132,7 +126,6 @@ export function GameLogTable({
 
 const styles = StyleSheet.create({
     section: { gap: spacing.md },
-    noData: { ...textStyles.body, color: colors.textPlaceholder },
 
     tableFrame: {
         borderWidth: 1,
@@ -158,9 +151,9 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
 
-    dateCell: { ...textStyles.tableCell, width: 60 },
-    oppCell: { ...textStyles.tableCell, width: 64, flexGrow: 1 },
-    numCell: { ...textStyles.tableCell, width: 40, textAlign: 'center' },
+    dateCell: { ...textStyles.tableCell, width: 56 },
+    oppCell: { ...textStyles.tableCell, width: 60, flexGrow: 1 },
+    numCell: { ...textStyles.tableCell, width: 36, textAlign: 'center' },
     shotCell: { ...textStyles.tableCell, width: 52, textAlign: 'center' },
     fptsCell: { ...textStyles.tableCell, width: 48, textAlign: 'center', color: colors.textPlaceholder },
     fptsValue: { color: colors.primaryDark, fontWeight: fontWeight.bold },

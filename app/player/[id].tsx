@@ -5,7 +5,7 @@ import { GameLogTable } from '@/components/player/GameLogTable'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
-import { TransactionHistory } from '@/components/player/TransactionHistory'
+import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
@@ -184,30 +184,34 @@ export default function PlayerDetailScreen() {
         transactionsError ? 'Transaction history could not refresh.' : null,
     ].filter((message): message is string => message != null)
 
-    const statColumns = twoColumn || usableWidth < 700 ? 4 : 6
+    const statColumns = 5
+    const seasonControl = availableSeasons.length > 1 ? (
+        <SeasonSelector
+            seasons={availableSeasons}
+            selectedSeason={selectedSeason}
+            onSelect={handleSeasonSelect}
+        />
+    ) : null
     const profile = (
         <>
-            {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
-            <SeasonSelector
-                seasons={availableSeasons}
-                selectedSeason={selectedSeason}
-                onSelect={handleSeasonSelect}
-            />
             {seasonAverages ? (
                 <StatsOverview
                     averages={seasonAverages}
                     seasonYear={selectedSeason}
                     avgFantasyPoints={showFantasy ? avgFantasyPoints : null}
                     columns={statColumns}
+                    seasonControl={seasonControl}
                 />
             ) : (
                 <View style={styles.section}>
                     <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>
                         {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
                     </Text>
+                    {seasonControl}
                     <Text style={styles.noData}>No stats available.</Text>
                 </View>
             )}
+            {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
         </>
     )
     const gameLogSection = (
@@ -220,7 +224,8 @@ export default function PlayerDetailScreen() {
         />
     )
     const historySection = showTransactions ? (
-        <TransactionHistory
+        <PlayerHistory
+            key={ownerIdentity}
             playerId={id}
             leagueId={leagueId!}
             transactions={transactions}
@@ -233,50 +238,52 @@ export default function PlayerDetailScreen() {
             <Page title={player.display_name}>
                 <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
                     <View style={styles.headerRow}>
-                    <BackButton onPress={goBack} />
-                    <View style={styles.headerMain}>
-                    <PlayerHeader
-                        player={player}
-                        rosterStatus={rosterStatus}
-                        claimPending={ownsRosterStatus && !!rosterStatusResource.claimPending}
-                        leagueActive={!!current || !membershipValidated}
-                        actionsReady={actionsReady}
-                        actionLoading={dropping || quickAdd.adding === id}
-                        dropDisabled={!actionsReady}
-                        playedToday={playedToday}
-                        addBlockedReason={actionsReady ? quickAdd.addBlockedReason : 'Refreshing roster status.'}
-                        addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}
-                        onAdd={() => actionsReady && quickAdd.handleAdd({ id, display_name: player.display_name })}
-                        onDrop={handleDrop}
-                        onClaim={() => actionsReady && (rosterStatusResource.claimPending ? push('/roster?claims=1') : quickAdd.handleClaim({ id, display_name: player.display_name }))}
-                        onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
-                        compact={usableWidth < 600}
-                    />
-                    </View>
+                        <BackButton onPress={goBack} />
+                        <View style={styles.headerMain}>
+                            <PlayerHeader
+                                player={player}
+                                rosterStatus={rosterStatus}
+                                claimPending={ownsRosterStatus && !!rosterStatusResource.claimPending}
+                                leagueActive={!!current || !membershipValidated}
+                                actionsReady={actionsReady}
+                                actionLoading={dropping || quickAdd.adding === id}
+                                dropDisabled={!actionsReady}
+                                playedToday={playedToday}
+                                addBlockedReason={actionsReady ? quickAdd.addBlockedReason : 'Refreshing roster status.'}
+                                addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}
+                                onAdd={() => actionsReady && quickAdd.handleAdd({ id, display_name: player.display_name })}
+                                onDrop={handleDrop}
+                                onClaim={() => actionsReady && (rosterStatusResource.claimPending ? push('/roster?claims=1') : quickAdd.handleClaim({ id, display_name: player.display_name }))}
+                                onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
+                                compact={usableWidth < 600}
+                            />
+                        </View>
                     </View>
 
-                    <DeferredContent ready={!contentBusy}>
-                            {dataWarnings.map((message) => (
-                                <View key={message} style={styles.warningBanner}>
-                                    <Text style={styles.warningText}>{message}</Text>
-                                </View>
-                            ))}
+                    <DeferredContent ready={!contentBusy} style={styles.body}>
+                        {dataWarnings.map((message) => (
+                            <View key={message} style={styles.warningBanner}>
+                                <Text style={styles.warningText}>{message}</Text>
+                            </View>
+                        ))}
 
-                            {twoColumn ? (
-                                <View style={styles.columns}>
-                                    <View style={styles.sideColumn}>
-                                        {profile}
-                                        {historySection}
-                                    </View>
-                                    <View style={styles.mainColumn}>{gameLogSection}</View>
-                                </View>
-                            ) : (
-                                <>
+                        {twoColumn ? (
+                            <View style={styles.columns}>
+                                <View style={styles.sideColumn}>
                                     {profile}
+                                </View>
+                                <View style={styles.mainColumn}>
                                     {gameLogSection}
                                     {historySection}
-                                </>
-                            )}
+                                </View>
+                            </View>
+                        ) : (
+                            <>
+                                {profile}
+                                {gameLogSection}
+                                {historySection}
+                            </>
+                        )}
                     </DeferredContent>
                 </ScrollView>
             </Page>
@@ -308,14 +315,15 @@ export default function PlayerDetailScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing['2xl'] },
+    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing.lg },
+    body: { gap: spacing.xl },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing['2xl'] },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing['2xl'] },
     section: { gap: spacing.md },
     noData: { ...textStyles.body, color: colors.textPlaceholder },
     missingHeader: { paddingTop: spacing.lg },
-    headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+    headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
     headerMain: { flex: 1, minWidth: 0 },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
     warningBanner: {
