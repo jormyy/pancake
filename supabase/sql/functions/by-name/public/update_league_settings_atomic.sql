@@ -279,7 +279,7 @@ BEGIN
          allow_inactive_trades = CASE WHEN p_settings ? 'allow_inactive_trades' THEN (p_settings->>'allow_inactive_trades')::boolean ELSE allow_inactive_trades END,
          playoff_entrants = CASE WHEN p_settings ? 'playoff_entrants' THEN (p_settings->>'playoff_entrants')::int ELSE playoff_entrants END,
          playoff_round_lengths = CASE WHEN p_settings ? 'playoff_round_lengths' THEN ARRAY(SELECT jsonb_array_elements_text(p_settings->'playoff_round_lengths'))::int[] ELSE playoff_round_lengths END,
-         scoring_settings = COALESCE(v_scoring_settings, scoring_settings),
+         scoring_settings = CASE WHEN v_scoring_settings IS NULL THEN scoring_settings ELSE scoring_settings || v_scoring_settings END,
          roster_size = COALESCE(v_roster_size, roster_size),
          ir_slots = COALESCE(v_ir_slots, ir_slots),
          taxi_slots = COALESCE(v_taxi_slots, taxi_slots),

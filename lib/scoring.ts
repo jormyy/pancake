@@ -67,8 +67,10 @@ export type StandingRow = {
 }
 
 export function compareStandingsRows(a: StandingRow, b: StandingRow): number {
-    return b.wins - a.wins ||
-        b.pointsFor - a.pointsFor ||
+    const aGames = Math.max(a.wins + a.losses + a.ties, 1)
+    const bGames = Math.max(b.wins + b.losses + b.ties, 1)
+    return (b.wins + 0.5 * b.ties) / bGames - (a.wins + 0.5 * a.ties) / aGames ||
+        b.pointsFor / bGames - a.pointsFor / aGames ||
         b.maxPointsFor - a.maxPointsFor ||
         a.pointsAgainst - b.pointsAgainst ||
         a.teamName.localeCompare(b.teamName) ||
