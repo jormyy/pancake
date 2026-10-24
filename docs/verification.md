@@ -93,10 +93,11 @@ Those deployments do not replace coordinated database and Edge release gates.
 
 The [migration history](production-migration-history.md), [catalog contract](database-readiness-catalog.md), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.
-The attested candidate remains `20261011000062` in both release-history and catalog contracts.
-Later migrations, including this branch's projection and cleanup range, require reviewed attestations before release.
+The attested candidate is `20261024000001` in both release-history and catalog contracts.
+The pre-migration catalog pins 431 applied rows and the exact 63-version pending suffix.
+The 329-row historical audit anchor and all earlier approved SQL fingerprints remain protected.
 The [migration history](production-migration-history.md#candidate-migrations) records this boundary.
-The combined bounded-season candidate has 494 migrations; the attested range contains 398.
+The combined bounded-season candidate and the attested range both contain 494 migrations.
 Release approval permits the existing workflow to run; it does not bypass an attestation failure.
 
 ## Sleeper projections and weekly cleanup

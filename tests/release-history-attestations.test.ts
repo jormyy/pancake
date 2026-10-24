@@ -173,19 +173,20 @@ describe('attested production migration history', () => {
   })
 
   it.each(redefinitionCases)(
-    'expects the %s redefinition of %s only once that migration is applied', (version: string, _name: string) => {
-      const redefinition = attestation.convergenceRedefinitions.find((row: { version: string }) => row.version === version)
+    'expects the %s redefinition of %s only once that migration is applied', (version: string, name: string) => {
+      const redefinition = attestation.convergenceRedefinitions.find((row: { version: string, name: string }) => row.version === version && row.name === name)
       const helper = helperIndex(redefinition)
       const applied = approvedIndex(version)
       expect(applied).toBeGreaterThanOrEqual(0)
       expect(helper).toBeGreaterThanOrEqual(0)
-      expect(fixture(applied).functions[helper].bodySha256).toBe(attestation.convergence[helper].bodySha256)
+      const previousBody = fixture(applied).functions[helper].bodySha256
+      expect(previousBody).not.toBe(redefinition.bodySha256)
       expect(fixture(applied + 1).functions[helper].bodySha256).toBe(redefinition.bodySha256)
       const early = fixture(applied)
       early.functions[helper].bodySha256 = redefinition.bodySha256
       expect(() => planAttestedProductionMigrations(files, early, attestation.projectRef)).toThrow(`convergence failed at function ${helper + 1}`)
       const stale = fixture(applied + 1)
-      stale.functions[helper].bodySha256 = attestation.convergence[helper].bodySha256
+      stale.functions[helper].bodySha256 = previousBody
       expect(() => planAttestedProductionMigrations(files, stale, attestation.projectRef)).toThrow(`convergence failed at function ${helper + 1}`)
     },
   )
