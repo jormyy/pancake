@@ -24,6 +24,7 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
     const games: Row[] = []
     const stats: Row[] = []
     let refreshed = false
+    let watched = false
     const query = (table: string): Query => {
         const value: Query = {
             table, operation: 'select', rows: [],
@@ -51,6 +52,7 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
         if (value.table === 'mv_player_season_averages') {
             return refreshed ? [...new Set(stats.map(row => row.season_year))].map(season_year => ({ season_year })) : []
         }
+        if (value.table === 'player_watches') return watched ? [{ player_id: 'player' }] : []
         return []
     }
     let selectedYear = String(year)
@@ -72,6 +74,11 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
             ? { click: async () => { historyPage += 1 }, count: async () => historyPage < 2 ? 1 : 0 }
             : { count: async () => [20, 40, 41][historyPage] },
     }
+    const watch = {
+        isEnabled: async () => true,
+        isChecked: async () => watched,
+        click: async () => { watched = !watched },
+    }
     const button = (name: string) => name === 'League history' ? {
         getAttribute: async () => String(expanded),
         click: async () => { expanded = !expanded },
@@ -86,7 +93,7 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
         },
         env: {}, season: 0, target: {},
         page: {
-            getByRole: (role: string) => role === 'combobox' ? seasonSelect : { locator: () => log },
+            getByRole: (role: string) => role === 'combobox' ? seasonSelect : role === 'switch' ? watch : { locator: () => log },
             locator: () => ({ evaluateAll: async () => [] }),
         },
         press: async (control: { click: () => Promise<void> }) => control.click(),
