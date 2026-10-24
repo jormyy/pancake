@@ -92,3 +92,56 @@ Deno.test({ name: 'recorded Sleeper pulls update in place and preserve rows on f
     if (user) { const { error } = await client.auth.admin.deleteUser(user); if (error) throw error }
   }
 } })
+
+Deno.test({ name: 'partial snapshots preserve seen rejected and unmatched player-games but remove omitted games', ignore: !Deno.args.includes('--local-db'), fn: async () => {
+  const api = Deno.env.get('SUPABASE_URL')!
+  assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname))
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')
+  assert.ok(key)
+  const client = createClient<Database>(api, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  const query = async <T>(operation: PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> => {
+    const { data, error } = await operation
+    if (error) throw new Error(error.message)
+    return data
+  }
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const monday = new Date(`${day}T00:00:00Z`)
+  monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7)
+  const sunday = new Date(monday)
+  sunday.setUTCDate(sunday.getUTCDate() + 6)
+  const context = { seasonYear: 2094, weekNumber: 1, sleeperWeek: 1, weekStart: monday.toISOString().slice(0, 10), weekEnd: sunday.toISOString().slice(0, 10) }
+  const sample = JSON.parse(await Deno.readTextFile(new URL('./fixtures/matched-sample.json', import.meta.url)))[0]
+  const ids = Array.from({ length: 5 }, () => crypto.randomUUID())
+  const rows = ids.map((_, i) => ({ ...structuredClone(sample), player_id: String(9800100 + i), game_id: String(9800200 + i), date: day,
+    season: '2093', player: { first_name: 'Filtered', last_name: `Fixture${i}` }, stats: { gp: 1, pts: 20 } }))
+  const pull = (body: unknown) => syncSleeperProjections(client, context, () => Promise.resolve(Response.json(body)))
+  try {
+    await query(client.from('players').insert(rows.map((row, i) => ({ id: ids[i], sleeper_id: row.player_id,
+      first_name: row.player.first_name, last_name: row.player.last_name, nba_team: row.team, position: 'PG' as const }))))
+    await pull(rows)
+    const initial = await query(client.from('sleeper_projection_rows').select('id,player_id,points,fetched_at').in('player_id', ids).order('player_id'))
+    assert.ok(initial)
+    assert.equal(initial.length, 5)
+    const rejected = rows.map((row, i) => i === 0 ? { ...row, stats: { gp: 1, pts: '20' } } : row)
+    assert.deepEqual(await pull(rejected), { rows: 4, unmatched: 0, rejected: 1 })
+    const retained = await query(client.from('sleeper_projection_rows').select('id,player_id,points,fetched_at').in('player_id', ids).order('player_id'))
+    assert.ok(retained)
+    assert.equal(retained.length, 5)
+    assert.deepEqual(retained.find((row) => row.player_id === ids[0]), initial.find((row) => row.player_id === ids[0]))
+    await query(client.from('players').update({ sleeper_id: null, nba_team: 'LAL' }).eq('id', ids[0]))
+    assert.deepEqual(await pull(rows), { rows: 4, unmatched: 1, rejected: 0 })
+    assert.deepEqual(await query(client.from('sleeper_projection_rows').select('id,player_id,points,fetched_at').eq('player_id', ids[0])), initial.filter((row) => row.player_id === ids[0]))
+    const runs = await query(client.from('projection_sync_runs').select('row_count,matched_count,unmatched_count,source_metadata').eq('source', 'sleeper').eq('season_year', 2094))
+    assert.ok(runs)
+    assert.ok(runs.some((run) => run.matched_count === 4 && run.unmatched_count === 1))
+    assert.ok(runs.some((run) => run.row_count === 4 && (run.source_metadata as Record<string, unknown>).rejectedRowCount === 1))
+    assert.ok(runs.every((run) => !Object.hasOwn(run.source_metadata as object, 'seenSourceKeys')))
+    await pull(rows.slice(1))
+    assert.equal((await query(client.from('sleeper_projection_rows').select('id').in('player_id', ids)))?.length, 4)
+    assert.equal((await query(client.from('sleeper_projection_rows').select('id').eq('player_id', ids[0])))?.length, 0)
+    console.log(JSON.stringify({ sourceRows: 5, afterRejectedRow: retained.length, afterUnmatchedRow: 5, afterOmittedRow: 4, externalRequests: 0 }))
+  } finally {
+    await query(client.from('projection_sync_runs').delete().eq('source', 'sleeper').eq('season_year', 2094))
+    await query(client.from('players').delete().in('id', ids))
+  }
+} })

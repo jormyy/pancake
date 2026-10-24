@@ -41,11 +41,13 @@ function projectionStats(raw: Record<string, unknown>): Record<string, number> |
 
 export function parseSleeperProjections(value: unknown, context: {
   seasonYear: number; sleeperWeek: number; weekStart: string; weekEnd: string
-}): { rows: SleeperProjection[]; inputRowCount: number; rejectedRowCount: number } {
+}): { rows: SleeperProjection[]; sourceKeys: { sleeper_id: string; source_game_id: string }[]; inputRowCount: number; rejectedRowCount: number } {
   if (!Array.isArray(value)) throw new SleeperProjectionParseError('Sleeper projections must be an array', 0, 0)
   const seen = new Set<string>()
+  const sourceKeys = new Map<string, { sleeper_id: string; source_game_id: string }>()
   const rows: SleeperProjection[] = []
   for (const row of value) {
+    if (object(row) && id(row.player_id) && id(row.game_id)) sourceKeys.set(`${row.player_id}:${row.game_id}`, { sleeper_id: row.player_id, source_game_id: row.game_id })
     if (!object(row) || !id(row.player_id) || !id(row.game_id) || !text(row.team) || !text(row.opponent) ||
       !text(row.date) || !/^\d{4}-\d{2}-\d{2}$/.test(row.date) ||
       !Number.isFinite(Date.parse(`${row.date}T00:00:00Z`)) || new Date(`${row.date}T00:00:00Z`).toISOString().slice(0, 10) !== row.date ||
@@ -67,5 +69,5 @@ export function parseSleeperProjections(value: unknown, context: {
   const rejectedRowCount = value.length - rows.length
   if (rows.length === 0) throw new SleeperProjectionParseError('No valid Sleeper projections', value.length, rejectedRowCount)
   if (rejectedRowCount * 5 > value.length) throw new SleeperProjectionParseError('More than 20% of Sleeper projections are invalid', value.length, rejectedRowCount)
-  return { rows, inputRowCount: value.length, rejectedRowCount }
+  return { rows, sourceKeys: [...sourceKeys.values()], inputRowCount: value.length, rejectedRowCount }
 }

@@ -527,14 +527,15 @@ sleeper_games AS (
     r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
     r.field_goals_made, r.field_goals_attempted, r.free_throws_made, r.free_throws_attempted,
     r.double_doubles, r.triple_doubles, l.scoring_settings
-  ) AS fantasy_points
+  ) AS fantasy_points, r.team IS DISTINCT FROM bp.nba_team AS prior_team_game
   FROM public.sleeper_projection_rows r
   JOIN base_players bp ON bp.id = r.player_id
   LEFT JOIN next_games ng ON ng.player_id=bp.id
   JOIN league l ON true
   CROSS JOIN args
   LEFT JOIN week_ctx wc ON true
-  WHERE r.season_year = p_season_year AND r.team = bp.nba_team
+  WHERE r.season_year = p_season_year
+    AND (r.game_date<(now() AT TIME ZONE 'America/New_York')::date OR r.team=bp.nba_team)
     AND EXISTS (SELECT 1 FROM public.nba_games g WHERE g.season_year=p_season_year
       AND g.game_date=r.game_date AND public.is_regular_season_game_id(g.nba_game_id)
       AND (g.home_team=r.team AND g.away_team=r.opponent OR g.away_team=r.team AND g.home_team=r.opponent))
@@ -542,7 +543,8 @@ sleeper_games AS (
       OR args.view_name <> 'today' AND r.week_number = wc.week_number)
 ),
 sleeper_totals AS (
-  SELECT player_id, count(*)::integer AS games, sum(fantasy_points) AS fantasy_points,
+  SELECT player_id, count(*)::integer AS games, count(*) FILTER(WHERE prior_team_game)::integer AS prior_team_games,
+    sum(fantasy_points) AS fantasy_points,
     sum(points) AS points, sum(rebounds) AS rebounds, sum(assists) AS assists,
     sum(steals) AS steals, sum(blocks) AS blocks, sum(three_pointers_made) AS three_pointers_made,
     sum(turnovers) AS turnovers, sum(minutes) AS minutes,
@@ -570,12 +572,12 @@ sleeper_candidates AS (
       NULLIF(s.games + CASE WHEN b.projection_free_throw_pct IS NOT NULL THEN m.missing_games ELSE 0 END,0) AS projection_free_throw_pct,
     NULL::text AS projection_status, s.fetched_at AS projection_fetched_at,
     CASE WHEN args.view_name='today' THEN s.game_date ELSE NULL::date END AS projection_date,
-    s.week_number AS projection_week_number, true AS projection_is_fresh, 0 AS priority
+    s.week_number AS projection_week_number, s.fetched_at>=now()-interval '36 hours' AS projection_is_fresh, 0 AS priority
   FROM sleeper_totals s CROSS JOIN args
   LEFT JOIN fallback_best b ON b.player_id=s.player_id
   LEFT JOIN week_game_counts wgc ON wgc.player_id=s.player_id
   CROSS JOIN LATERAL (
-    SELECT CASE WHEN args.view_name='today' THEN 0 ELSE GREATEST(COALESCE(wgc.scheduled_games,0)-s.games,0) END AS missing_games
+    SELECT CASE WHEN args.view_name='today' THEN 0 ELSE GREATEST(COALESCE(wgc.scheduled_games,0)+s.prior_team_games-s.games,0) END AS missing_games
   ) missing
   CROSS JOIN LATERAL (
     SELECT missing.missing_games,

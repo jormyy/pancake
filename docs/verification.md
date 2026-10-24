@@ -121,31 +121,21 @@ All fixture writes use the isolated local project. SQL checks roll back.
 
 ### Local verification, 2026-10-23
 
-A fresh isolated install applies 428 migrations through `20261020000004`.
-`npm run test:db` passes all 144 commands with the database job's settings from `.github/workflows/test.yml`.
-The focused projection, schedule, fixture, index, and concurrency commands also pass after that run.
-The initial projection SQL verifies 24 cases. Scheduling verifies 18, including recovery without stored rows after Monday retries fail.
-The fixture keeps four player-game rows after a second pull and returns zero for a sit despite a FantasyPros projection of 100.
-The initial index check verifies eight execution plans. Concurrency checks confirm cleanup skips locked rows while new writes continue.
-The lifecycle catalog and resource-hint checks verify service-role compaction permissions.
+The isolated local upgrade through `20261020000006` passes the nine focused database commands above.
+Projection SQL verifies 44 cases. Retention verifies 22, and scheduling verifies 18.
+The recorded fixture updates four rows in place and preserves them after failed pulls.
+A second fixture keeps five stored rows after one rejected or unmatched row, then removes the row when the source omits it.
+Historical totals retain a completed old-team game: 110 points over three games, including mixed-source fallback.
+Freshness tests verify the 36-hour boundary, stale flags, source precedence, and returned timestamps.
+The new regressions reproduce the reported failures before repair.
 
-The parser accepts all 2,330 recorded rows from two full weeks without rejection.
-Parser tests cover missing zeros, projected sits, rounding, duplicate rows, and the 20% rejection limit.
-The Edge check passes 252 tests. Its three local database tests pass separately through their focused commands.
-Source recovery passes 58 tests across seven configured sources. Selected Vitest checks pass 56 tests.
+Index checks verify nine execution plans. Concurrency checks verify cleanup skips locked rows while new writes continue.
+Sleeper parser, matching, and sync tests pass 11 tests. Both full recorded weeks parse without rejected rows.
+Edge checks pass 253 tests. The four local database tests pass through their focused commands.
+Release and catalog contracts pass 103 tests.
 `check:quality`, `check:edge-functions`, `check:db-function-sources`, `check:database-types`, and `check:db-function-catalog` pass.
-`security:audit` passes after lockfile updates and removal of the stale braces exception.
-The original parser, refresh gate, trigger permissions, and audit state reproduce their reported failures before repair.
 
-The snapshot correction applies migration `20261020000005` to that isolated install.
-The nine focused database commands pass, including 35 projection cases, 22 retention cases, and nine indexed plans.
-Tests reproduce both reported failures before repair.
-Snapshot tests cover team changes, absent upcoming games, retained past dates, late completions, reader filters, hints, and optimizer inputs.
-Retention tests cover crashed workers, the thirty-day boundary, newest-failure protection, and unreconciled work.
-Release and catalog contracts pass 103 tests. Edge checks pass 252 tests.
-The required source, catalog, type, Edge, and quality checks pass after the correction.
-The full database suite is not repeated for this focused correction.
-
-The test selector leaves SQL unmapped. Focused SQL commands cover the correction; the full database run covers preceding migrations.
-The full frontend suite and release build remain for integration.
+The earlier full database run passes all 144 commands through `20261020000004`.
+This focused correction does not repeat the full database or frontend suites.
+The selector leaves SQL unmapped; the named projection, retention, and schedule commands cover it.
 No production operation runs. The isolated stack stops, and the normal project ID and ports are restored.

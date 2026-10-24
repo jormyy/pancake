@@ -19,7 +19,7 @@ export async function syncSleeperProjections(client: SupabaseClient<Database>, c
     httpStatus = response.status
     if (!response.ok) throw new Error(`Sleeper projections HTTP ${response.status}`)
     const parsed = parseSleeperProjections(await response.json(), context)
-    const { rows, inputRowCount, rejectedRowCount } = parsed
+    const { rows, sourceKeys, inputRowCount, rejectedRowCount } = parsed
     parseMetadata = { inputRowCount, rejectedRowCount }
     const players: SleeperPlayer[] = []
     for (let start = 0; ; start += 1000) {
@@ -33,7 +33,7 @@ export async function syncSleeperProjections(client: SupabaseClient<Database>, c
     const { error } = await client.rpc('complete_sleeper_projection_sync', {
       p_run_id: run.id, p_rows: payload.rows, p_row_count: rows.length,
       p_unmatched_count: payload.unmatched, p_http_status: httpStatus,
-      p_metadata: { ...parseMetadata, unmatchedIds: payload.unmatchedIds, weekStart: context.weekStart, weekEnd: context.weekEnd },
+      p_metadata: { ...parseMetadata, seenSourceKeys: sourceKeys, unmatchedIds: payload.unmatchedIds, weekStart: context.weekStart, weekEnd: context.weekEnd },
     })
     if (error) throw new Error(error.message)
     return { rows: payload.matched, unmatched: payload.unmatched, rejected: rejectedRowCount }

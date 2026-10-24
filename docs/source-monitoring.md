@@ -125,7 +125,8 @@ FantasyPros refreshes at 08:00 and 15:00 Pacific.
 
 Sleeper stores one row per matched player and source game.
 A pull updates that row only when its source revision is at least as new.
-Each weekly snapshot removes absent rows for today and later dates in the same transaction.
+Each weekly snapshot removes truly absent rows for today and later dates in the same transaction.
+Rows rejected during parsing or matching retain their stored values when their source player-game key remains present.
 Earlier dates remain until weekly cleanup. A late older snapshot cannot replace a newer successful snapshot.
 Player matching uses Sleeper IDs first, then a unique normalized name and team when the player lacks an ID.
 Runs record parsed, matched, and unmatched counts. Metadata includes input and rejected row counts.
@@ -139,7 +140,9 @@ Recorded fixtures retain both complete public weeks fetched on 2026-10-23.
 Tests make no live provider requests.
 
 Readers prefer Sleeper for each game, including the player screen's next game.
-A Sleeper row must match the player's current team and a regular scheduled matchup.
+Every Sleeper row must match a regular scheduled matchup.
+Today and future rows must also match the player's current team. Earlier games remain eligible after a team change.
+Projections older than 36 hours return a false freshness flag and their recorded fetch time.
 Weekly totals sum game lines. Weekly averages divide by the number of covered games.
 Missing games use FantasyPros, then the existing internal and season-average fallbacks.
 FantasyPros totals divide by their reported game count before filling a missing game.

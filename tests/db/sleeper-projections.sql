@@ -219,5 +219,74 @@ BEGIN
     'unchanged complete snapshot emits no hints');
 END;
 $$;
+DO $$
+DECLARE
+  u uuid:=gen_random_uuid(); l uuid:=gen_random_uuid(); p uuid:=gen_random_uuid(); run uuid:=gen_random_uuid();
+  d date:=(now() AT TIME ZONE 'America/New_York')::date; row_data jsonb;
+  historical record; freshness record;
+BEGIN
+  INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES(u,u::text||'@example.test',jsonb_build_object('username',u::text));
+  INSERT INTO public.leagues(id,name,slug,commissioner_id,status,scoring_settings)
+    VALUES(l,'Sleeper history and freshness',l::text,u,'active','{"points":1}');
+  INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES(2093,1,d-2,d+4);
+  INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,nba_team)
+    VALUES(p,'Historical','Fixture','PG',ARRAY['PG'],'LAL');
+  INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status) VALUES
+    ('0029310001',2093,1,d-2,now()-interval '2 days','BOS','NYK','Final'),
+    ('0029310002',2093,1,d,now()+interval '2 hours','LAL','PHX','Scheduled'),
+    ('0029310003',2093,1,d+1,now()+interval '26 hours','LAL','DET','Scheduled');
+  INSERT INTO public.projection_sync_runs(source,projection_type,source_url,season_year,week_number)
+    VALUES('sleeper','weekly_total','https://api.sleeper.app/projections/nba/2092/1',2093,1) RETURNING id INTO run;
+  row_data:=jsonb_build_object('player_id',p,'source_game_id','history-today','sleeper_id','historical-player',
+    'season_year',2093,'week_number',1,'game_date',d,'team','LAL','opponent','PHX','points',40,
+    'rebounds',0,'assists',0,'steals',0,'blocks',0,'three_pointers_made',0,'turnovers',0,
+    'field_goals_made',0,'field_goals_attempted',0,'free_throws_made',0,'free_throws_attempted',0,
+    'three_pointers_attempted',0,'minutes',30,'last_modified',1);
+  PERFORM public.complete_sleeper_projection_sync(run,jsonb_build_array(row_data,
+    row_data||jsonb_build_object('source_game_id','history-past','game_date',d-2,'team','BOS','opponent','NYK','points',30),
+    row_data||jsonb_build_object('source_game_id','history-tomorrow','game_date',d+1,'opponent','DET')),3,0,200);
+  UPDATE public.sleeper_projection_rows SET fetched_at=now()-interval '37 hours' WHERE player_id=p;
+  SELECT * INTO historical FROM public.get_league_projection_rows(l,2093,d,'week_total',ARRAY[p],1,0);
+  SELECT * INTO freshness FROM public.get_league_projection_rows(l,2093,d,'today',ARRAY[p],1,0);
+  RAISE NOTICE 'Historical total: %, games: %; 37-hour projection fresh: %',historical.projection_points,historical.projection_games_played,freshness.projection_is_fresh;
+  PERFORM pg_temp.check_sleeper(historical.projection_points=110 AND historical.projection_games_played=3,
+    'weekly total retains a traded players completed old-team game');
+  SELECT * INTO historical FROM public.get_league_projection_rows(l,2093,d,'week_avg',ARRAY[p],1,0);
+  PERFORM pg_temp.check_sleeper(historical.projection_fantasy_points=36.67 AND historical.projection_games_played=3,
+    'weekly average includes all three games across a team change');
+  PERFORM pg_temp.check_sleeper(freshness.projection_is_fresh=false AND freshness.projection_fetched_at=now()-interval '37 hours'
+    AND freshness.projection_source='sleeper' AND freshness.projection_points=40,
+    'stale Sleeper stays primary with its actual timestamp and a false fresh flag');
+  SELECT * INTO freshness FROM public.get_league_projection_rows(l,2093,d,'week_total',ARRAY[p],1,0);
+  PERFORM pg_temp.check_sleeper(freshness.projection_is_fresh=false AND freshness.projection_fetched_at=now()-interval '37 hours',
+    'weekly freshness uses the recorded fetch timestamp');
+  UPDATE public.sleeper_projection_rows SET fetched_at=now()-interval '36 hours' WHERE player_id=p;
+  SELECT * INTO freshness FROM public.get_league_projection_rows(l,2093,d,'today',ARRAY[p],1,0);
+  PERFORM pg_temp.check_sleeper(freshness.projection_is_fresh=true,'thirty-six-hour freshness cutoff is inclusive');
+  UPDATE public.sleeper_projection_rows SET fetched_at=now()-interval '35 hours' WHERE player_id=p;
+  SELECT * INTO freshness FROM public.get_league_projection_rows(l,2093,d,'today',ARRAY[p],1,0);
+  PERFORM pg_temp.check_sleeper(freshness.projection_is_fresh=true AND freshness.projection_fetched_at=now()-interval '35 hours',
+    'recent Sleeper projection returns a fresh flag and its timestamp');
+  UPDATE public.sleeper_projection_rows SET opponent='DET' WHERE player_id=p AND source_game_id='history-past';
+  SELECT * INTO historical FROM public.get_league_projection_rows(l,2093,d,'week_total',ARRAY[p],1,0);
+  PERFORM pg_temp.check_sleeper(historical.projection_points=80 AND historical.projection_games_played=2,
+    'historical projection still must match the real scheduled matchup');
+  UPDATE public.sleeper_projection_rows SET opponent='NYK' WHERE player_id=p AND source_game_id='history-past';
+  DELETE FROM public.sleeper_projection_rows WHERE player_id=p AND source_game_id='history-tomorrow';
+  INSERT INTO public.projection_sync_runs(source,projection_type,source_url,season_year,week_number,status,completed_at)
+    VALUES('fantasypros','weekly_avg','https://www.fantasypros.com/nba/projections/avg-weekly-overall.php',2093,1,'success',now()) RETURNING id INTO run;
+  INSERT INTO public.fantasypros_projection_rows(run_id,projection_type,source_url,source_row_number,season_year,week_number,
+    fetched_at,source_player_name,normalized_player_name,player_id,match_status,points,games_played)
+    VALUES(run,'weekly_avg','https://www.fantasypros.com/nba/projections/avg-weekly-overall.php',1,2093,1,
+      now(),'Historical Fixture','historical fixture',p,'matched',40,2);
+  SELECT * INTO historical FROM public.get_league_projection_rows(l,2093,d,'week_total',ARRAY[p],1,0);
+  PERFORM pg_temp.check_sleeper(historical.projection_points=110 AND historical.projection_games_played=3,
+    'historical old-team game does not hide a missing current-team backup game');
+  SELECT * INTO historical FROM public.get_league_projection_rows(l,2093,d,'week_avg',ARRAY[p],1,0);
+  PERFORM pg_temp.check_sleeper(historical.projection_fantasy_points=36.67 AND historical.projection_games_played=3,
+    'mixed-source weekly average includes the completed game and missing-game fallback');
+
+END;
+$$;
 SELECT count(*) AS passed FROM sleeper_checks;
 ROLLBACK;

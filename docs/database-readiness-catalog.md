@@ -40,7 +40,8 @@ A catalog pass does not waive compatibility, artifact, source-health, or release
 The additive Sleeper migration retains every existing projection RPC signature and result column.
 Authenticated clients can read the new store. Only the backend can complete a projection pull.
 The completion RPC replaces upcoming rows within one season and week in one transaction.
-It preserves earlier dates and serializes completions for that week.
+It preserves earlier dates and source keys rejected during parsing or matching.
+It serializes completions for that week.
 Private cleanup helpers retain backend-only access.
 The canonical function catalog includes their owners and grants.
 The schedule keeps the existing cron job name and changes its command's due-work logic.

@@ -76,3 +76,14 @@ Deno.test('fails invalid bodies, zero valid rows, and more than twenty percent i
     return true
   })
 })
+
+Deno.test('retains source player-game keys before validating stats and other row fields', () => {
+  const valid = fixture.slice(0, 4)
+  const invalid = { ...fixture[4], stats: { gp: 1, pts: '20' } }
+  const parsed = parseSleeperProjections([...valid, invalid], context)
+  assert.equal(parsed.rows.length, 4)
+  assert.equal(parsed.rejectedRowCount, 1)
+  assert.deepEqual(parsed.sourceKeys, [...valid, invalid].map((row) => ({ sleeper_id: row.player_id, source_game_id: row.game_id })))
+  const duplicate = parseSleeperProjections([...valid, { ...valid[0], date: 'bad date' }], context)
+  assert.equal(duplicate.sourceKeys.length, 4)
+})

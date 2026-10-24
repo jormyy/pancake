@@ -33,7 +33,7 @@ Deno.test('records HTTP, shape, and storage failures while preserving the last s
     { ...fixture[1], game_id: `${fixture[1].game_id}1` }, { ...fixture[0], date: 'outside-the-week' }]
   await syncSleeperProjections(client, context, () => Promise.resolve(Response.json(partial)))
   assert.equal(writes[1].p_row_count, 5)
-  assert.deepEqual(writes[1].p_metadata, { inputRowCount: 6, rejectedRowCount: 1, unmatchedIds: [], weekStart: context.weekStart, weekEnd: context.weekEnd })
+  assert.deepEqual(writes[1].p_metadata, { inputRowCount: 6, rejectedRowCount: 1, seenSourceKeys: partial.slice(0, 5).map((row) => ({ sleeper_id: row.player_id, source_game_id: row.game_id })), unmatchedIds: [], weekStart: context.weekStart, weekEnd: context.weekEnd })
   assert.equal(writes[1].p_rows[3].points, 0)
   assert.equal(writes[1].p_rows[3].minutes, 0)
   for (const response of [new Response('down', { status: 503 }), Response.json({ error: 'changed shape' }), Response.json([{ ...fixture[0], stats: { gp: 1, pts: 'bad' } }]), Response.json([...fixture, fixture[0]])]) {
