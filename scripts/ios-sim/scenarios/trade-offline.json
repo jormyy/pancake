@@ -1,0 +1,116 @@
+[
+  {
+    "name": "trades-analyzer-offline-light",
+    "group": "trades-offline",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      },
+      {
+        "tap": "Analyzer"
+      },
+      {
+        "tap": "Analyze with {{otherTeam}}"
+      },
+      {
+        "tap": "Select {{rosterPlayer.display_name}} for trade"
+      },
+      {
+        "tap": "View trade analysis"
+      },
+      {
+        "tap": "Offers, 1"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "offline": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "open",
+        "action": {
+          "tap": "Analyzer"
+        },
+        "expected": {
+          "selector": "[aria-label='View trade analysis']"
+        }
+      },
+      {
+        "name": "result",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "text": "cached"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-analyzer-offline-dark",
+    "group": "trades-offline",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      },
+      {
+        "tap": "Analyzer"
+      },
+      {
+        "tap": "Analyze with {{otherTeam}}"
+      },
+      {
+        "tap": "Select {{rosterPlayer.display_name}} for trade"
+      },
+      {
+        "tap": "View trade analysis"
+      },
+      {
+        "tap": "Offers, 1"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "offline": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "open",
+        "action": {
+          "tap": "Analyzer"
+        },
+        "expected": {
+          "selector": "[aria-label='View trade analysis']"
+        }
+      },
+      {
+        "name": "result",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "text": "cached"
+        }
+      }
+    ]
+  }
+]

@@ -56,6 +56,25 @@ beforeEach(() => {
 })
 
 describe('useMultiTeamTradeComposer', () => {
+    it('waits for the chosen recipient and reads both teams once', async () => {
+        let latest!: ReturnType<typeof useMultiTeamTradeComposer>
+        const Probe = () => {
+            latest = useMultiTeamTradeComposer({ enabled: true, leagueId: 'league', myMemberId: 'me',
+                myTeamName: 'Me', members: [{ id: 'other', team_name: 'Other' }], faabEnabled: false,
+                recipientMemberId: 'other' })
+            const setParticipants = latest.setParticipantIds
+            React.useEffect(() => setParticipants(['me', 'other']), [setParticipants])
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(getRostersForMembers).toHaveBeenCalledTimes(1)
+        expect(getRostersForMembers).toHaveBeenCalledWith(['me', 'other'], 'league')
+        expect(getPicksForMembers).toHaveBeenCalledTimes(1)
+        expect(latest.displayReady).toBe(true)
+        await act(async () => renderer.unmount())
+    })
+
     it('resets participants, assets, routes, and FAAB when league/member identity changes', async () => {
         let latest!: ReturnType<typeof useMultiTeamTradeComposer>
         const Probe = ({ leagueId, memberId }: { leagueId: string; memberId: string }) => {
@@ -113,6 +132,7 @@ describe('useMultiTeamTradeComposer', () => {
         await act(async () => { latest.retry(); await Promise.resolve(); await Promise.resolve() })
         expect(latest.rosterError).toBeNull()
         expect(latest.assetsReady).toBe(true)
+
         await act(async () => { renderer.unmount() })
     })
 
@@ -162,12 +182,14 @@ describe('useMultiTeamTradeComposer', () => {
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve(); await Promise.resolve() })
         expect(latest.assetsReady).toBe(true)
 
+        expect(latest.displayReady).toBe(false)
         await act(async () => {
             stats.resolve({ avgMap: new Map([['player-member-a', 42]]), avgStatsMap: new Map() })
             await stats.promise
         })
 
         expect(latest.avgMap.get('player-member-a')).toBe(42)
+        expect(latest.displayReady).toBe(true)
         await act(async () => { renderer.unmount() })
     })
 

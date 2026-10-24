@@ -1,11 +1,11 @@
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, textStyles, type WebOnlyViewStyle, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -169,7 +169,6 @@ export function MultiTeamTradeBuilder({
                 onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
             >
                 <View style={styles.reviewHeading}>
-                    <Text style={styles.reviewEyebrow}>FINAL REVIEW</Text>
                     <Text style={styles.reviewTitle}>
                         {participants.length}-team trade · {items.length} {items.length === 1 ? 'asset' : 'assets'}
                     </Text>
@@ -184,8 +183,10 @@ export function MultiTeamTradeBuilder({
                     <Text style={styles.reviewTermsValue}>
                         Expires in {expirationDays} {expirationDays === '1' ? 'day' : 'days'}
                     </Text>
-                    <Text style={styles.reviewTermsLabel}>NOTE</Text>
-                    <Text style={styles.reviewTermsValue}>{notes.trim() || 'No note added'}</Text>
+                    {notes.trim() ? <>
+                        <Text style={styles.reviewTermsLabel}>NOTE</Text>
+                        <Text style={styles.reviewTermsValue}>{notes.trim()}</Text>
+                    </> : null}
                 </View>
             </View>
             </DeferredContent>
@@ -203,7 +204,7 @@ export function MultiTeamTradeBuilder({
             ) : (
                 <>
                     <Pressable
-                        style={[styles.compactSummary, Platform.OS === 'web' && styles.compactSummarySticky]}
+                        style={styles.compactSummary}
                         onPress={() => setOverviewExpanded((expanded) => !expanded)}
                         accessibilityRole="button"
                         accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${participants.length} teams and ${items.length} routed assets.`}
@@ -357,7 +358,6 @@ const styles = StyleSheet.create({
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
     reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing['4xl'] },
     reviewHeading: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
-    reviewEyebrow: { ...textStyles.sectionLabel },
     reviewTitle: {
         marginTop: spacing.xs,
         fontSize: fontSize.xl,
@@ -392,11 +392,6 @@ const styles = StyleSheet.create({
         borderColor: uiColors.borderNeutral,
         backgroundColor: uiColors.surfaceAlt,
     },
-    compactSummarySticky: {
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-    } as unknown as WebOnlyViewStyle,
     compactSummaryCopy: { minWidth: 0, flex: 1 },
     compactSummaryTitle: { ...textStyles.sectionLabel },
     compactSummaryMeta: {

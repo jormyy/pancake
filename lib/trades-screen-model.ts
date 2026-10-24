@@ -148,14 +148,12 @@ export function buildTradeList(input: TradeListInput): TradeListItem[] {
         return result
     }
     if (input.tab === 'leagueBlock') {
-        result.push({ _type: 'header', label: 'League Trade Block' })
         input.leagueBlockItems.forEach((item) => result.push({ _type: 'blockItem', item }))
         if (input.leagueBlockItems.length === 0 && (input.blockSettled || (!input.blockLoading && !input.blockError))) {
             result.push({ _type: 'empty', key: 'league-block-listings', message: 'No league listings yet.' })
         }
         return result
     }
-    result.push({ _type: 'header', label: 'Trade History' })
     input.historyTrades.forEach((trade) => result.push({ _type: 'trade', trade }))
     if (input.historyTrades.length === 0 && (input.tradesSettled || (!input.tradesLoading && !input.tradesError))) {
         result.push({ _type: 'empty', key: 'trade-history', message: 'No completed trades yet.' })

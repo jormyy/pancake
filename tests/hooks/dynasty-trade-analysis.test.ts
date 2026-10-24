@@ -93,6 +93,7 @@ describe('dynasty trade analysis season identity', () => {
         observations.length = 0
         await act(async () => { renderer.update(React.createElement(Probe, { playerId: 'player-2' })); await flush() })
         expect(observations.every(result => result.analysis === null)).toBe(true)
+        expect(observations[0].loading).toBe(true)
         await act(async () => { pending.resolve([{ ...row, player_id: 'player-2', display_name: 'Player Two' }]); await pending.promise; await flush() })
         expect(observations.at(-1)?.analysis).not.toBeNull()
         observations.length = 0

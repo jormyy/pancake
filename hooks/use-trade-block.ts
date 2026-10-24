@@ -87,7 +87,6 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
             setRoster(nextRoster)
             setDataKey(resourceKey)
             setValidatedKey(resourceKey)
-            setSettledKey(resourceKey)
             return true
         } catch (cause) {
             if (loadSequence.current !== requestId) return false
@@ -132,6 +131,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         })
         if (playerIds.length === 0) {
             persist(EMPTY_AVG_MAP, EMPTY_STATS_MAP)
+            setSettledKey(resourceKey)
             return
         }
 
@@ -146,6 +146,8 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
                 if (statsLoadSequence.current !== requestId) return
                 console.warn('Could not load optional trade-block player averages.', statsError)
                 persist(latestAverages.current.avgMap, latestAverages.current.avgStatsMap)
+            } finally {
+                if (statsLoadSequence.current === requestId) setSettledKey(resourceKey)
             }
         }
         void loadStats()
@@ -166,7 +168,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         if (!canMutateRef.current) return
         const generation = mutationGeneration.current
         const task = mutationQueue.current.then(async () => {
-            if (mutationGeneration.current !== generation || !canMutateRef.current) return
+            if (mutationGeneration.current !== generation || !canMutateRef.current) return false
             setBusyId(id)
             try {
                 await operation()
@@ -174,15 +176,17 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
                     setActionError(null)
                     await refresh()
                 }
+                return mutationGeneration.current === generation
             } catch (cause) {
                 if (mutationGeneration.current === generation) {
                     setActionError(getErrorMessage(cause) ?? 'Could not update trade block.')
                 }
+                return false
             } finally {
                 if (mutationGeneration.current === generation) setBusyId(null)
             }
         })
-        mutationQueue.current = task.catch(() => {})
+        mutationQueue.current = task.then(() => {}, () => {})
         return task
     }, [refresh])
 
@@ -192,18 +196,27 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
             memberId,
             leagueId,
             playerId: player.players.id,
-        }))
+        })).then(() => {})
     }, [memberId, leagueId, mutate])
 
     const addPick = useCallback((pick: TradePickItem) => {
         if (!memberId || !leagueId) return Promise.resolve()
-        return mutate(pick.pickId, () => addTradeBlockItem({ memberId, leagueId, pickId: pick.pickId }))
+        return mutate(pick.pickId, () => addTradeBlockItem({ memberId, leagueId, pickId: pick.pickId })).then(() => {})
     }, [memberId, leagueId, mutate])
 
     const removeItem = useCallback((item: TradeBlockItem) => {
         if (!memberId) return Promise.resolve()
-        return mutate(item.id, () => removeTradeBlockItem(item.id, memberId))
+        return mutate(item.id, () => removeTradeBlockItem(item.id, memberId)).then(() => {})
     }, [memberId, mutate])
+
+    const setNote = useCallback((item: TradeBlockItem, note: string) => {
+        if (!memberId || !leagueId || item.memberId !== memberId) return Promise.resolve(false)
+        return mutate(item.id, () => addTradeBlockItem({
+            memberId, leagueId, note,
+            playerId: item.asset.kind === 'player' ? item.asset.playerId : null,
+            pickId: item.asset.kind === 'pick' ? item.asset.pickId : null,
+        }))
+    }, [leagueId, memberId, mutate])
 
     const ownsResource = dataKey === resourceKey
     const itemsWithStats = useMemo(() => withTradeBlockStats(
@@ -214,6 +227,9 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
     return {
         items: itemsWithStats,
         hasData: Boolean(resourceKey && (settledKey === resourceKey || cached)),
+        displayReady: Boolean(ownsResource && error || resourceKey && (settledKey === resourceKey || cached)),
+        listingsDisplayReady: Boolean(ownsResource && error || resourceKey && (settledKey === resourceKey || cached ||
+            ownsResource && validatedKey === resourceKey && items.every((item) => item.asset.kind !== 'player'))),
         roster: ownsResource ? roster : cached?.roster ?? [],
         avgMap: ownsResource ? avgMap : cachedAvgMap,
         avgStatsMap: ownsResource ? avgStatsMap : cachedAvgStatsMap,
@@ -225,5 +241,6 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         addPlayer,
         addPick,
         removeItem,
+        setNote,
     }
 }

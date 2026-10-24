@@ -100,6 +100,26 @@ afterEach(() => {
 })
 
 describe('trade resource identity', () => {
+    it('does not expose readiness from the previous member error', async () => {
+        vi.mocked(readPersistentCache).mockReturnValue(null)
+        getTradeBlockItems.mockRejectedValueOnce(new Error('previous member failed'))
+        getRoster.mockResolvedValue([])
+        let latest!: ReturnType<typeof useTradeBlock>
+        const observations: { memberId: string; ready: boolean; listingsReady: boolean }[] = []
+        const Probe = ({ memberId }: { memberId: string }) => {
+            latest = useTradeBlock(memberId, 'league')
+            observations.push({ memberId, ready: latest.displayReady, listingsReady: latest.listingsDisplayReady })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe, { memberId: 'member-a' })) })
+        await act(async () => { await latest.refresh() })
+        expect(latest.displayReady).toBe(true)
+        await act(async () => renderer.update(React.createElement(Probe, { memberId: 'member-b' })))
+        expect(observations.find((value) => value.memberId === 'member-b')).toEqual({ memberId: 'member-b', ready: false, listingsReady: false })
+        await act(async () => renderer.unmount())
+    })
+
     it('paginates history only through the server-owned history feed', async () => {
         const initial = Array.from({ length: 40 }, (_, index) => trade(`history-${index}`))
         getTradeHistoryForScreen
@@ -301,6 +321,7 @@ describe('trade resource identity', () => {
         expect(latest.busyId).toBeNull()
         expect(latest.loading).toBe(false)
         expect(latest.error).toBeNull()
+        expect(latest.displayReady).toBe(false)
 
         await act(async () => { await latest.addPlayer(rosterPlayer('player-b')) })
         expect(addTradeBlockItem).toHaveBeenCalledTimes(2)
@@ -314,6 +335,7 @@ describe('trade resource identity', () => {
             await stats.promise
         })
         expect(latest.avgMap.get('player-a')).toBe(42)
+        expect(latest.displayReady).toBe(true)
         await act(async () => { renderer.unmount() })
     })
 
