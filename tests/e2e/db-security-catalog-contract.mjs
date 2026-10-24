@@ -55,8 +55,13 @@ const validateObjects = (section, actual, expected) => {
 export const validateSecurityCatalog = ({ phase, target, projectRef, repositoryFiles, history, catalog }) => {
   if (!phases.includes(phase)) throw new Error('Unknown database catalog phase')
   if (!['local', 'linked'].includes(target)) throw new Error('Unknown database catalog target')
-  if (catalogContract.version !== 1 || catalogContract.baselineVersion !== release.baselineVersion ||
-      catalogContract.candidateVersion !== release.approvedMigrations.at(-1).version) {
+  const before = catalogContract.preMigration
+  if (catalogContract.version !== 2 || catalogContract.baselineVersion !== release.baselineVersion ||
+      catalogContract.candidateVersion !== release.approvedMigrations.at(-1).version ||
+      !Number.isSafeInteger(before?.count) || before.count < release.baselineCount ||
+      before.count >= release.baselineCount + release.approvedMigrations.length ||
+      repositoryFiles.toSorted((left, right) => left.filename.localeCompare(right.filename))[before.count - 1]
+        ?.filename.split('_')[0] !== before.version) {
     throw new Error('Catalog and migration attestations disagree')
   }
   for (const expected of catalogContract.sourceMigrations) {
@@ -67,12 +72,13 @@ export const validateSecurityCatalog = ({ phase, target, projectRef, repositoryF
   const plan = target === 'linked'
     ? planAttestedProductionMigrations(repositoryFiles, history, projectRef)
     : planReleaseMigrationsFromHistory(repositoryFiles.map((file) => file.filename), history?.history)
-  const expectedCount = release.baselineCount + (phase === 'post-migration' ? release.approvedMigrations.length : 0)
-  const expectedVersion = phase === 'pre-migration' ? catalogContract.baselineVersion : catalogContract.candidateVersion
+  const expectedCount = phase === 'pre-migration' ? before.count : release.baselineCount + release.approvedMigrations.length
+  const expectedVersion = phase === 'pre-migration' ? before.version : catalogContract.candidateVersion
   if (repositoryFiles.length !== release.baselineCount + release.approvedMigrations.length ||
       plan.deployedHistory.length !== expectedCount || plan.deployedVersion !== expectedVersion ||
       plan.repositoryHead !== catalogContract.candidateVersion ||
-      !isDeepStrictEqual(plan.pendingVersions, phase === 'pre-migration' ? release.approvedMigrations.map((row) => row.version) : [])) {
+      !isDeepStrictEqual(plan.pendingVersions, phase === 'pre-migration'
+        ? release.approvedMigrations.slice(before.count - release.baselineCount).map((row) => row.version) : [])) {
     throw new Error(`Migration history does not match the exact ${phase} contract`)
   }
   // Local histories use canonical names; the production planner separately

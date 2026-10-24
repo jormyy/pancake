@@ -4,8 +4,12 @@ The catalog gate verifies an attested migration phase without applying migration
 
 ## Scope
 
-The attested baseline is `20261005000003`; the candidate is `20261011000062`.
-These versions do not automatically track the branch head.
+The historical audit anchor is `20261005000003` with 329 rows.
+The exact pre-migration phase is 431 rows through `20261020000007`, with 63 pending versions.
+The exact post-migration phase is 494 rows through `20261024000001`, with no pending versions.
+Contract version 2 separates the current pre-migration phase from the historical audit anchor.
+It retains the earlier 329-row and 398-row catalog fingerprints under `historicalPhases`.
+The current phase pins do not automatically track live history or the branch head.
 Later migrations require reviewed phase contracts before release.
 
 The gate checks ordered history, approved aliases, SQL fingerprints, and the linked project.
@@ -49,4 +53,4 @@ It is separate from the attested release-phase catalog above.
 
 [Source monitoring](source-monitoring.md) owns snapshot replacement, source precedence, scheduling, and cleanup behavior.
 [Verification](verification.md#sleeper-projections-and-weekly-cleanup) lists behavioral, permission, index, and concurrency checks.
-These checks do not extend the attested release range.
+These focused checks do not approve any migration beyond the explicit release range.
