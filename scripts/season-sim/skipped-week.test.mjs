@@ -8,6 +8,15 @@ test('skipped weeks can retain daily lineups without fantasy results or transact
   assert.equal(checkSkippedWeek(skipped).lineups, 1)
 })
 
+test('skipped weeks retain voided pair history but reject scores and results on those rows', () => {
+  const row={week_number:1,matchup_type:'regular_season',is_voided:true,is_finalized:false,winner_member_id:null,home_points:0,away_points:0,home_max_possible_points:null,away_max_possible_points:null}
+  const input={...skipped,matchups:[row]}
+  assert.equal(checkSkippedWeek(input).voidedMatchups,1)
+  for(const change of [{is_voided:false},{is_finalized:true},{winner_member_id:'a'},{home_points:0.1},{away_points:0.1},{home_max_possible_points:10}]){
+    assert.throws(()=>checkSkippedWeek({...input,matchups:[{...row,...change}]}),/Skipped week 1/)
+  }
+})
+
 test('skipped weeks reject phantom matchups, standings, certificates, adds and transactions', () => {
   const corruptions = [
     input => { input.matchups.push({ week_number: 1, home_points: 1 }) },

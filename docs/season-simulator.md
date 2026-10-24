@@ -76,6 +76,7 @@ It resumes the real schedule at the drained opening clock and keeps interrupted 
 The first morning keeps any seconds advanced while snapshot workers drain.
 Preseason skipped-week changes rebuild unplayed eligible pairings with the saved season seed.
 Voided history remains intact. A started calendar keeps its existing pairings.
+Skipped-week checks accept retained voided rows only when they have no points, maximums, winner or finalized result.
 
 ```sh
 node scripts/season-sim/recovery-run.mjs \

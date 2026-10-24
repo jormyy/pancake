@@ -2,7 +2,17 @@ import assert from 'node:assert/strict'
 import { sqlJson } from './local-stack.mjs'
 
 export function checkSkippedWeek({ matchups, lineups, standings, certificates, addCounts, expectedAdds, transactions, expectedTransactions, week }) {
-  assert.equal(matchups.filter(row => row.week_number === week || row.week_number < week && row.end_week_number >= week).length, 0, `Skipped week ${week}: no matchup exists`)
+  const retained=matchups.filter(row => row.week_number === week || row.week_number < week && row.end_week_number >= week)
+  for(const row of retained){
+    assert.equal(row.is_voided,true,`Skipped week ${week}: no active matchup exists`)
+    assert.equal(row.matchup_type,'regular_season',`Skipped week ${week}: retained history is regular season`)
+    assert.equal(row.is_finalized,false,`Skipped week ${week}: no result is finalized`)
+    assert.equal(row.winner_member_id,null,`Skipped week ${week}: no winner is published`)
+    for(const side of ['home','away']){
+      assert.equal(Number(row[`${side}_points`]??0),0,`Skipped week ${week}: no points accrue`)
+      assert.equal(row[`${side}_max_possible_points`],null,`Skipped week ${week}: no maximum is scored`)
+    }
+  }
   assert.equal(standings.filter(row => row.week_number === week).length, 0, `Skipped week ${week}: no standing is published`)
   assert.equal(certificates.filter(row => row.week_number === week).length, 0, `Skipped week ${week}: no score is certified`)
   assert.ok(Object.keys(expectedAdds).length > 0, `Skipped week ${week}: expected managers exist`)
@@ -14,7 +24,7 @@ export function checkSkippedWeek({ matchups, lineups, standings, certificates, a
   assert.ok(addCounts.every(row => Object.hasOwn(expectedAdds, row.member_id)), `Skipped week ${week}: add counts belong to expected managers`)
   const transactionKey = row => JSON.stringify([row.transaction_type, row.member_id, row.player_id, row.related_claim_id ?? null])
   assert.deepEqual(transactions.map(transactionKey).sort(), expectedTransactions.map(transactionKey).sort(), `Skipped week ${week}: only genuine manager actions change transactions`)
-  return { week, matchups: 0, lineups: lineups.filter(row => row.week_number === week).length, standings: 0, certificates: 0, adds: expectedAdds, transactions: transactions.length, passed: true }
+  return { week, matchups: 0, voidedMatchups:retained.length, lineups: lineups.filter(row => row.week_number === week).length, standings: 0, certificates: 0, adds: expectedAdds, transactions: transactions.length, passed: true }
 }
 
 export function skippedWeekActions(c, week, now, startsAt, endsAt) {
