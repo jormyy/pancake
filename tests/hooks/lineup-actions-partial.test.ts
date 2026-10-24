@@ -59,7 +59,7 @@ it('reports partial season optimization and exposes an explicit retry', async ()
                 weekNumber: 1,
                 seasonYear: 2026,
             },
-            myLineup: { starters: [], bench: [] },
+            myLineup: React.useMemo(() => ({ starters: [], bench: [] }), []),
             league: { roster_size: 20 },
             selectedDate: '2026-07-09',
             startedTeams: new Set(),
@@ -98,7 +98,7 @@ it('keeps optimization busy while the same owner refreshes action authority', as
         actions = useLineupActions({
             actionContext: authorized ? owner : null,
             actionOwner: owner,
-            myLineup: { starters: [], bench: [] },
+            myLineup: React.useMemo(() => ({ starters: [], bench: [] }), []),
             league: { roster_size: 20 },
             selectedDate: '2026-07-09', startedTeams: new Set(),
             reloadLineup: vi.fn(async () => undefined),
@@ -131,7 +131,7 @@ it.each(['resolve', 'reject'] as const)('keeps a delayed old-date optimization o
     const owner = { memberId: 'member-1', leagueId: 'league-1', seasonId: 'season-1', weekNumber: 1, seasonYear: 2026 }
     const Probe = ({ date }: { date: string }) => {
         actions = useLineupActions({
-            actionContext: owner, myLineup: { starters: [], bench: [] },
+            actionContext: owner, myLineup: React.useMemo(() => ({ starters: [], bench: [] }), []),
             league: { roster_size: 20 }, selectedDate: date, startedTeams: new Set(), reloadLineup: reload,
         })
         return null
@@ -162,7 +162,7 @@ it('does not publish optimization feedback after its editor unmounts', async () 
     const Probe = () => {
         actions = useLineupActions({
             actionContext: { memberId: 'member-1', leagueId: 'league-1', seasonId: 'season-1', weekNumber: 1, seasonYear: 2026 },
-            myLineup: { starters: [], bench: [] }, league: { roster_size: 20 },
+            myLineup: React.useMemo(() => ({ starters: [], bench: [] }), []), league: { roster_size: 20 },
             selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: vi.fn(async () => undefined),
         })
         return null
@@ -185,7 +185,7 @@ it('suppresses optimization feedback when the editor leaves during reload', asyn
     const Probe = () => {
         actions = useLineupActions({
             actionContext: { memberId: 'member-1', leagueId: 'league-1', seasonId: 'season-1', weekNumber: 1, seasonYear: 2026 },
-            myLineup: { starters: [], bench: [] }, league: { roster_size: 20 },
+            myLineup: React.useMemo(() => ({ starters: [], bench: [] }), []), league: { roster_size: 20 },
             selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: reload,
         })
         return null
@@ -216,7 +216,7 @@ it.each([
     const Probe = () => {
         actions = useLineupActions({
             actionContext: { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
-            myLineup: { starters: [{ slotType: 'PG', player: null }], bench: kind === 'activation' ? [] : [player], taxi: kind === 'activation' ? [player] : [] },
+            myLineup: React.useMemo(() => ({ starters: [{ slotType: 'PG', player: null }], bench: kind === 'activation' ? [] : [player], taxi: kind === 'activation' ? [player] : [] }), []),
             league: { roster_size: 20 }, selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: reload,
         })
         return null
@@ -240,5 +240,47 @@ it.each([
         }
         expect(actions.saving).toBe(false)
         expect(actions.autoSetting).toBe(false)
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it.each([['2026-07-09', 'today'], [null, 'the rest of the week']] as const)('reports a completed auto-set for %s', async (date, scope) => {
+    mocks.autoSetLineup.mockResolvedValueOnce({ dates: 1, optimized: 1, skipped: 0, failed: 0, results: [] })
+    let actions!: ReturnType<typeof useLineupActions>
+    const Probe = () => {
+        actions = useLineupActions({
+            actionContext: { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
+            myLineup: React.useMemo(() => ({ starters: [], bench: [] }), []), league: { roster_size: 20 }, selectedDate: '2026-07-09',
+            startedTeams: new Set(), reloadLineup: async () => {},
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        await act(async () => { await actions.doAutoSet(date) })
+        expect(mocks.showSuccess).toHaveBeenCalledWith('Done', `Lineup set for ${scope}.`)
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('clears an index selection when the lineup changes and keeps it when unchanged', async () => {
+    const first = { starters: [{ slotType: 'PG', player: null }], bench: [] }
+    const second = { ...first, bench: [] }
+    const owner = { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 }
+    let actions!: ReturnType<typeof useLineupActions>
+    const Probe = ({ lineup }: { lineup: typeof first }) => {
+        actions = useLineupActions({ actionContext: owner, myLineup: lineup, league: { roster_size: 20 },
+            selectedDate: '2026-07-09', startedTeams: new Set(), reloadLineup: async () => {} })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe, { lineup: first })) })
+    try {
+        await act(async () => { await actions.handleTap({ kind: 'starter', index: 0 }) })
+        await act(async () => { renderer.update(React.createElement(Probe, { lineup: first })) })
+        expect(actions.selected).toEqual({ kind: 'starter', index: 0 })
+        await act(async () => { renderer.update(React.createElement(Probe, { lineup: second })) })
+        expect(actions.selected).toBeNull()
+        await act(async () => { await actions.handleTap({ kind: 'bench', index: 0 }) })
+        expect(mocks.plan).not.toHaveBeenCalled()
     } finally { await act(async () => { renderer.unmount() }) }
 })

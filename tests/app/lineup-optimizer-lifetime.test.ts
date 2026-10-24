@@ -118,3 +118,10 @@ it('keeps the saved preference when the current write fails', async () => {
     expect(toggle().props.disabled).toBe(false)
     expect(mocks.showAlert).toHaveBeenCalledWith('Auto-set daily failed', 'connection failed')
 })
+
+it('auto-sets today while the lineup screen displays a different day', async () => {
+    await mount()
+    await act(async () => { await screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12') })
+    screen.root.findByType('AutoSetModal' as React.ElementType).props.onToday()
+    expect(mocks.autoSet).toHaveBeenCalledWith('2026-10-11')
+})

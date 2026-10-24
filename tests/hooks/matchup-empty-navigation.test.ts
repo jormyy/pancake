@@ -29,6 +29,8 @@ function Probe({ leagueId = 'a', validated = true }: { leagueId?: string; valida
     return React.createElement('notice', { surface })
 }
 beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-18T12:00:00Z'))
     clearSessionCaches()
     setSessionOwner(user.id)
     state.cache.clear()
@@ -39,6 +41,7 @@ afterEach(async () => {
     await act(async () => view?.unmount())
     setSessionOwner(null)
     vi.restoreAllMocks()
+    vi.useRealTimers()
 })
 it('restores the settled empty notice in every frame through ten back/forward remounts', async () => {
     await act(async () => { view = create(React.createElement(Probe)) })

@@ -1,6 +1,6 @@
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
-import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
+import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
@@ -11,8 +11,6 @@ import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
-
-type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
 const FPTS_W = 64
@@ -313,7 +311,7 @@ type MatchupRowProps = {
     selKind: 'starter' | 'bench' | 'ir' | 'taxi'
     selIndex: number
     isSelected: boolean
-    onTap: (sel: Sel) => void
+    onTap: (sel: LineupSelection) => void
     saving: boolean
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
