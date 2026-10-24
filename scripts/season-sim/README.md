@@ -4,6 +4,9 @@ This harness drives local production gates, Edge handlers, and authenticated man
 Generated reports distinguish completed checks from missing coverage.
 A diagnostic run cannot establish full acceptance.
 
+The [bounded acceptance matrix](../../docs/bounded-replay-acceptance.md) records the saved replay through November 9, 2025.
+It separates measured outcomes from retained stream and source limits.
+
 ## Configuration
 
 Source the task environment on the mini before every command.
