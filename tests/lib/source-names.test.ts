@@ -3,6 +3,7 @@ import { readableSourceName } from '@/lib/source-names'
 
 describe('readableSourceName', () => {
     it('names known sources the way managers know them', () => {
+        expect(readableSourceName('sleeper')).toBe('Sleeper (RotoWire)')
         expect(readableSourceName('fantasypros_daily')).toBe('FantasyPros')
         expect(readableSourceName('season_avg')).toBe('Season averages')
         expect(readableSourceName('Pancake deterministic pick curve')).toBe('Pancake pick values')

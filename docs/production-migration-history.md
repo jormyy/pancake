@@ -1,146 +1,129 @@
-# Production migration history attestation
+# Production migration history
 
-The release preflight accepts 24 audited historical names for the production
-project `ceeytbfmwsnzalxlkalc`. It does not rename migrations or update database
-history. Unknown differences still stop the release.
+The release preflight accepts audited historical migration names for production project `ceeytbfmwsnzalxlkalc`. This record defines the attested range, validation steps, and forward recovery requirements.
 
-The names changed in commit `c083075fe75976852fa2307c54d8fc7b3b33e9a6`.
-A read-only comparison of the stored statements with that commit's
-parent finds all 24 historical SQL sequences. Twenty-one match today's parsed SQL
-apart from header comments changed in 17 files.
-Three contain real temporary helper-identifier changes:
+## Attested history
 
-| Version | Historical helper spelling | Repository helper spelling |
+[`release-history-attestations.json`](../tests/e2e/release-history-attestations.json) owns approved versions, names, fingerprints, classifications, convergence bodies, and the migration range.
+The baseline is `20261005000003` with 329 rows.
+The approved range contains 69 migrations, from `20261006000001_share_scoring_cache_aggregation` through `20261011000062_fail_fast_on_changed_game_and_score_inputs`.
+This range does not include later branch migrations.
+A partial upgrade plans only the remaining approved suffix.
+Each applied range member must match its statement count and stored-SQL fingerprint.
+
+The preflight accepts 24 historical names changed by commit `c083075fe75976852fa2307c54d8fc7b3b33e9a6`.
+Stored statements match that commit's parent.
+Twenty-one match current parsed SQL apart from header comments.
+Three contain temporary helper-name changes:
+
+| Version | Historical helper names | Repository helper names |
 | --- | --- | --- |
-| `20260627000011` | Two lineup helpers use `_unchecked_cycle18`. | They use `_unchecked_legacy`. |
-| `20260627000017` | The update helper uses `_uncapped_cycle23`; calls use the cycle18 names. | They use `_unchecked_legacy`. |
-| `20260627000025` | The cleanup block renames the cycle18/cycle23 helpers. | It renames the legacy helpers. |
+| `20260627000011` | Two lineup helpers use `_unchecked_cycle18` | `_unchecked_legacy` |
+| `20260627000017` | Update helper uses `_uncapped_cycle23`; calls use cycle18 names | `_unchecked_legacy` |
+| `20260627000025` | Cleanup renames cycle18/cycle23 helpers | Cleanup renames legacy helpers |
 
-Both sequences converge to the same three `_unchecked` helpers. This is not a
-claim that those three historical files have identical SQL. The preflight checks
-seven live function bodies, signatures, settings, and effective grants. It also
-rejects old helper objects or remaining calls to their old names.
+Both sequences converge to the same three `_unchecked` helpers.
+The preflight checks seven live function bodies, signatures, settings, and effective grants.
+It rejects remaining old helpers or calls to old names.
 
-The exact project, versions, old/current names, fingerprints, classifications,
-and approved migration range live in
-[`release-history-attestations.json`](../tests/e2e/release-history-attestations.json).
-Repository file fingerprints use SHA-256 over file bytes. Stored SQL fingerprints
-use SHA-256 over the concatenated lowercase SHA-256 hex strings of each statement,
-in recorded order. Statement counts are checked separately. No SQL normalization
-or identifier substitution occurs in the production fingerprint check.
+Approved replacements change the expected convergence body only after their migration appears in history:
 
-[`release-schema-history.sql`](../tests/e2e/release-schema-history.sql) reads only
-metadata inside a READ ONLY transaction. It returns fingerprints, not stored SQL,
-function bodies, credentials, or application rows. The workflow validates the
-target, checks the linked project's ref before querying, and passes the same ref
-to the planner. This also works with the workflow's pinned Supabase CLI 2.109.1.
+| Migration | Replaced functions |
+| --- | --- |
+| `20261011000002` | `auto_set_lineup_atomic_unchecked` |
+| `20261011000010` | `auto_set_lineup_atomic`, `set_player_slot_moves_atomic` |
+| `20261011000012` | `update_lineup_slots_atomic_unchecked` |
 
-The generic history planner still requires exact names. The production entry
-point accepts only the attested 24 old labels and their exact SQL. It preserves
-the original labels in its result. Missing, duplicate, reordered, or foreign
-versions fail. Changed attested SQL or source files fail. Changed helper bodies
-or grants fail. Unapproved pending files fail.
+Each `convergenceRedefinitions` entry must name an approved migration containing the recorded body in dollar-quoted SQL.
+An early replacement or a late baseline body fails.
 
-The baseline is `20261005000003` (329 rows). The approved range is the 69 migrations
-`20261006000001_share_scoring_cache_aggregation` through
-`20261011000062_fail_fast_on_changed_game_and_score_inputs`.
-A partially applied approved range plans only its remaining suffix. Every applied
-member of the range must also match its statement count and stored-SQL fingerprint.
-The range fingerprints are the actual ledger rows that Supabase CLI 2.114.0 recorded in
-isolated task databases: a fresh install of all 398 migrations, and an ordered upgrade
-from 329 to 341 to 398 migrations. Both produced identical ledgers. The same ledger
-reproduces all seven range fingerprints carried over from the previous attestation. An
-independent statement splitter agrees on all 62 new rows.
-This is local compatibility evidence; production still requires its own current history check.
-The scoring migration replaces a derived materialized cache and its public view.
-Apply it after the league-season migration. Its transaction protects against
-partial application; a frontend rollback leaves both migrations applied. Before
-production application, check view readers, lock contention and cache rebuild
-time, and prepare the previous view definition as a forward recovery migration.
+## Fingerprints and evidence
 
-Four approved migrations replace converged lineup helpers:
-- `20261011000002` replaces `auto_set_lineup_atomic_unchecked`.
-- `20261011000010` replaces `auto_set_lineup_atomic` and `set_player_slot_moves_atomic`.
-- `20261011000012` replaces `update_lineup_slots_atomic_unchecked`.
+Repository fingerprints use SHA-256 over file bytes.
+Stored-SQL fingerprints hash each statement, concatenate the lowercase SHA-256 hex strings in order, then hash that concatenation.
+Statement counts are checked separately.
+Production fingerprint checks perform no SQL normalization or identifier substitution.
 
-`convergenceRedefinitions` records each replacement body. The planner expects the audited
-base body until that migration appears in the applied history, then the replacement.
-A replacement body seen early, or a base body seen after the replacement, still fails.
-Each replacement must name an approved migration whose dollar-quoted SQL contains the
-recorded body. The partial 341-migration upgrade confirms the mixed state.
+Compare a fresh install with an ordered baseline-to-candidate upgrade before extending attestations.
+Include an intermediate upgrade state to check mixed convergence bodies.
+Compare recorded statement counts and fingerprints, not only the final schema.
+Local evidence does not replace the current production history check.
+Unrelated applied rows receive ordered version/name checks; this audit does not cover their SQL.
 
-Until 2026-10-11 the baseline was `20261005000002` (328 rows) and the range held
-`20261005000003` plus seven later migrations. Production applied `20261005000003`
-outside the deploy workflow. A read-only `release-schema-history.sql` snapshot on
-2026-10-11 showed its stored SQL matched the recorded 14-statement fingerprint, so it
-became a baseline row.
+Earlier approved migrations now belong to the baseline after stored fingerprints match their attestations.
+A later schema release must extend the reviewed range and update changed convergence expectations.
+A stale baseline blocks the pre-migration catalog phase.
 
-Until 2026-10-06 the baseline was `20260926000001` (326 rows) and the range held
-`20261005000001` and `20261005000002`. Production applied both with an owner-approved
-`supabase db push` on 2026-10-06. A read-only `release-schema-history.sql` snapshot
-showed their stored SQL matched the recorded fingerprints, so they became baseline rows.
+## Release preflight
 
-Until 2026-10-05 the baseline was `20260828000002` (320 rows) and the range held six
-more migrations (`20260912000001` through `20260926000001`). Production applied those
-six outside the deploy workflow. On 2026-10-05 the attested planner confirmed that
-their stored SQL matched the recorded fingerprints, and they became baseline rows.
-A release contract must describe the deployed history: the pre-migration catalog
-phase requires the exact baseline, so a stale baseline blocks every deploy.
-Later schema releases must extend the reviewed
-range and update any changed convergence expectations. Unrelated applied rows
-retain the ordered version/name check; their SQL is not covered by this audit.
+[`release-schema-history.sql`](../tests/e2e/release-schema-history.sql) reads metadata inside a READ ONLY transaction.
+It returns fingerprints without stored SQL, function bodies, credentials, or application rows.
+The workflow validates the target and linked project ref before querying, then passes that ref to the planner.
+This path supports the workflow's pinned Supabase CLI 2.109.1.
 
-The successful soak exports a SHA-256 of its exact attested plan. The production
-database job checks that same source commit, target, linked ref, history,
-fingerprints, convergence, and plan before index preparation and again immediately
-before `db push`. A changed applied prefix or pending suffix requires a new soak.
-The job saves both read-only snapshots and plans as workflow artifacts.
-These checks close the stale multi-hour preflight window. They do not hold a
-database lock across the CLI query and push. Workflow concurrency serializes
-deployments through this workflow. A separately authorized manual application
-must exclude concurrent migration writers and perform these same immediate
-checks against the successful soak's plan digest.
+The generic planner requires exact names.
+The production entry point accepts only the 24 attested aliases and exact SQL, preserving original labels in its result.
+Missing, duplicate, reordered, foreign, or unapproved pending versions fail.
+Changed attested SQL, source files, helper bodies, or grants also fail.
 
-This preflight belongs to the required release-soak workflow. Supabase's own
-migration planner compares versions and does not enforce these extra checks.
-A successful CLI dry run does not replace release-soak or compatibility gates.
-The coordinated deployment workflow also deploys frontend and Edge artifacts;
-running this read-only check does not authorize those actions or apply migrations.
+The successful release soak exports a SHA-256 digest of its attested plan.
+Before index preparation, the production job checks the source commit, target, linked ref, history, fingerprints, convergence, and plan digest.
+It repeats those checks immediately before `supabase db push`.
+A changed applied prefix or pending suffix requires a new soak.
+The workflow retains both read-only snapshots and plans as artifacts.
 
-The scoring coefficient migration `20261007000001` follows `20261006000001`.
-It extracts JSON coefficient text once per league during the derived-cache build.
-Numeric casts stay inside the original scoring expression, including bonus guards.
-JSONB equality still selects one representative for each shared settings group.
-No source stats, settings, grants, RLS rules, or refresh scheduling change.
-The database scoring test compares every refreshed row with `v_fantasy_points`,
-including changed settings, corrected scores, DNP, deletion and game eligibility.
+Workflow concurrency serializes its deployments but holds no database lock across the CLI query and push.
+An authorized manual application must exclude concurrent migration writers and repeat the immediate checks against the successful soak's plan digest.
+Supabase's version planner and CLI dry run do not replace these gates.
+Read-only preflight does not apply migrations or authorize frontend or Edge deployment.
+[Verification](verification.md#release-gates) owns the coordinated release sequence.
 
-This migration takes the same replacement locks as the previous cache migration.
-Its transaction has a three-second lock timeout and a 120-second statement timeout.
-Check current readers and rebuild time before production application. A timeout or
-interruption rolls back the replacement. Do not remove either timeout to force it.
-A frontend rollback keeps this compatible derived-cache migration applied.
-For database recovery, add a new forward migration containing the unchanged body
-of `20261006000001_share_scoring_cache_aggregation.sql`. It rebuilds the previous
-cache definition with current source data and preserves the public view and ACL.
-Use the same transaction and lock limits. Do not delete migration history or
-restore stale materialized rows. Verify the definition, indexes, ACL, RLS and
-canonical score equality after recovery. Local recovery proof does not establish
-production lock availability or device performance.
+## Scoring cache recovery
 
+The cache migrations replace a derived materialized cache and its public security-invoker view.
+Apply `20261006000001` after the league-season migration.
+Check view readers, lock contention, data size, dependencies, and rebuild time before application.
+Prepare the prior definition as a forward recovery migration.
+A transaction prevents partial replacement; frontend rollback retains the additive schema.
 
-The numeric coefficient migration `20261008000001` follows `20261007000001`.
-It converts eleven ordinary coefficients to numeric values once per league.
-The existing validated `scoring_settings_schema` requires numeric JSON values;
-missing coefficients still yield zero through the original COALESCE expressions.
-Bonus casts remain inside their existing conditions. Per-game rounding, DNP
-filtering, shared-settings equality, output columns and refresh scheduling stay unchanged.
-The migration refuses an unvalidated or missing scoring constraint.
+| Migration | Behavior | Forward recovery source |
+| --- | --- | --- |
+| `20261006000001` | Shares scoring aggregation across equal league settings | Previous reviewed cache/view definition |
+| `20261007000001` | Extracts JSON coefficient text once per league; preserves conditional numeric casts | `20261006000001_share_scoring_cache_aggregation.sql` |
+| `20261008000001` | Converts eleven ordinary coefficients once per league; keeps bonus casts conditional | `20261007000001_extract_scoring_cache_coefficients.sql` |
 
-Replacement uses the same three-second lock and 120-second statement limits.
-A timeout or interruption rolls back the transaction. For recovery, append a
-forward migration containing `20261007000001_extract_scoring_cache_coefficients.sql`.
-Rebuild from current source data, then check canonical scores, indexes, grants
-and the public security-invoker view. Do not restore old materialized rows.
-Check production readers, data size and dependencies before application.
-The local benchmark proves no production lock availability or device performance.
+The coefficient migrations preserve per-game rounding, DNP filtering, settings equality, output columns, grants, and refresh scheduling.
+The numeric migration requires a validated `scoring_settings_schema` constraint.
+Missing coefficients retain the original zero fallback.
+
+Replacement uses a three-second lock timeout and a 120-second statement timeout.
+Timeout or interruption rolls back the transaction. Do not remove limits to force application.
+Recovery appends a forward migration with the prior definition and the same transaction limits.
+Rebuild from current source data; preserve the public view and access controls.
+Do not delete migration history or restore stale materialized rows.
+Verify definitions, indexes, grants, RLS, and canonical score equality after recovery.
+Scoring tests compare refreshed rows with `v_fantasy_points`, including changed settings, corrections, DNP, deletion, and game eligibility.
+Local recovery evidence does not establish production lock availability or device performance.
+
+## Candidate migrations
+
+Migrations `20261020000001` through `20261020000007` add Sleeper projections, update readers and scheduling, and bound operational cleanup.
+They do not extend the historical alias attestations or approved release range above.
+The release-history and database catalog attestations require review for all later migrations before production release.
+The canonical function catalog records current completion and cleanup helpers separately.
+
+| Migration | Change |
+| --- | --- |
+| `20261020000001` | Adds the Sleeper player-game store, completion RPC, and projection period index |
+| `20261020000002` | Adds Sleeper-first readers, projection dispatch, fingerprints, and resource hints |
+| `20261020000003` | Bounds operational retention and projection cleanup; compacts FantasyPros snapshots |
+| `20261020000004` | Keeps game-day recovery independent of Monday; fixes compaction trigger permissions |
+| `20261020000005` | Replaces absent upcoming snapshot games; excludes old-team lines; expires reconciled worker crashes |
+| `20261020000006` | Preserves filtered source rows and prior-team games; returns projection freshness |
+| `20261020000007` | Guards snapshot replacement below 70% upcoming coverage; retains accepted updates and records failure |
+
+Apply the schema before deploying `sync-sleeper-projections`.
+The scheduler retains dispatch claims and invocation reconciliation.
+Frontend rollback retains these database changes.
+[Source monitoring](source-monitoring.md) owns projection and retention behavior.
+[Verification](verification.md#sleeper-projections-and-weekly-cleanup) owns the focused checks.

@@ -1,13 +1,14 @@
 # Auto-set daily
 
+Auto-set daily fills unlocked starter slots before tipoff for enabled teams. This document defines scheduling, locks, retries, authority, and recovery.
+
+## Team setting
+
 The lineup screen has one switch for the current team and season.
-The default rollout enables every existing team in its current season once.
-New teams start with Auto-set daily on.
+The default-on migration enables existing teams once. New teams start enabled.
 Managers can turn the switch off. Later seasons keep that choice.
-The switch keeps the existing owner checks and season boundaries.
 Today, Whole week, and Rest of season remain manual actions.
-Turning on daily automation does not rewrite future dates.
-It takes effect at the next eligible dispatch.
+Enabling automation takes effect at the next eligible dispatch and does not rewrite future dates.
 
 ## Schedule and locks
 
@@ -16,7 +17,9 @@ Games with the same tipoff share one dispatch across all enabled teams.
 The open window also checks a fingerprint of rosters, injuries, games, scoring, slots, and projection inputs.
 Changed inputs open a new revision. Unchanged inputs do not repeat a completed run.
 The window stays open through the first minute after tipoff to handle news at the start.
-Each run loads current injuries and projections for today's ET date.
+Each run loads current injuries and projections for today's Eastern Time date.
+The worker and `private.pre_tipoff_input_fingerprint` both use `get_league_projection_rows`.
+[Source monitoring](source-monitoring.md#projection-readers) defines per-game source precedence and fingerprint inputs.
 Only healthy players with games can enter unlocked starter slots.
 The solver uses all listed positions, including G, F, and UTIL eligibility.
 It maximizes projected points after preserving locked slots.

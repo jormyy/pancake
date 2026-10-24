@@ -1,8 +1,8 @@
-# Supabase Backend Route Inventory
+# Backend route inventory
 
 This inventory maps request ownership and authorization. It does not establish request counts or hosted latency.
 
-## Runtime Boundaries
+## Runtime boundaries
 
 The client uses several backend boundaries. Only Edge API calls use `https://<project-ref>.supabase.co/functions/v1/api`.
 
@@ -21,7 +21,7 @@ Measure HTTP requests and WebSocket frames separately. Record worker traffic eve
 The service worker excludes authenticated backend responses and cross-origin headshots from its shared caches.
 Public headshots use HTTP caching. Account-scoped application snapshots have separate ownership and freshness rules.
 
-## Current Client Route And Request Inventory
+## Client route inventory
 
 Rows identify request families, not fixed request totals. Shell membership, profile, Auth, image, and Realtime traffic can accompany a route.
 Attribute each shared request once. Separate cold document entry, warm SPA return, selected subview, pagination, and submitted mutations.
@@ -46,7 +46,7 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | `/draft-room?draftId=:id` | Draft, nominations, bids, budgets and pool in [auction controller](../hooks/useAuctionDraftRoomController.ts) | Draft Edge actions; room Realtime |
 | `/rookie-draft-room?draftId=:id` | Draft, order, picks and prospects in [rookie controller](../hooks/useRookieDraftRoomController.ts) | Pick and timer Edge actions; room Realtime |
 | `/profile` | Shared owner profile, preferences and push status in [profile resource](../hooks/use-profile-resource.ts) | Profile/preferences writes, Storage avatar upload, push configuration and subscription, sign-out |
-| `/player/:id` | Player, seasons, averages, game log, fantasy points, transactions and projection in [player detail](../hooks/use-player-screen-data.ts) | Pickup controls; paged history and game log |
+| `/player/:id` | Player, seasons, averages, game log, fantasy points, transactions, and projection in [player detail](../hooks/use-player-screen-data.ts) | Roster controls; paged history and game log; [screen contract](pwa-live-data.md#player-detail) |
 | `/lineup` | Actor, season/week, schedule, optimizer settings, slots, lineup and roster in [lineup reads](../lib/lineup/read.ts) | Slot RPCs, optimizer settings, Edge rest-of-season optimization |
 | `/team-roster?memberId=:id` | Selected roster and averages in [team roster](../app/%28modals%29/team-roster.tsx) | Player navigation |
 | `/claim-player?playerId=:id` | Player, roster, priority, transaction limits and waiver clearance in [claim modal](../app/%28modals%29/claim-player.tsx) | Edge waiver claim |
@@ -57,7 +57,7 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | `/change-password` | Shared session context | Auth password change |
 | Unknown route | No route-owned server data | Shared shell traffic can still occur |
 
-### Read Bounds And Refresh Rules
+### Read bounds and refresh rules
 
 | Resource | Current request contract |
 | --- | --- |
@@ -71,6 +71,8 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | Player projections | Detail requests one player; batch reads scope to requested player IDs |
 | Live player stats | Selected date and player IDs; batches contain at most 100 IDs |
 
+`get_league_projection_rows` owns projection selection for player views and lineup optimization.
+[Source monitoring](source-monitoring.md#projection-readers) defines Sleeper-first selection and per-game fallback.
 Published dynasty tabs preserve source order. League value context does not reorder them.
 Record actual limits, offsets, selects, returned row counts, and decoded sizes for each measurement.
 
@@ -84,7 +86,7 @@ Resource details scope averages, projections, and scoring changes. Daily inputs 
 Unknown, missing, invalid, or skipped revisions require broader refreshes. Hints do not replace authoritative reads or access checks.
 Each league/topic row stores its latest revision; it is not an event log.
 
-## Edge API Routes
+## Edge API routes
 
 Paths below are relative to `/functions/v1/api`. Unmarked paths use `POST`.
 JWT routes also apply the actor, league, draft, or trade checks in their handlers and SQL functions.
@@ -127,7 +129,7 @@ JWT routes also apply the actor, league, draft, or trade checks in their handler
 Abbreviated action paths retain the full prefix from the first path in their row.
 Database time and server checks decide auction and rookie deadlines. Browser clocks only display those deadlines.
 
-### Admin And E2E Routes
+### Admin and E2E routes
 
 | Route | Access | Operation |
 | --- | --- | --- |
@@ -142,7 +144,7 @@ Database time and server checks decide auction and rookie deadlines. Browser clo
 Internal Edge functions have separate dispatch authentication. They are not public client mutation endpoints.
 The [Edge inventory check](../scripts/check-edge-functions.mjs) compares configured functions with executable entrypoints.
 
-## Measurement Rules
+## Measurement rules
 
 1. Record the source commit, fixture counts, browser engine, viewport, installed/standalone mode, and worker control state.
 2. Separate cold profiles, HTTP-cache returns, application snapshots, and service-worker responses.
@@ -165,7 +167,7 @@ It must also reject successful-image samples containing only errors.
 These are harness controls, not application performance results.
 
 WebKit with an iPhone viewport does not prove installed-iPhone suspension behavior.
-Record standalone emulation separately; the old baseline and corrected audit use different WebKit modes.
+Record standalone emulation separately and compare identical WebKit modes.
 Exclude segments contaminated by the next workflow's setup. Local timing and byte counts do not establish hosted latency or egress cost.
 
 ## Images and scheduled work

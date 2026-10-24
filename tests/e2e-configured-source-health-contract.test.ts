@@ -34,6 +34,10 @@ describe('configured source health contract', () => {
         })
     })
 
+    it('requires the active Sleeper projection source', () => {
+        expect(evaluateConfiguredSourceHealth(completeReport().filter((source) => source.id !== 'sleeper-projections')).failures).toContain('missing source: sleeper-projections')
+    })
+
     it('accepts a complete healthy report and an explained disabled fallback', () => {
         expect(evaluateConfiguredSourceHealth(completeReport())).toEqual({ pass: true, failures: [] })
     })

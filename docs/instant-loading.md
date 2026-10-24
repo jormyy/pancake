@@ -1,5 +1,7 @@
 # Loading rules
 
+Screens preserve their frame during loading and refresh. These rules define saved content, empty results, errors, and layout verification.
+
 ## Stable loading surfaces
 
 Cold screens keep their frame and reserve content space.

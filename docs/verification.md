@@ -1,5 +1,7 @@
 # Verification
 
+Use these recipes to verify changes on isolated local fixtures and prepare release evidence. Each check states its setup and acceptance limits.
+
 ## Local stack
 
 Use an isolated checkout, project ID, and port block for database or browser fixtures.
@@ -34,6 +36,7 @@ The [simulator](../scripts/season-sim/README.md) and [profiler](../scripts/bench
 | Check | Command | Prerequisite |
 | --- | --- | --- |
 | Quality | `npm run check:quality` | Installed dependencies |
+| Dependency advisories | `npm run security:audit` | Registry access |
 | Edge runtime | `npm run check:edge-functions` | Deno and its imports |
 | Database type parity | `npm run check:database-types` | Local migrated database |
 | Database function catalog | `npm run check:db-function-catalog` | Local migrated database |
@@ -80,7 +83,70 @@ The protected workflow is named `Deploy production` in `.github/workflows/produc
 It calls `Release soak` and `Hosted production readiness` before coordinated promotion.
 Its jobs verify candidate/current pairings, apply the approved migration range, deploy Edge, and promote the frontend.
 Rollback jobs retain the upgraded additive schema.
-Vercel also enables deployments from main in `vercel.json`.
+Vercel also enables frontend deployments from main in `vercel.json`.
+Those deployments do not replace coordinated database and Edge release gates.
 
 The [migration history](production-migration-history.md), [catalog contract](database-readiness-catalog.md), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.
+The attested candidate remains `20261011000062` in both release-history and catalog contracts.
+Later migrations, including this branch's projection and cleanup range, require reviewed attestations before release.
+The [migration history](production-migration-history.md#candidate-migrations) records this boundary.
+
+## Sleeper projections and weekly cleanup
+
+Use an isolated local Supabase project and ports. Restore the normal config before handoff.
+Never reset the shared Pancake stack.
+The focused commands are:
+
+```sh
+deno test --allow-env --allow-net --allow-read supabase/functions/sync-sleeper-projections supabase/functions/sync-projections supabase/functions/_shared/retry.test.ts
+npm run test:db:sleeper-fixture
+npm run test:db:sleeper-projections
+npm run test:db:projection-schedule
+npm run test:db:retention-indexes
+npm run test:db:retention-concurrency
+npm run test:db:retention
+npm run test:db:retention-scoring
+npm run test:db:pre-tipoff
+npm run test:db:fantasypros-projections
+```
+
+Database commands require the isolated local database URL.
+The fixture command also requires its local API URL and service-role key.
+The scoring check requires its local backend secret key.
+Read these settings only from that local project's CLI status.
+The database Deno tests require the explicit `--local-db` argument, supplied by their npm commands.
+Ordinary Edge checks ignore those database tests.
+
+The fixture test pulls four recorded rows twice and verifies stable IDs, updated values, reader precedence, projected sits, and failure recovery.
+The SQL checks cover mixed weekly fallback, makes and attempts, next-game data, fingerprint stability, permissions, and deletion hints.
+Schedule checks cover Pacific midnight, both daylight saving transitions, late checks, claims, and injury refresh windows.
+Retention checks protect all league and NBA tables with write-rejecting triggers.
+Index checks run actual log and snapshot deletion statements against populated fixtures and inspect their execution plans.
+They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.
+All fixture writes use the isolated local project. SQL checks roll back.
+
+The fixture checks also cover rejected and unmatched source rows, absent-game removal, and historical games after team changes.
+Coverage checks verify updates without deletion below 70%, retained projected sits, failed-run diagnostics, and recovery.
+SQL cases check the 70% boundary, an empty upcoming store, and exclusion of past games and other weeks.
+Freshness cases cover the 36-hour boundary, source precedence, and returned timestamps.
+Concurrency checks hold row locks while cleanup and new writes run together.
+Keep generated results with the release evidence; rerun checks for the candidate under review.
+
+## Player detail
+
+```sh
+npx vitest run tests/components/player/player-detail.test.ts tests/app/player-browser-seasons.test.ts tests/hooks/player-screen-projection-lifetime.test.ts
+```
+
+These checks cover roster controls, season selection, compact statistics, projection labels, recent games, and collapsed league history.
+Use the [browser setup](../tests/e2e/README.md#supported-web-clients) for supported-client layout and interaction checks.
+[PWA behavior](pwa-live-data.md#player-detail) owns the screen contract.
+
+## Dependency security
+
+The lockfile resolves Vite 8.3.5 and Zod 4.6.7 for the branch's security updates.
+Use `npm ci` to install the reviewed tree.
+`npm run security:audit` rejects unaccepted high or critical advisories and stale accepted exceptions.
+`scripts/check-dependency-audit.mjs` owns exception reasons and removal conditions.
+A passing audit does not mean the tree contains no advisories.

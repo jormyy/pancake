@@ -15,9 +15,10 @@ type Props = {
     playerId: string
     leagueId: string
     transactions: TransactionHistoryEntry[]
+    showHeading?: boolean
 }
 
-export function TransactionHistory({ playerId, leagueId, transactions: initial }: Props) {
+export function TransactionHistory({ playerId, leagueId, transactions: initial, showHeading = true }: Props) {
     const resourceKey = `${leagueId}:${playerId}`
     const [resource, setResource] = useState({
         key: resourceKey,
@@ -71,7 +72,7 @@ export function TransactionHistory({ playerId, leagueId, transactions: initial }
     if (current.transactions.length === 0) {
         return (
             <View style={styles.section}>
-                <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>League History</Text>
+                {showHeading ? <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>League History</Text> : null}
                 <Text style={styles.noData}>No transactions yet.</Text>
             </View>
         )
@@ -79,7 +80,7 @@ export function TransactionHistory({ playerId, leagueId, transactions: initial }
 
     return (
         <View style={styles.section}>
-            <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>League History</Text>
+            {showHeading ? <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>League History</Text> : null}
             {current.transactions.map((tx) => (
                 <View key={tx.id} style={styles.row}>
                     <View style={styles.left}>

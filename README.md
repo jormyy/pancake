@@ -1,27 +1,14 @@
 # Pancake
 
-Pancake is a dynasty fantasy basketball web app.
-It supports iPhone Safari, an installed iPhone PWA, and desktop browsers.
-Leagues use auction and rookie drafts, daily lineups, waivers, trades, and automated season transitions.
+Pancake is a dynasty fantasy basketball web app for iPhone Safari, installed iPhone PWAs, and desktop browsers. Leagues use auction and rookie drafts, daily lineups, waivers, trades, and automated season transitions.
 
 ## Architecture
 
-| Layer | Implementation |
-| --- | --- |
-| Web app | Expo Router, React, TypeScript, and React Native Web |
-| Backend | Supabase Auth, PostgREST, Realtime, and Edge Functions |
-| Rules | PostgreSQL functions enforce ownership, roster limits, deadlines, and scoring locks |
-| Automation | PostgreSQL cron dispatches guarded Edge jobs through pg_net |
-| Shared logic | `core/` and `supabase/shared-src/` supply generated runtime copies |
-| Delivery | Static web export, public boot shell, and service worker |
+Expo Router and React Native Web provide the client. Supabase provides Auth, database access, Realtime, and Edge Functions. PostgreSQL enforces league rules and dispatches scheduled work. See the [architecture](docs/architecture.md) and [backend route inventory](docs/supabase-backend-route-inventory.md).
 
-The app uses Auth, direct database reads and RPCs, and the Edge API.
-The Edge API is not the only backend boundary.
-See the [architecture](docs/architecture.md) and [route inventory](docs/supabase-backend-route-inventory.md).
+## Local development
 
-## Getting started
-
-Use Node 22, npm, Docker, and the Supabase CLI.
+Use Node 22.12 or later in the Node 22 release line, npm, Docker, and the Supabase CLI.
 Run these commands from the repository root:
 
 ```sh
@@ -31,12 +18,12 @@ supabase start
 supabase status -o env
 ```
 
-Set the three public app variables in `.env` from that local stack.
-Use its API URL with `/functions/v1/api` appended for `EXPO_PUBLIC_API_URL`.
+Set the three public app variables in `.env` from the local stack.
+Append `/functions/v1/api` to its API URL for `EXPO_PUBLIC_API_URL`.
 Set `PANCAKE_SUPABASE_SECRET_KEY` from the local stack's service key.
-Generate a local `PANCAKE_EDGE_INTERNAL_TOKEN` if you run internal jobs.
-Keep its value equal to the database dispatch token; see the [verification setup](docs/verification.md#local-stack).
-Never use a hosted secret in a local test.
+Internal jobs also require a matching `PANCAKE_EDGE_INTERNAL_TOKEN` in Edge and database settings.
+See [local verification setup](docs/verification.md#local-stack) for dispatch wiring and isolated fixtures.
+Use local keys for local tests.
 
 Run each process in a separate terminal:
 
@@ -45,29 +32,34 @@ supabase functions serve --env-file .env
 npm start
 ```
 
-`npm start` serves the web app through Expo.
-For a release export, run `npm run build:web:release`.
-The build writes the stamped app into the generated dist directory.
-See [release provenance](docs/release-build-provenance.md) for deployment and artifact checks.
-
-## Checks
+## Verification
 
 | Command | Scope |
 | --- | --- |
 | `npm run check:quality` | Lint, typechecks, dead code, generated sources, and inventories |
-| `npm run check:comprehensive` | Quality plus Edge and database source checks |
+| `npm run check:comprehensive` | Quality, Edge runtime, database types, and function catalog |
 | `npm test` | App and shared contract tests |
 | `npm run test:db` | Database behavior on an isolated local stack |
-| `npm run perf:budget` | Performance budget contract |
+| `npm run security:audit` | Dependency advisories and accepted exceptions |
+| `npm run perf:budget` | Performance budget contract and optional report enforcement |
 | `npm run e2e:web-targets` | Supported browser layouts and optional gameplay |
 | `npm run e2e:layout-stability` | Release layout measurements |
-| `npm run e2e:season-sim` | Historical replay; requires the dedicated simulator setup |
+| `npm run e2e:season-sim` | Historical replay with a dedicated simulator stack |
 
-Use the [verification recipes](docs/verification.md) for prerequisites and focused checks.
-Generated reports, screenshots, and snapshots are ignored artifacts. Regenerate them for each run.
+The [verification guide](docs/verification.md) defines prerequisites and focused checks.
+Regenerate ignored reports, screenshots, and snapshots for each release.
+
+## Production releases
+
+`npm run build:web:release` writes the stamped frontend artifact to `dist/`.
+The protected `Deploy production` workflow verifies frontend/backend compatibility and the approved migration plan.
+It applies migrations, deploys the stamped Edge artifact, promotes the frontend, and verifies production.
+Recovery retains the additive schema.
+`vercel.json` also enables frontend deployments from main; those deployments do not perform the coordinated backend release.
+See [release gates](docs/verification.md#release-gates), [artifact provenance](docs/release-build-provenance.md), and [migration history](docs/production-migration-history.md).
 
 ## Documentation
 
-The [docs index](docs/README.md) lists the current contracts and operational records.
+The [documentation index](docs/README.md) links each contract and operating guide.
 The [browser guide](tests/e2e/README.md) owns browser and soak setup.
 The [benchmark guide](scripts/bench/README.md) owns local capacity measurements.

@@ -1,80 +1,89 @@
 # Release build provenance
 
-`npm run build:web:release` clears Metro transforms, exports the web app, and
-stamps the complete output with its source commit and SHA-256 digest.
-The digest includes every output file except the marker itself, plus the four
-deployment inputs listed in the marker. It does not normalize output bytes.
+Release artifacts record their source commit and content digest. This contract defines frontend and Edge identity, artifact recovery, and repeatable web exports.
 
-The marker also retains a sorted file manifest with sizes and SHA-256 hashes,
-plus the exact four build-input files encoded as base64. It does not include
-`.env` files, credentials, or provider settings. The marker remains the only
-output excluded from the existing bundle digest.
+## Frontend artifact
 
-`npm run release:recover-artifact -- --url <deployment> --expected-sha <sha>
---expected-digest <digest> --output <new-directory>` retrieves each declared
-file and restores those original inputs. It requires the unchanged complete
-bundle digest to match the independently captured expected digest. It rejects
-altered, missing, extra, duplicated, reordered, or unsafe manifest entries,
-changed inputs, redirects, and a marker that changes during retrieval.
-Existing output directories are never overwritten. A recovered deployment is
-not described as a source rebuild. The release workflow passes the verified
-digest into the compatibility contract and requires it to equal the captured
-live digest. It then builds the trusted source separately with loopback test
-endpoints. Recovered input files are evidence; the workflow never executes them.
+`npm run build:web:release` clears Metro transforms, exports the web app, and stamps the complete output.
+`dist/release-provenance.json` records the source commit and SHA-256 bundle digest.
+The digest covers every output file except the marker itself, plus four deployment inputs listed in the marker.
+It preserves exact output bytes.
 
-This proves the deployed-byte property directly. Rebuilding source can change
-prerendered date labels when the calendar advances, even when all application
-JavaScript matches. The recovered output and its inputs remain byte-for-byte
-covered by the existing digest; no dates, whitespace, or source SHAs replace
-those bytes in verification.
+The marker contains a sorted file manifest with sizes and SHA-256 hashes.
+It also retains the four build-input files as base64.
+It excludes environment files, credentials, and provider settings.
+Vercel's build command uses the same Metro graph option as the release workflow.
 
-Vercel's build command enables the same Metro graph option as the release
-workflow. New deployment baselines can therefore retain their complete bytes
-and original inputs without access to an older provider build archive.
+## Artifact recovery
+
+```sh
+npm run release:recover-artifact -- \
+  --url <deployment> \
+  --expected-sha <sha> \
+  --expected-digest <digest> \
+  --output <new-directory>
+```
+
+Recovery retrieves each declared file and restores the original deployment inputs.
+The complete bundle digest must match the independently captured expected digest.
+It rejects altered, missing, extra, duplicate, reordered, or unsafe manifest entries.
+It also rejects changed inputs, redirects, or a marker that changes during retrieval.
+Existing output directories remain protected from overwrite.
+Recovered inputs serve as evidence; the workflow never executes them.
+
+The compatibility gate requires the recovered digest to equal the captured live digest.
+It separately builds trusted source with loopback test endpoints.
+That local bundle has a different digest because its service addresses differ.
+A source rebuild can also change prerendered date labels.
+Recovery proves deployed bytes; a source commit alone does not.
+Incomplete recovery or a digest mismatch blocks the gate.
 
 ## Stable CSS exports
 
 Lightning CSS returns CSS module exports in an unspecified key order.
-Expo serializes that order into JavaScript. A clean rebuild can therefore
-change a chunk, its async references, the service worker, and the release digest.
+Expo serializes that order into JavaScript, which can change chunks, route references, the worker, and the release digest.
+`metro.config.js` selects `scripts/stable-css-transformer.js` to sort generated CSS export maps.
+The wrapper preserves class names, composition order, CSS rules, and ordinary JavaScript ordering.
+It uses the pinned Expo transformer and rejects unexpected generated map shapes.
+Regression tests exercise real compiler output and opposing export orders that differ without the wrapper.
 
-`metro.config.js` selects `scripts/stable-css-transformer.js`. This wrapper
-sorts generated CSS export maps before Expo emits JavaScript. It preserves
-class names, composition order, CSS rules, and ordinary JavaScript ordering.
-The wrapper uses the existing pinned Expo transformer. Unexpected generated
-map shapes fail the build. The regression tests exercise real compiler output
-and opposing export orders that differ without the wrapper.
-The cache key includes the upstream entry point, implementation, package metadata,
-and any upstream cache key. An upstream-only change invalidates cached transforms.
-Keep the direct `@expo/metro-config` pin equal to Expo's exact dependency pin when
-updating Expo. Update the applicable lockfiles and rerun the single-instance regression,
-quality checks, and repeated release builds.
+The cache key includes the upstream entry point, implementation, package metadata, and upstream cache key when present.
+Upstream changes invalidate cached transforms.
+Keep the direct `@expo/metro-config` pin equal to Expo's exact dependency pin during Expo updates.
+Update applicable lockfiles, then rerun the single-instance regression, quality checks, and repeated release builds.
 
-Expo also allocates numeric module IDs through one shared counter. Concurrent
-server and client exports can reach that counter in different orders, even
-with one worker. Production exports give each web runtime environment its own
-upstream ID factory. Server rendering does not consume browser module IDs.
-Expo sets `NODE_ENV=production` before loading the export configuration.
-Normal `expo start` retains its original factory because Metro's reload server
-requests IDs without the export context. `expo start --no-dev` also sets
-`NODE_ENV=production` and therefore enables scoped IDs. It is not covered by the
-development reload guarantee; no repository script uses that mode.
-Modules within each production environment retain
-Expo's allocation rules. Native and unscoped calls retain their original factory.
+## Module identifiers
+
+Expo normally allocates numeric module IDs through a shared counter.
+Concurrent server and client exports can reach it in different orders, even with one worker.
+Production exports give each web runtime environment its own upstream ID factory.
+Server rendering therefore does not consume browser module IDs.
+Modules within each environment retain Expo's allocation rules.
+Native and unscoped calls retain the original factory.
 The release command does not pin a worker count.
 
-## Deployed baseline
-
-The release workflow recovers the complete deployed frontend artifact against its captured SHA and digest.
-It separately builds trusted source with loopback test endpoints for local compatibility checks.
-The local test bundle has a different digest because its service addresses differ.
-A source commit alone does not prove deployed bytes.
-An incomplete recovery or digest mismatch blocks the gate.
+Expo sets `NODE_ENV=production` before loading export configuration.
+Normal `expo start` retains the original factory because its reload server requests IDs without export context.
+`expo start --no-dev` also enables scoped IDs and has no development reload guarantee.
+No repository script uses that mode.
 
 ## Document and public-file identity
 
-Stamping first emits content-addressed public-file copies and rewrites exported HTML references. Manifest icon references use the same copies. The manifest keeps its root ID, scope, and start URL.
+Stamping emits content-addressed public files and rewrites exported HTML references.
+Manifest icons use those copies; the manifest retains its root ID, scope, and start URL.
+The stamper normalizes the document release marker and worker version before calculating identity.
+It then stamps both, rebuilds shell digests, and records the final artifact digest.
+Repeated stamping of unchanged inputs produces the same release digest.
+Public copies and document markers belong to the artifact manifest. Do not modify them after stamping.
 
-The stamper normalizes the document release marker and worker version before computing identity. It then stamps both, rebuilds shell digests, and records the final artifact digest. Repeated stamping of unchanged inputs produces the same release digest. Public copies and document markers belong to the artifact manifest. Do not modify them after stamping.
+Metro can change the entry script's lazy-route map without changing its filename.
+The stamper gives that entry a digest-based URL so returning browsers load the matching route map.
 
-Metro can change the entry script's lazy-route map without changing its filename. The stamper also gives that boot entry a digest-based URL. A returning browser cannot reuse an older route map under that unchanged Metro name.
+## Edge artifact and projection rollout
+
+The configured Edge inventory includes `sync-sleeper-projections`.
+Include it in the stamped Edge artifact with the other functions.
+Apply migrations `20261020000001` through `20261020000007` before deploying that artifact.
+Projection read RPC shapes remain compatible with the existing frontend.
+Source-health evidence covers active Sleeper projections and the separate dormant Sleeper player fallback.
+The [release gates](verification.md#release-gates) require reviewed attestations before this migration range can reach production.
