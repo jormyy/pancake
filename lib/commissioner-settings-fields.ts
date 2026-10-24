@@ -10,4 +10,6 @@ export const COMMISSIONER_SCORING_FIELDS = [
     { key: 'field_goals_made', label: 'Field Goals Made' },
     { key: 'free_throws_attempted', label: 'Free Throws Attempted' },
     { key: 'free_throws_made', label: 'Free Throws Made' },
+    { key: 'double_double', label: 'Double-double' },
+    { key: 'triple_double', label: 'Triple-double' },
 ] as const
