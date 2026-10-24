@@ -109,6 +109,8 @@ async function runSuite(options) {
     }
     await waitFor(() => server.connected() > 0)
     server.resetAuth(`${origin}/sign-in`)
+    await waitFor(() => server.verified() > 0)
+    report.installedSourceFingerprint = build.sourceFingerprint
     await pause(1000)
     const user = stack.fixture.users[options.manager]
     await fill('Email', user.email)

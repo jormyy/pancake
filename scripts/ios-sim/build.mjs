@@ -52,7 +52,7 @@ export async function sourceSnapshot(action = source => source) {
 export async function exportWeb(stack, force = false) {
   assert.equal(stack.url, apiUrl)
   return sourceSnapshot(async source => {
-    const hash = digest(`isolated-cache-v3:${source.hash}:${stack.anonKey}`)
+    const hash = digest(`isolated-cache-v4:${source.hash}:${stack.url}:${stack.anonKey}`)
     const root = path.join(home, 'exports', force ? `${hash}-${randomUUID()}` : hash)
     if (force || !(await readJson(path.join(root, 'ios-build.json')))) {
       process.stdout.write('Exporting the current worktree for the local stack.\n')
@@ -66,6 +66,9 @@ export async function exportWeb(stack, force = false) {
       const scripts = (await Promise.all((await readdir(scriptRoot)).filter(file => file.endsWith('.js')).map(file => readFile(path.join(scriptRoot, file), 'utf8')))).join('\n')
       assert.ok(scripts.includes(stack.url) && scripts.includes(stack.anonKey), 'Export does not contain the requested local stack values')
       await cp(path.join(source.snapshot, 'public'), root, { recursive: true })
+      const worker = path.join(root, 'sw.js')
+      const workerSource = await readFile(worker, 'utf8').catch(error => { if (error.code !== 'ENOENT') throw error; return null })
+      if (workerSource !== null) await writeFile(worker, workerSource.replace("const VERSION = 'pancake-dev'", `const VERSION = 'pancake-ios-${hash}'`))
       await json(path.join(root, 'ios-build.json'), { hash, source: source.hash, head: await run('git', ['rev-parse', 'HEAD']), stackUrl: stack.url })
     }
     return { ...source, sourceFingerprint: source.hash, root, hash }

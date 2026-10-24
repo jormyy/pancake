@@ -44,6 +44,7 @@ Concurrent callers wait for the first caller.
 If a runner crashes, a stale lock produces an error.
 Remove that named lock only after confirming its owner has stopped.
 Startup reuses completed seed data.
+Startup adds the roster-plan fixture to older seed data without a reset.
 It never resets that data without `--reset`.
 It refuses a different migration set on an existing shared service.
 Database cron jobs stay disabled.
@@ -85,6 +86,7 @@ Other user IDs use their own `/private/tmp/claude-<uid>/pancake-ios-sim` directo
 
 All seeded managers use password `Pancake-e2e-iossim2027!`.
 Manager 0 is the commissioner.
+Manager 1 also receives a pending overflow trade with a taxi rookie; IR and taxi trades are enabled for its roster-plan editor.
 
 Only the shared service owner stops or resets it.
 Stop all users of the service before resetting it.
@@ -115,6 +117,10 @@ The copy includes the `core` workspace.
 It isolates Metro's cache and checks the exported connection values.
 Each export records its source fingerprint in `ios-build.json`.
 The runner checks the served fingerprint against the requesting checkout before it starts the device.
+It also checks the installed page fingerprint before sign-in.
+Sign-in clears old worker registrations and build caches.
+Each exported worker uses its own build version.
+Each export also uses separate asset URLs to prevent Safari from mixing old and new scripts.
 A forced rebuild uses a new directory to protect exports that other runs serve.
 It serves the export on the requested loopback port.
 It creates the named simulator when needed.
@@ -271,12 +277,12 @@ The [Appium capabilities reference](https://appium.github.io/appium-xcuitest-dri
 
 ## Check the harness
 
-The focused tests live in `tests/ios-sim/harness.test.ts`.
+The focused tests live in `tests/ios-sim/`.
 They check real-content detection, visible changes, missing observations, hidden-page suspension, locks, port separation, cleanup, local targets, and command failures.
 Run checks while the source lock protects the external copy:
 
 ```sh
-node --input-type=module -e 'import {sourceSnapshot} from "./scripts/ios-sim/build.mjs"; import {run} from "./scripts/ios-sim/common.mjs"; await sourceSnapshot(async ({snapshot}) => { console.log(await run("npm", ["run", "check:quality"], {cwd: snapshot})); console.log(await run("node", ["node_modules/vitest/vitest.mjs", "run", "tests/ios-sim/harness.test.ts", "tests/e2e-release-contracts.test.ts"], {cwd: snapshot})); })'
+node --input-type=module -e 'import {sourceSnapshot} from "./scripts/ios-sim/build.mjs"; import {run} from "./scripts/ios-sim/common.mjs"; await sourceSnapshot(async ({snapshot}) => { console.log(await run("npm", ["run", "check:quality"], {cwd: snapshot})); console.log(await run("node", ["node_modules/vitest/vitest.mjs", "run", "tests/ios-sim", "tests/e2e-release-contracts.test.ts"], {cwd: snapshot})); })'
 ```
 
 The source copy contains the current tracked files and unignored additions.

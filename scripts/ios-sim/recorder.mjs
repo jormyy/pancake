@@ -13,6 +13,7 @@ function installRecorder() {
     }
     return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth && style.visibility !== 'hidden' && style.display !== 'none' && Number(style.opacity) !== 0
   }
+  const sourceFingerprint = document.querySelector('meta[name=ios-source-fingerprint]')?.getAttribute('content') ?? null
   const nodes = new WeakMap()
   let sequence = 0, frame, active, previous = new Map(), dirty = true, offline = false
   const requests = [], pendingReports = new Map()
@@ -20,21 +21,22 @@ function installRecorder() {
   const requestUrl = input => {
     try { const url = new URL(typeof input === 'string' ? input : input.url, location.href); return `${url.origin}${url.pathname}` } catch { return String(input) }
   }
+  const harnessRequest = url => /\/__ios\/(?:control|report|ack|recorder\.js)(?:\?|$)/.test(url)
   window.fetch = function (input, init) {
     const url = requestUrl(input)
-    if (!url.includes('/__ios/')) requests.push({ time: Date.now(), url, kind: 'fetch' })
-    if (offline && !url.includes('/__ios/')) return Promise.reject(new TypeError('Harness offline mode'))
+    if (!harnessRequest(url)) requests.push({ time: Date.now(), url, kind: 'fetch' })
+    if (offline && !harnessRequest(url)) return Promise.reject(new TypeError('Harness offline mode'))
     return originalFetch(input, init)
   }
   const open = XMLHttpRequest.prototype.open
   const send = XMLHttpRequest.prototype.send
   XMLHttpRequest.prototype.open = function (method, url, ...rest) { this['__iosUrl'] = requestUrl(url); return open.call(this, method, url, ...rest) }
-  XMLHttpRequest.prototype.send = function (...args) { if (!this['__iosUrl'].includes('/__ios/')) requests.push({ time: Date.now(), url: this['__iosUrl'], kind: 'xhr' }); return send.apply(this, args) }
+  XMLHttpRequest.prototype.send = function (...args) { if (!harnessRequest(this['__iosUrl'])) requests.push({ time: Date.now(), url: this['__iosUrl'], kind: 'xhr' }); return send.apply(this, args) }
   let resourceObserver
   if (typeof PerformanceObserver !== 'undefined') {
     resourceObserver = new PerformanceObserver(list => {
       for (const entry of list.getEntries()) {
-        if (['fetch', 'xmlhttprequest'].includes(entry['initiatorType']) || entry.name.includes('/__ios/')) continue
+        if (['fetch', 'xmlhttprequest'].includes(entry['initiatorType']) || harnessRequest(entry.name)) continue
         requests.push({ time: performance.timeOrigin + entry.startTime, url: requestUrl(entry.name), kind: entry['initiatorType'] })
       }
     })
@@ -106,7 +108,7 @@ function installRecorder() {
   const finish = (settled, observationError) => {
     if (!active) return null
     cancelAnimationFrame(frame)
-    const result = { ...active, settled, observationError, durationMs: Date.now() - active.startedAt, requests: requests.filter(request => request.time >= active.startedAt), viewport: { width: innerWidth, height: innerHeight }, standalone: navigator['standalone'] === true || matchMedia('(display-mode: standalone)').matches, route: `${location.pathname}${location.search}`, method: 'mutation-observer-and-animation-frame', dirtyAtFinish: dirty }
+    const result = { ...active, sourceFingerprint, settled, observationError, durationMs: Date.now() - active.startedAt, requests: requests.filter(request => request.time >= active.startedAt), viewport: { width: innerWidth, height: innerHeight }, standalone: navigator['standalone'] === true || matchMedia('(display-mode: standalone)').matches, route: `${location.pathname}${location.search}`, method: 'mutation-observer-and-animation-frame', dirtyAtFinish: dirty }
     result.requestCount = result.requests.length
     active = null
     publish(result)
@@ -129,8 +131,8 @@ function installRecorder() {
   for (const event of ['pointerdown', 'mousedown', 'click', 'touchstart']) document.addEventListener(event, () => { if (active && !active.triggered) { active.startedAt = Date.now(); active.triggered = true; sessionStorage.setItem('__ios_step', JSON.stringify({ id: active.id, startedAt: active.startedAt })) } }, true)
   window['__iosRecorder'] = { begin, finish, snapshot: () => [...snapshot().values()], disconnect: () => { finish(false); mutations.disconnect(); resourceObserver?.disconnect(); control.close() } }
   const standalone = navigator['standalone'] === true || matchMedia('(display-mode: standalone)').matches
-  const control = new EventSource(`/__ios/control?standalone=${standalone ? 1 : 0}`)
-  control.onmessage = event => {
+  const control = new EventSource(`/__ios/control?standalone=${standalone ? 1 : 0}&source=${encodeURIComponent(sourceFingerprint ?? '')}`)
+  control.onmessage = async event => {
     const message = JSON.parse(event.data)
     if (message.type === 'begin') begin(message.spec)
     if (message.type === 'finish') {
@@ -138,7 +140,13 @@ function installRecorder() {
       else if (!message.id || active?.id === message.id) finish(false, message.reason)
     }
     if (message.type === 'prepare') location.assign(message.url)
-    if (message.type === 'reset-auth') { localStorage.clear(); sessionStorage.clear(); location.replace(message.url) }
+    if (message.type === 'reset-auth') {
+      localStorage.clear(); sessionStorage.clear()
+      const registrations = await navigator.serviceWorker?.getRegistrations() ?? []
+      await Promise.all(registrations.map(registration => registration.unregister()))
+      if (typeof caches !== 'undefined') await Promise.all((await caches.keys()).filter(name => name.startsWith('pancake-')).map(name => caches.delete(name)))
+      location.replace(message.url)
+    }
     if (message.type === 'blur') document.activeElement?.['blur']?.()
     if (message.type === 'offline') { offline = message.value; Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => !offline }); dispatchEvent(new Event(offline ? 'offline' : 'online')) }
   }

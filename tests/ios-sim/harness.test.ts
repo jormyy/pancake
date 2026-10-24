@@ -33,12 +33,15 @@ function recorder(failedUploads = 0) {
   const elements = [new Element()]
   const handlers = new Map<string, () => void>()
   const storage = new Map()
-  const document = { hidden: false, documentElement: {}, querySelectorAll: () => elements, addEventListener: (event: string, callback: () => void) => handlers.set(event, callback) }
+  const resetEvents: string[] = []
+  const document = { hidden: false, documentElement: {}, querySelector: () => ({ getAttribute: () => 'fixture-source' }), querySelectorAll: () => elements, addEventListener: (event: string, callback: () => void) => handlers.set(event, callback) }
   const context = {
-    document, navigator: { standalone: true }, innerWidth: 402, innerHeight: 812,
-    location: { href: 'http://127.0.0.1:58190/', pathname: '/', search: '' },
+    document, navigator: { standalone: true, serviceWorker: { getRegistrations: async () => [{ unregister: async () => { resetEvents.push('unregister') } }] } }, innerWidth: 402, innerHeight: 812,
+    location: { href: 'http://127.0.0.1:58190/', pathname: '/', search: '', replace: (url: string) => resetEvents.push(url) },
     performance: { now: () => now, timeOrigin: 0 }, Date: { now: () => now },
-    sessionStorage: { getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value) },
+    localStorage: { clear: () => {} },
+    caches: { keys: async () => ['pancake-old-public-shell', 'unrelated'], delete: async (name: string) => { resetEvents.push(name) } },
+    sessionStorage: { clear: () => storage.clear(), getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value) },
     getComputedStyle: () => ({ display: 'block', visibility: 'visible', opacity: '1' }),
     matchMedia: () => ({ matches: true }),
     requestAnimationFrame: (callback: () => void) => { queue.set(++counter, callback); return counter },
@@ -58,7 +61,7 @@ function recorder(failedUploads = 0) {
   vm.runInContext(recorderSource, scope)
   const api = (context as typeof context & { __iosRecorder: { begin: (spec: object) => void, finish: (settled: boolean) => unknown } }).__iosRecorder
   const frame = (time: number) => { now = time; const jobs = [...queue.values()]; queue.clear(); for (const job of jobs) job() }
-  return { api, frame, elements, posted, handlers, document, queue, message: (value: object) => controls[0].onmessage!({ data: JSON.stringify(value) }) }
+  return { api, frame, elements, posted, handlers, document, queue, resetEvents, fetch: context.fetch, message: (value: object) => controls[0].onmessage!({ data: JSON.stringify(value) }) }
 }
 
 test('recorder waits for real content and records appearance, loss, text, and movement', () => {
@@ -212,6 +215,8 @@ test('the source lock covers snapshot through export across two checkouts', asyn
     assert.equal((await readFile(path.join(one.root, '_expo/static/js/web/app.js'), 'utf8')).split('\n').slice(0, 3).join(':'), 'lane-a:lane-a:core-lane-a')
     assert.equal((await readFile(path.join(two.root, '_expo/static/js/web/app.js'), 'utf8')).split('\n').slice(0, 3).join(':'), 'lane-b:lane-b:core-lane-b')
     assert.notEqual(one.hash, two.hash)
+    assert.ok((await readFile(path.join(one.root, 'sw.js'), 'utf8')).includes(one.hash))
+    assert.ok((await readFile(path.join(two.root, 'sw.js'), 'utf8')).includes(two.hash))
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
@@ -316,4 +321,75 @@ test('sampling errors produce a failed observation with a reason', () => {
   const metrics = JSON.parse(JSON.stringify(r.posted[0]))
   assert.match(metrics.observationError, /Recorder sampling failed: Broken selector/)
   assert.ok(failures({ metrics }).includes(metrics.observationError))
+})
+
+
+test('resetting sign-in removes stale PWA shells before loading the requested page', async () => {
+  const r = recorder()
+  await r.message({ type: 'reset-auth', url: '/sign-in' })
+  assert.deepEqual(r.resetEvents, ['unregister', 'pancake-old-public-shell', '/sign-in'])
+})
+
+test('only the installed page with the requested source fingerprint can measure steps', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'ios-page-build-test-'))
+  await writeFile(path.join(root, 'ios-build.json'), JSON.stringify({ source: 'current-source', hash: 'fixture-build' }))
+  await mkdir(path.join(root, '_expo/static/js/web'), { recursive: true })
+  await writeFile(path.join(root, '_expo/static/js/web/entry.js'), 'const route="/_expo/static/js/web/league.js"; const remote="https://example.invalid/assets/photo.png"')
+  await writeFile(path.join(root, 'index.html'), '<html><head><meta name="pancake-release" content="pancake-build"><script src="/_expo/static/js/web/entry.js"></script></head></html>')
+  const server = await serve({ root, port: 0 })
+  const address = server.server.address()
+  assert.ok(address && typeof address !== 'string')
+  const origin = `http://127.0.0.1:${address.port}`
+  const stale = await fetch(`${origin}/__ios/control?standalone=1&source=old-source`)
+  let current: Response | undefined
+  try {
+    assert.equal(server.connected(), 1)
+    assert.equal(server.verified(), 0)
+    const html = await (await fetch(origin)).text()
+    assert.match(html, /name="ios-source-fingerprint" content="current-source"/)
+    assert.match(html, /name="pancake-release" content="pancake-ios-fixture-build"/)
+    const prefix = `/__ios/build/${path.basename(root)}`
+    assert.ok(html.includes(`${prefix}/_expo/static/js/web/entry.js`))
+    const script = await (await fetch(`${origin}${prefix}/_expo/static/js/web/entry.js`)).text()
+    assert.ok(script.includes(`${prefix}/_expo/static/js/web/league.js`))
+    assert.ok(script.includes('https://example.invalid/assets/photo.png'))
+    assert.equal((await fetch(`${origin}/__ios/build/foreign/_expo/static/js/web/entry.js`)).status, 404)
+    const rejected = await fetch(`${origin}/__ios/report`, { method: 'POST', body: JSON.stringify({ id: 'stale', sourceFingerprint: 'old-source' }) })
+    assert.equal(rejected.status, 400)
+    assert.match(await rejected.text(), /fingerprint/)
+    current = await fetch(`${origin}/__ios/control?standalone=1&source=current-source`)
+    assert.equal(server.verified(), 1)
+    const accepted = await fetch(`${origin}/__ios/report`, { method: 'POST', body: JSON.stringify({ id: 'current', sourceFingerprint: 'current-source' }) })
+    assert.equal(accepted.status, 204)
+    assert.equal((await server.result('current', 20)).sourceFingerprint, 'current-source')
+    server.resetAuth('/sign-in')
+    assert.equal(server.verified(), 0)
+  } finally { await stale.body?.cancel(); await current?.body?.cancel(); await server.close(); await rm(root, { recursive: true, force: true }) }
+})
+
+
+test('namespaced build assets remain part of the measured request count', async () => {
+  const r = recorder()
+  r.api.begin({ id: 'assets', expected: { text: 'Loading' }, immediate: true, minimumMs: 10, quietMs: 5 })
+  r.frame(1)
+  await r.fetch('http://127.0.0.1:58190/__ios/build/current/_expo/chunk.js', {})
+  await r.fetch('http://127.0.0.1:58190/__ios/control', {})
+  r.frame(20)
+  assert.equal(r.posted[0].requestCount, 1)
+})
+
+
+test('exports to different local stacks stay separate when their public keys match', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-stack-build-test-'))
+  try {
+    const a = await buildFixture(directory, 'same-source-a')
+    const b = await buildFixture(directory, 'same-source-b', 'http://127.0.0.1:57621')
+    for (const file of ['screen.tsx', 'core/index.ts']) await writeFile(path.join(b.checkout, file), await readFile(path.join(a.checkout, file)))
+    const first = await a.build.exportWeb({ url: 'http://127.0.0.1:57121', anonKey: 'same-local-key' })
+    const second = await b.build.exportWeb({ url: 'http://127.0.0.1:57621', anonKey: 'same-local-key' })
+    assert.equal(first.sourceFingerprint, second.sourceFingerprint)
+    assert.notEqual(first.hash, second.hash)
+    assert.notEqual(first.root, second.root)
+    assert.equal(JSON.parse(await readFile(path.join(second.root, 'ios-build.json'), 'utf8')).stackUrl, 'http://127.0.0.1:57621')
+  } finally { await rm(directory, { recursive: true, force: true }) }
 })

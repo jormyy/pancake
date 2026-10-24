@@ -2,7 +2,7 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-export async function buildFixture(directory, name) {
+export async function buildFixture(directory, name, url = 'http://127.0.0.1:57121') {
   const checkout = path.join(directory, name)
   const scripts = path.join(checkout, 'scripts/ios-sim')
   await mkdir(scripts, { recursive: true })
@@ -12,12 +12,14 @@ export async function buildFixture(directory, name) {
   await writeFile(path.join(checkout, 'core/index.ts'), `core-${name}`)
   await writeFile(path.join(checkout, 'package-lock.json'), '{}')
   await writeFile(path.join(checkout, 'public/manifest.json'), '{}')
+  await writeFile(path.join(checkout, 'public/sw.js'), "const VERSION = 'pancake-dev'")
   await cp('scripts/ios-sim/build.mjs', path.join(scripts, 'build.mjs'))
   const common = (await readFile('scripts/ios-sim/common.mjs', 'utf8'))
     .replace(/export const home = .*/, `export const home = ${JSON.stringify(path.join(directory, 'shared'))}`)
+    .replace("export const apiUrl = 'http://127.0.0.1:57121'", `export const apiUrl = ${JSON.stringify(url)}`)
     .replace('export function run(', 'function realRun(')
   await writeFile(path.join(scripts, 'common.mjs'), `${common}\nexport async function run(command, argv = [], options = {}) {
-    if (command === 'git') return argv[0] === 'ls-files' ? ['screen.tsx', 'core/index.ts', 'package-lock.json', 'public/manifest.json'].join('\\0') : 'fixture-head'
+    if (command === 'git') return argv[0] === 'ls-files' ? ['screen.tsx', 'core/index.ts', 'package-lock.json', 'public/manifest.json', 'public/sw.js'].join('\\0') : 'fixture-head'
     if (command === 'npm') return ''
     if (command !== 'node') return realRun(command, argv, options)
     const marker = await readFile(path.join(options.cwd, 'screen.tsx'), 'utf8')
