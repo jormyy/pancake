@@ -13,13 +13,13 @@ export type WebPushFanoutMessage = {
   category: WebPushCategory
 }
 
-type WebPushFanoutSummary = { sent: number; pruned: number; failed: number }
+type WebPushUserResult = { userId: string } & (
+  | { status: 'sent' | 'no_subscription' | 'gone' }
+  | { status: 'failed'; retryable: boolean; error: string }
+)
 
-/**
- * Best-effort PWA delivery. It never throws: the Expo path owns retry and
- * receipt semantics (the trade outbox acknowledges on Expo tickets), so a web
- * push failure must not re-queue a message that Expo already delivered.
- */
+type WebPushFanoutSummary = { sent: number; pruned: number; failed: number; results: WebPushUserResult[] }
+
 export type WebPushFanout = (messages: WebPushFanoutMessage[]) => Promise<WebPushFanoutSummary>
 
 export type WebPushSnapshot = { endpoint: string; user_id: string; updated_at: string }
@@ -46,10 +46,14 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
   const send = dependencies.send ?? ((subscription, payload, keys, options) => sendWebPush(subscription, payload, keys, options))
 
   return async (messages) => {
-    const summary: WebPushFanoutSummary = { sent: 0, pruned: 0, failed: 0 }
+    const summary: WebPushFanoutSummary = { sent: 0, pruned: 0, failed: 0, results: [] }
     if (messages.length === 0) return summary
     const keys = dependencies.vapid()
-    if (!keys) return summary
+    if (!keys) {
+      summary.failed = messages.length
+      summary.results = messages.map(({ userId }) => ({ userId, status: 'failed', retryable: true, error: 'Web push is not configured' }))
+      return summary
+    }
 
     const userIds = [...new Set(messages.map((message) => message.userId))]
     let subscriptions: StoredSubscription[]
@@ -60,9 +64,9 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
     } catch (error) {
       console.error('Web push subscription lookup failed', error)
       summary.failed = messages.length
+      summary.results = messages.map(({ userId }) => ({ userId, status: 'failed', retryable: true, error: 'Web push subscription lookup failed' }))
       return summary
     }
-    if (subscriptions.length === 0) return summary
 
     const byUser = new Map<string, StoredSubscription[]>()
     for (const subscription of subscriptions) {
@@ -72,30 +76,36 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
     }
 
     const gone = new Map<string, WebPushSnapshot>()
-    const jobs = messages.flatMap((message) => (byUser.get(message.userId) ?? []).map((subscription) => async () => {
-      if (gone.has(subscription.endpoint)) return
+    const attempts = messages.map(() => [] as WebPushResult[])
+    const jobs = messages.flatMap((message, index) => (byUser.get(message.userId) ?? []).map((subscription) => async () => {
+      if (gone.has(subscription.endpoint)) {
+        attempts[index].push({ outcome: 'gone', status: 410 })
+        return
+      }
       let result: WebPushResult
       try {
         result = await send(subscription, webPushPayload(), keys, {
           urgency: message.category === 'draft' ? 'high' : 'normal',
         })
       } catch (error) {
-        // e.g. an unusable VAPID key: a configuration fault, not a dead subscription.
-        summary.failed += 1
-        console.error('Web push send threw', { userId: message.userId, error })
-        return
+        result = { outcome: 'failed', status: null, retryable: true,
+          message: error instanceof Error ? error.message : 'Web push send failed' }
       }
-      if (result.outcome === 'sent') {
-        summary.sent += 1
-      } else if (result.outcome === 'gone') {
-        gone.set(subscription.endpoint, subscription)
-      } else {
-        summary.failed += 1
-        console.error('Web push delivery failed', { userId: message.userId, status: result.status, message: result.message })
-      }
+      attempts[index].push(result)
+      if (result.outcome === 'sent') summary.sent += 1
+      else if (result.outcome === 'gone') gone.set(subscription.endpoint, subscription)
+      else summary.failed += 1
     }))
 
     await runBounded(jobs, WEB_PUSH_CONCURRENCY)
+    summary.results = messages.map(({ userId }, index): WebPushUserResult => {
+      const results = attempts[index]
+      const failures = results.filter((result) => result.outcome === 'failed')
+      if (failures.length > 0) return { userId, status: 'failed',
+        retryable: failures.some((result) => result.retryable), error: failures.map((result) => result.message).join('; ') }
+      if (results.some((result) => result.outcome === 'sent')) return { userId, status: 'sent' }
+      return { userId, status: results.length > 0 ? 'gone' : 'no_subscription' }
+    })
 
     if (gone.size > 0) {
       try {

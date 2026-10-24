@@ -172,8 +172,6 @@ async function loadLockedPlayoffTypes(
     return locked
 }
 
-// Re-arm playoff grace only when its decision changes. The read boundary can
-// advance on unchanged polling without delaying bracket advancement.
 export type FinalizationCandidate = {
     is_finalized: boolean | null
     winner_member_id: string | null
@@ -490,16 +488,6 @@ async function finalizeWeekIfComplete(
         home_points: pointsByMember.get(matchup.home_member_id) ?? 0,
         away_points: pointsByMember.get(matchup.away_member_id) ?? 0,
     }))
-    const standingsRows = await buildStandingsSnapshotRows(
-        leagueId,
-        leagueSeasonId,
-        weekNumber,
-        scoredMatchups,
-        maxPossiblePointsByMember,
-        scoringReadStartedAt,
-    )
-    if (standingsRows == null) return
-
     const matchupResults: MatchupResult[] = decidableMatchups.map((m) => {
         const homePoints = pointsByMember.get(m.home_member_id) ?? 0
         const awayPoints = pointsByMember.get(m.away_member_id) ?? 0
@@ -522,8 +510,22 @@ async function finalizeWeekIfComplete(
         }
     })
 
-    // Every completed read advances its replay boundary. Only a changed decision
-    // restarts the playoff grace period.
+    if (certifiedMaxPossiblePoints && matchupResults.every((matchup) =>
+        !finalizationWriteNeeded(matchup) &&
+        Number(matchup.home_points ?? NaN) === matchup.homePoints &&
+        Number(matchup.away_points ?? NaN) === matchup.awayPoints
+    )) return
+
+    const standingsRows = await buildStandingsSnapshotRows(
+        leagueId,
+        leagueSeasonId,
+        weekNumber,
+        scoredMatchups,
+        maxPossiblePointsByMember,
+        scoringReadStartedAt,
+    )
+    if (standingsRows == null) return
+
     const reconciliationTimestamp = new Date().toISOString()
     const finalizedTimestamp = new Date().toISOString()
     const { error: finalizeErr } = await supabase.rpc('finalize_score_week_atomic', {
@@ -670,7 +672,7 @@ async function loadWeeksToSync(
         .order('id')
         .range(from, to))
 
-    let earliestWeek = currentWeek > 1 ? currentWeek - 1 : currentWeek
+    let earliestWeek = currentWeek
     for (const row of unfinalizedRows) {
         if (Number.isInteger(row.week_number) && row.week_number >= 1) {
             earliestWeek = Math.min(earliestWeek, row.week_number)

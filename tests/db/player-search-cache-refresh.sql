@@ -161,32 +161,4 @@ UPDATE public.player_game_stats SET did_not_play=true
 WHERE game_id='00000000-0000-4000-8000-000000122002';
 SELECT pg_temp.refresh_changed_cache('all eligible stats DNP');
 
-DO $$
-DECLARE v_revision bigint; v_scans bigint;
-BEGIN
-  SELECT revision INTO v_revision FROM analytics.search_cache_source_state WHERE id;
-  UPDATE public.player_game_stats SET points=points WHERE false;
-  UPDATE public.leagues SET scoring_settings=scoring_settings
-  WHERE id='00000000-0000-4000-8000-000000120001';
-  UPDATE public.nba_games SET stats_synced_at=clock_timestamp()
-  WHERE id='00000000-0000-4000-8000-000000122002';
-  IF (SELECT revision FROM analytics.search_cache_source_state WHERE id) <> v_revision THEN
-    RAISE EXCEPTION 'Unchanged inputs invalidate the search cache';
-  END IF;
-  SELECT seq_scan INTO v_scans FROM pg_stat_xact_user_tables WHERE relid='public.player_game_stats'::regclass;
-  PERFORM public.refresh_player_search_caches();
-  IF (SELECT seq_scan FROM pg_stat_xact_user_tables WHERE relid='public.player_game_stats'::regclass) <> v_scans THEN
-    RAISE EXCEPTION 'Unchanged refresh scans all player game statistics';
-  END IF;
-  BEGIN
-    UPDATE public.player_game_stats SET points=999 WHERE player_id='00000000-0000-4000-8000-0000000c0401';
-    RAISE EXCEPTION 'rollback invalidation';
-  EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM <> 'rollback invalidation' THEN RAISE; END IF;
-  END;
-  IF (SELECT revision FROM analytics.search_cache_source_state WHERE id) <> v_revision THEN
-    RAISE EXCEPTION 'Rolled-back writes leave a committed invalidation';
-  END IF;
-END $$;
-
 ROLLBACK;

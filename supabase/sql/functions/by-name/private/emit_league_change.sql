@@ -6,14 +6,18 @@ CREATE OR REPLACE FUNCTION private.emit_league_change()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_rows text; v_scopes text; v_topic text; v_change record;
+  v_ignored text[] := ARRAY['updated_at','set_at'];
 BEGIN
+  IF TG_TABLE_NAME='nba_games' THEN
+    v_ignored := v_ignored || ARRAY['live_stats_elapsed_seconds','live_scoreboard_elapsed_seconds'];
+  END IF;
   IF TG_OP='INSERT' THEN v_rows := 'SELECT * FROM new_rows';
   ELSIF TG_OP='DELETE' THEN v_rows := 'SELECT * FROM old_rows';
   ELSE
-    v_rows := $rows$SELECT n.* FROM new_rows n JOIN old_rows o USING(id)
-      WHERE (to_jsonb(n)-ARRAY['updated_at','set_at']) IS DISTINCT FROM (to_jsonb(o)-ARRAY['updated_at','set_at'])
+    v_rows := format($rows$SELECT n.* FROM new_rows n JOIN old_rows o USING(id)
+      WHERE (to_jsonb(n)-%L::text[]) IS DISTINCT FROM (to_jsonb(o)-%L::text[])
       UNION ALL SELECT o.* FROM old_rows o JOIN new_rows n USING(id)
-      WHERE (to_jsonb(n)-ARRAY['updated_at','set_at']) IS DISTINCT FROM (to_jsonb(o)-ARRAY['updated_at','set_at'])$rows$;
+      WHERE (to_jsonb(n)-%L::text[]) IS DISTINCT FROM (to_jsonb(o)-%L::text[])$rows$,v_ignored,v_ignored,v_ignored,v_ignored);
   END IF;
   CASE TG_TABLE_NAME
     WHEN 'weekly_lineups' THEN

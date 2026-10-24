@@ -160,6 +160,14 @@ BEGIN
       FROM locked
      WHERE matchup.id = locked.id
        AND NOT private.playoff_matchup_is_consumed(locked.id)
+       AND (locked.is_finalized IS DISTINCT FROM true
+         OR (locked.winner_member_id, locked.home_points, locked.away_points,
+             locked.home_max_possible_points, locked.away_max_possible_points)
+           IS DISTINCT FROM
+            (locked.requested_winner_member_id,
+             COALESCE(locked.requested_home_points, locked.home_points),
+             COALESCE(locked.requested_away_points, locked.away_points),
+             locked.requested_home_max_possible_points, locked.requested_away_max_possible_points))
      RETURNING
        matchup.id,
        locked.is_finalized AS was_finalized,
@@ -258,8 +266,12 @@ BEGIN
     ties = EXCLUDED.ties,
     points_for = EXCLUDED.points_for,
     points_against = EXCLUDED.points_against,
-    max_possible_points = EXCLUDED.max_possible_points,
-    waiver_priority = EXCLUDED.waiver_priority;
+    max_possible_points = EXCLUDED.max_possible_points
+  WHERE (standings.wins, standings.losses, standings.ties,
+         standings.points_for, standings.points_against, standings.max_possible_points)
+    IS DISTINCT FROM
+        (EXCLUDED.wins, EXCLUDED.losses, EXCLUDED.ties,
+         EXCLUDED.points_for, EXCLUDED.points_against, EXCLUDED.max_possible_points);
 
   IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_league_season_id AND cardinality(skipped_weeks)>0) THEN
     PERFORM private.rebuild_regular_standings(p_league_id,p_league_season_id);

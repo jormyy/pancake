@@ -26,7 +26,6 @@ BEGIN
     v_members := array_append(v_members, NULL::uuid);
     v_count := v_count + 1;
   END IF;
-  -- Same fixed-team rotation as roundRobinRounds in matchupGeneration.ts.
   FOR v_week IN 1..p_weeks LOOP
     IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_season_id AND v_week=ANY(skipped_weeks)) THEN CONTINUE; END IF;
     v_round := v_played % (v_count - 1);
