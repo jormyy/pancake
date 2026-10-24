@@ -93,14 +93,18 @@ export default function TeamRosterScreen() {
             const nextRoster = await getRoster(memberId, leagueId)
             if (cancelled || !isCurrent(generation)) return
             rosterLoaded = true
-            setResource((previous) => ({
-                scope, roster: nextRoster,
-                stats: previous?.scope === scope ? previous.stats : { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP },
-            }))
-            const stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), leagueId)
+            let stats: RosterStatsMaps
+            try {
+                stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), leagueId)
+            } catch (error) {
+                if (!cancelled && isCurrent(generation)) setResource((previous) => previous?.scope === scope ? previous : {
+                    scope, roster: nextRoster, stats: { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP },
+                })
+                throw error
+            }
             if (cancelled || !isCurrent(generation)) return
             writePersistentCache<TeamRosterCache>(`pancake:team-roster:v1:${scope}`, { roster: nextRoster, averages: [...stats.avgMap], stats: [...stats.avgStatsMap] })
-            setResource((previous) => previous?.scope === scope ? { ...previous, stats } : previous)
+            setResource({ scope, roster: nextRoster, stats })
         })()
             .catch((error) => {
                 console.error(error)

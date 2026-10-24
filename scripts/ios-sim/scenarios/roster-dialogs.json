@@ -1,0 +1,142 @@
+[
+  {
+    "name": "roster-trim-light",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label^='Roster is ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "roster-activation-light",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      },
+      {
+        "tapPrefix": "Select TX slot,"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Select empty SG slot"
+        },
+        "expected": {
+          "selector": "[aria-label^='Drop ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "roster-taxi-choice-light",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league?tab=auctions"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Join Auction Draft"
+        },
+        "expected": {
+          "selector": "[role='switch'][aria-label='Receive this auction player into taxi']"
+        },
+        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane."
+      }
+    ]
+  },
+  {
+    "name": "roster-trim-dark",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label^='Roster is ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "roster-activation-dark",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      },
+      {
+        "tapPrefix": "Select TX slot,"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Select empty SG slot"
+        },
+        "expected": {
+          "selector": "[aria-label^='Drop ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "roster-taxi-choice-dark",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league?tab=auctions"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Join Auction Draft"
+        },
+        "expected": {
+          "selector": "[role='switch'][aria-label='Receive this auction player into taxi']"
+        },
+        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane."
+      }
+    ]
+  }
+]
