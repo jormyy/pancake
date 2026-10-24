@@ -21,6 +21,8 @@ DECLARE
   v_week int;
   v_input_token jsonb;
   v_round int;
+  v_last_game_date date;
+  v_stat_correction_window_days constant int := 4;
 BEGIN
   IF p_action IS NULL OR p_action NOT IN ('generate', 'advance', 'rollover') OR p_reference_at IS NULL THEN
     RAISE EXCEPTION 'Invalid automatic season boundary request.' USING ERRCODE = '22023';
@@ -55,8 +57,24 @@ BEGIN
     FROM public.matchups WHERE league_season_id = p_league_season_id AND NOT is_voided AND (CASE WHEN v_round IS NOT NULL THEN playoff_round=v_round ELSE matchup_type=v_type END)
       AND (v_type <> 'regular_season' OR week_number < v_start);
   IF NOT (p_action = 'generate' AND v_start = 1) AND
-      (v_count = 0 OR v_ready IS DISTINCT FROM true OR v_latest > p_reference_at - interval '48 hours') THEN
+      (v_count = 0 OR v_ready IS DISTINCT FROM true
+        OR (p_action <> 'generate' AND v_latest > p_reference_at - interval '48 hours')) THEN
     RETURN jsonb_build_object('applied', false);
+  END IF;
+
+  IF p_action = 'generate' AND v_start > 1 THEN
+    SELECT COALESCE(max(game.game_date), max(week.week_end)) INTO v_last_game_date
+      FROM public.season_weeks AS week
+      LEFT JOIN public.nba_games AS game
+        ON game.season_year = week.season_year
+       AND game.game_date BETWEEN week.week_start AND week.week_end
+       AND public.is_regular_season_game_id(game.nba_game_id)
+       AND private.lineup_game_available(game.status, game.game_status_text)
+     WHERE week.season_year = v_year AND week.week_number = v_start - 1;
+    IF v_last_game_date IS NULL OR (p_reference_at AT TIME ZONE 'America/New_York')::date
+        <= v_last_game_date + v_stat_correction_window_days + 1 THEN
+      RETURN jsonb_build_object('applied', false);
+    END IF;
   END IF;
 
   -- Keep input revisions locked through the transition. Missing legacy
