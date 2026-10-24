@@ -346,3 +346,25 @@ it.each(['resolve', 'reject'] as const)('keeps the chosen day when the old refre
     expect(latest.error).toBeNull()
     await act(async () => { renderer.unmount() })
 })
+
+
+it('starts the lineup read while the matchup names and records are still pending', async () => {
+    const pending = deferred<Matchup>()
+    getMyMatchup.mockImplementationOnce((_member, _league, onContext) => {
+        onContext(matchup)
+        return pending.promise
+    })
+    getWeeklyLineup.mockResolvedValue(lineup('prepared'))
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    let refresh!: Promise<void>
+    await act(async () => { refresh = latest.refresh() })
+    expect(getWeeklyLineup).toHaveBeenCalledTimes(2)
+    expect(latest.matchup).toBeUndefined()
+    await act(async () => { pending.resolve(matchup); await refresh })
+    expect(latest.myLineup?.bench[0].playerId).toBe('prepared')
+    expect(getWeeklyLineup).toHaveBeenCalledTimes(2)
+    await act(async () => { renderer.unmount() })
+})

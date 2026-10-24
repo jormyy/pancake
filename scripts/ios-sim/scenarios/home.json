@@ -26,14 +26,14 @@
   {
     "name": "home-light-day",
     "group": "home-light",
-    "from": "/",
+    "from": "/profile",
     "steps": [
       {
         "action": {
           "tapPrefix": "Monday, "
         },
         "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Monday, ']) [aria-label^='Score breakdown for ']"
+          "selector": "body:has([aria-current='date'][aria-label^='Monday, ']) [aria-label='Select empty PG slot 1']"
         }
       },
       {
@@ -42,8 +42,16 @@
           "tapPrefix": "Tuesday, "
         },
         "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label^='Score breakdown for ']"
+          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
         }
+      }
+    ],
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "tap": "Matchup"
       }
     ]
   },
@@ -84,7 +92,7 @@
     "steps": [
       {
         "action": {
-          "tap": "Move {{rosterPlayer.display_name}} in lineup"
+          "tap": "Lineup {{rosterPlayer.display_name}}"
         },
         "expected": {
           "route": "/lineup",
@@ -97,7 +105,7 @@
           "tap": "Bench {{benchPlayer.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label='{{lineupSlot}} {{benchPlayer.display_name}}']"
+          "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
         }
       },
       {
@@ -113,7 +121,7 @@
           ]
         },
         "expected": {
-          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
         }
       }
     ]
@@ -176,14 +184,14 @@
   {
     "name": "home-dark-day",
     "group": "home-dark",
-    "from": "/",
+    "from": "/profile",
     "steps": [
       {
         "action": {
           "tapPrefix": "Monday, "
         },
         "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Monday, ']) [aria-label^='Score breakdown for ']"
+          "selector": "body:has([aria-current='date'][aria-label^='Monday, ']) [aria-label='Select empty PG slot 1']"
         }
       },
       {
@@ -192,8 +200,16 @@
           "tapPrefix": "Tuesday, "
         },
         "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label^='Score breakdown for ']"
+          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
         }
+      }
+    ],
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "tap": "Matchup"
       }
     ]
   },
@@ -234,7 +250,7 @@
     "steps": [
       {
         "action": {
-          "tap": "Move {{rosterPlayer.display_name}} in lineup"
+          "tap": "Lineup {{rosterPlayer.display_name}}"
         },
         "expected": {
           "route": "/lineup",
@@ -247,7 +263,7 @@
           "tap": "Bench {{benchPlayer.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label='{{lineupSlot}} {{benchPlayer.display_name}}']"
+          "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
         }
       },
       {
@@ -263,7 +279,7 @@
           ]
         },
         "expected": {
-          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
         }
       }
     ]
@@ -295,6 +311,350 @@
         "expected": {
           "route": "/",
           "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-week-off",
+    "group": "home-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "tap": "Matchup"
+      },
+      {
+        "tap": "Switch league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Switch to Home week-off"
+        },
+        "expected": {
+          "text": "Browse Players"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Switch league"
+            },
+            {
+              "tap": "Switch to iPhone Dynasty 2027"
+            }
+          ]
+        },
+        "expected": {
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-week-off",
+    "group": "home-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "tap": "Matchup"
+      },
+      {
+        "tap": "Switch league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Switch to Home week-off"
+        },
+        "expected": {
+          "text": "Browse Players"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Switch league"
+            },
+            {
+              "tap": "Switch to iPhone Dynasty 2027"
+            }
+          ]
+        },
+        "expected": {
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-manual-entry",
+    "group": "home-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "tap": "Matchup"
+      },
+      {
+        "tap": "Open auto-set lineup options"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Edit lineup manually"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "daily-off",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:not(:checked)) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "daily-restore",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-manual-entry",
+    "group": "home-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "tap": "Matchup"
+      },
+      {
+        "tap": "Open auto-set lineup options"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Edit lineup manually"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "daily-off",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:not(:checked)) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "daily-restore",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-selection",
+    "group": "home-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "tap": "Matchup"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Select {{lineupSlot}} slot, {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Score breakdown for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "cancel",
+        "action": {
+          "tap": "Select {{lineupSlot}} slot, {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Score breakdown for {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-selection",
+    "group": "home-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "tap": "Matchup"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Select {{lineupSlot}} slot, {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Score breakdown for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "cancel",
+        "action": {
+          "tap": "Select {{lineupSlot}} slot, {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Score breakdown for {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-optimizer-state",
+    "group": "home-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/lineup"
+      }
+    ],
+    "steps": [
+      {
+        "name": "off",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:not(:checked)) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "off-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-optimizer-state",
+    "group": "home-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/lineup"
+      }
+    ],
+    "steps": [
+      {
+        "name": "off",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:not(:checked)) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "off-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
     ]

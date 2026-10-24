@@ -5,6 +5,7 @@ import { todayET } from '@/lib/shared/dates'
 import type { LineupContext, LineupPlayer, LineupSlot, WeekDay } from './read'
 import { clampDateToWeek } from './date'
 
+type SavedContext = LineupContext & { defaultDate?: string; optimizerEnabled?: boolean }
 type LineupSnapshotScope = { ownerId: string; memberId: string; leagueId: string; day: string }
 export type LineupSnapshot = {
     schema: 1
@@ -50,7 +51,7 @@ export function readLineupSnapshot(scope: LineupSnapshotScope, date: string, con
     const project = projectForOwner(scope.ownerId)
     if (!project || scope.day !== todayET()) return undefined
     const key = scopeKey(scope, project)
-    const savedContext = readPersistentCache<LineupContext & { defaultDate?: string }>(`${key}:context`)
+    const savedContext = readPersistentCache<SavedContext>(`${key}:context`)
     if (!validContext(savedContext ?? undefined, scope.day)) return undefined
     if (context && (context.seasonId !== savedContext!.seasonId || context.weekNumber !== savedContext!.weekNumber
         || context.seasonYear !== savedContext!.seasonYear)) return undefined
@@ -69,7 +70,7 @@ export function readLineupSnapshot(scope: LineupSnapshotScope, date: string, con
         || !Number.isInteger(saved.benchSlots) || saved.benchSlots < 0 || saved.benchSlots > 128
         || typeof saved.optimizerEnabled !== 'boolean') return undefined
     if (savedDate !== date && clampDateToWeek(date, saved.days) !== savedDate) return undefined
-    return saved
+    return typeof savedContext!.optimizerEnabled === 'boolean' ? { ...saved, optimizerEnabled: savedContext!.optimizerEnabled } : saved
 }
 
 export function saveLineupSnapshot(
@@ -84,10 +85,20 @@ export function saveLineupSnapshot(
     if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > MAX_BYTES) return
     const key = scopeKey(scope, project)
     writePersistentCache(`${key}:${value.context.seasonId}:${value.date}`, snapshot)
-    writePersistentCache(`${key}:context`, { ...value.context, defaultDate: clampDateToWeek(scope.day, value.days) })
+    writePersistentCache(`${key}:context`, { ...value.context, defaultDate: clampDateToWeek(scope.day, value.days), optimizerEnabled: value.optimizerEnabled })
 }
 
 export function discardLineupSnapshot(scope: LineupSnapshotScope): void {
     const project = projectForOwner(scope.ownerId)
     if (project) removePersistentCache(`${scopeKey(scope, project)}:context`)
+}
+
+
+export function updateLineupOptimizerSnapshot(scope: LineupSnapshotScope, generation: number, seasonId: string, enabled: boolean): void {
+    const project = projectForOwner(scope.ownerId)
+    if (!project || sessionGeneration() !== generation || scope.day !== todayET()) return
+    const key = `${scopeKey(scope, project)}:context`
+    const context = readPersistentCache<SavedContext>(key)
+    if (!context || !validContext(context, scope.day) || context.seasonId !== seasonId) return
+    writePersistentCache(key, { ...context, optimizerEnabled: enabled })
 }

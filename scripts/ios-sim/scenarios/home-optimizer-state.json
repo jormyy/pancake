@@ -1,0 +1,108 @@
+[
+  {
+    "name": "home-light-optimizer-state",
+    "group": "home-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/lineup"
+      }
+    ],
+    "steps": [
+      {
+        "name": "off",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:not(:checked)) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "off-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-optimizer-state",
+    "group": "home-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/lineup"
+      }
+    ],
+    "steps": [
+      {
+        "name": "off",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:not(:checked)) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "off-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "tap": "Auto-set daily"
+        },
+        "expected": {
+          "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore-reopen",
+        "action": {
+          "open": "/lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  }
+]

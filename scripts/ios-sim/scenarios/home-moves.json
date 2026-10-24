@@ -1,0 +1,82 @@
+[
+  {
+    "name": "home-light-moves",
+    "group": "home-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/lineup?playerId={{rosterPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "move",
+        "action": {
+          "tap": "Bench {{benchPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "{{lineupSlot}} {{benchPlayer.display_name}}"
+            },
+            {
+              "tap": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-moves",
+    "group": "home-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/lineup?playerId={{rosterPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "move",
+        "action": {
+          "tap": "Bench {{benchPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "{{lineupSlot}} {{benchPlayer.display_name}}"
+            },
+            {
+              "tap": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
+        }
+      }
+    ]
+  }
+]
