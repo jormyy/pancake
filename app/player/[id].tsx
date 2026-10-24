@@ -5,6 +5,7 @@ import { GameLogTable } from '@/components/player/GameLogTable'
 import { PlayerHeader, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
+import { readPlayerHeader } from '@/components/player/navigation'
 import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
@@ -20,7 +21,7 @@ import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     Pressable,
     ScrollView,
@@ -35,7 +36,8 @@ const TWO_COLUMN_MIN = 1000
 const SIDE_COLUMN_WIDTH = 400
 
 export default function PlayerDetailScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>()
+    const { id, playerHeader } = useLocalSearchParams<{ id: string; playerHeader?: string }>()
+    const tappedPlayer = useMemo(() => readPlayerHeader(id, playerHeader), [id, playerHeader])
     const { current, currentLeague, membershipValidated } = useLeagueContext()
     const online = useOnlineStatus()
     const router = useRouter()
@@ -168,7 +170,7 @@ export default function PlayerDetailScreen() {
         )
     }
 
-    const player = loadedPlayer ?? {
+    const player = loadedPlayer ?? tappedPlayer ?? {
         id, display_name: 'Player', first_name: null, last_name: null, nba_team: null,
         position: null, eligible_positions: [], jersey_number: null, injury_status: null,
         dynasty_rank: null, headshot_url: null, nba_id: null, years_exp: null, status: null,

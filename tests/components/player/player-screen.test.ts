@@ -8,6 +8,7 @@ import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { headerPlayer, memberTransactionState } from '@/tests/helpers/fixtures'
 
 const state = vi.hoisted(() => ({
+    params: { id: 'player', playerHeader: undefined as string | undefined },
     data: {} as Record<string, unknown>, roster: vi.fn(), add: vi.fn(), push: vi.fn(),
     refresh: undefined as (() => Promise<void>) | undefined,
     canRead: () => true, isCurrent: () => true,
@@ -16,7 +17,7 @@ vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
     Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles },
 }))
-vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => ({ id: 'player' }), useRouter: () => ({ push: state.push }) }))
+vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => state.params, useRouter: () => ({ push: state.push }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league', scoring_settings: { points: 1 } }, membershipValidated: true }) }))
 vi.mock('@/hooks/use-player-screen-data', () => ({ usePlayerScreenData: () => state.data }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
@@ -44,6 +45,7 @@ let screen: ReactTestRenderer | undefined
 const button = () => screen!.root.findByProps({ accessibilityLabel: 'Add Player A' })
 beforeEach(() => {
     vi.clearAllMocks()
+    state.params = { id: 'player', playerHeader: undefined }
     state.data = {
         player: { ...headerPlayer(), id: 'player' }, loading: false, canRead: state.canRead,
         readEpoch: 'first', isCurrentRead: state.isCurrent, rosterRevision: 0,
@@ -100,4 +102,33 @@ it('reads known roster status only for roster signals and exposes retry after a 
     state.data = { ...state.data, rosterRevision: 1 }
     await act(async () => { screen!.update(React.createElement(PlayerDetailScreen)) })
     expect(state.roster).toHaveBeenCalledTimes(3)
+})
+
+it('shows the tapped player header before any read settles and replaces it with fresh player details', async () => {
+    state.params.playerHeader = JSON.stringify({ ...headerPlayer({ nba_team: 'BOS' }), id: 'player' })
+    state.data.player = null
+    state.data.loading = true
+    state.roster.mockReturnValue(new Promise(() => {}))
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    const header = () => screen!.root.findByType(PlayerHeader).props.player
+    expect(header().display_name).toBe('Player A')
+    expect(header().nba_team).toBe('BOS')
+    expect(header().eligible_positions).toEqual(['PG'])
+    expect(screen!.root.findByType(StatsOverview).props.loading).toBe(true)
+    state.data = { ...state.data, player: { ...headerPlayer({ display_name: 'Fresh name' }), id: 'player' }, loading: false }
+    await act(async () => { screen!.update(React.createElement(PlayerDetailScreen)) })
+    expect(header().display_name).toBe('Fresh name')
+    expect(header().nba_team).toBe('LAL')
+})
+
+it.each([
+    'invalid json',
+    JSON.stringify({ id: 'another-player', display_name: 'Wrong player' }),
+    JSON.stringify({ id: 'player', display_name: 'Partial player', eligible_positions: [42] }),
+])('ignores invalid or mismatched navigation data: %s', async playerHeader => {
+    state.params.playerHeader = playerHeader
+    state.data.player = null
+    state.roster.mockReturnValue(new Promise(() => {}))
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    expect(screen!.root.findByType(PlayerHeader).props.player.display_name).toBe('Player')
 })
