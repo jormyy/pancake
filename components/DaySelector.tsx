@@ -57,7 +57,6 @@ export function DaySelector({
                         accessibilityState={{ selected: isSelected, disabled }}
                         {...(isSelected ? ARIA_CURRENT_DATE : undefined)}
                         hitSlop={4}
-                        pressedScale={0.92}
                     >
                         <Text style={[styles.label, compact && styles.labelCompact, isSelected && styles.labelSelected, !day.hasGames && styles.labelFaint]}>
                             {day.dayLabel}

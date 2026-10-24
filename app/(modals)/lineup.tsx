@@ -98,7 +98,6 @@ const StarterRow = memo(function StarterRow({
             accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
             accessibilityHint={targetState === 'valid' ? `Move here to use the ${slot.slotType} slot` : undefined}
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
-            pressedScale={0.985}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
@@ -177,7 +176,6 @@ const BenchRow = memo(function BenchRow({
             accessibilityLabel={`Bench ${player.displayName}`}
             accessibilityHint={targetState === 'valid' ? 'Move here to place the selected player on the bench' : undefined}
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
-            pressedScale={0.985}
         >
             <Avatar
                 name={player.displayName}
@@ -641,7 +639,6 @@ function LineupScreen() {
                             onPress={() => { if (!snapshotScope) void refreshLeague(); else void load() }}
                             accessibilityRole="button"
                             accessibilityLabel="Retry lineup load"
-                            pressedScale={0.96}
                         >
                             <Text style={styles.retryButtonText}>Try again</Text>
                         </MotionPressable>
@@ -696,7 +693,6 @@ function LineupScreen() {
                         onPress={() => { void load(selectedDate) }}
                         accessibilityRole="button"
                         accessibilityLabel="Retry selected lineup day"
-                        pressedScale={0.96}
                     >
                         <Text style={styles.errorRetryButtonText}>Retry</Text>
                     </MotionPressable>

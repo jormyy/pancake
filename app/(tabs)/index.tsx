@@ -3,7 +3,6 @@ import {
     Platform,
     View,
     Text,
-    Pressable,
     StyleSheet,
     ScrollView,
     useWindowDimensions,
@@ -14,6 +13,7 @@ import { useRouter } from 'expo-router'
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { WeekOffNotice } from '@/components/WeekOffNotice'
 import { EmptyState } from '@/components/EmptyState'
+import { Button } from '@/components/ui/Button'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -37,7 +37,6 @@ import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { countLabel, formatPoints } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
-import { MotionPressable } from '@/components/Motion'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 function shouldShowScoreboard(selectedDate: string, today: string): boolean {
@@ -286,18 +285,14 @@ export default function HomeScreen() {
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
                             ) : null}
                             autoSetControl={
-                                <MotionPressable
-                                    style={styles.autoSetBtn}
-                                    hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
+                                <Button
+                                    title="Auto-set"
+                                    size="sm"
+                                    variant="outline"
                                     onPress={handleAutoSet}
                                     disabled={autoSetting || saving}
-                                    accessibilityRole="button"
                                     accessibilityLabel="Open auto-set lineup options"
-                                    accessibilityState={{ disabled: autoSetting || saving }}
-                                    pressedScale={0.92}
-                                >
-                                    <Text style={styles.autoSetText}>AUTO</Text>
-                                </MotionPressable>
+                                />
                             }
                             footer={twoPane ? null : sideInfo}
                         />
@@ -317,9 +312,14 @@ export default function HomeScreen() {
                             ) : (
                                 <View style={styles.noLineup}>
                                     <Text style={styles.noLineupText}>No lineup set for this day.</Text>
-                                    <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
-                                        <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
-                                    </Pressable>
+                                    <Button
+                                        title="Auto-set"
+                                        size="sm"
+                                        variant="outline"
+                                        onPress={handleAutoSet}
+                                        disabled={autoSetting || saving}
+                                        accessibilityLabel="Open auto-set lineup options"
+                                    />
                                 </View>
                             )}
                         </>
@@ -520,6 +520,7 @@ function MatchupLineupView({
     autoSetControl?: ReactNode
     footer?: ReactNode
 }) {
+    const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length, capacity.ir)
     const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length, capacity.taxi)
@@ -621,32 +622,38 @@ function MatchupLineupView({
                                 <Text style={styles.lineupSectionCount}>{section.used}</Text>
                             )}
                         </View>
-                        {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
-                        {section.rows.map((row, i) => (
-                            <MatchupRow
-                                key={row.key}
-                                myPlayer={row.myPlayer}
-                                oppPlayer={row.oppPlayer}
-                                slotType={row.slotType}
-                                selKind={row.selKind}
-                                selIndex={row.selIndex}
-                                isSelected={selected?.kind === row.selKind && selected.index === row.selIndex}
-                                onTap={onTap}
-                                saving={saving}
-                                playingTeams={playingTeams}
-                                liveStats={liveStats}
-                                liveTeams={liveTeams}
-                                scoringSettings={scoringSettings}
-                                teamMatchups={teamMatchups}
-                                isExtraOppRow={row.isExtraOppRow}
-                                compact={compact}
-                                dense={dense}
-                                motionDelay={i * 18}
-                                targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
-                                statColumns={statColumns}
-                                onOpenDetails={onOpenDetails}
-                            />
-                        ))}
+                        {section.key === 'starters' && noStarters ? (
+                            <Text style={styles.noStarters} accessibilityLabel="No lineups set this day">No lineups set this day</Text>
+                        ) : (
+                            <>
+                                {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
+                                {section.rows.map((row, i) => (
+                                    <MatchupRow
+                                        key={row.key}
+                                        myPlayer={row.myPlayer}
+                                        oppPlayer={row.oppPlayer}
+                                        slotType={row.slotType}
+                                        selKind={row.selKind}
+                                        selIndex={row.selIndex}
+                                        isSelected={selected?.kind === row.selKind && selected.index === row.selIndex}
+                                        onTap={onTap}
+                                        saving={saving}
+                                        playingTeams={playingTeams}
+                                        liveStats={liveStats}
+                                        liveTeams={liveTeams}
+                                        scoringSettings={scoringSettings}
+                                        teamMatchups={teamMatchups}
+                                        isExtraOppRow={row.isExtraOppRow}
+                                        compact={compact}
+                                        dense={dense}
+                                        motionDelay={i * 18}
+                                        targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
+                                        statColumns={statColumns}
+                                        onOpenDetails={onOpenDetails}
+                                    />
+                                ))}
+                            </>
+                        )}
                     </View>
                 ))}
                 {footer ? <View style={styles.lineupFooter}>{footer}</View> : null}
@@ -734,18 +741,6 @@ const styles = StyleSheet.create({
         fontSize: fontSize['2xs'],
         marginTop: spacing.xs,
     },
-    autoSetBtn: {
-        minHeight: 44,
-        minWidth: 72,
-        paddingHorizontal: spacing.xl,
-        borderRadius: radii.full,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textWhite, letterSpacing: 0.6 },
-
     lineupContainer: { flex: 1, minHeight: 0 },
     lineupRows: { flex: 1, minHeight: 0 },
     lineupRowsContent: { paddingTop: spacing.md, paddingBottom: spacing.md },
@@ -790,10 +785,9 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
     },
 
+    noStarters: { ...textStyles.meta, padding: spacing.lg },
     noLineup: { padding: spacing['4xl'], alignItems: 'center', gap: spacing.lg },
     noLineupText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
-    setLineupBtn: { paddingHorizontal: spacing['2xl'], paddingVertical: spacing.md, borderRadius: radii.lg, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
-    setLineupBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

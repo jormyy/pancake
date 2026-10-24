@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
-import { colors, fontFamily, fontSize, fontWeight, radii, scoreboardColors, spacing } from '@/constants/tokens'
+import { borderWidth, colors, fontFamily, fontSize, fontWeight, layout, radii, scoreboardColors, spacing, textStyles } from '@/constants/tokens'
 import { NBAGameRow } from '@/lib/games'
 import { LivePulse, MotionView } from '@/components/Motion'
 
@@ -96,7 +96,7 @@ export function Scoreboard({
                             </View>
                             {/* Status */}
                             <View style={styles.statusRow}>
-                                {isLive && <LivePulse color={colors.primary} size={5} />}
+                                {isLive && <LivePulse color={colors.primary} size={spacing.sm} />}
                                 <Text numberOfLines={1} accessibilityLabel={scoresAvailable ? undefined : freshness === 'failed' ? 'Refresh failed. Saved scores.' : 'Offline. Saved scores.'} style={[
                                     styles.status,
                                     isLive && styles.statusLive,
@@ -116,11 +116,11 @@ export function Scoreboard({
 const styles = StyleSheet.create({
     container: {
         backgroundColor: scoreboardColors.background,
-        borderBottomWidth: 3,
+        borderBottomWidth: borderWidth.accent,
         borderBottomColor: colors.primary,
     },
     containerCompact: {
-        borderBottomWidth: 2,
+        borderBottomWidth: borderWidth.strong,
     },
     scroll: {
         paddingHorizontal: spacing.xl,
@@ -138,26 +138,26 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     card: {
-        width: 96,
+        width: layout.gameCard.width,
         backgroundColor: scoreboardColors.card,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        paddingHorizontal: 10,
-        paddingVertical: 9,
-        gap: 2,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        gap: spacing.xxs,
         overflow: 'hidden' as const,
-        borderWidth: 1,
+        borderWidth: borderWidth.thin,
         borderColor: scoreboardColors.border,
     },
     cardCompact: {
-        width: 88,
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        gap: 1,
+        width: layout.gameCard.compactWidth,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        gap: spacing.xxs,
     },
     cardLive: {
         borderColor: colors.primary,
-        borderWidth: 1.5,
+        borderWidth: borderWidth.medium,
         boxShadow: scoreboardColors.liveGlow,
     },
     cardFinal: {
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
         top: 0,
         left: 0,
         right: 0,
-        height: 2,
+        height: borderWidth.strong,
         backgroundColor: colors.primary,
     },
     teamRow: {
@@ -180,18 +180,18 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
         color: scoreboardColors.textMuted,
-        letterSpacing: 0.4,
+        letterSpacing: textStyles.tableHeader.letterSpacing,
     },
     tricodeHighlight: {
         color: scoreboardColors.accent,
         fontWeight: fontWeight.extrabold,
     },
     score: {
-        fontSize: 13,
+        fontSize: fontSize.sm,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.bold,
         color: scoreboardColors.accent,
-        minWidth: 24,
+        minWidth: layout.gameCard.scoreWidth,
         textAlign: 'right',
     },
     scoreHidden: {
@@ -205,20 +205,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 3,
-        marginTop: 4,
+        gap: spacing.xxs,
+        marginTop: spacing.xs,
     },
     status: {
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.bold,
         color: scoreboardColors.textMuted,
         textAlign: 'center',
-        letterSpacing: 0.3,
+        letterSpacing: textStyles.tableHeader.letterSpacing,
     },
     statusLive: {
         color: scoreboardColors.accent,
         fontWeight: fontWeight.extrabold,
-        letterSpacing: 0.5,
+        letterSpacing: textStyles.tableHeader.letterSpacing,
     },
     statusFinal: {
         color: scoreboardColors.textMuted,

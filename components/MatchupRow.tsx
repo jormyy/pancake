@@ -384,7 +384,6 @@ function MatchupRowImpl({
                 disabled={!myPlayer}
                 accessibilityRole="button"
                 accessibilityLabel={myPlayer ? `Score breakdown for ${myPlayer.displayName}` : 'Score breakdown'}
-                pressedScale={0.985}
             >
                 <PlayerSide
                     side="left"
@@ -422,7 +421,6 @@ function MatchupRowImpl({
                 accessibilityHint={targetState === 'valid' ? `Move the selected player to ${slotType}` : undefined}
                 accessibilityState={{ disabled: saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
                 hitSlop={7}
-                pressedScale={0.88}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}
@@ -435,7 +433,6 @@ function MatchupRowImpl({
                 disabled={!oppPlayer}
                 accessibilityRole="button"
                 accessibilityLabel={oppPlayer ? `Score breakdown for ${oppPlayer.displayName}` : 'Score breakdown'}
-                pressedScale={0.985}
             >
                 <PlayerSide
                     side="right"

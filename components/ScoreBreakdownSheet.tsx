@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { Sheet } from '@/components/ui/Sheet'
 import { Avatar } from '@/components/Avatar'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import type { LiveStatLine } from '@/lib/games'
 import type { LineupPlayer } from '@/lib/lineup'
 import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
@@ -41,14 +41,14 @@ function PlayerHead({ side, total, align }: { side: Side; total: number | null; 
                     uri={playerHeadshotUrl(side.player.nbaId && /^\d+$/.test(side.player.nbaId) ? side.player.nbaId : null) ?? undefined}
                     color={colors.bgMuted}
                     textColor={colors.textSecondary}
-                    size={40}
+                    size={controlSize.avatar.md}
                 />
             ) : null}
             <Text style={[textStyles.rowTitle, right && styles.textRight]} numberOfLines={1}>
                 {side.player ? shortName(side.player.displayName) : '—'}
             </Text>
             <Text style={[textStyles.meta, right && styles.textRight]} numberOfLines={1}>{sideStatus(side)}</Text>
-            <Text style={[styles.total, right && styles.textRight]}>{formatPoints(total)}</Text>
+            {total != null ? <Text testID="score-breakdown-total" style={[styles.total, right && styles.textRight]}>{formatPoints(total)}</Text> : null}
         </View>
     )
 }
@@ -122,9 +122,9 @@ const styles = StyleSheet.create({
     head: { flex: 1, minWidth: 0, gap: spacing.xxs },
     headRight: { alignItems: 'flex-end' },
     textRight: { textAlign: 'right' },
-    total: { ...textStyles.hero, fontSize: fontSize['3xl'], lineHeight: 32, color: colors.textPrimary, marginTop: spacing.xs },
+    total: { ...textStyles.compactScore, color: colors.textPrimary, marginTop: spacing.xs },
     table: {
-        borderWidth: 1,
+        borderWidth: borderWidth.thin,
         borderColor: colors.borderLight,
         borderRadius: radii.lg,
         overflow: 'hidden',
@@ -132,15 +132,15 @@ const styles = StyleSheet.create({
     tableRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 40,
+        minHeight: table.scoreBreakdownRowHeight,
         paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
+        borderBottomWidth: borderWidth.thin,
         borderBottomColor: colors.separator,
     },
-    tableHeader: { minHeight: 32, backgroundColor: colors.bgSubtle },
+    tableHeader: { minHeight: table.headerHeight, backgroundColor: colors.bgSubtle },
     headCell: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], textAlign: 'center' },
     cell: { fontSize: fontSize.md, color: colors.textSecondary, textAlign: 'center', fontVariant: ['tabular-nums'] as const },
-    numCell: { width: 52 },
+    numCell: { width: table.statColWidth },
     pointsCell: { fontWeight: fontWeight.bold, color: colors.textPrimary },
     negative: { color: colors.dangerDark },
     labelCell: { flex: 1, minWidth: 0, alignItems: 'center' },
