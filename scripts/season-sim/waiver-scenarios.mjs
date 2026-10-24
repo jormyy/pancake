@@ -106,6 +106,7 @@ export async function verifyWaivers(c, report) {
     const priorities = await c.rest(c.users[0], `waiver_priorities?select=*&league_season_id=eq.${c.leagueSeasonId}`)
     const states = Object.fromEntries(await Promise.all(c.users.map(async user => [user.memberId, await transactionState(c, user)])))
     const rosterCounts = Object.fromEntries(await Promise.all(c.users.map(async user => [user.memberId, (await roster(c, user)).length])))
+    scenario.expected = waiverOutcomes(scenario.input, { moves: c.identityMoves, at: scenario.processAt })
     scenario.result = checkWaiverResult(scenario.expected, { claims, priorities, states, rosterCounts })
     for (const claim of scenario.input.claims) {
       const actual = claims.find(row => row.id === claim.id)

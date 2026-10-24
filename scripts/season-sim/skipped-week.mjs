@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { sqlJson } from './local-stack.mjs'
+import { waiverClaims } from './waiver-oracle.mjs'
 
 export function checkSkippedWeek({ matchups, lineups, standings, certificates, addCounts, expectedAdds, transactions, expectedTransactions, week }) {
   const retained=matchups.filter(row => row.week_number === week || row.week_number < week && row.end_week_number >= week)
@@ -41,7 +42,7 @@ export function skippedWeekActions(c, week, now, startsAt, endsAt) {
       expectedTransactions.push({ transaction_type: 'fa_drop', member_id: target.member, player_id: target.player, related_claim_id: null })
     }
     if (!inside(scenario.processAt)) continue
-    for (const claim of scenario.input.claims) {
+    for (const claim of waiverClaims(scenario.input.claims, c.identityMoves, scenario.processAt)) {
       if (scenario.expected.claims[claim.id] !== 'succeeded') continue
       expectedAdds[claim.member]++
       expectedTransactions.push({ transaction_type: 'waiver_add', member_id: claim.member, player_id: claim.player, related_claim_id: claim.id })

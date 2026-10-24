@@ -52,3 +52,11 @@ test('skipped-week add counts follow real claims and reset in the next calendar 
   assert.deepEqual(skippedWeekActions(context, 2, 110, 100, 200).expectedAdds, { a: 0 })
   assert.ok(checkSkippedWeek({ ...skipped, addCounts: [{ member_id: 'a', week_number: 1, add_count: 1 }], ...processed, transactions: processed.expectedTransactions }).passed)
 })
+
+test('waiver transaction expectations retain a traded conditional drop on its new roster', () => {
+  const submitted = '2025-10-27T14:00:00Z', movedAt = Date.parse('2025-10-28T14:00:00Z'), processAt = Date.parse('2025-10-30T07:00:00Z')
+  const c = { leagueSeasonId: 'new', users: [{ memberId: 'a' }], identityMoves: [{ playerId: 'counter', owner: 'b', at: movedAt }], waiverScenarios: [{ seasonId: 'new', targets: [], processAt, input: { claims: [{ id: 'claim', member: 'a', player: 'target', drop: 'counter', submitted }] }, expected: { claims: { claim: 'succeeded' } } }] }
+  const result = skippedWeekActions(c, 2, processAt + 1, Date.parse(submitted), processAt + 2)
+  assert.deepEqual(result.expectedAdds, { a: 1 })
+  assert.deepEqual(result.expectedTransactions.map(row => [row.transaction_type, row.player_id]), [['waiver_add', 'target']])
+})

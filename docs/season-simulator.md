@@ -132,6 +132,9 @@ The initial league uses FAAB 100 and one weekly add.
 The waiver scenario submits real claims after real drops.
 Its oracle orders bids, current priority, claim order, submission time, and claim ID.
 It checks roster failures, over-budget rejection, awards, balances, priority, and add counts.
+The oracle clears conditional drops from the independent trade ledger before processing.
+Submitted claims remain unchanged in the receipts.
+Ownership and transaction checks use the same resolved claims.
 The offseason commissioner changes this retained league to rolling waivers.
 This bounds runtime and keeps the same cross-season assets under test.
 Rolling scenarios run during skipped week 1 and eligible week 2.

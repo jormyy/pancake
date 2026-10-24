@@ -90,3 +90,10 @@ test('an NBA-moved subject listed for the new team before his first game for it 
   for (const row of c.rookiePreferences) if (row.nbaId === '1642383') preferences.push([row.date, row.owner, row.starter])
   assert.deepEqual(preferences, [['2026-02-04', 'b', false], ['2026-02-06', 'b', true]])
 })
+
+test('a successful claim does not drop a player already transferred to another owner', () => {
+  const submitted = '2025-10-27T14:00:00Z', processAt = Date.parse('2025-10-30T07:00:00Z')
+  const c = { draftedRookies: [{ playerId: 'counter', owner: 'a' }], identityMoves: [{ playerId: 'counter', owner: 'b', at: Date.parse('2025-10-28T14:06:00Z') }], waiverScenarios: [{ targets: [], input: { claims: [{ id: 'claim', player: 'target', member: 'a', drop: 'counter', submitted }] }, expected: { claims: { claim: 'succeeded' } }, processAt }] }
+  assert.equal(intendedOwner(c, 'counter', processAt + 1), 'b')
+  assert.equal(intendedOwner(c, 'target', processAt + 1), 'a')
+})

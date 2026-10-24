@@ -68,3 +68,17 @@ test('eligible-week add resets stay at Eastern midnight through the November DST
   assert.throws(() => checkWaiverReset({ ...state, weekly_add_count: 1 }, 2, waiverResetAt('2026-11-01')), /fresh add/)
   assert.throws(() => checkWaiverReset({ ...state, week_number: 1 }, 2, waiverResetAt('2026-11-01')), /calendar week/)
 })
+
+test('a traded conditional drop changes roster room without changing the submitted claim', () => {
+  const submitted = '2025-10-27T14:00:00Z', at = Date.parse('2025-10-30T07:00:00Z')
+  const batch = { ...input, mode: 'rolling', claims: [{ id: 'claim', member: 'a', player: 'target', drop: 'traded', order: 1, submitted }], rosterCounts: { ...input.rosterCounts, a: 1 } }
+  const move = { playerId: 'traded', owner: 'b', at: Date.parse('2025-10-28T14:06:00Z') }
+  assert.equal(waiverOutcomes(batch, { moves: [move], at }).rosterCounts.a, 2)
+  assert.equal(batch.claims[0].drop, 'traded')
+  for (const ignored of [{ ...move, owner: 'a' }, { ...move, at: at + 1 }, { ...move, at: Date.parse(submitted) - 1 }]) {
+    assert.equal(waiverOutcomes(batch, { moves: [ignored], at }).rosterCounts.a, 1)
+  }
+  const full = waiverOutcomes({ ...batch, rosterCounts: input.rosterCounts }, { moves: [move], at })
+  assert.equal(full.claims.claim, 'failed_roster')
+  assert.equal(full.rosterCounts.a, 3)
+})

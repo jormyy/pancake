@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict'
 
-export function waiverOutcomes({ claims, mode, priorities, budgets, rosterCounts, weeklyCounts, limit, rosterSize }) {
+export function waiverClaims(claims, moves = [], at = Infinity) {
+  return claims.map(claim => claim.drop && moves.some(move => move.playerId === claim.drop && move.owner !== claim.member && move.at > Date.parse(claim.submitted) && move.at <= at) ? { ...claim, drop: null } : claim)
+}
+
+export function waiverOutcomes({ claims, mode, priorities, budgets, rosterCounts, weeklyCounts, limit, rosterSize }, { moves = [], at = Infinity } = {}) {
   const result = { priorities: { ...priorities }, budgets: { ...budgets }, rosterCounts: { ...rosterCounts }, weeklyCounts: { ...weeklyCounts }, claims: {} }
-  const pending = [...claims], awarded = new Set()
+  const pending = waiverClaims(claims, moves, at), awarded = new Set()
   while (pending.length) {
     pending.sort((a, b) => (mode === 'faab' ? b.bid - a.bid : 0) || result.priorities[a.member] - result.priorities[b.member] || a.order - b.order || a.submitted.localeCompare(b.submitted) || a.id.localeCompare(b.id))
     const claim = pending.shift(), member = claim.member, bid = mode === 'faab' ? claim.bid : 0

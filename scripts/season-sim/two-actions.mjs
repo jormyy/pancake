@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { sql, sqlJson } from './local-stack.mjs'
 import { nextWaiverRun } from './waiver-scenarios.mjs'
 import { shiftDay } from './season-model.mjs'
-import { waiverResetAt } from './waiver-oracle.mjs'
+import { waiverClaims, waiverResetAt } from './waiver-oracle.mjs'
 
 const now = async () => Number(await sql('SELECT extract(epoch FROM now())*1000'))
 const activeRoster = c => c.rest(c.users[0], `roster_players?select=*,players(nba_id)&league_season_id=eq.${c.leagueSeasonId}&is_on_ir=eq.false&is_on_taxi=eq.false`)
@@ -13,7 +13,7 @@ export function intendedOwner(c, playerId, at) {
   const moves = [...(c.identityMoves ?? []), ...(c.waiverRosterAdds ?? []).map(row => ({ playerId: row.player, owner: row.member, at: row.at }))]
   for (const scenario of c.waiverScenarios ?? []) {
     for (const row of scenario.targets) moves.push({ playerId: row.player, owner: null, at: row.droppedAt })
-    for (const row of scenario.input.claims) if (scenario.expected.claims[row.id] === 'succeeded') {
+    for (const row of waiverClaims(scenario.input.claims, c.identityMoves, scenario.processAt)) if (scenario.expected.claims[row.id] === 'succeeded') {
       moves.push({ playerId: row.player, owner: row.member, at: scenario.processAt })
       if (row.drop) moves.push({ playerId: row.drop, owner: null, at: scenario.processAt })
     }
