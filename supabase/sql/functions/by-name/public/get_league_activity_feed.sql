@@ -106,6 +106,7 @@ BEGIN
     LEFT JOIN league_members AS target ON target.id = activity.target_member_id
     LEFT JOIN players AS player ON player.id = activity.related_player_id
     WHERE activity.league_id = p_league_id
+      AND activity.event_type <> 'trade_block_updated'
   )
   SELECT
     feed.id,

@@ -535,6 +535,16 @@ function LineupScreen() {
         reloadLineup: reloadLineupForActions,
     })
 
+    const preselectedKey = requestedPlayerId ? `${ownerKey}:${selectedDate}:${requestedPlayerId}` : null
+    const preselectionPending = Boolean(preselectedKey && preselectedKeyRef.current !== preselectedKey && !readOnly && lineupForActions)
+    const requestedStarterIndex = preselectionPending ? visibleStarters.findIndex((slot) => slot.player?.playerId === requestedPlayerId) : -1
+    const requestedBenchIndex = preselectionPending ? visibleBench.findIndex((player) => player.playerId === requestedPlayerId) : -1
+    const displayedSelection = requestedStarterIndex >= 0
+        ? { kind: 'starter' as const, index: requestedStarterIndex }
+        : requestedBenchIndex >= 0
+            ? { kind: 'bench' as const, index: requestedBenchIndex }
+            : selected
+
     useEffect(() => {
         if (!requestedPlayerId || readOnly || lineupLoading || lineupRefreshing || !lineupForActions) return
         const preselectedKey = `${ownerKey}:${selectedDate}:${requestedPlayerId}`
@@ -555,7 +565,7 @@ function LineupScreen() {
                   lineup: lineupForActions,
                   league: currentLeague,
                   startedTeams,
-                  from: selected,
+                  from: displayedSelection,
                   to,
               })
             : null
@@ -652,7 +662,7 @@ function LineupScreen() {
     const rosterEmpty = visibleStarters.every((s) => !s.player) && visibleBench.length === 0
 
     return (
-        <DeferredContent ready={(!lineupLoading && matchingDay && gamesReady) || Boolean(lineupError)}>
+        <DeferredContent ready={(!lineupLoading && matchingDay && gamesReady && (!preselectedKey || preselectedKeyRef.current === preselectedKey || !lineupRefreshing)) || Boolean(lineupError)}>
         <Page title="Lineup">
             <PageHeader
                 title={`Week ${visibleCtx.weekNumber} lineup`}
@@ -729,7 +739,7 @@ function LineupScreen() {
                             key={`starter-${i}`}
                             slot={slot}
                             index={i}
-                            isSelected={selected?.kind === 'starter' && selected.index === i}
+                            isSelected={displayedSelection?.kind === 'starter' && displayedSelection.index === i}
                             liveTeams={liveTeams}
                             startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}
@@ -760,7 +770,7 @@ function LineupScreen() {
                             key={player.playerId}
                             player={player}
                             index={i}
-                            isSelected={selected?.kind === 'bench' && selected.index === i}
+                            isSelected={displayedSelection?.kind === 'bench' && displayedSelection.index === i}
                             liveTeams={liveTeams}
                             startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}

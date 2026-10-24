@@ -53,3 +53,36 @@ test('the roster-plan fixture preserves rosters and creates an incoming overflow
   assert.equal((await fixture.seedRosterPlanTrade(db.client, input)).id, trade.id)
   assert.equal(db.proposals.length, 1)
 })
+
+test('an auction capture removes its nomination when the check fails', async () => {
+  const nominations: any[] = [{ id: 'closed', status: 'won', nomination_order: 2 }]
+  const before = JSON.stringify(nominations)
+  const admin = {
+    from(table: string) {
+      assert.equal(table, 'nominations')
+      let inserting: any, removing = false
+      const query = {
+        select() { return query },
+        eq(_key: string, value: string) {
+          if (removing) nominations.splice(nominations.findIndex(row => row.id === value), 1)
+          return query
+        },
+        insert(row: object) { inserting = { ...row, id: 'capture', status: 'open' }; return query },
+        delete() { removing = true; return query },
+        async single() { nominations.push(inserting); return { data: inserting, error: null } },
+        then(resolve: (value: object) => void) { resolve({ data: [...nominations], error: null }) },
+      }
+      return query
+    },
+  }
+  await assert.rejects(fixture.withAuctionNomination(admin, { draftId: 'auction', memberId: 'leader', playerId: 'free-agent' }, async () => {
+    const open = nominations.find(row => row.status === 'open')!
+    assert.equal(open.draft_id, 'auction')
+    assert.equal(open.player_id, 'free-agent')
+    assert.equal(open.current_bidder_id, 'leader')
+    assert.equal(open.nomination_order, 3)
+    assert.ok(Date.parse(open.countdown_expires_at) > Date.now() + 3500000)
+    throw new Error('Missing bid control')
+  }), /Missing bid control/)
+  assert.equal(JSON.stringify(nominations), before)
+})

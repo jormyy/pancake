@@ -17,10 +17,14 @@
           "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
         },
         "expected": {
-          "selector": "[aria-label='Bid amount']"
-        }
+          "selector": "input[aria-label='Bid amount']:not([readonly]):not(:disabled)"
+        },
+        "quietMs": 400
       }
-    ]
+    ],
+    "setup": {
+      "auctionNomination": "f3660351-112e-4931-8ece-ea2f33cbdb54"
+    }
   },
   {
     "name": "league-rookie-spectator-light",
@@ -109,10 +113,14 @@
           "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
         },
         "expected": {
-          "selector": "[aria-label='Bid amount']"
-        }
+          "selector": "input[aria-label='Bid amount']:not([readonly]):not(:disabled)"
+        },
+        "quietMs": 400
       }
-    ]
+    ],
+    "setup": {
+      "auctionNomination": "f3660351-112e-4931-8ece-ea2f33cbdb54"
+    }
   },
   {
     "name": "league-rookie-spectator-dark",
