@@ -27,14 +27,14 @@ import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
 import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
+import { usePlayerSearch, useVisiblePlayerRows, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { playerSeasonFilterOptions, seasonLabel } from '@/lib/player-search-state'
 import { todayET } from '@/lib/shared/dates'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
-import { addLimitSummary } from '@/lib/pickup'
+import { addLimitSummary, canAddToIR } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
@@ -88,14 +88,14 @@ const STAT_LABELS: Record<string, string> = {
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
 
-type PlayerSupportCache = Pick<PlayerSupport, 'seasonId' | 'memberId' | 'day'> & {
+type PlayerSupportCache = Pick<PlayerSupport, 'seasonId' | 'memberId' | 'day' | 'roster'> & {
     ownedEntries: [string, OwnedEntry][]
     waiverIds: string[]
     waiverClearsAtEntries: [string, string][]
     pendingClaimIds: string[]
     transactionState: PlayerSupport['transactionState']
 }
-const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v4:'
+const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v5:'
 const supportCacheKey = (memberId: string, leagueId: string) => `${SUPPORT_CACHE_PREFIX}${leagueId}:${memberId}`
 
 function PlayerTableHeader({
@@ -172,6 +172,7 @@ function PlayerSearchSection() {
             waiverClearsAt: new Map(value.waiverClearsAtEntries),
             pendingClaimIds: new Set(value.pendingClaimIds),
             transactionState: value.transactionState,
+            roster: value.roster,
         } }
     }, [current?.id, leagueId, snapshotScope])
 
@@ -220,6 +221,7 @@ function PlayerSearchSection() {
                     waiverClearsAtEntries: Array.from(support.waiverClearsAt.entries()),
                     pendingClaimIds: Array.from(support.pendingClaimIds),
                     transactionState: support.transactionState,
+                    roster: support.roster,
                 })
             }
         },
@@ -246,6 +248,11 @@ function PlayerSearchSection() {
     const transactionState = playerSupportForLeague?.transactionState ?? null
 
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id })
+    const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
+        currentLeague?.scoring_settings, {
+            enabled: focused && online && membershipValidated,
+            ownerKey: JSON.stringify([user?.id, current?.id, leagueId]),
+        })
     const retrySearch = search.results.retry
     const refreshPlayers = useCallback(() => {
         const support = refreshPlayerSupport()
@@ -280,6 +287,8 @@ function PlayerSearchSection() {
         leagueId,
         onChanged: refreshPlayerSupport,
         transactionState,
+        irSlots: currentLeague?.ir_slots ?? 2,
+        allowIR: currentLeague?.status !== 'offseason',
         onClaimInstead: openClaim,
     })
     const availabilityUpdating = supportSnapshot || playerSupportFetchLoading
@@ -302,6 +311,7 @@ function PlayerSearchSection() {
             waiverIds={waiverIds}
             waiverClearsAt={playerSupportForLeague?.waiverClearsAt.get(item.id) ?? null}
             claimPending={playerSupportForLeague?.pendingClaimIds.has(item.id) ?? false}
+            addToIR={currentLeague?.status !== 'offseason' && canAddToIR(item.injury_status, playerSupportForLeague?.roster ?? [], currentLeague?.ir_slots ?? 2)}
             isAdding={quickAdd.adding === item.id}
             addDisabled={!online || availabilityUpdating}
             showStats={showStatTable}
@@ -311,7 +321,7 @@ function PlayerSearchSection() {
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
         />
-    ), [current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [currentLeague?.status, currentLeague?.ir_slots, playerSupportForLeague?.roster, current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -489,7 +499,8 @@ function PlayerSearchSection() {
                     onScroll={statusScroll.onScroll}
                     scrollEventThrottle={16}
                     ref={search.results.listRef}
-                    data={search.results.players}
+                    data={liveRows.rows}
+                    onViewableItemsChanged={liveRows.onViewableItemsChanged}
                     extraData={playerListExtraData}
                     keyExtractor={(p: PlayerRow) => p.id}
                     contentContainerStyle={statusScroll.contentStyle(search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined)}
@@ -538,11 +549,13 @@ function PlayerSearchSection() {
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
-                title={`Drop a player to add\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
-                subtitle="Your roster is full. Pick someone to release."
+                title={`Make room for\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
+                subtitle={quickAdd.irMoveCandidates.length ? "Move an Out player to IR or select a drop." : "Your roster is full. Select a player to drop."}
                 roster={quickAdd.myRoster}
                 dropping={quickAdd.dropping}
                 onDrop={quickAdd.handleDropAndAdd}
+                irMoveCandidates={quickAdd.irMoveCandidates}
+                onMoveToIR={quickAdd.handleMoveToIRAndAdd}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 

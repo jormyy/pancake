@@ -43,19 +43,20 @@ export async function loadPickupState(
     memberId: string,
     leagueId: string,
     canRead?: () => boolean,
-): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean }> {
+): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterPlayer[] }> {
     assertReadActive(canRead)
     const status = await getPlayerRosterStatus(playerId, memberId, leagueId, canRead)
     assertReadActive(canRead)
     const pickupPossible = status.status === 'free_agent' || status.status === 'on_waivers'
-    const [transactionState, pendingIds] = await Promise.all([
+    const [transactionState, pendingIds, roster] = await Promise.all([
         pickupPossible ? loadAddLimitState(memberId, leagueId) : Promise.resolve(null),
         status.status === 'on_waivers' ? getCurrentSeasonId(leagueId).then((seasonId) => {
             assertReadActive(canRead)
             return seasonId ? getPendingWaiverPlayerIdsForSeason(memberId, seasonId) : new Set<string>()
         }) : Promise.resolve(new Set<string>()),
+        pickupPossible ? getRoster(memberId, leagueId) : Promise.resolve([]),
     ])
-    return { status, transactionState, claimPending: pendingIds.has(playerId) }
+    return { status, transactionState, claimPending: pendingIds.has(playerId), roster }
 }
 
 export async function addFreeAgentOrRequestDrop(
@@ -63,9 +64,10 @@ export async function addFreeAgentOrRequestDrop(
     leagueId: string,
     playerId: string,
     roster: RosterPlayer[],
+    toIr = false,
 ): Promise<{ status: 'added' } | { status: 'roster_full'; activeRoster: RosterPlayer[] }> {
     try {
-        await addFreeAgent(memberId, leagueId, playerId)
+        await addFreeAgent(memberId, leagueId, playerId, toIr)
         return { status: 'added' }
     } catch (error) {
         if (errorCode(error) !== RULE_CODES.rosterFull) throw error

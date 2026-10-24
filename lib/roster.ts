@@ -161,6 +161,7 @@ export async function addFreeAgent(
     memberId: string,
     leagueId: string,
     playerId: string,
+    toIr = false,
 ): Promise<void> {
     return withPwaMutation('addFreeAgent', async () => {
         // Atomic: validate caller ownership, waiver hold, roster-cap, and insert
@@ -173,6 +174,7 @@ export async function addFreeAgent(
             p_member_id: memberId,
             p_league_id: leagueId,
             p_player_id: playerId,
+            p_to_ir: toIr,
         })
 
         if (error) {

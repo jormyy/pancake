@@ -24,6 +24,7 @@ function PlayerSearchItemImpl({
     waiverClearsAt = null,
     claimPending = false,
     isAdding,
+    addToIR = false,
     addDisabled = false,
     showStats = false,
     showCompactStats = true,
@@ -39,6 +40,7 @@ function PlayerSearchItemImpl({
     waiverIds: Set<string>
     waiverClearsAt?: string | null
     claimPending?: boolean
+    addToIR?: boolean
     isAdding: boolean
     addDisabled?: boolean
     showStats?: boolean
@@ -111,13 +113,13 @@ function PlayerSearchItemImpl({
                         onPress={() => onAdd(item)}
                         disabled={isAdding || addDisabled}
                         accessibilityRole="button"
-                        accessibilityLabel={claimPending ? `Claim pending for ${item.display_name}, view claims` : `${isWaiver ? 'Claim' : 'Add'} ${item.display_name}`}
+                        accessibilityLabel={claimPending ? `Claim pending for ${item.display_name}, view claims` : `${isWaiver ? 'Claim' : addToIR ? 'Add to IR' : 'Add'} ${item.display_name}`}
                         {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                         hitSlop={8}
                         pressedScale={0.88}
                     >
                         <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
-                            {claimPending ? <MaterialIcons name="schedule" size={20} color={uiColors.waiverText} /> : <Text style={[styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null]}>+</Text>}
+                            {claimPending ? <MaterialIcons name="schedule" size={20} color={uiColors.waiverText} /> : <Text style={[styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null]} numberOfLines={1}>{isWaiver ? 'Claim' : addToIR ? 'Add to IR' : 'Add'}</Text>}
                         </View>
                     </MotionPressable>
                 ) : null}
@@ -156,7 +158,7 @@ function PlayerSearchItemImpl({
                             </Text>
                         </View>
                     ) : (
-                        <Text style={styles.playerName}>{item.display_name}</Text>
+                        <Text style={styles.playerName} numberOfLines={1}>{item.display_name}</Text>
                     )}
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
@@ -178,6 +180,7 @@ function PlayerSearchItemImpl({
                         ) : null}
                         {denseProjectionRow ? statusBadge : null}
                     </View>
+                    <Text style={styles.liveLabel} numberOfLines={1}>{item.playing_now ? 'Playing now' : ' '}</Text>
                     {!showStats && showCompactStats ? (
                         <View style={styles.compactStats}>
                             {compactStats.map((stat) => (
@@ -280,7 +283,7 @@ function StatCell({
     )
 }
 
-const ADD_COL_W = 44
+const ADD_COL_W = 76
 const HEADSHOT = 36
 
 /** Geometry the stat-table header mirrors so its columns line up with rows. */
@@ -300,10 +303,10 @@ const styles = StyleSheet.create({
     },
     addCol: { width: ADD_COL_W, alignItems: 'center' },
     // The 44px target wraps a smaller circle so rows stay short.
-    addTarget: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    addTarget: { width: 76, height: 44, alignItems: 'center', justifyContent: 'center' },
     addBtn: {
-        width: 32,
-        height: 32,
+        width: 72,
+        height: 36,
         borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
@@ -314,7 +317,7 @@ const styles = StyleSheet.create({
     },
     addBtnWaiver: { backgroundColor: colors.infoLight, borderColor: colors.info, borderWidth: 1 },
     addBtnTextWaiver: { color: uiColors.waiverText },
-    addBtnText: { color: colors.primaryDark, fontSize: fontSize.xl, fontWeight: fontWeight.medium, lineHeight: 22 },
+    addBtnText: { color: colors.primaryDark, fontSize: fontSize.xs, fontWeight: fontWeight.bold, lineHeight: 18 },
     addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
     addBtnTextBlocked: { color: colors.textPlaceholder },
     playerCard: {
@@ -356,6 +359,7 @@ const styles = StyleSheet.create({
     },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs },
     playerMeta: { fontSize: fontSize['2sm'], color: colors.textMuted },
+    liveLabel: { fontSize: fontSize['2xs'], lineHeight: 14, height: 14, color: colors.success, fontWeight: fontWeight.bold },
     compactStats: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xs, marginTop: spacing.sm },
     compactStat: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
     compactStatLabel: {
@@ -372,7 +376,7 @@ const styles = StyleSheet.create({
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     experienceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    fpCol: { alignItems: 'flex-end', minWidth: 52, gap: spacing.xxs },
+    fpCol: { alignItems: 'flex-end', width: 64, gap: spacing.xxs },
     fpValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
     fpLabel: { ...textStyles.tableHeader, marginTop: -spacing.xxs },
     statsGrid: {

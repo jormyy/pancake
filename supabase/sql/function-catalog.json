@@ -228,6 +228,7 @@
     "public.get_score_sync_games(date,date,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_stale_score_weeks(uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.get_trade_page_refs(uuid,uuid,integer,text)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.get_visible_player_totals(uuid,uuid[],integer)": {"acl":["authenticated|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.handle_new_auth_user()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.invoke_close_expired_nominations_if_due()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.invoke_dynasty_ranking_views_at_et_time(integer,integer,timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},

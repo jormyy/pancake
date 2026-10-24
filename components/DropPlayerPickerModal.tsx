@@ -15,16 +15,31 @@ type Props = {
     roster: RosterPlayer[]
     dropping: string | null
     onDrop: (rp: RosterPlayer) => void
+    irMoveCandidates?: RosterPlayer[]
+    onMoveToIR?: (rp: RosterPlayer) => void
     onCancel: () => void
 }
 
-export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel }: Props) {
+export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR }: Props) {
     const close = () => {
         if (dropping === null) onCancel()
     }
     return (
         <Sheet visible={visible} onClose={close} title={title}>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            {irMoveCandidates.length > 0 && onMoveToIR ? (
+                <View style={styles.list}>
+                    <Text style={styles.subtitle}>Move an Out player of yours to IR</Text>
+                    {irMoveCandidates.map(rp => (
+                        <View key={rp.id} style={styles.row}>
+                            <Text style={[textStyles.rowTitle, styles.info]} numberOfLines={1}>{rp.players.display_name}</Text>
+                            <Button title="Move to IR" size="sm" onPress={() => onMoveToIR(rp)}
+                                disabled={dropping !== null} loading={dropping === rp.id}
+                                accessibilityLabel={`Move ${rp.players.display_name} to IR and add player`} />
+                        </View>
+                    ))}
+                </View>
+            ) : null}
             <View style={styles.list}>
                 {roster.map((rp) => {
                     const p = rp.players

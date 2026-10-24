@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addLimitBlockedReason, addLimitSummary, reportPickupError, type AddLimitSource } from '@/lib/pickup'
+import { addLimitBlockedReason, addLimitSummary, reportPickupError, canAddToIR, type AddLimitSource } from '@/lib/pickup'
 import { RequestError } from '@/lib/shared/errors'
 
 const alerts = vi.hoisted(() => ({ show: vi.fn(), confirm: vi.fn() }))
@@ -86,4 +86,16 @@ describe('reportPickupError', () => {
         reportPickupError(new Error('offline'))
         expect(alerts.show).toHaveBeenCalledWith('Error', 'offline')
     })
+})
+
+it('offers IR only for Out or IR designations with room', () => {
+    for (const injury of ['Out', 'IR', 'IR-LTI']) expect(canAddToIR(injury, [], 1)).toBe(true)
+    for (const injury of [null, 'DTD', 'GTD', 'Healthy']) expect(canAddToIR(injury, [], 1)).toBe(false)
+    expect(canAddToIR('Out', [], 0)).toBe(false)
+})
+it.each([['PA006', 'Player cannot enter IR'], ['PA007', 'IR is full']])('explains %s and refreshes stale capacity', (code, title) => {
+    const refresh = vi.fn()
+    reportPickupError({ code, message: 'Server explanation' }, { refresh })
+    expect(alerts.show).toHaveBeenCalledWith(title, 'Server explanation')
+    expect(refresh).toHaveBeenCalledOnce()
 })

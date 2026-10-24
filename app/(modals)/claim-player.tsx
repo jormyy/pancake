@@ -7,6 +7,7 @@ import {
     Pressable,
     StyleSheet,
     TextInput,
+    Switch,
     ScrollView,
     Platform,
     useWindowDimensions,
@@ -25,7 +26,7 @@ import { getPlayer } from '@/lib/players'
 import { claimProcessDateLabel, claimProcessTimeLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
 import { loadAddLimitState } from '@/lib/roster-add-flow'
-import { addLimitSummary, reportPickupError } from '@/lib/pickup'
+import { addLimitSummary, canAddToIR, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
@@ -53,11 +54,12 @@ export default function ClaimPlayerScreen() {
     const cacheKey = `pancake:claim-player:v1:${ownerKey}`
     const [initialCache] = useState(() => readPersistentCache<ClaimSnapshot>(cacheKey))
     const [loadError, setLoadError] = useState<string | null>(null)
-    const [player, setPlayer] = useState<any>(initialCache?.player ?? null)
+    const [player, setPlayer] = useState<ClaimSnapshot['player'] | null>(initialCache?.player ?? null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>(initialCache?.roster ?? [])
     const [priority, setPriority] = useState<number | null>(initialCache?.priority ?? null)
     const [clearsAt, setClearsAt] = useState<string | null>(initialCache?.clearsAt ?? null)
     const [transactionState, setTransactionState] = useState<MemberTransactionState | null>(initialCache?.transactionState ?? null)
+    const [irChoice, setIRChoice] = useState<{ owner: string; value: boolean } | null>(null)
     const [bidInput, setBidInput] = useState('0')
     const [loading, setLoading] = useState(!initialCache)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
@@ -155,7 +157,10 @@ export default function ClaimPlayerScreen() {
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
     const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
-    const needsDrop = rosterFull
+    const irEligible = currentLeague?.status !== 'offseason' && player?.injury_status != null
+        && canAddToIR(player.injury_status, myRoster, currentLeague?.ir_slots ?? 2)
+    const toIr = irEligible && (irChoice?.owner === ownerKey ? irChoice.value : true)
+    const needsDrop = rosterFull && !toIr
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
@@ -189,8 +194,8 @@ export default function ClaimPlayerScreen() {
                 current.id,
                 currentLeague.id,
                 playerId,
-                selectedDrop?.players.id,
-                { bidAmount },
+                needsDrop ? selectedDrop?.players.id : undefined,
+                { bidAmount, ...(irEligible ? { toIr } : {}) },
             )
             if (ownerRef.current !== owner) return
             showSuccess(
@@ -267,6 +272,19 @@ export default function ClaimPlayerScreen() {
         )
     }
 
+    function renderIRChoice() {
+        return irEligible ? (
+            <View style={styles.irChoice}>
+                <View style={styles.claimPlayerCopy}>
+                    <Text style={styles.bidLabel}>Place on IR</Text>
+                    <Text style={styles.claimMeta}>If IR is unavailable when awarded, active roster space is required.</Text>
+                </View>
+                <Switch value={toIr} onValueChange={value => setIRChoice({ owner: ownerKey, value })}
+                    accessibilityLabel="Place on IR" disabled={submitting} />
+            </View>
+        ) : null
+    }
+
     function renderClaimSummary() {
         return (
             <View style={styles.claimCard}>
@@ -287,6 +305,7 @@ export default function ClaimPlayerScreen() {
                     </View>
                 </View>
                 <Text style={styles.claimFacts}>{claimFacts}</Text>
+                {renderIRChoice()}
                 {faab ? (
                     <View style={styles.bidRow}>
                         <Text style={styles.bidLabel}>FAAB bid</Text>
@@ -312,7 +331,7 @@ export default function ClaimPlayerScreen() {
         if (!needsDrop) {
             return (
                 <View style={styles.spaceNote}>
-                    <Text style={styles.spaceNoteText}>You have roster space. No drop required.</Text>
+                    <Text style={styles.spaceNoteText}>{toIr ? 'Place on IR. No drop required.' : 'You have roster space. No drop required.'}</Text>
                 </View>
             )
         }
@@ -468,7 +487,7 @@ export default function ClaimPlayerScreen() {
                             keyboardShouldPersistTaps="handled"
                         >
                             {renderAddLimitNotice()}
-                            {!compactDropMode ? renderClaimSummary() : null}
+                            {!compactDropMode ? renderClaimSummary() : renderIRChoice()}
                             {renderDropSection()}
                         </ScrollView>
                         {bidFooter}
@@ -534,6 +553,7 @@ const styles = StyleSheet.create({
     claimName: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary },
     claimMeta: { ...textStyles.meta },
     claimFacts: { ...textStyles.meta, color: colors.textSecondary },
+    irChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidLabel: { ...textStyles.rowTitle, flex: 1 },
     bidField: {

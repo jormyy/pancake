@@ -23,7 +23,7 @@ vi.mock('@/hooks/use-player-screen-data', () => ({ usePlayerScreenData: () => st
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/hooks/use-quick-add', () => ({ useQuickAdd: (options: { onChanged: () => Promise<void> }) => {
     state.refresh = options.onChanged
-    return { adding: null, addBlockedReason: null, handleAdd: state.add, dropPickerPlayer: null, irModal: null }
+    return { adding: null, addBlockedReason: null, handleAdd: state.add, dropPickerPlayer: null, irModal: null, irMoveCandidates: [] }
 } }))
 vi.mock('@/lib/roster-add-flow', () => ({ loadPickupState: state.roster }))
 vi.mock('@/lib/roster', () => ({ dropPlayer: vi.fn() }))
@@ -85,7 +85,7 @@ it('never removes, relabels or disables Add during status refresh, failure, or u
     await act(async () => { reject(new Error('unavailable')); await refresh })
     expect(button().props.disabled).toBe(false)
     await act(async () => button().props.onPress())
-    expect(state.add).toHaveBeenCalledWith({ id: 'player', display_name: 'Player A' })
+    expect(state.add).toHaveBeenCalledWith({ id: 'player', display_name: 'Player A', injury_status: null })
 })
 
 it('reads known roster status only for roster signals and exposes retry after a cold failure', async () => {
@@ -131,4 +131,17 @@ it.each([
     state.roster.mockReturnValue(new Promise(() => {}))
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     expect(screen!.root.findByType(PlayerHeader).props.player.display_name).toBe('Player')
+})
+
+it('keeps Add to IR visible during roster refresh and passes the injury designation', async () => {
+    state.data.player = { ...headerPlayer({ injury_status: 'Out' }), id: 'player' }
+    state.roster.mockResolvedValue({ status: { status: 'free_agent' }, transactionState: memberTransactionState(), claimPending: false, roster: [] })
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    const action = () => screen!.root.findByProps({ accessibilityLabel: 'Add to IR Player A' })
+    expect(action().props.disabled).toBe(false)
+    state.roster.mockReturnValueOnce(new Promise(() => {}))
+    await act(async () => { void state.refresh!() })
+    expect(action().props.disabled).toBe(false)
+    await act(async () => action().props.onPress())
+    expect(state.add).toHaveBeenCalledWith({ id: 'player', display_name: 'Player A', injury_status: 'Out' })
 })

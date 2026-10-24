@@ -4985,6 +4985,21 @@ export type Database = {
           trade_id: string
         }[]
       }
+      get_visible_player_totals: {
+        Args: {
+          p_league_id: string
+          p_player_ids: string[]
+          p_season_year?: number
+        }
+        Returns: {
+          game_status: string
+          game_time: string
+          player_id: string
+          rounded_fantasy_average: number
+          started_at: string
+          totals: Json
+        }[]
+      }
       invoke_close_expired_nominations_if_due: {
         Args: never
         Returns: undefined

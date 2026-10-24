@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useQuickAdd } from '@/hooks/use-quick-add'
+import { rosterPlayer as makeRosterPlayer } from '../helpers/fixtures'
 import type { RosterPlayer } from '@/lib/roster'
 
 const mocks = vi.hoisted(() => ({ gate: vi.fn(), add: vi.fn(), alert: vi.fn(), success: vi.fn(), dropAndAdd: vi.fn() }))
@@ -149,7 +150,7 @@ describe('pickup pending admission', () => {
 })
 
 it.each(['gate', 'write'] as const)('admits one drop-and-add while its %s is pending', async (phase) => {
-    const rosterPlayer = { id: 'roster-a' } as RosterPlayer
+    const rosterPlayer = makeRosterPlayer()
     mocks.add.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [rosterPlayer] })
     await act(async () => { await latest.handleAdd(player) })
     const gate = deferred<typeof clearGate>()
@@ -172,7 +173,7 @@ it.each(['gate', 'write'] as const)('admits one drop-and-add while its %s is pen
 })
 
 it.each(['gate', 'write'] as const)('allows drop-and-add retry after %s failure', async (phase) => {
-    const rosterPlayer = { id: 'roster-a' } as RosterPlayer
+    const rosterPlayer = makeRosterPlayer()
     mocks.add.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [rosterPlayer] })
     await act(async () => { await latest.handleAdd(player) })
     if (phase === 'gate') mocks.gate.mockRejectedValueOnce(new Error('Gate failed'))
@@ -187,7 +188,7 @@ it.each(['gate', 'write'] as const)('allows drop-and-add retry after %s failure'
 })
 
 it('keeps a late drop gate from writing into another owner lifetime', async () => {
-    const rosterPlayer = { id: 'roster-a' } as RosterPlayer
+    const rosterPlayer = makeRosterPlayer()
     mocks.add.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [rosterPlayer] })
     await act(async () => { await latest.handleAdd(player) })
     const gate = deferred<typeof clearGate>()
