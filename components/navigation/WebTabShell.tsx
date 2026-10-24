@@ -14,6 +14,7 @@ import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
 import { brand, breakpoints, colors, spacing, themeVariablesCss } from '@/constants/tokens'
+import { SHELL_SECTION_CHILDREN } from '@/constants/navigation'
 import { Sheet } from '@/components/ui/Sheet'
 import { styles } from './webTabShellStyles'
 
@@ -90,15 +91,8 @@ function tradesNavLabel(label: string, pendingCount: number) {
 }
 
 // Screens opened on top of a section keep that section lit in the navigation.
-const SECTION_CHILDREN: Partial<Record<RouteHref, string[]>> = {
-    '/roster': ['/lineup'],
-    '/players': ['/player/', '/claim-player'],
-    '/trades': ['/propose-trade'],
-    '/league': ['/team-roster'],
-}
-
 function isRouteActive(pathname: string, href: RouteHref) {
-    if ((SECTION_CHILDREN[href] ?? []).some((prefix) => pathname.startsWith(prefix))) return true
+    if ((SHELL_SECTION_CHILDREN[href] ?? []).some((prefix) => pathname.startsWith(prefix))) return true
     if (href === '/') return pathname === '/' || pathname === '' || pathname === '/index' || pathname === '/(tabs)' || pathname === '/(tabs)/index'
     return pathname.startsWith(href)
 }

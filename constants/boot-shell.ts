@@ -11,6 +11,7 @@ import {
     themeVariablesCss,
 } from './tokens'
 import { inspectSession } from '@/lib/auth-session'
+import { SHELL_SECTION_CHILDREN } from './navigation'
 
 // The instant boot shell.
 //
@@ -37,8 +38,8 @@ export const BOOT_SHELL_MARK = 'pancake-boot-shell'
 export const APP_MOUNTED_MARK = 'pancake-app-mounted'
 
 const SIDEBAR_WIDTH = layout.sidebarWidth
-const MOBILE_TOPBAR_HEIGHT = 56
-const MOBILE_BOTTOMBAR_HEIGHT = 64
+const MOBILE_TOPBAR_HEIGHT = layout.shell.topbarHeight
+const MOBILE_BOTTOMBAR_HEIGHT = layout.shell.bottomBarHeight
 const SANS = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 type BootNavItem = { label: string; mobileLabel: string; href: string; icon: string }
@@ -310,9 +311,7 @@ export const BOOT_SHELL_SCRIPT = `
     leagueName = (current.leagues && current.leagues.name) || 'Pancake League';
     teamName = current.team_name || 'Team';
     setText('league', leagueName);
-    // Mirrors compactHeaderLabel: the mobile bar shows at most two words.
-    var words = leagueName.trim().split(/\\s+/).filter(Boolean);
-    setText('league-compact', words.length > 2 ? words.slice(0, 2).join(' ') : leagueName);
+    setText('league-compact', leagueName);
     setText('team', teamName);
     setText('profile', teamName);
     setText('crest', (teamName.trim()[0] || 'P').toUpperCase());
@@ -325,6 +324,10 @@ export const BOOT_SHELL_SCRIPT = `
 
   // Mark the active route the same way WebTabShell's isRouteActive does.
   var active = function (href) {
+    var children = ${JSON.stringify(SHELL_SECTION_CHILDREN)}[href] || [];
+    for (var i = 0; i < children.length; i++) {
+      if (path.indexOf(children[i]) === 0) return true;
+    }
     if (href === '/') {
       return path === '/' || path === '' || path === '/index' ||
         path === '/(tabs)' || path === '/(tabs)/index';

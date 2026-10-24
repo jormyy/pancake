@@ -1,0 +1,483 @@
+[
+  {
+    "name": "shell-light-tabs",
+    "group": "shell-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "tap": "Roster"
+      }
+    ],
+    "steps": [
+      {
+        "name": "matchup",
+        "action": {
+          "tap": "Matchup"
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      },
+      {
+        "name": "players",
+        "action": {
+          "tap": "Players"
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      },
+      {
+        "name": "trades",
+        "action": {
+          "tapPrefix": "Trades"
+        },
+        "expected": {
+          "route": "/trades",
+          "text": "{{otherTeam}}"
+        }
+      },
+      {
+        "name": "league",
+        "action": {
+          "tap": "League"
+        },
+        "expected": {
+          "route": "/league",
+          "text": "E2E Team 1"
+        }
+      },
+      {
+        "name": "roster",
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-menu",
+    "group": "shell-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open menu"
+        },
+        "expected": {
+          "selector": "[role='dialog'] [aria-label='Profile & settings']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-leagues",
+    "group": "shell-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Switch league"
+        },
+        "expected": {
+          "selector": "[aria-label^='Switch to ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-modal",
+    "group": "shell-light",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "tap": "Change password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "text": "Current password"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-return-matchup",
+    "group": "shell-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-return-roster",
+    "group": "shell-light",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-return-players",
+    "group": "shell-light",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-return-trades",
+    "group": "shell-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/trades",
+          "text": "{{otherTeam}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-return-league",
+    "group": "shell-light",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/league",
+          "text": "E2E Team 1"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-return-profile",
+    "group": "shell-light",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/profile",
+          "text": "{{displayName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-offline",
+    "group": "shell-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "offline": true
+        },
+        "expected": {
+          "text": "Offline \u00b7 League access is unverified."
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-tabs",
+    "group": "shell-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "tap": "Roster"
+      }
+    ],
+    "steps": [
+      {
+        "name": "matchup",
+        "action": {
+          "tap": "Matchup"
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      },
+      {
+        "name": "players",
+        "action": {
+          "tap": "Players"
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      },
+      {
+        "name": "trades",
+        "action": {
+          "tapPrefix": "Trades"
+        },
+        "expected": {
+          "route": "/trades",
+          "text": "{{otherTeam}}"
+        }
+      },
+      {
+        "name": "league",
+        "action": {
+          "tap": "League"
+        },
+        "expected": {
+          "route": "/league",
+          "text": "E2E Team 1"
+        }
+      },
+      {
+        "name": "roster",
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-menu",
+    "group": "shell-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open menu"
+        },
+        "expected": {
+          "selector": "[role='dialog'] [aria-label='Profile & settings']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-leagues",
+    "group": "shell-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Switch league"
+        },
+        "expected": {
+          "selector": "[aria-label^='Switch to ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-modal",
+    "group": "shell-dark",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "tap": "Change password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "text": "Current password"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-return-matchup",
+    "group": "shell-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-return-roster",
+    "group": "shell-dark",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-return-players",
+    "group": "shell-dark",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-return-trades",
+    "group": "shell-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/trades",
+          "text": "{{otherTeam}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-return-league",
+    "group": "shell-dark",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/league",
+          "text": "E2E Team 1"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-return-profile",
+    "group": "shell-dark",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/profile",
+          "text": "{{displayName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-offline",
+    "group": "shell-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "offline": true
+        },
+        "expected": {
+          "text": "Offline \u00b7 League access is unverified."
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-auth-sign-out",
+    "group": "shell-auth",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Sign out"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Sign out"
+        },
+        "expected": {
+          "route": "/sign-in",
+          "selector": "input[aria-label='Email']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-auth-sign-up",
+    "group": "shell-auth",
+    "from": "/sign-in",
+    "steps": [
+      {
+        "action": {
+          "tap": "New to Pancake? Create an account"
+        },
+        "expected": {
+          "route": "/sign-up",
+          "selector": "input[aria-label='Display name']"
+        }
+      }
+    ]
+  }
+]

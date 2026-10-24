@@ -1,8 +1,8 @@
 import { StyleSheet } from 'react-native'
-import { brand, colors, fontFamily, fontSize, fontWeight, layout, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
+import { brand, colors, controlSize, fontFamily, fontSize, fontWeight, layout, motion, radii, shadows, spacing, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
 
-const MOBILE_TOPBAR_HEIGHT = 56
-const MOBILE_BOTTOMBAR_HEIGHT = 64
+const MOBILE_TOPBAR_HEIGHT = layout.shell.topbarHeight
+const MOBILE_BOTTOMBAR_HEIGHT = layout.shell.bottomBarHeight
 
 export const styles = StyleSheet.create({
     root: {
@@ -19,7 +19,7 @@ export const styles = StyleSheet.create({
     },
     flex1: { flex: 1, minWidth: 0 },
     pressed: {
-        opacity: 0.76,
+        opacity: motion.pressedOpacity,
     },
 
     sidebar: {
@@ -60,8 +60,8 @@ export const styles = StyleSheet.create({
         // 44px box matches the league switcher and menu button so the three
         // header controls share one vertical center line; the mark itself
         // renders 34px inside via resizeMode="contain".
-        width: 34,
-        height: 44,
+        width: layout.shell.crestSize,
+        height: controlSize.minTouch,
     },
     brandTitle: {
         fontSize: 21,
@@ -77,7 +77,7 @@ export const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     leagueSwitch: {
-        height: 68,
+        height: layout.shell.leagueHeight,
         flexShrink: 0,
         width: '100%',
         flexDirection: 'row',
@@ -94,8 +94,8 @@ export const styles = StyleSheet.create({
         backgroundColor: brand.overlayHover,
     },
     leagueCrest: {
-        width: 34,
-        height: 34,
+        width: layout.shell.crestSize,
+        height: layout.shell.crestSize,
         borderRadius: radii.lg,
         backgroundColor: colors.primary,
         alignItems: 'center',
@@ -128,8 +128,8 @@ export const styles = StyleSheet.create({
         marginBottom: 0,
     },
     leagueSwitchLight: {
-        height: 44,
-        minHeight: 44,
+        height: controlSize.minTouch,
+        minHeight: controlSize.minTouch,
         paddingVertical: spacing.xs,
         paddingHorizontal: spacing.md,
         gap: spacing.md,
@@ -206,8 +206,8 @@ export const styles = StyleSheet.create({
     sideNavItem: {
         display: 'flex',
         width: '100%',
-        height: 44,
-        minHeight: 44,
+        height: controlSize.minTouch,
+        minHeight: controlSize.minTouch,
         flexShrink: 0,
         flexDirection: 'row',
         alignItems: 'center',
@@ -344,8 +344,8 @@ export const styles = StyleSheet.create({
         minWidth: 0,
     },
     mobileMenuButton: {
-        width: 44,
-        height: 44,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         borderRadius: radii.lg,
         alignItems: 'center',
         justifyContent: 'center',
@@ -370,8 +370,8 @@ export const styles = StyleSheet.create({
     bottomNavItem: {
         display: 'flex',
         flex: 1,
-        minHeight: 44,
-        height: 54,
+        minHeight: controlSize.minTouch,
+        height: layout.shell.tabHeight,
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',

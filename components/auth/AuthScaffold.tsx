@@ -11,21 +11,17 @@ import {
 import { AuthBrandMark } from '@/components/auth/AuthBrandMark'
 import { authWebAttributes } from '@/components/auth/authScaffoldCss'
 import { AuthHero, type AuthHeroContent } from '@/components/auth/AuthHero'
-import { breakpoints, colors, fontFamily, fontSize, fontWeight, radii, shadows, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
+import { breakpoints, colors, layout, radii, shadows, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
 
 type AuthScaffoldProps = {
-    eyebrow: string
     title: string
-    subtitle?: string
     hero: AuthHeroContent
     children: ReactNode
     footer: ReactNode
 }
 
 export function AuthScaffold({
-    eyebrow,
     title,
-    subtitle,
     hero,
     children,
     footer,
@@ -49,12 +45,9 @@ export function AuthScaffold({
                         keyboardShouldPersistTaps="handled"
                     >
                         <View style={[styles.formCard, compact && styles.formCardCompact, web && styles.formCardWeb]} {...authWebAttributes('authCard')}>
-                            <MobileBrand />
-
-                            <View style={styles.titleBlock}>
-                                <Text style={styles.eyebrow}>{eyebrow}</Text>
-                                <Text style={[styles.title, compact && styles.titleCompact]} {...authWebAttributes('authTitle')} role="heading" aria-level={1}>{title}</Text>
-                                {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+                            <View style={styles.heading}>
+                                <MobileBrand />
+                                <Text style={styles.title} role="heading" aria-level={1}>{title}</Text>
                             </View>
 
                             {children}
@@ -107,7 +100,7 @@ const styles = StyleSheet.create({
     },
     formCard: {
         width: '100%',
-        maxWidth: 448,
+        maxWidth: layout.auth.maxWidth,
         padding: spacing['4xl'],
         borderRadius: radii['2xl'],
         borderWidth: 1,
@@ -115,7 +108,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
     },
     formCardCompact: {
-        padding: spacing['2xl'],
+        padding: spacing.xl,
     },
     formCardWeb: {
         boxShadow: shadows.lg,
@@ -124,32 +117,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,
-        marginBottom: spacing.xl,
     },
-    titleBlock: { marginBottom: spacing['2xl'] },
-    eyebrow: {
-        ...textStyles.sectionLabel,
-        color: colors.primaryDark,
-        marginBottom: spacing.sm,
-    },
-    title: {
-        color: colors.textPrimary,
-        fontSize: fontSize['4xl'],
-        lineHeight: 38,
-        fontFamily: fontFamily.display,
-        fontWeight: fontWeight.black,
-    },
-    titleCompact: {
-        fontSize: fontSize['3xl'],
-        lineHeight: 32,
-    },
-    subtitle: {
-        ...textStyles.body,
-        color: colors.textMuted,
-        marginTop: spacing.md,
-    },
+    heading: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.xl },
+    title: { ...textStyles.pageTitle, flex: 1 },
     footer: {
-        marginTop: spacing.xl,
+        marginTop: spacing.md,
         alignItems: 'center',
     },
 })
