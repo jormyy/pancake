@@ -11,7 +11,6 @@ const groups = {
     playoffActions: [action('generate-playoffs')],
     annualCycleActions: [action('advance-season')],
     scheduleActions: [action('generate-schedule')],
-    utilityActions: [action('sync-stats')],
 }
 
 describe('commissioner lifecycle policy', () => {

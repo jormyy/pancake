@@ -1,0 +1,330 @@
+[
+  {
+    "name": "league-auction-bidder-light",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+        },
+        "expected": {
+          "selector": "[aria-label='Bid amount']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-rookie-spectator-light",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+        },
+        "expected": {
+          "selector": "[aria-label='E2E Player001']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-commissioner-denied-light",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/commissioner-settings"
+        },
+        "expected": {
+          "text": "Commissioner access required"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-member-settings-light",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-auction-bidder-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+        },
+        "expected": {
+          "selector": "[aria-label='Bid amount']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-rookie-spectator-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+        },
+        "expected": {
+          "selector": "[aria-label='E2E Player001']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-commissioner-denied-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/commissioner-settings"
+        },
+        "expected": {
+          "text": "Commissioner access required"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-member-settings-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-covered-form-join-light",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/join-league"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-covered-form-password-light",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/change-password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-covered-form-join-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/join-league"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-covered-form-password-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/change-password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-activity-avatar-light",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-activity-avatar-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+        }
+      }
+    ]
+  }
+]

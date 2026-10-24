@@ -420,7 +420,8 @@ export default function RookieDraftRoomScreen() {
                                 renderItem={({ item }) => (
                                     <ProspectRow
                                         player={item}
-                                        isDone={isDone || isPending || pickTimerExpired || (isPaused && !canCommissionerPick)}
+                                        canPick={!isDone && !isPending && !pickTimerExpired && (!isPaused || canCommissionerPick)
+                                            && (isMyTurn || canCommissionerPick)}
                                         picking={picking || !actionsReady}
                                         onPick={canCommissionerPick ? handleCommissionerPick : handlePick}
                                         actionLabel={canCommissionerPick ? 'Commish Pick' : 'Pick'}
@@ -450,13 +451,13 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 function ProspectRow({
     player,
-    isDone,
+    canPick,
     picking,
     onPick,
     actionLabel = 'Pick',
 }: {
     player: RookieProspect
-    isDone: boolean
+    canPick: boolean
     picking: boolean
     onPick: (player: RookieProspect) => void
     actionLabel?: string
@@ -464,11 +465,11 @@ function ProspectRow({
     return (
         <MotionPressable
             style={styles.resultRow}
-            onPress={isDone || picking ? undefined : () => onPick(player)}
-            disabled={isDone || picking}
+            onPress={!canPick || picking ? undefined : () => onPick(player)}
+            disabled={!canPick || picking}
             pressedScale={0.985}
-            accessibilityRole="button"
-            accessibilityLabel={`${actionLabel} ${player.display_name}`}
+            accessibilityRole={canPick ? 'button' : 'text'}
+            accessibilityLabel={canPick ? `${actionLabel} ${player.display_name}` : player.display_name}
         >
             <Avatar
                 name={player.display_name}
@@ -488,7 +489,7 @@ function ProspectRow({
                     {player.nba_draft_number != null ? `#${player.nba_draft_number} · ` : ''}{player.nba_team ?? 'FA'}
                 </Text>
             </View>
-            {!isDone && (
+            {canPick && (
                 <Text style={styles.pickBtn}>{actionLabel}</Text>
             )}
         </MotionPressable>
