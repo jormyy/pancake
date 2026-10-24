@@ -123,3 +123,32 @@ export async function seedRosterPlanTrade(admin, { leagueId, seasonId, members, 
   }))
   return { id, manager, rookiePlayerId, dropPlayerId: players[manager * 22 + 18].id }
 }
+
+export async function withAuctionNomination(admin, { draftId, memberId, playerId }, action) {
+  const db = async operation => {
+    const { data, error } = await operation
+    if (error) throw new Error(`iOS auction fixture: ${error.message}`)
+    return data
+  }
+  const nominations = await db(admin.from('nominations').select('id,status,countdown_expires_at,nomination_order').eq('draft_id', draftId))
+  assert.ok(!nominations.some(row => row.status === 'open'), 'Auction fixture requires an idle nomination slot')
+  const nomination = await db(admin.from('nominations').insert({
+    draft_id: draftId, nominating_member_id: memberId, player_id: playerId,
+    nomination_order: Math.max(0, ...nominations.map(row => row.nomination_order)) + 1,
+    current_bid_amount: 1, current_bidder_id: memberId,
+    countdown_expires_at: new Date(Date.now() + 3600000).toISOString(),
+  }).select('id').single())
+  try { return await action() }
+  finally { await db(admin.from('nominations').delete().eq('id', nomination.id)) }
+}
+
+export async function withScenarioSetup(stack, setup, action) {
+  if (!setup) return action()
+  const draftId = setup.auctionNomination
+  assert.ok(stack.fixture.drafts.some(draft => draft.id === draftId && draft.draft_type === 'auction'), 'Unknown auction fixture')
+  const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
+  const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  return withAuctionNomination(admin, {
+    draftId, memberId: stack.fixture.members[0].id, playerId: stack.fixture.players[220].id,
+  }, action)
+}

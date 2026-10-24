@@ -9,6 +9,7 @@ import { args, digest, freePort, home, lock, pause, repo, run, stopChild } from 
 import { installPwa, simulator, startDriver } from './driver.mjs'
 import { failures, videoDifferences, writeReport } from './report.mjs'
 import { serve } from './server.mjs'
+import { withScenarioSetup } from './seed.mjs'
 import { startStack } from './stack.mjs'
 
 export function resolveOptions(values) {
@@ -44,6 +45,47 @@ async function waitFor(check, timeout = 20000) {
 export function requireContent(step) {
   const reasons = failures(step).filter(reason => reason !== 'The screen did not settle within the observation window')
   assert.equal(reasons.length, 0, reasons.join('; '))
+}
+
+export function requireRosterRefresh(metrics, startedAt) {
+  assert.ok(metrics.requests?.some(request => request.time >= startedAt
+    && ['fetch', 'xhr'].includes(request.kind)
+    && new URL(request.url).pathname === '/rest/v1/roster_players'), 'The pull gesture did not refresh the roster')
+}
+
+export async function clickThroughPasswordPrompt(driver, label) {
+  try { return await driver.click(label) }
+  catch (error) {
+    const source = await driver.request('GET', '/source')
+    if (!source.includes('name="Save Password?"')) throw error
+    await driver.click('Never for This Website')
+    return driver.click(label)
+  }
+}
+
+export async function pullToRefresh(driver) {
+  await driver.native()
+  const { width, height } = await driver.request('GET', '/window/rect')
+  const x = Math.round(width - 18), y = Math.round(height * 0.22)
+  try {
+    await driver.request('POST', '/actions', { actions: [{ type: 'pointer', id: 'pull', parameters: { pointerType: 'touch' }, actions: [
+      { type: 'pointerMove', duration: 0, x, y },
+      { type: 'pointerDown', button: 0 },
+      { type: 'pointerMove', duration: 350, x, y: Math.round(height * 0.78) },
+      { type: 'pointerUp', button: 0 },
+    ] }] })
+  } finally { await driver.request('DELETE', '/actions') }
+}
+
+export async function waitForNativeTransition(driver) {
+  await driver.native()
+  const settings = await driver.request('GET', '/appium/settings')
+  try {
+    await driver.request('POST', '/appium/settings', { settings: { waitForIdleTimeout: 5 } })
+    await driver.request('GET', '/source')
+  } finally {
+    await driver.request('POST', '/appium/settings', { settings: { waitForIdleTimeout: settings.waitForIdleTimeout } })
+  }
 }
 
 async function runSuite(options) {
@@ -82,7 +124,7 @@ async function runSuite(options) {
       await driver.native()
       if (prefix && !actual) await driver.click(`label BEGINSWITH ${JSON.stringify(label)} AND visible == true AND enabled == true`, '-ios predicate string')
       else {
-        try { await driver.click(actual ?? label) } catch (error) {
+        try { await clickThroughPasswordPrompt(driver, actual ?? label) } catch (error) {
           if (web) throw error
           await driver.mobile('scroll', { predicateString: `label == ${JSON.stringify(label)}`, toVisible: true })
           await driver.click(label)
@@ -140,9 +182,10 @@ async function runSuite(options) {
       if (spec.select) { await tap(spec.select); await tap(spec.option); await driver.optional('Done'); return }
       if (spec.offline) { server.network(true); return }
       if (spec.refresh) {
-        await driver.native()
-        await driver.mobile('dragFromToForDuration', { duration: 0.6, fromX: 200, fromY: 180, toX: 200, toY: 700 })
-        return
+        await withWeb(() => driver.execute('getSelection()?.removeAllRanges(); for (const element of document.querySelectorAll("*")) if (element.scrollTop > 0) element.scrollTop = 0; window.scrollTo(0, 0)'))
+        const refreshStartedAt = Date.now()
+        await pullToRefresh(driver)
+        return { refreshStartedAt }
       }
       if (spec.background) {
         await driver.native()
@@ -154,6 +197,7 @@ async function runSuite(options) {
           await driver.mobile('swipe', { direction: 'left' })
         }
         assert.ok(launched, 'Could not return through the Home Screen icon')
+        await waitForNativeTransition(driver)
         return
       }
       throw new Error('Unknown scenario action')
@@ -162,25 +206,31 @@ async function runSuite(options) {
       if (interrupted) throw new Error('Run interrupted')
       process.stdout.write(`Checking ${scenario.name}.\n`)
       try {
-        server.disarm()
-        await prepare(scenario.from)
-        for (const spec of scenario.prepare ?? []) { await action(spec); await pause(600) }
-        for (const [stepIndex, step] of scenario.steps.entries()) {
-          const id = `${scenario.name}${stepIndex ? `-${step.name ?? stepIndex + 1}` : ''}`
-          const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
-          try {
-            server.arm({ id, expected: step.expected, immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline || step.action.refresh) })
-            await server.armed(id)
-            await action(step.action)
-            result.metrics = await server.result(id)
-          } catch (error) { result.error = error.message }
-          await driver.native()
-          await driver.screenshot(path.join(options.output, `${id}.png`))
-          await driver.source(path.join(options.output, `${id}.xml`))
-          report.steps.push(result)
+        await withScenarioSetup(stack, scenario.setup, async () => {
           server.disarm()
-          await writeReport(options.output, report)
-        }
+          await prepare(scenario.from)
+          for (const spec of scenario.prepare ?? []) { await action(spec); await pause(600) }
+          for (const [stepIndex, step] of scenario.steps.entries()) {
+            const id = `${scenario.name}${stepIndex ? `-${step.name ?? stepIndex + 1}` : ''}`
+            const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
+            try {
+              server.arm({ id, expected: step.expected, quietMs: step.quietMs, immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline) })
+              await server.armed(id)
+              const evidence = await action(step.action)
+              result.metrics = await server.result(id)
+              if (step.action.refresh) {
+                assert.ok(evidence, 'Missing refresh gesture evidence')
+                requireRosterRefresh(result.metrics, evidence.refreshStartedAt)
+              }
+            } catch (error) { result.error = error.message }
+            await driver.native()
+            await driver.screenshot(path.join(options.output, `${id}.png`))
+            await driver.source(path.join(options.output, `${id}.xml`))
+            report.steps.push(result)
+            server.disarm()
+            await writeReport(options.output, report)
+          }
+        })
       } catch (error) {
         report.steps.push({ id: scenario.name, error: error.message })
         await driver.native().catch(() => {})
