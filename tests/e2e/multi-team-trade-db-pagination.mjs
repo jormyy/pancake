@@ -27,6 +27,26 @@ export const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
   )
   if (historyParticipantError) throw new Error(`pagination participant insert: ${historyParticipantError.message}`)
 
+  const { data: outgoingTrades, error: outgoingError } = await fixture.admin.from('trades').insert(
+    Array.from({ length: 80 }, (_, index) => ({
+      league_id: fixture.league.id,
+      league_season_id: fixture.currentSeason.id,
+      proposer_member_id: fixture.observer.id,
+      recipient_member_id: fixture.recipient.id,
+      status: 'pending',
+      proposed_at: new Date(Date.now() + index * 1000).toISOString(),
+      notes: `pagination outgoing ${index}`,
+    })),
+  ).select('id')
+  if (outgoingError) throw new Error(`pagination outgoing insert: ${outgoingError.message}`)
+  const { error: outgoingParticipantError } = await fixture.admin.from('trade_participants').insert(
+    outgoingTrades.flatMap((trade) => [
+      { trade_id: trade.id, member_id: fixture.observer.id, sort_order: 0, is_initiator: true, accepted_at: new Date().toISOString() },
+      { trade_id: trade.id, member_id: fixture.recipient.id, sort_order: 1, is_initiator: false, accepted_at: null },
+    ]),
+  )
+  if (outgoingParticipantError) throw new Error(`pagination outgoing participant insert: ${outgoingParticipantError.message}`)
+
   const { data: vetoTrade, error: vetoTradeError } = await fixture.admin.from('trades').insert({
     league_id: fixture.league.id,
     league_season_id: fixture.currentSeason.id,
@@ -71,12 +91,13 @@ export const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
   assert.equal(rows.length, 40)
   assert(rows.some((trade) => trade.id === vetoTrade.id), 'vetoable observer trade was displaced by personal history')
   const nextCursor = firstPage.refs.at(-1)?.cursor_token
-  assert(nextCursor, 'first trade page did not return a next cursor')
+  assert(nextCursor, 'first trade page did not return a cursor')
   const nextPage = await fetchPage(nextCursor)
   const nextRows = nextPage.rows
   assert.equal(nextRows.length, 40)
   assert.equal(nextRows.some((trade) => rows.some((firstPage) => firstPage.id === trade.id)), false)
-  assert([...rows, ...nextRows].some((trade) => trade.notes?.startsWith('pagination history ')))
+  assert.equal([...rows, ...nextRows].some((trade) => trade.notes?.startsWith('pagination history ')), false)
+  assert([...rows, ...nextRows].some((trade) => trade.notes?.startsWith('pagination outgoing ')))
 
   executeRecoverySql('ANALYZE public.trades; ANALYZE public.trade_participants;')
   const explain = queryRecoveryJson(`
@@ -85,7 +106,7 @@ export const assertVetoRowsSurviveMemberHistoryPagination = async (fixture) => {
       SELECT * FROM public.get_trade_page_refs('${fixture.observer.id}', '${fixture.league.id}', 40, NULL);
   `)
   const plan = explain[0].Plan
-  assert.equal(plan['Actual Rows'], 40)
+  assert.equal(plan['Actual Rows'], rows.length)
   assert(plan['Shared Hit Blocks'] < 2_500, `trade page read ${plan['Shared Hit Blocks']} shared blocks`)
   assert(plan['Actual Total Time'] < 100, `trade page took ${plan['Actual Total Time']} ms`)
   const { error: terminalError } = await fixture.admin

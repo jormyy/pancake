@@ -58,6 +58,10 @@ BEGIN
       RAISE EXCEPTION 'The source trade is required.' USING ERRCODE='22023';
     END IF;
     v_envelope := v_envelope||jsonb_build_object('tradeId',v_source);
+    IF NOT v_multi AND p_payload ? 'recipientMemberId' THEN
+      v_recipient := (p_payload->>'recipientMemberId')::uuid;
+      v_envelope := v_envelope||jsonb_build_object('recipientMemberId',v_recipient);
+    END IF;
   END IF;
   IF v_multi THEN
     v_participants := ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_payload->'participantMemberIds','[]'::jsonb)))::uuid[];
@@ -102,6 +106,12 @@ BEGIN
     v_result := private.replace_multi_team_trade_offer(v_source,p_member_id,p_user_id,split_part(p_action,'-',1),
       v_participants,v_items,v_notes,v_expiration);
   ELSE
+    IF p_payload ? 'recipientMemberId' AND v_recipient IS DISTINCT FROM (
+      SELECT CASE WHEN p_action='counter' THEN proposer_member_id ELSE recipient_member_id END
+        FROM public.trades WHERE id=v_source AND league_id=v_member_league
+    ) THEN
+      RAISE EXCEPTION 'The replacement must keep the original counterparty.' USING ERRCODE='22023';
+    END IF;
     v_result := private.replace_trade_offer(v_source,p_member_id,p_user_id,p_action,
       v_offer_players,v_request_players,v_offer_picks,v_request_picks,v_notes,v_expiration,v_offer_faab,v_request_faab);
   END IF;

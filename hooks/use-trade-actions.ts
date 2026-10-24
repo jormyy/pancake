@@ -7,11 +7,13 @@ export function useTradeActions({
     memberId,
     leagueId,
     onAction,
+    onRosterPlanSaved,
     enabled = true,
 }: {
     memberId: string
     leagueId: string
     onAction: () => void | Promise<unknown>
+    onRosterPlanSaved?: (tradeId: string, plan: TradeRosterPlan) => void
     enabled?: boolean
 }) {
     const enabledRef = useRef(enabled)
@@ -36,9 +38,9 @@ export function useTradeActions({
         }
     }, [identity])
 
-    const finishAction = useCallback(async (requestId: number, ownerIdentity: string) => {
+    const finishAction = useCallback(async (requestId: number, ownerIdentity: string, onComplete = onAction) => {
         if (!mountedRef.current || requestSequence.current !== requestId || identityRef.current !== ownerIdentity) return
-        await onAction()
+        await onComplete()
     }, [onAction])
 
     const accept = useCallback(async (trade: Trade) => {
@@ -66,6 +68,7 @@ export function useTradeActions({
         tradeId: string,
         operation: (tradeId: string, memberId: string) => Promise<void>,
         fallbackMessage: string,
+        onComplete?: () => void | Promise<unknown>,
     ) => {
         if (!enabledRef.current || !mountedRef.current || !memberId || identityRef.current !== identity || mutationInFlight.current) return
         mutationInFlight.current = true
@@ -74,7 +77,7 @@ export function useTradeActions({
         setBusyTradeId(tradeId)
         try {
             await operation(tradeId, memberId)
-            await finishAction(requestId, ownerIdentity)
+            await finishAction(requestId, ownerIdentity, onComplete)
         } catch (error) {
             if (mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) {
                 showAlert('Error', getErrorMessage(error) ?? fallbackMessage)
@@ -95,9 +98,13 @@ export function useTradeActions({
             'Could not save the taxi destination.')
     }, [memberId, runTerminalAction])
 
-    const setRosterPlan = useCallback((trade: Trade, plan: TradeRosterPlan) => runTerminalAction(trade.id,
-        (tradeId, receiverId) => setTradeRosterPlan(tradeId, receiverId, plan),
-        'Could not save the roster plan.'), [runTerminalAction])
+    const setRosterPlan = useCallback((trade: Trade, plan: TradeRosterPlan) => {
+        let savedPlan = plan
+        return runTerminalAction(trade.id, async (tradeId, receiverId) => {
+            savedPlan = await setTradeRosterPlan(tradeId, receiverId, plan)
+        }, 'Could not save the roster plan.',
+        onRosterPlanSaved ? () => onRosterPlanSaved(trade.id, savedPlan) : undefined)
+    }, [onRosterPlanSaved, runTerminalAction])
 
     const reject = useCallback((tradeId: string) => {
         confirmAction('Reject Trade', 'Are you sure you want to reject this trade?',

@@ -105,10 +105,10 @@ describe('trade resource identity', () => {
         getTradeBlockItems.mockRejectedValueOnce(new Error('previous member failed'))
         getRoster.mockResolvedValue([])
         let latest!: ReturnType<typeof useTradeBlock>
-        const observations: { memberId: string; ready: boolean; listingsReady: boolean }[] = []
+        const observations: { memberId: string; ready: boolean }[] = []
         const Probe = ({ memberId }: { memberId: string }) => {
             latest = useTradeBlock(memberId, 'league')
-            observations.push({ memberId, ready: latest.displayReady, listingsReady: latest.listingsDisplayReady })
+            observations.push({ memberId, ready: latest.displayReady })
             return null
         }
         let renderer!: ReactTestRenderer
@@ -116,7 +116,7 @@ describe('trade resource identity', () => {
         await act(async () => { await latest.refresh() })
         expect(latest.displayReady).toBe(true)
         await act(async () => renderer.update(React.createElement(Probe, { memberId: 'member-b' })))
-        expect(observations.find((value) => value.memberId === 'member-b')).toEqual({ memberId: 'member-b', ready: false, listingsReady: false })
+        expect(observations.find((value) => value.memberId === 'member-b')).toEqual({ memberId: 'member-b', ready: false })
         await act(async () => renderer.unmount())
     })
 
@@ -234,7 +234,7 @@ describe('trade resource identity', () => {
         const blockItem = {
             id: 'block-a', memberId: 'member-a', teamName: 'A', note: null,
             updatedAt: '2026-07-09T10:00:00Z',
-            asset: { kind: 'faab', amount: 5 },
+            asset: { kind: 'pick', pickId: 'pick-a', seasonYear: 2027, round: 1, originalTeamName: 'A' },
         } satisfies TradeBlockItem
         getTradeBlockItems.mockResolvedValue([blockItem])
         getRoster.mockResolvedValue([])
@@ -258,7 +258,7 @@ describe('trade resource identity', () => {
         const blockItem = {
             id: 'block-a', memberId: 'member', teamName: 'A', note: null,
             updatedAt: '2026-07-09T10:00:00Z',
-            asset: { kind: 'faab', amount: 5 },
+            asset: { kind: 'pick', pickId: 'pick-a', seasonYear: 2027, round: 1, originalTeamName: 'A' },
         } satisfies TradeBlockItem
         getTradeBlockItems.mockResolvedValue([blockItem])
         getRoster.mockResolvedValue([rosterPlayer('player-a')])
@@ -576,4 +576,65 @@ it('retains trade-block averages until replacement statistics settle', async () 
     expect(vi.mocked(writePersistentCache).mock.lastCall?.[1]).toEqual(expect.objectContaining({ avgEntries: [['kept', 20]] }))
     await act(async () => view.unmount())
     warning.mockRestore()
+})
+
+
+it.each(['history', 'duplicate'])('stops offer pagination when the next page adds only %s rows', async (page) => {
+    const initial = trade('first')
+    getTradesForScreen.mockResolvedValueOnce({ trades: [initial], nextCursor: { token: 'one' }, hasMore: true })
+        .mockResolvedValueOnce({ trades: [page === 'history' ? { ...trade('old'), status: 'completed' } : initial], nextCursor: { token: 'two' }, hasMore: true })
+    let latest!: ReturnType<typeof useTradesFeed>
+    let renderer!: ReactTestRenderer
+    const Probe = () => { latest = useTradesFeed('member-a', 'league-a'); return null }
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.hasMore).toBe(true)
+    await act(async () => { await latest.loadMore() })
+    expect(latest.hasMore).toBe(false)
+    await act(async () => { await latest.loadMore() })
+    expect(getTradesForScreen).toHaveBeenCalledTimes(2)
+    await act(async () => { renderer.unmount() })
+})
+
+it('applies a saved roster plan to its own trade without reading another page', async () => {
+    const incoming = { kind: 'player' as const, playerId: 'incoming', playerName: 'Incoming', position: 'PG', nbaTeam: 'LAL', fromMemberId: 'member-b', toMemberId: 'member-a', toTaxi: true }
+    const first = { ...trade('first'), participants: [{ memberId: 'member-a', teamName: 'A', sortOrder: 0, isInitiator: true, acceptedAt: '2026-01-01', dropPlayerIds: [] }], routedItems: [incoming] }
+    const other = trade('other')
+    getTradesForScreen.mockResolvedValue({ trades: [first, other], nextCursor: null, hasMore: false })
+    let latest!: ReturnType<typeof useTradesFeed>
+    let renderer!: ReactTestRenderer
+    const Probe = () => { latest = useTradesFeed('member-a', 'league-a'); return null }
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { latest.updateRosterPlan('first', { taxiPlayerIds: [], irPlayerIds: ['incoming'], dropPlayerIds: ['drop'] }) })
+    expect(latest.trades[0].routedItems[0]).toMatchObject({ toTaxi: false, toIR: true })
+    expect(latest.trades[0].participants[0].dropPlayerIds).toEqual(['drop'])
+    expect(latest.trades[1]).toBe(other)
+    expect(getTradesForScreen).toHaveBeenCalledOnce()
+    await act(async () => { renderer.unmount() })
+})
+
+
+it('keeps inherited taxi placement when the saved plan has no optional taxi choices', async () => {
+    const source = { ...trade('taxi'), routedItems: [{ kind: 'player' as const, playerId: 'inherited', playerName: 'Inherited', position: 'PG', nbaTeam: null,
+        fromMemberId: 'member-b', toMemberId: 'member-a', fromTaxi: true, toTaxi: true }] }
+    getTradesForScreen.mockResolvedValue({ trades: [source], nextCursor: null, hasMore: false })
+    let latest!: ReturnType<typeof useTradesFeed>
+    let renderer!: ReactTestRenderer
+    const Probe = () => { latest = useTradesFeed('member-a', 'league-a'); return null }
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { latest.updateRosterPlan('taxi', { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }) })
+    expect(latest.trades[0].routedItems[0]).toMatchObject({ toTaxi: true, toIR: false })
+    await act(async () => { renderer.unmount() })
+})
+
+
+it.each(['empty', 'history'])('does not auto-page a first page with only %s results', async (page) => {
+    getTradesForScreen.mockResolvedValue({ trades: page === 'history' ? [{ ...trade('old'), status: 'completed' }] : [], nextCursor: { token: 'next' }, hasMore: true })
+    let latest!: ReturnType<typeof useTradesFeed>
+    let renderer!: ReactTestRenderer
+    const Probe = () => { latest = useTradesFeed('member-a', 'league-a'); return null }
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.hasMore).toBe(false)
+    await act(async () => { await latest.loadMore() })
+    expect(getTradesForScreen).toHaveBeenCalledOnce()
+    await act(async () => { renderer.unmount() })
 })

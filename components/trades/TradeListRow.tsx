@@ -40,7 +40,6 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
 }: {
     item: ItemOf<'blockItem'>
     myMemberId: string
-    tab: TradeTabKey
     disabled?: boolean
     blockBusyId: string | null
     tile?: boolean
@@ -52,9 +51,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     const mine = block.memberId === myMemberId
     const label = block.asset.kind === 'player'
         ? block.asset.playerName
-        : block.asset.kind === 'pick'
-            ? `${block.asset.seasonYear} Round ${block.asset.round} pick`
-            : `FAAB $${block.asset.amount}`
+        : `${block.asset.seasonYear} Round ${block.asset.round} pick`
     const positions = block.asset.kind === 'player' ? playerEligiblePositions(block.asset) : []
     return (
         <View style={[styles.blockRow, tile && styles.tile]}>
@@ -62,7 +59,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
                 <Avatar name={block.asset.playerName}
                     color={colors.bgMuted} textColor={colors.textSecondary} size={36} />
             ) : (
-                <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>{block.asset.kind === 'pick' ? `R${block.asset.round}` : '$'}</Text></View>
+                <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>{`R${block.asset.round}`}</Text></View>
             )}
             <View style={styles.blockInfo}>
                 <Text style={styles.blockTitle}>{label}</Text>

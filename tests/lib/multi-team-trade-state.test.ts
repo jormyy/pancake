@@ -59,6 +59,24 @@ function routedTrade(items: RoutedTradeItem[], participantIds = ['A', 'B', 'C'])
 }
 
 describe('multi-team trade state', () => {
+    it.each(['A', 'B'])('prefills both two-team sides from the perspective of %s', (actor) => {
+        const source = { ...routedTrade([
+            { kind: 'player', playerId: 'offered', playerName: 'Offered', position: 'PG', nbaTeam: null, fromMemberId: 'A', toMemberId: 'B' },
+            { kind: 'pick', pickId: 'requested', seasonYear: 2028, round: 1, originalTeamName: 'B', fromMemberId: 'B', toMemberId: 'A' },
+            { kind: 'faab', amount: 7, fromMemberId: 'A', toMemberId: 'B' },
+            { kind: 'faab', amount: 3, fromMemberId: 'B', toMemberId: 'A' },
+        ], ['A', 'B']), isMultiTeam: false }
+        const state = multiTeamTradeStateFromTrade(source, actor)
+        expect(state.participantOrder).toEqual(actor === 'A' ? ['A', 'B'] : ['B', 'A'])
+        expect(buildMultiTeamTradeItems(state, true)).toEqual(expect.arrayContaining([
+            { kind: 'player', playerId: 'offered', fromMemberId: 'A', toMemberId: 'B' },
+            { kind: 'pick', pickId: 'requested', fromMemberId: 'B', toMemberId: 'A' },
+            { kind: 'faab', faabAmount: 7, fromMemberId: 'A', toMemberId: 'B' },
+            { kind: 'faab', faabAmount: 3, fromMemberId: 'B', toMemberId: 'A' },
+        ]))
+        expect(buildMultiTeamTradeItems(state, true)).toHaveLength(4)
+    })
+
     it.each(['player', 'pick'] as const)('does not value the same %s twice under different senders', (asset) => {
         let state = addParticipant(addParticipant(createMultiTeamTradeState('A'), 'B'), 'C')
         state = multiTeamTradeReducer(state, { type: 'select-asset', memberId: 'A', asset, assetId: 'moved' })

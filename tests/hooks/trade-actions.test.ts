@@ -6,6 +6,7 @@ import type { Trade } from '@/lib/trades'
 
 const mocks = vi.hoisted(() => ({
     acceptTrade: vi.fn(),
+    setTradeRosterPlan: vi.fn(),
     confirmAction: vi.fn(),
     rejectTrade: vi.fn(),
     vetoTrade: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/trades', () => ({
     acceptTrade: mocks.acceptTrade,
+    setTradeRosterPlan: mocks.setTradeRosterPlan,
     rejectTrade: mocks.rejectTrade,
     vetoTrade: mocks.vetoTrade,
     withdrawTrade: mocks.withdrawTrade,
@@ -215,4 +217,46 @@ describe('useTradeActions', () => {
 
         expect(mocks.rejectTrade).not.toHaveBeenCalled()
     })
+})
+
+
+it('updates only the saved trade from the roster-plan response', async () => {
+    const sent = { taxiPlayerIds: ['incoming'], irPlayerIds: [], dropPlayerIds: ['drop'] }
+    const saved = { taxiPlayerIds: [], irPlayerIds: ['incoming'], dropPlayerIds: ['drop'] }
+    mocks.setTradeRosterPlan.mockResolvedValue(saved)
+    const onAction = vi.fn(() => new Promise<void>(() => {}))
+    const onRosterPlanSaved = vi.fn()
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = () => {
+        latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction, onRosterPlanSaved })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { void latest.setRosterPlan(trade('trade-a'), sent); await Promise.resolve() })
+    expect(mocks.setTradeRosterPlan).toHaveBeenCalledWith('trade-a', 'member-a', sent)
+    expect(onRosterPlanSaved).toHaveBeenCalledExactlyOnceWith('trade-a', saved)
+    expect(onAction).not.toHaveBeenCalled()
+    expect(latest.busyTradeId).toBeNull()
+    await act(async () => { renderer.unmount() })
+})
+
+it('ignores a saved roster plan after the member changes', async () => {
+    const saving = deferred<{ taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[] }>()
+    mocks.setTradeRosterPlan.mockReturnValue(saving.promise)
+    const onRosterPlanSaved = vi.fn()
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = ({ memberId }: { memberId: string }) => {
+        latest = useTradeActions({ memberId, leagueId: 'league-a', onAction: vi.fn(), onRosterPlanSaved })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe, { memberId: 'member-a' })) })
+    let pending!: Promise<void>
+    const plan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }
+    await act(async () => { pending = latest.setRosterPlan(trade('trade-a'), plan) })
+    await act(async () => { renderer.update(React.createElement(Probe, { memberId: 'member-b' })) })
+    await act(async () => { saving.resolve(plan); await pending })
+    expect(onRosterPlanSaved).not.toHaveBeenCalled()
+    await act(async () => { renderer.unmount() })
 })

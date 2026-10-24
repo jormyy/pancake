@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-    isIncomingTradeForMember,
     isOutgoingTradeForMember,
     isTradeHistoryForMember,
     isTradeParticipant,
@@ -43,7 +42,6 @@ describe('trade perspective helpers', () => {
         const input = trade()
 
         expect(needsMemberAcceptance(input, 'bravo')).toBe(true)
-        expect(isIncomingTradeForMember(input, 'bravo')).toBe(true)
         expect(needsMemberAcceptance(input, 'alpha')).toBe(false)
         expect(needsMemberAcceptance(input, 'charlie')).toBe(false)
         expect(needsMemberAcceptance(trade({ status: 'accepted' }), 'bravo')).toBe(false)
@@ -89,7 +87,7 @@ describe('trade perspective helpers', () => {
             ],
         })
 
-        expect(isIncomingTradeForMember(input, 'alpha')).toBe(true)
+        expect(needsMemberAcceptance(input, 'alpha')).toBe(true)
         expect(isOutgoingTradeForMember(input, 'alpha')).toBe(false)
     })
 

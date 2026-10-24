@@ -2,7 +2,7 @@ import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
 import {
-    isIncomingTradeForMember,
+    needsMemberAcceptance,
     isOutgoingTradeForMember,
     isTradeHistoryForMember,
     isVetoableTradeForMember,
@@ -52,7 +52,7 @@ export function selectTradeScreenSections(
     }
     for (const trade of trades) {
         if (isVetoableTradeForMember(trade, memberId)) sections.vetoableTrades.push(trade)
-        if (isIncomingTradeForMember(trade, memberId)) sections.incomingTrades.push(trade)
+        if (needsMemberAcceptance(trade, memberId)) sections.incomingTrades.push(trade)
         if (isOutgoingTradeForMember(trade, memberId)) sections.outgoingTrades.push(trade)
         if (isTradeHistoryForMember(trade, memberId)) sections.historyTrades.push(trade)
     }

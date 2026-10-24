@@ -347,7 +347,9 @@ async function replaceTrade(
 
   const { data: newTradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: action.action,
-    p_payload: { ...payload, ...rosterPlanPayload(body), tradeId },
+    p_payload: { ...payload, ...rosterPlanPayload(body), tradeId,
+      ...(body.recipientMemberId !== undefined ? { recipientMemberId: uuidField(body, 'recipientMemberId') } : {}),
+    },
   })
   if (error || !newTradeId) {
     if (error) throwDb(error)
@@ -476,14 +478,19 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
   if (action.action === 'roster-plan') {
     const memberId = uuidField(body, 'memberId')
     await requireOwnMember(userId, memberId)
+    const rosterPlan = {
+      taxiPlayerIds: optionalUuidArrayField(body, 'taxiPlayerIds'),
+      irPlayerIds: optionalUuidArrayField(body, 'irPlayerIds'),
+      dropPlayerIds: optionalUuidArrayField(body, 'dropPlayerIds'),
+    }
     const { error } = await supabase.rpc('set_trade_roster_plan_atomic', {
       p_trade_id: action.tradeId, p_member_id: memberId, p_user_id: userId,
-      p_taxi_player_ids: optionalUuidArrayField(body, 'taxiPlayerIds'),
-      p_ir_player_ids: optionalUuidArrayField(body, 'irPlayerIds'),
-      p_drop_player_ids: optionalUuidArrayField(body, 'dropPlayerIds'),
+      p_taxi_player_ids: rosterPlan.taxiPlayerIds,
+      p_ir_player_ids: rosterPlan.irPlayerIds,
+      p_drop_player_ids: rosterPlan.dropPlayerIds,
     })
     if (error) throwDb(error)
-    return json({ ok: true })
+    return json({ ok: true, rosterPlan })
   }
   if (action.action === 'taxi-destinations') {
     const memberId = uuidField(body, 'memberId')

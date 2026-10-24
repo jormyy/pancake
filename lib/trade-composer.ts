@@ -2,7 +2,6 @@ import type {
     MultiTeamTradeItemPayload,
     MultiTeamTradeProposalPayload,
     Trade,
-    TradeItem,
     TradeProposalPayload,
 } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
@@ -26,13 +25,7 @@ type TradeComposerModeState = {
 
 type TradeComposerPrefill = {
     selectedRecipientId: string | null
-    offerPlayerIds: string[]
-    requestPlayerIds: string[]
-    offerPickIds: string[]
-    requestPickIds: string[]
     notes: string
-    offerFaabInput: string
-    requestFaabInput: string
     expirationDays: string
 }
 
@@ -130,7 +123,6 @@ type SubmitMultiTeamComposerDeps = {
     ) => Promise<string>
 }
 
-const DEFAULT_EXPIRATION_DAYS = 3
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_DATE_MS = 8_640_000_000_000_000
 const EXPIRATION_ERROR = `Expiration must be between 1 and ${MAX_TRADE_EXPIRATION_DAYS} days.`
@@ -149,37 +141,19 @@ export function getTradeComposerMode(input: TradeComposerModeInput): TradeCompos
     }
 }
 
-function tradeItemIds(items: TradeItem[], kind: 'player' | 'pick'): string[] {
-    return items.flatMap((item) => {
-        if (kind === 'player' && item.kind === 'player') return [item.playerId]
-        if (kind === 'pick' && item.kind === 'pick') return [item.pickId]
-        return []
-    })
-}
-
 export function prefillTradeComposerFromTrade(
     mode: TradeComposerMode,
     trade: Trade,
     nowMs = Date.now(),
 ): TradeComposerPrefill {
-    const myMemberId = mode === 'counter' ? trade.recipientMemberId : trade.proposerMemberId
-    const theirMemberId = mode === 'counter' ? trade.proposerMemberId : trade.recipientMemberId
-    const mySide = trade.routedItems.filter((item) => item.fromMemberId === myMemberId)
-    const theirSide = trade.routedItems.filter((item) => item.fromMemberId === theirMemberId)
     const expiresAt = trade.expiresAt ? new Date(trade.expiresAt).getTime() : null
     const expirationDays = expiresAt
         ? Math.max(1, Math.ceil((expiresAt - nowMs) / DAY_MS))
-        : DEFAULT_EXPIRATION_DAYS
+        : ''
 
     return {
         selectedRecipientId: mode === 'counter' ? trade.proposerMemberId : trade.recipientMemberId,
-        offerPlayerIds: tradeItemIds(mySide, 'player'),
-        offerPickIds: tradeItemIds(mySide, 'pick'),
-        requestPlayerIds: tradeItemIds(theirSide, 'player'),
-        requestPickIds: tradeItemIds(theirSide, 'pick'),
-        notes: trade.notes ?? '',
-        offerFaabInput: String(mode === 'counter' ? trade.recipientFaabAmount : trade.proposerFaabAmount),
-        requestFaabInput: String(mode === 'counter' ? trade.proposerFaabAmount : trade.recipientFaabAmount),
+        notes: mode === 'counter' ? '' : trade.notes ?? '',
         expirationDays: String(expirationDays),
     }
 }
@@ -297,12 +271,12 @@ export async function submitTradeComposer(
     if (notesError) throw new Error(notesError)
 
     if (input.mode === 'counter' && input.counterTradeId) {
-        await deps.counterTrade(input.counterTradeId, input.myMemberId, { ...input.payload, requestId: input.requestId })
+        await deps.counterTrade(input.counterTradeId, input.myMemberId, { ...input.payload, requestId: input.requestId, recipientMemberId: input.selectedRecipientId })
         return
     }
 
     if (input.mode === 'edit' && input.editTradeId) {
-        await deps.editTrade(input.editTradeId, input.myMemberId, { ...input.payload, requestId: input.requestId })
+        await deps.editTrade(input.editTradeId, input.myMemberId, { ...input.payload, requestId: input.requestId, recipientMemberId: input.selectedRecipientId })
         return
     }
 
