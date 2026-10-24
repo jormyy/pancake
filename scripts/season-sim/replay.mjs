@@ -32,7 +32,7 @@ import { runRealSeason } from './real-season.mjs'
 import { shiftDay } from './season-model.mjs'
 import { waiverBoundaryDeferral } from './maintenance.mjs'
 import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
-import { recoveryHistoryQuery } from './recovery.mjs'
+import { recoveryHistoryQuery, draftRecoveryFields, postDraftStateQuery } from './recovery.mjs'
 
 export async function replay(options = {}) {
   const realPlan = await twoPlan(), profile = realPlan?.seasons[0]
@@ -41,8 +41,8 @@ export async function replay(options = {}) {
   assert.ok(!realPlan||!options.resume||options.recoveryEvidence,'A real-season resume requires validated recovery evidence')
   const start = options.resume?.date ?? options.start ?? (options['late-season'] ? shiftDay(season.end,-27) : season.start)
   assert.match(start, /^\d{4}-\d{2}-\d{2}$/)
-  assert.ok(options.segment === 'next-season-start' || start >= season.start && start <= season.end)
-  const selected = dates(start, season.end).slice(0, Number(options.days ?? dates(season.start,season.end).length))
+  assert.ok(['next-season-start', 'post-draft'].includes(options.segment) || start >= season.start && start <= season.end)
+  const selected = options.segment === 'post-draft' ? [] : dates(start, season.end).slice(0, Number(options.days ?? dates(season.start,season.end).length))
   if(options.deferCalendarFailure)assert.ok(realPlan&&!options.resume&&selected.length<=2,'Calendar failure deferral is limited to a two-date diagnostic and remains fatal')
   let deferredCalendarError
   const { games } = JSON.parse(await readFile(path.join(fixtureDirectory, 'games.json'), 'utf8'))
@@ -55,7 +55,7 @@ export async function replay(options = {}) {
     dates: selected, days: [], events: {}, faults: [], actions: { provenance: 'SYNTHETIC', completed: [] },
     cadenceDays: {}, snapshots: [], liveSamples: 0, sampling: 'Authenticated matchups read before every internal get_live_poll_work call with a live-holder header, after each live worker, and after every live gate. This includes each internal tick and extra scoreboard refresh reads. Stored stat rows and locked starters form the independent oracle.',
     triggerFidelity: { verified: false, cadence: 'Every intervening UTC minute, plus worker timer deadlines; clock stays paused during I/O; no scoring/stat maintenance overrides', counts: {}, unsupportedInputs: [] },
-    requestedSecondDates: realPlan&&selected.at(-1)===season.end?dates(realPlan.seasons[1].start,options.secondSeasonThrough??realPlan.seasons[1].end).length:0, inputPostponements:realPlan?.postponements.timelines??[], historicalRange: { start: season.start, end: season.end, dates: dates(season.start,season.end).length }, realTwoSeasons: !!realPlan, inputPlan: realPlan ? { provenance: realPlan.provenance, gaps: realPlan.gaps, postponementGaps: realPlan.postponements.gaps, draft: { availableAt: realPlan.draft.availableAt, availabilityProvenance: realPlan.draft.availabilityProvenance } } : null, acceptanceGaps: [], ancillaryGaps: ['Rankings and projections use incomplete fixture inputs. They do not determine the asserted locked-starter scores, waiver rules, playoff rules, draft order, or pick ownership. Projection quality and optimal lineup selection remain unverified.'] }
+    requestedSecondDates: realPlan&&(options.segment==='post-draft'||selected.at(-1)===season.end)?dates(realPlan.seasons[1].start,options.secondSeasonThrough??realPlan.seasons[1].end).length:0, inputPostponements:realPlan?.postponements.timelines??[], historicalRange: { start: season.start, end: season.end, dates: dates(season.start,season.end).length }, realTwoSeasons: !!realPlan, inputPlan: realPlan ? { provenance: realPlan.provenance, gaps: realPlan.gaps, postponementGaps: realPlan.postponements.gaps, draft: { availableAt: realPlan.draft.availableAt, availabilityProvenance: realPlan.draft.availabilityProvenance } } : null, acceptanceGaps: [], ancillaryGaps: ['Rankings and projections use incomplete fixture inputs. They do not determine the asserted locked-starter scores, waiver rules, playoff rules, draft order, or pick ownership. Projection quality and optimal lineup selection remain unverified.'] }
   if(realPlan) report.ancillaryGaps.push('This scenario starts a commissioner rookie draft; the automatic unstarted-draft backstop is not measured.')
   if (options.recoveryEvidence) Object.assign(report, options.recoveryEvidence)
   report.featureCheckpoints ??= []
@@ -129,6 +129,11 @@ export async function replay(options = {}) {
     const preparation = await waitForSnapshotWorkers({ advance: move })
     runtime.origin.flushCoverage()
     const cursor = { date, clock, verifiedWeeks, actions: report.actions, evidence: { offseasonTrade: report.offseasonTrade }, context: Object.fromEntries(Object.entries(context).filter(([, value]) => typeof value !== 'function')), options: { start: date, days } }
+    if (name === 'post-draft') {
+      cursor.stage = 'post-draft'
+      cursor.guard = await sql(postDraftStateQuery())
+      cursor.evidence = Object.fromEntries(draftRecoveryFields.map(key => [key, report[key]]))
+    }
     report.snapshots.push({ ...await saveSnapshot(name, cursor), preparation })
   }
   const liveCoverage = () => { runtime.origin.flushCoverage(); return runtime.origin.coverage }
@@ -189,7 +194,8 @@ export async function replay(options = {}) {
       assert.equal(JSON.parse(report.recovery.historyBefore).games, report.recovery.retainedGames, 'Restored finals must match retained receipts')
       assert.equal(await sql("SELECT count(*) FROM edge_invocations WHERE worker_status IN ('pending','running')"), '0', 'Recovery cannot inherit unfinished workers')
     }
-    if (['automatic-champion', 'pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start'].includes(options.segment)) {
+    if (['automatic-champion', 'pre-rollover', 'post-rollover', 'pre-draft', 'post-draft', 'next-season-start'].includes(options.segment)) {
+      if (options.segment === 'post-draft') report.nextSeason = await runRealSeason(context,realPlan,move,report,checkpoint,snapshot,liveCoverage,async()=>{ await probe?.close(); probe=await startRealtimeProbe(context,runtime.keys) }, { afterRookieActivation: true })
       if (options.segment === 'automatic-champion') {
         report.seasonEnd = await finishSeason(context, move, report, checkpoint, { snapshot })
         activeDate = null
@@ -204,11 +210,14 @@ export async function replay(options = {}) {
       if (options.segment === 'next-season-start') report.nextSeason = await runNextSeason(context, context.previousSeasonId, move, report, snapshot, checkpoint, liveCoverage)
       await dispatcher.drain(clock)
       if (report.nextSeason?.passed && probe) {
-        report.realtime = await probe.verify(await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
+        const delivery = await probe.verify(await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
+        if (realPlan) report.realtimeSecond = delivery
+        else report.realtime = delivery
         await probe.close()
         probe = null
       }
       report.triggerFidelity.verified = true
+      if (report.recovery) assert.equal(await sql(recoveryHistoryQuery(start)), report.recovery.historyBefore, 'Stage continuation preserves settled scoring history')
       report.complete = true
       report.acceptanceGaps = acceptanceGaps(report)
       return report

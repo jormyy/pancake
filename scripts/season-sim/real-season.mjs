@@ -42,7 +42,7 @@ export function realSeasonDay(profile,date,today){
   return week
 }
 
-export async function runRealSeason(c, plan, move, report, checkpoint, snapshot, liveCoverage, changeProbe) {
+export async function runRealSeason(c, plan, move, report, checkpoint, snapshot, liveCoverage, changeProbe, { afterRookieActivation = false } = {}) {
   const profile = plan.seasons[1], oldSeason = c.previousSeasonId
   const through=report.secondSeasonThrough??profile.end
   assert.ok(through>=profile.start&&through<=profile.end,'The cutoff belongs to the real season')
@@ -56,7 +56,12 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
   }
   const digest = () => sql(`SELECT json_build_object('stats',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.season_year=${plan.seasons[0].year}),'matchups',(SELECT md5(string_agg(row_to_json(m)::text,'' ORDER BY m.id)) FROM matchups m WHERE league_season_id='${oldSeason}'),'standings',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM standings s WHERE league_season_id='${oldSeason}'),'usedPicks',(SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM draft_picks p WHERE league_id='${c.leagueId}' AND is_used))`)
   const before = await digest()
-  await activateRealRookies(c, plan, report)
+  if (afterRookieActivation) {
+    assert.equal(report.realRookieActivation?.passed, true, 'Preseason recovery requires verified rookie activation')
+    assert.deepEqual(c.draftedRookies, report.realRookieActivation.rookies, 'Preseason recovery keeps the observed rookie owners')
+  } else await activateRealRookies(c, plan, report)
+  await checkpoint('next-season-preseason')
+  await snapshot('post-draft', shiftDay(plan.seasons[0].end,1),1)
   await move(`${profile.startYear}-08-16T14:00:00Z`)
   await c.rpc(c.users[0], 'update_league_configuration_atomic', { p_league_id: c.leagueId, p_settings: { skipped_weeks: [1], playoff_start_week: profile.playoffStart } })
   const activation = await c.api(c.users[0],`/draft/${report.rookieAutoPick.draftId}/activate-rookie-league`,{})

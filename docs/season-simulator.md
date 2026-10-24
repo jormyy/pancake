@@ -62,6 +62,14 @@ It checks all earlier dates and the stored game count before replay.
 It checks settled stats, lineups, and finalized matchups after every replayed date.
 Each verified date creates a new recovery snapshot for the next date.
 
+The real-season path saves `post-draft` after rookie activation and before the long preseason advance.
+This checkpoint retains completed selections, consumed picks, roster changes and the offseason trade.
+Its guard hashes the stored scoring, roster and draft state and requires no unfinished workers or native cron jobs.
+Recovery checks the guard before runtime startup, skips the completed draft and rookie activation, and advances from the paused clock.
+All first-season receipts remain retained. Fresh next-season Realtime proof stays separate from earlier delivery evidence.
+After a host interruption, preserve the run and reconcile stored draft records before selecting this stage.
+The last checkpoint label can precede completed actions while business time advances.
+
 ```sh
 node scripts/season-sim/recovery-run.mjs \
   --snapshot "$SEASON_SIM_ROOT/source-snapshots/pre-playoffs" \

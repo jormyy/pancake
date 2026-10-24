@@ -1,21 +1,43 @@
 import assert from 'node:assert/strict'
 import { dates } from './common.mjs'
+import { shiftDay } from './season-model.mjs'
+
+export const draftRecoveryFields = ['seasonEnd', 'realDraftBoard', 'rookieAutoPick', 'rookiePause', 'draftPushes', 'pickAllocation', 'offseasonTrade', 'previousChampion', 'realRookieActivation']
 
 export function recoveryEvidence(snapshot, receipt, profile) {
   const cursor = snapshot.cursor
+  const postDraft = cursor.stage === 'post-draft'
   assert.equal(snapshot.clock.rate, 0, 'Recovery requires a paused checkpoint')
   assert.equal(snapshot.quiescence.workers?.length ?? 0, 0)
   assert.equal(snapshot.quiescence.polls > 0, true, 'Recovery requires an observed worker drain')
   assert.equal(cursor.clock, snapshot.clock.simMs ?? snapshot.clock.sim_ms)
-  assert.ok(cursor.date >= profile.start && cursor.date <= profile.end)
-  assert.ok(cursor.clock < Date.parse(`${cursor.date}T23:59:59Z`), 'Recovery cursor cannot pass its first date')
+  if (postDraft) {
+    assert.equal(cursor.date, shiftDay(profile.end, 1), 'Post-draft recovery retains the entire settled first season')
+    assert.ok(cursor.clock >= Date.parse(`${cursor.date}T00:00:00Z`) && cursor.clock < Date.parse(`${profile.year}-08-16T14:00:00Z`), 'Post-draft recovery precedes next-season activation')
+    assert.ok([cursor.context.previousSeasonId, cursor.context.leagueSeasonId].includes(receipt.leagueSeasonId), 'Post-draft receipt belongs to the same season transition')
+    assert.notEqual(cursor.context.leagueSeasonId, cursor.context.previousSeasonId)
+    assert.equal(cursor.context.seasonYear, profile.year + 1)
+    for (const key of ['seasonEnd', 'realDraftBoard', 'rookieAutoPick', 'offseasonTrade', 'realRookieActivation']) assert.equal(cursor.evidence?.[key]?.passed, true, `Post-draft recovery requires verified ${key}`)
+    assert.equal(cursor.context.draftedRookies.length, cursor.context.users.length * 2)
+    assert.equal(new Set(cursor.context.draftedRookies.map(row => row.playerId)).size, cursor.context.draftedRookies.length)
+    const guard = JSON.parse(cursor.guard)
+    assert.equal(guard.unfinishedWorkers, 0, 'Post-draft recovery requires drained stored work')
+    assert.equal(guard.clock, cursor.clock)
+    assert.equal(guard.cronActive, 'off')
+    assert.equal(guard.cronJobs, 0)
+  } else {
+    assert.ok(cursor.date >= profile.start && cursor.date <= profile.end)
+    assert.ok(cursor.clock < Date.parse(`${cursor.date}T23:59:59Z`), 'Recovery cursor cannot pass its first date')
+  }
   const days = [...(receipt.recovery?.retainedReceipts ?? []), ...receipt.days].filter(day => day.date < cursor.date)
   assert.deepEqual(days.map(day => day.date), dates(profile.start, cursor.date).slice(0, -1), 'Recovery requires every preceding date receipt')
   assert.ok(days.every(day => day.finals.passed || day.finals.games === 0), 'Recovery requires verified preceding finals')
   assert.equal(receipt.leagueId, cursor.context.leagueId)
-  assert.equal(receipt.leagueSeasonId, cursor.context.leagueSeasonId)
+  if (!postDraft) assert.equal(receipt.leagueSeasonId, cursor.context.leagueSeasonId)
   const before = row => Date.parse(row.businessAt) <= cursor.clock
   return {
+    ...Object.fromEntries(['firstCalendar', 'champion', 'pendingWaiversAtChampion', 'tradingReopened', 'rolloverRecovery', 'rolloverHistory', 'waiverRollover', 'sourceUnavailable'].filter(key => receipt[key] !== undefined).map(key => [key, receipt[key]])),
+    ...(postDraft ? Object.fromEntries(draftRecoveryFields.map(key => [key, cursor.evidence[key]])) : {}),
     featureCheckpoints: (receipt.featureCheckpoints ?? []).filter(before),
     playersEvidence: (receipt.playersEvidence ?? []).filter(before),
     realInputChecks: (receipt.realInputChecks ?? []).filter(row => row.date < cursor.date),
@@ -24,8 +46,13 @@ export function recoveryEvidence(snapshot, receipt, profile) {
     allStarLimits: (receipt.allStarLimits ?? []).filter(row => row.checked < cursor.date),
     realtime: receipt.realtime,
     retainedRealtime: !!receipt.realtime,
-    recovery: { date: cursor.date, clock: cursor.clock, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0), retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256 },
+    recovery: { date: cursor.date, clock: cursor.clock, stage: cursor.stage ?? null, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0), retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256, guard: postDraft ? cursor.guard : null },
   }
+}
+
+export function postDraftStateQuery() {
+  const tables = ['nba_games', 'player_game_stats', 'weekly_lineups', 'matchups', 'standings', 'league_seasons', 'roster_players', 'roster_transactions', 'players', 'draft_picks', 'drafts', 'snake_draft_picks', 'draft_orders', 'draft_audit_logs', 'trades', 'trade_items']
+  return `SELECT json_build_object('clock',extract(epoch FROM now())*1000,'unfinishedWorkers',(SELECT count(*) FROM edge_invocations WHERE worker_status IN ('pending','running')),'cronActive',current_setting('cron.launch_active_jobs'),'cronJobs',(SELECT count(*) FROM cron.job),${tables.map(table => `'${table}',(SELECT md5(string_agg(row_to_json(t)::text,'' ORDER BY t.id)) FROM ${table} t)`).join(',')})`
 }
 
 export function recoveryHistoryQuery(date) {

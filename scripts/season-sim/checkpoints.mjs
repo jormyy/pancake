@@ -7,7 +7,7 @@ import { functionFingerprint } from './overlay.mjs'
 import { config, delay, fixtureDirectory, miniRoot, originUrl, sha256, writeJson } from './common.mjs'
 import { databaseEnvironment, localKeys, sql, sqlJson } from './local-stack.mjs'
 
-export const segmentNames = ['automatic-champion', 'live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'post-rollover', 'pre-draft', 'next-season-start', 'waiver-week']
+export const segmentNames = ['automatic-champion', 'live-week', 'pre-deadline', 'pre-playoffs', 'pre-rollover', 'post-rollover', 'pre-draft', 'post-draft', 'next-season-start', 'waiver-week']
 export function snapshotRoot() {
   const root=process.env.SEASON_SIM_SNAPSHOT_ROOT ?? path.resolve(miniRoot, '../../shared',process.env.SEASON_SIM_MODE==='two-season'?'sim2':'sim','snapshots')
   const protectedRoot=path.resolve(miniRoot,'../../shared/sim')
