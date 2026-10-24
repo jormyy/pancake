@@ -96,6 +96,8 @@ A source check or catalog pass alone does not authorize a release.
 The attested candidate remains `20261011000062` in both release-history and catalog contracts.
 Later migrations, including this branch's projection and cleanup range, require reviewed attestations before release.
 The [migration history](production-migration-history.md#candidate-migrations) records this boundary.
+The combined bounded-season candidate has 494 migrations; the attested range contains 398.
+Release approval permits the existing workflow to run; it does not bypass an attestation failure.
 
 ## Sleeper projections and weekly cleanup
 
