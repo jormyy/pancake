@@ -261,8 +261,6 @@ function RoomCard({
 function MockRoomsEmptyState({ compact }: { compact: boolean }) {
     const title = 'No mock rooms yet.'
     const fullBody = 'Create an auction or rookie room for managers to join before starting a mock draft.'
-    const compactBody = 'Create one for managers to join before drafting.'
-    const body = compact ? compactBody : fullBody
     const accessibilityLabel = `${title} ${fullBody}`
 
     return (
@@ -275,7 +273,6 @@ function MockRoomsEmptyState({ compact }: { compact: boolean }) {
             accessibilityLiveRegion="polite"
         >
             <Text style={[styles.mockRoomsEmptyTitle, compact && styles.mockRoomsEmptyTitleCompact]} numberOfLines={1}>{title}</Text>
-            <Text style={[styles.mockRoomsEmptyText, compact && styles.mockRoomsEmptyTextCompact]} numberOfLines={compact ? 1 : undefined}>{body}</Text>
         </View>
     )
 }
@@ -581,13 +578,4 @@ const styles = StyleSheet.create({
     },
     mockRoomsEmptyTitle: { ...textStyles.rowTitle },
     mockRoomsEmptyTitleCompact: { fontSize: fontSize.sm },
-    mockRoomsEmptyText: {
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textMuted,
-    },
-    mockRoomsEmptyTextCompact: {
-        fontSize: fontSize.xs,
-        lineHeight: 16,
-    },
 })

@@ -23,7 +23,7 @@ import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
-import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
+import { SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
 import { PosTag } from '@/components/PosTag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { LoadingState } from '@/components/ui/LoadingState'
@@ -255,9 +255,18 @@ export default function RookieDraftRoomScreen() {
                     ) : null}
                 </DraftScreenHeader>
                 {loadError ? <ErrorBanner message="Draft updates are unavailable. Tap to retry." onRetry={() => { void refresh() }} /> : null}
-                {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? <TaxiAcquisitionChoice
-                    value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking || !actionsReady}
-                    label="Draft this pick directly into taxi" /> : null}
+                {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? (
+                    <SettingsRow
+                        label="Draft to taxi"
+                        detail="Players cannot return to your taxi after leaving it."
+                        role="switch"
+                        checked={draftToTaxi}
+                        disabled={picking || !actionsReady}
+                        accessibilityLabel="Draft this pick directly into taxi"
+                        onPress={() => setDraftToTaxi(!draftToTaxi)}
+                        accessory={<SettingsToggle on={draftToTaxi} />}
+                    />
+                ) : null}
                 <KeyboardAvoidingView
                     style={[styles.body, isDesktop && styles.bodyDesktop]}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -602,7 +611,7 @@ const styles = StyleSheet.create({
     },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
+    bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
     bannerClockUrgent: { color: colors.dangerDark },
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },

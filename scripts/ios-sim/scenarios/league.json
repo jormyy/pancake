@@ -1,0 +1,862 @@
+[
+  {
+    "name": "league-standings-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "League"
+        },
+        "expected": {
+          "route": "/league",
+          "text": "E2E Team 1"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-activity-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "text": "Added"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-picks-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Draft Board"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label^='Show my draft picks,']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-auctions-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Auctions"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-mock-rooms-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Mock Rooms"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label='Mock room name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-settings-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-draft-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/draft"
+        },
+        "expected": {
+          "text": "E2E Team 1",
+          "route": "/draft"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-auction-room-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId=72c445c3-4547-4a0e-8278-9e78eaf018d6"
+        },
+        "expected": {
+          "text": "E2E Team 1",
+          "route": "/draft-room"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-rookie-room-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/rookie-draft-room?draftId=9f9547b4-1d83-4efa-bd81-66666a630823"
+        },
+        "expected": {
+          "selector": "[aria-label='Search prospects']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-dynasty-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/dynasty"
+        },
+        "expected": {
+          "route": "/players?section=rankings",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-profile-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/profile"
+        },
+        "expected": {
+          "route": "/profile",
+          "text": "{{displayName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-profile-edit-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Edit"
+        },
+        "expected": {
+          "selector": "[aria-label='Display name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-bracket-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league?tab=settings"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open playoff bracket"
+        },
+        "expected": {
+          "route": "/bracket",
+          "text": "No playoff bracket yet"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-commissioner-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/league?tab=settings"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open commissioner settings"
+        },
+        "expected": {
+          "route": "/commissioner-settings",
+          "text": "Points"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-create-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Create a league"
+        },
+        "expected": {
+          "route": "/create-league",
+          "selector": "[aria-label='League name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-join-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/join-league"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-password-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/change-password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "selector": "[aria-label='Current password']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-push-light",
+    "group": "league-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/profile"
+        },
+        "expected": {
+          "route": "/profile",
+          "text": "This device"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-standings-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "League"
+        },
+        "expected": {
+          "route": "/league",
+          "text": "E2E Team 1"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-activity-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "text": "Added"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-picks-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Draft Board"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label^='Show my draft picks,']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-auctions-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Auctions"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-mock-rooms-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Mock Rooms"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label='Mock room name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-settings-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-draft-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/draft"
+        },
+        "expected": {
+          "text": "E2E Team 1",
+          "route": "/draft"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-auction-room-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId=72c445c3-4547-4a0e-8278-9e78eaf018d6"
+        },
+        "expected": {
+          "text": "E2E Team 1",
+          "route": "/draft-room"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-rookie-room-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/rookie-draft-room?draftId=9f9547b4-1d83-4efa-bd81-66666a630823"
+        },
+        "expected": {
+          "selector": "[aria-label='Search prospects']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-dynasty-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/dynasty"
+        },
+        "expected": {
+          "route": "/players?section=rankings",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-profile-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/profile"
+        },
+        "expected": {
+          "route": "/profile",
+          "text": "{{displayName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-profile-edit-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Edit"
+        },
+        "expected": {
+          "selector": "[aria-label='Display name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-bracket-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league?tab=settings"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open playoff bracket"
+        },
+        "expected": {
+          "route": "/bracket",
+          "text": "No playoff bracket yet"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-commissioner-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/league?tab=settings"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open commissioner settings"
+        },
+        "expected": {
+          "route": "/commissioner-settings",
+          "text": "Points"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-create-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Create a league"
+        },
+        "expected": {
+          "route": "/create-league",
+          "selector": "[aria-label='League name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-join-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/join-league"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-password-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/profile"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/change-password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "selector": "[aria-label='Current password']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league-push-dark",
+    "group": "league-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/profile"
+        },
+        "expected": {
+          "route": "/profile",
+          "text": "This device"
+        }
+      }
+    ]
+  }
+]

@@ -89,20 +89,12 @@ export function useDraftAdminControls({
 
     function handlePauseDraft() {
         if (!canAct() || !draftId || pendingDraftsRef.current.has(draftId)) return
-        const capturedDraftId = draftId
-        const generation = generationRef.current
-        confirmAction('Pause draft?', confirmCopy.pause, () => {
-            void runAction(capturedDraftId, generation, pauseDraft, 'Could not pause draft', refresh)
-        }, 'Pause Draft')
+        void runAction(draftId, generationRef.current, pauseDraft, 'Could not pause draft', refresh)
     }
 
     function handleResumeDraft() {
         if (!canAct() || !draftId || pendingDraftsRef.current.has(draftId)) return
-        const capturedDraftId = draftId
-        const generation = generationRef.current
-        confirmAction('Resume draft?', confirmCopy.resume, () => {
-            void runAction(capturedDraftId, generation, resumeDraft, 'Could not resume draft', refresh)
-        }, 'Resume Draft')
+        void runAction(draftId, generationRef.current, resumeDraft, 'Could not resume draft', refresh)
     }
 
     return { handleStopDraft, handleResetDraft, handlePauseDraft, handleResumeDraft, adminBusy: Boolean(draftId && busyDrafts.has(draftId)) }
