@@ -56,3 +56,9 @@ Their canonical identity and search presence pass; an appearance that does not e
 The later second-season playoffs, later NBA transfers, real push-provider delivery and native iOS PWA behavior are outside this bounded proof.
 Earlier cadence/timing and ancillary-job limits remain recorded in the historical reports.
 Original evidence and user apps remain untouched during final preparation.
+
+The historical mutation ledger records 395 kills, three survivors and three excluded invalid mutants.
+The survivors are `SIM11-ELIM-1`, `waiv-skipped-week-01` and `waiv-skipped-week-05`.
+Their fixtures do not reach the changed branches; this does not prove global equivalence.
+The later recovery and pruning controls remain separate subsets, with zero survivors in those subsets.
+The ledger and later batch receipts remain preserved under `W/evidence/mutation-ledger/t11` and the corresponding turn reports.
