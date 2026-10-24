@@ -1,4 +1,5 @@
 const KNOWN_SOURCES: Record<string, string> = {
+    sleeper: 'Sleeper (RotoWire)',
     season_avg: 'Season averages',
     fantasypros_daily: 'FantasyPros',
     internal: 'Pancake',

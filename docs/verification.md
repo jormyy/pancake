@@ -84,3 +84,58 @@ Vercel also enables deployments from main in `vercel.json`.
 
 The [migration history](production-migration-history.md), [catalog contract](database-readiness-catalog.md), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.
+
+## Sleeper projections and weekly cleanup
+
+Use an isolated local Supabase project and ports. Restore the normal config before handoff.
+Never reset the shared Pancake stack.
+The focused commands are:
+
+```sh
+deno test --allow-env --allow-net --allow-read supabase/functions/sync-sleeper-projections supabase/functions/sync-projections supabase/functions/_shared/retry.test.ts
+npm run test:db:sleeper-fixture
+npm run test:db:sleeper-projections
+npm run test:db:projection-schedule
+npm run test:db:retention-indexes
+npm run test:db:retention-concurrency
+npm run test:db:retention
+npm run test:db:retention-scoring
+npm run test:db:pre-tipoff
+npm run test:db:fantasypros-projections
+```
+
+Database commands require the isolated local database URL.
+The fixture command also requires its local API URL and service-role key.
+The scoring check requires its local backend secret key.
+Read these settings only from that local project's CLI status.
+The database Deno tests require the explicit `--local-db` argument, supplied by their npm commands.
+Ordinary Edge checks ignore those database tests.
+
+The fixture test pulls four recorded rows twice and verifies stable IDs, updated values, reader precedence, projected sits, and failure recovery.
+The SQL checks cover mixed weekly fallback, makes and attempts, next-game data, fingerprint stability, permissions, and deletion hints.
+Schedule checks cover Pacific midnight, both daylight saving transitions, late checks, claims, and injury refresh windows.
+Retention checks protect all league and NBA tables with write-rejecting triggers.
+Index checks run actual log and snapshot deletion statements against populated fixtures and inspect their execution plans.
+They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.
+All fixture writes use the isolated local project. SQL checks roll back.
+
+### Local verification, 2026-10-23
+
+The isolated local upgrade through `20261020000006` passes the nine focused database commands above.
+Projection SQL verifies 44 cases. Retention verifies 22, and scheduling verifies 18.
+The recorded fixture updates four rows in place and preserves them after failed pulls.
+A second fixture keeps five stored rows after one rejected or unmatched row, then removes the row when the source omits it.
+Historical totals retain a completed old-team game: 110 points over three games, including mixed-source fallback.
+Freshness tests verify the 36-hour boundary, stale flags, source precedence, and returned timestamps.
+The new regressions reproduce the reported failures before repair.
+
+Index checks verify nine execution plans. Concurrency checks verify cleanup skips locked rows while new writes continue.
+Sleeper parser, matching, and sync tests pass 11 tests. Both full recorded weeks parse without rejected rows.
+Edge checks pass 253 tests. The four local database tests pass through their focused commands.
+Release and catalog contracts pass 103 tests.
+`check:quality`, `check:edge-functions`, `check:db-function-sources`, `check:database-types`, and `check:db-function-catalog` pass.
+
+The earlier full database run passes all 144 commands through `20261020000004`.
+This focused correction does not repeat the full database or frontend suites.
+The selector leaves SQL unmapped; the named projection, retention, and schedule commands cover it.
+No production operation runs. The isolated stack stops, and the normal project ID and ports are restored.

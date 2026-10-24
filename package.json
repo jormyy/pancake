@@ -219,7 +219,12 @@
     "e2e:season-sim": "node scripts/season-sim/index.mjs",
     "test:db:cdn-player-identity-correction": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/cdn-player-identity-correction.sql",
     "test:db:live-snapshot-order": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql",
-    "test:db:skipped-week-certificates": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql"
+    "test:db:skipped-week-certificates": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/skipped-week-certificates.sql",
+    "test:db:sleeper-projections": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/sleeper-projections.sql",
+    "test:db:projection-schedule": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/projection-sync-schedule.sql",
+    "test:db:sleeper-fixture": "deno test --no-lock --check --allow-env --allow-read --allow-net=127.0.0.1,localhost supabase/functions/sync-sleeper-projections/dbFixture.test.ts -- --local-db",
+    "test:db:retention-indexes": "deno test --no-lock --check --allow-env --allow-read --allow-run=psql supabase/functions/sync-sleeper-projections/retentionIndexes.test.ts -- --local-db",
+    "test:db:retention-concurrency": "deno test --no-lock --check --allow-env --allow-read --allow-run=psql supabase/functions/sync-sleeper-projections/retentionConcurrency.test.ts -- --local-db"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",

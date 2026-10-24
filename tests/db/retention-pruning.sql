@@ -134,6 +134,36 @@ SELECT jobid,9860100006,'SELECT public.invoke_live_poll_if_due();','succeeded','
 FROM cron.job WHERE jobname='nba-live-poll';
 SELECT pg_temp.check_history(EXISTS(SELECT 1 FROM cron.job_run_details WHERE runid=9860100006),'active high frequency job fixture exists');
 
+INSERT INTO public.sync_runs(id,function_name,started_at,finished_at,status,error)
+SELECT md5('generic-retention-'||function_name||'-'||kind)::uuid,function_name,now()-age,now()-age,status,error
+FROM unnest(ARRAY['nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source']) function_name
+CROSS JOIN (VALUES ('older-success',interval '121 days','success',NULL::text),
+  ('latest-success',interval '120 days','success',NULL::text),
+  ('older-failure',interval '61 days','failed','failed'),('latest-failure',interval '60 days','failed','failed')) cases(kind,age,status,error);
+INSERT INTO public.edge_invocations(function_name,queued_at,reconciled_at,status_code,error_message)
+SELECT function_name,now()-age,now()-age,status_code,error
+FROM unnest(ARRAY['nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source']) function_name
+CROSS JOIN (VALUES (interval '121 days',200,NULL::text),(interval '120 days',200,NULL::text),
+  (interval '61 days',500,'failed'),(interval '60 days',500,'failed')) cases(age,status_code,error);
+INSERT INTO public.edge_invocations(id,function_name,queued_at,status_code,reconciled_at,worker_started_at,worker_finished_at,worker_status)
+OVERRIDING SYSTEM VALUE VALUES
+  (986080009,'unknown-new-source',now()-interval '121 days',200,NULL,NULL,NULL,NULL),
+  (986080010,'unknown-new-source',now()-interval '121 days',200,now()-interval '121 days',now()-interval '121 days',NULL,'running');
+INSERT INTO public.edge_invocations(id,function_name,queued_at,status_code,reconciled_at,worker_started_at,worker_status)
+OVERRIDING SYSTEM VALUE VALUES
+  (986080011,'crashed-worker',now()-interval '61 days',200,now()-interval '61 days',now()-interval '61 days','failed'),
+  (986080012,'crashed-worker',now()-interval '60 days',200,now()-interval '60 days',now()-interval '60 days','failed'),
+  (986080013,'crashed-worker-boundary',now()-interval '31 days',200,now()-interval '31 days',now()-interval '31 days','failed'),
+  (986080014,'crashed-worker-boundary',now()-interval '30 days',200,now()-interval '30 days',now()-interval '30 days','failed'),
+  (986080015,'crashed-worker-boundary',now()-interval '29 days',200,now()-interval '29 days',now()-interval '29 days','failed'),
+  (986080016,'crashed-worker',now()-interval '120 days',200,NULL,now()-interval '120 days','failed');
+CREATE TEMP TABLE retention_before AS SELECT
+  (SELECT count(*) FROM public.sync_runs) AS sync_runs,
+  (SELECT count(*) FROM public.edge_invocations) AS edge_invocations,
+  (SELECT count(*) FROM cron.job_run_details) AS cron_job_run_details,
+  (SELECT count(*) FROM public.projection_sync_runs) AS projection_sync_runs,
+  (SELECT count(*) FROM public.fantasypros_projection_rows) AS fantasypros_projection_rows;
+
 CREATE FUNCTION pg_temp.reject_cleanup_history_write() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'Cleanup attempts a protected history write on %.%',TG_TABLE_SCHEMA,TG_TABLE_NAME;
@@ -145,7 +175,7 @@ BEGIN
   FOR target IN SELECT namespace.nspname AS schema_name,relation.relname AS table_name
     FROM pg_class relation JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
     WHERE relation.relkind IN ('r','p') AND (
-      namespace.nspname='public' AND relation.relname NOT IN ('sync_runs','edge_invocations')
+      namespace.nspname='public' AND relation.relname NOT IN ('sync_runs','edge_invocations','projection_sync_runs','fantasypros_projection_rows','sleeper_projection_rows')
       OR namespace.nspname='private' AND relation.relname='retired_score_inputs'
     )
   LOOP
@@ -155,21 +185,37 @@ END;
 $$;
 
 SELECT public.prune_unbounded_history() AS prune_result \gset
-SELECT private.reconcile_edge_invocations();
+
 
 SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.weekly_lineups WHERE league_id='00000000-0000-0000-0000-000000098101'),'all season lineups survive');
 SELECT pg_temp.check_history((SELECT count(*)=12 FROM public.standings WHERE league_id='00000000-0000-0000-0000-000000098101'),'all intermediate and final standings survive');
 SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.roster_transactions WHERE league_id='00000000-0000-0000-0000-000000098101'),'all season transactions survive');
-SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.projection_sync_runs WHERE id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'daily projection runs survive');
-SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.fantasypros_projection_rows WHERE run_id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'projection source rows survive');
+SELECT pg_temp.check_history((SELECT count(*)=1 FROM public.projection_sync_runs WHERE id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'only recent undated projection run survives');
+SELECT pg_temp.check_history((SELECT count(*)=1 FROM public.fantasypros_projection_rows WHERE run_id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'old projection rows expire');
 SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.sync_runs WHERE function_name LIKE 'retention-%'),'unclassified operations survive');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.sync_runs WHERE id=md5('history-ops-old')::uuid),'old completed high frequency run pruned');
-SELECT pg_temp.check_history((SELECT count(*)=6 FROM public.sync_runs WHERE id IN(SELECT md5(value)::uuid FROM unnest(ARRAY['history-ops-boundary','history-ops-recent','history-ops-failure','history-daily-old','history-ops-error','history-ops-unfinished']) value)),'run boundary failures important jobs and unfinished work survive');
+SELECT pg_temp.check_history((SELECT count(*)=5 FROM public.sync_runs WHERE id IN(SELECT md5(value)::uuid FROM unnest(ARRAY['history-ops-boundary','history-ops-recent','history-ops-failure','history-daily-old','history-ops-error','history-ops-unfinished']) value)),'newest success and failure, boundary, and unfinished work survive');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.edge_invocations WHERE id=986080001),'old successful high frequency invocation pruned');
-SELECT pg_temp.check_history((SELECT count(*)=5 FROM public.edge_invocations WHERE id BETWEEN 986080002 AND 986080006),'invocation boundary failures and important jobs survive cleanup and reconciliation');
+SELECT pg_temp.check_history((SELECT count(*)=3 FROM public.edge_invocations WHERE id BETWEEN 986080002 AND 986080006),'invocation boundary failures and important jobs survive cleanup and reconciliation');
 SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.edge_invocations WHERE id IN(986080007,986080008)),'worker failures and unfinished outcomes survive even with HTTP 200');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM cron.job_run_details WHERE runid IN(9860100002,9860100006,9860100007)),'obsolete and current successful high frequency cron rows pruned');
-SELECT pg_temp.check_history((SELECT count(*)=4 FROM cron.job_run_details WHERE runid IN(9860100001,9860100003,9860100004,9860100005)),'cron boundary failures unknown and important jobs survive');
+SELECT pg_temp.check_history((SELECT count(*)=1 FROM cron.job_run_details WHERE runid IN(9860100001,9860100003,9860100004,9860100005)),'only cron cutoff boundary survives across all job names');
+SELECT pg_temp.check_history((SELECT count(*)=8 FROM public.sync_runs WHERE function_name IN('nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source')),
+  'every function retains its newest success and failure even when both are old');
+SELECT pg_temp.check_history((SELECT count(*)=10 FROM public.edge_invocations WHERE function_name IN('nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source')),
+  'every invocation source retains newest outcomes and pending reconciliation work');
+SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.edge_invocations WHERE id IN(986080011,986080013)),
+  'reconciled crashed workers expire after thirty days without a finish time');
+SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.edge_invocations WHERE id IN(986080012,986080014,986080015,986080016)),
+  'newest crashed failure, cutoff boundary, recent failure, and unreconciled crash survive');
+SELECT pg_temp.check_history((SELECT bool_and((:'prune_result'::jsonb->>entry.key)::bigint=entry.before_count-entry.after_count)
+  FROM retention_before b CROSS JOIN LATERAL (VALUES
+    ('sync_runs',b.sync_runs,(SELECT count(*) FROM public.sync_runs)),
+    ('edge_invocations',b.edge_invocations,(SELECT count(*) FROM public.edge_invocations)),
+    ('cron_job_run_details',b.cron_job_run_details,(SELECT count(*) FROM cron.job_run_details)),
+    ('projection_sync_runs',b.projection_sync_runs,(SELECT count(*) FROM public.projection_sync_runs)),
+    ('fantasypros_projection_rows',b.fantasypros_projection_rows,(SELECT count(*) FROM public.fantasypros_projection_rows))
+  ) entry(key,before_count,after_count)), 'all returned table counts equal observed deletions');
 DO $$
 DECLARE caller text; denied boolean;
 BEGIN

@@ -144,3 +144,17 @@ Rebuild from current source data, then check canonical scores, indexes, grants
 and the public security-invoker view. Do not restore old materialized rows.
 Check production readers, data size and dependencies before application.
 The local benchmark proves no production lock availability or device performance.
+
+## Sleeper and cleanup candidate
+
+The projection changes use `20261020000001` through `20261020000006`.
+They create the Sleeper player-game store, update projection readers and scheduling, and bound operational cleanup.
+They do not change the historical alias attestations above.
+The function catalog records the new completion and cleanup helpers.
+League history and NBA source tables retain their existing storage rules.
+Apply the schema before deploying `sync-sleeper-projections`.
+The scheduler uses the existing dispatch claims and invocation reconciliation.
+Migration `20261020000004` keeps game-day recovery independent of Monday and fixes compaction trigger permissions.
+Migration `20261020000005` replaces upcoming weekly snapshot rows, rejects obsolete team lines, and expires reconciled worker crashes.
+Migration `20261020000006` preserves filtered source rows and completed games after trades, and reports projection freshness.
+A frontend rollback keeps these compatible database changes applied.
