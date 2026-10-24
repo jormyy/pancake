@@ -1,5 +1,6 @@
 import { ProjectionCard } from '@/components/projections/ProjectionCard'
-import { spacing } from '@/constants/tokens'
+import { Text } from 'react-native'
+import { spacing, textStyles } from '@/constants/tokens'
 import type { LeagueProjectionRow } from '@/lib/projections'
 
 export function NextProjectionCard({ projection }: { projection: LeagueProjectionRow }) {
@@ -9,7 +10,6 @@ export function NextProjectionCard({ projection }: { projection: LeagueProjectio
     const nextGame = {
         ...projection,
         projection_date: projection.next_game_date ?? projection.projection_date,
-        projection_status: time,
         projection_source_label: [projection.projection_source_label, projection.projection_is_fresh === false ? 'Outdated' : null].filter(Boolean).join(' · '),
         projection_view: '',
         projection_fetched_at: null,
@@ -23,5 +23,12 @@ export function NextProjectionCard({ projection }: { projection: LeagueProjectio
         projection_turnovers: null,
     }
 
-    return <ProjectionCard projection={nextGame} title="Next game projection" style={{ padding: spacing.md, gap: 0 }} />
+    return (
+        <ProjectionCard
+            projection={nextGame}
+            title="Next game projection"
+            footer={time ? <Text style={textStyles.meta}>Tipoff {time}</Text> : null}
+            style={{ padding: spacing.md, gap: 0 }}
+        />
+    )
 }

@@ -64,6 +64,11 @@ describe('season dropdown', () => {
         expect(screen.root.findAllByType(type('Pressable'))).toHaveLength(0)
     })
 
+    it('uses at least 16-pixel select text to avoid iPhone focus zoom', async () => {
+        await render(React.createElement(WebSeasonSelector, { seasons: [2027, 2026], selectedSeason: 2027, onSelect: vi.fn() }))
+        expect(screen.root.findByType('select').props.style.fontSize).toBeGreaterThanOrEqual(16)
+    })
+
     it('uses the shared picker on native platforms', async () => {
         const onSelect = vi.fn()
         await render(React.createElement(SeasonSelector, { seasons: [2027, 2026], selectedSeason: 2027, onSelect }))
@@ -145,6 +150,29 @@ describe('player decision summary', () => {
             await act(async () => button.props.onPress())
             expect(onAdd).toHaveBeenCalledOnce()
         }
+    })
+
+    it('puts injury before the other metadata on narrow screens', async () => {
+        await render(React.createElement(PlayerHeader, {
+            player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], dynasty_rank: 100, injury_status: 'Out' }),
+            rosterStatus: { status: 'free_agent' }, leagueActive: true, actionLoading: false, compact: true, ...actions,
+        }))
+        const injury = screen.root.findAllByType(type('Badge')).find(node => node.props.label === 'Out')!
+        const core = injury.parent!
+        expect(core.children[0] === injury).toBe(true)
+        expect(core.findAllByType(type('PosTag'))).toHaveLength(3)
+        expect(core.findAllByType(type('Badge')).map(node => node.props.label)).toContain('Dynasty #100')
+    })
+
+    it('keeps the projection source status and shows tipoff separately', async () => {
+        const projection = {
+            next_game_date: '2026-10-24', next_game_opponent: 'vs BOS', next_game_time: '2026-10-24T23:00:00Z',
+            projection_status: 'GTD', projection_fantasy_points: 32, injury_status: null, projection_source_label: 'FantasyPros',
+        } as LeagueProjectionRow
+        await render(React.createElement(NextProjectionCard, { projection }))
+        expect(text()).toContain('GTD')
+        expect(text()).toContain('32.0')
+        expect(text()).toContain('Tipoff')
     })
 
     it('keeps ten decision stats, with fantasy points first and one season control', async () => {

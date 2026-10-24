@@ -29,7 +29,7 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     }))))
     await signIn(fixture)
     await open(`/player/${fixture.proposerPlayer.id}`)
-    const log = page.getByText('Game Log', { exact: true }).locator('..')
+    const log = page.getByRole('heading', { name: 'Recent games', exact: true }).locator('..')
     const rows = () => log.getByText('@ BOS', { exact: true }).count()
     await wait(async () => await rows() === 15)
     await press(button('Load more games'))
@@ -37,7 +37,11 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     await press(button('Load more games'))
     await wait(async () => await rows() === 31)
     assert.equal(await button('Load more games').count(), 0)
-    const history = page.getByText('League History', { exact: true }).locator('..')
+    const historyToggle = button('League history')
+    assert.equal(await historyToggle.getAttribute('aria-expanded'), 'false')
+    await press(historyToggle)
+    assert.equal(await historyToggle.getAttribute('aria-expanded'), 'true')
+    const history = historyToggle.locator('..')
     const transactions = () => history.getByText(fixture.proposer.team_name, { exact: true }).count()
     await wait(async () => await transactions() === 20)
     await press(history.getByText('Load More', { exact: true }))
@@ -45,8 +49,10 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     await press(history.getByText('Load More', { exact: true }))
     await wait(async () => await transactions() === 41)
     assert.equal(await history.getByText('Load More', { exact: true }).count(), 0)
+    const selects = await page.locator('select:visible').evaluateAll(nodes => nodes.map(node => ({ label: node.getAttribute('aria-label'), font: parseFloat(getComputedStyle(node).fontSize) })))
+    for (const select of selects) assert.ok(select.font >= 16, `${select.label}: ${select.font}px select can cause iPhone focus zoom`)
     await inspect()
-    return { leagueId: fixture.league.id, gamePages: [15, 30, 31], transactionPages: [20, 40, 41], exhausted: true }
+    return { leagueId: fixture.league.id, gamePages: [15, 30, 31], transactionPages: [20, 40, 41], exhausted: true, selects }
   })
   await check('player-filter-sheets-and-clear', async () => {
     const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })

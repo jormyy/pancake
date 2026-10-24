@@ -122,17 +122,17 @@ export function PlayerHeader({
                     <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={compact ? 1 : 2} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                     <View style={styles.metaRow} onLayout={event => setMetadataWidth(event.nativeEvent.layout.width)}>
                         <View style={styles.requiredMetadata} onLayout={event => setRequiredMetadataWidth(event.nativeEvent.layout.width)}>
-                            {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
-                            {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                            {player.dynasty_rank != null ? (
-                                <Badge label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" />
-                            ) : null}
                             {player.injury_status ? (
                                 <Badge
                                     label={player.injury_status}
                                     color={INJURY_COLORS[player.injury_status] ?? colors.textMuted}
                                     variant="solid"
                                 />
+                            ) : null}
+                            {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
+                            {eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
+                            {player.dynasty_rank != null ? (
+                                <Badge label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" />
                             ) : null}
                         </View>
                         {showExperience ? (
@@ -204,8 +204,8 @@ const styles = StyleSheet.create({
     info: { flex: 1, minWidth: 0, gap: spacing.xs },
     name: { fontFamily: fontFamily.display, fontSize: fontSize['2xl'], lineHeight: 28, fontWeight: fontWeight.bold, color: colors.textPrimary },
     nameCompact: { fontSize: fontSize.xl, lineHeight: 24 },
-    metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 20, overflow: 'hidden' },
-    requiredMetadata: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexShrink: 0 },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 20 },
+    requiredMetadata: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexShrink: 1, flexWrap: 'wrap' },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
 
     actionWrap: { minWidth: 76, minHeight: 44, flexShrink: 0, justifyContent: 'center' },

@@ -28,7 +28,7 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
                     backgroundColor: colors.bgCard,
                     color: colors.textPrimary,
                     fontFamily: fontFamily.control,
-                    fontSize: fontSize.sm,
+                    fontSize: fontSize.lg,
                     fontWeight: fontWeight.semibold,
                     cursor: 'pointer',
                 }}
