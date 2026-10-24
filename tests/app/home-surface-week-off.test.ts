@@ -49,3 +49,22 @@ it('shows a fresh saved reason without another request', async () => {
     expect(heading()).toBe('Bye week')
     expect(mocks.from).not.toHaveBeenCalled()
 })
+
+it('keeps the current league reason when a former league read finishes late', async () => {
+    let finish!: (value: unknown) => void
+    mocks.from.mockReturnValueOnce(query(new Promise(resolve => { finish = resolve })))
+    mocks.from.mockReturnValueOnce(query(Promise.resolve({ data: { id: 'new', season_year: 2027, skipped_weeks: [1] } })))
+    await mount()
+    await act(async () => screen.update(React.createElement(WeekOffNotice, { leagueId: 'new', onBrowse: vi.fn() })))
+    expect(heading()).toBe('Skipped week')
+    await act(async () => finish({ data: { id: 'old', season_year: 2027, skipped_weeks: [] } }))
+    expect(heading()).toBe('Skipped week')
+})
+
+it('opens Players from the notice', async () => {
+    const browse = vi.fn()
+    mocks.cached.mockReturnValue({ day: '2026-10-24', reason: null, savedAt: Date.now() })
+    await act(async () => { screen = create(React.createElement(WeekOffNotice, { leagueId: 'league', onBrowse: browse })) })
+    await act(async () => screen.root.findByType('Button' as React.ElementType).props.onPress())
+    expect(browse).toHaveBeenCalledOnce()
+})
